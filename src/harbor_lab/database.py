@@ -9,6 +9,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from harbor_lab.results import JobRecord, duration_seconds
+from harbor_lab.schemas import CanaryDriftObservation
 
 
 def schema_path() -> Path:
@@ -315,25 +316,47 @@ def digest_trials(database_url: str, day: date) -> list[tuple[Any, ...]]:
         )
 
 
-def canary_drift_observations(database_url: str, day: date) -> list[tuple[Any, ...]]:
+def canary_drift_observations(
+    database_url: str, day: date
+) -> list[CanaryDriftObservation]:
     with psycopg.connect(database_url, connect_timeout=2) as connection:
-        return list(
-            connection.execute(
-                """
-                SELECT
-                    task_name,
-                    agent_name,
-                    primary_reward,
-                    baseline_n,
-                    baseline_mean,
-                    baseline_stddev,
-                    task_version_changed,
-                    is_harness_drift_suspect,
-                    drift_reason
-                FROM canary_drift_observations
-                WHERE observation_date = %s
-                ORDER BY task_name, agent_name, trial_id
-                """,
-                (day,),
-            ).fetchall()
+        rows = connection.execute(
+            """
+            SELECT
+                task_name,
+                task_version,
+                agent_name,
+                reward,
+                attempt_count,
+                exception_count,
+                baseline_n,
+                baseline_mean,
+                baseline_stddev,
+                previous_task_version,
+                task_version_changed,
+                is_harness_drift_suspect,
+                drift_reason
+            FROM canary_drift_observations
+            WHERE observation_date = %s
+            ORDER BY task_name, agent_name
+            """,
+            (day,),
+        ).fetchall()
+    return [
+        CanaryDriftObservation(
+            task_name=str(row[0]),
+            task_version=str(row[1]),
+            agent_name=str(row[2]),
+            reward=float(row[3]) if row[3] is not None else None,
+            attempt_count=int(row[4]),
+            exception_count=int(row[5]),
+            baseline_n=int(row[6]),
+            baseline_mean=float(row[7]) if row[7] is not None else None,
+            baseline_stddev=float(row[8]) if row[8] is not None else None,
+            previous_task_version=str(row[9]) if row[9] is not None else None,
+            task_version_changed=bool(row[10]),
+            is_harness_drift_suspect=bool(row[11]),
+            drift_reason=str(row[12]) if row[12] is not None else None,
         )
+        for row in rows
+    ]

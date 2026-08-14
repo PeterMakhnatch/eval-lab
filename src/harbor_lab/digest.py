@@ -14,6 +14,7 @@ from harbor_lab import database
 from harbor_lab.queue import DirectoryQueue, load_events
 from harbor_lab.runner import database_url_from_environment
 from harbor_lab.schemas import (
+    CanaryDriftObservation,
     HeadlessDoctorReport,
     QueueEvent,
     QueueReason,
@@ -34,19 +35,6 @@ class DigestTrial:
 
 
 TrialLoader = Callable[[date], list[DigestTrial]]
-
-
-@dataclass(frozen=True)
-class CanaryDriftObservation:
-    task_name: str
-    agent_name: str
-    reward: float | None
-    baseline_n: int
-    baseline_mean: float | None
-    baseline_stddev: float | None
-    task_version_changed: bool
-    is_harness_drift_suspect: bool
-    drift_reason: str | None
 
 
 DriftLoader = Callable[[date], list[CanaryDriftObservation]]
@@ -95,7 +83,7 @@ class DigestRenderer:
         policy_by_job = self._policy_by_job(events)
         quarantine_events = [
             event
-            for event in report_events
+            for event in period_events + report_events
             if event.event in {"nightly_quarantined", "tick_quarantined"}
         ]
         is_quarantined = bool(quarantine_events) or (
@@ -155,8 +143,8 @@ class DigestRenderer:
         if drift:
             lines.extend(
                 [
-                    "| task | agent | reward | trailing 7-day mean ± σ | n | assessment |",
-                    "|---|---|---:|---:|---:|---|",
+                    "| task | version | agent | reward | 7-day mean ± σ | n | assessment |",
+                    "|---|---|---|---:|---:|---:|---|",
                 ]
             )
             for observation in drift:
@@ -172,8 +160,9 @@ class DigestRenderer:
                     else "within baseline"
                 )
                 lines.append(
-                    f"| {_cell(observation.task_name)} | {_cell(observation.agent_name)} | "
-                    f"{reward} | {baseline} | {observation.baseline_n} | "
+                    f"| {_cell(observation.task_name)} | {_cell(observation.task_version)} | "
+                    f"{_cell(observation.agent_name)} | {reward} | {baseline} | "
+                    f"{observation.baseline_n} | "
                     f"{_cell(assessment)} |"
                 )
         else:
@@ -183,6 +172,11 @@ class DigestRenderer:
         exceptions = Counter(
             "harness_failure" for trial in trials + early_trials if trial.exception_type
         )
+        exceptions["harness_failure"] += sum(
+            observation.is_harness_drift_suspect for observation in drift
+        )
+        if not exceptions["harness_failure"]:
+            del exceptions["harness_failure"]
         lines.extend(
             [
                 "",
@@ -281,21 +275,7 @@ class DigestRenderer:
 
     @staticmethod
     def _load_canary_drift(day: date) -> list[CanaryDriftObservation]:
-        rows = database.canary_drift_observations(database_url_from_environment(), day)
-        return [
-            CanaryDriftObservation(
-                task_name=str(row[0] or ""),
-                agent_name=str(row[1] or ""),
-                reward=float(row[2]) if row[2] is not None else None,
-                baseline_n=int(row[3] or 0),
-                baseline_mean=float(row[4]) if row[4] is not None else None,
-                baseline_stddev=float(row[5]) if row[5] is not None else None,
-                task_version_changed=bool(row[6]),
-                is_harness_drift_suspect=bool(row[7]),
-                drift_reason=str(row[8]) if row[8] is not None else None,
-            )
-            for row in rows
-        ]
+        return database.canary_drift_observations(database_url_from_environment(), day)
 
     @staticmethod
     def _events_on(events: list[QueueEvent], day: date) -> list[QueueEvent]:
@@ -342,9 +322,11 @@ class DigestRenderer:
         quarantine_events: list[QueueEvent],
     ) -> list[str]:
         if report is not None:
-            return [
+            failed = [
                 name for name, succeeded in report.checks.model_dump().items() if not succeeded
             ]
+            if failed:
+                return failed
         for event in reversed(quarantine_events):
             prefix = "headless_doctor_failed:"
             if event.reason_code and event.reason_code.startswith(prefix):

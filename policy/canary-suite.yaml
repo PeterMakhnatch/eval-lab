@@ -1,6 +1,6 @@
 version: 1
 attempts: 3
-agents: [codex, claude-code]
+agents: [codex]
 members:
   - name: transaction-reconciliation
     task_path: tasks/transaction-reconciliation
@@ -8,12 +8,12 @@ members:
     task_digest: sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820
     source_ref: local/transaction-reconciliation@0.1.0
     est_cost_usd: 2.5
-  - name: terminal-bench-query-optimize
-    task_path: tasks/query-optimize
-    task_version: harbor-hub-revision-4
-    task_digest: sha256:d593fa7d67498305ebcc32605455abd16e6d5495f6f455b458c024572617bad1
-    source_ref: terminal-bench/query-optimize@4
-    source_content_hash: sha256:169496ea6843cb403b0860132675baf7aa0df0ac8b86221068e27d86395260f4
+  - name: terminal-bench-html-js-filter
+    task_path: tasks/terminal-bench-html-js-filter
+    task_version: terminal-bench/terminal-bench@1
+    task_digest: sha256:36bef48eb1f5a2ed2211705ddd23dab1f98cb0158196e892fad8d3dd3a4aa956
+    source_ref: terminal-bench/terminal-bench@1
+    source_task_name: html-js-filter
     est_cost_usd: 2.5
   - name: event-summary
     task_path: tasks/event-summary

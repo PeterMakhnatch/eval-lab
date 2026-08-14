@@ -126,62 +126,97 @@ JOIN rewards r ON r.trial_id = t.id
 WHERE t.exception_type IS NULL
 GROUP BY t.task_name, t.agent_name, COALESCE(t.model_name, 'adhoc'), r.name;
 
-CREATE OR REPLACE VIEW canary_drift_observations AS
-WITH canary_trials AS (
-    SELECT
-        j.job_name,
-        t.id AS trial_id,
-        t.task_name,
-        t.task_checksum,
-        t.agent_name,
-        t.primary_reward,
-        t.exception_type,
-        t.finished_at::timestamptz AS finished_at,
-        (t.finished_at::timestamptz AT TIME ZONE current_setting('TIMEZONE'))::date
-            AS observation_date
-    FROM trials t
-    JOIN jobs j ON j.id = t.job_id
-    WHERE j.job_name LIKE 'canary-%'
-      AND t.finished_at IS NOT NULL
-), with_baseline AS (
-    SELECT
-        current_trial.*,
-        baseline.n AS baseline_n,
-        baseline.mean AS baseline_mean,
-        baseline.stddev AS baseline_stddev,
-        baseline.task_checksum AS baseline_task_checksum
-    FROM canary_trials current_trial
-    LEFT JOIN LATERAL (
-        SELECT
-            count(*) AS n,
-            avg(prior.primary_reward) AS mean,
-            stddev_samp(prior.primary_reward) AS stddev,
-            mode() WITHIN GROUP (ORDER BY prior.task_checksum) AS task_checksum
-        FROM canary_trials prior
-        WHERE prior.task_name = current_trial.task_name
-          AND prior.agent_name = current_trial.agent_name
-          AND prior.exception_type IS NULL
-          AND prior.finished_at >= date_trunc('day', current_trial.finished_at) - interval '7 days'
-          AND prior.finished_at < date_trunc('day', current_trial.finished_at)
-    ) baseline ON true
-)
+DROP VIEW IF EXISTS canary_trailing_7d;
+DROP VIEW IF EXISTS canary_drift_observations;
+DROP VIEW IF EXISTS canary_daily_outcomes;
+DROP VIEW IF EXISTS canary_trial_observations;
+
+CREATE VIEW canary_trial_observations AS
 SELECT
-    *,
-    baseline_n > 0
-        AND task_checksum IS DISTINCT FROM baseline_task_checksum AS task_version_changed,
+    (
+        t.finished_at::timestamptz
+        AT TIME ZONE current_setting('TIMEZONE')
+    )::date AS observation_date,
+    j.lab_metadata #>> '{experiment,task}' AS task_name,
+    j.lab_metadata #>> '{experiment,task_version}' AS task_version,
+    t.agent_name,
+    t.primary_reward,
+    t.exception_type
+FROM trials t
+JOIN jobs j ON j.id = t.job_id
+WHERE t.finished_at IS NOT NULL
+  AND j.lab_metadata #>> '{experiment,policy_rule}' = 'canary';
+
+CREATE VIEW canary_daily_outcomes AS
+SELECT
+    observation_date,
+    task_name,
+    task_version,
+    agent_name,
+    count(*) AS attempt_count,
+    count(*) FILTER (WHERE exception_type IS NOT NULL) AS exception_count,
+    avg(primary_reward) FILTER (WHERE exception_type IS NULL) AS reward
+FROM canary_trial_observations
+GROUP BY observation_date, task_name, task_version, agent_name;
+
+CREATE VIEW canary_drift_observations AS
+SELECT
+    current.observation_date,
+    current.task_name,
+    current.task_version,
+    current.agent_name,
+    current.attempt_count,
+    current.exception_count,
+    current.reward,
+    COALESCE(baseline.baseline_n, 0) AS baseline_n,
+    baseline.baseline_mean,
+    baseline.baseline_stddev,
+    previous.task_version AS previous_task_version,
+    previous.task_version IS NOT NULL
+        AND previous.task_version IS DISTINCT FROM current.task_version
+        AS task_version_changed,
     CASE
-        WHEN baseline_n = 0 THEN false
-        WHEN task_checksum IS DISTINCT FROM baseline_task_checksum THEN true
-        WHEN primary_reward IS NULL OR baseline_mean IS NULL THEN false
-        ELSE abs(primary_reward - baseline_mean) > COALESCE(baseline_stddev, 0)
+        WHEN previous.task_version IS NOT NULL
+             AND previous.task_version IS DISTINCT FROM current.task_version THEN true
+        WHEN current.exception_count > 0 THEN true
+        WHEN baseline.baseline_n < 3 OR current.reward IS NULL
+             OR baseline.baseline_mean IS NULL THEN false
+        ELSE abs(current.reward - baseline.baseline_mean)
+            > COALESCE(baseline.baseline_stddev, 0)
     END AS is_harness_drift_suspect,
     CASE
-        WHEN baseline_n = 0 THEN NULL
-        WHEN task_checksum IS DISTINCT FROM baseline_task_checksum THEN 'task_version_changed'
-        WHEN primary_reward IS NOT NULL
-             AND baseline_mean IS NOT NULL
-             AND abs(primary_reward - baseline_mean) > COALESCE(baseline_stddev, 0)
+        WHEN previous.task_version IS NOT NULL
+             AND previous.task_version IS DISTINCT FROM current.task_version
+            THEN 'task_version_changed'
+        WHEN current.exception_count > 0 THEN 'canary_exception'
+        WHEN baseline.baseline_n >= 3
+             AND current.reward IS NOT NULL
+             AND baseline.baseline_mean IS NOT NULL
+             AND abs(current.reward - baseline.baseline_mean)
+                > COALESCE(baseline.baseline_stddev, 0)
             THEN 'reward_excursion'
         ELSE NULL
     END AS drift_reason
-FROM with_baseline;
+FROM canary_daily_outcomes current
+LEFT JOIN LATERAL (
+    SELECT
+        count(*) AS baseline_n,
+        avg(history.primary_reward) AS baseline_mean,
+        stddev_samp(history.primary_reward) AS baseline_stddev
+    FROM canary_trial_observations history
+    WHERE history.task_name = current.task_name
+      AND history.agent_name = current.agent_name
+      AND history.task_version = current.task_version
+      AND history.exception_type IS NULL
+      AND history.observation_date >= current.observation_date - interval '7 days'
+      AND history.observation_date < current.observation_date
+) baseline ON true
+LEFT JOIN LATERAL (
+    SELECT prior.task_version
+    FROM canary_daily_outcomes prior
+    WHERE prior.task_name = current.task_name
+      AND prior.agent_name = current.agent_name
+      AND prior.observation_date < current.observation_date
+    ORDER BY prior.observation_date DESC
+    LIMIT 1
+) previous ON true;

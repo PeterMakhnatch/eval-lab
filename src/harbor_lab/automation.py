@@ -174,6 +174,7 @@ class GuardedTick:
 @dataclass(frozen=True)
 class NightlyResult:
     report: HeadlessDoctorReport
+    quarantined: bool
     enqueued: int
     dispatched: int
     digest_path: Path
@@ -199,6 +200,7 @@ class NightlyCycle:
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
         report = self.doctor.run()
+        quarantined = not report.healthy
         enqueued = 0
         dispatched = 0
         if report.healthy:
@@ -206,6 +208,7 @@ class NightlyCycle:
                 if self.canary_enqueuer is not None:
                     enqueued = self.canary_enqueuer(target_date)
             except (OSError, RuntimeError, ValueError) as exc:
+                quarantined = True
                 self.executor.queue.append_event(
                     QueueEvent(
                         event_id=new_ulid(),
@@ -233,6 +236,7 @@ class NightlyCycle:
         )
         return NightlyResult(
             report=report,
+            quarantined=quarantined,
             enqueued=enqueued,
             dispatched=dispatched,
             digest_path=digest_path,

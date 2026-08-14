@@ -15,7 +15,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from harbor_lab.results import load_job
-from harbor_lab.schemas import ExperimentMatrix, MatrixRun
+from harbor_lab.schemas import ExperimentMatrix, MatrixRun, RunProvenance
 
 CONTROL_AGENTS = {"oracle", "nop"}
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
@@ -32,6 +32,7 @@ class RunRequest:
     concurrency: int = 1
     attempts: int = 1
     allow_billable: bool = False
+    provenance: RunProvenance | None = None
 
 
 def tool_version(command: str) -> str | None:
@@ -150,6 +151,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             },
             "repository": git_state(repo_root),
         }
+        if request.provenance is not None:
+            metadata["experiment"] = request.provenance.model_dump(mode="json")
         (job_dir / "lab-metadata.json").write_text(
             json.dumps(metadata, indent=2, sort_keys=True) + "\n"
         )

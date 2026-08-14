@@ -29,6 +29,7 @@ from harbor_lab.schemas import (
     QueueEvent,
     QueueReason,
     QueueState,
+    RunProvenance,
     StandingApprovalsPolicy,
 )
 
@@ -478,8 +479,43 @@ class Executor:
             concurrency=spec.concurrency,
             attempts=spec.attempts,
             allow_billable=spec.billable,
+            provenance=RunProvenance(
+                spec_id=str(spec.spec_id),
+                task=spec.task,
+                task_version=spec.task_version,
+                verifier_digest=spec.verifier_digest,
+                policy_rule=spec.policy_rule,
+            ),
         )
         return self._runner(request)
+
+    def download_dataset(self, dataset_ref: str, output_dir: Path) -> Path:
+        """Download an immutable Harbor dataset through the executor boundary."""
+        if "@" not in dataset_ref:
+            raise ValueError("dataset downloads require an explicit immutable version")
+        ref = dataset_ref.rsplit("@", 1)[1].lower()
+        if ref in {"latest", "head", "main", "master"}:
+            raise ValueError("dataset downloads cannot use a mutable ref")
+        destination = output_dir.resolve()
+        if destination.exists() and any(destination.iterdir()):
+            raise FileExistsError(f"dataset download destination is not empty: {destination}")
+        destination.mkdir(parents=True, exist_ok=True)
+        completed = subprocess.run(
+            [
+                "harbor",
+                "dataset",
+                "download",
+                dataset_ref,
+                "--output-dir",
+                str(destination),
+                "--export",
+            ],
+            cwd=self.repo_root,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise RuntimeError(f"Harbor dataset download exited {completed.returncode}")
+        return destination
 
     def execute_direct(self, request: RunRequest, *, ingest: bool = True) -> Path:
         if request.agent not in CONTROL_AGENTS:

@@ -185,6 +185,15 @@ class DailyDigestData(ContractModel):
     waiting_proposals: list[str] = Field(default_factory=list)
 
 
+class RunProvenance(ContractModel):
+    schema_version: Literal[1] = 1
+    spec_id: str
+    task: str
+    task_version: str | None = None
+    verifier_digest: str | None = None
+    policy_rule: str | None = None
+
+
 class CanaryMember(ContractModel):
     name: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
     task_path: str = Field(min_length=1)
@@ -195,6 +204,7 @@ class CanaryMember(ContractModel):
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
+    source_task_name: str | None = None
     est_cost_usd: float = Field(gt=0)
 
     @field_validator("task_path")
@@ -224,4 +234,31 @@ class CanarySuite(ContractModel):
         names = [member.name for member in self.members]
         if len(names) != len(set(names)):
             raise ValueError("canary member names must be unique")
+        return self
+
+
+class CanaryDriftObservation(ContractModel):
+    schema_version: Literal[1] = 1
+    task_name: str
+    task_version: str
+    agent_name: str
+    reward: float | None = None
+    attempt_count: int = Field(ge=0)
+    exception_count: int = Field(ge=0)
+    baseline_n: int = Field(ge=0)
+    baseline_mean: float | None = None
+    baseline_stddev: float | None = Field(default=None, ge=0)
+    previous_task_version: str | None = None
+    task_version_changed: bool
+    is_harness_drift_suspect: bool
+    drift_reason: Literal[
+        "task_version_changed",
+        "reward_excursion",
+        "canary_exception",
+    ] | None = None
+
+    @model_validator(mode="after")
+    def suspect_has_reason(self) -> CanaryDriftObservation:
+        if self.is_harness_drift_suspect != (self.drift_reason is not None):
+            raise ValueError("drift suspects require a reason and clean rows require none")
         return self

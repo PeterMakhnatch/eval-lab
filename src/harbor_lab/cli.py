@@ -9,7 +9,7 @@ from pathlib import Path
 
 from harbor_lab import __version__, database
 from harbor_lab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
-from harbor_lab.canary import CanaryEnqueuer
+from harbor_lab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
 from harbor_lab.digest import DigestRenderer
 from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
 from harbor_lab.results import JobRecord, load_job, load_jobs
@@ -78,6 +78,16 @@ def parser() -> argparse.ArgumentParser:
 
     nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")
     nightly.add_argument("--date", dest="report_date", type=date.fromisoformat)
+
+    canary = commands.add_parser("canary", help="Manage version-pinned nightly canaries")
+    canary_commands = canary.add_subparsers(dest="canary_command", required=True)
+    import_task = canary_commands.add_parser(
+        "import-terminal-bench",
+        help="Import one task through an immutable Harbor dataset download",
+    )
+    import_task.add_argument("--dataset-ref", required=True)
+    import_task.add_argument("--task-name", required=True)
+    import_task.add_argument("--destination", type=Path, required=True)
 
     run = commands.add_parser("run", help="Run one explicitly named Harbor job")
     run.add_argument("--task", type=Path, required=True)
@@ -238,6 +248,18 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             print(f"dispatched {result.dispatched} experiment(s)")
             print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
             return 0 if result.report.healthy else 1
+        if args.command == "canary" and args.canary_command == "import-terminal-bench":
+            executor = Executor.from_repo(root)
+            imported = TerminalBenchCanaryImporter(
+                executor=executor,
+                repo_root=root,
+            ).import_task(
+                dataset_ref=args.dataset_ref,
+                task_name=args.task_name,
+                destination=_resolve(root, args.destination),
+            )
+            print(f"imported: {imported}")
+            return 0
         if args.command == "approve":
             path = DirectoryQueue(root / "queue").approve(args.spec_id, actor=args.actor)
             print(f"approved: {path}")
@@ -277,8 +299,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             print(f"digest: {result.digest_path}")
             print(f"enqueued: {result.enqueued}")
             print(f"dispatched: {result.dispatched}")
-            print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
-            return 0 if result.report.healthy else 1
+            print(f"quarantined: {'yes' if result.quarantined else 'no'}")
+            return 1 if result.quarantined else 0
         if args.command == "run":
             return _run_command(args, root)
         if args.command == "matrix":

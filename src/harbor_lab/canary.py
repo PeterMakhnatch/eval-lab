@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -80,6 +82,7 @@ class CanaryEnqueuer:
                         est_cost_usd=member.est_cost_usd,
                         policy_rule="canary",
                         task_version=member.task_version,
+                        verifier_digest=member.task_digest,
                     )
                 )
                 if not decision.admitted or destination.parent.name != "approved":
@@ -110,3 +113,42 @@ class CanaryEnqueuer:
                     f"canary task digest mismatch for {member.name}; "
                     "update the pinned version and digest through human review"
                 )
+
+
+class TerminalBenchCanaryImporter:
+    """Import one task from a version-pinned Harbor dataset download."""
+
+    def __init__(self, *, executor: Executor, repo_root: Path) -> None:
+        self.executor = executor
+        self.repo_root = repo_root.resolve()
+
+    def import_task(
+        self,
+        *,
+        dataset_ref: str,
+        task_name: str,
+        destination: Path,
+    ) -> Path:
+        target = destination.resolve()
+        if target != self.repo_root and self.repo_root not in target.parents:
+            raise ValueError("import destination must stay inside the repository")
+        if target.exists():
+            raise FileExistsError(f"import destination already exists: {target}")
+        with tempfile.TemporaryDirectory(prefix="harbor-lab-canary-") as temporary:
+            downloaded = self.executor.download_dataset(dataset_ref, Path(temporary))
+            matches = [
+                path.parent
+                for path in downloaded.rglob("task.toml")
+                if path.parent.name == task_name
+            ]
+            if len(matches) != 1:
+                available = sorted(
+                    path.parent.name for path in downloaded.rglob("task.toml")
+                )
+                raise ValueError(
+                    f"expected one downloaded task named {task_name}, found {len(matches)}; "
+                    f"available: {', '.join(available)}"
+                )
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(matches[0], target)
+        return target

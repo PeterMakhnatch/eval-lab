@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import json
 
-from calibration.agreement import compare_document, extract_verdicts, per_criterion_rates
+from calibration.agreement import (
+    action_yes_mismatches,
+    compare_document,
+    extract_verdicts,
+    per_criterion_rates,
+)
 from calibration.inventory import (
     FAMILIES,
     REQUIRED_VARIANTS,
@@ -92,6 +97,24 @@ def test_agreement_is_perfect_when_judge_repeats_gold() -> None:
     rates = per_criterion_rates(agreements)
     assert rates
     assert all(rate == 1.0 for rate in rates.values())
+
+
+def test_yes_action_verdicts_match_corrective_actions() -> None:
+    """A sealed AQ yes must be visible in that document's Corrective Actions.
+
+    Catches copy-through of *_correct() onto a document that never proposed
+    the coupling, detection, or retry-bound work.
+    """
+    inventory = corpus_inventory()
+    failures: list[str] = []
+    for family, docs in inventory.families.items():
+        for doc in docs:
+            markdown = doc.path.read_text(encoding="utf-8")
+            key = load_answer_key(doc)
+            missed = action_yes_mismatches(family, markdown, key)
+            if missed:
+                failures.append(f"{family}/{doc.doc_id}: {missed}")
+    assert failures == []
 
 
 def test_agreement_drops_when_a_verdict_is_flipped() -> None:

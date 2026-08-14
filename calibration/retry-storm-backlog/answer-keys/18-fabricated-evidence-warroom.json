@@ -39,8 +39,8 @@
         "rationale": "An action caps attempts and/or adds backoff, DLQ, retry budget, or a gateway breaker."
       },
       "closes_the_detection_gap": {
-        "verdict": "yes",
-        "rationale": "An action pages on lag, slot saturation, or re-routes the queue-depth alert."
+        "verdict": "no",
+        "rationale": "Actions are backoff, DLQ, retry budget, and export of an invented board \u2014 no lag, slot, or queue-depth page."
       },
       "actions_are_actionable": {
         "verdict": "yes",

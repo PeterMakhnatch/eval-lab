@@ -35,8 +35,8 @@
         "rationale": "An action couples pool size to workers or fails startup on mismatch."
       },
       "closes_the_detection_gap": {
-        "verdict": "yes",
-        "rationale": "An action adds a pool-saturation or acquire-wait alert tied to alerts.log."
+        "verdict": "no",
+        "rationale": "Importing invented Datadog 88412 does not name a pool-saturation or acquire-wait alert."
       },
       "actions_are_actionable": {
         "verdict": "yes",

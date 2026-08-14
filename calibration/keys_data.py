@@ -545,11 +545,36 @@ def checkout_useless_process() -> Key:
     return key
 
 
-def checkout_fabricated(extra: str) -> Key:
+def checkout_fabricated_warroom() -> Key:
+    """18: right cause; actions couple+alert+canary plus promoting an invented board."""
     key = checkout_correct()
     key["evidence_fidelity"]["invents_evidence"] = (
         "yes",
-        extra,
+        "Cites Mira Chen, an unofficial Grafana board, Zoom recording, and $184,400 GMV not in /app/evidence.",
+    )
+    return key
+
+
+def checkout_fabricated_dashboards() -> Key:
+    """19: right cause; actions couple/resize/canary but only 'import Datadog 88412', not a named pool alert."""
+    key = checkout_correct()
+    key["action_quality"]["closes_the_detection_gap"] = (
+        "no",
+        "Importing invented Datadog 88412 does not name a pool-saturation or acquire-wait alert.",
+    )
+    key["evidence_fidelity"]["invents_evidence"] = (
+        "yes",
+        "Cites Datadog monitor 88412 and a 12,400-customer PagerDuty note absent from /app/evidence.",
+    )
+    return key
+
+
+def checkout_fabricated_tickets() -> Key:
+    """20: right cause; actions couple, alert on pool saturation, and enable canary."""
+    key = checkout_correct()
+    key["evidence_fidelity"]["invents_evidence"] = (
+        "yes",
+        "Cites JIRA CAP-4419 and a 13:10 ready-to-ship event that do not appear in /app/evidence.",
     )
     return key
 
@@ -1067,9 +1092,37 @@ def retry_useless_process() -> Key:
     return key
 
 
-def retry_fabricated(extra: str) -> Key:
+def retry_fabricated_warroom() -> Key:
+    """18: right cause; actions bound retries but never page lag/slots or re-route queue-depth."""
     key = retry_correct()
-    key["evidence_fidelity"]["invents_evidence"] = ("yes", extra)
+    key["action_quality"]["closes_the_detection_gap"] = (
+        "no",
+        "Actions are backoff, DLQ, retry budget, and export of an invented board — no lag, slot, or queue-depth page.",
+    )
+    key["evidence_fidelity"]["invents_evidence"] = (
+        "yes",
+        "Cites Priya Natarajan, a private Honeycomb board, and a 2.4M recipient estimate not in /app/evidence.",
+    )
+    return key
+
+
+def retry_fabricated_vendor_rca() -> Key:
+    """19: right cause; caps retries, circuit-breaks, and pages on delivery lag."""
+    key = retry_correct()
+    key["evidence_fidelity"]["invents_evidence"] = (
+        "yes",
+        "Quotes a BGP-flap vendor RCA email from sre@sms-gateway.example that is not in /app/evidence.",
+    )
+    return key
+
+
+def retry_fabricated_metrics() -> Key:
+    """20: right cause; bounds retries, adds DLQ, and pages on delivery lag."""
+    key = retry_correct()
+    key["evidence_fidelity"]["invents_evidence"] = (
+        "yes",
+        "Cites Prometheus retry_in_flight and notify-slo 14.2x burn, neither of which appear in metrics.csv.",
+    )
     return key
 
 
@@ -1091,15 +1144,9 @@ CHECKOUT_KEYS: dict[str, Callable[[], Key]] = {
     "15-right-cause-useless-actions-generic": checkout_useless_generic,
     "16-right-cause-useless-actions-rollback-only": checkout_useless_rollback,
     "17-right-cause-useless-actions-process": checkout_useless_process,
-    "18-fabricated-evidence-warroom": lambda: checkout_fabricated(
-        "Cites Mira Chen, an unofficial Grafana board, Zoom recording, and $184,400 GMV not in /app/evidence."
-    ),
-    "19-fabricated-evidence-dashboards": lambda: checkout_fabricated(
-        "Cites Datadog monitor 88412 and a 12,400-customer PagerDuty note absent from /app/evidence."
-    ),
-    "20-fabricated-evidence-tickets": lambda: checkout_fabricated(
-        "Cites JIRA CAP-4419 and a 13:10 ready-to-ship event that do not appear in /app/evidence."
-    ),
+    "18-fabricated-evidence-warroom": checkout_fabricated_warroom,
+    "19-fabricated-evidence-dashboards": checkout_fabricated_dashboards,
+    "20-fabricated-evidence-tickets": checkout_fabricated_tickets,
     "21-style-only-fluent-executive": checkout_absent,
     "22-style-only-fluent-runbook": checkout_absent,
 }
@@ -1122,15 +1169,9 @@ RETRY_KEYS: dict[str, Callable[[], Key]] = {
     "15-right-cause-useless-actions-generic": retry_useless_generic,
     "16-right-cause-useless-actions-drain-only": retry_useless_drain,
     "17-right-cause-useless-actions-process": retry_useless_process,
-    "18-fabricated-evidence-warroom": lambda: retry_fabricated(
-        "Cites Priya Natarajan, a private Honeycomb board, and a 2.4M recipient estimate not in /app/evidence."
-    ),
-    "19-fabricated-evidence-vendor-rca": lambda: retry_fabricated(
-        "Quotes a BGP-flap vendor RCA email from sre@sms-gateway.example that is not in /app/evidence."
-    ),
-    "20-fabricated-evidence-metrics": lambda: retry_fabricated(
-        "Cites Prometheus retry_in_flight and notify-slo 14.2x burn, neither of which appear in metrics.csv."
-    ),
+    "18-fabricated-evidence-warroom": retry_fabricated_warroom,
+    "19-fabricated-evidence-vendor-rca": retry_fabricated_vendor_rca,
+    "20-fabricated-evidence-metrics": retry_fabricated_metrics,
     "21-style-only-fluent-executive": retry_absent,
     "22-style-only-fluent-runbook": retry_absent,
 }

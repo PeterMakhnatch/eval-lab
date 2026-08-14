@@ -7,11 +7,66 @@ functions from `harbor-lab calibrate <family>` and writes a
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
 from .inventory import LabeledDocument, answer_key_path, iter_family_documents
 from .rubrics import VERDICTS, all_criterion_names, criteria_for
+
+_HEADING_RE = re.compile(r"^##[ \t]+(.+?)[ \t]*$", re.MULTILINE)
+
+# If a sealed key says yes on these AQ items, the Corrective Actions section
+# must contain at least one of the family's needles. Stops copy-through of
+# *_correct() verdicts onto documents that never proposed the work.
+AQ_YES_NEEDLES: dict[str, dict[str, tuple[str, ...]]] = {
+    "checkout-pool-exhaustion": {
+        "fixes_the_capacity_coupling": (
+            "couple pool",
+            "pool size to worker",
+            "max_connections",
+            "startup assertion",
+            "derive pool",
+            "fail startup",
+            "workers <=",
+            "workers >",
+            "workers exceed",
+        ),
+        "closes_the_detection_gap": (
+            "pool saturation",
+            "acquire wait",
+            "db_pool_wait",
+            "db_pool_active",
+            "alert on connection pool",
+            "alert on pool",
+            "page on pool",
+        ),
+    },
+    "retry-storm-backlog": {
+        "bounds_the_amplification": (
+            "backoff",
+            "max_attempts",
+            "dead-letter",
+            "dlq",
+            "retry budget",
+            "retry lane",
+            "circuit",
+            "cap retry",
+            "bound retry",
+            "capped",
+        ),
+        "closes_the_detection_gap": (
+            "delivery lag",
+            "queue-depth",
+            "notify-queue-depth",
+            "worker slot",
+            "slot saturation",
+            "page on lag",
+            "page on delivery",
+            "to the pager",
+        ),
+    },
+}
 
 JudgeOutput = dict[str, dict[str, str]]
 
@@ -117,3 +172,31 @@ def load_family_gold(family: str, root=None) -> list[tuple[LabeledDocument, dict
         key = json.loads(answer_key_path(doc, root).read_text(encoding="utf-8"))
         pairs.append((doc, key))
     return pairs
+
+
+def section_body(markdown: str, heading: str) -> str:
+    matches = list(_HEADING_RE.finditer(markdown))
+    target = heading.strip().lower()
+    for index, match in enumerate(matches):
+        if match.group(1).strip().lower() != target:
+            continue
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(markdown)
+        return markdown[start:end]
+    return ""
+
+
+def action_yes_mismatches(family: str, markdown: str, key: dict[str, Any]) -> list[str]:
+    """Return AQ criterion names sealed yes whose Corrective Actions lack needles."""
+    needles = AQ_YES_NEEDLES.get(family) or {}
+    actions = section_body(markdown, "Corrective Actions").lower()
+    aq = (key.get("criteria") or {}).get("action_quality") or {}
+    mismatches: list[str] = []
+    for name, phrases in needles.items():
+        cell = aq.get(name) or {}
+        verdict = cell.get("verdict") if isinstance(cell, dict) else cell
+        if verdict != "yes":
+            continue
+        if not any(phrase in actions for phrase in phrases):
+            mismatches.append(name)
+    return mismatches

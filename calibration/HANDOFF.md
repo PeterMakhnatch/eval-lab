@@ -19,6 +19,10 @@ keys, plus a failure-taxonomy label for every completed trial.
   trial never wrote `result.json`.
 - `calibration/README.md` is the brief 09 consume contract.
 - Shipped helpers: `inventory.py`, `agreement.py`, `rubrics.py`.
+- Fabricated-evidence keys are scored from each document's actions, not
+  copied from `*_correct()`. Retry `18` and checkout `19` have
+  `closes_the_detection_gap=no`. `action_yes_mismatches` rejects a sealed
+  AQ yes that the Corrective Actions section cannot support.
 
 ## How it was verified
 

@@ -238,9 +238,34 @@ Recorded, not acted on, because the files belong to other roles:
 - **`harbor-lab fleet` does not exist.** `agents/WORKFLOW.md:45` and the header
   of `scripts/fleet-status.sh` both reference it as the successor command.
   Either build it or correct the references.
-- **Python 3.13 is untested.** The worktree venv resolves to 3.13, while
-  `pyproject.toml` declares `>=3.11` and the in-flight CI matrix tests 3.11
-  and 3.14. Local development therefore runs on a version CI never exercises.
+- **`pyproject.toml`, `uv.lock`, and `ci.yml` disagree about Python 3.11, and
+  it breaks CI today.** `pyproject.toml` declares `requires-python = ">=3.11"`
+  and `uv.lock` repeats it, but the lock's `supported-markers` are
+  `python_full_version >= '3.12'`. So `uv sync --locked` on 3.11 fails outright:
+
+  ```
+  error: The current Python platform is not compatible with the lockfile's
+  supported environments: `python_full_version >= '3.12'`
+  ```
+
+  `ci.yml` pins the `lint` job to 3.11 and includes 3.11 in the `test` matrix,
+  so **two of main's three CI jobs cannot pass** regardless of the code. FORGE
+  hit the same wall by copying the 3.11 pin and moved `typecheck.yml` to 3.12.
+
+  The real fix is one of: drop 3.11 from `pyproject.toml` and the CI matrix, or
+  re-lock so 3.11 is genuinely supported. Both touch BUILDER-owned files
+  (`pyproject.toml` / `uv.lock`, per `agents/WORKFLOW.md`), so this is reported
+  rather than fixed.
+
+- **`tests/test_canary.py::test_canaries_run_two_consecutive_nights_with_three_attempts`
+  fails on CI** (`assert 3 == 0` — enqueued 3, dispatched 0) while passing
+  locally. Appeared with the per-agent default-model change (`177b20d`).
+  Local runs are green because they see a different credential/Docker
+  environment than the runner. Not a FORGE-owned file.
+
+- **Python 3.13 is untested.** The worktree venv resolves to 3.13, while the CI
+  matrix tests 3.11 (broken, above) and 3.14. Local development therefore runs
+  on a version CI never exercises.
 - **Ingest does not short-circuit.** Re-ingesting an unchanged corpus costs
   ~92% of a cold insert. A content hash per job directory would make repeat
   ingests near-free; worth it only once the corpus is much larger than 10 jobs.

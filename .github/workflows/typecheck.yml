@@ -40,7 +40,12 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
-          python-version: "3.11"
+          # 3.12, not 3.11: uv.lock declares requires-python ">=3.11" but its
+          # supported-markers are ">=3.12", so `uv sync --locked` cannot install
+          # on 3.11 at all. This is the lowest interpreter the lock actually
+          # supports. See docs/engineering.md — pyproject/uv.lock/ci.yml disagree
+          # about 3.11 and that is a BUILDER-owned fix, not a FORGE one.
+          python-version: "3.12"
           version: "0.9.24"
       - run: uv sync --locked
 

@@ -1,7 +1,7 @@
 Status: review-wanted
-Last: Baselines measured + docs/engineering.md + non-blocking ty type-check workflow committed
-Next: Peter/integrator to resolve the ty-vs-mypy duplication before either merges
-Blockers: ANOTHER WRITER IS EDITING .github/workflows/ci.yml INSIDE .worktrees/forge (see below)
+Last: PR #6 open: baselines + engineering.md + ty workflow; found main's CI 3.11 leg is unfixably broken by uv.lock
+Next: Peter/integrator: resolve ty-vs-mypy, and decide the 3.11 question (BUILDER-owned)
+Blockers: main CI is red for reasons FORGE cannot fix (uv.lock excludes 3.11; canary test fails on runner)
 
 # FORGE handoff
 
@@ -98,6 +98,26 @@ within a tick, so the per-iteration re-read may be intentional for the
 $20/day ceiling. The safe optimization is connection reuse, **not** hoisting
 the query out of the loop. Recorded here for daytime pickup rather than
 guessed at.
+
+## Main's CI is red, and not because of this PR
+
+PR #6 surfaced two pre-existing failures. Neither is in a FORGE-owned file.
+
+1. **The 3.11 CI leg cannot pass.** `uv.lock` says
+   `requires-python = ">=3.11"` but its `supported-markers` are
+   `python_full_version >= '3.12'`, so `uv sync --locked` fails immediately on
+   3.11. `ci.yml` pins `lint` to 3.11 and includes 3.11 in the test matrix, so
+   two of three jobs fail regardless of the code. FORGE hit this by copying the
+   3.11 pin into `typecheck.yml` and moved it to 3.12. Fixing it properly means
+   editing `pyproject.toml`/`uv.lock` (BUILDER-only) — either drop 3.11 or
+   re-lock to genuinely include it.
+
+2. **`test_canaries_run_two_consecutive_nights_with_three_attempts` fails on
+   the runner** (`assert 3 == 0`: enqueued 3, dispatched 0) while passing
+   locally — 49 passed, 1 failed on 3.14. It arrived with `177b20d`
+   (per-agent default model). Local green / CI red points at a
+   credential-or-Docker environment difference, which is worth knowing given
+   the Claude keychain token is absent tonight.
 
 ## Other observations (no action taken)
 

@@ -60,7 +60,16 @@ uv run harbor-lab calibrate checkout-pool-exhaustion \
   --stage codex --date 2026-08-14 --est-cost-usd 2.75
 uv run harbor-lab submit \
   queue/calibration-specs/judge-checkout-codex-20260814.json
+uv run harbor-lab calibrate checkout-pool-exhaustion \
+  --dispatch-approved <spec-id>
 ```
+
+The dispatch command is a narrow credential fallback for this bootstrap only. It
+requires exactly one approved spec, verifies that it is the requested Codex
+calibration, reruns standing-policy admission, and checks Codex auth, Docker,
+Postgres, and disk headroom. It deliberately does not require the unrelated Claude
+credential. The actual model call still originates from the previously submitted
+queue record.
 
 After the queued Harbor job completes, point calibration at the immutable
 `judgments.json` artifact. Supply the concrete model reported by the Harbor trial

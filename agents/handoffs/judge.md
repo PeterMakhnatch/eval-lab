@@ -1,6 +1,6 @@
 Status: building
-Last: Free nop smoke proved the generated task builds and its verifier completes without exception.
-Next: Submit and dispatch the Codex calibration, then collect its artifact into a measured record.
+Last: Codex calibration admitted as spec 01KZZBQNGWMV3AZ1HWMC5GHM4E; backend-specific readiness is healthy.
+Next: Dispatch the one approved Codex calibration, then collect its artifact into a measured record.
 Blockers: Claude credential absent; catalog schema init fails on a pre-existing view; full Ruff has 9 upstream errors.
 
 # JUDGE handoff
@@ -22,6 +22,12 @@ Implemented so far:
 No billable call has been made yet. Runtime-only staged tasks/specs live under the
 ignored `queue/` tree in this worktree. EVIDENCE's corpus and answer keys are
 unchanged.
+
+The Codex spec is now approved under `researcher-followups`, capped at `$2.75`.
+The narrow fallback dispatcher rechecks the policy plus Codex auth, Docker,
+Postgres, and disk, and refuses to run if any other spec is approved. Its readiness
+report is healthy; it does not treat the missing Claude credential as a Codex
+prerequisite.
 
 Verification checkpoint:
 

@@ -11,6 +11,7 @@ from pathlib import Path
 from harbor_lab import __version__, database
 from harbor_lab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
 from harbor_lab.calibrate import (
+    dispatch_approved_codex_calibration,
     dspy_split_summary,
     evaluate_predictions,
     load_prediction_bundle,
@@ -109,6 +110,7 @@ def parser() -> argparse.ArgumentParser:
     calibration_mode.add_argument("--predictions", type=Path)
     calibration_mode.add_argument("--stub", action="store_true")
     calibration_mode.add_argument("--stage", choices=("codex", "anthropic"))
+    calibration_mode.add_argument("--dispatch-approved", metavar="SPEC_ID")
     calibration_mode.add_argument("--dspy-dry-run", action="store_true")
     calibrate.add_argument("--judge-model")
     calibrate.add_argument("--est-cost-usd", type=float, default=2.75)
@@ -252,6 +254,13 @@ def _matrix_command(args: argparse.Namespace, root: Path) -> int:
 
 
 def _calibrate_command(args: argparse.Namespace, root: Path) -> int:
+    if args.dispatch_approved:
+        readiness, dispatched = dispatch_approved_codex_calibration(
+            root, args.family, args.dispatch_approved
+        )
+        print(json.dumps({"healthy": readiness.healthy, **readiness.__dict__}, indent=2))
+        print(f"dispatched: {dispatched}")
+        return 0
     if args.dspy_dry_run:
         print(json.dumps(dspy_split_summary(root, args.family), indent=2))
         return 0

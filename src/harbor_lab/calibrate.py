@@ -15,6 +15,8 @@ import psycopg
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
+from harbor_lab import database
+from harbor_lab.queue import Executor
 from harbor_lab.runner import database_url_from_environment
 from harbor_lab.schemas import (
     CriterionAgreementRate,
@@ -228,6 +230,25 @@ class StagedCalibration:
     task_path: Path
     spec_path: Path
     spec: ExperimentSpec
+
+
+@dataclass(frozen=True)
+class CodexCalibrationReadiness:
+    codex_auth_present: bool
+    docker_reachable: bool
+    postgres_reachable: bool
+    disk_headroom: bool
+
+    @property
+    def healthy(self) -> bool:
+        return all(
+            (
+                self.codex_auth_present,
+                self.docker_reachable,
+                self.postgres_reachable,
+                self.disk_headroom,
+            )
+        )
 
 
 class DspyOptimizer(Protocol):
@@ -795,6 +816,56 @@ def stage_queue_bundle(
         raise FileExistsError(f"refusing to overwrite staged queue spec: {spec_path}")
     _write(spec_path, spec.model_dump_json(indent=2) + "\n")
     return StagedCalibration(task_path=task_path, spec_path=spec_path, spec=spec)
+
+
+def codex_calibration_readiness(
+    repo_root: Path, *, executor: Executor
+) -> CodexCalibrationReadiness:
+    runtime_checks = {name: ok for name, ok, _detail in executor.local_runtime_checks()}
+    try:
+        database.ping(database_url_from_environment())
+    except Exception:
+        postgres_reachable = False
+    else:
+        postgres_reachable = True
+    usage = shutil.disk_usage(repo_root)
+    required_disk = max(5 * 1024**3, int(usage.total * 0.05))
+    return CodexCalibrationReadiness(
+        codex_auth_present=(Path.home() / ".codex/auth.json").is_file(),
+        docker_reachable=runtime_checks.get("docker-daemon", False),
+        postgres_reachable=postgres_reachable,
+        disk_headroom=usage.free >= required_disk,
+    )
+
+
+def dispatch_approved_codex_calibration(
+    repo_root: Path,
+    family: str,
+    spec_id: str,
+) -> tuple[CodexCalibrationReadiness, int]:
+    """Dispatch one approved Codex calibration without requiring a Claude credential."""
+    executor = Executor.from_repo(repo_root)
+    approved = executor.queue.list_specs("approved")
+    if len(approved) != 1 or approved[0][1].spec_id != spec_id:
+        ids = [spec.spec_id for _path, spec in approved]
+        raise ValueError(f"expected only approved spec {spec_id}, found {ids}")
+    spec = approved[0][1]
+    if spec.agent != "codex" or spec.task != f"registered/judge-calibration/{family}":
+        raise ValueError("the approved spec is not the requested Codex calibration")
+    decision = executor.gate.decide(
+        spec,
+        spent_today_usd=executor._catalog_spend(),
+        consecutive_harness_failures=executor._consecutive_harness_failures(),
+    )
+    if not decision.admitted or decision.policy_rule != "researcher-followups":
+        raise ValueError(f"approved calibration no longer passes policy: {decision.message}")
+    readiness = codex_calibration_readiness(repo_root, executor=executor)
+    if not readiness.healthy:
+        failed = [
+            name for name, ok in readiness.__dict__.items() if not ok
+        ]
+        raise RuntimeError("Codex calibration readiness failed: " + ",".join(failed))
+    return readiness, executor.tick()
 
 
 def load_dspy_examples(repo_root: Path, family: str) -> list[DspyExample]:

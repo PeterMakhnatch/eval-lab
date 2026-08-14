@@ -11,20 +11,20 @@ at `7a7be9b`.
 ## Landed integration
 
 - MEDIC PR #7 merged as `1d01d9f` after quality run
-  [31814436570](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814436570)
+  [31814436570](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31814436570)
   was fully green. Its post-merge main quality run
-  [31814512157](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814512157)
+  [31814512157](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31814512157)
   was also green.
 - FORGE PR #6 was rebased server-side onto fixed main, then merged as
   `7a7be9b` only after quality run
-  [31814609842](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814609842)
+  [31814609842](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31814609842)
   and typecheck run
-  [31814609845](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814609845)
+  [31814609845](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31814609845)
   were fully green.
 - Main at `7a7be9b` passed quality run
-  [31814679252](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814679252)
+  [31814679252](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31814679252)
   and typecheck run
-  [31814680308](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814680308).
+  [31814680308](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31814680308).
 - Merged PRs #2–5 each have a one-line incident annotation attributing their
   red checks to the Python-floor and host-credential causes, not their code.
 
@@ -37,9 +37,9 @@ fresh `role/medic-closeout` branch at `origin/main`. `agents/CHECKS.md` now
 records that invariant for every role.
 
 PR #8's review-ready head `eea7b47` passed quality run
-[31821666951](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31821666951)
+[31821666951](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31821666951)
 and typecheck run
-[31821666903](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31821666903).
+[31821666903](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31821666903).
 
 ## Verified diagnosis
 

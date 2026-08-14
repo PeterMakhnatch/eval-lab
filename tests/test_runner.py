@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from harbor_lab.runner import RunRequest, build_command, load_matrix, validate_request
+from evallab.runner import RunRequest, build_command, load_matrix, validate_request
 
 
 def task(tmp_path: Path) -> Path:

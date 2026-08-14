@@ -11,7 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import ValidationError
 
-from harbor_lab.results import JobRecord, TrialRecord, sha256_file
+from evallab.results import JobRecord, TrialRecord, sha256_file
 
 JsonObject = dict[str, Any]
 ValidationStatus = Literal["valid", "invalid", "unsupported"]

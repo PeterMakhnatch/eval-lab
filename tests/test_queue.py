@@ -1,9 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from harbor_lab.queue import DirectoryQueue, Executor, PolicyGate, load_events
-from harbor_lab.runner import RunRequest
-from harbor_lab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
+from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
+from evallab.runner import RunRequest
+from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
 
 
 def policy() -> StandingApprovalsPolicy:

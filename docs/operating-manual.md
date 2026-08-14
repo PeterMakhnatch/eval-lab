@@ -67,10 +67,10 @@ Your authority lives in files, not in vigilance:
   in `agents/ROLES.md`. Expanding a grant happens in the prompt, explicitly,
   scoped to named files ("for this mission only, you may touch X, Y").
 - **`queue/STOP`** — the brake. Create the file, dispatch halts after the
-  current job. `harbor-lab stop` / `resume`.
+  current job. `evallab stop` / `resume`.
 - **Escalation by construction** — anything outside policy lands in
   `queue/waiting/` and shows in the digest. You approve with
-  `harbor-lab approve <id>` or by editing policy so the class is standing.
+  `evallab approve <id>` or by editing policy so the class is standing.
 
 You never need to watch agents to feel safe; the policy file, the ownership
 table, and the ceilings are watching. Your job is to keep those three

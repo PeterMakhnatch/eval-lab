@@ -49,7 +49,7 @@ No issues; payload is not an empty file. Transcript:
 ## Verdict
 
 **Adopt first, into brief 08 (Phoenix + trace shipping).** The convert API
-works locally today; `harbor-lab trace` should call `validate_trajectory` then
+works locally today; `evallab trace` should call `validate_trajectory` then
 `convert_trajectory` / `export_trial` and only then OTLP to Phoenix. Also
 usable as a `--plugin atif2otel` once the job-plugin demo is wired into the
 executor (05/08). Do not add `harbor-atif2otel` to the root lockfile from

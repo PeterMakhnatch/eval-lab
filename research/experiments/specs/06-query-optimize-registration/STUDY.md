@@ -24,7 +24,7 @@ query. That makes it a poor canary (slow, image-pinned, timing-sensitive)
 and a reasonable first `registered/*` target if Peter wants a harder
 slice.
 
-**Free baseline.** Oracle/nop on this family run via `harbor-lab matrix`
+**Free baseline.** Oracle/nop on this family run via `evallab matrix`
 in `baselines/query-optimize-controls.json`. Those controls test task
 validity only.
 

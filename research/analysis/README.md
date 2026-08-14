@@ -32,13 +32,13 @@ fact, not an ingestion error.
 Inspect without PostgreSQL or writing derived data:
 
 ```bash
-uv run harbor-lab trajectories runs research/evidence/runs evidence/runs
+uv run evallab trajectories runs research/evidence/runs evidence/runs
 ```
 
 Rebuild partitioned Parquet from raw jobs:
 
 ```bash
-uv run harbor-lab trajectories --export \
+uv run evallab trajectories --export \
   --output-dir derived/parquet \
   runs research/evidence/runs evidence/runs
 ```
@@ -79,7 +79,7 @@ The checked-in control declaration is
 [control-oracle-vs-nop.json](control-oracle-vs-nop.json):
 
 ```bash
-uv run harbor-lab compare research/analysis/control-oracle-vs-nop.json
+uv run evallab compare research/analysis/control-oracle-vs-nop.json
 ```
 
 Add `--index` only when the declared spec should become the durable association
@@ -107,14 +107,14 @@ the report makes no significance or broad-capability claim.
 Dry-run planning never calls a model:
 
 ```bash
-uv run harbor-lab analyze plan \
+uv run evallab analyze plan \
   evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq
 ```
 
 Fixture/stub validation writes a new immutable sidecar and can index it:
 
 ```bash
-uv run harbor-lab analyze stub \
+uv run evallab analyze stub \
   evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq \
   --response research/analysis/stub-oracle-analysis.json \
   --index
@@ -140,7 +140,7 @@ Compare completed valid sidecars with the fixed calibration labels without
 altering either source:
 
 ```bash
-uv run harbor-lab analyze agreement derived/analyses \
+uv run evallab analyze agreement derived/analyses \
   --labels research/calibration/trajectory-labels
 ```
 
@@ -154,8 +154,8 @@ the agreement and coverage denominators.
 ```bash
 uv run pytest -q
 uv run pytest -q research/analysis/tests
-uv run ruff check src/harbor_lab/atif.py src/harbor_lab/facts.py \
-  src/harbor_lab/cohort.py src/harbor_lab/schemas.py src/harbor_lab/cli.py \
+uv run ruff check src/evallab/atif.py src/evallab/facts.py \
+  src/evallab/cohort.py src/evallab/schemas.py src/evallab/cli.py \
   research/analysis/tests
 ```
 

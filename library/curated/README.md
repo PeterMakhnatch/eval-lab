@@ -1,6 +1,6 @@
 # Curated Harbor task library
 
-CURATOR-owned inventory for the harbor-experiment-lab canary suite and registry.
+CURATOR-owned inventory for the eval-lab canary suite and registry.
 
 **Included:** 19 locally verified tasks (oracle `k=3` pass, nop fail).  
 **Sources:** `frontier-bench` @ `3d694e91` and `terminal-bench` @ `4e77c91d` (same 74-name TB3-era suite).  

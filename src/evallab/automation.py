@@ -11,12 +11,12 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from harbor_lab import credentials as credentials_module
-from harbor_lab import database
-from harbor_lab.digest import DigestRenderer, commit_digest
-from harbor_lab.queue import DirectoryQueue, Executor, new_ulid
-from harbor_lab.runner import database_url_from_environment
-from harbor_lab.schemas import (
+from evallab import credentials as credentials_module
+from evallab import database
+from evallab.digest import DigestRenderer, commit_digest
+from evallab.queue import DirectoryQueue, Executor, new_ulid
+from evallab.runner import database_url_from_environment
+from evallab.schemas import (
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
     QueueEvent,
@@ -336,8 +336,8 @@ def _launchctl(command: list[str], check: bool) -> int:
 
 
 class ScheduleInstaller:
-    TICK_LABEL = "com.petermakhnatch.harbor-lab.tick"
-    NIGHTLY_LABEL = "com.petermakhnatch.harbor-lab.nightly"
+    TICK_LABEL = "com.petermakhnatch.evallab.tick"
+    NIGHTLY_LABEL = "com.petermakhnatch.evallab.nightly"
 
     def __init__(
         self,
@@ -357,7 +357,7 @@ class ScheduleInstaller:
         return self.home / "Library/LaunchAgents"
 
     def definitions(self) -> dict[str, dict[str, Any]]:
-        logs = self.home / "Library/Logs/harbor-lab"
+        logs = self.home / "Library/Logs/evallab"
         environment = {
             "PATH": ":".join(
                 [
@@ -403,7 +403,7 @@ class ScheduleInstaller:
 
     def install(self) -> list[Path]:
         self.launch_agents_dir.mkdir(parents=True, exist_ok=True)
-        (self.home / "Library/Logs/harbor-lab").mkdir(parents=True, exist_ok=True)
+        (self.home / "Library/Logs/evallab").mkdir(parents=True, exist_ok=True)
         paths: list[Path] = []
         domain = f"gui/{self.uid}"
         for label, definition in self.definitions().items():
@@ -417,4 +417,4 @@ class ScheduleInstaller:
         return paths
 
     def _shell_command(self, command: str) -> str:
-        return f"cd {shlex.quote(str(self.repo_root))} && uv run harbor-lab {command}"
+        return f"cd {shlex.quote(str(self.repo_root))} && uv run evallab {command}"

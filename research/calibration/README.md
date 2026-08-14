@@ -1,7 +1,7 @@
 # Calibration ground truth (EVIDENCE)
 
 This directory is the lab's sealed ground truth. It is the only tree the
-EVIDENCE role writes. Brief 09 (`harbor-lab calibrate <family>`) is BUILDER
+EVIDENCE role writes. Brief 09 (`evallab calibrate <family>`) is BUILDER
 work and does not exist yet; this README is the consume contract that brief
 must implement. Do not copy any file from here into a task `environment/`.
 
@@ -24,9 +24,9 @@ calibration/
 Families in this corpus: `checkout-pool-exhaustion`, `retry-storm-backlog`.
 Criterion names are taken from the read-only judged-output tasks, not reinvented.
 
-## What `harbor-lab calibrate <family>` consumes
+## What `evallab calibrate <family>` consumes
 
-`harbor-lab calibrate <family>` scores **one family**. It must use only the
+`evallab calibrate <family>` scores **one family**. It must use only the
 artifacts named below.
 
 ### 1. Labeled documents (input to the judge)
@@ -94,7 +94,7 @@ agreement (≥ 0.9). This directory does not implement that policy.
 ### 3. Trajectory labels — **out of scope for `calibrate`**
 
 `calibration/trajectory-labels/*.json` are **not** consumed by
-`harbor-lab calibrate`. They label completed Harbor trials against the
+`evallab calibrate`. They label completed Harbor trials against the
 failure taxonomy in `docs/analysis-loop.md` and exist for the analyst
 agents (briefs 03 / 05 analysis loop). A calibrate run that reads this
 directory is wrong.
@@ -106,7 +106,7 @@ trial has no ATIF steps; the cited path is then `result.json`,
 
 ## What this directory does not contain
 
-- No `harbor-lab calibrate` CLI, DSPy program, or `src/` change.
+- No `evallab calibrate` CLI, DSPy program, or `src/` change.
 - No answer key, expected-verdict file, or gold rubric inside any task
   `environment/`.
 - No copies of harbor-practice evidence files (documents cite them; they

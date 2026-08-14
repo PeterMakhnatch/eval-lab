@@ -13,13 +13,14 @@ Status column is updated by the role itself or the integrator.
 | INGEST | `role/ingest` | `library/benchmarks/`, `agents/handoffs/ingest.md` | Pin and materialize 2026-cite public benches (survey + ≥4 Hub slices) | 16 surveyed; 4 Hub pins materialized + 19-task oracle/nop sample (2026-08-14). |
 
 | INGEST | `role/ingest` | `library/benchmarks/`, `agents/handoffs/ingest.md` | Frontier benchmark survey + Harbor-runnable materialization | Registered 2026-08-14; mission in docs/prompts/overnight-missions.md |
-| OBSERVER | `role/observer` | `src/harbor_lab/tracing.py`, `agents/handoffs/observer.md` (+additive compose/cli/pyproject) | Phoenix + ATIF trace shipping + OpenInference (brief 08) | Registered 2026-08-14 |
-| ANALYST | `role/analyst` | `src/harbor_lab/{atif,facts,cohort}.py`, `research/analysis/`, `agents/handoffs/analyst.md` | ATIF→Parquet, deterministic facts, cohort compare, analysis sidecars (briefs 01–03) | Registered 2026-08-14 |
+| OBSERVER | `role/observer` | `src/evallab/tracing.py`, `agents/handoffs/observer.md` (+additive compose/cli/pyproject) | Phoenix + ATIF trace shipping + OpenInference (brief 08) | Registered 2026-08-14 |
+| ANALYST | `role/analyst` | `src/evallab/{atif,facts,cohort}.py`, `research/analysis/`, `agents/handoffs/analyst.md` | ATIF→Parquet, deterministic facts, cohort compare, analysis sidecars (briefs 01–03) | Registered 2026-08-14 |
 | RUNNER | `role/runner` | `research/experiments/`, `agents/handoffs/runner.md` | Design/submit/interpret real experiments via the queue | Registered 2026-08-14 |
-| AUTOPILOT | `role/autopilot` | `src/harbor_lab/researchers.py`, `digests/DISCOVERIES.md`, `agents/handoffs/autopilot.md` | Bounded 24/7 researcher loop + discovery journal | Registered 2026-08-14 |
+| AUTOPILOT | `role/autopilot` | `src/evallab/researchers.py`, `digests/DISCOVERIES.md`, `agents/handoffs/autopilot.md` | Bounded 24/7 researcher loop + discovery journal | Registered 2026-08-14 |
 | FORGE | `role/forge` | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening; held PRs for refactors | Done: PR #6 merged after its rebased GitHub checks were fully green. |
-| JUDGE | `role/judge` | `src/harbor_lab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Registered 2026-08-14 |
+| JUDGE | `role/judge` | `src/evallab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Registered 2026-08-14 |
 | MEDIC | `role/medic-closeout` | CI compatibility, deterministic canary test, premerge gate, and green-check governance (one mission) | Make local and GitHub green agree; land PR #6 | Done: PRs #7 and #6 merged green; PR #8 closes documentation and branch-lifecycle governance. |
+| REFRAME | `role/reframe` | Repository-wide identity migration plus integrator-only repository, directory, launchd, and Compose rename | Establish Eval Lab as the research identity, with Harbor solely the execution engine | Building: quiet-fleet gate passed; code and prose identity migration in progress. |
 
 
 **Wave 1 outcome (2026-08-14):** INGEST, OBSERVER, ANALYST, RUNNER, AUTOPILOT,

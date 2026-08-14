@@ -6,12 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from harbor_lab import cli
-from harbor_lab.automation import NightlyCycle
-from harbor_lab.canary import CanaryEnqueuer, load_canary_suite, task_directory_digest
-from harbor_lab.digest import DigestRenderer
-from harbor_lab.queue import DirectoryQueue, Executor
-from harbor_lab.schemas import (
+from evallab import cli
+from evallab.automation import NightlyCycle
+from evallab.canary import CanaryEnqueuer, load_canary_suite, task_directory_digest
+from evallab.digest import DigestRenderer
+from evallab.queue import DirectoryQueue, Executor
+from evallab.schemas import (
     AutoRunRule,
     CanaryDriftObservation,
     CanaryMember,

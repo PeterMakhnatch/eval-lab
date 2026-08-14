@@ -68,7 +68,7 @@ All automated tests use saved synthetic analysis outputs or a fake analyzer:
 ```bash
 uv run pytest
 uv run ruff check .
-uv run harbor-lab analyze plan <fixture-trial>
+uv run evallab analyze plan <fixture-trial>
 ```
 
 Do not make a live analysis call unless Peter separately approves the agent,
@@ -82,7 +82,7 @@ plainly; model agreement is not validation.
 
 ## Implemented contract (ANALYST, 2026-08-14)
 
-- `harbor-lab analyze plan <trial>` prints source IDs, prompt/rubric/schema
+- `evallab analyze plan <trial>` prints source IDs, prompt/rubric/schema
   digests, destination, one expected call, two-call maximum, and the required
   `researcher-followups` queue policy without invoking a model.
 - Saved output can be validated with `analyze stub`; each invocation writes a

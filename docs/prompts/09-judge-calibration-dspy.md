@@ -6,7 +6,7 @@ A stub record proves plumbing but is never reportable and never satisfies the ga
 
 ## Calibration contract
 
-`harbor-lab calibrate <family>` consumes the manifest-ordered documents in
+`evallab calibrate <family>` consumes the manifest-ordered documents in
 `research/calibration/<family>/corpus.json`. The judge receives the documents,
 the named rubric criteria, and family reference facts. It never receives manifest
 variant labels, `answer-keys/`, document sources, or trajectory labels.
@@ -48,7 +48,7 @@ First prove the complete corpus/keys/agreement path without a model or catalog
 write:
 
 ```bash
-uv run harbor-lab calibrate checkout-pool-exhaustion \
+uv run evallab calibrate checkout-pool-exhaustion \
   --stub --skip-catalog --date 2026-08-14
 ```
 
@@ -56,12 +56,12 @@ Stage the Codex judge task and a policy-valid queue spec. Staging does not invok
 a model:
 
 ```bash
-uv run harbor-lab calibrate checkout-pool-exhaustion \
+uv run evallab calibrate checkout-pool-exhaustion \
   --stage codex --judge-model gpt-5.6-sol \
   --date 2026-08-14 --est-cost-usd 2.75
-uv run harbor-lab submit \
+uv run evallab submit \
   queue/calibration-specs/judge-checkout-codex-gpt-5-6-sol-authjson-20260814.json
-uv run harbor-lab calibrate checkout-pool-exhaustion \
+uv run evallab calibrate checkout-pool-exhaustion \
   --dispatch-approved <spec-id>
 ```
 
@@ -79,14 +79,14 @@ After the queued Harbor job completes, point calibration at the immutable
 when the staged task used the agent's default model:
 
 ```bash
-uv run harbor-lab calibrate checkout-pool-exhaustion \
+uv run evallab calibrate checkout-pool-exhaustion \
   --predictions runs/<job>/<trial>/artifacts/output/judgments.json \
   --judge-model <resolved-model> \
   --pending-backend rewardkit-anthropic:credential-unavailable
 ```
 
 Every billable call is started only after the corresponding spec has passed
-`harbor-lab submit`; each staged estimate is `$2.75`, below the `$3` job ceiling.
+`evallab submit`; each staged estimate is `$2.75`, below the `$3` job ceiling.
 The generated task verifier checks only prediction completeness and shape. It
 contains no answer key and therefore cannot turn calibration labels into agent
 context.
@@ -159,12 +159,12 @@ the optional `dspy[optuna]` runtime is supplied by the queue worker.
 Dry-run the sealed split without a model:
 
 ```bash
-uv run harbor-lab calibrate checkout-pool-exhaustion --dspy-dry-run
+uv run evallab calibrate checkout-pool-exhaustion --dspy-dry-run
 ```
 
 Because JUDGE cannot edit `pyproject.toml`, production DSPy remains an optional
 import. Development verification uses an ephemeral `uv run --with dspy` runtime;
-normal `harbor-lab` commands do not acquire or import DSPy.
+normal `evallab` commands do not acquire or import DSPy.
 
 ## Acceptance
 

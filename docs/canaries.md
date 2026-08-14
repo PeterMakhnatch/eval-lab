@@ -12,7 +12,7 @@ members, one agent, and three attempts per agent/job:
 The Terminal-Bench task was obtained with:
 
 ```bash
-uv run harbor-lab canary import-terminal-bench \
+uv run evallab canary import-terminal-bench \
   --dataset-ref terminal-bench/terminal-bench@1 \
   --task-name html-js-filter \
   --destination library/tasks/terminal-bench-html-js-filter

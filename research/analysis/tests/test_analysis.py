@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from harbor_lab.facts import (
+from evallab.facts import (
     AnalyzerCallResult,
     analysis_plan,
     failure_taxonomy_agreement,
@@ -17,8 +17,8 @@ from harbor_lab.facts import (
     write_analysis_review,
     write_failure_taxonomy_agreement,
 )
-from harbor_lab.results import load_job
-from harbor_lab.schemas import TrialAnalysisSidecar
+from evallab.results import load_job
+from evallab.schemas import TrialAnalysisSidecar
 
 from .test_atif import _make_job
 from .test_cohort import _synthetic_job

@@ -5,10 +5,10 @@ import subprocess
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from harbor_lab.automation import HeadlessDoctor, NightlyCycle, ScheduleInstaller
-from harbor_lab.digest import DigestRenderer, DigestTrial, commit_digest
-from harbor_lab.queue import DirectoryQueue, Executor
-from harbor_lab.schemas import (
+from evallab.automation import HeadlessDoctor, NightlyCycle, ScheduleInstaller
+from evallab.digest import DigestRenderer, DigestTrial, commit_digest
+from evallab.queue import DirectoryQueue, Executor
+from evallab.schemas import (
     AutoRunRule,
     ExperimentSpec,
     HeadlessDoctorChecks,
@@ -121,8 +121,11 @@ def test_schedule_install_writes_and_loads_two_launchagents(tmp_path: Path) -> N
     assert tick["StartInterval"] == 1800
     assert nightly["StartCalendarInterval"] == {"Hour": 2, "Minute": 30}
     assert tick["ProgramArguments"][:2] == ["/bin/zsh", "-lc"]
-    assert tick["ProgramArguments"][2].endswith("uv run harbor-lab tick")
-    assert nightly["ProgramArguments"][2].endswith("uv run harbor-lab nightly")
+    assert tick["ProgramArguments"][2].endswith("uv run evallab tick")
+    assert nightly["ProgramArguments"][2].endswith("uv run evallab nightly")
+    assert tick["Label"] == "com.petermakhnatch.evallab.tick"
+    assert nightly["Label"] == "com.petermakhnatch.evallab.nightly"
+    assert tick["StandardOutPath"].endswith("Library/Logs/evallab/tick.log")
     assert tick["EnvironmentVariables"]["PATH"].startswith(str(tmp_path / ".local/bin"))
     assert nightly["EnvironmentVariables"] == tick["EnvironmentVariables"]
 
@@ -314,7 +317,7 @@ def test_doctor_codex_only_night_is_healthy(tmp_path: Path) -> None:
 
 
 def test_doctor_with_no_credentials_quarantines_with_specific_reason(tmp_path: Path) -> None:
-    from harbor_lab.automation import blocking_health_failures
+    from evallab.automation import blocking_health_failures
 
     report = HeadlessDoctor(
         tmp_path,

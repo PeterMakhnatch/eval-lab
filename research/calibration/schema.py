@@ -1,6 +1,6 @@
 """Local contracts for sealed keys and trajectory labels.
 
-EVIDENCE must not edit BUILDER-owned `src/harbor_lab/schemas.py`. Brief 09
+EVIDENCE must not edit BUILDER-owned `src/evallab/schemas.py`. Brief 09
 will later grow a pydantic calibration record there; until then these dict
 shapes are the consume contract documented in README.md.
 """

@@ -3,7 +3,7 @@ Last: PR #6 green on the ty ratchet (33<=33); baselines + engineering.md shipped
 Next: Peter/integrator: resolve ty-vs-mypy, and decide the 3.11 question (BUILDER-owned)
 Blockers: main CI red for reasons FORGE cannot fix (uv.lock excludes 3.11; canary test fails on runner)
 
-PR: https://github.com/PeterMakhnatch/harbor-experiment-lab/pull/6 — left open,
+PR: https://github.com/PeterMakhnatch/eval-lab/pull/6 — left open,
 not self-merged.
 
 # FORGE handoff
@@ -47,7 +47,7 @@ explicit path. Their work is intact in the working tree. Do not `git checkout`
 that file without finding out whose it is first.
 
 **Why it matters beyond the invariant:** their edit adds a **mypy** typecheck
-step to `ci.yml`, covering six `src/harbor_lab/*.py` modules. FORGE
+step to `ci.yml`, covering six `src/evallab/*.py` modules. FORGE
 independently shipped a **ty** typecheck as `typecheck.yml`. The repository
 now has two competing type checkers proposed at once. They should not both
 merge.
@@ -82,7 +82,7 @@ Full numbers and the reproduction recipe are in `docs/engineering.md`.
 
 The headline: **`Executor.tick()` issues 2 PostgreSQL round-trips per approved
 spec**, from `_spent_today()` and `_consecutive_harness_failures()` called
-inside the dispatch loop (`src/harbor_lab/queue.py:438-439`), each opening its
+inside the dispatch loop (`src/evallab/queue.py:438-439`), each opening its
 own connection. Measured with production seams wired in:
 
 | N approved specs | queue scan only | with production seams | ratio |
@@ -124,7 +124,7 @@ PR #6 surfaced two pre-existing failures. Neither is in a FORGE-owned file.
 
 ## Other observations (no action taken)
 
-- `agents/WORKFLOW.md:45` references `harbor-lab fleet`; that subcommand does
+- `agents/WORKFLOW.md:45` references `evallab fleet`; that subcommand does
   not exist. Only `scripts/fleet-status.sh` does. Doc/reality drift.
 - `fleet-status.sh` takes ~1.2-1.5 s, dominated by subprocess `git`/`gh`
   calls. Fine for human use; would need batching if it ever runs per-tick.
@@ -160,8 +160,8 @@ lives in `stash@{0}` of this worktree and in
 `runs/_forge/OTHER-WRITER-ci.yml.bak`. The profiling harness and its raw
 `baseline.json` are in `runs/_forge/` (gitignored).
 
-**Cleaned up:** the scratch profiling database `harbor_lab_forge_prof` was
-dropped; the shared `harbor_lab` catalog was never written to by profiling.
+**Cleaned up:** the scratch profiling database `evallab_forge_prof` was
+dropped; the shared `evallab` catalog was never written to by profiling.
 
 ## Continuation list (not started)
 

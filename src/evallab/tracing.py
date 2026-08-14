@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
 DEFAULT_ENDPOINT = "http://127.0.0.1:6006"
-DEFAULT_SERVICE_NAME = "harbor-lab"
+DEFAULT_SERVICE_NAME = "evallab"
 TRAJECTORY_RELATIVE = Path("agent") / "trajectory.json"
 
 

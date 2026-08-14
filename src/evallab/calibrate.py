@@ -16,10 +16,10 @@ import psycopg
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from harbor_lab import database
-from harbor_lab.queue import Executor
-from harbor_lab.runner import database_url_from_environment
-from harbor_lab.schemas import (
+from evallab import database
+from evallab.queue import Executor
+from evallab.runner import database_url_from_environment
+from evallab.schemas import (
     CriterionAgreementRate,
     ExperimentSpec,
     JudgeCalibrationRecord,
@@ -653,7 +653,7 @@ description = "Apply a sealed rubric to the {family} calibration corpus"
 keywords = ["judge", "calibration", "sealed-holdout"]
 
 [[task.authors]]
-name = "Harbor Experiment Lab"
+name = "Eval Lab"
 email = "p.makhnatch@gmail.com"
 
 [metadata]

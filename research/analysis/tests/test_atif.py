@@ -6,8 +6,8 @@ from pathlib import Path
 
 import duckdb
 
-from harbor_lab.atif import export_trajectories, project_trial
-from harbor_lab.results import load_job
+from evallab.atif import export_trajectories, project_trial
+from evallab.results import load_job
 
 
 def _write_json(path: Path, value: object) -> None:

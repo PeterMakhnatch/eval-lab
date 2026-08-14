@@ -72,8 +72,8 @@ sandbox during implementation.
 ```bash
 uv run pytest
 uv run ruff check .
-uv run harbor-lab proposal validate <fixture-proposal>
-uv run harbor-lab proposal plan <fixture-proposal>
+uv run evallab proposal validate <fixture-proposal>
+uv run evallab proposal plan <fixture-proposal>
 ```
 
 Optionally execute only a bounded local Oracle/no-op fixture after confirming it

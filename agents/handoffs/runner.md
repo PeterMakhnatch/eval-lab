@@ -6,7 +6,7 @@ Blockers: headless doctor keychain_readable=false quarantines all tick dispatch;
 ## Done tonight
 
 - 6 studies in `research/experiments/specs/` (one variable each).
-- Every admissible spec submitted via `harbor-lab submit`.
+- Every admissible spec submitted via `evallab submit`.
 - Refusals recorded: k5 `per_job_cost_ceiling`; curated + query-optimize `out_of_policy`; preamble A/B not submitted (ExperimentSpec cannot carry `--extra-instruction-path`).
 - Free oracle/nop on event-summary, transaction-reconciliation, html-js-filter, query-optimize. All four families valid (oracle 5/5, nop 0). Journal has n, Wilson intervals, trajectory attribution.
 - Tick attempted: `tick_quarantined` / `headless_doctor_failed:keychain_readable`.
@@ -24,7 +24,7 @@ No Codex study completed. Standing policy + "never harbor run a paid agent" + fa
 
 ## PR
 
-https://github.com/PeterMakhnatch/harbor-experiment-lab/pull/5
+https://github.com/PeterMakhnatch/eval-lab/pull/5
 Diff is only owned paths. Local `uv run pytest -q` is 36 passed. Did not squash-merge: quality `ruff check .` fails on `library/curated/_emit_card.py` and `research/explorations/harbor-021/demos/*` (CURATOR / RECON), already on `origin/main`.
 
 ## Queue spec_ids (this worktree)

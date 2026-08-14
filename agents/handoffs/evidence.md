@@ -35,7 +35,7 @@ keys, plus a failure-taxonomy label for every completed trial.
 ## Next step
 
 Leave a PR on `role/evidence` after rebase onto latest `main`. Do not
-implement `harbor-lab calibrate`.
+implement `evallab calibrate`.
 
 ## Blockers
 

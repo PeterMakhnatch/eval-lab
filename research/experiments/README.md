@@ -9,7 +9,7 @@ and are not committed.
 | `JOURNAL.md` | Running scientific thread: what / why / status / results / links |
 | `specs/` | One study per directory; JSON files are `ExperimentSpec` documents |
 | `preambles/` | Extra-instruction files for studies the runner cannot yet express |
-| `baselines/` | Free oracle/nop matrices (`harbor-lab matrix` only) |
+| `baselines/` | Free oracle/nop matrices (`evallab matrix` only) |
 | `local-controls.json` | Original event-summary oracle/nop matrix (kept; tests load it) |
 
 Standing policy that admits work, copied from `policy/standing-approvals.yaml`
@@ -24,7 +24,7 @@ Nothing in this checkout is registered. Using `registered/*` or putting a
 non-member under `canary/` would be a policy stretch; those questions go to
 Peter in the handoff.
 
-Harbor 0.21 accepts `--extra-instruction-path`. `harbor_lab.runner.build_command`
+Harbor 0.21 accepts `--extra-instruction-path`. `evallab.runner.build_command`
 does not forward it, and `ExperimentSpec` forbids unknown fields. Preamble A/B
 is designed here and is not executable through the queue until BUILDER adds
 that field.

@@ -1,7 +1,7 @@
-"""Per-criterion agreement used by brief 09 `harbor-lab calibrate`.
+"""Per-criterion agreement used by brief 09 `evallab calibrate`.
 
 This is the consume contract, not the CLI. BUILDER later calls these
-functions from `harbor-lab calibrate <family>` and writes a
+functions from `evallab calibrate <family>` and writes a
 `judge_calibrations` record. Trajectory labels are not an input.
 """
 
@@ -160,7 +160,7 @@ def per_criterion_rates(agreements: list[DocumentAgreement]) -> dict[str, float]
 
 
 def corpus_digest_inputs(family: str, root=None) -> list[LabeledDocument]:
-    """Documents `harbor-lab calibrate <family>` must score, in manifest order."""
+    """Documents `evallab calibrate <family>` must score, in manifest order."""
     return iter_family_documents(family, root)
 
 

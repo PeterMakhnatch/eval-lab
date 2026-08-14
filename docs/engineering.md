@@ -14,7 +14,7 @@ opinion.
 These are descriptions of what the code already does, not new rules.
 
 **Pydantic contracts at the boundary.** Everything that crosses a process or
-file boundary is a `ContractModel` subclass in `src/harbor_lab/schemas.py`
+file boundary is a `ContractModel` subclass in `src/evallab/schemas.py`
 (`ExperimentSpec`, `QueueEvent`, `JobRecord`, …). Parsing is
 `Model.model_validate_json(path.read_text())`; serialization is
 `model_dump_json()`. Consequence: a malformed queue file fails at read time
@@ -41,7 +41,7 @@ PostgreSQL catalog are *derived* and rebuildable from them.
 
 **The queue is the only dispatch boundary.** `Executor` is documented as "the
 sole application boundary allowed to start Harbor experiments". Billable work
-goes through `harbor-lab submit` and the policy gate. Nothing else shells out
+goes through `evallab submit` and the policy gate. Nothing else shells out
 to Harbor.
 
 **Python only.** Per `AGENTS.md`: application code, adapters, verifiers, and
@@ -54,7 +54,7 @@ files.
 
 ### Supported Python versions
 
-Harbor Experiment Lab requires Python 3.12 or newer. Python 3.12 is the
+Eval Lab requires Python 3.12 or newer. Python 3.12 is the
 development and lint floor; CI runs the test suite on Python 3.12 and 3.14.
 Keep `requires-python`, `.python-version`, `uv.lock`, and the CI version matrix
 aligned whenever the supported range changes.
@@ -192,7 +192,7 @@ transition, and the `events.jsonl` append. (The N=10 figure carries a fixed
 
 The overhead is `tick()` calling `self._spent_today()` and
 `self._consecutive_harness_failures()` **inside** the per-spec dispatch loop
-(`src/harbor_lab/queue.py:438-439`). Each is a separate PostgreSQL round-trip
+(`src/evallab/queue.py:438-439`). Each is a separate PostgreSQL round-trip
 opening its own connection:
 
 | Seam | Median per call |
@@ -227,9 +227,9 @@ it from this recipe:
    the corpus between two of my runs and inflated the first ingest numbers by
    ~2.4x before I caught it.
 2. **Isolate the database.** Create a scratch database
-   (`CREATE DATABASE harbor_lab_forge_prof`), point `DATABASE_URL` at it, and
+   (`CREATE DATABASE evallab_forge_prof`), point `DATABASE_URL` at it, and
    run `database.initialize` before ingesting. Never profile writes against
-   the shared `harbor_lab` catalog. Drop it afterwards.
+   the shared `evallab` catalog. Drop it afterwards.
 3. **Never dispatch.** Build `Executor` with `runner=lambda spec, job_dir:
    job_dir` and `ingester=lambda job_dir: None`. A profiling run must not
    start Harbor jobs or spend money.
@@ -252,7 +252,7 @@ Recorded, not acted on, because the files belong to other roles:
   ceiling-enforcement test first.
 - **33 `ty` diagnostics** — distribution in section 2; flip the job to blocking
   as modules reach zero. 3 of them are missing optional deps, not defects.
-- **`harbor-lab fleet` does not exist.** `agents/WORKFLOW.md:45` and the header
+- **`evallab fleet` does not exist.** `agents/WORKFLOW.md:45` and the header
   of `scripts/fleet-status.sh` both reference it as the successor command.
   Either build it or correct the references.
 - **`pyproject.toml`, `uv.lock`, and `ci.yml` disagree about Python 3.11, and

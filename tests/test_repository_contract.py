@@ -128,9 +128,63 @@ def test_standing_policy_keeps_conservative_defaults() -> None:
     assert "agents: [oracle, nop]" in policy
 
 
+def test_project_exposes_evallab_cli_and_transition_alias() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    legacy_cli = "harbor" + "-lab"
+
+    assert project["name"] == "eval-lab"
+    assert project["scripts"] == {
+        "evallab": "evallab.cli:main",
+        legacy_cli: "evallab.cli:legacy_main",
+    }
+
+
+def test_eval_lab_identity_has_only_documented_legacy_exceptions() -> None:
+    legacy_cli = "harbor" + "-lab"
+    legacy_package = "harbor" + "_lab"
+    legacy_title = "Harbor" + " lab"
+    legacy_repo = "harbor" + "-experiment-lab"
+    allowed_cli_paths = {
+        Path("README.md"),
+        Path("library/tasks/event-summary/README.md"),
+        Path("pyproject.toml"),
+        Path("src/evallab/cli.py"),
+    }
+    findings: list[str] = []
+
+    for path in repository_files():
+        relative = path.relative_to(ROOT)
+        if relative.is_relative_to(Path("research/evidence/runs")):
+            continue
+        try:
+            text = path.read_text()
+        except UnicodeDecodeError:
+            continue
+        if legacy_cli in text and relative not in allowed_cli_paths:
+            findings.append(f"{relative}: legacy CLI outside transition boundary")
+        if legacy_package in text:
+            findings.append(f"{relative}: legacy Python package")
+        if legacy_title.lower() in text.lower():
+            findings.append(f"{relative}: legacy lab title")
+        if legacy_repo in text:
+            findings.append(f"{relative}: legacy repository name")
+
+    assert findings == []
+
+
+def test_readme_leads_with_eval_research_mission() -> None:
+    introduction = (ROOT / "README.md").read_text().split("\n\n", 2)[1]
+
+    assert "evaluation research lab" in introduction
+    assert "agent evaluation in real environments" in introduction
+    assert "Harbor as its execution engine" in introduction
+    assert (ROOT / "src/evallab").is_dir()
+    assert not (ROOT / "src" / ("harbor" + "_lab")).exists()
+
+
 def test_only_queue_executor_imports_the_harbor_runner() -> None:
     importers = []
-    for path in (ROOT / "src/harbor_lab").glob("*.py"):
+    for path in (ROOT / "src/evallab").glob("*.py"):
         if path.name == "runner.py":
             continue
         if "run_experiment" in path.read_text():
@@ -138,7 +192,7 @@ def test_only_queue_executor_imports_the_harbor_runner() -> None:
 
     assert importers == ["queue.py"]
 
-    cli = (ROOT / "src/harbor_lab/cli.py").read_text()
+    cli = (ROOT / "src/evallab/cli.py").read_text()
     assert 'tool_version("harbor")' not in cli
     assert 'tool_version("docker")' not in cli
     assert '"docker",\n' not in cli

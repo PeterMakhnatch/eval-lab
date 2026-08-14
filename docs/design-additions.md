@@ -10,7 +10,7 @@
 
 ## 0. Decisions taken (by Peter, 2026-08-13)
 
-**D1 — One repository.** This repo, `harbor-experiment-lab`, is the single home
+**D1 — One repository.** This repo, `eval-lab`, is the single home
 for the lab: infrastructure, tasks, experiments, analysis, dashboards, docs.
 The earlier two-repo idea (separate "task foundry") is rejected. Consequences:
 
@@ -44,7 +44,7 @@ first, role second, correction or caveat third.
 | Optimization | **dspy** | Keep, with a corrected role. | Prompt/program *optimizer* used in bounded experiments (judge optimization first — see brief 09). "Synthetic data generator" is a use pattern (bootstrapped demos), not its identity; it is not general lab infrastructure and nothing else may depend on it. |
 | Observability | **arize-phoenix** | Keep. Right choice. | Local, single-container, OTel-native trace UI. Receives (a) Harbor ATIF trajectories via `harbor-atif2otel`, (b) DSPy/LiteLLM calls via OpenInference instrumentation. This is where "why did the agent fail" gets answered visually. |
 | Memory | **lancedb** | Keep, sequenced later. | Embedded (file-based, serverless) vector index over *analysis sidecars* — failed attempts, findings, proposals — so researcher agents can ask "have we seen this failure before?" before proposing. It is a **derived, rebuildable index**, never a source of truth. Alternative considered: pgvector in the existing Postgres (one store fewer); LanceDB wins on zero-ops and keeping vectors out of the catalog contract. Do not build until analysis sidecars exist in volume (after brief 03 has produced ~100+). |
-| Validation | **pydantic** | Keep. Trivially correct. | Every JSON contract in the lab — experiment spec, queue record, analysis sidecar, proposal, calibration record, digest data — is a versioned pydantic model in one module (`src/harbor_lab/schemas.py`). Harbor itself is pydantic v2; match it. |
+| Validation | **pydantic** | Keep. Trivially correct. | Every JSON contract in the lab — experiment spec, queue record, analysis sidecar, proposal, calibration record, digest data — is a versioned pydantic model in one module (`src/evallab/schemas.py`). Harbor itself is pydantic v2; match it. |
 | Dashboard | **streamlit** | Keep, with a boundary. | One read-only app over Postgres/DuckDB: leaderboards, canary trends, spend vs. ceiling, queue state, calibration history. It renders; it never writes. Approvals happen via CLI/file moves, not dashboard buttons (v1). Phoenix owns traces; `harbor view` owns single-trial drill-down; Streamlit owns the research overview. |
 
 **Additions the stack list implies but does not name** (all already planned or
@@ -86,7 +86,7 @@ verify current image env/ports against Phoenix docs at build time):
       - "127.0.0.1:6006:6006"   # UI + OTLP/HTTP
       - "127.0.0.1:4317:4317"   # OTLP/gRPC
     volumes:
-      - harbor-lab-phoenix:/mnt/data
+      - evallab-phoenix:/mnt/data
 ```
 
 ## 2. The unattended research loop
@@ -101,7 +101,7 @@ digest. Agents **propose and analyze; only the executor executes.**
               tick: every 30 min      nightly: 02:30
                         |                  |
                         v                  v
-                 harbor-lab tick     harbor-lab nightly
+                 evallab tick     evallab nightly
                         |                  |
         +---------------+                  +----------------------------+
         |                                  |                            |
@@ -122,14 +122,14 @@ digest. Agents **propose and analyze; only the executor executes.**
         v                                              in-policy -> queue/approved
   digests/YYYY-MM-DD.md  (committed; the human's daily surface)        |
                                                        out-of-policy -> queue/waiting
-                                                              (human: harbor-lab approve <id>)
+                                                              (human: evallab approve <id>)
 ```
 
 Queue states are directories; a spec is one JSON file named
 `<agent>-<ulid>.json`; transitions are atomic `mv` on one filesystem —
 that is the entire locking model. `pending → approved|waiting|rejected →
 running → done|failed`. A `STOP` file at the queue root halts all dispatch
-after the current trial; `harbor-lab stop` / `resume` manage it.
+after the current trial; `evallab stop` / `resume` manage it.
 
 ### 2.2 The standing-approvals policy (the autonomy contract)
 
@@ -196,7 +196,7 @@ One committed file per day, `digests/YYYY-MM-DD.md`: jobs run and their policy
 rule, rewards vs. 7-day canary baseline, exceptions by taxonomy category,
 spend vs. ceiling, disk growth, queue depth, proposals waiting with one-line
 rationales, calibration status of judged dimensions. Reading it should take
-two minutes; `harbor-lab approve <id>` / `reject <id>` is the only routine
+two minutes; `evallab approve <id>` / `reject <id>` is the only routine
 action. The Streamlit app is the pull surface behind it.
 
 ### 2.5 Failure containment
@@ -219,12 +219,12 @@ criteria; Codex may copy these into `docs/prompts/` files verbatim. Order matter
 
 ### 05 — Queue + executor + policy gate
 
-Build `src/harbor_lab/queue.py` and extend the CLI with `submit`, `tick`,
+Build `src/evallab/queue.py` and extend the CLI with `submit`, `tick`,
 `approve`, `reject`, `stop`, `resume`. Directory queue as in §2.1; pydantic
 `ExperimentSpec` (extend the existing `research/experiments/*.json` schema with
 `submitted_by`, `priority`, `est_cost_usd`, `policy_rule`); policy loader for
 `policy/standing-approvals.yaml`; cost ledger check against the catalog;
-`events.jsonl` appender. The executor wraps the existing `harbor_lab.runner`
+`events.jsonl` appender. The executor wraps the existing `evallab.runner`
 and auto-ingests on completion. Acceptance: two agents submit concurrently
 without interference; an out-of-policy spec lands in `waiting/`; a spec past
 the ceiling is refused with a reason file; `STOP` halts dispatch; every
@@ -235,10 +235,10 @@ machine with a stub runner.
 
 `doctor --headless` (Keychain item readable, `~/.codex/auth.json` present,
 Docker reachable, Postgres up, disk headroom — booleans only, never values;
-reuse the migrated `with-claude-auth` sourcing pattern). `harbor-lab schedule
+reuse the migrated `with-claude-auth` sourcing pattern). `evallab schedule
 install` writes two LaunchAgent plists (`…tick` every 30 min, `…nightly` at
-02:30) running `zsh -lc 'cd <repo> && uv run harbor-lab …'` in the user
-session. `harbor-lab digest` renders yesterday from the catalog + events into
+02:30) running `zsh -lc 'cd <repo> && uv run evallab …'` in the user
+session. `evallab digest` renders yesterday from the catalog + events into
 `digests/`. Acceptance: with launchd loaded and no human present, a queued
 oracle control runs, ingests, and appears in the next morning's committed
 digest; with the Keychain locked, the digest reports quarantine and zero
@@ -258,7 +258,7 @@ is flagged in the digest.
 
 ### 08 — Phoenix + trace shipping
 
-Add the Phoenix compose service (§1). `harbor-lab trace <trial>` converts the
+Add the Phoenix compose service (§1). `evallab trace <trial>` converts the
 trial's ATIF via `harbor-atif2otel` and ships it OTLP → Phoenix; `--job` ships
 all trials of a job; nightly ships completed billable trials automatically.
 Wire OpenInference instrumentation into researcher-agent invocations and any
@@ -270,7 +270,7 @@ timings, and a researcher-analyst call beside it.
 
 Prereq for any judged dimension entering the canary or auto-run sets. Migrate
 the judged-output negative-control corpora (brief 11 brings the files);
-`harbor-lab calibrate <family>` runs the family's judge over the labeled
+`evallab calibrate <family>` runs the family's judge over the labeled
 corpus, writes a `judge_calibrations` record (judge model, rubric digest,
 corpus digest, per-criterion agreement, date); policy `calibrated_judges_only`
 gates on the latest record passing a stated floor (≥0.9 agreement).
@@ -284,7 +284,7 @@ held-out number reported beside the baseline in one short report.
 
 ### 10 — LanceDB failure memory
 
-After sidecars exist in volume. `src/harbor_lab/memory.py`: embed analysis
+After sidecars exist in volume. `src/evallab/memory.py`: embed analysis
 sidecars (summary + category + evidence paths) into a LanceDB table under
 `memory/` (gitignored; rebuildable by re-embedding sidecars — assert this with
 a rebuild test). Proposer agents query top-k similar failures/proposals before
@@ -300,7 +300,7 @@ One PR-sized move: `tasks/`, `datasets/`, control corpora, auth scripts,
 reports from `agent-evals/harbor-practice` into this repo (adjust paths;
 re-run each migrated task's oracle + nop controls here before it may be
 registered; leave a README pointer in harbor-practice marking it frozen).
-Then the Streamlit app (`dashboard/app.py`, `uv run harbor-lab dashboard`):
+Then the Streamlit app (`dashboard/app.py`, `uv run evallab dashboard`):
 read-only over Postgres/DuckDB — leaderboard per cohort, canary trend, spend
 vs. ceiling, queue/proposal state, calibration history. No write path.
 Acceptance: migrated tasks pass controls under this repo's runner; dashboard
@@ -310,7 +310,7 @@ renders from a cold start with only the catalog running.
 
 | Order | Brief | Suggested owner |
 |---|---|---|
-| 1 | 05 queue/executor/policy | Codex (owns `src/harbor_lab`) |
+| 1 | 05 queue/executor/policy | Codex (owns `src/evallab`) |
 | 2 | 06 doctor/launchd/digest | Codex |
 | 3 | 07 canaries | Codex |
 | 4 | 08 Phoenix | any agent |

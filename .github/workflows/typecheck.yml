@@ -1,19 +1,7 @@
 name: typecheck
 
-# Static type checking, deliberately kept in its own workflow file.
-#
-# Why not inside ci.yml: the unmerged branch `codex/restore-green-ci` rewrites
-# ci.yml (SHA-pinned actions, concurrency, lint/test split, python matrix).
-# Adding a job there would guarantee a merge conflict. A separate workflow
-# merges cleanly in either order and runs in parallel with `quality`, so it
-# costs no extra wall-clock. Folding the two together is a fine daytime
-# follow-up *after* that branch lands.
-#
-# Why non-blocking today: `ty` reports 4 pre-existing diagnostics, all in
-# src/harbor_lab/{database,queue}.py. Those files are owned by other roles, so
-# FORGE must not edit them (agents/WORKFLOW.md). The job therefore reports
-# without failing the PR. See docs/engineering.md for the exact diagnostic
-# list and the condition for flipping this to blocking.
+# Static type checking stays in its own workflow so the 33-diagnostic
+# non-regression ratchet is independently visible. See docs/engineering.md.
 
 on:
   pull_request:
@@ -44,11 +32,7 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
-          # 3.12, not 3.11: uv.lock declares requires-python ">=3.11" but its
-          # supported-markers are ">=3.12", so `uv sync --locked` cannot install
-          # on 3.11 at all. This is the lowest interpreter the lock actually
-          # supports. See docs/engineering.md — pyproject/uv.lock/ci.yml disagree
-          # about 3.11 and that is a BUILDER-owned fix, not a FORGE one.
+          # Python 3.12 is the supported development and lint floor.
           python-version: "3.12"
           version: "0.9.24"
       - run: uv sync --locked

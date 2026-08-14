@@ -12,7 +12,7 @@ OBSERVER, RUNNER, FORGE. Assign the strongest models to the top of the list.
 ## Setup and git protocol (every role — run and follow exactly)
 
 ```bash
-cd ~/Developer/harbor-experiment-lab
+cd ~/Developer/eval-lab
 git fetch origin
 git worktree add .worktrees/<role> -b role/<role> origin/main
 #   (if the worktree already exists: cd .worktrees/<role> && git rebase origin/main)
@@ -45,13 +45,13 @@ Rules that bind every mission tonight:
 - Work in `.worktrees/<role>` on branch `role/<role>` (WORKFLOW setup block).
   BUILDER-track missions (OBSERVER, ANALYST, AUTOPILOT) also use worktrees —
   `main` belongs to the integrator tonight.
-- **Shared files** (`src/harbor_lab/cli.py`, `src/harbor_lab/schemas.py`,
+- **Shared files** (`src/evallab/cli.py`, `src/evallab/schemas.py`,
   `compose.yaml`, `pyproject.toml`): additive-only, smallest possible diff
   (one registration line, one model, one service block). New logic goes in
   new modules you own. Rebase onto `origin/main` before every PR.
 - Verification before any PR: `uv run pytest -q` and `uv run ruff check .`
   clean; content-only missions record their own verification evidence.
-- Billable model calls happen **only** via `harbor-lab submit` through the
+- Billable model calls happen **only** via `evallab submit` through the
   queue, governed by `policy/standing-approvals.yaml` (ceilings: $20/day,
   $3/job). Never edit that file. If the ceiling or a missing credential
   blocks you, record it in your handoff and continue with free work — the
@@ -115,7 +115,7 @@ no-lane benchmark.
 
 ## OBSERVER — tracing and observability
 
-**Owns:** `src/harbor_lab/tracing.py`, `docs/prompts/08-*.md`,
+**Owns:** `src/evallab/tracing.py`, `docs/prompts/08-*.md`,
 `agents/handoffs/observer.md`; additive lines in `compose.yaml`,
 `cli.py`, `pyproject.toml` (dependency group `observability`).
 
@@ -124,7 +124,7 @@ every trajectory and researcher call inspectable on a timeline.
 
 1. Phoenix service in `compose.yaml` (image digest pinned, ports
    127.0.0.1-bound, volume; verify env/ports against current Phoenix docs).
-2. `harbor-lab trace <trial-or-job>`: convert ATIF via `harbor-atif2otel`,
+2. `evallab trace <trial-or-job>`: convert ATIF via `harbor-atif2otel`,
    ship OTLP to Phoenix. Handle missing/invalid trajectories with a clear
    message, not a stack trace. Use `research/explorations/harbor-021/`
    (RECON's atif2otel demo + fixtures) as your starting material.
@@ -135,7 +135,7 @@ every trajectory and researcher call inspectable on a timeline.
 5. `docs/observability.md`: what lands where (Phoenix vs digests vs
    `harbor view` vs Streamlit), how to read a trace, retention noted.
 
-**Acceptance:** `docker compose up phoenix` + `harbor-lab trace` on an
+**Acceptance:** `docker compose up phoenix` + `evallab trace` on an
 existing run in `runs/` (or a control run you produce) shows a span tree in
 Phoenix; tests cover the converter path with a fixture trajectory (no live
 Phoenix needed in CI); pytest+ruff clean.
@@ -147,8 +147,8 @@ Grafana-free latency/cost summaries into the digest from trace data.
 
 ## ANALYST — the analysis engine
 
-**Owns:** `src/harbor_lab/atif.py`, `src/harbor_lab/facts.py`,
-`src/harbor_lab/cohort.py`, `research/analysis/`,
+**Owns:** `src/evallab/atif.py`, `src/evallab/facts.py`,
+`src/evallab/cohort.py`, `research/analysis/`,
 `docs/prompts/01–03` copies, `agents/handoffs/analyst.md`.
 
 **Mission.** Briefs 01–03: turn raw runs into queryable facts and auditable
@@ -162,7 +162,7 @@ data and what the model thought about it" is a query, not archaeology.
 2. **Deterministic facts (brief 02).** Per trial: rewards, exception class,
    durations, token/cost, tool-use counts, command failures, artifact
    digests — extracted into the catalog + Parquet, reproducibly.
-3. **Cohort compare (brief 02).** `harbor-lab compare <cohort-spec>`:
+3. **Cohort compare (brief 02).** `evallab compare <cohort-spec>`:
    pass@1/pass@k with Wilson intervals, paired-by-task where applicable,
    exceptions reported beside the denominator, machine-readable output +
    readable table. Refuses cohorts that differ in more than the declared
@@ -204,7 +204,7 @@ and interpret real experiment runs — through the queue only.
    --extra-instruction-path"). Note per spec which policy rule admits it —
    `registered/*` scope questions go in the handoff for Peter, they are not
    yours to stretch.
-2. **Submit + monitor.** `harbor-lab submit` each admissible spec; watch
+2. **Submit + monitor.** `evallab submit` each admissible spec; watch
    dispatch/deferral/completion in `queue/events.jsonl`; free oracle/nop
    baselines for every task family you test.
 3. **Journal.** `research/experiments/JOURNAL.md`: one entry per submitted
@@ -227,7 +227,7 @@ the keychain token exists.
 
 ## AUTOPILOT — the 24/7 discovery loop
 
-**Owns:** `src/harbor_lab/researchers.py`, `digests/DISCOVERIES.md`,
+**Owns:** `src/evallab/researchers.py`, `digests/DISCOVERIES.md`,
 `docs/prompts/12-*.md` (fleet) if untaken, `agents/handoffs/autopilot.md`;
 additive edits to `automation.py`/`cli.py` (rebase carefully — the
 integrator landed credential-aware health there tonight).
@@ -300,14 +300,14 @@ coverage report wired into CI artifacts.
 
 ## JUDGE — calibration and the first DSPy experiment
 
-**Owns:** `src/harbor_lab/calibrate.py`, `docs/prompts/09-*.md`,
+**Owns:** `src/evallab/calibrate.py`, `docs/prompts/09-*.md`,
 `research/calibration/` (additions only — EVIDENCE's corpus and labels are
 read-only ground truth), `agents/handoffs/judge.md`.
 
 **Mission.** Brief 09: no judged dimension is reportable until its judge has
 a measured agreement number.
 
-1. **`harbor-lab calibrate <family>`.** Run a family's judge rubric over the
+1. **`evallab calibrate <family>`.** Run a family's judge rubric over the
    labeled corpus in `research/calibration/`, compare with the sealed answer
    keys, write a calibration record (judge model, rubric digest, corpus
    digest, per-criterion agreement, date) to the catalog +

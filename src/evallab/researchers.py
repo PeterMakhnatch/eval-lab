@@ -16,10 +16,10 @@ from typing import Literal, Protocol, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
-from harbor_lab import database
-from harbor_lab.queue import DirectoryQueue, load_events, load_policy, new_ulid
-from harbor_lab.runner import database_url_from_environment
-from harbor_lab.schemas import ContractModel, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
+from evallab import database
+from evallab.queue import DirectoryQueue, load_events, load_policy, new_ulid
+from evallab.runner import database_url_from_environment
+from evallab.schemas import ContractModel, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
 
 ResearchRole = Literal["analyst", "synthesizer", "proposer"]
 FailureCategory = Literal[
@@ -40,7 +40,7 @@ FailureCategory = Literal[
 
 _FLEET_START = "<!-- fleet:start -->"
 _FLEET_END = "<!-- fleet:end -->"
-_JOURNAL_HEADING = "# Harbor lab discovery journal"
+_JOURNAL_HEADING = "# Eval lab discovery journal"
 _MAX_EVIDENCE_TRIALS = 8
 _MAX_JOURNAL_TAIL_CHARS = 6_000
 _RESEARCHER_ENVIRONMENT_KEYS = {

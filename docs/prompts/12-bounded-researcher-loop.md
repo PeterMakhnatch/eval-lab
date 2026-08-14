@@ -2,8 +2,8 @@
 
 ## Contract
 
-`harbor-lab research` runs one analyst → synthesizer → proposer pass over the
-prior catalog day. `harbor-lab nightly` invokes the same pass only after the
+`evallab research` runs one analyst → synthesizer → proposer pass over the
+prior catalog day. `evallab nightly` invokes the same pass only after the
 headless doctor succeeds and the guarded executor drains and ingests completed
 work. A queue `STOP` marker prevents the researcher pass as well as dispatch.
 
@@ -47,7 +47,7 @@ starting a researcher subprocess.
 4. With credential-aware health on the integration base, run one real pass:
 
    ```bash
-   uv run harbor-lab research --date YYYY-MM-DD
+   uv run evallab research --date YYYY-MM-DD
    ```
 
 5. Run `uv run pytest -q` and `uv run ruff check .` before the PR.

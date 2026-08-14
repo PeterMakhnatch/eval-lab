@@ -10,10 +10,10 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from harbor_lab import database
-from harbor_lab.queue import DirectoryQueue, load_events
-from harbor_lab.runner import database_url_from_environment
-from harbor_lab.schemas import (
+from evallab import database
+from evallab.queue import DirectoryQueue, load_events
+from evallab.runner import database_url_from_environment
+from evallab.schemas import (
     CanaryDriftObservation,
     HeadlessDoctorReport,
     QueueEvent,
@@ -96,7 +96,7 @@ class DigestRenderer:
         )
 
         lines = [
-            f"# Harbor lab digest — {report_date.isoformat()}",
+            f"# Eval lab digest — {report_date.isoformat()}",
             "",
             f"Reporting period: {period_date.isoformat()} (local catalog day).",
             "",

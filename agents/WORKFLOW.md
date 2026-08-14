@@ -6,7 +6,7 @@ everyone; this file is the *how*, `agents/ROLES.md` is the *who*.
 
 ## The one-folder law
 
-Everything lives inside `~/Developer/harbor-experiment-lab`. **Creating any
+Everything lives inside `~/Developer/eval-lab`. **Creating any
 file or directory outside the repository root is a protocol violation** — no
 sibling folders, no `~/tmp` scratch, no second clones. Parallel isolation
 comes from git worktrees kept *inside* the repo under `.worktrees/`
@@ -30,7 +30,7 @@ requires editing that file in the same PR.
 ## Setup (once per role)
 
 ```bash
-cd ~/Developer/harbor-experiment-lab
+cd ~/Developer/eval-lab
 git worktree add .worktrees/<role> -b role/<role> main   # or existing branch
 cd .worktrees/<role>
 uv sync                        # each worktree has its own .venv
@@ -42,7 +42,7 @@ gitignored). Never point `jobs_dir` outside your worktree.
 ## The handoff file
 
 `agents/handoffs/<role>.md`, updated at **every** stopping point. First four
-lines are machine-parsed by `scripts/fleet-status.sh` / `harbor-lab fleet`:
+lines are machine-parsed by `scripts/fleet-status.sh` / `evallab fleet`:
 
 ```
 Status: building | blocked | review-wanted | done
@@ -88,7 +88,7 @@ Free prose below. A stale header is treated as "unknown — investigate."
 
 - **Docker daemon**: non-BUILDER roles run only free local verification
   (`oracle`/`nop`), `-n 2` max. All billable execution goes through the
-  queue (`harbor-lab submit`) — never invoked directly by a role.
+  queue (`evallab submit`) — never invoked directly by a role.
 - **Compose services** (Postgres, Phoenix): started/stopped only from the
   main checkout by BUILDER.
 - **Root `pyproject.toml` / `uv.lock`**: BUILDER-only. Other roles use `uvx`

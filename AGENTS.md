@@ -1,9 +1,9 @@
-# Harbor Experiment Lab
+# Eval Lab
 
-This private repository is the durable home for Peter Makhnatch's Harbor-style
-evaluation experiments. Keep evaluation definitions, infrastructure, analysis
-code, and small curated evidence here. Treat generated runs as immutable once
-they have been promoted to `research/evidence/runs/`.
+This private repository is the durable home for Peter Makhnatch's agent-evaluation
+research in real environments. Harbor is the execution engine; this lab owns the
+evaluation definitions, infrastructure, analysis code, and small curated evidence.
+Treat generated runs as immutable once promoted to `research/evidence/runs/`.
 
 ## Working rules
 
@@ -29,7 +29,7 @@ they have been promoted to `research/evidence/runs/`.
   immutable source of truth and must remain interpretable without the database.
 - Add schema changes idempotently to `sql/schema.sql` and cover parsers with
   fixture-based tests.
-- Use `uv run pytest`, `uv run ruff check .`, and `uv run harbor-lab doctor`
+- Use `uv run pytest`, `uv run ruff check .`, and `uv run evallab doctor`
   before a meaningful checkpoint.
 - Make meaningful changes on a named branch and open a pull request; do not push
   directly to `main` unless Peter explicitly asks. Treat every `quality` check
@@ -49,7 +49,7 @@ editing that file in the same PR. Buckets in one line each:
 - `research/`: produced knowledge — `experiments/`, `calibration/`,
   `explorations/`, `analysis/`, `evidence/` (reviewed control runs).
 - `policy/`: committed standing approvals; agents must never loosen this policy.
-- `src/harbor_lab/`, `tests/`, `sql/`, `scripts/`: the lab software.
+- `src/evallab/`, `tests/`, `sql/`, `scripts/`: the lab software.
 - `digests/`: committed daily derived reports.
 - `queue/`, `runs/`: ignored runtime state; `queue/events.jsonl` drives
   unattended work.
@@ -60,7 +60,7 @@ Use the wrapper so run provenance is recorded and billable adapters require an
 explicit acknowledgement:
 
 ```bash
-uv run harbor-lab run \
+uv run evallab run \
   --task library/tasks/event-summary \
   --agent oracle \
   --name event-summary-oracle

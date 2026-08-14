@@ -21,7 +21,7 @@ Added as the `phoenix` service in `compose.yaml`:
 - Ports, from [Phoenix configuration](https://arize.com/docs/phoenix/self-hosting/configuration)
   (checked 2026-08-13): `6006` UI + OTLP/HTTP `/v1/traces` (protobuf);
   `4317` OTLP/gRPC.
-- Data: volume `harbor-lab-phoenix` mounted at `/mnt/data`
+- Data: volume `evallab-phoenix` mounted at `/mnt/data`
   (`PHOENIX_WORKING_DIR`).
 - Bound to `127.0.0.1` only.
 
@@ -29,7 +29,7 @@ Added as the `phoenix` service in `compose.yaml`:
 `docker compose`:
 
 ```bash
-cd ~/Developer/harbor-experiment-lab
+cd ~/Developer/eval-lab
 docker compose up -d phoenix
 ```
 
@@ -43,9 +43,9 @@ Phoenix volume so a catalog rebuild cannot delete them.
 1. Convert + ship a trial or job:
 
    ```bash
-   uv run harbor-lab trace runs/<job>/<trial> --include-controls
-   uv run harbor-lab trace runs/<job>
-   uv run harbor-lab trace research/explorations/harbor-021/fixtures/trajectory.json --dry-run
+   uv run evallab trace runs/<job>/<trial> --include-controls
+   uv run evallab trace runs/<job>
+   uv run evallab trace research/explorations/harbor-021/fixtures/trajectory.json --dry-run
    ```
 
 2. Open `http://127.0.0.1:6006`. The root span is `openinference.span.kind=AGENT`
@@ -61,7 +61,7 @@ stack trace.
 
 ## Auto-trace
 
-`harbor-lab nightly` ships completed **billable** trials under `runs/` after
+`evallab nightly` ships completed **billable** trials under `runs/` after
 the digest. oracle/nop controls are skipped unless you pass
 `--include-controls` on the manual `trace` command.
 

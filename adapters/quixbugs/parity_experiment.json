@@ -1,0 +1,28 @@
+[
+  {
+    "adapter_name": "quixbugs",
+    "agent": null,
+    "model": null,
+    "date": null,
+    "parity_status": "deferred",
+    "adapted_benchmark_size": 80,
+    "parity_benchmark_size": null,
+    "number_of_runs": 0,
+    "costs": "$0",
+    "notes": "No qualifying original result has a matching Harbor agent, model, configuration, budget, and run protocol. Oracle/no-op controls are not parity evidence.",
+    "original_parity_repo": "https://github.com/jkoppel/QuixBugs",
+    "metrics": [
+      {
+        "benchmark_name": "QuixBugs",
+        "metric": "test-suite pass rate",
+        "original": null,
+        "harbor": null,
+        "original_runs": [],
+        "harbor_runs": []
+      }
+    ],
+    "adapter_pr": null,
+    "dataset_pr": null,
+    "parity_pr": null
+  }
+]

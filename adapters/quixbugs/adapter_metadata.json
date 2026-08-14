@@ -1,0 +1,37 @@
+[
+  {
+    "adapter_name": "quixbugs",
+    "adapter_builders": [
+      "Peter Makhnatch (p.makhnatch@gmail.com)"
+    ],
+    "original_benchmark": [
+      {
+        "split": "full",
+        "size": 80,
+        "harness": "QuixBugs tester.py, pytest, and Gradle/JUnit",
+        "supported_agents": [
+          "program-repair systems"
+        ],
+        "adaptable": true,
+        "notes": "40 algorithms translated into Python and Java (80 program-language repair instances), pinned at commit 4257f44b0ff1181dedaedee6a447e133219fcebf under the MIT license."
+      }
+    ],
+    "harbor_adapter": [
+      {
+        "split": "full",
+        "adapted_benchmark_size": 80,
+        "parity_benchmark_size": null,
+        "parity_sampling_rate": null,
+        "registry_benchmark_size": null,
+        "added_agents": [
+          "oracle@1.0.0",
+          "nop@1.0.0"
+        ],
+        "parity_matching_agents": [],
+        "parity_unmatching_agents": [],
+        "parity_costs": "$0",
+        "notes": "Parity status: deferred. No model-backed original result has a matching Harbor agent/model/configuration. Local controls on 2026-08-13: five-task Oracle k=3 passed 15/15; the same no-op sample failed 5/5. Informative canaries: quixbugs-python-gcd, quixbugs-python-breadth_first_search, and quixbugs-java-minimum_spanning_tree."
+      }
+    ]
+  }
+]

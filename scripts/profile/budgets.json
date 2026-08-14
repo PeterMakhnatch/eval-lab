@@ -1,0 +1,12 @@
+{
+  "tolerance_pct": 50,
+  "paths": {
+    "ingest": 80.0,
+    "projection": 25.0,
+    "facts": 25.0,
+    "digest": 15.0,
+    "queue-tick-100": 150.0,
+    "fleet-status": 5000.0
+  },
+  "notes": "CI-local ceilings in milliseconds of median after warmup+5 reps. About 3x the 2026-08-14 SPEED laptop capture on the committed 2-job evidence corpus, except fleet-status which is git/gh-bound. tolerance_pct=50. An improvement below 50% of a budget should re-baseline."
+}

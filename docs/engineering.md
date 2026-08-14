@@ -239,12 +239,65 @@ it from this recipe:
 5. **Report median of >= 5 reps after a warmup**, plus min and max. Single
    timings on a laptop are noise.
 
+The committed harness is `scripts/profile/` (SPEED, 2026-08-14). It replaces
+the gitignored `runs/_forge/profile.py` recipe:
+
+```bash
+uv run python scripts/profile/harness.py
+uv run python scripts/profile/check_budgets.py runs/_speed/profile-report.json
+```
+
+It profiles ingest, projection, facts, digest render, a 100-spec queue tick,
+and `scripts/fleet-status.sh`. Harbor dispatch is stubbed. Ingest writes only
+to a scratch database named `evallab_speed_prof` (or
+`$EVAL_LAB_PROFILE_DATABASE_URL`). The shared `evallab` catalog is refused.
+`gh` is stubbed so fleet-status does not hit the network. CI runs the same
+command in `.github/workflows/perf.yml` and fails when a median exceeds the
+committed budget by more than `tolerance_pct`.
+
 Synthetic specs need `hypothesis`, `name` matching `^[a-z0-9][a-z0-9-]+$`, and
 `policy_rule="human-approval"` to sit in `approved/` without a live gate.
 
 ---
 
-## 5. Open items
+## 5. SPEED before / after (2026-08-14)
+
+Harness: `uv run python scripts/profile/harness.py`. Method: median of 5
+reps after 1 warmup, `time.perf_counter()`. Machine: Apple Silicon arm64,
+macOS 26.5, Python 3.12.11, scratch Postgres `evallab_speed_prof` on
+`127.0.0.1:54329`. Harbor dispatch stubbed. Two consecutive local runs on 2026-08-14 agreed on the same six paths
+(times jitter). Re-run `scripts/profile/harness.py` to supersede.
+
+**Corpus shape (this table).** 2 Harbor job directories,
+4 `result.json` files, 31,716 bytes, from committed
+`research/evidence/runs` (oracle + nop event-summary). This is *not* the
+FORGE §3 corpus (10 jobs / 24 `result.json` / 263,439 bytes from mixed
+`runs/` + evidence). Do not ratio the two columns as a speedup.
+
+| Path | FORGE §3 (10-job mix) | SPEED harness (2-job evidence) | Notes |
+|---|---:|---:|---|
+| ingest (`database.ingest`, scratch DB) | 54.03 ms steady / 58.72 ms cold | **29.01 / 31.08 ms** | Smaller corpus; same seam |
+| projection (`atif.export_trajectories`) | not separately timed | **2.69 / 2.65 ms** | Python + Parquet write |
+| facts (`facts.export_facts`) | not separately timed | **3.45 / 3.91 ms** | Python + Parquet write |
+| `DigestRenderer.write` (catalog stubbed) | 4.10 ms | **0.80 / 0.80 ms** | Smaller digest input |
+| `Executor.tick` N=100, stubs | 70.26 ms | **44.73 / 43.45 ms** | Same N, stubbed runner |
+| `scripts/fleet-status.sh` | 1287 ms | **1858 / 1446 ms** | git + stubbed `gh`; host-bound |
+
+Reading: on the committed fixture, ingest+projection together are ~32 ms.
+That is already small versus tick catalog overhead in §3 and versus
+fleet-status. As of 2026-08-14 `gh pr list` / `git log origin/main` show
+no merged PIPELINE PR, so SPEED did not edit `atif.py` / `facts.py` /
+`digest.py` and added no Polars dependency. A post-PIPELINE re-profile of
+the merged ingest+projection path is required before claiming a win or an
+already-optimal finding on that path.
+
+CI ratchet: `scripts/profile/budgets.json` + `.github/workflows/perf.yml`.
+An injected `digest=500` slowdown against a 5 ms budget fails with
+`digest: median 653.170 ms exceeds budget 5.000 ms + 10%`.
+
+---
+
+## 6. Open items
 
 Recorded, not acted on, because the files belong to other roles:
 

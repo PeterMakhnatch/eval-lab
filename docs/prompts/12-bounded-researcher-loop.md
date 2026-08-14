@@ -14,7 +14,7 @@ Researcher subprocesses use `codex exec` with:
 - user config, apps, hooks, multi-agent tools, and web search disabled;
 - a hard rollout-token budget and wall-clock timeout;
 - machine-readable events, with any tool-use event rejecting the result;
-- one validation retry, then a recorded failure.
+- one schema or semantic-policy validation retry, then a recorded failure.
 
 The local call ledger reserves an attributed amount before every attempt. It
 enforces twelve calls per role per day (at most six bounded passes including one

@@ -553,8 +553,10 @@ class ResearcherLoop:
                 output_model=AnalystOutput,
                 work_dir=pass_dir / "analyst",
                 catalog_spend=catalog_spend,
+                validator=lambda candidate: self._validate_analyst(
+                    candidate, bundle, allowed_paths
+                ),
             )
-            self._validate_analyst(analyst, bundle, allowed_paths)
             analysis_path = pass_dir / "analysis.json"
             _write_model(analysis_path, analyst)
 
@@ -566,13 +568,20 @@ class ResearcherLoop:
                 output_model=SynthesisOutput,
                 work_dir=pass_dir / "synthesizer",
                 catalog_spend=catalog_spend,
+                validator=lambda candidate: self._validate_synthesis(
+                    candidate, bundle, allowed_paths
+                ),
             )
-            self._validate_synthesis(synthesis, bundle, allowed_paths)
             synthesis_path = pass_dir / "synthesis.json"
             _write_model(synthesis_path, synthesis)
 
             journal = DiscoveryJournal(self.repo_root / "digests/DISCOVERIES.md")
             registry = self._registered_tasks()
+
+            def validate_proposal(candidate: ProposalDraft) -> None:
+                journal.validate_thread_reference(candidate)
+                self._validate_proposal(candidate, registry)
+
             proposal = self._invoke_validated(
                 pass_id=pass_id,
                 role="proposer",
@@ -581,9 +590,8 @@ class ResearcherLoop:
                 output_model=ProposalDraft,
                 work_dir=pass_dir / "proposer",
                 catalog_spend=catalog_spend,
+                validator=validate_proposal,
             )
-            journal.validate_thread_reference(proposal)
-            self._validate_proposal(proposal, registry)
             proposal_draft_path = pass_dir / "proposal-draft.json"
             _write_model(proposal_draft_path, proposal)
 
@@ -671,6 +679,7 @@ class ResearcherLoop:
         output_model: type[T],
         work_dir: Path,
         catalog_spend: float,
+        validator: Callable[[T], None] | None = None,
     ) -> T:
         errors: list[str] = []
         for attempt in (1, 2):
@@ -700,6 +709,8 @@ class ResearcherLoop:
                 if response.used_tools:
                     raise ValueError("researcher attempted a tool; zero-tool output required")
                 parsed = output_model.model_validate_json(response.output)
+                if validator is not None:
+                    validator(parsed)
             except TimeoutError as exc:
                 self.ledger.finish(
                     invocation_id=invocation_id,

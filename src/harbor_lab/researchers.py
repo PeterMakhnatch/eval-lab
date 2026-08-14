@@ -195,19 +195,19 @@ class RoleLimits:
 
 DEFAULT_ROLE_LIMITS: Mapping[ResearchRole, RoleLimits] = {
     "analyst": RoleLimits(
-        max_calls_per_day=10,
-        max_tokens=8_000,
+        max_calls_per_day=12,
+        max_tokens=12_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "synthesizer": RoleLimits(
-        max_calls_per_day=10,
-        max_tokens=6_000,
+        max_calls_per_day=12,
+        max_tokens=8_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "proposer": RoleLimits(
-        max_calls_per_day=10,
+        max_calls_per_day=12,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
@@ -350,8 +350,11 @@ class CodexInvoker:
         _write_invocation_logs(work_dir, stdout, stderr)
         usage, used_tools = _parse_codex_events(stdout)
         if process.returncode != 0:
-            detail = _safe_error(stderr or stdout)
-            raise RuntimeError(f"codex exec exited {process.returncode}: {detail}")
+            recovered = _recover_budget_limited_output(stdout, output_model)
+            if recovered is None:
+                detail = _safe_error(stderr or stdout)
+                raise RuntimeError(f"codex exec exited {process.returncode}: {detail}")
+            output_path.write_text(recovered + "\n")
         if not output_path.is_file():
             raise RuntimeError("codex exec did not write its structured final output")
         return InvocationResponse(
@@ -750,8 +753,12 @@ class ResearcherLoop:
         if (self.repo_root / digest_relative).is_file():
             allowed.append(digest_relative)
         trials: list[TrialEvidence] = []
-        for row in rows[:_MAX_EVIDENCE_TRIALS]:
+        seen_jobs: set[str] = set()
+        for row in rows:
             job_name = str(row[0])
+            if job_name in seen_jobs:
+                continue
+            seen_jobs.add(job_name)
             evidence_paths = self._job_evidence_paths(job_name) or [bundle_relative]
             allowed.extend(evidence_paths)
             trials.append(
@@ -767,6 +774,8 @@ class ResearcherLoop:
                     evidence_paths=evidence_paths,
                 )
             )
+            if len(trials) == _MAX_EVIDENCE_TRIALS:
+                break
         return EvidenceBundle(
             report_date=report_date,
             period_date=period_date,
@@ -1182,6 +1191,28 @@ def _parse_codex_events(output: str) -> tuple[InvocationUsage, bool]:
             with suppress(ValidationError):
                 usage = InvocationUsage.model_validate(event.get("usage") or {})
     return usage, used_tools
+
+
+def _recover_budget_limited_output(
+    events: str,
+    output_model: type[BaseModel],
+) -> str | None:
+    messages: list[str] = []
+    errors: list[str] = []
+    for line in events.splitlines():
+        with suppress(json.JSONDecodeError):
+            event = json.loads(line)
+            item = event.get("item") or {}
+            if event.get("type") == "item.completed" and item.get("type") == "agent_message":
+                messages.append(str(item.get("text") or ""))
+            if event.get("type") == "error":
+                errors.append(str(event.get("message") or ""))
+    if not messages or errors != ["shared rollout token budget exhausted"]:
+        return None
+    with suppress(ValidationError):
+        output_model.model_validate_json(messages[-1])
+        return messages[-1]
+    return None
 
 
 def _strict_output_schema(value):

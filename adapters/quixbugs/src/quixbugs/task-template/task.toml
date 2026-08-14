@@ -1,0 +1,39 @@
+schema_version = "1.0"
+
+artifacts = ["{artifact}"]
+
+[task]
+name = "quixbugs/quixbugs__{language}__{program}"
+version = "1.0"
+authors = [
+{authors}
+]
+keywords = ["quixbugs", "program-repair", "{language}"]
+
+[metadata]
+difficulty = "easy"
+category = "debugging"
+source = "https://github.com/jkoppel/QuixBugs"
+source_ref = "{source_ref}"
+language = "{language}"
+
+[verifier]
+timeout_sec = 120.0
+environment_mode = "separate"
+
+[verifier.environment]
+build_timeout_sec = 900.0
+cpus = 1
+memory_mb = 2048
+storage_mb = 4096
+gpus = 0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 900.0
+cpus = 1
+memory_mb = 2048
+storage_mb = 4096
+gpus = 0

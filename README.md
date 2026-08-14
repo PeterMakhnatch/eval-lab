@@ -89,9 +89,17 @@ uv run harbor-lab run \
   --name event-summary-oracle-local
 ```
 
-Adapters other than `oracle` and `nop` require `--allow-billable`; this prevents
-an experiment typo from silently invoking a paid model. The flag is an explicit
-acknowledgement, not a credential or cost limit.
+Direct runs are restricted to the `oracle` and `nop` controls. Billable work is
+submitted to the directory queue and admitted only by the committed standing
+policy:
+
+```bash
+uv run harbor-lab submit /path/to/experiment-spec.json
+uv run harbor-lab tick
+```
+
+See [docs/operations.md](docs/operations.md) for approvals, STOP/resume, and
+queue recovery.
 
 ## What is versioned
 
@@ -110,6 +118,8 @@ acknowledgement, not a credential or cost limit.
 uv run harbor-lab doctor
 uv run harbor-lab run --help
 uv run harbor-lab matrix --help
+uv run harbor-lab submit --help
+uv run harbor-lab tick
 uv run harbor-lab summarize runs evidence/runs
 uv run harbor-lab db init
 uv run harbor-lab ingest runs evidence/runs

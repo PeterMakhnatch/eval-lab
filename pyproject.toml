@@ -9,7 +9,11 @@ description = "Reproducible local infrastructure and analysis for Harbor evaluat
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "duckdb>=1.5.5",
     "psycopg[binary]>=3.2,<4",
+    "pyarrow>=25.0.1",
+    "pydantic>=2.13.4",
+    "pyyaml>=6.0.3",
 ]
 
 [project.scripts]

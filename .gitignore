@@ -18,6 +18,8 @@ auth.json
 # Generated experiment state
 /runs/
 /exports/
+/queue/
+/derived/
 /notebooks/.ipynb_checkpoints/
 
 # Local database and tooling

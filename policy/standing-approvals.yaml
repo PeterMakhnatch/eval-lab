@@ -1,0 +1,20 @@
+version: 1
+daily_cost_ceiling_usd: 20
+per_job_cost_ceiling_usd: 3
+quiet_failure_rule: 3
+auto_run:
+  - name: local-controls
+    agents: [oracle, nop]
+  - name: canary
+    tasks: [canary/*]
+    agents: [codex, claude-code]
+    max_attempts: 3
+  - name: researcher-followups
+    tasks: [registered/*]
+    agents: [codex, claude-code]
+    max_attempts: 5
+    requires: [schema_valid, dedup_pass, calibrated_judges_only]
+escalate_to_human:
+  - new_task_registration
+  - cloud_or_remote_environment
+  - anything_exceeding_ceilings

@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
-import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from harbor_lab import __version__, database
+from harbor_lab.queue import DirectoryQueue, Executor, read_spec
 from harbor_lab.results import JobRecord, load_job, load_jobs
 from harbor_lab.runner import (
     RunRequest,
@@ -16,8 +15,6 @@ from harbor_lab.runner import (
     expected_primary_reward,
     load_matrix,
     request_from_matrix,
-    run_experiment,
-    tool_version,
 )
 
 
@@ -45,6 +42,23 @@ def parser() -> argparse.ArgumentParser:
     commands = root.add_subparsers(dest="command", required=True)
 
     commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
+
+    submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
+    submit.add_argument("path", type=Path)
+
+    commands.add_parser("tick", help="Reconcile and drain the approved experiment queue")
+
+    approve = commands.add_parser("approve", help="Approve one waiting experiment")
+    approve.add_argument("spec_id")
+    approve.add_argument("--actor", default="peter")
+
+    reject = commands.add_parser("reject", help="Reject one queued experiment")
+    reject.add_argument("spec_id")
+    reject.add_argument("--actor", default="peter")
+    reject.add_argument("--reason", required=True)
+
+    commands.add_parser("stop", help="Stop dispatch after the current trial")
+    commands.add_parser("resume", help="Remove the queue stop marker")
 
     run = commands.add_parser("run", help="Run one explicitly named Harbor job")
     run.add_argument("--task", type=Path, required=True)
@@ -117,25 +131,7 @@ def _print_summary(jobs: Sequence[JobRecord]) -> None:
 
 
 def _doctor(root: Path) -> int:
-    checks: list[tuple[str, bool, str]] = []
-    for command in ("harbor", "docker", "uv"):
-        version = tool_version(command)
-        checks.append((command, version is not None, version or "not found"))
-
-    if shutil.which("docker"):
-        docker = subprocess.run(
-            [
-                "docker",
-                "version",
-                "--format",
-                "client={{.Client.Version}} server={{.Server.Version}}",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        detail = (docker.stdout or docker.stderr).strip().splitlines()[0]
-        checks.append(("docker-daemon", docker.returncode == 0, detail))
+    checks = Executor.from_repo(root).local_runtime_checks()
 
     database_url = database_url_from_environment()
     try:
@@ -163,7 +159,7 @@ def _run_command(args: argparse.Namespace, root: Path) -> int:
         attempts=args.attempts,
         allow_billable=args.allow_billable,
     )
-    job_dir = run_experiment(request, repo_root=root)
+    job_dir = Executor.from_repo(root).execute_direct(request)
     print(f"completed: {job_dir}")
     _print_summary([load_job(job_dir)])
     return 0
@@ -174,13 +170,14 @@ def _matrix_command(args: argparse.Namespace, root: Path) -> int:
     matrix = load_matrix(matrix_path)
     completed: list[JobRecord] = []
     mismatch = False
-    for run in matrix["runs"]:
+    executor = Executor.from_repo(root)
+    for run in matrix.runs:
         request = request_from_matrix(matrix, run, repo_root=root)
         job_dir = request.jobs_dir / request.name
         if args.reuse_existing and job_dir.is_dir():
             job = load_job(job_dir)
         else:
-            job = load_job(run_experiment(request, repo_root=root))
+            job = load_job(executor.execute_direct(request))
         completed.append(job)
         expected = expected_primary_reward(run)
         if expected is not None:
@@ -202,6 +199,34 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "doctor":
             return _doctor(root)
+        if args.command == "submit":
+            spec = read_spec(_resolve(root, args.path))
+            path, decision = Executor.from_repo(root).submit(spec)
+            print(f"{path.parent.name}: {path}")
+            print(decision.message)
+            return 0
+        if args.command == "tick":
+            count = Executor.from_repo(root).tick()
+            print(f"dispatched {count} experiment(s)")
+            return 0
+        if args.command == "approve":
+            path = DirectoryQueue(root / "queue").approve(args.spec_id, actor=args.actor)
+            print(f"approved: {path}")
+            return 0
+        if args.command == "reject":
+            path = DirectoryQueue(root / "queue").reject(
+                args.spec_id, actor=args.actor, message=args.reason
+            )
+            print(f"rejected: {path}")
+            return 0
+        if args.command == "stop":
+            DirectoryQueue(root / "queue").stop()
+            print("queue stopped")
+            return 0
+        if args.command == "resume":
+            DirectoryQueue(root / "queue").resume()
+            print("queue resumed")
+            return 0
         if args.command == "run":
             return _run_command(args, root)
         if args.command == "matrix":

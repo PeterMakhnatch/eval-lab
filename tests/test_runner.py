@@ -47,5 +47,5 @@ def test_existing_control_matrix_is_valid() -> None:
 
     matrix = load_matrix(root / "experiments/local-controls.json")
 
-    assert {run["agent"] for run in matrix["runs"]} == {"oracle", "nop"}
-    assert [run["expect_reward"] for run in matrix["runs"]] == [1.0, 0.0]
+    assert {run.agent for run in matrix.runs} == {"oracle", "nop"}
+    assert [run.expect_reward for run in matrix.runs] == [1.0, 0.0]

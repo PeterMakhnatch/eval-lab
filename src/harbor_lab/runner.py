@@ -12,7 +12,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from harbor_lab.results import load_job
+from harbor_lab.schemas import ExperimentMatrix, MatrixRun
 
 CONTROL_AGENTS = {"oracle", "nop"}
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
@@ -159,34 +162,31 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     return job_dir
 
 
-def load_matrix(path: Path) -> dict[str, Any]:
-    matrix = json.loads(path.read_text())
-    if matrix.get("schema_version") != 1:
-        raise ValueError("Unsupported matrix schema_version")
-    if not isinstance(matrix.get("runs"), list) or not matrix["runs"]:
-        raise ValueError("Experiment matrix must contain at least one run")
-    return matrix
+def load_matrix(path: Path) -> ExperimentMatrix:
+    try:
+        return ExperimentMatrix.model_validate_json(path.read_text())
+    except (OSError, ValidationError) as exc:
+        raise ValueError(f"Invalid experiment matrix {path}: {exc}") from exc
 
 
 def request_from_matrix(
-    matrix: dict[str, Any], run: dict[str, Any], *, repo_root: Path
+    matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: Path
 ) -> RunRequest:
     return RunRequest(
-        task=(repo_root / matrix["task"]).resolve(),
-        agent=str(run["agent"]),
-        name=str(run["name"]),
-        jobs_dir=(repo_root / matrix.get("jobs_dir", "runs")).resolve(),
-        environment=str(matrix.get("environment", "docker")),
-        model=run.get("model"),
-        concurrency=int(matrix.get("concurrency", 1)),
-        attempts=int(run.get("attempts", 1)),
-        allow_billable=bool(run.get("allow_billable", False)),
+        task=(repo_root / matrix.task).resolve(),
+        agent=run.agent,
+        name=run.name,
+        jobs_dir=(repo_root / matrix.jobs_dir).resolve(),
+        environment=matrix.environment,
+        model=run.model,
+        concurrency=matrix.concurrency,
+        attempts=run.attempts,
+        allow_billable=run.allow_billable,
     )
 
 
-def expected_primary_reward(run: dict[str, Any]) -> float | None:
-    value = run.get("expect_reward")
-    return float(value) if isinstance(value, int | float) else None
+def expected_primary_reward(run: MatrixRun) -> float | None:
+    return run.expect_reward
 
 
 def database_url_from_environment(explicit: str | None = None) -> str:

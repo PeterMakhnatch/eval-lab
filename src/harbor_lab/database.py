@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -250,3 +251,36 @@ def ping(database_url: str) -> str:
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         row = connection.execute("SELECT version()").fetchone()
     return str(row[0]) if row else "unknown"
+
+
+def daily_cost_usd(database_url: str, day: date) -> float:
+    with psycopg.connect(database_url, connect_timeout=2) as connection:
+        row = connection.execute(
+            """
+            SELECT COALESCE(sum(cost_usd), 0)
+            FROM trials
+            WHERE finished_at IS NOT NULL
+              AND (finished_at::timestamptz AT TIME ZONE current_setting('TIMEZONE'))::date = %s
+            """,
+            (day,),
+        ).fetchone()
+    return float(row[0]) if row else 0.0
+
+
+def consecutive_harness_failures(database_url: str) -> int:
+    """Count the most recent uninterrupted run of infrastructure exceptions."""
+    with psycopg.connect(database_url, connect_timeout=2) as connection:
+        rows = connection.execute(
+            """
+            SELECT exception_type
+            FROM trials
+            ORDER BY finished_at DESC NULLS LAST, id DESC
+            LIMIT 100
+            """
+        ).fetchall()
+    count = 0
+    for (exception_type,) in rows:
+        if exception_type is None:
+            break
+        count += 1
+    return count

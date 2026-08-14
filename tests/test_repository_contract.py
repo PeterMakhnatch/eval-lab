@@ -73,3 +73,28 @@ def test_curated_evidence_files_remain_reviewable() -> None:
         if path.is_file() and path.stat().st_size > 2 * 1024 * 1024
     ]
     assert oversized == []
+
+
+def test_standing_policy_keeps_conservative_defaults() -> None:
+    policy = (ROOT / "policy/standing-approvals.yaml").read_text()
+
+    assert "daily_cost_ceiling_usd: 20" in policy
+    assert "per_job_cost_ceiling_usd: 3" in policy
+    assert "quiet_failure_rule: 3" in policy
+    assert "agents: [oracle, nop]" in policy
+
+
+def test_only_queue_executor_imports_the_harbor_runner() -> None:
+    importers = []
+    for path in (ROOT / "src/harbor_lab").glob("*.py"):
+        if path.name == "runner.py":
+            continue
+        if "run_experiment" in path.read_text():
+            importers.append(path.name)
+
+    assert importers == ["queue.py"]
+
+    cli = (ROOT / "src/harbor_lab/cli.py").read_text()
+    assert 'tool_version("harbor")' not in cli
+    assert 'tool_version("docker")' not in cli
+    assert '"docker",\n' not in cli

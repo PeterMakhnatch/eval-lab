@@ -34,6 +34,8 @@ they have been promoted to `evidence/runs/`.
 - `src/harbor_lab/`: run, inspect, summarize, and ingest tooling.
 - `sql/`: PostgreSQL schema and analysis views.
 - `runs/`: ignored raw Harbor output.
+- `queue/`: ignored runtime state; atomic files and `events.jsonl` drive unattended work.
+- `policy/`: committed standing approvals; agents must never loosen this policy.
 - `evidence/runs/`: small, intentionally tracked control runs.
 - `docs/`: architecture, operating procedures, and scaling decisions.
 - `prompts/`: ordered, bounded implementation briefs for coding agents.

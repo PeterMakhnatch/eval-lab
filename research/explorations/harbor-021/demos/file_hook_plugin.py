@@ -8,7 +8,7 @@ register trial hooks in on_job_start. No network.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, override
 
@@ -30,7 +30,7 @@ class FileHookPlugin(BaseJobPlugin):
     def _write(self, event: str, **payload: Any) -> None:
         record = {
             "event": event,
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             **payload,
         }
         with self.log_path.open("a", encoding="utf-8") as fh:

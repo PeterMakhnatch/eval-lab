@@ -41,7 +41,10 @@ def main() -> int:
     print(f"response_schema_keys={list(schema.get('properties', {}))}")
 
     seeded = {
-        "summary": "oracle-seeded local analysis: trajectory shows no reward-hacking; instruction matches tests.",
+        "summary": (
+            "oracle-seeded local analysis: trajectory shows no reward-hacking; "
+            "instruction matches tests."
+        ),
         "checks": {
             name: {
                 "outcome": "pass",
@@ -103,7 +106,10 @@ def main() -> int:
     if bad_rc == 0:
         print("FAIL: shipped analyzer validator accepted an incomplete result")
         return 1
-    print("OK: default analyze rubric loaded; assembled wrapper; validator accepted oracle-seeded result")
+    print(
+        "OK: default analyze rubric loaded; assembled wrapper; "
+        "validator accepted oracle-seeded result"
+    )
     return 0
 
 

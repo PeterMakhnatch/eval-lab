@@ -23,7 +23,11 @@ def toml_field(text: str, key: str) -> str:
 
 def main() -> None:
     name = sys.argv[1]
-    notes = Path(sys.argv[2]).read_text() if len(sys.argv) > 2 else "See verifier notes in this card."
+    notes = (
+        Path(sys.argv[2]).read_text()
+        if len(sys.argv) > 2
+        else "See verifier notes in this card."
+    )
     odir = RUNS / f"oracle-{name}"
     ndir = RUNS / f"nop-{name}"
     o = json.loads((odir / "result.json").read_text())
@@ -40,11 +44,15 @@ def main() -> None:
             digest = tr.get("task_checksum") or digest
             trials.append(t.name)
     meta = (FB / name / "task.toml").read_text()
+    difficulty = toml_field(meta, "expert_time_estimate_hours") or "n/a"
+    cpus = toml_field(meta, "cpus") or "?"
+    memory_mb = toml_field(meta, "memory_mb") or "?"
     card = f"""# {name}
 
 ## Provenance
 
-- **Source repo:** `harbor-framework/frontier-bench` (clone `~/Developer/agent-evals/frontier-bench`)
+- **Source repo:** `harbor-framework/frontier-bench`
+  (clone `~/Developer/agent-evals/frontier-bench`)
 - **Commit:** `{FB_COMMIT}`
 - **Path:** `tasks/{name}`
 - **Also present at:** terminal-bench `{TB_COMMIT}`
@@ -58,8 +66,8 @@ def main() -> None:
 ## Difficulty / domain / runtime
 
 - **Domain:** {toml_field(meta, "category")} / {toml_field(meta, "subcategory")}
-- **Difficulty:** expert_time_estimate_hours = {toml_field(meta, "expert_time_estimate_hours") or "n/a"}; see task.toml agent timeout
-- **Resources:** {toml_field(meta, "cpus") or "?"} CPU, {toml_field(meta, "memory_mb") or "?"} MB, 0 GPU
+- **Difficulty:** expert_time_estimate_hours = {difficulty}; see task.toml agent timeout
+- **Resources:** {cpus} CPU, {memory_mb} MB, 0 GPU
 - **Verifier:** separate (environment_mode from task.toml)
 
 ## Local verification (free oracle / nop)

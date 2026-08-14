@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 from harbor_atif2otel import (
@@ -40,9 +39,10 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     trajectory = json.loads(traj_path.read_text())
+    agent = trajectory.get("agent", {})
     print(f"trajectory={traj_path}")
     print(f"schema_version={trajectory.get('schema_version')}")
-    print(f"agent={trajectory.get('agent', {}).get('name')}@{trajectory.get('agent', {}).get('version')}")
+    print(f"agent={agent.get('name')}@{agent.get('version')}")
     print(f"session_id={trajectory.get('session_id')}")
     print(f"n_steps={len(trajectory.get('steps') or [])}")
 

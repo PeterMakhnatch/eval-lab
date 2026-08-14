@@ -31,6 +31,11 @@ they have been promoted to `evidence/runs/`.
   fixture-based tests.
 - Use `uv run pytest`, `uv run ruff check .`, and `uv run harbor-lab doctor`
   before a meaningful checkpoint.
+- Make meaningful changes on a named branch and open a pull request; do not push
+  directly to `main` unless Peter explicitly asks. Treat every `quality` check
+  as required even when the GitHub plan cannot enforce branch protection.
+- The authoring agent must run the repository checks before pushing. After CI,
+  Peter or a different agent reviews the pull request before merge.
 
 ## Repository map
 

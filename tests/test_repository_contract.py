@@ -7,11 +7,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TASK = ROOT / "tasks/event-summary"
-IGNORED_PARTS = {".git", ".venv", ".pytest_cache", ".ruff_cache", ".worktrees", "runs"}
+IGNORED_PARTS = {
+    ".git",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    ".worktrees",
+    "__pycache__",
+    "runs",
+}
 SECRET_PATTERNS = [
-    re.compile(rb"ghp_[A-Za-z0-9]{30,}"),
-    re.compile(rb"github_pat_[A-Za-z0-9_]{40,}"),
-    re.compile(rb"sk-[A-Za-z0-9_-]{30,}"),
+    re.compile(rb"(?<![A-Za-z0-9_])ghp_[A-Za-z0-9]{30,}"),
+    re.compile(rb"(?<![A-Za-z0-9_])github_pat_[A-Za-z0-9_]{40,}"),
+    re.compile(rb"(?<![A-Za-z0-9_])sk-[A-Za-z0-9_-]{30,}"),
     re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 ]
 FORBIDDEN_JVM_NAMES = {"build.gradle", "settings.gradle", "pom.xml"}
@@ -24,6 +32,10 @@ def repository_files() -> list[Path]:
         for path in ROOT.rglob("*")
         if path.is_file() and not any(part in IGNORED_PARTS for part in path.parts)
     ]
+
+
+def contains_high_confidence_secret(data: bytes) -> bool:
+    return any(pattern.search(data) for pattern in SECRET_PATTERNS)
 
 
 def test_task_has_complete_harbor_contract() -> None:
@@ -59,13 +71,22 @@ def test_verifier_fixture_matches_initial_input() -> None:
 
 
 def test_repository_has_no_high_confidence_secrets() -> None:
-    findings: list[str] = []
-    for path in repository_files():
-        data = path.read_bytes()
-        for pattern in SECRET_PATTERNS:
-            if pattern.search(data):
-                findings.append(path.relative_to(ROOT).as_posix())
+    findings = [
+        path.relative_to(ROOT).as_posix()
+        for path in repository_files()
+        if contains_high_confidence_secret(path.read_bytes())
+    ]
     assert findings == []
+
+
+def test_secret_scanner_ignores_embedded_task_name_fragment() -> None:
+    source_path = b"runs/eventdesk-belief-revision-nop-baseline-2/result.json"
+    assert not contains_high_confidence_secret(source_path)
+
+
+def test_secret_scanner_detects_standalone_api_key_shape() -> None:
+    token = b"sk-" + (b"x" * 40)
+    assert contains_high_confidence_secret(b'OPENAI_API_KEY="' + token + b'"')
 
 
 def test_repository_contains_no_jvm_source_or_build_tooling() -> None:

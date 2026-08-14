@@ -5,7 +5,7 @@ Blockers: none
 
 ## Dated chore (2026-08-14)
 
-Today is 2026-08-14, before 2026-08-21. The `harbor-lab` legacy alias in
+Today is 2026-08-14, before 2026-08-21. The documented legacy CLI alias in
 `pyproject.toml` stays. Sweep remaining references after 2026-08-21.
 
 ## Verification

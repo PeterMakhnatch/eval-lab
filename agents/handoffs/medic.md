@@ -1,12 +1,40 @@
 Status: review-wanted
-Last: Rebased onto 5e10db5; floor premerge is green and Python 3.14 passes all 51 tests.
-Next: Push, open the bootstrap MEDIC PR, and require all GitHub checks green.
-Blockers: none for bootstrap; branch-protection product decision remains Peter's.
+Last: PR #7 and PR #6 merged with fully green GitHub checks; closeout updates are on a fresh branch from origin/main.
+Next: Open MEDIC: closeout, require fully green GitHub checks, record done, recheck, merge, and delete the closeout branch and worktree.
+Blockers: none; branch-protection product decision remains Peter's.
 
 # MEDIC handoff
 
-Worktree: `.worktrees/medic` on `role/medic`, based on `origin/main` at
-`5e10db5`.
+Worktree: `.worktrees/medic` on `role/medic-closeout`, based on `origin/main`
+at `7a7be9b`.
+
+## Landed integration
+
+- MEDIC PR #7 merged as `1d01d9f` after quality run
+  [31814436570](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814436570)
+  was fully green. Its post-merge main quality run
+  [31814512157](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814512157)
+  was also green.
+- FORGE PR #6 was rebased server-side onto fixed main, then merged as
+  `7a7be9b` only after quality run
+  [31814609842](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814609842)
+  and typecheck run
+  [31814609845](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814609845)
+  were fully green.
+- Main at `7a7be9b` passed quality run
+  [31814679252](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814679252)
+  and typecheck run
+  [31814680308](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31814680308).
+- Merged PRs #2–5 each have a one-line incident annotation attributing their
+  red checks to the Python-floor and host-credential causes, not their code.
+
+## Closeout lesson
+
+The first closeout attempt exposed an add/add conflict while rebasing the
+already squash-merged `role/medic` branch. The rebase was aborted, the spent
+worktree and local branch were deleted, and this follow-up started from a
+fresh `role/medic-closeout` branch at `origin/main`. `agents/CHECKS.md` now
+records that invariant for every role.
 
 ## Verified diagnosis
 

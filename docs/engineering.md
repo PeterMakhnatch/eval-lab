@@ -52,6 +52,13 @@ files.
 
 ## 2. Checks
 
+### Supported Python versions
+
+Harbor Experiment Lab requires Python 3.12 or newer. Python 3.12 is the
+development and lint floor; CI runs the test suite on Python 3.12 and 3.14.
+Keep `requires-python`, `.python-version`, `uv.lock`, and the CI version matrix
+aligned whenever the supported range changes.
+
 | Check | Command | Where | Blocking |
 |---|---|---|---|
 | Lint | `uv run ruff check .` | `.github/workflows/ci.yml` | yes |

@@ -42,6 +42,11 @@ Before any role, human, or integrator merges a PR:
 3. Do not substitute local green, an old run, mergeability, or unavailable branch
    protection for step 2.
 
+A squash-merged branch is never rebased, reused, or pushed again. After your PR
+merges, delete the branch and start any follow-up from a fresh branch off
+`origin/main`. An add/add conflict in your own files after a squash merge means
+you are rebasing a spent branch — abort.
+
 If an integrator must make a local merge, the corresponding PR must already be
 fully green. Run `scripts/premerge.sh` on the merge result before pushing, and put
 both `Premerge: scripts/premerge.sh (pass)` and the green PR number/head SHA in the

@@ -19,5 +19,24 @@ services:
       retries: 20
       start_period: 5s
 
+  # Phoenix 20.2.0 — UI + OTLP/HTTP on 6006, OTLP/gRPC on 4317.
+  # Docs (2026-08-13): https://arize.com/docs/phoenix/self-hosting/configuration
+  # Integrator starts this from the main checkout: docker compose up -d phoenix
+  phoenix:
+    image: arizephoenix/phoenix:20.2.0@sha256:db93e6fa2819a2c19d67fb7b7af12ed40c708c11383ccfc2c3b02e3b683fd7fc
+    restart: unless-stopped
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+      PHOENIX_PORT: "6006"
+      PHOENIX_GRPC_PORT: "4317"
+      PHOENIX_HOST: 0.0.0.0
+      PHOENIX_TELEMETRY_ENABLED: "false"
+    ports:
+      - "127.0.0.1:6006:6006"
+      - "127.0.0.1:4317:4317"
+    volumes:
+      - harbor-lab-phoenix:/mnt/data
+
 volumes:
   harbor-lab-postgres:
+  harbor-lab-phoenix:

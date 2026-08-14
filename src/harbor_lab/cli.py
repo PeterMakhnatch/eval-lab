@@ -20,6 +20,13 @@ from harbor_lab.runner import (
     load_matrix,
     request_from_matrix,
 )
+from harbor_lab.tracing import (
+    TraceError,
+    format_batch,
+    instrument_openinference,
+    trace_completed_jobs,
+    trace_path,
+)
 
 
 def repo_root() -> Path:
@@ -128,6 +135,27 @@ def parser() -> argparse.ArgumentParser:
     db_list = db_commands.add_parser("list", help="List recently ingested trials")
     db_list.add_argument("--database-url")
     db_list.add_argument("--limit", type=int, default=25)
+
+    trace = commands.add_parser(
+        "trace",
+        help="Convert ATIF trajectories to OTel and ship them to Phoenix",
+    )
+    trace.add_argument("path", type=Path, help="Trial directory, job directory, or trajectory.json")
+    trace.add_argument(
+        "--endpoint",
+        default=None,
+        help="Phoenix collector base URL (default: PHOENIX_COLLECTOR_ENDPOINT or http://127.0.0.1:6006)",
+    )
+    trace.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate and convert only; do not POST OTLP",
+    )
+    trace.add_argument(
+        "--include-controls",
+        action="store_true",
+        help="Also trace oracle/nop control trials",
+    )
     return root
 
 
@@ -226,6 +254,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     root = repo_root()
     load_local_env(root / ".env")
     args = parser().parse_args(argv)
+    instrument_openinference()
     try:
         if args.command == "doctor" and args.headless:
             executor = Executor.from_repo(root)
@@ -301,7 +330,32 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             print(f"enqueued: {result.enqueued}")
             print(f"dispatched: {result.dispatched}")
             print(f"quarantined: {'yes' if result.quarantined else 'no'}")
+            try:
+                print(
+                    format_batch(
+                        trace_completed_jobs(
+                            root / "runs",
+                            include_controls=False,
+                            dry_run=False,
+                        )
+                    )
+                )
+            except TraceError as exc:
+                print(f"trace skipped: {exc}")
             return 1 if result.quarantined else 0
+        if args.command == "trace":
+            batch = trace_path(
+                _resolve(root, args.path),
+                endpoint=args.endpoint,
+                dry_run=args.dry_run,
+                include_controls=args.include_controls,
+            )
+            print(format_batch(batch))
+            if batch.failed:
+                return 1
+            if not batch.shipped and not args.dry_run:
+                return 1
+            return 0
         if args.command == "run":
             return _run_command(args, root)
         if args.command == "matrix":

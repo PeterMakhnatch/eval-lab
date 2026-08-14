@@ -6,6 +6,40 @@ receives points here. Read first, in order: `AGENTS.md`,
 `agents/WORKFLOW.md`, `agents/STRUCTURE.md`, `agents/ROLES.md`, then your
 section.
 
+Difficulty ranking (hardest first): AUTOPILOT, ANALYST, JUDGE, INGEST,
+OBSERVER, RUNNER, FORGE. Assign the strongest models to the top of the list.
+
+## Setup and git protocol (every role — run and follow exactly)
+
+```bash
+cd ~/Developer/harbor-experiment-lab
+git fetch origin
+git worktree add .worktrees/<role> -b role/<role> origin/main
+#   (if the worktree already exists: cd .worktrees/<role> && git rebase origin/main)
+cd .worktrees/<role>
+uv sync
+```
+
+- All of your work happens on branch `role/<role>` inside `.worktrees/<role>`.
+  Never edit the main checkout, never enter another role's worktree, never
+  create anything outside the repository (the one-folder law).
+- You may write only your owned paths (your section + `agents/ROLES.md` row)
+  plus `agents/handoffs/<role>.md`. Everything else is read-only to you.
+- Commit small and often on your branch. Integration sequence, every time:
+  `git fetch origin && git rebase origin/main` → verify (`uv run pytest -q`
+  and `uv run ruff check .` when you touched repo code; recorded verification
+  evidence when you produced content) → `git push -u origin role/<role>` →
+  `gh pr create --title "<ROLE>: <summary>" --fill`.
+- **Squash self-merge is allowed** only when the PR diff touches nothing
+  outside your owned paths and your checks are green. Otherwise leave the PR
+  open and say why in your handoff.
+- Never push to `main`, never force-push anything, never merge or rebase
+  another role's branch, never resolve a conflict that involves files you do
+  not own — on any conflict: stop, record it in your handoff, continue with
+  other mission work.
+- Docker Compose services (Postgres, Phoenix) are managed from the main
+  checkout only — they are already running for you; do not restart them.
+
 Rules that bind every mission tonight:
 
 - Work in `.worktrees/<role>` on branch `role/<role>` (WORKFLOW setup block).

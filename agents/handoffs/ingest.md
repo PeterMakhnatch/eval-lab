@@ -1,7 +1,7 @@
 Status: review-wanted
-Last: PR #3 opened; nested ruff.toml silences vendored Hub sources
-Next: wait CI; squash-merge only if quality green on our paths
-Blockers: quality CI red on main already (curated/explorations ruff); not ours
+Last: PR #3 up; 19/19 sample oracle 1.0/nop 0.0; our tree ruff-clean
+Next: integrator merge after quality is green (pre-existing curated/RECON ruff)
+Blockers: quality red on library/curated/_emit_card.py + research/explorations demos — not INGEST paths; no self-merge
 
 INGEST 2026-08-14 (`.worktrees/ingest`, `role/ingest`).
 Owned: `library/benchmarks/`, this file; protocol also allows `agents/ROLES.md` row.

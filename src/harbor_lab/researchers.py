@@ -195,19 +195,19 @@ class RoleLimits:
 
 DEFAULT_ROLE_LIMITS: Mapping[ResearchRole, RoleLimits] = {
     "analyst": RoleLimits(
-        max_calls_per_day=6,
+        max_calls_per_day=8,
         max_tokens=8_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "synthesizer": RoleLimits(
-        max_calls_per_day=6,
+        max_calls_per_day=8,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "proposer": RoleLimits(
-        max_calls_per_day=6,
+        max_calls_per_day=8,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
@@ -313,6 +313,8 @@ class CodexInvoker:
             "features.rollout_budget.enabled=true",
             "--config",
             f"features.rollout_budget.limit_tokens={limits.max_tokens}",
+            "--config",
+            "features.rollout_budget.reminder_at_remaining_tokens=[1000]",
             "--config",
             'permissions.researcher.description="Read-only reviewed evidence bundle"',
             "--config",

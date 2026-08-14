@@ -88,7 +88,9 @@ uv run harbor-lab schedule install
 Both invoke `/bin/zsh -lc 'cd <repo> && uv run harbor-lab …'`. Logs live under
 `~/Library/Logs/harbor-lab/`. Reinstalling replaces and reloads the definitions.
 Because these are LaunchAgents, not system daemons, they run inside the logged-in
-user session where Keychain access is possible.
+user session where Keychain access is possible. The plist supplies a bounded
+command `PATH` including `~/.local/bin`, so launchd can find `uv` without
+depending on interactive shell startup files.
 
 `tick` and `nightly` both run the headless doctor first. If any check fails,
 they append a boolean-only quarantine event and dispatch nothing. In particular,

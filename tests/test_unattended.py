@@ -118,6 +118,8 @@ def test_schedule_install_writes_and_loads_two_launchagents(tmp_path: Path) -> N
     assert tick["ProgramArguments"][:2] == ["/bin/zsh", "-lc"]
     assert tick["ProgramArguments"][2].endswith("uv run harbor-lab tick")
     assert nightly["ProgramArguments"][2].endswith("uv run harbor-lab nightly")
+    assert tick["EnvironmentVariables"]["PATH"].startswith(str(tmp_path / ".local/bin"))
+    assert nightly["EnvironmentVariables"] == tick["EnvironmentVariables"]
 
 
 def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Path) -> None:

@@ -270,6 +270,19 @@ class ScheduleInstaller:
 
     def definitions(self) -> dict[str, dict[str, Any]]:
         logs = self.home / "Library/Logs/harbor-lab"
+        environment = {
+            "PATH": ":".join(
+                [
+                    str(self.home / ".local/bin"),
+                    "/opt/homebrew/bin",
+                    "/usr/local/bin",
+                    "/usr/bin",
+                    "/bin",
+                    "/usr/sbin",
+                    "/sbin",
+                ]
+            )
+        }
         return {
             self.TICK_LABEL: {
                 "Label": self.TICK_LABEL,
@@ -281,6 +294,7 @@ class ScheduleInstaller:
                 "StartInterval": 30 * 60,
                 "RunAtLoad": True,
                 "ProcessType": "Background",
+                "EnvironmentVariables": environment,
                 "StandardOutPath": str(logs / "tick.log"),
                 "StandardErrorPath": str(logs / "tick.error.log"),
             },
@@ -293,6 +307,7 @@ class ScheduleInstaller:
                 ],
                 "StartCalendarInterval": {"Hour": 2, "Minute": 30},
                 "ProcessType": "Background",
+                "EnvironmentVariables": environment,
                 "StandardOutPath": str(logs / "nightly.log"),
                 "StandardErrorPath": str(logs / "nightly.error.log"),
             },

@@ -5,8 +5,10 @@ import json
 import os
 import sys
 from collections.abc import Sequence
+from dataclasses import asdict
 from datetime import date
 from pathlib import Path
+from uuid import UUID
 
 from harbor_lab import __version__, database
 from harbor_lab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
@@ -21,7 +23,19 @@ from harbor_lab.calibrate import (
     write_catalog_record,
 )
 from harbor_lab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
+from harbor_lab.cohort import index_comparison_associations, write_comparison
 from harbor_lab.digest import DigestRenderer
+from harbor_lab.facts import (
+    AnalyzerCallResult,
+    analysis_plan,
+    ingest_analysis_sidecar,
+    ingest_catalog,
+    load_analysis_source,
+    rebuild_from_raw,
+    run_trial_analysis,
+    write_analysis_review,
+    write_failure_taxonomy_agreement,
+)
 from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
 from harbor_lab.results import JobRecord, load_job, load_jobs
 from harbor_lab.runner import (
@@ -159,6 +173,82 @@ def parser() -> argparse.ArgumentParser:
     ingest = commands.add_parser("ingest", help="Upsert Harbor job metadata into PostgreSQL")
     ingest.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
     ingest.add_argument("--database-url")
+    ingest.add_argument("--derived-dir", type=Path, default=Path("derived/parquet"))
+
+    trajectories = commands.add_parser(
+        "trajectories",
+        help="Validate ATIF and optionally rebuild deterministic Parquet facts",
+    )
+    trajectories.add_argument(
+        "paths",
+        type=Path,
+        nargs="*",
+        default=[Path("runs"), Path("research/evidence/runs"), Path("evidence/runs")],
+    )
+    trajectories.add_argument(
+        "--export",
+        action="store_true",
+        help="Write trajectory and trial facts to partitioned Parquet",
+    )
+    trajectories.add_argument("--output-dir", type=Path, default=Path("derived/parquet"))
+
+    compare = commands.add_parser("compare", help="Compare declared trial cohorts")
+    compare.add_argument("path", type=Path)
+    compare.add_argument("--output-dir", type=Path, default=Path("derived/comparisons"))
+    compare.add_argument("--index", action="store_true")
+    compare.add_argument("--database-url")
+
+    analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
+    analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
+    analyze_plan_parser = analyze_commands.add_parser(
+        "plan", help="Show a no-call stage-5 analysis plan"
+    )
+    analyze_plan_parser.add_argument("path", type=Path)
+    analyze_plan_parser.add_argument("--agent", default="codex")
+    analyze_plan_parser.add_argument("--agent-version", default="local")
+    analyze_plan_parser.add_argument("--model", default="configured-by-queue")
+    analyze_plan_parser.add_argument(
+        "--output-dir", type=Path, default=Path("derived/analyses")
+    )
+    analyze_stub = analyze_commands.add_parser(
+        "stub", help="Validate a saved response and write an immutable sidecar"
+    )
+    analyze_stub.add_argument("path", type=Path)
+    analyze_stub.add_argument("--response", type=Path, required=True)
+    analyze_stub.add_argument("--output-dir", type=Path, default=Path("derived/analyses"))
+    analyze_stub.add_argument("--index", action="store_true")
+    analyze_stub.add_argument("--database-url")
+    analyze_ingest = analyze_commands.add_parser(
+        "ingest-sidecar", help="Index one durable analysis sidecar"
+    )
+    analyze_ingest.add_argument("path", type=Path)
+    analyze_ingest.add_argument("--database-url")
+    analyze_review = analyze_commands.add_parser(
+        "review", help="Append a human review without editing the analysis"
+    )
+    analyze_review.add_argument("path", type=Path)
+    analyze_review.add_argument(
+        "--disposition",
+        required=True,
+        choices=("accepted", "needs_revision", "rejected", "superseded"),
+    )
+    analyze_review.add_argument("--rationale", required=True)
+    analyze_review.add_argument("--reviewer", required=True)
+    analyze_review.add_argument("--superseded-by")
+    analyze_agreement = analyze_commands.add_parser(
+        "agreement", help="Compare valid analysis categories with fixed labels"
+    )
+    analyze_agreement.add_argument("paths", type=Path, nargs="+")
+    analyze_agreement.add_argument(
+        "--labels",
+        type=Path,
+        default=Path("research/calibration/trajectory-labels"),
+    )
+    analyze_agreement.add_argument(
+        "--output",
+        type=Path,
+        default=Path("derived/analysis/failure-taxonomy-agreement.json"),
+    )
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)
@@ -475,7 +565,144 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             url = database_url_from_environment(args.database_url)
             database.initialize(url)
             count = database.ingest(url, jobs, root=root)
+            derived_root = _resolve(root, args.derived_dir)
+            rebuild_from_raw(jobs, derived_root)
+            ingest_catalog(url, jobs, root=root, derived_root=derived_root)
             print(f"ingested {count} job(s)")
+            return 0
+        if args.command == "trajectories":
+            from harbor_lab.atif import project_trial
+
+            jobs = load_jobs([_resolve(root, path) for path in args.paths])
+            if not jobs:
+                print("No completed Harbor jobs found.", file=sys.stderr)
+                return 1
+            print("| job | trial | status | documents | steps | tools |")
+            print("|---|---|---|---:|---:|---:|")
+            for job in jobs:
+                for trial in job.trials:
+                    projection = project_trial(job, trial)
+                    statuses = {item.validation_status for item in projection.trajectories}
+                    status = (
+                        "none"
+                        if not statuses
+                        else "invalid"
+                        if "invalid" in statuses
+                        else "unsupported"
+                        if "unsupported" in statuses
+                        else "valid"
+                    )
+                    print(
+                        f"| {job.name} | {trial.name} | {status} | "
+                        f"{len(projection.trajectories)} | {len(projection.steps)} | "
+                        f"{len(projection.tool_calls)} |"
+                    )
+            if args.export:
+                rebuilt = rebuild_from_raw(jobs, _resolve(root, args.output_dir))
+                for table in rebuilt.tables:
+                    print(f"{table.table}: {table.rows} row(s) -> {table.path}")
+            return 0
+        if args.command == "compare":
+            spec_path = _resolve(root, args.path)
+            json_path, markdown_path, report = write_comparison(
+                spec_path,
+                repo_root=root,
+                output_root=_resolve(root, args.output_dir),
+            )
+            if args.index:
+                url = database_url_from_environment(args.database_url)
+                database.initialize(url)
+                index_comparison_associations(
+                    url,
+                    spec_path=spec_path,
+                    report=report,
+                    repo_root=root,
+                )
+            print(f"json: {json_path}")
+            print(f"markdown: {markdown_path}")
+            return 0
+        if args.command == "analyze" and args.analyze_command in {"plan", "stub"}:
+            job, trial = load_analysis_source(_resolve(root, args.path))
+            prompt_path = root / "research/analysis/stage5-prompt.md"
+            rubric_path = root / "research/analysis/stage5-rubric.json"
+            output_root = _resolve(root, args.output_dir)
+            if args.analyze_command == "plan":
+                plan = analysis_plan(
+                    job,
+                    trial,
+                    repo_root=root,
+                    destination_root=output_root,
+                    prompt_path=prompt_path,
+                    rubric_path=rubric_path,
+                    agent=args.agent,
+                    agent_version=args.agent_version,
+                    model=args.model,
+                )
+                print(json.dumps(asdict(plan), indent=2, sort_keys=True))
+                return 0
+            response = _resolve(root, args.response).read_text()
+
+            def saved_response(_prompt: str, _schema: dict[str, object]) -> AnalyzerCallResult:
+                return AnalyzerCallResult(
+                    raw_output=response,
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost_usd=0.0,
+                )
+
+            sidecar_path, sidecar = run_trial_analysis(
+                job,
+                trial,
+                analyzer=saved_response,
+                repo_root=root,
+                destination_root=output_root,
+                prompt_path=prompt_path,
+                rubric_path=rubric_path,
+                agent="stub",
+                agent_version="1",
+                model="saved-response",
+            )
+            if args.index:
+                url = database_url_from_environment(args.database_url)
+                database.initialize(url)
+                ingest_analysis_sidecar(url, sidecar_path, root=root)
+            print(f"analysis: {sidecar_path}")
+            print(f"validation: {sidecar.validation_status}")
+            return 0 if sidecar.validation_status == "valid" else 1
+        if args.command == "analyze" and args.analyze_command == "ingest-sidecar":
+            sidecar_path = _resolve(root, args.path)
+            url = database_url_from_environment(args.database_url)
+            database.initialize(url)
+            sidecar = ingest_analysis_sidecar(url, sidecar_path, root=root)
+            print(f"indexed analysis: {sidecar.analysis_id}")
+            return 0
+        if args.command == "analyze" and args.analyze_command == "review":
+            review_path, review = write_analysis_review(
+                _resolve(root, args.path),
+                disposition=args.disposition,
+                rationale=args.rationale,
+                reviewer=args.reviewer,
+                superseded_by=(UUID(args.superseded_by) if args.superseded_by else None),
+            )
+            print(f"review: {review_path}")
+            print(f"disposition: {review.disposition}")
+            return 0
+        if args.command == "analyze" and args.analyze_command == "agreement":
+            report_path, report = write_failure_taxonomy_agreement(
+                [_resolve(root, path) for path in args.paths],
+                labels_root=_resolve(root, args.labels),
+                output_path=_resolve(root, args.output),
+                reference_root=root,
+            )
+            agreement = report["exact_agreement"]
+            print(f"report: {report_path}")
+            print(
+                "agreement: "
+                f"{report['exact_matches']}/{report['n_matched_valid']} "
+                f"({'n/a' if agreement is None else f'{agreement:.3f}'})"
+            )
+            coverage = report["label_coverage"]
+            print(f"label coverage: {'n/a' if coverage is None else f'{coverage:.3f}'}")
             return 0
         if args.command == "db" and args.db_command == "init":
             url = database_url_from_environment(args.database_url)

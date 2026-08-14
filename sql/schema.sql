@@ -20,6 +20,32 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE UNIQUE INDEX IF NOT EXISTS jobs_evidence_path_idx ON jobs (evidence_path);
 CREATE INDEX IF NOT EXISTS jobs_started_at_idx ON jobs (started_at);
 
+CREATE TABLE IF NOT EXISTS experiments (
+    id text PRIMARY KEY,
+    source_kind text NOT NULL,
+    raw_provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+    ingested_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS experiment_id text;
+CREATE INDEX IF NOT EXISTS jobs_experiment_idx ON jobs (experiment_id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint c
+        JOIN pg_class r ON r.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = r.relnamespace
+        WHERE c.conname = 'jobs_experiment_id_fkey'
+          AND n.nspname = current_schema()
+    ) THEN
+        ALTER TABLE jobs
+            ADD CONSTRAINT jobs_experiment_id_fkey
+            FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS trials (
     id uuid PRIMARY KEY,
     job_id uuid NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -88,6 +114,129 @@ CREATE TABLE IF NOT EXISTS run_files (
 CREATE INDEX IF NOT EXISTS run_files_kind_idx ON run_files (kind);
 CREATE INDEX IF NOT EXISTS run_files_sha256_idx ON run_files (sha256);
 
+CREATE TABLE IF NOT EXISTS trajectory_documents (
+    id text PRIMARY KEY,
+    trial_id uuid NOT NULL REFERENCES trials(id) ON DELETE CASCADE,
+    source_path text NOT NULL,
+    source_sha256 text NOT NULL,
+    embedded_path text,
+    schema_version text,
+    session_id text,
+    trajectory_id text,
+    validation_status text NOT NULL,
+    validator text NOT NULL,
+    validation_error text,
+    step_count integer NOT NULL,
+    llm_call_count integer NOT NULL,
+    parquet_path text
+);
+
+CREATE INDEX IF NOT EXISTS trajectory_documents_trial_idx
+    ON trajectory_documents (trial_id);
+CREATE INDEX IF NOT EXISTS trajectory_documents_status_idx
+    ON trajectory_documents (validation_status);
+
+CREATE TABLE IF NOT EXISTS deterministic_trial_facts (
+    trial_id uuid PRIMARY KEY REFERENCES trials(id) ON DELETE CASCADE,
+    verifier_digest text NOT NULL,
+    environment_digest text NOT NULL,
+    agent_config_digest text NOT NULL,
+    exception_phase text,
+    environment_setup_seconds double precision,
+    agent_setup_seconds double precision,
+    agent_execution_seconds double precision,
+    verifier_seconds double precision,
+    trajectory_count integer NOT NULL,
+    invalid_trajectory_count integer NOT NULL,
+    step_count integer NOT NULL,
+    llm_call_count integer NOT NULL,
+    tool_call_count integer NOT NULL,
+    command_failure_count integer NOT NULL,
+    repeated_failed_command_count integer NOT NULL,
+    artifact_count integer NOT NULL,
+    missing_artifact_count integer NOT NULL,
+    artifact_set_digest text NOT NULL,
+    raw_facts jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS analysis_invocations (
+    id uuid PRIMARY KEY,
+    source_trial_id uuid NOT NULL REFERENCES trials(id) ON DELETE CASCADE,
+    sidecar_path text NOT NULL,
+    sidecar_sha256 text NOT NULL,
+    validation_status text NOT NULL,
+    agent_name text NOT NULL,
+    agent_version text NOT NULL,
+    model_name text NOT NULL,
+    prompt_digest text NOT NULL,
+    rubric_digest text NOT NULL,
+    output_schema_digest text NOT NULL,
+    source_digests jsonb NOT NULL,
+    created_at timestamptz NOT NULL,
+    input_tokens bigint,
+    output_tokens bigint,
+    cost_usd double precision,
+    raw_sidecar jsonb NOT NULL,
+    ingested_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE analysis_invocations ADD COLUMN IF NOT EXISTS sidecar_sha256 text;
+
+CREATE INDEX IF NOT EXISTS analysis_invocations_trial_idx
+    ON analysis_invocations (source_trial_id);
+CREATE INDEX IF NOT EXISTS analysis_invocations_validation_idx
+    ON analysis_invocations (validation_status);
+
+CREATE TABLE IF NOT EXISTS analysis_findings (
+    analysis_id uuid PRIMARY KEY REFERENCES analysis_invocations(id) ON DELETE CASCADE,
+    validity text NOT NULL,
+    primary_category text NOT NULL,
+    summary text NOT NULL,
+    earliest_failure_step_id integer,
+    confidence text NOT NULL,
+    proposed_discriminator text NOT NULL,
+    alternative_explanations jsonb NOT NULL DEFAULT '[]'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS analysis_evidence_citations (
+    analysis_id uuid NOT NULL REFERENCES analysis_invocations(id) ON DELETE CASCADE,
+    citation_index integer NOT NULL,
+    source_path text NOT NULL,
+    step_id integer,
+    tool_call_id text,
+    supports text NOT NULL,
+    PRIMARY KEY (analysis_id, citation_index)
+);
+
+CREATE TABLE IF NOT EXISTS analysis_reviews (
+    id uuid PRIMARY KEY,
+    analysis_id uuid NOT NULL REFERENCES analysis_invocations(id) ON DELETE CASCADE,
+    disposition text NOT NULL,
+    rationale text NOT NULL,
+    reviewer text NOT NULL,
+    reviewed_at timestamptz NOT NULL,
+    superseded_by uuid,
+    review_path text NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS analysis_reviews_analysis_idx
+    ON analysis_reviews (analysis_id);
+
+CREATE OR REPLACE VIEW experiment_trial_analysis_path AS
+SELECT
+    e.id AS experiment_id,
+    j.id AS job_id,
+    t.id AS trial_id,
+    td.id AS trajectory_document_id,
+    ai.id AS analysis_id,
+    ai.validation_status AS analysis_validation_status
+FROM experiments e
+JOIN jobs j ON j.experiment_id = e.id
+JOIN trials t ON t.job_id = j.id
+LEFT JOIN trajectory_documents td ON td.trial_id = t.id
+LEFT JOIN analysis_invocations ai ON ai.source_trial_id = t.id;
+
 CREATE OR REPLACE VIEW trial_observations AS
 SELECT
     j.job_name,
@@ -107,7 +256,8 @@ SELECT
     t.cache_tokens,
     t.output_tokens,
     t.cost_usd,
-    t.evidence_path
+    t.evidence_path,
+    j.experiment_id
 FROM trials t
 JOIN jobs j ON j.id = t.job_id;
 

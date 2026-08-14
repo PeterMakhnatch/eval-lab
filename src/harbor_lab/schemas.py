@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -200,6 +202,179 @@ class RunProvenance(ContractModel):
     task_version: str | None = None
     verifier_digest: str | None = None
     policy_rule: str | None = None
+
+
+class CohortSelector(ContractModel):
+    label: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    paths: list[str] = Field(min_length=1)
+    trial_names: list[str] = Field(default_factory=list)
+
+    @field_validator("paths")
+    @classmethod
+    def paths_stay_in_repository(cls, values: list[str]) -> list[str]:
+        for value in values:
+            if value.startswith("/") or ".." in value.split("/"):
+                raise ValueError("cohort paths must stay relative to the repository")
+        return values
+
+
+class CohortComparisonSpec(ContractModel):
+    schema_version: Literal[1] = 1
+    comparison_id: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    experiment_id: str = Field(min_length=1)
+    declared_variable: Literal[
+        "agent_name",
+        "agent_version",
+        "model_name",
+        "model_settings_digest",
+        "environment_digest",
+    ]
+    mode: Literal["causal", "exploratory"] = "causal"
+    reward_name: str = "reward"
+    pass_threshold: float = 1.0
+    pass_k: list[int] = Field(default_factory=lambda: [1], min_length=1)
+    pairing_key: Literal["task_digest", "task_name", "trial_name"] = "task_digest"
+    constraints: dict[
+        Literal["task_digest", "verifier_digest", "environment_digest"], str
+    ] = Field(default_factory=dict)
+    cohorts: list[CohortSelector] = Field(min_length=2)
+
+    @field_validator("pass_k")
+    @classmethod
+    def pass_k_is_positive_and_unique(cls, values: list[int]) -> list[int]:
+        if any(value < 1 for value in values):
+            raise ValueError("pass_k values must be positive")
+        if len(values) != len(set(values)):
+            raise ValueError("pass_k values must be unique")
+        return sorted(values)
+
+    @model_validator(mode="after")
+    def cohort_labels_are_unique(self) -> CohortComparisonSpec:
+        labels = [cohort.label for cohort in self.cohorts]
+        if len(labels) != len(set(labels)):
+            raise ValueError("cohort labels must be unique")
+        return self
+
+
+FailureCategory = Literal[
+    "task_invalid",
+    "environment_failure",
+    "harness_failure",
+    "verifier_false_positive",
+    "verifier_false_negative",
+    "planning",
+    "evidence_use",
+    "tool_use",
+    "implementation",
+    "verification_behavior",
+    "context_management",
+    "policy_or_refusal",
+    "unknown",
+]
+
+
+class AnalysisEvidenceCitation(ContractModel):
+    path: str = Field(min_length=1)
+    step_id: int | None = Field(default=None, ge=1)
+    tool_call_id: str | None = None
+    supports: str = Field(min_length=1)
+
+    @field_validator("path")
+    @classmethod
+    def path_is_trial_relative(cls, value: str) -> str:
+        if value.startswith("/") or ".." in value.split("/"):
+            raise ValueError("analysis evidence paths must stay relative to the trial")
+        return value
+
+
+class TrialAnalysisOutput(ContractModel):
+    validity: Literal[
+        "valid_agent_attempt",
+        "task_defect",
+        "environment_failure",
+        "harness_failure",
+        "verifier_defect",
+        "unknown",
+    ]
+    primary_category: FailureCategory
+    summary: str = Field(min_length=1)
+    earliest_failure_step_id: int | None = Field(default=None, ge=1)
+    evidence: list[AnalysisEvidenceCitation] = Field(min_length=1)
+    alternative_explanations: list[str] = Field(default_factory=list)
+    proposed_discriminator: str = Field(min_length=1)
+    confidence: Literal["low", "medium", "high"]
+
+
+class AnalysisSourceDigests(ContractModel):
+    result: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    task: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    trajectory: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    files: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("files")
+    @classmethod
+    def file_digests_are_valid(cls, values: dict[str, str]) -> dict[str, str]:
+        for path, digest in values.items():
+            if path.startswith("/") or ".." in path.split("/"):
+                raise ValueError("source digest paths must stay relative to the trial")
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+                raise ValueError(f"invalid source digest for {path}")
+        return values
+
+
+class AnalysisProvenance(ContractModel):
+    agent: str = Field(min_length=1)
+    agent_version: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    prompt_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    rubric_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    output_schema_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    created_at: datetime
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    cost_usd: float | None = Field(default=None, ge=0)
+
+
+class TrialAnalysisSidecar(ContractModel):
+    schema_version: Literal[1] = 1
+    analysis_id: UUID
+    experiment_id: str | None = None
+    job_id: UUID
+    source_trial_id: UUID
+    source_trial_path: str = Field(min_length=1)
+    source_digests: AnalysisSourceDigests
+    analysis_provenance: AnalysisProvenance
+    output: TrialAnalysisOutput
+    validation_status: Literal["valid", "invalid"]
+    validation_errors: list[str] = Field(default_factory=list)
+    raw_response_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def validation_status_matches_errors(self) -> TrialAnalysisSidecar:
+        if self.validation_status == "valid" and self.validation_errors:
+            raise ValueError("valid analyses cannot carry validation errors")
+        if self.validation_status == "invalid" and not self.validation_errors:
+            raise ValueError("invalid analyses require validation errors")
+        return self
+
+
+class AnalysisReview(ContractModel):
+    schema_version: Literal[1] = 1
+    review_id: UUID
+    analysis_id: UUID
+    disposition: Literal["accepted", "needs_revision", "rejected", "superseded"]
+    rationale: str = Field(min_length=1)
+    reviewer: str = Field(min_length=1)
+    reviewed_at: datetime
+    superseded_by: UUID | None = None
+
+    @model_validator(mode="after")
+    def superseded_reviews_name_replacement(self) -> AnalysisReview:
+        if self.disposition == "superseded" and self.superseded_by is None:
+            raise ValueError("superseded reviews require superseded_by")
+        if self.disposition != "superseded" and self.superseded_by is not None:
+            raise ValueError("superseded_by is only valid for superseded reviews")
+        return self
 
 
 class CanaryMember(ContractModel):

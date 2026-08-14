@@ -1,0 +1,19 @@
+{
+  "validity": "valid_agent_attempt",
+  "primary_category": "unknown",
+  "summary": "The Oracle control produced the declared output and the verifier awarded the full reward; this control contains no evaluated-model failure to classify.",
+  "earliest_failure_step_id": null,
+  "evidence": [
+    {
+      "path": "verifier/reward.json",
+      "step_id": null,
+      "tool_call_id": null,
+      "supports": "The persisted reward dimensions and primary reward are all 1.0."
+    }
+  ],
+  "alternative_explanations": [
+    "This Oracle control validates the task path but does not estimate ordinary-agent capability."
+  ],
+  "proposed_discriminator": "Run the same task and verifier with one ordinary evaluated agent while keeping every other declared condition fixed.",
+  "confidence": "high"
+}

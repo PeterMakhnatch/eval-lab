@@ -3,24 +3,29 @@
 Who exists, what they own, where they stand. New role = new row, by PR.
 Status column is updated by the role itself or the integrator.
 
-| Role | Branch | Owns (exclusive write) | Mission | Status (2026-08-13) |
+| Role | Branch | Owns (exclusive write) | Mission | Status (2026-08-14) |
 |---|---|---|---|---|
-| BUILDER | `main` | `src/`, `tests/`, `sql/`, `docs/prompts/`, `docs/`, `scripts/`, `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile` | Briefs from `docs/design-additions.md` + `docs/fleet-tracking.md` | Briefs 05–07 merged (executor, nightly digest, canaries). Next: brief 08 (Phoenix) or 12 (fleet reporting). |
-| CURATOR | `role/curator` | `library/curated/`, `agents/handoffs/curator.md` | Verified library of 15–25 open-source Harbor tasks with provenance/verification cards | 17-task library merged; verification runs still in progress in its worktree. |
-| ADAPTER | `role/adapter` | `library/adapters/`, `agents/handoffs/adapter.md` | One external benchmark adapted end-to-end (QuixBugs) | QuixBugs adapter + generated tasks + verification evidence merged. Mission complete pending review. |
-| EVIDENCE | `role/evidence` | `research/calibration/`, `agents/handoffs/evidence.md` | Judge-calibration corpus + failure-taxonomy trajectory labels | Corpus + trajectory labels merged. Mission complete pending review. |
-| RECON | `role/recon` | `research/explorations/`, `agents/handoffs/recon.md` | Working demos + adoption notes for unused Harbor 0.21 capabilities | Capability map + demos merged; self-reported complete. |
-| INGEST | `role/ingest` | `library/benchmarks/`, `agents/handoffs/ingest.md` | Pin and materialize 2026-cite public benches (survey + ≥4 Hub slices) | 16 surveyed; 4 Hub pins materialized + 19-task oracle/nop sample (2026-08-14). |
-
-| INGEST | `role/ingest` | `library/benchmarks/`, `agents/handoffs/ingest.md` | Frontier benchmark survey + Harbor-runnable materialization | Registered 2026-08-14; mission in docs/prompts/overnight-missions.md |
-| OBSERVER | `role/observer` | `src/evallab/tracing.py`, `agents/handoffs/observer.md` (+additive compose/cli/pyproject) | Phoenix + ATIF trace shipping + OpenInference (brief 08) | Registered 2026-08-14 |
-| ANALYST | `role/analyst` | `src/evallab/{atif,facts,cohort}.py`, `research/analysis/`, `agents/handoffs/analyst.md` | ATIF→Parquet, deterministic facts, cohort compare, analysis sidecars (briefs 01–03) | Registered 2026-08-14 |
-| RUNNER | `role/runner` | `research/experiments/`, `agents/handoffs/runner.md` | Design/submit/interpret real experiments via the queue | Registered 2026-08-14 |
-| AUTOPILOT | `role/autopilot` | `src/evallab/researchers.py`, `digests/DISCOVERIES.md`, `agents/handoffs/autopilot.md` | Bounded 24/7 researcher loop + discovery journal | Registered 2026-08-14 |
-| FORGE | `role/forge` | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening; held PRs for refactors | Done: PR #6 merged after its rebased GitHub checks were fully green. |
-| JUDGE | `role/judge` | `src/evallab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Registered 2026-08-14 |
-| MEDIC | `role/medic-closeout` | CI compatibility, deterministic canary test, premerge gate, and green-check governance (one mission) | Make local and GitHub green agree; land PR #6 | Done: PRs #7 and #6 merged green; PR #8 closes documentation and branch-lifecycle governance. |
-| REFRAME | `role/reframe-closeout` | Repository-wide identity migration plus integrator-only repository, directory, launchd, and Compose rename | Establish Eval Lab as the research identity, with Harbor solely the execution engine | Done: PR #9 merged green; repository, local path, worktrees, launchd, Compose, doctor, premerge, and queued Oracle control verified after the move. |
+| BUILDER | `main` | `src/`, `tests/`, `sql/`, `docs/prompts/`, `docs/`, `scripts/`, `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile` | Briefs from `docs/design-additions.md` + `docs/fleet-tracking.md` | Current on `main`; no active feature branch. |
+| CURATOR | — | `library/curated/`, `agents/handoffs/curator.md` | Verified library of 15–25 open-source Harbor tasks with provenance/verification cards | Done: 19 verified tasks are on `main`; branch and worktree sunset. |
+| ADAPTER | — | `library/adapters/`, `agents/handoffs/adapter.md` | One external benchmark adapted end-to-end (QuixBugs) | Done: adapter, tasks, and verification evidence merged; branch and worktree sunset. |
+| EVIDENCE | — | `research/calibration/`, `agents/handoffs/evidence.md` | Judge-calibration corpus + failure-taxonomy trajectory labels | Done: corpus and labels merged; branch and worktree sunset. |
+| RECON | — | `research/explorations/`, `agents/handoffs/recon.md` | Working demos + adoption notes for unused Harbor 0.21 capabilities | Done: capability map and demos merged; branch and worktree sunset. |
+| INGEST | — | `library/benchmarks/`, `agents/handoffs/ingest.md` | Frontier benchmark survey + Harbor-runnable materialization | Done: PR #3 merged; four Hub pins and the sample verification are on `main`. |
+| OBSERVER | — | `src/evallab/tracing.py`, `agents/handoffs/observer.md` (+additive compose/cli/pyproject) | Phoenix + ATIF trace shipping + OpenInference (brief 08) | Done: PR #2 merged; branch and worktree sunset. |
+| ANALYST | — | `src/evallab/{atif,facts,cohort}.py`, `research/analysis/`, `agents/handoffs/analyst.md` | ATIF→Parquet, deterministic facts, cohort compare, analysis sidecars (briefs 01–03) | Done: integrated into `main`; branch and worktree sunset. |
+| RUNNER | — | `research/experiments/`, `agents/handoffs/runner.md` | Design/submit/interpret real experiments via the queue | Done: PR #5 merged; branch and worktree sunset. |
+| AUTOPILOT | — | `src/evallab/researchers.py`, `digests/DISCOVERIES.md`, `agents/handoffs/autopilot.md` | Bounded 24/7 researcher loop + discovery journal | Done: integrated into `main`; branch and worktree sunset. |
+| FORGE | — | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening | Done: PR #6 merged green; branch and worktree sunset. |
+| JUDGE | — | `src/evallab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Done: PR #4 merged; measured Codex judge remains below the 0.90 floor. |
+| MEDIC | — | CI compatibility, deterministic canary test, premerge gate, and green-check governance | Make local and GitHub green agree; land PR #6 | Done: PRs #7, #6, and #8 merged green; branches and worktrees sunset. |
+| REFRAME | — | Repository-wide identity migration and closeout | Establish Eval Lab as the research identity, with Harbor as execution engine | Done: PRs #9 and #10 merged green; branches and worktrees sunset. |
+| DASHBOARD | — | `dashboard/`, additive CLI wiring, `agents/handoffs/dashboard.md` | Read-only research overview | Done: PRs #11 and #15 merged; seven-pane cold start reverified by MENDER. |
+| FETCH | — | benchmark acquisition/audit paths and `agents/handoffs/fetch.md` | Pinned Hub acquisition with integrity audit | Done: PRs #13 and #18 merged; 5/5 audit reverified by MENDER. |
+| RETENTION | — | GC paths and `agents/handoffs/retention.md` | Evidence-aware compression and pruning | Done: PRs #12 and #21 merged; dry-run plan reverified by MENDER. |
+| PIPELINE | — | catalog/Parquet ingest path and `agents/handoffs/pipeline.md` | One completion path for both stores | Done: PR #17 merged; duplicate PR #16 closed and its branch/worktree sunset. |
+| SPEED | — | profile harness, perf workflow, `agents/handoffs/speed.md` | Reproducible budgets for six hot paths | Done: PRs #14 and #20 merged; report reproduced by MENDER. |
+| INSPECTOR | — | `research/inspections/`, `agents/handoffs/inspector.md` | Three evidence-quality inspections | Done: PR #19 merged; all three reports reverified by MENDER. |
+| MENDER | `role/mender` | integration closeout, `agents/ROLES.md`, `agents/handoffs/mender.md` | Verify the merged wave and sunset spent fleet state | Active: final handoff, premerge, and green PR closeout; only non-main branch/worktree. |
 
 
 **Wave 1 outcome (2026-08-14):** INGEST, OBSERVER, ANALYST, RUNNER, AUTOPILOT,
@@ -34,11 +39,6 @@ defaults, never loosen).
 
 ## Worktree locations
 
-All worktrees live in `.worktrees/<role>` inside the repo (see
-`agents/WORKFLOW.md`). Exception being wound down: `role/curator`'s worktree
-is still at the legacy `../helab-curator` path because its verification
-session is active; when it stops, the integrator runs:
-
-```bash
-git worktree move ../helab-curator .worktrees/curator
-```
+Finished mission worktrees were removed by MENDER on 2026-08-14. During MENDER
+closeout, the only linked worktrees are the primary `main` checkout and
+`.worktrees/mender`; the latter is removed after its green PR merges.

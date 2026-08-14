@@ -1,7 +1,7 @@
 Status: building
-Last: Implemented pydantic calibration contracts, full-corpus stub calibration, and sealed DSPy split.
-Next: Validate DSPy with an ephemeral stub LM, submit the Codex calibration, and record the measured result.
-Blockers: Claude credential is expected absent; full Ruff has 9 pre-existing CURATOR/RECON errors.
+Last: Free nop smoke proved the generated task builds and its verifier completes without exception.
+Next: Submit and dispatch the Codex calibration, then collect its artifact into a measured record.
+Blockers: Claude credential absent; catalog schema init fails on a pre-existing view; full Ruff has 9 upstream errors.
 
 # JUDGE handoff
 
@@ -32,3 +32,7 @@ Verification checkpoint:
   which JUDGE does not own.
 - Ephemeral DSPy 3.2.1 `DummyLM`: metric 1.0; spy optimizer saw 16 examples and
   zero of six held-out controls.
+- First nop smoke found a missing separate-verifier Dockerfile; generator fixed.
+  Second smoke completed one trial with zero exceptions and reward 0 as expected
+  for nop. Post-run ingestion still fails in BUILDER-owned catalog DDL with
+  `psycopg.errors.InvalidTableDefinition: cannot drop columns from view`.

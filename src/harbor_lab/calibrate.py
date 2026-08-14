@@ -562,6 +562,18 @@ RUN mkdir -p /app/output
         _agent_instruction(family, backend, judge_model, len(ids)),
     )
     _write(task_root / "task.toml", _task_toml(family))
+    _write(
+        task_root / "tests/Dockerfile",
+        """FROM python:3.13-slim-bookworm
+
+COPY . /tests
+
+RUN mkdir -p /app/input /app/output /logs/verifier \\
+    && chmod +x /tests/test.sh
+
+WORKDIR /app
+""",
+    )
     _write(task_root / "tests/test.sh", "#!/bin/sh\nset -eu\nexec python /tests/verify.py\n")
     _write(task_root / "tests/verify.py", _verifier_source(family, ids))
     return task_root

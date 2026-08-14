@@ -78,3 +78,7 @@ library/benchmarks/
 
 INGEST does not edit `policy/canary-suite.yaml`. BUILDER / Peter register
 canaries from the nominees above.
+
+`ruff.toml` in this directory sets `lint.select = []` so Hub task sources
+are not restyled (same reason `adapters/quixbugs/generated` is excluded at
+the root). Do not “fix” upstream Python; it would change `task_checksum`.

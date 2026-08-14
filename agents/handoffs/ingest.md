@@ -1,7 +1,7 @@
 Status: review-wanted
-Last: 4 benches materialized; 19-task sample all oracle 1.0 / nop 0.0
-Next: rebase origin/main, PR, squash-merge if CI green
-Blockers: none
+Last: PR #3 opened; nested ruff.toml silences vendored Hub sources
+Next: wait CI; squash-merge only if quality green on our paths
+Blockers: quality CI red on main already (curated/explorations ruff); not ours
 
 INGEST 2026-08-14 (`.worktrees/ingest`, `role/ingest`).
 Owned: `library/benchmarks/`, this file; protocol also allows `agents/ROLES.md` row.

@@ -19,6 +19,9 @@ Acceptance evidence:
 - All three live JSONL streams contain zero tool events. The completed pass was
   attributed $3; conservative attribution for all launcher troubleshooting was
   $16 against the unchanged $20 daily ceiling.
+- A Claude-only healthy doctor result was stub-validated to record
+  `missing_credential:codex` with zero researcher calls; catalog spend is
+  refreshed before each call reservation.
 - The draft discovery is `D-20260815-KTXJSHGZ` in
   `digests/DISCOVERIES.md`; a Fleet render includes it and the researcher cost.
 - `uv run pytest -q` passes 41 tests and `uv run ruff check .` is clean on the

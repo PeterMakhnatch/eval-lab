@@ -5,7 +5,7 @@
     "model": null,
     "date": null,
     "parity_status": "deferred",
-    "adapted_benchmark_size": 80,
+    "adapted_benchmark_size": 40,
     "parity_benchmark_size": null,
     "number_of_runs": 0,
     "costs": "$0",

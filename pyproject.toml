@@ -35,7 +35,10 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["tasks/terminal-bench-html-js-filter"]
+extend-exclude = [
+    "adapters/quixbugs/generated",
+    "tasks/terminal-bench-html-js-filter",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

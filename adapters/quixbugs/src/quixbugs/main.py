@@ -47,9 +47,6 @@ def _validate_local_source(source_dir: Path, source_ref: str) -> Path:
         source_dir / "python_programs",
         source_dir / "correct_python_programs",
         source_dir / "python_testcases",
-        source_dir / "java_programs",
-        source_dir / "correct_java_programs",
-        source_dir / "java_testcases" / "junit",
     ]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
@@ -103,14 +100,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Only generate these stable IDs (for example quixbugs-python-gcd); "
-            "bare program names select both language variants"
+            "bare program names select the Python variant"
         ),
-    )
-    parser.add_argument(
-        "--language",
-        choices=("all", "python", "java"),
-        default="all",
-        help="Generate both language variants or one complete language split",
     )
     parser.add_argument(
         "--source-dir",
@@ -143,7 +134,6 @@ def main() -> int:
             source_root=source_root,
             source_url=args.source_url,
             source_ref=args.source_ref,
-            language=args.language,
             limit=args.limit,
             overwrite=args.overwrite,
             task_ids=args.task_ids,

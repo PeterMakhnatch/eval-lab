@@ -1,85 +1,62 @@
 {
   "date": "2026-08-13",
   "harbor_version": "0.21.0",
+  "scope": "python-only",
   "source_ref": "4257f44b0ff1181dedaedee6a447e133219fcebf",
-  "generated_task_count": 80,
-  "generated_task_tree_sha256": "894c6cfd59cc5513c75fa758a0092420a8b24befdeedc5fb46a9f91b8dc60445",
+  "generated_task_count": 40,
+  "generated_task_tree_sha256": "23cebf7f3c641e27afade09d3886dc4de8f55ac72027e900d079b2f49e3789eb",
   "sample_task_ids": [
     "quixbugs-python-gcd",
     "quixbugs-python-breadth_first_search",
-    "quixbugs-python-minimum_spanning_tree",
-    "quixbugs-java-gcd",
-    "quixbugs-java-minimum_spanning_tree"
+    "quixbugs-python-minimum_spanning_tree"
   ],
   "oracle": {
     "agent": "oracle@1.0.0",
     "model": null,
-    "n_attempts": 3,
-    "n_concurrent_trials": 2,
-    "n_trials": 15,
+    "n_attempts_per_task": 3,
+    "python_trials": 9,
     "n_errors": 0,
     "reward_counts": {
-      "1.0": 15
+      "1.0": 9
     },
     "mean_reward": 1.0,
-    "local_result_path": "runs/quixbugs-adapter/separate-oracle-final/2026-08-13__22-09-37/result.json",
-    "result_sha256": "708e5c5ac6b5943b2eaece02385b1f38073b41f57759a73bb85a4d7cff380fbb"
+    "source_result_path": "runs/quixbugs-adapter/separate-oracle-final/2026-08-13__22-09-37/result.json",
+    "source_result_sha256": "708e5c5ac6b5943b2eaece02385b1f38073b41f57759a73bb85a4d7cff380fbb",
+    "note": "Python subset extracted from the previously recorded aggregate control run."
   },
   "nop": {
     "agent": "nop@1.0.0",
     "model": null,
-    "n_attempts": 1,
-    "n_concurrent_trials": 2,
-    "n_trials": 5,
+    "n_attempts_per_task": 1,
+    "python_trials": 3,
     "n_errors": 0,
     "reward_counts": {
-      "0.0": 5
+      "0.0": 3
     },
     "mean_reward": 0.0,
-    "local_result_path": "runs/quixbugs-adapter/separate-nop-final/2026-08-13__22-11-13/result.json",
-    "result_sha256": "7059975f76576245f6a981b9df44d21815c8ea9485df1da81825ac3c9a8c0ec0"
+    "source_result_path": "runs/quixbugs-adapter/separate-nop-final/2026-08-13__22-11-13/result.json",
+    "source_result_sha256": "7059975f76576245f6a981b9df44d21815c8ea9485df1da81825ac3c9a8c0ec0",
+    "note": "Python subset extracted from the previously recorded aggregate control run."
   },
   "cost_usd": 0,
   "parity_status": "deferred",
   "full_static_validation": {
-    "task_toml_parsed": 80,
-    "shell_scripts_bash_n": 160,
-    "java_starting_sources_compiled": 40,
-    "java_oracle_sources_compiled": 40,
+    "task_toml_parsed": 40,
+    "shell_scripts_bash_n": 80,
     "python_starting_sources_compiled": 40,
     "python_oracle_sources_compiled": 40,
     "adapter_ruff": "passed",
-    "standalone_wheel_templates": "passed",
-    "dirty_source_rejected": "passed",
-    "harbor_adapter_review": "30 passed, 0 errors, 3 deferred-PR warnings"
+    "repository_language_contract": "passed"
   },
   "verifier_hardening": {
-    "environment_mode": "separate on all 80 tasks",
-    "declared_artifacts": "one target source file per task",
-    "base_images_pinned_by_digest": 160,
+    "environment_mode": "separate on all 40 tasks",
+    "declared_artifacts": "one Python target source file per task",
+    "base_images_pinned_by_digest": 80,
     "python_hash_locked_verifiers": 40,
-    "java_checksum_verified_verifiers": 40,
-    "java_test_execution": "offline Gradle with verifier-owned build configuration",
-    "candidate_execution": "non-root with /app and /tests read-only",
-    "bypass_regression": {
-      "attacks": [
-        "agent-created /app/pytest.py",
-        "agent-modified /app/build.gradle"
-      ],
-      "n_trials": 2,
-      "n_errors": 0,
-      "reward_counts": {
-        "0.0": 2
-      },
-      "mean_reward": 0.0,
-      "local_result_path": "runs/quixbugs-adapter/bypass-regression-final/2026-08-13__22-09-13/result.json",
-      "result_sha256": "559a527597416701a215c65422d10949c2f8675a3fef2d43306bffe540bffdcc"
-    }
+    "candidate_execution": "non-root with /app and /tests read-only"
   },
   "generation_regression": {
-    "clean_network_regeneration": "byte-identical",
-    "bounded_overwrite_replaces_complete_dataset": "passed",
-    "injected_generation_failure_preserves_existing_output": "passed",
-    "manifest_describes_complete_resulting_dataset": "passed"
+    "manifest_describes_python_only_dataset": "passed",
+    "task_tree_sha256": "23cebf7f3c641e27afade09d3886dc4de8f55ac72027e900d079b2f49e3789eb"
   }
 }

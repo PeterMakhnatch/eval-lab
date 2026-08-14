@@ -8,6 +8,11 @@ they have been promoted to `evidence/runs/`.
 ## Working rules
 
 - Read this file and `docs/architecture.md` before substantial changes.
+- Treat this as a Python repository. New application code, adapters, verifiers,
+  and benchmark tasks must be Python. Shell, SQL, Dockerfiles, and data/config
+  formats are allowed as supporting files. Do not add Java/JVM code or build
+  tooling. Ask Peter before introducing TypeScript or another programming
+  language, including inside an imported or generated task.
 - Do not invoke a paid model, cloud sandbox, large sweep, deploy, or publish a
   task without explicit approval.
 - `oracle` and `nop` are the default local controls. They test task and harness

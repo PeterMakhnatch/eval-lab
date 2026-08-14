@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import re
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -13,7 +12,6 @@ from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
 PROGRAM_EXCLUSIONS = {"node"}
-JAVA_HELPERS = ("Node.java", "WeightedEdge.java")
 AUTHORS = (
     "Derrick Lin",
     "James Koppel",
@@ -30,7 +28,7 @@ class Target:
 
 
 class QuixBugsAdapter:
-    """Convert both 40-program QuixBugs language variants to Harbor tasks."""
+    """Convert the 40 Python QuixBugs programs to Harbor tasks."""
 
     def __init__(
         self,
@@ -38,7 +36,6 @@ class QuixBugsAdapter:
         source_root: Path,
         source_url: str,
         source_ref: str,
-        language: str = "all",
         limit: int | None = None,
         overwrite: bool = False,
         task_ids: list[str] | None = None,
@@ -47,7 +44,7 @@ class QuixBugsAdapter:
         self.source_root = Path(source_root)
         self.source_url = source_url
         self.source_ref = source_ref
-        self.language = language
+        self.language = "python"
         self.limit = limit
         self.overwrite = overwrite
         self.task_ids = task_ids
@@ -59,24 +56,10 @@ class QuixBugsAdapter:
             for path in (self.source_root / "python_programs").glob("*.py")
             if not path.stem.endswith("_test") and path.stem not in PROGRAM_EXCLUSIONS
         )
-        java_programs = sorted(
-            path.stem.lower()
-            for path in (self.source_root / "java_programs").glob("*.java")
-            if path.name not in JAVA_HELPERS
-        )
-
-        targets: list[Target] = []
-        if self.language in {"all", "java"}:
-            targets.extend(
-                Target(f"quixbugs-java-{program}", "java", program)
-                for program in java_programs
-            )
-        if self.language in {"all", "python"}:
-            targets.extend(
-                Target(f"quixbugs-python-{program}", "python", program)
-                for program in python_programs
-            )
-        return sorted(targets)
+        return [
+            Target(f"quixbugs-python-{program}", "python", program)
+            for program in python_programs
+        ]
 
     def select_targets(self) -> list[Target]:
         available = self.list_targets()
@@ -94,7 +77,7 @@ class QuixBugsAdapter:
                 if not bare_matches:
                     raise ValueError(
                         f"Unknown task ID {selector!r}; use a stable "
-                        "quixbugs-<language>-<program> ID"
+                        "quixbugs-python-<program> ID"
                     )
                 chosen.extend(bare_matches)
             selected = sorted({target.task_id: target for target in chosen}.values())
@@ -154,17 +137,11 @@ class QuixBugsAdapter:
         shutil.copy2(self.source_root / "LICENSE", task_root / "LICENSE")
         self._write_task_toml(task_root, target)
         self._write_instruction(task_root, target)
-        if target.language == "python":
-            self._generate_python(task_root, target)
-        else:
-            self._generate_java(task_root, target)
+        self._generate_python(task_root, target)
 
     def _write_task_toml(self, task_root: Path, target: Target) -> None:
         author_rows = ",\n".join(f'    {{ name = "{name}" }}' for name in AUTHORS)
-        if target.language == "python":
-            artifact = f"/app/python_programs/{target.program}.py"
-        else:
-            artifact = f"/app/src/main/java/java_programs/{target.program.upper()}.java"
+        artifact = f"/app/python_programs/{target.program}.py"
         content = (self.template_dir / "task.toml").read_text().format(
             task_id=target.task_id.removeprefix("quixbugs-"),
             language=target.language,
@@ -176,10 +153,7 @@ class QuixBugsAdapter:
         (task_root / "task.toml").write_text(content)
 
     def _write_instruction(self, task_root: Path, target: Target) -> None:
-        if target.language == "python":
-            path = f"/app/python_programs/{target.program}.py"
-        else:
-            path = f"/app/src/main/java/java_programs/{target.program.upper()}.java"
+        path = f"/app/python_programs/{target.program}.py"
         content = (self.template_dir / "instruction.md").read_text().format(
             program=target.program,
             language=target.language,
@@ -234,81 +208,6 @@ class QuixBugsAdapter:
         )
         test_script = (self.template_dir / "tests" / "test-python.sh").read_text().format(
             program=target.program
-        )
-        self._write_executable(tests_dir / "test.sh", test_script)
-
-    def _generate_java(self, task_root: Path, target: Target) -> None:
-        env_dir = task_root / "environment"
-        source_dir = env_dir / "src" / "main" / "java" / "java_programs"
-        source_dir.mkdir(parents=True)
-        class_name = target.program.upper()
-        buggy_path = self.source_root / "java_programs" / f"{class_name}.java"
-        shutil.copy2(buggy_path, source_dir / buggy_path.name)
-
-        test_path = (
-            self.source_root / "java_testcases" / "junit" / f"{class_name}_TEST.java"
-        )
-        combined_text = buggy_path.read_text() + test_path.read_text()
-        for helper in JAVA_HELPERS:
-            helper_name = helper.removesuffix(".java")
-            if re.search(rf"\b{re.escape(helper_name)}\b", combined_text):
-                shutil.copy2(self.source_root / "java_programs" / helper, source_dir / helper)
-
-        for filename in ("build.gradle", "settings.gradle"):
-            shutil.copy2(self.template_dir / "environment" / filename, env_dir / filename)
-        shutil.copy2(
-            self.template_dir / "environment" / "Dockerfile.java",
-            env_dir / "Dockerfile",
-        )
-
-        correct = (
-            self.source_root / "correct_java_programs" / f"{class_name}.java"
-        ).read_text()
-        correct = re.sub(
-            r"^package\s+correct_java_programs\s*;",
-            "package java_programs;",
-            correct,
-            count=1,
-            flags=re.MULTILINE,
-        )
-        self._write_solution(
-            task_root / "solution" / "solve.sh",
-            f"/app/src/main/java/java_programs/{class_name}.java",
-            correct,
-        )
-
-        tests_dir = task_root / "tests"
-        junit_dir = tests_dir / "java_testcases" / "junit"
-        support_dir = tests_dir / "support" / "java_programs"
-        junit_dir.mkdir(parents=True)
-        support_dir.mkdir(parents=True)
-        (support_dir / "package-info.java").write_text("package java_programs;\n")
-        for helper in JAVA_HELPERS:
-            helper_name = helper.removesuffix(".java")
-            if re.search(rf"\b{re.escape(helper_name)}\b", combined_text):
-                shutil.copy2(
-                    self.source_root / "java_programs" / helper,
-                    support_dir / helper,
-                )
-        test_file = self.source_root / "java_testcases" / "junit" / f"{class_name}_TEST.java"
-        self._copy_text_normalized(test_file, junit_dir / test_file.name)
-        if "QuixFixOracleHelper" in test_file.read_text():
-            helper = self.source_root / "java_testcases" / "junit" / "QuixFixOracleHelper.java"
-            self._copy_text_normalized(helper, junit_dir / helper.name)
-        shutil.copy2(
-            self.template_dir / "tests" / "Dockerfile.java",
-            tests_dir / "Dockerfile",
-        )
-        shutil.copy2(
-            self.template_dir / "tests" / "build.gradle.java",
-            tests_dir / "build.gradle",
-        )
-        shutil.copy2(
-            self.template_dir / "tests" / "settings.gradle",
-            tests_dir / "settings.gradle",
-        )
-        test_script = (self.template_dir / "tests" / "test-java.sh").read_text().format(
-            class_name=class_name
         )
         self._write_executable(tests_dir / "test.sh", test_script)
 

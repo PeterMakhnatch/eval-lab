@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TASK = ROOT / "tasks/event-summary"
-IGNORED_PARTS = {".git", ".venv", ".pytest_cache", ".ruff_cache", "runs"}
+IGNORED_PARTS = {".git", ".venv", ".pytest_cache", ".ruff_cache", ".worktrees", "runs"}
 SECRET_PATTERNS = [
     re.compile(rb"ghp_[A-Za-z0-9]{30,}"),
     re.compile(rb"github_pat_[A-Za-z0-9_]{40,}"),
     re.compile(rb"sk-[A-Za-z0-9_-]{30,}"),
     re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 ]
+FORBIDDEN_JVM_NAMES = {"build.gradle", "settings.gradle", "pom.xml"}
+FORBIDDEN_JVM_SUFFIXES = {".gradle", ".jar", ".java", ".kt", ".kts"}
 
 
 def repository_files() -> list[Path]:
@@ -63,6 +66,26 @@ def test_repository_has_no_high_confidence_secrets() -> None:
             if pattern.search(data):
                 findings.append(path.relative_to(ROOT).as_posix())
     assert findings == []
+
+
+def test_repository_contains_no_jvm_source_or_build_tooling() -> None:
+    forbidden = [
+        path.relative_to(ROOT).as_posix()
+        for path in repository_files()
+        if path.name in FORBIDDEN_JVM_NAMES or path.suffix in FORBIDDEN_JVM_SUFFIXES
+    ]
+
+    assert forbidden == []
+
+
+def test_quixbugs_adapter_manifest_is_python_only() -> None:
+    manifest_path = ROOT / "adapters/quixbugs/generated/generation_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+
+    assert manifest["selection"]["language"] == "python"
+    assert manifest["task_count"] == 40
+    assert len(manifest["task_ids"]) == 40
+    assert all(task_id.startswith("quixbugs-python-") for task_id in manifest["task_ids"])
 
 
 def test_curated_evidence_files_remain_reviewable() -> None:

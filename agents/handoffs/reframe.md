@@ -1,6 +1,6 @@
-Status: building
-Last: Verified no open PRs, no running queue jobs, and a quiet integrated fleet before starting from origin/main at 5a9b834.
-Next: Finish the code/prose identity sweep, run premerge, and open the green-gated REFRAME PR.
+Status: review-wanted
+Last: Renamed the package, CLI, runtime identity, and prose; premerge is green with 54 tests and ty 33 <= 33.
+Next: Rebase onto origin/main, rerun premerge, open the REFRAME PR, and require every GitHub check green before merge.
 Blockers: none.
 
 # REFRAME handoff
@@ -27,7 +27,7 @@ Harbor remains the execution engine and keeps its genuine CLI, ATIF,
 | Step | Evidence |
 |---|---|
 | Quiet-fleet gate | No open PRs; no running queue jobs; base `5a9b834` |
-| Code/prose PR | Pending |
+| Code/prose PR | Local premerge green: Ruff clean, 54 tests, ty `33 <= 33` |
 | GitHub repository rename | Pending |
 | Local directory/worktree repair | Pending |
 | launchd regeneration and fired tick | Pending |

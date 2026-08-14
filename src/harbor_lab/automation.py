@@ -28,6 +28,7 @@ KEYCHAIN_SERVICE = "harbor-practice-claude-oauth"
 BooleanProbe = Callable[[], bool]
 LaunchctlRunner = Callable[[list[str], bool], int]
 DigestCommitter = Callable[[Path], bool]
+CanaryEnqueuer = Callable[[date], int]
 
 
 def _quiet_command_succeeds(command: list[str]) -> bool:
@@ -141,7 +142,7 @@ def record_quarantine(
     )
 
 
-def date_time_now():
+def date_time_now() -> datetime:
     # Kept as one seam so tests can validate event shape without patching datetime.
     return datetime.now(UTC)
 
@@ -173,6 +174,7 @@ class GuardedTick:
 @dataclass(frozen=True)
 class NightlyResult:
     report: HeadlessDoctorReport
+    enqueued: int
     dispatched: int
     digest_path: Path
     committed: bool
@@ -186,18 +188,37 @@ class NightlyCycle:
         executor: Executor,
         renderer: DigestRenderer,
         committer: DigestCommitter = commit_digest,
+        canary_enqueuer: CanaryEnqueuer | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
         self.renderer = renderer
         self.committer = committer
+        self.canary_enqueuer = canary_enqueuer
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
         report = self.doctor.run()
+        enqueued = 0
         dispatched = 0
         if report.healthy:
-            dispatched = self.executor.tick()
+            try:
+                if self.canary_enqueuer is not None:
+                    enqueued = self.canary_enqueuer(target_date)
+            except (OSError, RuntimeError, ValueError) as exc:
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="nightly_quarantined",
+                        actor="nightly",
+                        reason_code=f"canary_enqueue_failed:{type(exc).__name__}",
+                        report_date=target_date.isoformat(),
+                    )
+                )
+            else:
+                dispatched = self.executor.tick()
         else:
             record_quarantine(
                 self.executor.queue,
@@ -212,6 +233,7 @@ class NightlyCycle:
         )
         return NightlyResult(
             report=report,
+            enqueued=enqueued,
             dispatched=dispatched,
             digest_path=digest_path,
             committed=self.committer(digest_path),

@@ -1,0 +1,33 @@
+schema_version = "1.3"
+artifacts = []
+
+[task]
+name = "petermakhnatch/transaction-reconciliation"
+version = "0.1.0"
+description = "Repair one inconsistent transaction in a seeded SQLite ledger."
+authors = []
+keywords = ["harbor", "sqlite", "reconciliation", "database", "pytest"]
+
+[metadata]
+difficulty = "easy"
+category = "programming"
+tags = ["local", "deterministic"]
+
+[verifier]
+timeout_sec = 120.0
+collect = []
+
+[verifier.env]
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 600.0
+os = "linux"
+mcp_servers = []
+
+[environment.env]
+
+[solution.env]

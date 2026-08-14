@@ -36,6 +36,22 @@ class DigestTrial:
 TrialLoader = Callable[[date], list[DigestTrial]]
 
 
+@dataclass(frozen=True)
+class CanaryDriftObservation:
+    task_name: str
+    agent_name: str
+    reward: float | None
+    baseline_n: int
+    baseline_mean: float | None
+    baseline_stddev: float | None
+    task_version_changed: bool
+    is_harness_drift_suspect: bool
+    drift_reason: str | None
+
+
+DriftLoader = Callable[[date], list[CanaryDriftObservation]]
+
+
 class DigestRenderer:
     def __init__(
         self,
@@ -44,11 +60,13 @@ class DigestRenderer:
         queue: DirectoryQueue,
         policy: StandingApprovalsPolicy,
         trial_loader: TrialLoader | None = None,
+        drift_loader: DriftLoader | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
         self.policy = policy
         self._trial_loader = trial_loader or self._load_catalog_trials
+        self._drift_loader = drift_loader or self._load_canary_drift
 
     def write(
         self,
@@ -66,6 +84,10 @@ class DigestRenderer:
             trials = []
             early_trials = []
             catalog_error = True
+        try:
+            drift = self._drift_loader(period_date) + self._drift_loader(report_date)
+        except Exception:
+            drift = []
 
         events = load_events(self.queue.events_path)
         period_events = self._events_on(events, period_date)
@@ -129,6 +151,34 @@ class DigestRenderer:
             )
             self._append_trials(lines, early_trials, policy_by_job, empty="")
 
+        lines.extend(["", "## Canary drift", ""])
+        if drift:
+            lines.extend(
+                [
+                    "| task | agent | reward | trailing 7-day mean ± σ | n | assessment |",
+                    "|---|---|---:|---:|---:|---|",
+                ]
+            )
+            for observation in drift:
+                reward = "" if observation.reward is None else f"{observation.reward:g}"
+                if observation.baseline_mean is None:
+                    baseline = "insufficient history"
+                else:
+                    stddev = observation.baseline_stddev or 0.0
+                    baseline = f"{observation.baseline_mean:.3f} ± {stddev:.3f}"
+                assessment = (
+                    f"harness-drift suspect ({observation.drift_reason}); not capability news"
+                    if observation.is_harness_drift_suspect
+                    else "within baseline"
+                )
+                lines.append(
+                    f"| {_cell(observation.task_name)} | {_cell(observation.agent_name)} | "
+                    f"{reward} | {baseline} | {observation.baseline_n} | "
+                    f"{_cell(assessment)} |"
+                )
+        else:
+            lines.append("No canary observations with a trailing baseline.")
+
         spend = sum(trial.cost_usd for trial in trials + early_trials)
         exceptions = Counter(
             "harness_failure" for trial in trials + early_trials if trial.exception_type
@@ -189,7 +239,7 @@ class DigestRenderer:
                 "",
                 f"- Run corpus: {run_bytes} bytes ({growth})",
                 "- Judge calibration: not available until brief 09",
-                "- Canary baseline: populated by brief 07",
+                f"- Canary observations in report: {len(drift)}",
                 "",
                 "## Queue events",
                 "",
@@ -225,6 +275,24 @@ class DigestRenderer:
                 exception_type=str(row[5]) if row[5] is not None else None,
                 cost_usd=float(row[6]),
                 finished_at=str(row[7]),
+            )
+            for row in rows
+        ]
+
+    @staticmethod
+    def _load_canary_drift(day: date) -> list[CanaryDriftObservation]:
+        rows = database.canary_drift_observations(database_url_from_environment(), day)
+        return [
+            CanaryDriftObservation(
+                task_name=str(row[0] or ""),
+                agent_name=str(row[1] or ""),
+                reward=float(row[2]) if row[2] is not None else None,
+                baseline_n=int(row[3] or 0),
+                baseline_mean=float(row[4]) if row[4] is not None else None,
+                baseline_stddev=float(row[5]) if row[5] is not None else None,
+                task_version_changed=bool(row[6]),
+                is_harness_drift_suspect=bool(row[7]),
+                drift_reason=str(row[8]) if row[8] is not None else None,
             )
             for row in rows
         ]
@@ -281,6 +349,8 @@ class DigestRenderer:
             prefix = "headless_doctor_failed:"
             if event.reason_code and event.reason_code.startswith(prefix):
                 return [name for name in event.reason_code.removeprefix(prefix).split(",") if name]
+            if event.reason_code:
+                return [event.reason_code]
         return []
 
     def _reason_for(self, spec_id: str) -> str:

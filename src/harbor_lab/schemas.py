@@ -183,3 +183,45 @@ class DailyDigestData(ContractModel):
     disk_bytes: int = Field(default=0, ge=0)
     queue_depths: dict[str, int] = Field(default_factory=dict)
     waiting_proposals: list[str] = Field(default_factory=list)
+
+
+class CanaryMember(ContractModel):
+    name: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    task_path: str = Field(min_length=1)
+    task_version: str = Field(min_length=1)
+    task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    source_ref: str = Field(min_length=1)
+    source_content_hash: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    est_cost_usd: float = Field(gt=0)
+
+    @field_validator("task_path")
+    @classmethod
+    def task_path_is_repo_relative(cls, value: str) -> str:
+        if value.startswith("/") or ".." in value.split("/"):
+            raise ValueError("task_path must stay relative to the repository")
+        return value
+
+    @field_validator("source_ref")
+    @classmethod
+    def source_ref_is_immutable(cls, value: str) -> str:
+        ref = value.rsplit("@", 1)[-1].lower()
+        if "@" not in value or ref in {"latest", "head", "main", "master"}:
+            raise ValueError("source_ref must include an immutable revision")
+        return value
+
+
+class CanarySuite(ContractModel):
+    version: Literal[1] = 1
+    attempts: Literal[3] = 3
+    agents: list[Literal["codex", "claude-code"]] = Field(min_length=1)
+    members: list[CanaryMember] = Field(min_length=3, max_length=5)
+
+    @model_validator(mode="after")
+    def member_names_are_unique(self) -> CanarySuite:
+        names = [member.name for member in self.members]
+        if len(names) != len(set(names)):
+            raise ValueError("canary member names must be unique")
+        return self

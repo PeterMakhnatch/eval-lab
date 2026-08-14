@@ -9,6 +9,7 @@ from pathlib import Path
 
 from harbor_lab import __version__, database
 from harbor_lab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
+from harbor_lab.canary import CanaryEnqueuer
 from harbor_lab.digest import DigestRenderer
 from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
 from harbor_lab.results import JobRecord, load_job, load_jobs
@@ -271,8 +272,10 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                 doctor=HeadlessDoctor(root, executor=executor),
                 executor=executor,
                 renderer=_digest_renderer(root),
+                canary_enqueuer=CanaryEnqueuer.from_repo(root, executor).enqueue,
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
+            print(f"enqueued: {result.enqueued}")
             print(f"dispatched: {result.dispatched}")
             print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
             return 0 if result.report.healthy else 1

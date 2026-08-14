@@ -114,6 +114,11 @@ attribution, cost, exception taxonomy, queue depth, waiting rationales, evidence
 growth, and quarantine state. PostgreSQL remains rebuildable from raw jobs; the
 digest is a human-facing derived report.
 
+Nightly also validates and enqueues the pinned suite in
+[`canaries.md`](canaries.md) before draining the queue. A changed task digest or
+floating source ref quarantines the cycle before dispatch. Digest excursions
+are labeled harness-drift suspects, never capability news.
+
 ## Run controls before model experiments
 
 ```bash

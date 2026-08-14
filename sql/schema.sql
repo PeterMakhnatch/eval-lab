@@ -125,3 +125,63 @@ FROM trials t
 JOIN rewards r ON r.trial_id = t.id
 WHERE t.exception_type IS NULL
 GROUP BY t.task_name, t.agent_name, COALESCE(t.model_name, 'adhoc'), r.name;
+
+CREATE OR REPLACE VIEW canary_drift_observations AS
+WITH canary_trials AS (
+    SELECT
+        j.job_name,
+        t.id AS trial_id,
+        t.task_name,
+        t.task_checksum,
+        t.agent_name,
+        t.primary_reward,
+        t.exception_type,
+        t.finished_at::timestamptz AS finished_at,
+        (t.finished_at::timestamptz AT TIME ZONE current_setting('TIMEZONE'))::date
+            AS observation_date
+    FROM trials t
+    JOIN jobs j ON j.id = t.job_id
+    WHERE j.job_name LIKE 'canary-%'
+      AND t.finished_at IS NOT NULL
+), with_baseline AS (
+    SELECT
+        current_trial.*,
+        baseline.n AS baseline_n,
+        baseline.mean AS baseline_mean,
+        baseline.stddev AS baseline_stddev,
+        baseline.task_checksum AS baseline_task_checksum
+    FROM canary_trials current_trial
+    LEFT JOIN LATERAL (
+        SELECT
+            count(*) AS n,
+            avg(prior.primary_reward) AS mean,
+            stddev_samp(prior.primary_reward) AS stddev,
+            mode() WITHIN GROUP (ORDER BY prior.task_checksum) AS task_checksum
+        FROM canary_trials prior
+        WHERE prior.task_name = current_trial.task_name
+          AND prior.agent_name = current_trial.agent_name
+          AND prior.exception_type IS NULL
+          AND prior.finished_at >= date_trunc('day', current_trial.finished_at) - interval '7 days'
+          AND prior.finished_at < date_trunc('day', current_trial.finished_at)
+    ) baseline ON true
+)
+SELECT
+    *,
+    baseline_n > 0
+        AND task_checksum IS DISTINCT FROM baseline_task_checksum AS task_version_changed,
+    CASE
+        WHEN baseline_n = 0 THEN false
+        WHEN task_checksum IS DISTINCT FROM baseline_task_checksum THEN true
+        WHEN primary_reward IS NULL OR baseline_mean IS NULL THEN false
+        ELSE abs(primary_reward - baseline_mean) > COALESCE(baseline_stddev, 0)
+    END AS is_harness_drift_suspect,
+    CASE
+        WHEN baseline_n = 0 THEN NULL
+        WHEN task_checksum IS DISTINCT FROM baseline_task_checksum THEN 'task_version_changed'
+        WHEN primary_reward IS NOT NULL
+             AND baseline_mean IS NOT NULL
+             AND abs(primary_reward - baseline_mean) > COALESCE(baseline_stddev, 0)
+            THEN 'reward_excursion'
+        ELSE NULL
+    END AS drift_reason
+FROM with_baseline;

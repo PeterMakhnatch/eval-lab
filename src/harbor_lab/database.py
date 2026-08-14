@@ -313,3 +313,27 @@ def digest_trials(database_url: str, day: date) -> list[tuple[Any, ...]]:
                 (day,),
             ).fetchall()
         )
+
+
+def canary_drift_observations(database_url: str, day: date) -> list[tuple[Any, ...]]:
+    with psycopg.connect(database_url, connect_timeout=2) as connection:
+        return list(
+            connection.execute(
+                """
+                SELECT
+                    task_name,
+                    agent_name,
+                    primary_reward,
+                    baseline_n,
+                    baseline_mean,
+                    baseline_stddev,
+                    task_version_changed,
+                    is_harness_drift_suspect,
+                    drift_reason
+                FROM canary_drift_observations
+                WHERE observation_date = %s
+                ORDER BY task_name, agent_name, trial_id
+                """,
+                (day,),
+            ).fetchall()
+        )

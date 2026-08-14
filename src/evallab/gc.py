@@ -269,42 +269,155 @@ def iter_run_jobs(runs_dir: Path) -> list[Path]:
     return jobs
 
 
-def filesystem_catalog(repo_root: Path) -> MemoryCatalog:
-    entries: list[CatalogEntry] = []
-    parquet_root = repo_root / "derived" / "parquet"
-    if parquet_root.is_dir():
-        for child in parquet_root.iterdir():
-            if child.is_dir() and child.name.startswith("job_id="):
-                job_id = child.name.removeprefix("job_id=")
-                entries.append(
+GC_CATALOG_RELATIVE = Path("derived") / "gc-catalog.json"
+INGEST_LEDGER_RELATIVE = Path("derived") / "ingest-ledger.jsonl"
+
+
+def retarget_postgres(database_url: str, job_id: str, evidence_path: str) -> None:
+    """Point jobs/trials.evidence_path at the tombstone. Best-effort."""
+    import psycopg
+
+    with psycopg.connect(database_url) as connection:
+        connection.execute(
+            "UPDATE jobs SET evidence_path = %s, updated_at = now() WHERE id = %s",
+            (evidence_path, job_id),
+        )
+        connection.execute(
+            "UPDATE trials SET evidence_path = %s, updated_at = now() WHERE job_id = %s",
+            (evidence_path, job_id),
+        )
+
+
+def _optional_postgres_retarget(job_id: str, evidence_path: str) -> None:
+    try:
+        from evallab.runner import database_url_from_environment
+
+        retarget_postgres(database_url_from_environment(), job_id, evidence_path)
+    except Exception:
+        return
+
+
+class FilesystemCatalog:
+    """Durable catalog: parquet + ingest ledger + derived/gc-catalog.json.
+
+    ``set_path`` rewrites ``derived/gc-catalog.json`` so a new process load
+    sees the tombstone. Optional SQL retarget updates Postgres when available.
+    """
+
+    def __init__(
+        self,
+        repo_root: Path,
+        *,
+        sql_retarget: Callable[[str, str], None] | None = None,
+    ) -> None:
+        self.repo_root = repo_root.resolve()
+        self.catalog_path = self.repo_root / GC_CATALOG_RELATIVE
+        self.sql_retarget = sql_retarget
+        self._entries: dict[str, CatalogEntry] = {}
+        self._load()
+
+    def _put(self, entry: CatalogEntry) -> None:
+        self._entries[entry.job_id] = entry
+
+    def _load(self) -> None:
+        self._entries = {}
+        parquet_root = self.repo_root / "derived" / "parquet"
+        if parquet_root.is_dir():
+            for child in parquet_root.iterdir():
+                if child.is_dir() and child.name.startswith("job_id="):
+                    job_id = child.name.removeprefix("job_id=")
+                    self._put(
+                        CatalogEntry(
+                            job_id=job_id,
+                            evidence_path=f"runs/{job_id}",
+                            ingested=True,
+                            projected=True,
+                        )
+                    )
+        ledger = self.repo_root / INGEST_LEDGER_RELATIVE
+        if ledger.is_file():
+            for line in ledger.read_text().splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                job_id = str(row.get("job_id") or "")
+                if not job_id:
+                    continue
+                self._put(
                     CatalogEntry(
                         job_id=job_id,
-                        evidence_path=f"runs/{job_id}",
-                        ingested=True,
-                        projected=True,
+                        evidence_path=str(row.get("evidence_path") or f"runs/{job_id}"),
+                        ingested=bool(row.get("ingested", True)),
+                        projected=bool(row.get("projected", True)),
                     )
                 )
-    ledger = repo_root / "derived" / "ingest-ledger.jsonl"
-    if ledger.is_file():
-        for line in ledger.read_text().splitlines():
-            if not line.strip():
-                continue
+        if self.catalog_path.is_file():
             try:
-                row = json.loads(line)
+                payload = json.loads(self.catalog_path.read_text())
             except json.JSONDecodeError:
-                continue
-            job_id = str(row.get("job_id") or "")
-            if not job_id:
-                continue
-            entries.append(
-                CatalogEntry(
-                    job_id=job_id,
-                    evidence_path=str(row.get("evidence_path") or f"runs/{job_id}"),
-                    ingested=bool(row.get("ingested", True)),
-                    projected=bool(row.get("projected", True)),
-                )
+                payload = {}
+            jobs = payload.get("jobs") if isinstance(payload, dict) else None
+            if isinstance(jobs, dict):
+                for job_id, raw in jobs.items():
+                    if not isinstance(raw, dict):
+                        continue
+                    existing = self._entries.get(str(job_id))
+                    ingested_default = existing.ingested if existing else True
+                    projected_default = existing.projected if existing else True
+                    self._put(
+                        CatalogEntry(
+                            job_id=str(job_id),
+                            evidence_path=str(raw.get("evidence_path") or ""),
+                            ingested=bool(raw.get("ingested", ingested_default)),
+                            projected=bool(raw.get("projected", projected_default)),
+                        )
+                    )
+
+    def get(self, job_id: str) -> CatalogEntry | None:
+        return self._entries.get(job_id)
+
+    def set_path(self, job_id: str, evidence_path: str) -> None:
+        existing = self._entries.get(job_id)
+        if existing is None:
+            self._entries[job_id] = CatalogEntry(
+                job_id=job_id,
+                evidence_path=evidence_path,
+                ingested=True,
+                projected=True,
             )
-    return MemoryCatalog(entries)
+        else:
+            existing.evidence_path = evidence_path
+        self._write()
+        if self.sql_retarget is not None:
+            self.sql_retarget(job_id, evidence_path)
+
+    def _write(self) -> None:
+        self.catalog_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "jobs": {
+                job_id: {
+                    "job_id": entry.job_id,
+                    "evidence_path": entry.evidence_path,
+                    "ingested": entry.ingested,
+                    "projected": entry.projected,
+                }
+                for job_id, entry in sorted(self._entries.items())
+            }
+        }
+        temporary = self.catalog_path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        temporary.replace(self.catalog_path)
+
+
+def filesystem_catalog(
+    repo_root: Path,
+    *,
+    sql_retarget: Callable[[str, str], None] | None = None,
+) -> FilesystemCatalog:
+    return FilesystemCatalog(repo_root, sql_retarget=sql_retarget)
 
 
 def classify_job(
@@ -505,7 +618,11 @@ def apply_gc(
 ) -> GcApplyResult:
     root = repo_root.resolve()
     runs = (runs_dir or root / "runs").resolve()
-    store = catalog if catalog is not None else filesystem_catalog(root)
+    store = (
+        catalog
+        if catalog is not None
+        else filesystem_catalog(root, sql_retarget=_optional_postgres_retarget)
+    )
     events: list[QueueEvent] = []
     tombstones: list[Path] = []
     writer = append_event or DirectoryQueue(root / "queue").append_event

@@ -13,6 +13,7 @@ from evallab.gc import (
     archive_path,
     catalog_path_exists,
     doctor_disk_line,
+    filesystem_catalog,
     format_plan,
     nightly_gc_plan,
     plan_gc,
@@ -303,3 +304,70 @@ def test_doctor_and_nightly_plan_do_not_apply(tmp_path: Path) -> None:
     assert "WOULD compress" in text
     assert "plan-only" in text
     assert (job / "result.json").is_file()
+
+
+def test_apply_persists_catalog_so_fresh_load_resolves_existing_path(tmp_path: Path) -> None:
+    now = datetime(2026, 6, 1, tzinfo=UTC)
+    runs = tmp_path / "runs"
+    job_id = "00000000-0000-0000-0000-000000000050"
+    job = make_job(
+        runs,
+        name="ledger-job",
+        job_id=job_id,
+        finished_at=(now - COMPRESS_AFTER - timedelta(days=1)).isoformat(),
+        spec_id="spec-ledger",
+    )
+    ledger = tmp_path / "derived" / "ingest-ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(
+        json.dumps(
+            {
+                "job_id": job_id,
+                "evidence_path": "runs/ledger-job",
+                "ingested": True,
+                "projected": True,
+            }
+        )
+        + "\n"
+    )
+    plan, applied = run_gc(
+        tmp_path,
+        apply=True,
+        clock=lambda: now,
+        runs_dir=runs,
+    )
+    assert applied is not None
+    assert not job.exists()
+
+    fresh = filesystem_catalog(tmp_path)
+    entry = fresh.get(job_id)
+    assert entry is not None
+    assert catalog_path_exists(tmp_path, fresh, job_id)
+    resolved = tmp_path / entry.evidence_path
+    assert resolved.is_file()
+    assert resolved.name == f"{job_id}.json"
+    persisted = json.loads((tmp_path / "derived" / "gc-catalog.json").read_text())
+    assert persisted["jobs"][job_id]["evidence_path"] == entry.evidence_path
+
+
+def test_retarget_postgres_updates_job_and_trial_paths(monkeypatch) -> None:
+    executed: list[tuple[str, tuple[str, str]]] = []
+
+    class FakeConnection:
+        def __enter__(self) -> FakeConnection:
+            return self
+
+        def __exit__(self, *args: object) -> bool:
+            return False
+
+        def execute(self, sql: str, params: tuple[str, str]) -> None:
+            executed.append((sql, params))
+
+    monkeypatch.setattr("psycopg.connect", lambda url: FakeConnection())
+    from evallab.gc import retarget_postgres
+
+    retarget_postgres("postgresql://example", "job-1", "runs/.tombstones/job-1.json")
+    statements = " ".join(sql for sql, _ in executed)
+    assert "UPDATE jobs SET evidence_path" in statements
+    assert "UPDATE trials SET evidence_path" in statements
+    assert all(params[0] == "runs/.tombstones/job-1.json" for _, params in executed)

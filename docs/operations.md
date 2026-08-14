@@ -161,8 +161,10 @@ completed, ingested, and projected. The policy is:
 - each action writes `runs/.tombstones/<job-id>.json` (job id, spec id,
   digests, reward summary, why removed)
 - `--apply` also appends `gc_compressed` / `gc_pruned` lines to
-  `queue/events.jsonl` and retargets the catalog path at the tombstone so
-  no row points at a deleted directory
+  `queue/events.jsonl` and retargets the catalog to the tombstone: it writes
+  `derived/gc-catalog.json` (reloaded on the next `evallab gc`) and best-effort
+  `UPDATE`s `jobs.evidence_path` / `trials.evidence_path` when Postgres is up
+  so no row points at a deleted directory
 
 Never eligible: `research/evidence/`, anything named in a digest or
 `digests/DISCOVERIES.md`, jobs that are not ingested+projected, and the

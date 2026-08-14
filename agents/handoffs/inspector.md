@@ -1,7 +1,7 @@
 Status: review-wanted
-Last: Rebased onto origin/main and validated all three peer-reviewed inspection reports on the exact head.
-Next: Open the INSPECTOR PR, require all current-head checks green, then merge only after final root review.
-Blockers: none
+Last: Opened PR #19; final root diff/content review passed and a handoff-only freshness commit is pending CI.
+Next: Require every current-head PR #19 check green, then merge.
+Blockers: PR #19 current-head GitHub Actions pending
 
 # INSPECTOR handoff
 
@@ -28,7 +28,7 @@ Evidence checkpoint:
   no disclosed denominator or trial IDs; the cap omitted an existing HTML oracle
   and caused the synthesis to recommend collecting one.
 
-Draft reports: `research/inspections/transaction-reconciliation.md`,
+Final reports: `research/inspections/transaction-reconciliation.md`,
 `research/inspections/judge-floor.md`, and
 `research/inspections/discoveries-first-pass.md`.
 

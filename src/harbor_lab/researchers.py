@@ -517,6 +517,7 @@ class ResearcherLoop:
 
     def run(self, *, report_date: date | None = None) -> ResearcherPassResult:
         target_date = report_date or date.today()
+        budget_day = date.today()
         pass_id = new_ulid()
         pass_dir = self.repo_root / "queue/researchers/passes" / target_date.isoformat() / pass_id
         pass_dir.mkdir(parents=True, exist_ok=False)
@@ -525,7 +526,7 @@ class ResearcherLoop:
             return self._defer(pass_id, target_date, manifest_path, "stop_file_present")
 
         try:
-            catalog_spend = self._catalog_spend(target_date)
+            catalog_spend = self._catalog_spend(budget_day)
             bundle_path = pass_dir / "evidence.json"
             bundle = self._evidence_loader(target_date, bundle_path)
             _write_model(bundle_path, bundle)
@@ -535,7 +536,7 @@ class ResearcherLoop:
             analyst = self._invoke_validated(
                 pass_id=pass_id,
                 role="analyst",
-                day=target_date,
+                day=budget_day,
                 prompt=self._analyst_prompt(bundle),
                 output_model=AnalystOutput,
                 work_dir=pass_dir / "analyst",
@@ -548,7 +549,7 @@ class ResearcherLoop:
             synthesis = self._invoke_validated(
                 pass_id=pass_id,
                 role="synthesizer",
-                day=target_date,
+                day=budget_day,
                 prompt=self._synthesizer_prompt(bundle, analyst),
                 output_model=SynthesisOutput,
                 work_dir=pass_dir / "synthesizer",
@@ -563,7 +564,7 @@ class ResearcherLoop:
             proposal = self._invoke_validated(
                 pass_id=pass_id,
                 role="proposer",
-                day=target_date,
+                day=budget_day,
                 prompt=self._proposer_prompt(synthesis, journal.tail(), registry),
                 output_model=ProposalDraft,
                 work_dir=pass_dir / "proposer",
@@ -1079,13 +1080,15 @@ def append_fleet_section(
         state: len(list(queue.state_dir(state).glob("*.json")))
         for state in ("proposed", "approved", "waiting", "running", "done", "failed")
     }
+    period_date = report_date - timedelta(days=1)
     try:
-        recorded_spend = catalog_spend(report_date)
+        recorded_spend = catalog_spend(period_date) + catalog_spend(report_date)
         spend_text = f"${recorded_spend:.4f}"
     except Exception:
         recorded_spend = 0.0
         spend_text = "unavailable"
-    researcher_spend = ledger.daily_attributed_cost(report_date)
+    researcher_spend = ledger.daily_attributed_cost(period_date)
+    researcher_spend += ledger.daily_attributed_cost(report_date)
     events = [
         event
         for event in load_events(queue.events_path)

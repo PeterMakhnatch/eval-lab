@@ -784,9 +784,11 @@ def stage_queue_bundle(
         raise ValueError("queued calibration estimate must be greater than zero and at most $3")
     target_date = run_date or date.today()
     if backend == "codex":
+        if not judge_model:
+            raise ValueError("Codex staging requires an explicit --judge-model")
         normalized_backend = "harbor-codex-agent"
         agent_model = judge_model
-        recorded_model = judge_model or "codex-default"
+        recorded_model = judge_model
     elif backend == "anthropic":
         normalized_backend = "harbor-claude-agent"
         agent_model = judge_model or "anthropic/claude-sonnet-4-6"
@@ -794,7 +796,8 @@ def stage_queue_bundle(
     else:
         raise ValueError("backend must be codex or anthropic")
     family_token = "checkout" if family == "checkout-pool-exhaustion" else "retry"
-    name = f"judge-{family_token}-{backend}-{target_date:%Y%m%d}"
+    model_token = re.sub(r"[^a-z0-9]+", "-", recorded_model.lower()).strip("-")
+    name = f"judge-{family_token}-{backend}-{model_token[:24]}-{target_date:%Y%m%d}"
     task_relative = Path("queue/calibration-tasks") / name
     task_path = stage_agent_judge_task(
         repo_root,

@@ -6,7 +6,7 @@
   "task": "registered/judge-optimization/checkout-pool-exhaustion",
   "task_path": "queue/calibration-tasks/judge-checkout-dspy-miprov2-20260814",
   "agent": "codex",
-  "model": null,
+  "model": "gpt-5.6-sol",
   "environment": "docker",
   "jobs_dir": "runs",
   "attempts": 1,

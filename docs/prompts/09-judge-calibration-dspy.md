@@ -57,9 +57,10 @@ a model:
 
 ```bash
 uv run harbor-lab calibrate checkout-pool-exhaustion \
-  --stage codex --date 2026-08-14 --est-cost-usd 2.75
+  --stage codex --judge-model gpt-5.6-sol \
+  --date 2026-08-14 --est-cost-usd 2.75
 uv run harbor-lab submit \
-  queue/calibration-specs/judge-checkout-codex-20260814.json
+  queue/calibration-specs/judge-checkout-codex-gpt-5-6-sol-20260814.json
 uv run harbor-lab calibrate checkout-pool-exhaustion \
   --dispatch-approved <spec-id>
 ```
@@ -109,7 +110,7 @@ agreement is comparable to the future Reward Kit Anthropic record.
 
 The staged specifications are versioned at:
 
-- `research/calibration/records/queue-specs/checkout-codex-20260814.json`
+- `research/calibration/records/queue-specs/checkout-codex-gpt-5-6-sol-20260814.json`
 - `research/calibration/records/queue-specs/checkout-anthropic-20260814.json`
 - `research/calibration/records/queue-specs/checkout-dspy-miprov2-20260814.json`
 

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eval Lab — Current Repository State</title>
+  <meta name="description" content="Evidence-backed snapshot of Eval Lab's purpose, working capabilities, CI, tests, maturity, and next priorities.">
+  <link rel="stylesheet" href="repository-overview.css">
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <span class="mono">EVAL LAB / REPOSITORY REVIEW</span>
+      <nav aria-label="Overview pages">
+        <a href="repository-state.html" aria-current="page">Repository state</a>
+        <a href="agent-workflow.html">Agent workflow</a>
+        <a href="../README.md">README</a>
+      </nav>
+    </div>
+
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Snapshot · 2026-08-14 · main 9b08e0d</p>
+        <h1>Functional spine. Incomplete research loop.</h1>
+        <p class="lede">Eval Lab is a local-first workbench around Harbor for running agent evaluations, preserving raw evidence, indexing and projecting results, and controlling what may run unattended. Its control and data pipeline works today. Its real-model, judgment, and autonomous-research layers still need integration repair before their outputs should drive decisions.</p>
+        <p class="snapshot">Scope: local checkout, current GitHub state, live health probes, current catalog and queue, default and excluded test suites, and merged inspection reports.</p>
+      </div>
+      <aside class="verdict" aria-label="Maturity verdict">
+        <strong>Maturity: operational foundation</strong>
+        <p>This is more than a scaffold: it can execute free controls end to end and maintain a coherent evidence index. It is not yet a production evaluation platform or a trustworthy unattended scientific loop.</p>
+        <p><a href="#priorities">The next move is hardening, not feature expansion.</a></p>
+      </aside>
+    </header>
+
+    <div class="metrics" aria-label="Current metrics">
+      <div class="metric"><span class="value good">5 / 5</span><span class="label">latest main CI checks passed</span></div>
+      <div class="metric"><span class="value">82</span><span class="label">tests collected by default CI</span></div>
+      <div class="metric"><span class="value partial">10 / 25</span><span class="label">excluded analysis tests failing</span></div>
+      <div class="metric"><span class="value">17 / 17</span><span class="label">catalog jobs projected to Parquet</span></div>
+      <div class="metric"><span class="value blocked">0</span><span class="label">valid current Codex canary attempts</span></div>
+    </div>
+
+    <section id="purpose">
+      <h2>What the repository is for</h2>
+      <p class="section-intro">The repository is the control and evidence layer around Harbor, not a replacement harness. It answers four questions: what was intended, what ran, what evidence it produced, and what is safe to do next.</p>
+      <div class="flow" aria-label="System flow">
+        <div class="flow-step"><span class="num">01</span><div><strong>Define</strong><p>Versioned tasks, experiment specs, rubrics, policies, canary pins.</p></div><span class="status good">working</span></div>
+        <div class="flow-step"><span class="num">02</span><div><strong>Admit</strong><p>File queue, standing approvals, cost ceilings, STOP marker, quiet-failure rule.</p></div><span class="status good">working</span></div>
+        <div class="flow-step"><span class="num">03</span><div><strong>Execute</strong><p>Harbor builds the environment, invokes the agent, collects artifacts, and runs the verifier.</p></div><span class="status partial">controls proven</span></div>
+        <div class="flow-step"><span class="num">04</span><div><strong>Preserve</strong><p>Immutable job directories remain canonical; PostgreSQL and Parquet are rebuildable derivatives.</p></div><span class="status good">working</span></div>
+        <div class="flow-step"><span class="num">05</span><div><strong>Interpret</strong><p>Cohort comparison, calibrated judging, structured analysis, and experiment proposals.</p></div><span class="status blocked">needs repair</span></div>
+        <div class="flow-step"><span class="num">06</span><div><strong>Review</strong><p>Humans accept findings and approve consequential or billable next runs.</p></div><span class="status partial">manual gate exists</span></div>
+      </div>
+    </section>
+
+    <section id="capabilities">
+      <h2>What is implemented—and how well</h2>
+      <p class="section-intro">“Implemented” below means code and a reachable command exist. “Proven” is reserved for a current test or live run through the composed path.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Capability</th><th>State</th><th>What it does</th><th>Evidence and boundary</th></tr></thead>
+          <tbody>
+            <tr><td>Oracle / no-op controls</td><td><span class="status good">proven</span></td><td>Runs free reference and empty controls through Harbor, Docker, artifacts, verifier, and reward.</td><td>Multiple reward-1 oracle and reward-0 no-op runs; the current local health check is green. Controls validate plumbing, not model capability.</td></tr>
+            <tr><td>Queue and policy</td><td><span class="status good">proven</span></td><td>Admits specs under standing policy, enforces per-job and daily ceilings, supports STOP, waiting, approval, and quiet failure.</td><td>Queue currently has 7 done, 3 failed, 1 waiting, and 0 running. The waiting canary was correctly refused after repeated failures.</td></tr>
+            <tr><td>Catalog + Parquet pipeline</td><td><span class="status good">proven locally</span></td><td>Ingests Harbor jobs into PostgreSQL and projects deterministic ATIF facts to partitioned Parquet.</td><td><code>doctor</code> reports 17 catalog jobs and 17 projections with no missing or extra jobs. A new worktree still has a local-Parquet/shared-Postgres topology mismatch until rebuilt.</td></tr>
+            <tr><td>Results, digests, and dashboard</td><td><span class="status good">working</span></td><td>Summarizes raw jobs, renders daily reports, and serves a read-only seven-pane Streamlit dashboard.</td><td>Dashboard cold start was manually verified; its 8 query tests pass when run explicitly, but they are not in default CI.</td></tr>
+            <tr><td>Benchmark acquisition</td><td><span class="status good">working</span></td><td>Fetches or audits pinned Harbor Hub materializations under <code>library/benchmarks</code>.</td><td>Current audit passes 5/5 pins. Four legacy pins record source commits but no stored tree digest, so their audit is weaker than the newer pin.</td></tr>
+            <tr><td>Retention / garbage collection</td><td><span class="status partial">cautious</span></td><td>Plans compression after 14 days and pruning after 60, excluding promoted or referenced evidence.</td><td>Default planning and fixture apply paths are tested. The real corpus currently has no candidates; a live destructive apply has not been used as acceptance evidence.</td></tr>
+            <tr><td>Scheduling and health</td><td><span class="status good">installed</span></td><td>LaunchAgents run queue reconciliation every 30 minutes and schedule nightly work at 02:30.</td><td>Tick has run 10 times with last exit 0; nightly is installed but has not yet fired. Headless doctor is healthy via Codex auth even though Keychain is unreadable.</td></tr>
+            <tr><td>Phoenix / trace export</td><td><span class="status partial">implemented</span></td><td>Converts ATIF trajectories to OpenTelemetry and can ship them to Phoenix.</td><td>Eight tracing tests use fixtures and stubs. This review did not verify a current live Phoenix export.</td></tr>
+            <tr><td>Real-model canaries</td><td><span class="status blocked">not valid today</span></td><td>Runs pinned Codex canaries intended to detect task, verifier, or harness drift.</td><td>The catalog has 15 completed Codex canary trials: 9 <code>ValueError</code> and 6 <code>NonZeroAgentExitCodeError</code>. Inspection attributes the r2 zeros to authentication/harness failure before an agent turn.</td></tr>
+            <tr><td>Cohort comparison / analysis</td><td><span class="status blocked">broken example</span></td><td>Builds controlled cohorts, deterministic facts, analysis sidecars, and reviews.</td><td>The checked-in comparison still points to pre-migration <code>evidence/runs</code>; <code>evallab compare research/analysis/control-oracle-vs-nop.json</code> selects no trials. Ten excluded analysis tests fail.</td></tr>
+            <tr><td>Judge calibration</td><td><span class="status blocked">gate closed</span></td><td>Measures a model judge against sealed answer keys and stages DSPy optimization.</td><td>The measured Codex tuple is 0.763 versus a 0.90 floor. Three criteria dominate errors, and the staged input omits evidence required by the gold contract.</td></tr>
+            <tr><td>Autonomous researcher</td><td><span class="status blocked">draft-only</span></td><td>Runs bounded analyst, synthesizer, and proposer calls and writes a discovery draft.</td><td>Safety bounds are sensible, but the first pass used circular/nonportable citations and undisclosed one-row-per-job sampling. Human evidence review remains mandatory.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="ci">
+      <h2>CI and testing reality</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="status good">current main is green</span>
+          <h3>What GitHub actually checks</h3>
+          <p>At commit <code>9b08e0d</code>, lint, tests on Python 3.12, tests on Python 3.14, the type-check ratchet, and the performance budget all passed.</p>
+          <p><a href="https://github.com/PeterMakhnatch/eval-lab/actions/runs/31844508385">Quality run</a> · <a href="https://github.com/PeterMakhnatch/eval-lab/actions/runs/31844508361">Typecheck run</a> · <a href="https://github.com/PeterMakhnatch/eval-lab/actions/runs/31844508474">Performance run</a></p>
+        </article>
+        <article class="card">
+          <span class="status partial">green is narrower than it looks</span>
+          <h3>What default CI omits</h3>
+          <p><code>pyproject.toml</code> limits discovery to <code>tests/</code>. Dashboard and calibration suites add 17 passing tests when invoked explicitly. The 25-test analysis suite is also excluded—and 10 of those tests currently fail after the repository path migration.</p>
+        </article>
+        <article class="card">
+          <span class="status partial">ratchet, not clean typing</span>
+          <h3>Type checking</h3>
+          <p>The workflow passes at or below 33 diagnostics. The current code has exactly 33 diagnostics, so “typecheck green” means no regression from the baseline, not type correctness.</p>
+        </article>
+        <article class="card">
+          <span class="status blocked">missing composed smoke</span>
+          <h3>Integration coverage</h3>
+          <p>Most tests inject fake runtimes and temporary files, which is good for determinism. There is still no committed <code>make smoke</code> gate that runs one free control through submit → policy → Harbor → catalog → Parquet. The checkpoint explicitly called for it.</p>
+        </article>
+      </div>
+      <div class="callout warn" style="margin-top: 1rem">
+        <strong>Local reproduction:</strong> <code>make premerge</code> passed Ruff and 82 tests in this review, then reported the allowed 33 type diagnostics. The broader manual run found the excluded analysis failures above.
+      </div>
+    </section>
+
+    <section id="structure">
+      <h2>Does the repository hang together logically?</h2>
+      <div class="grid three">
+        <article class="card"><span class="status good">yes</span><h3>Clear boundaries</h3><p>Definitions live in Git, Harbor owns execution, raw job directories own evidence, and PostgreSQL/Parquet are derived. That separation is coherent and worth preserving.</p></article>
+        <article class="card"><span class="status good">yes</span><h3>Safety is designed in</h3><p>Standing approvals, ceilings, quiet failure, STOP, hidden verifier isolation, and current-head CI rules create meaningful guardrails rather than relying on agent discretion.</p></article>
+        <article class="card"><span class="status partial">mostly</span><h3>Documentation drift</h3><p>The README still calls Parquet “next,” the operating manual repeats a disproven verifier attribution, and the frozen structure map omits the root <code>dashboard/</code> directory.</p></article>
+        <article class="card"><span class="status partial">mostly</span><h3>Command surface is broad</h3><p>There are 22 top-level CLI commands or command groups. Core commands are reachable, but breadth is ahead of composed-path verification in compare, analyze, trace, judge, and research flows.</p></article>
+        <article class="card"><span class="status blocked">no</span><h3>Not one full trusted loop yet</h3><p>Control execution and data landing connect. The chain from real agent → valid cohort → calibrated judgment → durable discovery → approved next experiment does not yet hold end to end.</p></article>
+        <article class="card"><span class="status info">see companion</span><h3>Agent coordination</h3><p>The worktree/ownership protocol is sound in concept, but its live status surfaces disagree after closeout. See the <a href="agent-workflow.html">agent workflow review</a>.</p></article>
+      </div>
+    </section>
+
+    <section id="priorities">
+      <h2>Where to go from here</h2>
+      <p class="section-intro">Do not start a new capability wave yet. One short foundation wave can turn the current collection of strong components into a dependable research system.</p>
+      <ol class="priority-list">
+        <li><div><strong>Make CI cover the repository-owned tests.</strong> Add dashboard, calibration, and analysis suites to the gate; repair migrated evidence paths and the stale artifact expectation. Keep benchmark task tests separate because they belong to task containers.</div></li>
+        <li><div><strong>Add the composed free-control smoke.</strong> A single deterministic command should prove submit → admission → Harbor → reward → catalog → Parquet and fail on any broken link.</div></li>
+        <li><div><strong>Restore one valid real-model canary.</strong> Reconcile Codex authentication with Harbor 0.21, stop after the first repeated auth failure, and require one trajectory containing an actual assistant turn before interpreting scores.</div></li>
+        <li><div><strong>Repair the evidence-dependent layers.</strong> Freeze one judge input contract; fix the three dominant criteria; preserve researcher bundles under durable evidence; validate link existence, content hashes, denominators, and trial IDs before appending a discovery.</div></li>
+        <li><div><strong>Resolve shared-state topology.</strong> Choose one explicit model for PostgreSQL and Parquet across worktrees: shared derived root, isolated catalogs, or evidence-root-scoped invariants.</div></li>
+        <li><div><strong>Reconcile the human documentation.</strong> Update README capability claims, structure map, operating manual attribution, stale handoff headers, and fleet documentation so the repository has one current story.</div></li>
+      </ol>
+    </section>
+
+    <section id="sources">
+      <h2>Evidence used for this snapshot</h2>
+      <ul class="source-list">
+        <li><a href="../AGENTS.md">Repository rules</a></li>
+        <li><a href="architecture.md">Architecture</a></li>
+        <li><a href="analysis-loop.md">Analysis loop contract</a></li>
+        <li><a href="checkpoints/2026-08-14.md">Hands-on checkpoint</a></li>
+        <li><a href="../agents/handoffs/mender.md">Merged-wave verification</a></li>
+        <li><a href="../research/inspections/transaction-reconciliation.md">Canary inspection</a></li>
+        <li><a href="../research/inspections/judge-floor.md">Judge-floor inspection</a></li>
+        <li><a href="../research/inspections/discoveries-first-pass.md">Researcher-pass inspection</a></li>
+        <li><a href="../.github/workflows/ci.yml">Quality CI definition</a></li>
+        <li><a href="../.github/workflows/typecheck.yml">Typecheck ratchet</a></li>
+        <li><a href="../.github/workflows/perf.yml">Performance CI</a></li>
+        <li><a href="../policy/standing-approvals.yaml">Standing execution policy</a></li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Evidence-backed internal review. “Working” describes the named command, test, or observed path at this snapshot; it is not a claim of production reliability or general model capability.</p>
+    </footer>
+  </main>
+</body>
+</html>

@@ -75,3 +75,20 @@ uv run harbor-lab compare <fixture-or-example-spec>
 Document the comparison schema, denominator rules, exploratory warnings, and
 one example report. State exactly what the report establishes and what it does
 not. Do not invoke a model during implementation or validation.
+
+## Implemented contract (ANALYST, 2026-08-14)
+
+- `harbor-lab compare <spec>` reads raw jobs, writes deterministic JSON and a
+  Markdown rendering under `derived/comparisons/`, and needs no database or
+  model. `research/analysis/control-oracle-vs-nop.json` is the tracked example.
+- Causal mode fixes task and verifier identity and refuses any consequential
+  difference beyond `declared_variable`; exploratory mode preserves every
+  mismatch as a validity warning in both outputs.
+- Exceptions stay beside `n_total` and are excluded from the capability
+  denominator; missing rewards are reported separately. Pass@1 uses every
+  eligible trial; task-level outcomes for k > 1 use stable trial-UUID selection.
+  Both carry Wilson 95% intervals. Groups short of k are explicit exclusions.
+  Paired reward deltas use the declared task key and do not claim significance.
+- The tracked n=1 controls establish only that Oracle scored 1.0 and no-op 0.0
+  under the same task/verifier/environment. Their Wilson intervals are shown to
+  make the small sample unmistakable; this is not a model-capability estimate.

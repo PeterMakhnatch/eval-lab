@@ -97,3 +97,23 @@ Update the README and architecture/operations docs with the exact commands,
 output paths, schema limitations, and unsupported ATIF cases. Report changed
 files, validations run, and any dependency/version decision. Do not commit
 generated `derived/` files.
+
+## Implemented contract (ANALYST, 2026-08-14)
+
+- `harbor-lab trajectories [paths...]` reports `valid`, `invalid`,
+  `unsupported`, or `none` without PostgreSQL; `--export` writes all ATIF and
+  trial-fact tables beneath `derived/parquet/job_id=*/trial_id=*/`.
+- Harbor is installed as isolated tool version 0.21.0 and cannot be imported by
+  the project venv. `harbor_lab.atif` uses Harbor's Pydantic model when it is
+  importable and otherwise records use of its strict ATIF-v1.0–v1.7 fallback.
+- The fallback validates sequential steps, tool/observation links, embedded
+  subagent IDs, continuations, and local external subagent files. Remote
+  trajectory references are unsupported; missing/escaping references are
+  invalid status, never an agent exception.
+- Raw prompts, reasoning, tool arguments, and observations remain in ATIF.
+  Derived rows contain only structure, counts, byte lengths, and SHA-256
+  digests. See `research/analysis/README.md` and `queries.sql`.
+- Fixture coverage lives under `research/analysis/tests/` because ANALYST may
+  not write BUILDER-owned `tests/`. The focused suite includes rebuild,
+  idempotency, copied context, continuation/subagent discovery, broken refs,
+  no-ATIF, DuckDB, privacy, and raw-byte immutability checks.

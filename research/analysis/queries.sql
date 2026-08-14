@@ -83,3 +83,42 @@ WHERE kind = 'artifact' AND size_bytes > 0
 GROUP BY sha256
 HAVING count(*) > 1
 ORDER BY total_bytes DESC;
+
+-- DuckDB: join trial-level facts to ATIF documents without loading raw content.
+SELECT
+    f.experiment_id,
+    f.job_name,
+    f.trial_name,
+    f.agent_name,
+    f.primary_reward,
+    count(t.document_id) AS trajectory_documents,
+    sum(t.step_count) AS trajectory_steps
+FROM read_parquet('derived/parquet/**/trial_facts.parquet') AS f
+LEFT JOIN read_parquet('derived/parquet/**/trajectories.parquet') AS t
+    USING (job_id, trial_id)
+GROUP BY ALL
+ORDER BY f.job_name, f.trial_name;
+
+-- DuckDB: per-function tool use and structured command failures by trial.
+SELECT
+    s.job_id,
+    s.trial_id,
+    tc.function_name,
+    count(*) AS calls,
+    count(*) FILTER (WHERE o.command_exit_code <> 0) AS failed_calls
+FROM read_parquet('derived/parquet/**/steps.parquet') AS s
+JOIN read_parquet('derived/parquet/**/tool_calls.parquet') AS tc
+    USING (job_id, trial_id, document_id, source_path, source_sha256, step_id)
+LEFT JOIN read_parquet('derived/parquet/**/observations.parquet') AS o
+    ON o.job_id = tc.job_id
+   AND o.trial_id = tc.trial_id
+   AND o.document_id = tc.document_id
+   AND o.step_id = tc.step_id
+   AND o.source_call_id = tc.tool_call_id
+GROUP BY ALL
+ORDER BY s.job_id, s.trial_id, calls DESC, tc.function_name;
+
+-- PostgreSQL: the durable experiment -> job -> trial -> trajectory -> analysis path.
+SELECT *
+FROM experiment_trial_analysis_path
+ORDER BY experiment_id, job_id, trial_id, trajectory_document_id, analysis_id;

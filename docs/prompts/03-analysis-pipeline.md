@@ -79,3 +79,25 @@ model, source trials, expected call count, and cost.
 Document the rubric, schema, review workflow, dry-run command, and how to audit a
 finding back to raw evidence. Report limitations of model-assisted analysis
 plainly; model agreement is not validation.
+
+## Implemented contract (ANALYST, 2026-08-14)
+
+- `harbor-lab analyze plan <trial>` prints source IDs, prompt/rubric/schema
+  digests, destination, one expected call, two-call maximum, and the required
+  `researcher-followups` queue policy without invoking a model.
+- Saved output can be validated with `analyze stub`; each invocation writes a
+  fresh immutable `derived/analyses/<uuid>/analysis.json`. Reviews append under
+  that invocation's `reviews/` directory and leave original bytes unchanged.
+- Pydantic contracts cover the stage-5 taxonomy, validity, earliest failure,
+  path/step/tool evidence, alternatives, discriminator, calibrated confidence,
+  source digests, exact prompt/rubric/schema digests, token/cost provenance, and
+  review disposition. Missing/hallucinated citations mark the sidecar invalid.
+- Installed Harbor 0.21.0's analyzer uploads a copy for evaluation but writes
+  `analysis.json` into the source trial afterward. That contradicts the lab's
+  immutable-evidence rule, so the lab preserves Harbor's bounded/read-only
+  analysis shape while using a separate sidecar and headless Codex adapter.
+- The live adapter is callable only with a matching file already in
+  `queue/running`, policy `researcher-followups`, the same source trial ID, and
+  `max_model_calls=2`; it rechecks authorization per call. There is no direct
+  live-analysis CLI. All acceptance tests and the catalog example use a saved
+  stub response and cost $0.

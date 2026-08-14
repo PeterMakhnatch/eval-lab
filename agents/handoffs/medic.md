@@ -1,12 +1,12 @@
 Status: review-wanted
-Last: Python 3.12 and 3.14 each pass 51 tests; floor premerge passes Ruff and ty 33<=33.
-Next: Rebase, push, open the bootstrap MEDIC PR, and require all GitHub checks green.
+Last: Rebased onto 5e10db5; floor premerge is green and Python 3.14 passes all 51 tests.
+Next: Push, open the bootstrap MEDIC PR, and require all GitHub checks green.
 Blockers: none for bootstrap; branch-protection product decision remains Peter's.
 
 # MEDIC handoff
 
 Worktree: `.worktrees/medic` on `role/medic`, based on `origin/main` at
-`8474cd9`.
+`5e10db5`.
 
 ## Verified diagnosis
 

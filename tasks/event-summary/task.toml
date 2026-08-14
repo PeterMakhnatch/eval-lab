@@ -1,0 +1,39 @@
+schema_version = "1.4"
+artifacts = [
+    "/app/input/events.jsonl",
+    "/app/output/summary.json",
+]
+
+[task]
+name = "local-lab/event-summary"
+version = "1.0.0"
+description = "Summarize a JSONL event stream without changing the source data"
+keywords = ["jsonl", "aggregation", "data-quality", "pytest", "separate-verifier"]
+
+[[task.authors]]
+name = "Peter Makhnatch"
+email = "p.makhnatch@gmail.com"
+
+[metadata]
+difficulty = "easy"
+category = "data-processing"
+tags = ["deterministic", "negative-control", "artifact-transfer"]
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+collect = []
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+# Docker Desktop on macOS cannot enforce Harbor's no-network policy. This local
+# control has no network dependency, but uses the supported public baseline.
+network_mode = "public"
+build_timeout_sec = 300.0
+os = "linux"
+cpus = 1
+memory_mb = 512
+storage_mb = 2048
+mcp_servers = []

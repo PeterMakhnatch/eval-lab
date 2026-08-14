@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "name": "event-summary-local-controls",
+  "hypothesis": "Oracle passes and no-op fails while task, environment, and verifier stay fixed.",
+  "task": "tasks/event-summary",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 1,
+  "runs": [
+    {
+      "name": "event-summary-oracle-control",
+      "agent": "oracle",
+      "attempts": 1,
+      "expect_reward": 1.0
+    },
+    {
+      "name": "event-summary-nop-control",
+      "agent": "nop",
+      "attempts": 1,
+      "expect_reward": 0.0
+    }
+  ]
+}
+

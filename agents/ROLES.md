@@ -20,6 +20,12 @@ Status column is updated by the role itself or the integrator.
 | FORGE | `role/forge` | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening; held PRs for refactors | Registered 2026-08-14 |
 | JUDGE | `role/judge` | `src/harbor_lab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Registered 2026-08-14 |
 
+
+**Wave 1 outcome (2026-08-14):** INGEST, OBSERVER, ANALYST, RUNNER, AUTOPILOT,
+JUDGE all merged into `main` (PRs #2–5 plus two local branches integrated).
+FORGE still in progress. Details per role in `agents/handoffs/`; first
+measured result: codex-as-judge calibration lands below the 0.90 floor.
+
 Peter owns `policy/standing-approvals.yaml` content (agents ship conservative
 defaults, never loosen).
 

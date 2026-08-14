@@ -336,7 +336,18 @@ class DirectoryQueue:
         self.stop_path.unlink(missing_ok=True)
 
     def list_specs(self, state: QueueState) -> list[tuple[Path, ExperimentSpec]]:
-        records = [(path, self.load(path)) for path in self.state_dir(state).glob("*.json")]
+        # Two ticks may run concurrently (launchd schedule plus a manual tick).
+        # A file listed here can be claimed — moved to another state — before we
+        # read it. That is normal contention, not corruption: skip vanished
+        # files instead of failing the whole tick.
+        records: list[tuple[Path, ExperimentSpec]] = []
+        for path in self.state_dir(state).glob("*.json"):
+            try:
+                records.append((path, self.load(path)))
+            except ValueError as exc:
+                if isinstance(exc.__cause__, FileNotFoundError):
+                    continue
+                raise
         return sorted(
             records,
             key=lambda record: (

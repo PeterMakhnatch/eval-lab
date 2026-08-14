@@ -268,3 +268,21 @@ def test_spec_without_model_gets_agent_default_and_explicit_model_wins(tmp_path:
     by_name = {request.name: request.model for request in requests}
     assert by_name["codex-default-model"] == "gpt-5.6-terra"
     assert by_name["codex-pinned-model"] == "pinned-x"
+
+
+def test_concurrent_tick_claiming_a_spec_mid_listing_is_tolerated(tmp_path: Path) -> None:
+    service = executor(tmp_path)
+    service.submit(spec("stays"))
+    vanish_path, _ = service.submit(spec("claimed-by-other-tick"))
+
+    queue = service.queue
+    original_load = queue.load
+
+    def racing_load(path):
+        if path.name == vanish_path.name and path.exists():
+            path.unlink()  # the other tick moved it between glob and read
+        return original_load(path)
+
+    queue.load = racing_load
+    remaining = queue.list_specs("approved")
+    assert [item.name for _, item in remaining] == ["stays"]

@@ -25,7 +25,7 @@ Status column is updated by the role itself or the integrator.
 | PIPELINE | — | catalog/Parquet ingest path and `agents/handoffs/pipeline.md` | One completion path for both stores | Done: PR #17 merged; duplicate PR #16 closed and its branch/worktree sunset. |
 | SPEED | — | profile harness, perf workflow, `agents/handoffs/speed.md` | Reproducible budgets for six hot paths | Done: PRs #14 and #20 merged; report reproduced by MENDER. |
 | INSPECTOR | — | `research/inspections/`, `agents/handoffs/inspector.md` | Three evidence-quality inspections | Done: PR #19 merged; all three reports reverified by MENDER. |
-| MENDER | `role/mender` | integration closeout, `agents/ROLES.md`, `agents/handoffs/mender.md` | Verify the merged wave and sunset spent fleet state | Active: final handoff, premerge, and green PR closeout; only non-main branch/worktree. |
+| MENDER | — | integration closeout, `agents/ROLES.md`, `agents/handoffs/mender.md` | Verify the merged wave and sunset spent fleet state | Done: PR #22 merged with five green checks; final closeout branch/worktree sunset after this record lands. |
 
 
 **Wave 1 outcome (2026-08-14):** INGEST, OBSERVER, ANALYST, RUNNER, AUTOPILOT,
@@ -39,6 +39,6 @@ defaults, never loosen).
 
 ## Worktree locations
 
-Finished mission worktrees were removed by MENDER on 2026-08-14. During MENDER
-closeout, the only linked worktrees are the primary `main` checkout and
-`.worktrees/mender`; the latter is removed after its green PR merges.
+Finished mission worktrees were removed by MENDER on 2026-08-14. Its temporary
+closeout worktree is removed after this final record merges; only the primary
+`main` checkout remains.

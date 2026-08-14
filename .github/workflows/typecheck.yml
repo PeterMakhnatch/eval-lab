@@ -1,0 +1,65 @@
+name: typecheck
+
+# Static type checking, deliberately kept in its own workflow file.
+#
+# Why not inside ci.yml: the unmerged branch `codex/restore-green-ci` rewrites
+# ci.yml (SHA-pinned actions, concurrency, lint/test split, python matrix).
+# Adding a job there would guarantee a merge conflict. A separate workflow
+# merges cleanly in either order and runs in parallel with `quality`, so it
+# costs no extra wall-clock. Folding the two together is a fine daytime
+# follow-up *after* that branch lands.
+#
+# Why non-blocking today: `ty` reports 4 pre-existing diagnostics, all in
+# src/harbor_lab/{database,queue}.py. Those files are owned by other roles, so
+# FORGE must not edit them (agents/WORKFLOW.md). The job therefore reports
+# without failing the PR. See docs/engineering.md for the exact diagnostic
+# list and the condition for flipping this to blocking.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ty:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Flip to `false` once the 4 diagnostics in docs/engineering.md are cleared.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+          python-version: "3.11"
+          version: "0.9.24"
+      - run: uv sync --locked
+
+      - name: ty check
+        id: ty
+        run: |
+          set -o pipefail
+          # ty is pre-1.0; pin it so a checker release cannot turn CI red on its own.
+          uvx ty@0.0.71 check src/ --output-format=concise 2>&1 | tee ty.txt
+
+      - name: Report diagnostics in the job summary
+        if: always()
+        run: |
+          {
+            echo "## ty (static type check)"
+            echo
+            echo '```'
+            cat ty.txt 2>/dev/null || echo "no output"
+            echo '```'
+            echo
+            echo "Non-blocking while the baseline diagnostics in \`docs/engineering.md\` remain open."
+          } >> "$GITHUB_STEP_SUMMARY"

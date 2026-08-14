@@ -399,6 +399,9 @@ or policy_waiting, then one `tick_quarantined`). Reason files:
 `queue/reasons/<spec_id>-<ulid>.json`. Launchd continues to tick the
 **main checkout**, not this worktree.
 
+PR: https://github.com/PeterMakhnatch/harbor-experiment-lab/pull/5
+(left open; CI ruff fails on files this role does not own).
+
 Peter: to run the five approved jobs, store the Claude keychain item
 (unguards tick for everyone) **or** split the headless doctor so a
 missing Claude token does not quarantine Codex/oracle dispatch. The

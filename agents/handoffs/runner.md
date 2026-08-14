@@ -1,7 +1,7 @@
 Status: blocked
-Last: six studies designed; 8 specs submitted (5 approved, 3 waiting); oracle/nop baselines complete on 4 families and interpreted
+Last: PR #5 open (not self-merged); six studies + control interpretation landed on role/runner
 Next: dispatch the five approved canary jobs once tick is unblocked; then interpret Codex trajectories
-Blockers: headless doctor keychain_readable=false quarantines all tick dispatch; launchd ticks the main checkout, not this worktree
+Blockers: headless doctor keychain_readable=false quarantines all tick dispatch; CI ruff fails on CURATOR/RECON files already on main (not ours)
 
 ## Done tonight
 
@@ -21,6 +21,11 @@ No Codex study completed. Standing policy + "never harbor run a paid agent" + fa
 - n=5 at the published $2.50/3-attempt rate is $4.17 > $3/job.
 - Shared Postgres: this worktree's `database.initialize` raises `cannot drop columns from view`. Jobs are on disk under `.worktrees/runner/runs/`; they did not ingest.
 - query-optimize is valid and a bad canary (amd64 image, ~10 min/trial, verifier does not fail-fast on nop).
+
+## PR
+
+https://github.com/PeterMakhnatch/harbor-experiment-lab/pull/5
+Diff is only owned paths. Local `uv run pytest -q` is 36 passed. Did not squash-merge: quality `ruff check .` fails on `library/curated/_emit_card.py` and `research/explorations/harbor-021/demos/*` (CURATOR / RECON), already on `origin/main`.
 
 ## Queue spec_ids (this worktree)
 

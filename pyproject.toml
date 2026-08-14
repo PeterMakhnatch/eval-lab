@@ -7,7 +7,7 @@ name = "harbor-experiment-lab"
 version = "0.1.0"
 description = "Reproducible local infrastructure and analysis for Harbor evaluations"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "duckdb>=1.5.5",
     "psycopg[binary]>=3.2,<4",
@@ -35,8 +35,6 @@ observability = [
 
 [tool.uv]
 default-groups = ["dev", "observability"]
-# harbor-atif2otel requires Python >=3.12. The repo already runs 3.13 locally and in CI.
-environments = ["python_full_version >= '3.12'"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/harbor_lab"]
@@ -47,7 +45,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 extend-exclude = [
     "library/adapters/*/generated",
     "library/tasks/terminal-bench-html-js-filter", "library/curated",

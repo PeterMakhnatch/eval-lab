@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "catalog-preserve__hpGER6H",
+  "source": "harbor-practice/runs/ar-catalog-bulk-zero/catalog-preserve__hpGER6H",
+  "primary_category": "unknown",
+  "summary": "Designed bulk-zero oracle control: reward 0.0 with shortcut notes; not an agent-capability failure.",
+  "evidence": [
+    {
+      "path": "verifier/grade_notes.json",
+      "step": null,
+      "supports": "grade_notes list bulk-zeroed prices and a bulk status=clean shortcut; no ATIF steps exist."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 0.0
+}

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "family": "retry-storm-backlog",
+  "document": "06-correct-oracle.md",
+  "document_id": "06-correct-oracle",
+  "variant": "correct",
+  "source": "harbor-practice/datasets/judged-output/retry-storm-backlog/solution/solve.sh",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "yes",
+        "rationale": "Root cause names unlimited 1s retries with no backoff/jitter on 64 shared slots."
+      },
+      "separates_trigger_from_cause": {
+        "verdict": "yes",
+        "rationale": "Gateway 03:11\u201303:17 is the trigger; the retry policy explains the ~38\u00d7 duration."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Cites at least two of worker-config.yaml, startup retry line, m-8841207, and retry_share_pct."
+      },
+      "rules_out_the_decoys": {
+        "verdict": "yes",
+        "rationale": "v2.8.1 is rejected as log-format-only with a healthy queue from 02:47 to 03:11."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Email-only 500k alert, missing lag/slot alerts, and no DLQ are distinct from the retry policy."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks about duplicates, drain fate, or customer count, which the pack cannot settle."
+      }
+    },
+    "action_quality": {
+      "bounds_the_amplification": {
+        "verdict": "yes",
+        "rationale": "An action caps attempts and/or adds backoff, DLQ, retry budget, or a gateway breaker."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "yes",
+        "rationale": "An action pages on lag, slot saturation, or re-routes the queue-depth alert."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "Actions name config keys, alert routes, or DLQ with a done-when."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the retry-policy, detection, or shared-slot findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "no",
+        "rationale": "Does not propose rolling back v2.8.1, replacing the vendor, or resizing notifications-db."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_the_deploy": {
+        "verdict": "no",
+        "rationale": "v2.8.1 is mentioned only as a rejected hypothesis."
+      },
+      "treats_db_cpu_as_cause": {
+        "verdict": "no",
+        "rationale": "notifications-db CPU 86% is treated as a symptom of retry volume."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "no",
+        "rationale": "Cause is the unbounded retry policy supported by the evidence."
+      },
+      "misstates_a_fact": {
+        "verdict": "no",
+        "rationale": "Gateway window 03:11\u201303:17, 07:03 resolution, 64 slots, and unlimited/1000ms match the files."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "Cited logs, config, and metrics exist in /app/evidence."
+      }
+    }
+  }
+}

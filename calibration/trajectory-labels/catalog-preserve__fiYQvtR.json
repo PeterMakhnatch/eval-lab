@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "catalog-preserve__fiYQvtR",
+  "source": "harbor-practice/runs/ar-catalog-nop-3/catalog-preserve__fiYQvtR",
+  "primary_category": "unknown",
+  "summary": "Later no-op control on the same task scores 0.0 as intended; no agent attempt to classify.",
+  "evidence": [
+    {
+      "path": "verifier/grade_notes.json",
+      "step": null,
+      "supports": "Same three SKU mismatches as nop-2 but primary reward is 0.0; no ATIF steps exist."
+    }
+  ],
+  "agent": "nop",
+  "reward": 0.0
+}

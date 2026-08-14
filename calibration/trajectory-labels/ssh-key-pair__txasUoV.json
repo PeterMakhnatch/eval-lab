@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "ssh-key-pair__txasUoV",
+  "source": "harbor-practice/runs/ssh-key-pair-oracle-2026-08-06/ssh-key-pair__txasUoV",
+  "primary_category": "unknown",
+  "summary": "Oracle control scored reward 1.0; no failure to classify.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "verifier_result.rewards.reward is 1.0 and exception_info is null."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0
+}

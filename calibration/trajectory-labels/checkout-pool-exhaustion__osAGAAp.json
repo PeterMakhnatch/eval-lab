@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "checkout-pool-exhaustion__osAGAAp",
+  "source": "harbor-practice/runs/judged-output-smoke/smoke/checkout-pool-exhaustion__osAGAAp",
+  "primary_category": "unknown",
+  "summary": "No-op smoke on the judged-output task scored objective_gate 0.0 as intended.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "verifier_result.rewards.objective_gate and reward are 0.0; agent is nop."
+    }
+  ],
+  "agent": "nop",
+  "reward": 0.0
+}

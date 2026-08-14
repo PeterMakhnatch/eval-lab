@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "family": "checkout-pool-exhaustion",
+  "document": "02-style-only-fluent-generic.md",
+  "document_id": "02-style-only-fluent-generic",
+  "variant": "style-only-fluent",
+  "source": "harbor-practice/experiments/judged-output/negative-controls/checkout-pool-exhaustion/02-generic.md",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause does not state the 32-worker / 10-connection acquire-timeout mechanism."
+      },
+      "grounded_in_evidence": {
+        "verdict": "no",
+        "rationale": "No causal claim is tied to two distinct files from /app/evidence."
+      },
+      "rules_out_the_decoy": {
+        "verdict": "no",
+        "rationale": "Payments-vendor advisory is not explicitly ruled out with evidence."
+      },
+      "separates_contributing_factors": {
+        "verdict": "no",
+        "rationale": "Contributing factors are missing, generic, or restated cause."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "no",
+        "rationale": "Open questions are empty, filler, or already answered by the pack."
+      }
+    },
+    "action_quality": {
+      "fixes_the_capacity_coupling": {
+        "verdict": "no",
+        "rationale": "No action makes worker count and pool capacity consistent."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "no",
+        "rationale": "No action adds a pool-saturation or acquire-wait alert from the evidence."
+      },
+      "actions_are_actionable": {
+        "verdict": "no",
+        "rationale": "Actions are absent, TBD, or generic advice without a concrete change."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "no",
+        "rationale": "Actions are missing or disconnected from findings in this document."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "no",
+        "rationale": "The document does not propose vendor, TLS, ledger-db, or rewrite work."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_payments_vendor": {
+        "verdict": "no",
+        "rationale": "Vendor is not treated as a cause or contributing factor."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "no",
+        "rationale": "No unsupported cause is asserted as established fact."
+      },
+      "misstates_a_fact": {
+        "verdict": "no",
+        "rationale": "No specific time, version, or count disagrees with the evidence files."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "No people, tickets, dashboards, or metrics absent from /app/evidence are cited."
+      }
+    }
+  }
+}

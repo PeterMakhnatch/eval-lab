@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "family": "retry-storm-backlog",
+  "document": "11-subtly-wrong-cause-db-cpu.md",
+  "document_id": "11-subtly-wrong-cause-db-cpu",
+  "variant": "subtly-wrong-cause",
+  "source": "authored-for-calibration",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause is database CPU, not unbounded shared-slot retries."
+      },
+      "separates_trigger_from_cause": {
+        "verdict": "no",
+        "rationale": "Calls the gateway window a sideshow and does not explain amplification."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Cites the 03:20 86% CPU warning and the growing queue."
+      },
+      "rules_out_the_decoys": {
+        "verdict": "yes",
+        "rationale": "v2.8.1 is called unrelated log formatting."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Page threshold, missing replica, and email-only alert are distinct."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks which query burned CPU; that is not in the pack."
+      }
+    },
+    "action_quality": {
+      "bounds_the_amplification": {
+        "verdict": "no",
+        "rationale": "Actions scale the database rather than cap retries or isolate slots."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "yes",
+        "rationale": "Lowers notify-queue-depth to 50,000, a documented detection gap."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "Scale db, lower CPU page, move retry state, and lower queue threshold are specific."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the document's database-CPU findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "yes",
+        "rationale": "Proposes scaling notifications-db because of the CPU warning."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_the_deploy": {
+        "verdict": "no",
+        "rationale": "v2.8.1 is called unrelated."
+      },
+      "treats_db_cpu_as_cause": {
+        "verdict": "yes",
+        "rationale": "86% CPU is stated as the root cause."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "yes",
+        "rationale": "Database CPU saturation is asserted as the established cause."
+      },
+      "misstates_a_fact": {
+        "verdict": "no",
+        "rationale": "86% versus 95% page threshold matches alerts.log."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "No extra artifacts are cited."
+      }
+    }
+  }
+}

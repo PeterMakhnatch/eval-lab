@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "transaction-reconciliation__C9LAghS",
+  "source": "harbor-practice/runs/2026-08-06__14-49-47/transaction-reconciliation__C9LAghS",
+  "primary_category": "unknown",
+  "summary": "Oracle control finished with reward 1.0 and no exception; there is no failure to classify.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "verifier_result.rewards.reward is 1.0 and exception_info is null."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0
+}

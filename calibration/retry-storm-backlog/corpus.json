@@ -1,0 +1,137 @@
+{
+  "family": "retry-storm-backlog",
+  "documents": [
+    {
+      "id": "01-empty",
+      "path": "01-empty.md",
+      "variant": "empty",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/retry-storm-backlog/01-empty.md"
+    },
+    {
+      "id": "02-style-only-fluent-generic",
+      "path": "02-style-only-fluent-generic.md",
+      "variant": "style-only-fluent",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/retry-storm-backlog/02-generic.md"
+    },
+    {
+      "id": "03-copied-evidence-logs",
+      "path": "03-copied-evidence-logs.md",
+      "variant": "copied-evidence",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/retry-storm-backlog/03-copied-logs.md"
+    },
+    {
+      "id": "04-subtly-wrong-cause-deploy",
+      "path": "04-subtly-wrong-cause-deploy.md",
+      "variant": "subtly-wrong-cause",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/retry-storm-backlog/04-invented-cause.md"
+    },
+    {
+      "id": "05-right-cause-useless-actions-tbd",
+      "path": "05-right-cause-useless-actions-tbd.md",
+      "variant": "right-cause-useless-actions",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/retry-storm-backlog/05-no-actions.md"
+    },
+    {
+      "id": "06-correct-oracle",
+      "path": "06-correct-oracle.md",
+      "variant": "correct",
+      "source": "harbor-practice/datasets/judged-output/retry-storm-backlog/solution/solve.sh"
+    },
+    {
+      "id": "07-correct-retry-math",
+      "path": "07-correct-retry-math.md",
+      "variant": "correct",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "08-correct-config-led",
+      "path": "08-correct-config-led.md",
+      "variant": "correct",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "09-correct-compact",
+      "path": "09-correct-compact.md",
+      "variant": "correct",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "10-correct-slot-focus",
+      "path": "10-correct-slot-focus.md",
+      "variant": "correct",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "11-subtly-wrong-cause-db-cpu",
+      "path": "11-subtly-wrong-cause-db-cpu.md",
+      "variant": "subtly-wrong-cause",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "12-subtly-wrong-cause-schema-index",
+      "path": "12-subtly-wrong-cause-schema-index.md",
+      "variant": "subtly-wrong-cause",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "13-subtly-wrong-cause-capacity",
+      "path": "13-subtly-wrong-cause-capacity.md",
+      "variant": "subtly-wrong-cause",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "14-subtly-wrong-cause-gateway-only",
+      "path": "14-subtly-wrong-cause-gateway-only.md",
+      "variant": "subtly-wrong-cause",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "15-right-cause-useless-actions-generic",
+      "path": "15-right-cause-useless-actions-generic.md",
+      "variant": "right-cause-useless-actions",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "16-right-cause-useless-actions-drain-only",
+      "path": "16-right-cause-useless-actions-drain-only.md",
+      "variant": "right-cause-useless-actions",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "17-right-cause-useless-actions-process",
+      "path": "17-right-cause-useless-actions-process.md",
+      "variant": "right-cause-useless-actions",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "18-fabricated-evidence-warroom",
+      "path": "18-fabricated-evidence-warroom.md",
+      "variant": "fabricated-evidence",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "19-fabricated-evidence-vendor-rca",
+      "path": "19-fabricated-evidence-vendor-rca.md",
+      "variant": "fabricated-evidence",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "20-fabricated-evidence-metrics",
+      "path": "20-fabricated-evidence-metrics.md",
+      "variant": "fabricated-evidence",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "21-style-only-fluent-executive",
+      "path": "21-style-only-fluent-executive.md",
+      "variant": "style-only-fluent",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "22-style-only-fluent-runbook",
+      "path": "22-style-only-fluent-runbook.md",
+      "variant": "style-only-fluent",
+      "source": "authored-for-calibration"
+    }
+  ]
+}

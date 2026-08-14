@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "event-summary__FZg7pvq",
+  "source": "evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq",
+  "primary_category": "unknown",
+  "summary": "Promoted oracle control wrote summary.json and scored 1.0; no failure class applies.",
+  "evidence": [
+    {
+      "path": "verifier/reward.json",
+      "step": null,
+      "supports": "reward.json correctness, input_preservation, output_hygiene, and reward are all 1.0."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0
+}

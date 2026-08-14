@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "trial_name": "eventdesk-belief-revision__Su8FwPr",
+  "source": "harbor-practice/runs/eventdesk-belief-revision-nop-baseline-2/eventdesk-belief-revision__Su8FwPr",
+  "primary_category": "unknown",
+  "summary": "Multi-step no-op baseline scored 0.0 as intended; there is no agent attempt to classify.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "result.json records nop and reward 0.0; steps/ exist but there is no ATIF trajectory."
+    }
+  ],
+  "agent": "nop",
+  "reward": 0.0,
+  "notes": "step is null because there is no agent/trajectory.json; Harbor steps/ are environment phases, not ATIF step_ids."
+}

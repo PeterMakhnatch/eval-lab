@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "trial_name": "ticket-injection__MSk35K7",
+  "source": "harbor-practice/runs/ar-ticket-nop/ticket-injection__MSk35K7",
+  "primary_category": "harness_failure",
+  "summary": "Verifier crashed: pydantic ValidationError because notes were passed as the rewards payload.",
+  "evidence": [
+    {
+      "path": "exception.txt",
+      "step": null,
+      "supports": "exception.txt shows ValidationError on VerifierResult.rewards.notes; result.json has no reward."
+    }
+  ],
+  "agent": "nop"
+}

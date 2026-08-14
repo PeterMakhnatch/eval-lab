@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "event-summary__edzDz6R",
+  "source": "evidence/runs/event-summary-nop-evidence/event-summary__edzDz6R",
+  "primary_category": "unknown",
+  "summary": "Promoted no-op control left the summary absent and scored 0.0; intended starting-state result.",
+  "evidence": [
+    {
+      "path": "verifier/reward.json",
+      "step": null,
+      "supports": "reward.json correctness 0.0, output_hygiene 0.0, reward 0.0 with input_preservation 1.0."
+    }
+  ],
+  "agent": "nop",
+  "reward": 0.0
+}

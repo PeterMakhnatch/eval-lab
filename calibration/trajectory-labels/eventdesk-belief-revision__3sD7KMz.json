@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "trial_name": "eventdesk-belief-revision__3sD7KMz",
+  "source": "harbor-practice/runs/eventdesk-belief-revision-oracle/eventdesk-belief-revision__3sD7KMz",
+  "primary_category": "unknown",
+  "summary": "Multi-step oracle control scored 1.0 on every dimension; no failure to classify.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "result.json reward 1.0 with all named dimensions at 1.0; no ATIF trajectory."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0,
+  "notes": "step is null because there is no agent/trajectory.json."
+}

@@ -11,6 +11,14 @@ Status column is updated by the role itself or the integrator.
 | EVIDENCE | `role/evidence` | `research/calibration/`, `agents/handoffs/evidence.md` | Judge-calibration corpus + failure-taxonomy trajectory labels | Corpus + trajectory labels merged. Mission complete pending review. |
 | RECON | `role/recon` | `research/explorations/`, `agents/handoffs/recon.md` | Working demos + adoption notes for unused Harbor 0.21 capabilities | Capability map + demos merged; self-reported complete. |
 
+| INGEST | `role/ingest` | `library/benchmarks/`, `agents/handoffs/ingest.md` | Frontier benchmark survey + Harbor-runnable materialization | Registered 2026-08-14; mission in docs/prompts/overnight-missions.md |
+| OBSERVER | `role/observer` | `src/harbor_lab/tracing.py`, `agents/handoffs/observer.md` (+additive compose/cli/pyproject) | Phoenix + ATIF trace shipping + OpenInference (brief 08) | Registered 2026-08-14 |
+| ANALYST | `role/analyst` | `src/harbor_lab/{atif,facts,cohort}.py`, `research/analysis/`, `agents/handoffs/analyst.md` | ATIF→Parquet, deterministic facts, cohort compare, analysis sidecars (briefs 01–03) | Registered 2026-08-14 |
+| RUNNER | `role/runner` | `research/experiments/`, `agents/handoffs/runner.md` | Design/submit/interpret real experiments via the queue | Registered 2026-08-14 |
+| AUTOPILOT | `role/autopilot` | `src/harbor_lab/researchers.py`, `digests/DISCOVERIES.md`, `agents/handoffs/autopilot.md` | Bounded 24/7 researcher loop + discovery journal | Registered 2026-08-14 |
+| FORGE | `role/forge` | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening; held PRs for refactors | Registered 2026-08-14 |
+| JUDGE | `role/judge` | `src/harbor_lab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Registered 2026-08-14 |
+
 Peter owns `policy/standing-approvals.yaml` content (agents ship conservative
 defaults, never loosen).
 

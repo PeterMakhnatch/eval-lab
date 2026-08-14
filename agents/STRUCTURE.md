@@ -33,6 +33,7 @@ harbor-experiment-lab/
 ├── library/                   WHAT WE EVALUATE — task supply, version-pinned
 │   ├── curated/               verified third-party tasks with provenance cards
 │   ├── tasks/                 lab-authored tasks
+│   ├── benchmarks/            pinned frontier benchmark ingests (INGEST)
 │   └── adapters/              benchmark → Harbor converters
 │
 ├── research/                  WHAT WE LEARN — produced knowledge
@@ -108,3 +109,5 @@ for today).
   moves executed, four pending (Claude, at Peter's direction).
 - 2026-08-14 — migration complete: all ledger moves executed; root is at its
   target state (Claude).
+- 2026-08-14 — `library/benchmarks/` added for the INGEST role (bucket rule:
+  evaluable task supply).

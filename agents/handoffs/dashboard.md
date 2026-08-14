@@ -1,6 +1,6 @@
-Status: building
-Last: Rendered every pane against live data in 0.177s; 8 dashboard tests and 54 repo tests pass.
-Next: Run the full premerge gate, rebase on origin/main, and publish the DASHBOARD PR.
+Status: review-wanted
+Last: Rebased on origin/main and passed premerge plus all 8 dashboard fixture tests.
+Next: Push role/dashboard, open the DASHBOARD PR, and require every GitHub check green.
 Blockers: none
 
 # DASHBOARD handoff
@@ -34,3 +34,10 @@ Blockers: none
   dashboard sources.
 - Browser note: no in-app or extension browser instance was connected, so the official Streamlit
   AppTest renderer supplied the element-level render proof instead of a screenshot.
+
+## Pre-PR gate
+
+- Rebased cleanly on `origin/main` at `e758df6`; dashboard implementation head before this handoff
+  update: `0ca449f436cc1446df31a767192ce905e6283cee`.
+- `make premerge` after rebase: pass — Ruff clean, 54 tests, ty 33 <= 33.
+- `uv run pytest dashboard/tests -q` after rebase: 8 passed.

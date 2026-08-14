@@ -1,0 +1,18 @@
+{
+  "leaderboard": [
+    {"cohort": "control", "trial_id": "t1", "task_name": "task-a", "agent_name": "oracle", "model_name": "adhoc", "primary_reward": 1.0, "exception_type": null},
+    {"cohort": "control", "trial_id": "t2", "task_name": "task-a", "agent_name": "oracle", "model_name": "adhoc", "primary_reward": 0.0, "exception_type": null},
+    {"cohort": "control", "trial_id": "t3", "task_name": "task-a", "agent_name": "oracle", "model_name": "adhoc", "primary_reward": null, "exception_type": "DockerError"}
+  ],
+  "canaries": [
+    {"observation_date": "2026-08-14", "task_name": "canary-a", "task_version": "v1", "agent_name": "codex", "reward": 0.5, "attempt_count": 2, "exception_count": 0, "baseline_n": 4, "baseline_mean": 0.75, "baseline_stddev": 0.1, "is_harness_drift_suspect": true, "drift_reason": "reward_excursion"}
+  ],
+  "spend": [
+    {"spend_date": "2026-08-13", "trial_count": 2, "spend_usd": 1.25},
+    {"spend_date": "2026-08-14", "trial_count": 1, "spend_usd": 0.5}
+  ],
+  "calibrations": [
+    {"record_id": "cal-1", "family": "family-a", "status": "measured", "judge_backend": "codex", "judge_model": "model-a", "per_criterion_agreement": {"criterion-a": {"agreements": 9, "total": 10, "rate": 0.9}}, "agreement_floor": 0.9, "meets_floor": true, "reportable": true, "document_count": 10, "evaluated_on": "2026-08-14"}
+  ]
+}
+

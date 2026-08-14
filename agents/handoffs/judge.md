@@ -1,7 +1,7 @@
-Status: validating
-Last: Codex calibration measured 0.762987 and was persisted to JSON plus Postgres.
-Next: Rebase origin/main, run full pytest/Ruff, push role/judge, and open the JUDGE PR.
-Blockers: Claude credential absent; Codex misses the 0.90 gate; full Ruff had 9 upstream errors before rebase.
+Status: ready for PR; merge gate blocked by the current main-branch lint baseline
+Last: Rebase was conflict-free; 36 tests and owned-path Ruff pass after the measured record.
+Next: Push/open the JUDGE PR, then rebase when the upstream green-CI repair reaches main.
+Blockers: Claude credential absent; Codex misses 0.90; origin/main has 9 non-JUDGE Ruff errors.
 
 # JUDGE handoff
 
@@ -71,6 +71,8 @@ Verification checkpoint:
   Second smoke completed one trial with zero exceptions and reward 0 as expected
   for nop. Post-run ingestion still fails in BUILDER-owned catalog DDL with
   `psycopg.errors.InvalidTableDefinition: cannot drop columns from view`.
+- The corrected generated verifier accepts the unchanged live prediction artifact
+  as structurally complete.
 - The DSPy MIPROv2 queue spec remains staged and unsubmitted. The measured baseline
   now exists, but the optimizer must not be treated as calibrated against a baseline
   judge that misses the policy floor; its six held-out controls remain sealed.

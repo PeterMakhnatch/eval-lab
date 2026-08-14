@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from pydantic import ValidationError
 
 from harbor_lab.results import JobRecord, TrialRecord, sha256_file
 
@@ -173,8 +174,18 @@ def _validate_with_harbor(payload: JsonObject) -> tuple[str, str | None] | None:
         return None
     try:
         Trajectory.model_validate(payload)
-    except Exception as exc:  # Pydantic version is owned by the installed Harbor package.
-        return "harbor", f"{type(exc).__name__}: {exc}"
+    except ValidationError as exc:
+        sanitized = [
+            {
+                "type": item.get("type"),
+                "loc": list(item.get("loc") or ()),
+                "msg": item.get("msg"),
+            }
+            for item in exc.errors(include_input=False, include_url=False)
+        ]
+        return "harbor", json.dumps(sanitized, separators=(",", ":"), sort_keys=True)
+    except Exception as exc:  # Harbor owns non-Pydantic validator failures.
+        return "harbor", f"{type(exc).__name__}: validation failed"
     return "harbor", None
 
 

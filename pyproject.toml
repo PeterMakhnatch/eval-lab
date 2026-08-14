@@ -24,6 +24,19 @@ dev = [
     "pytest>=8.4,<9",
     "ruff>=0.12,<1",
 ]
+observability = [
+    "harbor-atif2otel>=0.1.0",
+    "opentelemetry-exporter-otlp>=1.38.0",
+    "opentelemetry-proto>=1.38.0",
+    "opentelemetry-sdk>=1.38.0",
+    "openinference-instrumentation-dspy>=0.1.0",
+    "openinference-instrumentation-litellm>=0.1.0",
+]
+
+[tool.uv]
+default-groups = ["dev", "observability"]
+# harbor-atif2otel requires Python >=3.12. The repo already runs 3.13 locally and in CI.
+environments = ["python_full_version >= '3.12'"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/harbor_lab"]

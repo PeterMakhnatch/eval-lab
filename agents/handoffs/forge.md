@@ -55,13 +55,13 @@ Rough comparison, so the decision is informed rather than arbitrary:
 |---|---|---|
 | Runtime | 0.18 s warm, whole `src/` | not measured — mypy is typically seconds |
 | Version risk | pre-1.0 (0.0.71), **pinned** | mature, but invoked unpinned via `uv run --with mypy` |
-| Blocking | no — reports 4 known diagnostics | yes — would turn PRs red immediately |
+| Blocking | ratchet: fails only above the 33 baseline | yes — would turn PRs red immediately |
 | Scope | all of `src/` | 6 explicitly listed modules |
 
 My recommendation: pick one. If the goal is a gate that passes today, theirs
 needs the same 4-diagnostic problem solved (and `--check-untyped-defs` on
 `queue.py`/`database.py` will surface more, in files nobody may edit tonight).
-If the goal is visibility now and a gate later, mine is already that. I am not
+If the goal is a gate that works today and tightens over time, mine is already that. I am not
 deleting anyone's work to force the answer.
 
 ## Collision watch (resolved)

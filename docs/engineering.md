@@ -56,7 +56,7 @@ files.
 |---|---|---|---|
 | Lint | `uv run ruff check .` | `.github/workflows/ci.yml` | yes |
 | Tests | `uv run pytest` | `.github/workflows/ci.yml` | yes |
-| Types | `uvx ty@0.0.71 check src/` | `.github/workflows/typecheck.yml` | **no — see below** |
+| Types | `uvx ty@0.0.71 check src/` | `.github/workflows/typecheck.yml` | **ratchet — see below** |
 
 `typecheck.yml` is a separate workflow file on purpose. `ci.yml` was being
 rewritten concurrently while this landed (by `codex/restore-green-ci`, since
@@ -95,10 +95,20 @@ FORGE fixed none of them. Every file above belongs to another role
 (`agents/WORKFLOW.md`), and `queue.py` was under active work the night this
 was written.
 
-**Flip `continue-on-error` to `false` in `typecheck.yml` once this list is
-cleared** — or sooner, scoped to whichever modules reach zero first. Until
-then the job reports into the PR step summary without blocking, so the count
-is visible on every PR and cannot silently grow.
+**The job is a non-regression ratchet, not a pass/fail gate on zero.**
+`typecheck.yml` sets `TY_BASELINE: 33`. The job fails only if ty reports *more*
+than the baseline, and emits a notice when the count drops so the baseline can
+be lowered. This was the only design that satisfies all three constraints at
+once: type checking runs on every PR, new type errors are caught, and FORGE
+does not have to edit files owned by other roles to make CI green.
+
+An earlier revision used job-level `continue-on-error: true`. That was wrong in
+practice — GitHub still reports the job's conclusion as *failure* to the checks
+API, so the PR showed a red check indistinguishable from a real break, which is
+the precise failure mode a reporting-only job is supposed to avoid.
+
+Lower `TY_BASELINE` as modules are cleaned. Raising it should require a
+sentence in the PR saying why.
 
 An earlier draft of this document recorded 4 diagnostics; that was measured
 before the wave-1 modules (`atif.py`, `facts.py`, `cohort.py`, `tracing.py`,

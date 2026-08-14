@@ -29,12 +29,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  # Non-regression ratchet. Recorded baseline from docs/engineering.md.
+  # The job fails if ty reports MORE than this. Lower it whenever the real
+  # count drops; never raise it without saying why in the PR.
+  TY_BASELINE: 33
+
 jobs:
   ty:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Flip to `false` once the 4 diagnostics in docs/engineering.md are cleared.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
@@ -50,21 +54,30 @@ jobs:
       - run: uv sync --locked
 
       - name: ty check
-        id: ty
         run: |
-          set -o pipefail
           # ty is pre-1.0; pin it so a checker release cannot turn CI red on its own.
-          uvx ty@0.0.71 check src/ --output-format=concise 2>&1 | tee ty.txt
+          # ty exits non-zero whenever diagnostics exist, so its exit code is
+          # captured rather than propagated — the ratchet below is the gate.
+          uvx ty@0.0.71 check src/ --output-format=concise > ty.txt 2>&1 || true
+          count="$(grep -oE 'Found [0-9]+ diagnostic' ty.txt | grep -oE '[0-9]+' || echo 0)"
+          echo "count=$count" >> "$GITHUB_ENV"
 
-      - name: Report diagnostics in the job summary
-        if: always()
-        run: |
           {
-            echo "## ty (static type check)"
+            echo "## ty — $count diagnostic(s), baseline $TY_BASELINE"
             echo
             echo '```'
-            cat ty.txt 2>/dev/null || echo "no output"
+            cat ty.txt
             echo '```'
-            echo
-            echo "Non-blocking while the baseline diagnostics in \`docs/engineering.md\` remain open."
           } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$count" -gt "$TY_BASELINE" ]; then
+            echo "::error::ty reports $count diagnostics, above the baseline of $TY_BASELINE."
+            echo "New type errors were introduced. See the job summary for the full list."
+            exit 1
+          fi
+
+          if [ "$count" -lt "$TY_BASELINE" ]; then
+            echo "::notice::ty is down to $count (baseline $TY_BASELINE) — lower TY_BASELINE in this workflow."
+          fi
+
+          echo "ty at or below baseline ($count <= $TY_BASELINE)."

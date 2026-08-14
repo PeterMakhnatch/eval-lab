@@ -1,0 +1,7 @@
+=== task.toml network policy ===
+network_mode = "allowlist"
+allowed_hosts = ["pypi.org", "example.com"]
+
+=== harbor run --agent oracle (allowlist) ===
+⠋ 0/1 Running trials...                                          0:00:00 -:--:--
+harbor_exit=1

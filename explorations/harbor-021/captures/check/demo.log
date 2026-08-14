@@ -1,0 +1,59 @@
+=== harbor --version ===
+0.21.0
+
+=== harbor check --help (first 40 lines) ===
+                                                                                
+ Usage: harbor check [OPTIONS] {path}                                           
+                                                                                
+ Check task quality against a rubric.                                           
+                                                                                
+╭─ Arguments ──────────────────────────────────────────────────────────────────╮
+│ *    path      <path>  Path to a task directory or a directory of task       │
+│                        directories                                           │
+│                        [required]                                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --rubric                -r      <path>                 Rubric file           │
+│                                                        (TOML/YAML/JSON).     │
+│                                                        Uses built-in default │
+│                                                        if not specified.     │
+│ --prompt                -p      <path>                 Prompt file for the   │
+│                                                        evaluator agent. Uses │
+│                                                        built-in default if   │
+│                                                        not specified.        │
+│ --agent                 -a      <str>                  Agent to use          │
+│                                                        [default:             │
+│                                                        claude-code]          │
+│ --model                 -m      <str>                  Model to use          │
+│                                                        [default:             │
+│                                                        claude-sonnet-4-6]    │
+│ --ak,--agent-kwarg              <str>                  Agent kwarg key=value │
+│                                                        (repeatable)          │
+│ --ae,--agent-env                <str>                  Env var KEY=VALUE for │
+│                                                        the agent             │
+│                                                        (repeatable)          │
+│ --env                   -e      <docker|daytona|e2b|m  Environment type to   │
+│                                 odal|runloop|langsmit  run the check in      │
+│                                 h|ec2|gke|ack|openshi  (e.g. docker,         │
+│                                 ft|novita|apple-conta  daytona).             │
+│                                 iner|singularity|islo  [default: docker]     │
+│                                 |tensorlake|cwsandbox                        │
+│                                 |wandb|use-computer|c                        │
+│                                 ua-cloud|blaxel|opens                        │
+│                                 andbox|beam|skypilot|                        │
+│                                 hf-sandbox>                                  │
+
+=== shipped default rubric + assemble + validator ===
+DEFAULT_RUBRIC_PATH=/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/cli/quality_checker/default-rubric.toml
+CHECK_TASK_TEMPLATE_DIR=/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/analyze/check-task-template
+reviewed_task=/Users/petermakhnatch/Developer/helab-recon/tasks/event-summary
+criteria_count=11
+criteria=behavior_in_task_description,behavior_in_tests,informative_test_structure,anti_cheating_measures,structured_data_schema,pinned_dependencies,typos,tests_or_solution_in_image,test_deps_in_image,hardcoded_solution,file_reference_mentioned
+response_schema_required=['behavior_in_task_description', 'behavior_in_tests', 'informative_test_structure', 'anti_cheating_measures', 'structured_data_schema', 'pinned_dependencies', 'typos', 'tests_or_solution_in_image', 'test_deps_in_image', 'hardcoded_solution', 'file_reference_mentioned']
+validator=/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/analyze/check-task-template/tests/validate.py
+assembled_wrapper=/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/harbor-check-assemble-_tutfl12
+assembled_tests=['criteria.json', 'test.sh', 'validate.py']
+validator_exit=0
+missing criterion: behavior_in_task_description
+validator_rejects_incomplete_exit=1
+OK: default rubric loaded; assembled wrapper; validator accepted oracle-seeded result

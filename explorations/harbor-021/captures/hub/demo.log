@@ -1,0 +1,75 @@
+=== harbor auth status (redacted) ===
+Logged in as ubhulbuibiulbbl (API key sk-harbor-REDACTED…)
+
+=== harbor hub --help ===
+                                                                                
+ Usage: harbor hub [OPTIONS] COMMAND [ARGS]...                                  
+                                                                                
+ View Harbor Hub jobs, tasks, and trials.                                       
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --help  -h        Show this message and exit.                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ job          Browse Hub jobs and their results.                              │
+│ trial        Browse and download Hub trials.                                 │
+│ leaderboard  Create, browse, and update curated leaderboards.                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+=== harbor publish --help (not invoked) ===
+                                                                                
+ Usage: harbor publish [OPTIONS] [paths]...                                     
+                                                                                
+ Publish tasks and datasets to the Harbor registry.                             
+                                                                                
+╭─ Arguments ──────────────────────────────────────────────────────────────────╮
+│   paths      <path>  Task or dataset directories to publish.                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --tag          -t               <str>  Tag(s) to apply (repeatable).         │
+│                                        'latest' is always added.             │
+│ --concurrency  -c               <int>  Max concurrent uploads. [default: 50] │
+│ --no-tasks                             Skip publishing tasks for datasets.   │
+│ --public           --private           Set visibility (default: private).    │
+│                                        [default: private]                    │
+│ --help         -h                      Show this message and exit.           │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+=== harbor dataset init (local dir only) ===
+✓ Dataset initialized at 
+/Users/petermakhnatch/Developer/helab-recon/explorations/harbor-021/demos/datase
+t-local/dataset.toml
+✓ README created at 
+/Users/petermakhnatch/Developer/helab-recon/explorations/harbor-021/demos/datase
+t-local/README.md
+
+=== harbor add tasks/event-summary ===
+  Added local-lab/event-summary
+
+Added 1, updated 0, skipped 0 task(s) in 
+/Users/petermakhnatch/Developer/helab-recon/explorations/harbor-021/demos/datase
+t-local/dataset.toml.
+
+=== dataset.toml ===
+# Dataset manifest for lab/recon-demo
+# Add tasks using: harbor add <org>/<name>
+# Publish using: harbor publish
+
+[dataset]
+name = "lab/recon-demo"
+version = "1.0.0"
+description = "Local-only recon demo dataset; never published."
+authors = []
+keywords = []
+
+[[tasks]]
+name = "local-lab/event-summary"
+digest = "sha256:2c16dfb286d74d3ba9069ea19f436d3754887df8cac9613947a20e1b60cebdb3"
+
+
+=== dry inspection: would-publish paths (no harbor publish) ===
+dataset_dir=/Users/petermakhnatch/Developer/helab-recon/explorations/harbor-021/demos/dataset-local
+manifest_exists=yes
+task_refs=0

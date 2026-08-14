@@ -1,0 +1,46 @@
+=== task.toml verifier ===
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+collect = []
+
+
+=== tests/Dockerfile (separate verifier image) ===
+FROM python:3.13-slim-bookworm
+
+COPY . /tests
+
+RUN mkdir -p /app/input /app/output /logs/verifier \
+    && chmod +x /tests/test.sh
+
+WORKDIR /app
+
+=== harbor run --agent oracle ===
+  1/1 Correctness: 1.000 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:00:08 0:00:00
+
+adhoc • oracle
+┏━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Trials ┃ Exceptions ┃ Correctness ┃ Input_Preserv… ┃ Output_Hygiene ┃ Reward ┃
+┡━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│      1 │          0 │       1.000 │          1.000 │          1.000 │  1.000 │
+└────────┴────────────┴─────────────┴────────────────┴────────────────┴────────┘
+
+┏━━━━━━━━┳━━━━━━━┓
+┃ Reward ┃ Count ┃
+┡━━━━━━━━╇━━━━━━━┩
+│ 1.0    │     1 │
+│ 1.0    │     1 │
+│ 1.0    │     1 │
+│ 1.0    │     1 │
+└────────┴───────┘
+
+Job Info
+Total runtime: 8s
+Results written to 
+/Users/petermakhnatch/Developer/helab-recon/runs/separate-verifier-oracle-demo/r
+esult.json
+Inspect results by running `harbor view 
+/Users/petermakhnatch/Developer/helab-recon/runs`
+Share results by running `harbor upload 
+/Users/petermakhnatch/Developer/helab-recon/runs/separate-verifier-oracle-demo`
+

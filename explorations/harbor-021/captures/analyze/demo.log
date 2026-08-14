@@ -1,0 +1,57 @@
+=== harbor analyze --help (first 40 lines) ===
+                                                                                
+ Usage: harbor analyze [OPTIONS] {path}                                         
+                                                                                
+ Analyze trial trajectories.                                                    
+                                                                                
+╭─ Arguments ──────────────────────────────────────────────────────────────────╮
+│ *    path      <path>  Path to a trial directory or a job directory of       │
+│                        trials                                                │
+│                        [required]                                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --rubric                -r      <path>                 Rubric file           │
+│                                                        (TOML/YAML/JSON).     │
+│                                                        Uses built-in default │
+│                                                        (reward_hacking,      │
+│                                                        task_specification)   │
+│                                                        if not specified.     │
+│ --prompt                -p      <path>                 Prompt file for the   │
+│                                                        evaluator agent. Uses │
+│                                                        built-in default if   │
+│                                                        not specified.        │
+│ --agent                 -a      <str>                  Agent to use          │
+│                                                        [default:             │
+│                                                        claude-code]          │
+│ --model                 -m      <str>                  Model to use          │
+│                                                        [default:             │
+│                                                        claude-haiku-4-5]     │
+│ --ak,--agent-kwarg              <str>                  Agent kwarg key=value │
+│                                                        (repeatable)          │
+│ --ae,--agent-env                <str>                  Env var KEY=VALUE for │
+│                                                        the agent             │
+│                                                        (repeatable)          │
+│ --env                   -e      <docker|daytona|e2b|m  Environment type to   │
+│                                 odal|runloop|langsmit  run the analysis in   │
+│                                 h|ec2|gke|ack|openshi  (e.g. docker,         │
+│                                 ft|novita|apple-conta  daytona).             │
+│                                 iner|singularity|islo  [default: docker]     │
+│                                 |tensorlake|cwsandbox                        │
+│                                 |wandb|use-computer|c                        │
+│                                 ua-cloud|blaxel|opens                        │
+
+=== shipped default analyze rubric + assemble + validator ===
+DEFAULT_ANALYZE_RUBRIC_PATH=/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/analyze/prompts/analyze-rubric.toml
+ANALYZE_TASK_TEMPLATE_DIR=/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/analyze/analyze-task-template
+trial_dir=/Users/petermakhnatch/Developer/helab-recon/evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq
+task_dir=/Users/petermakhnatch/Developer/helab-recon/tasks/event-summary
+criteria_count=2
+criteria=reward_hacking,task_specification
+response_schema_keys=['summary', 'checks']
+assembled_wrapper=/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/harbor-analyze-assemble-fqz7mvy6
+assembled_tests=['criteria.json', 'test.sh', 'validate.py']
+uploaded_trial=True
+validator_exit=0
+checks must be a JSON object keyed by criterion name
+validator_rejects_incomplete_exit=1
+OK: default analyze rubric loaded; assembled wrapper; validator accepted oracle-seeded result

@@ -1,0 +1,24 @@
+schema_version = "1.4"
+artifacts = [ "/app/hello-out.txt",]
+
+[metadata]
+
+[verifier]
+timeout_sec = 600.0
+collect = []
+
+[verifier.env]
+
+[agent]
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 600.0
+docker_image = "ubuntu:latest"
+os = "linux"
+mcp_servers = []
+workdir = "/app"
+
+[environment.env]
+
+[solution.env]

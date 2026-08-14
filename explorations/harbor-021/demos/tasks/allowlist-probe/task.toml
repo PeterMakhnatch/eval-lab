@@ -1,0 +1,33 @@
+schema_version = "1.4"
+artifacts = ["/app/ok.txt"]
+
+[task]
+name = "local-lab/allowlist-probe"
+version = "1.0.0"
+description = "Tiny allowlist-mode probe: write /app/ok.txt. Network is not used."
+keywords = ["network", "allowlist", "recon-demo"]
+
+[[task.authors]]
+name = "Peter Makhnatch"
+email = "p.makhnatch@gmail.com"
+
+[metadata]
+difficulty = "easy"
+category = "demo"
+tags = ["network", "allowlist"]
+
+[environment]
+network_mode = "allowlist"
+allowed_hosts = ["pypi.org", "example.com"]
+build_timeout_sec = 180.0
+os = "linux"
+cpus = 1
+memory_mb = 256
+storage_mb = 1024
+workdir = "/app"
+
+[agent]
+timeout_sec = 30.0
+
+[verifier]
+timeout_sec = 20.0

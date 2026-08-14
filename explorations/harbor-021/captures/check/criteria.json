@@ -1,0 +1,13 @@
+[
+  "behavior_in_task_description",
+  "behavior_in_tests",
+  "informative_test_structure",
+  "anti_cheating_measures",
+  "structured_data_schema",
+  "pinned_dependencies",
+  "typos",
+  "tests_or_solution_in_image",
+  "test_deps_in_image",
+  "hardcoded_solution",
+  "file_reference_mentioned"
+]

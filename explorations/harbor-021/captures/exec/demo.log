@@ -1,0 +1,61 @@
+=== harbor exec --print-config ===
+{
+  "map": {
+    "compile": {
+      "task_name_prefix": "exec-oracle-demo",
+      "output_dir": "/Users/petermakhnatch/Developer/helab-recon/explorations/harbor-021/demos/exec-compiled",
+      "instructions": [
+        {
+          "text": "Copy hello.txt to /app/hello-out.txt. Do not modify the contents."
+        }
+      ],
+      "task_template": "/Users/petermakhnatch/Developer/helab-recon/explorations/harbor-021/demos/exec-template",
+      "artifacts": [
+        "/app/hello-out.txt"
+      ],
+      "environments": [
+        {
+          "paths": [
+            "/Users/petermakhnatch/Developer/helab-recon/explorations/harbor-021/demos/exec-input/hello.txt"
+          ]
+        }
+      ],
+      "verifiers": [
+        {
+          "auto_verifier": {
+            "required_artifacts": [
+              "/app/hello-out.txt"
+            ]
+          }
+        }
+      ]
+    },
+    "job": {
+      "job_name": "exec-oracle-demo",
+      "jobs_dir": "/Users/petermakhnatch/Developer/helab-recon/runs",
+      "n_concurrent_trials": 1
+    }
+  }
+}
+
+=== harbor exec (oracle) ===
+Warning: `harbor exec` is experimental; flags and behavior may change.
+  1/1 Mean: 1.000
+Map Results
+adhoc • oracle
+Trials 1  Exceptions 0  Mean 1.000
+Reward 1.0  Count 1
+Map tasks written to .../demos/exec-compiled
+Map job written to .../runs/exec-oracle-demo
+
+=== compiled task ===
+exec-compiled/exec-oracle-demo-0001/environment/hello.txt
+exec-compiled/exec-oracle-demo-0001/instruction.md
+exec-compiled/exec-oracle-demo-0001/solution/solve.sh
+exec-compiled/exec-oracle-demo-0001/task.toml
+exec-compiled/exec-oracle-demo-0001/tests/required-artifacts.txt
+exec-compiled/exec-oracle-demo-0001/tests/test.sh
+
+=== re-runs (verification) ===
+exec-oracle-verify-1: Mean 1.000 Exceptions 0  job=runs/exec-oracle-verify-1
+exec-oracle-verify-2: Mean 1.000 Exceptions 0  job=runs/exec-oracle-verify-2

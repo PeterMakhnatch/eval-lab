@@ -1,0 +1,16 @@
+=== harbor-atif2otel validate+convert ===
+trajectory=/Users/petermakhnatch/Developer/helab-recon/runs/atif-source-trial/agent/trajectory.json
+schema_version=ATIF-v1.7
+agent=codex@0.146.1
+session_id=019fd888-53ff-7d83-bb3c-62aa39e50fb4
+n_steps=9
+validate_issues=0
+otel_json=/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/grok-goal-b7190730e564/implementer/atif2otel-out/otel-2.json
+otel_bytes=24159
+n_spans=10
+span_kinds=['AGENT', 'LLM', 'TOOL']
+n_root_spans=1
+root_kinds=['AGENT']
+root_names=['codex']
+OK: valid ATIF; non-empty OTel payload with root AGENT span
+first_span_name=codex

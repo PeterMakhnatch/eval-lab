@@ -1,0 +1,39 @@
+=== task.toml steps ===
+5:name = "local-lab/two-step-echo"
+7:description = "Two sequential steps sharing one environment: write a name, then greet it"
+11:name = "Peter Makhnatch"
+34:[[steps]]
+35:name = "write-name"
+38:[steps.agent]
+41:[steps.verifier]
+44:[[steps]]
+45:name = "greet"
+47:[steps.agent]
+50:[steps.verifier]
+
+=== harbor run --agent oracle (multi-step) ===
+  1/1 Mean: 1.000 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:00:06 0:00:00
+
+adhoc • oracle
+┏━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━┓
+┃ Trials ┃ Exceptions ┃  Mean ┃
+┡━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━┩
+│      1 │          0 │ 1.000 │
+└────────┴────────────┴───────┘
+
+┏━━━━━━━━┳━━━━━━━┓
+┃ Reward ┃ Count ┃
+┡━━━━━━━━╇━━━━━━━┩
+│ 1.0    │     1 │
+└────────┴───────┘
+
+Job Info
+Total runtime: 6s
+Results written to 
+/Users/petermakhnatch/Developer/helab-recon/runs/multistep-oracle-demo/result.js
+on
+Inspect results by running `harbor view 
+/Users/petermakhnatch/Developer/helab-recon/runs`
+Share results by running `harbor upload 
+/Users/petermakhnatch/Developer/helab-recon/runs/multistep-oracle-demo`
+

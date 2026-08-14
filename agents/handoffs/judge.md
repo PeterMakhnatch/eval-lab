@@ -1,6 +1,6 @@
 Status: building
-Last: First Codex queue job failed before invocation because Harbor requires an explicit model; cost/tokens are null.
-Next: Stage and submit one corrected gpt-5.6-sol calibration, then collect its measured record.
+Last: Explicit-model job reached Codex but Harbor passed an empty API key; cost/tokens remain null.
+Next: Dispatch one auth.json-forced gpt-5.6-sol calibration, then collect its measured record.
 Blockers: Claude credential absent; catalog schema init fails on a pre-existing view; full Ruff has 9 upstream errors.
 
 # JUDGE handoff
@@ -33,6 +33,12 @@ Dispatch `01KZZBQNGWMV3AZ1HWMC5GHM4E` failed before a model invocation with
 `ValueError: Model name is required`. The immutable trial reports null input,
 output, and cost fields. The local Codex config explicitly selects
 `gpt-5.6-sol`; staging now refuses Codex specs without an explicit model.
+
+The explicit-model replacement reached the Codex CLI but Harbor's default adapter
+path generated an empty `OPENAI_API_KEY`, producing 401 before inference; cost and
+token fields are again null. Installed Harbor 0.21 supports
+`CODEX_FORCE_AUTH_JSON=1`; the narrow dispatcher now sets it only around `tick`,
+causing Harbor itself to upload `~/.codex/auth.json` without exposing its contents.
 
 Verification checkpoint:
 

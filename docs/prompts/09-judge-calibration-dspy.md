@@ -60,7 +60,7 @@ uv run harbor-lab calibrate checkout-pool-exhaustion \
   --stage codex --judge-model gpt-5.6-sol \
   --date 2026-08-14 --est-cost-usd 2.75
 uv run harbor-lab submit \
-  queue/calibration-specs/judge-checkout-codex-gpt-5-6-sol-20260814.json
+  queue/calibration-specs/judge-checkout-codex-gpt-5-6-sol-authjson-20260814.json
 uv run harbor-lab calibrate checkout-pool-exhaustion \
   --dispatch-approved <spec-id>
 ```
@@ -70,7 +70,9 @@ requires exactly one approved spec, verifies that it is the requested Codex
 calibration, reruns standing-policy admission, and checks Codex auth, Docker,
 Postgres, and disk headroom. It deliberately does not require the unrelated Claude
 credential. The actual model call still originates from the previously submitted
-queue record.
+queue record. During that dispatch only, it sets Harbor's supported
+`CODEX_FORCE_AUTH_JSON=1` switch so the adapter uploads the host Codex auth file;
+the lab never reads or logs its contents.
 
 After the queued Harbor job completes, point calibration at the immutable
 `judgments.json` artifact. Supply the concrete model reported by the Harbor trial
@@ -110,7 +112,7 @@ agreement is comparable to the future Reward Kit Anthropic record.
 
 The staged specifications are versioned at:
 
-- `research/calibration/records/queue-specs/checkout-codex-gpt-5-6-sol-20260814.json`
+- `research/calibration/records/queue-specs/checkout-codex-gpt-5-6-sol-authjson-20260814.json`
 - `research/calibration/records/queue-specs/checkout-anthropic-20260814.json`
 - `research/calibration/records/queue-specs/checkout-dspy-miprov2-20260814.json`
 

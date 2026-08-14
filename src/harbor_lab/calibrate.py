@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import os
 import re
 import shutil
 from collections.abc import Callable, Sequence
@@ -797,7 +798,11 @@ def stage_queue_bundle(
         raise ValueError("backend must be codex or anthropic")
     family_token = "checkout" if family == "checkout-pool-exhaustion" else "retry"
     model_token = re.sub(r"[^a-z0-9]+", "-", recorded_model.lower()).strip("-")
-    name = f"judge-{family_token}-{backend}-{model_token[:24]}-{target_date:%Y%m%d}"
+    auth_token = "-authjson" if backend == "codex" else ""
+    name = (
+        f"judge-{family_token}-{backend}-{model_token[:24]}"
+        f"{auth_token}-{target_date:%Y%m%d}"
+    )
     task_relative = Path("queue/calibration-tasks") / name
     task_path = stage_agent_judge_task(
         repo_root,
@@ -868,7 +873,16 @@ def dispatch_approved_codex_calibration(
             name for name, ok in readiness.__dict__.items() if not ok
         ]
         raise RuntimeError("Codex calibration readiness failed: " + ",".join(failed))
-    return readiness, executor.tick()
+    previous_force_auth = os.environ.get("CODEX_FORCE_AUTH_JSON")
+    os.environ["CODEX_FORCE_AUTH_JSON"] = "1"
+    try:
+        dispatched = executor.tick()
+    finally:
+        if previous_force_auth is None:
+            os.environ.pop("CODEX_FORCE_AUTH_JSON", None)
+        else:
+            os.environ["CODEX_FORCE_AUTH_JSON"] = previous_force_auth
+    return readiness, dispatched
 
 
 def load_dspy_examples(repo_root: Path, family: str) -> list[DspyExample]:

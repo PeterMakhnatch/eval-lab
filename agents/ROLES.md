@@ -17,14 +17,15 @@ Status column is updated by the role itself or the integrator.
 | ANALYST | `role/analyst` | `src/harbor_lab/{atif,facts,cohort}.py`, `research/analysis/`, `agents/handoffs/analyst.md` | ATIF→Parquet, deterministic facts, cohort compare, analysis sidecars (briefs 01–03) | Registered 2026-08-14 |
 | RUNNER | `role/runner` | `research/experiments/`, `agents/handoffs/runner.md` | Design/submit/interpret real experiments via the queue | Registered 2026-08-14 |
 | AUTOPILOT | `role/autopilot` | `src/harbor_lab/researchers.py`, `digests/DISCOVERIES.md`, `agents/handoffs/autopilot.md` | Bounded 24/7 researcher loop + discovery journal | Registered 2026-08-14 |
-| FORGE | `role/forge` | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening; held PRs for refactors | PR #6 ready; awaiting MEDIC's Python/CI repair before green integration. |
+| FORGE | `role/forge` | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening; held PRs for refactors | Done: PR #6 merged after its rebased GitHub checks were fully green. |
 | JUDGE | `role/judge` | `src/harbor_lab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Registered 2026-08-14 |
-| MEDIC | `role/medic` | CI compatibility, deterministic canary test, premerge gate, and green-check governance (one mission) | Make local and GitHub green agree; land PR #6 | Repairing Python floor, host-state test, and merge enforcement. |
+| MEDIC | `role/medic-closeout` | CI compatibility, deterministic canary test, premerge gate, and green-check governance (one mission) | Make local and GitHub green agree; land PR #6 | Done: PRs #7 and #6 merged green; PR #8 closes documentation and branch-lifecycle governance. |
 
 
 **Wave 1 outcome (2026-08-14):** INGEST, OBSERVER, ANALYST, RUNNER, AUTOPILOT,
 JUDGE all merged into `main` (PRs #2–5 plus two local branches integrated).
-FORGE still in progress. Details per role in `agents/handoffs/`; first
+FORGE landed through PR #6 after MEDIC restored green CI. Details per role in
+`agents/handoffs/`; first
 measured result: codex-as-judge calibration lands below the 0.90 floor.
 
 Peter owns `policy/standing-approvals.yaml` content (agents ship conservative

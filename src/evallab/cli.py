@@ -12,6 +12,7 @@ from pathlib import Path
 from uuid import UUID
 
 from evallab import __version__, database
+from evallab.atif import check_projection_invariant, ingest_and_project
 from evallab.automation import (
     GuardedTick,
     HeadlessDoctor,
@@ -37,9 +38,7 @@ from evallab.facts import (
     AnalyzerCallResult,
     analysis_plan,
     ingest_analysis_sidecar,
-    ingest_catalog,
     load_analysis_source,
-    rebuild_from_raw,
     run_trial_analysis,
     write_analysis_review,
     write_failure_taxonomy_agreement,
@@ -58,7 +57,14 @@ from evallab.gc import (
     nightly_gc_plan,
     run_gc,
 )
-from evallab.queue import DirectoryQueue, Executor, load_policy, read_spec
+from evallab.queue import (
+    DirectoryQueue,
+    Executor,
+    load_policy,
+    new_ulid,
+    read_spec,
+    record_projection_failures,
+)
 from evallab.researchers import ResearcherLoop
 from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
@@ -211,7 +217,7 @@ def parser() -> argparse.ArgumentParser:
 
     trajectories = commands.add_parser(
         "trajectories",
-        help="Validate ATIF and optionally rebuild deterministic Parquet facts",
+        help="Validate ATIF and rebuild the catalog and deterministic Parquet facts",
     )
     trajectories.add_argument(
         "paths",
@@ -225,6 +231,7 @@ def parser() -> argparse.ArgumentParser:
         help="Write trajectory and trial facts to partitioned Parquet",
     )
     trajectories.add_argument("--output-dir", type=Path, default=Path("derived/parquet"))
+    trajectories.add_argument("--database-url")
 
     compare = commands.add_parser("compare", help="Compare declared trial cohorts")
     compare.add_argument("path", type=Path)
@@ -420,13 +427,25 @@ def _doctor(root: Path) -> int:
         checks.append(("postgres", True, detail))
     except Exception as exc:  # Doctor should report all checks, not stop at the first.
         checks.append(("postgres", False, f"unavailable: {type(exc).__name__}"))
+        checks.append(("catalog-parquet", False, "catalog unavailable"))
+    else:
+        try:
+            invariant = check_projection_invariant(
+                database_url,
+                root / "derived/parquet",
+                root / "queue/events.jsonl",
+            )
+        except Exception as exc:
+            checks.append(("catalog-parquet", False, f"unavailable: {type(exc).__name__}"))
+        else:
+            checks.append(("catalog-parquet", invariant.ok, invariant.detail))
 
     task_toml = root / "library/tasks/event-summary/task.toml"
     checks.append(("task", task_toml.is_file(), "event-summary"))
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     print(doctor_disk_line(root))
-    required = {"harbor", "docker", "docker-daemon", "uv", "task"}
+    required = {"harbor", "docker", "docker-daemon", "uv", "task", "catalog-parquet"}
     return 0 if all(ok for name, ok, _ in checks if name in required) else 1
 
 
@@ -689,6 +708,7 @@ def run_cli(
         if args.command == "nightly":
             executor = Executor.from_repo(root)
             researcher_loop: ResearcherLoop | None = None
+            database_url = database_url_from_environment()
 
             def get_researcher_loop() -> ResearcherLoop:
                 nonlocal researcher_loop
@@ -705,6 +725,18 @@ def run_cli(
                     report_date=day
                 ).invocation_count,
                 digest_enricher=_nightly_digest_enricher(root, get_researcher_loop),
+                completed_job_ingester=lambda: ingest_and_project(
+                    database_url,
+                    load_jobs(
+                        [
+                            root / "runs",
+                            root / "research/evidence/runs",
+                            root / "evidence/runs",
+                        ]
+                    ),
+                    root=root,
+                    output_root=root / "derived/parquet",
+                ),
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
             print(f"enqueued: {result.enqueued}")
@@ -769,13 +801,25 @@ def run_cli(
                 print("No completed Harbor jobs found.", file=sys.stderr)
                 return 1
             url = database_url_from_environment(args.database_url)
-            database.initialize(url)
-            count = database.ingest(url, jobs, root=root)
             derived_root = _resolve(root, args.derived_dir)
-            rebuild_from_raw(jobs, derived_root)
-            ingest_catalog(url, jobs, root=root, derived_root=derived_root)
-            print(f"ingested {count} job(s)")
-            return 0
+            result = ingest_and_project(
+                url,
+                jobs,
+                root=root,
+                output_root=derived_root,
+            )
+            record_projection_failures(
+                DirectoryQueue(root / "queue"),
+                result,
+                actor="manual-ingest",
+                spec_id=f"system-{new_ulid()}",
+            )
+            print(f"ingested {result.cataloged_jobs} job(s)")
+            for table, rows in sorted(result.row_counts.items()):
+                print(f"{table}: {rows} row(s)")
+            for failure in result.failures:
+                print(f"projection failed: {failure.job_name} ({failure.error_type})")
+            return 1 if result.failures else 0
         if args.command == "trajectories":
             from evallab.atif import project_trial
 
@@ -803,11 +847,26 @@ def run_cli(
                         f"{len(projection.trajectories)} | {len(projection.steps)} | "
                         f"{len(projection.tool_calls)} |"
                     )
-            if args.export:
-                rebuilt = rebuild_from_raw(jobs, _resolve(root, args.output_dir))
-                for table in rebuilt.tables:
-                    print(f"{table.table}: {table.rows} row(s) -> {table.path}")
-            return 0
+            result = ingest_and_project(
+                database_url_from_environment(args.database_url),
+                jobs,
+                root=root,
+                output_root=_resolve(root, args.output_dir),
+            )
+            record_projection_failures(
+                DirectoryQueue(root / "queue"),
+                result,
+                actor="manual-trajectories",
+                spec_id=f"system-{new_ulid()}",
+            )
+            for table in result.tables:
+                print(f"{table.table}: {table.rows} row(s) -> {table.path}")
+            print("totals:")
+            for table, rows in sorted(result.row_counts.items()):
+                print(f"{table}: {rows} row(s)")
+            for failure in result.failures:
+                print(f"projection failed: {failure.job_name} ({failure.error_type})")
+            return 1 if result.failures else 0
         if args.command == "compare":
             spec_path = _resolve(root, args.path)
             json_path, markdown_path, report = write_comparison(

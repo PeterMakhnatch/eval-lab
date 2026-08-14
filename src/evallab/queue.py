@@ -15,6 +15,7 @@ import yaml
 from pydantic import ValidationError
 
 from evallab import database
+from evallab.atif import IngestProjectionResult, ingest_and_project
 from evallab.credentials import (
     DEFAULT_AGENT_MODELS,
     available_credentials,
@@ -375,9 +376,30 @@ class DirectoryQueue:
 
 CredentialProbe = Callable[[], frozenset[str]]
 RunCallable = Callable[[RunRequest], Path]
-IngestCallable = Callable[[Path], None]
+IngestCallable = Callable[[Path], IngestProjectionResult | None]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
+
+
+def record_projection_failures(
+    queue: DirectoryQueue,
+    result: IngestProjectionResult,
+    *,
+    actor: str,
+    spec_id: str,
+) -> None:
+    for failure in result.failures:
+        queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=spec_id,
+                occurred_at=datetime.now(UTC),
+                event="projection_failed",
+                actor=actor,
+                reason_code=failure.reason_code,
+                job_name=failure.job_name,
+            )
+        )
 
 
 class Executor:
@@ -473,7 +495,6 @@ class Executor:
             )
             try:
                 job_dir = self.execute_spec(spec)
-                self._ingester(job_dir)
             except Exception as exc:
                 failure = PolicyDecision(
                     admitted=False,
@@ -492,13 +513,40 @@ class Executor:
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
             else:
-                self.queue.transition(
-                    running,
-                    "done",
-                    actor="executor",
-                    event="dispatch_completed",
-                    policy_rule=decision.policy_rule,
-                )
+                try:
+                    ingest_result = self._ingester(job_dir)
+                except Exception as exc:
+                    failure = PolicyDecision(
+                        admitted=False,
+                        reason_code="catalog_ingest_failed",
+                        message=(
+                            "completed evidence could not be cataloged; retry ingestion "
+                            f"before interpreting the result ({type(exc).__name__})"
+                        ),
+                    )
+                    failed = self.queue.transition(
+                        running,
+                        "failed",
+                        actor="executor",
+                        event="catalog_ingest_failed",
+                        reason_code=failure.reason_code,
+                    )
+                    self.queue.write_reason(self.queue.load(failed), failure)
+                else:
+                    if ingest_result is not None:
+                        record_projection_failures(
+                            self.queue,
+                            ingest_result,
+                            actor="executor",
+                            spec_id=str(spec.spec_id),
+                        )
+                    self.queue.transition(
+                        running,
+                        "done",
+                        actor="executor",
+                        event="dispatch_completed",
+                        policy_rule=decision.policy_rule,
+                    )
             dispatched += 1
         return dispatched
 
@@ -563,7 +611,19 @@ class Executor:
             )
         job_dir = self._runner(request)
         if ingest:
-            self._ingester(job_dir)
+            ingest_result = self._ingester(job_dir)
+            if ingest_result is not None:
+                provenance = request.provenance
+                record_projection_failures(
+                    self.queue,
+                    ingest_result,
+                    actor="executor-direct",
+                    spec_id=(
+                        provenance.spec_id
+                        if provenance is not None
+                        else f"system-{new_ulid()}"
+                    ),
+                )
         return job_dir
 
     def local_runtime_checks(self) -> list[tuple[str, bool, str]]:
@@ -596,9 +656,16 @@ class Executor:
                 continue
             try:
                 load_job(job_dir)
-                self._ingester(job_dir)
+                ingest_result = self._ingester(job_dir)
             except Exception:
                 continue
+            if ingest_result is not None:
+                record_projection_failures(
+                    self.queue,
+                    ingest_result,
+                    actor="executor-reconcile",
+                    spec_id=str(spec.spec_id),
+                )
             self.queue.transition(
                 path,
                 "done",
@@ -616,10 +683,14 @@ class Executor:
     def _run_harbor(self, request: RunRequest) -> Path:
         return run_experiment(request, repo_root=self.repo_root)
 
-    def _ingest(self, job_dir: Path) -> None:
+    def _ingest(self, job_dir: Path) -> IngestProjectionResult:
         url = database_url_from_environment()
-        database.initialize(url)
-        database.ingest(url, [load_job(job_dir)], root=self.repo_root)
+        return ingest_and_project(
+            url,
+            [load_job(job_dir)],
+            root=self.repo_root,
+            output_root=self.repo_root / "derived/parquet",
+        )
 
     def _catalog_spend(self) -> float:
         try:

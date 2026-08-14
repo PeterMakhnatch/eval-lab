@@ -1,6 +1,6 @@
-Status: building
-Last: Verified all six merged missions, closed superseded PR #16, and sunset every spent branch/worktree
-Next: Run premerge, open the MENDER PR, require green current-head checks, merge, and verify zero open PRs
+Status: done
+Last: PR #22 squash-merged after all five current-head checks passed; final closeout record prepared from fresh main
+Next: none
 Blockers: none
 
 ## What the wave actually added
@@ -236,4 +236,45 @@ recorded below before `Status` changes to `done`.
 
 ## Task 5 — MENDER PR closeout
 
-Pending.
+The review head passed the required local gate before it was pushed:
+
+```text
+$ scripts/premerge.sh
+All checks passed!
+82 passed in 3.80s
+Found 33 diagnostics
+premerge green: Python 3.12; ty 33 <= 33
+```
+
+PR #22 was opened as `MENDER: verify merged wave and sunset spent fleet` at exact head
+`5408f00ce59e7887abcdeb9fe900cc3fe5869e8f`. Its complete merge gate was green:
+
+```text
+$ gh pr checks 22
+lint         pass   9s   actions/runs/31844161943/job/94907088876
+profile      pass  23s   actions/runs/31844161965/job/94907088645
+test (3.12)  pass  17s   actions/runs/31844161943/job/94907088980
+test (3.14)  pass  16s   actions/runs/31844161943/job/94907088991
+ty           pass  13s   actions/runs/31844161972/job/94907089271
+```
+
+I merged only after that output. `gh` completed the remote squash merge, then reported that its
+optional local checkout cleanup could not switch to a `main` already held by the primary worktree;
+I verified the merge before doing explicit cleanup:
+
+```text
+$ gh pr view 22 --json state,mergedAt,mergeCommit,headRefOid,url
+{"headRefOid":"5408f00ce59e7887abcdeb9fe900cc3fe5869e8f",
+ "mergeCommit":{"oid":"94d2715e3840535b7f8e63c7a40710ce2ac444f0"},
+ "mergedAt":"2026-08-14T21:52:11Z","state":"MERGED",
+ "url":"https://github.com/PeterMakhnatch/eval-lab/pull/22"}
+$ git fetch --prune origin && git merge --ff-only origin/main
+Updating 5be6c1c..94d2715
+Fast-forward
+$ gh pr list --state open --json number,title,headRefName
+[]
+```
+
+The spent `role/mender` branch and worktree were removed rather than rebased. This status update is
+on a fresh documentation-only closeout branch from merged commit `94d2715`; it receives its own
+premerge and fully green PR gate, then is deleted with its worktree.

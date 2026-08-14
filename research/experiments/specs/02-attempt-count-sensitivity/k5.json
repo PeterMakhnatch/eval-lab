@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "runner-txn-recon-codex-k5",
+  "hypothesis": "Five Codex attempts on pinned transaction-reconciliation would give a Wilson interval narrow enough to compare against the k=1 and k=3 arms; this spec is staged to record the cost and policy refusal, not to understate cost.",
+  "task": "canary/transaction-reconciliation",
+  "task_path": "tasks/transaction-reconciliation",
+  "agent": "codex",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 5,
+  "concurrency": 1,
+  "submitted_by": "runner",
+  "priority": 200,
+  "est_cost_usd": 4.17,
+  "policy_rule": "canary",
+  "task_version": "0.1.0",
+  "verifier_digest": "sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820"
+}

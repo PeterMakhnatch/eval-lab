@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "runner-query-optimize-codex-k3",
+  "hypothesis": "Codex pass@3 on lab-authored query-optimize is a harder-family baseline than the three pinned canaries. Submitted on the real path tasks/query-optimize to record the out_of_policy refusal rather than invent a canary/ or registered/ name.",
+  "task": "tasks/query-optimize",
+  "task_path": "tasks/query-optimize",
+  "agent": "codex",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 3,
+  "concurrency": 1,
+  "submitted_by": "runner",
+  "priority": 200,
+  "est_cost_usd": 2.5
+}

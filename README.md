@@ -15,25 +15,34 @@ verifier, reward parsing, and persisted job result—without calling a model.
 task + experiment spec
           |
           v
-  Harbor local Docker run
+ Harbor execution + verification
           |
           v
- immutable job directory  ----> reviewed small bundle in evidence/runs/
+ immutable job directory -----> reviewed evidence bundle
+          |
+          +----> PostgreSQL metadata catalog
+          |
+          +----> ATIF -> Parquet/DuckDB analytics (next)
           |
           v
- harbor-lab ingest
+ deterministic comparison -> structured agent analysis
           |
           v
- PostgreSQL metadata index ----> SQL / notebooks / future dashboards
+ reviewed experiment proposal -> approval -> next run
 ```
 
 Raw Harbor job directories own the evidence: configs, locks, agent logs,
 artifacts, verifier output, reward, timing, token use, cost, and exceptions.
-PostgreSQL indexes those files as experiments, trials, rewards, artifacts, and
-file digests. Large blobs stay out of PostgreSQL and Git.
+PostgreSQL currently indexes those files as jobs, trials, rewards, artifacts,
+and file digests. Experiment, trajectory, and analysis records are staged in the
+architecture plan rather than claimed as implemented. Large blobs stay out of
+PostgreSQL and Git.
 
-See [docs/architecture.md](docs/architecture.md) for the trade-offs and the
-threshold for adding S3-compatible storage or Kubernetes.
+See [docs/architecture.md](docs/architecture.md) for the system boundaries,
+[docs/analysis-loop.md](docs/analysis-loop.md) for the evidence-to-experiment
+state machine, and [docs/scaling.md](docs/scaling.md) for the gates governing
+object storage, Kubernetes, and ClickHouse. Ordered implementation briefs live
+under [prompts/](prompts/README.md).
 The reusable queries in [analysis/queries.sql](analysis/queries.sql) cover
 leaderboards, exceptions, cost, latency, and artifact-transfer failures.
 
@@ -88,7 +97,7 @@ acknowledgement, not a credential or cost limit.
 
 | Path | Policy |
 |---|---|
-| `tasks/`, `experiments/`, `src/`, `sql/`, `docs/` | Always versioned |
+| `tasks/`, `experiments/`, `src/`, `sql/`, `docs/`, `prompts/` | Always versioned |
 | `analysis/` | Versioned SQL and notebook-ready queries |
 | `runs/` | Generated, local, ignored |
 | `evidence/runs/` | Small reviewed controls only; versioned intentionally |

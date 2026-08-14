@@ -36,6 +36,7 @@ they have been promoted to `evidence/runs/`.
 - `runs/`: ignored raw Harbor output.
 - `evidence/runs/`: small, intentionally tracked control runs.
 - `docs/`: architecture, operating procedures, and scaling decisions.
+- `prompts/`: ordered, bounded implementation briefs for coding agents.
 
 ## Safe run pattern
 

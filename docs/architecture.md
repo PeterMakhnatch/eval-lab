@@ -1,104 +1,303 @@
 # Architecture and scaling decisions
 
-## Decision
+## What this lab is
 
-Start local-first with Harbor + Docker Compose + PostgreSQL. Keep raw Harbor job
-directories as immutable evidence and treat PostgreSQL as a rebuildable index.
-Do not start with Kubernetes.
+The lab is an evaluation research workbench around Harbor. It is not a second
+agent harness and it is not initially a hosted evaluation platform.
 
-This is intentionally less elaborate than a production evaluation service. It
-has the important boundaries now and leaves clean seams for distributed
-scheduling and object storage later.
+Its job is to make this loop reproducible:
 
-## Components and ownership
+1. Author or select a task and state a capability hypothesis.
+2. Run controlled Harbor trials.
+3. Preserve the complete evidence for every trial.
+4. Extract deterministic facts from results and ATIF trajectories.
+5. Ask analysis agents bounded, auditable questions about that evidence.
+6. Compare cohorts, classify failures, and draft the next experiment.
+7. Require a human approval before any billable or externally consequential run.
 
-| Component | Owns | Does not own |
+Harbor remains the execution engine. This repository owns experiment intent,
+evidence retention, indexing, analysis provenance, and the feedback loop.
+
+## Decision summary
+
+Build the smallest version that preserves the eventual boundaries:
+
+- **Now:** Harbor + local Docker, immutable Harbor job directories, PostgreSQL
+  metadata index, checked-in experiment specs, and CLI workflows.
+- **Next:** ingest ATIF structure, write derived columnar data as Parquet, query it
+  locally with DuckDB, and add structured analysis artifacts and approval gates.
+- **Later:** move raw evidence to S3-compatible object storage when it must outlive
+  or be shared across machines.
+- **Only at measured scale:** use a Harbor Kubernetes environment for distributed
+  execution and ClickHouse for concurrent, low-latency analytics over very large
+  event tables.
+
+Do not start with Kubernetes, ClickHouse, Kafka, Airflow, or a custom agent
+orchestrator. None solves the current research bottleneck, which is producing
+trustworthy experiments and analyses.
+
+## Logical architecture
+
+```text
+                     versioned definitions
+          tasks + experiment specs + rubrics + policies
+                              |
+                              v
+                    harbor-lab control plane
+             validate -> approve -> invoke -> record
+                              |
+                              v
+                 Harbor execution and verification
+          Docker now; cloud sandbox / GKE only when needed
+                              |
+                              v
+              immutable Harbor job/trial directories
+       configs, locks, ATIF, logs, artifacts, verifier, reward
+                 |                         |
+                 |                         +--> reviewed evidence bundles
+                 v
+           deterministic ingestion
+          /          |             \
+         v           v              v
+ PostgreSQL       Parquet        file/object store
+ catalog/index  trajectory facts  canonical raw evidence
+         \           |              /
+          \          v             /
+           +--> comparison + analysis pipeline
+                  |             |
+                  v             v
+          structured findings  experiment proposal
+                  |             |
+                  +------> human approval ------> next run
+```
+
+## The five planes
+
+### 1. Definition plane
+
+Git owns task definitions, experiment matrices, analysis rubrics, policies, and
+small reports. An experiment spec should name the hypothesis, fixed conditions,
+independent variable, task versions, adapters/models, attempts, concurrency,
+timeouts, and expected controls.
+
+This plane answers, “What did we intend to test?” It must be reviewable before a
+run begins.
+
+### 2. Execution plane
+
+Harbor owns environment creation, agent invocation, verification, rewards,
+artifacts, and native trial/job results. `harbor-lab` should delegate those
+responsibilities rather than copying Harbor internals.
+
+The local Docker provider is the authoring default. Harbor already supports
+remote providers and Kubernetes-backed environments, including GKE. The lab's
+runner boundary should therefore accept a Harbor environment selection without
+encoding Docker-specific assumptions into experiment semantics.
+
+### 3. Evidence plane
+
+The complete Harbor job directory is the canonical run evidence. Once a job is
+complete, analysis code must not edit it. Any enrichment is written beside it as
+a new, provenance-bearing artifact or into a separate derived-data directory.
+
+Local filesystem storage is appropriate while one workstation owns the run
+corpus. Object storage becomes the canonical evidence layer when workers or
+analysts span machines. In either case, content digests and original
+Harbor-relative paths must be preserved.
+
+### 4. Catalog and analytics plane
+
+PostgreSQL is a rebuildable catalog for jobs, trials, rewards, artifacts,
+versions, analyses, and relationships. It is well suited to relational filtering
+and relational questions such as “show Codex trials for task version X with an
+environment exception.” Small original JSON documents may be retained in JSONB,
+but large logs and trajectories do not belong in database blob columns.
+
+ATIF trajectories are nested event data. The next storage step should be a
+deterministic ATIF-to-Parquet projection with tables for trajectories, steps,
+tool calls, observations, and token/cost metrics. DuckDB can query Parquet
+directly with projection and filter pushdown, so it supplies a local analytical
+engine without adding a service.
+
+ClickHouse is a later serving layer, not an immediate dependency. It becomes
+useful when the lab needs sustained event ingestion or interactive,
+high-concurrency queries across a corpus too large for the local
+Parquet/DuckDB workflow. The Parquet projection is still valuable then: it is a
+portable backfill and interchange format rather than a dead-end prototype.
+
+### 5. Analysis and decision plane
+
+Analysis has two deliberately separate stages:
+
+1. **Deterministic extraction:** rewards, exceptions, durations, token counts,
+   tool usage, command failures, changed artifacts, verifier checks, and ATIF
+   structure.
+2. **Model-assisted interpretation:** failure classification, reward-hacking
+   suspicion, specification critique, cross-trial patterns, and proposed
+   experiments.
+
+Every model-assisted finding must record its source trials, evidence references,
+rubric and prompt digest, analysis agent/model/version, timestamp, and structured
+output. It is a hypothesis, not ground truth. A second model may critique it,
+but agreement between models is not a substitute for evidence or human review.
+
+See [analysis-loop.md](analysis-loop.md) for the concrete state machine and
+artifact contracts.
+
+## Data lifecycle and immutability
+
+```text
+draft spec -> validated spec -> approved run -> immutable raw job
+                                             -> deterministic derived facts
+                                             -> model-assisted analysis
+                                             -> reviewed finding
+                                             -> proposed experiment
+                                             -> explicit approval
+```
+
+These are separate records. Never overwrite an earlier analysis after changing
+a rubric or model; produce a new analysis invocation linked to the same source
+trial. Never edit an agent trajectory to make parsing or a later analysis pass.
+
+The database can be dropped and reconstructed from raw evidence and structured
+sidecars. If a fact exists only in PostgreSQL, the design has violated the
+rebuildability contract.
+
+## Target data model
+
+The current schema covers jobs, trials, rewards, artifacts, and file inventories.
+Extend it incrementally as real workflows arrive:
+
+| Entity | Purpose | Durable source |
 |---|---|---|
-| Harbor | Trial isolation, agents, environments, artifact transfer, verification, reward and job files | Cross-job catalog and exploratory analysis |
-| Filesystem | Complete raw job bundles and large byproducts | Fast cross-run queries |
-| PostgreSQL 18 | Searchable experiment, trial, reward, artifact and file metadata; raw JSON snapshots | Canonical copies of logs and binary artifacts |
-| `harbor-lab` | Safe run wrapper, provenance sidecar, parsing, ingestion and summaries | Agent implementation or scoring policy |
-| Git/GitHub | Task definitions, experiment specs, code, schema, docs and small reviewed evidence controls | Arbitrary trajectories, secrets, large sweeps or database state |
+| `experiments` | Hypothesis and controlled-variable definition | checked-in spec |
+| `jobs` / `trials` | Harbor execution results | raw Harbor job |
+| `rewards` / `artifacts` | Verifier dimensions and output inventory | raw Harbor job |
+| `trajectories` | ATIF document identity and validation status | raw ATIF file |
+| `trajectory_steps` | Queryable step-level facts or Parquet location | derived projection |
+| `analysis_invocations` | Prompt/rubric/model provenance | analysis sidecar |
+| `analysis_findings` | Structured claims with evidence references | analysis sidecar |
+| `experiment_proposals` | Follow-up hypothesis and one-variable change | proposal document |
+| `reviews` | Human disposition and rationale | review document |
 
-PostgreSQL 18.4 is pinned in Compose. It is the current stable major/release at
-the time this lab was created; the pin prevents a workstation pull from changing
-the database underneath an experiment.
+Do not add all tables speculatively. Add each idempotent schema change with the
+parser and fixture that prove how the source record is reconstructed.
 
-## Data flow
+## The agent-assisted research loop
 
-1. An experiment spec names a task, adapter, optional model, repetitions,
-   concurrency, and destination.
-2. `harbor-lab` records a safe command and host/tool provenance, then delegates
-   execution to the installed `harbor` CLI.
-3. Harbor writes the authoritative job and trial directories.
-4. `harbor-lab summarize` reads those directories directly, so analysis still
-   works with PostgreSQL stopped.
-5. `harbor-lab ingest` upserts job/trial facts and a SHA-256 inventory into
-   PostgreSQL. Re-ingestion is safe.
-6. SQL clients and notebooks query the database and follow relative file paths
-   back to raw evidence when detailed inspection is needed.
+Agents may automatically inspect evidence and draft follow-up experiments. They
+must not silently create an uncontrolled self-modifying benchmark loop.
 
-## Why logs and artifacts are not database blobs
+Required gates:
 
-JSONB is useful for Harbor's small config, lock, and result documents. Agent
-logs, trajectories, archives, workbooks, images, and other byproducts grow much
-faster and are naturally file/object data. Keeping their relative path, size,
-kind, and digest in PostgreSQL makes them discoverable without making backups,
-vacuum, or ordinary queries carry large binary values.
+- deterministic ingestion must succeed before model analysis;
+- the source task, verifier, and trial evidence are read-only;
+- each claim cites file paths and, when available, ATIF step/tool-call IDs;
+- analyses use a versioned output schema and bounded rubric;
+- proposals identify exactly one primary experimental variable;
+- duplicate proposals are detected by task/config/prompt digests;
+- Oracle and no-op controls may run locally under policy;
+- real-model, cloud, large-sweep, deployment, and publication actions require
+  explicit human approval;
+- a new run never edits the task or verifier used by the source run.
+
+This design allows useful automation without allowing an analysis agent to
+spend money, move the goalposts, or manufacture confirmatory evidence.
 
 ## Why Kubernetes is deferred
 
-Kubernetes helps when the bottleneck is distributed scheduling: multiple worker
-machines, heterogeneous GPU pools, quotas, preemption, network policy, and
-failure recovery. It does not improve a single-machine authoring loop, and it
-would duplicate environment orchestration that Harbor already provides.
+Kubernetes is an execution substrate. It helps with worker placement, resource
+quotas, accelerator pools, retries after node loss, and multi-user isolation. It
+does not improve the single-machine task-authoring loop or the validity of an
+eval.
 
-Add Kubernetes only after at least one of these is true:
+Add Kubernetes only when measurements show at least one of these conditions:
 
-- the local Docker host is saturated by sustained queues;
-- runs require multiple worker machines or GPU types;
-- multiple users need isolated quotas and shared scheduling;
-- unattended jobs require controller-level retry and reconciliation;
-- a supported Harbor Kubernetes backend has been validated against the lab's
-  artifact and secret contracts.
+- sustained queues saturate the local Docker host;
+- tasks require multiple worker machines or heterogeneous accelerators;
+- several users need namespaces, quotas, and shared scheduling;
+- unattended jobs need controller-level reconciliation after worker failure;
+- the selected Harbor Kubernetes environment has passed the lab's artifact,
+  network, secret, and verifier-isolation contract tests.
 
-At that point, keep the same task directories and database schema. Replace the
-local runner with a queue/controller, put artifacts in an S3-compatible store,
-and add `artifact_uri` values; do not make pods write binary output to Postgres.
+At that point, use Harbor's provider boundary. Do not initially write a custom
+Kubernetes operator. A Kubernetes Job is appropriate for a run-to-completion
+worker, while Harbor still owns the trial semantics inside it.
 
-## Object storage threshold
+## Storage decision table
 
-The filesystem is appropriate while one machine owns the runs and backup volume
-is manageable. Add object storage when evidence must survive host loss, be read
-by multiple workers, or exceed ordinary Git/filesystem workflows. Prefer a
-standard S3 API so local MinIO-compatible development and managed or
-self-hosted production stores can share paths. Store content-addressed objects
-and preserve the original Harbor-relative path in PostgreSQL.
+| Need | Use now | Add later when measured | Avoid |
+|---|---|---|---|
+| canonical run evidence | local immutable job directory | S3-compatible object storage | PostgreSQL blobs |
+| experiment/trial catalog | PostgreSQL | managed PostgreSQL if shared | ClickHouse as transactional catalog |
+| local trajectory analytics | Parquet + DuckDB | partitioned object-store Parquet | loading every log line into Postgres |
+| high-volume concurrent analytics | not needed | ClickHouse | operating it for a few thousand trials |
+| task execution | Harbor + Docker | Harbor remote/GKE environment | custom scheduler before a queue exists |
+| workflow automation | explicit CLI + specs | small queue/controller after unattended demand | self-triggering agent loop |
+
+See [scaling.md](scaling.md) for measurable migration gates.
 
 ## Reproducibility contract
 
 Every experiment should preserve:
 
-- explicit job name and run spec;
+- explicit job name and experiment-spec digest;
 - Harbor version and job/trial locks;
 - task digest and source revision;
-- agent adapter, version, model and arguments;
-- environment type, resource/time limits and concurrency;
-- raw rewards, timing, token use, cost and exception data;
-- artifact/log paths, byte sizes and SHA-256 digests;
-- a short hypothesis and the variable changed.
+- agent adapter, version, model, arguments, and tools;
+- environment provider, image digest, resources, network policy, and timeouts;
+- attempts, concurrency, seed or other stochastic controls when available;
+- raw and per-dimension rewards;
+- timing, token use, cost, and exception data;
+- artifact/log/trajectory paths, byte sizes, and SHA-256 digests;
+- analysis prompt, rubric, model, output schema, and source references;
+- the hypothesis and the single intended variable change.
 
 The included control matrix changes only the agent adapter (`oracle` versus
-`nop`). All task, environment and verifier inputs stay constant.
+`nop`). All task, environment, and verifier inputs stay fixed.
 
 ## Security and cost boundaries
 
-- Local controls need no model secrets.
-- The included task has a `public` network baseline because local Docker Desktop
-  on macOS cannot enforce Harbor's `no-network` mode. This is a documented local
-  provider limitation, not a claim of network isolation.
-- Credentials come from the environment and are never copied into metadata.
-- The wrapper does not record environment values or full process environments.
-- Non-control agents require `--allow-billable`.
-- Evidence intended for Git must be reviewed for secrets and size first.
-- Private GitHub visibility is required, but private Git is not a secret store.
+- Local controls require no model secrets.
+- Credentials come from the process environment and are never copied into
+  provenance, prompts, logs, or the database.
+- Analysis agents receive a reviewed evidence bundle, not arbitrary access to
+  the workstation or the full repository.
+- Hidden verifier inputs and oracle solutions remain outside the evaluated
+  agent's environment.
+- Non-control agents require `--allow-billable`; future queued runs must preserve
+  an equivalent approval record.
+- Evidence promoted to Git must pass secret, size, and sensitive-content review.
+- Raw prompts and trajectories may contain proprietary or personal data even
+  when a repository is private; retention and redaction are explicit policies.
+
+## Build order
+
+1. Keep the current local controls, immutable run format, Postgres catalog, and
+   fixture-tested parsers healthy.
+2. Normalize and validate ATIF trajectories; export queryable Parquet facts.
+3. Add deterministic cohort comparison and failure-taxonomy reports.
+4. Wrap Harbor's existing analysis capability with versioned rubrics,
+   provenance, and a billable-run gate.
+5. Generate structured experiment proposals and require approval before running
+   them.
+6. Add object storage, workers, Kubernetes, or ClickHouse only when the scaling
+   gates are actually crossed.
+
+The implementation briefs in [`prompts/`](../prompts/) follow this order.
+
+## References
+
+- Harbor's [ATIF trajectory documentation](https://github.com/harbor-framework/harbor/blob/main/docs/content/docs/agents/trajectory-format.mdx)
+  defines the portable trajectory source used by the analytics layer.
+- Harbor's [analysis implementation](https://github.com/harbor-framework/harbor/blob/main/src/harbor/analyze/analyzer.py)
+  already runs bounded analysis tasks; the lab should wrap and version it.
+- Harbor includes a [GKE environment](https://github.com/harbor-framework/harbor/blob/main/src/harbor/environments/gke.py),
+  so Kubernetes scaling can stay behind Harbor's environment interface.
+- DuckDB can [query Parquet directly](https://duckdb.org/docs/current/guides/file_formats/query_parquet)
+  with filter and projection pushdown.
+- Kubernetes [Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
+  are run-to-completion workloads; they are an execution mechanism, not an eval
+  data model.
+- ClickHouse is designed for [large-scale real-time analytics and observability](https://clickhouse.com/use-cases),
+  which is why it is a scale-triggered option rather than a starting dependency.

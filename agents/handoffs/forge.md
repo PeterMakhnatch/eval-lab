@@ -1,7 +1,10 @@
 Status: review-wanted
-Last: PR #6 open: baselines + engineering.md + ty workflow; found main's CI 3.11 leg is unfixably broken by uv.lock
+Last: PR #6 green on the ty ratchet (33<=33); baselines + engineering.md shipped
 Next: Peter/integrator: resolve ty-vs-mypy, and decide the 3.11 question (BUILDER-owned)
-Blockers: main CI is red for reasons FORGE cannot fix (uv.lock excludes 3.11; canary test fails on runner)
+Blockers: main CI red for reasons FORGE cannot fix (uv.lock excludes 3.11; canary test fails on runner)
+
+PR: https://github.com/PeterMakhnatch/harbor-experiment-lab/pull/6 — left open,
+not self-merged.
 
 # FORGE handoff
 
@@ -128,3 +131,40 @@ PR #6 surfaced two pre-existing failures. Neither is in a FORGE-owned file.
 - The worktree venv resolves to Python 3.13 while `pyproject.toml` declares
   `requires-python = ">=3.11"` and the in-flight CI matrix tests 3.11 and
   3.14 — 3.13 itself is never exercised in CI.
+
+## Final state
+
+PR #6 (`role/forge` -> `main`), three commits, diff confined to
+`.github/workflows/typecheck.yml`, `docs/engineering.md`, and this file.
+
+CI on the PR:
+
+| Check | Result | Whose problem |
+|---|---|---|
+| `ty` | **pass** — 33 <= baseline 33 | FORGE (this PR) |
+| `lint` | fail | main: `uv sync --locked` cannot install on 3.11 |
+| `test (3.11)` | fail | same |
+| `test (3.14)` | fail | main: `test_canaries_run_two_consecutive_nights_...` |
+
+Local verification on the branch: `ruff` clean, `pytest` 50 passed in 0.80 s.
+
+**Branch base.** `role/forge` sits on `177b20d`, a few commits behind the tip
+of `main`. That is deliberate: a rebase had already rewritten commits that were
+pushed, and the protocol forbids force-pushing, so the branch was reset to the
+remote tip and the last commit cherry-picked on top to keep the push a
+fast-forward. GitHub reports the PR MERGEABLE. If the integrator wants it on
+the tip, merge `main` into it rather than rebasing a pushed branch.
+
+**Left for recovery, do not delete blindly:** the other writer's `ci.yml` edit
+lives in `stash@{0}` of this worktree and in
+`runs/_forge/OTHER-WRITER-ci.yml.bak`. The profiling harness and its raw
+`baseline.json` are in `runs/_forge/` (gitignored).
+
+**Cleaned up:** the scratch profiling database `harbor_lab_forge_prof` was
+dropped; the shared `harbor_lab` catalog was never written to by profiling.
+
+## Continuation list (not started)
+
+Pre-commit config PR, test-speed pass, coverage into CI artifacts. Deferred:
+the measurement and CI work above consumed the session, and the two blocking
+questions (ty-vs-mypy, 3.11) should be settled before more CI surface is added.

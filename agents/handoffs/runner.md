@@ -1,15 +1,28 @@
-Status: building
-Last: created role/runner worktree from origin/main; read protocol + policy + submit schema
-Next: write 4-6 experiment specs; submit admissible ones; run free oracle/nop baselines
-Blockers: none yet — headless doctor likely quarantines tick if Claude keychain is absent
+Status: blocked
+Last: six studies designed; 8 specs submitted (5 approved, 3 waiting); oracle/nop baselines complete on 4 families and interpreted
+Next: dispatch the five approved canary jobs once tick is unblocked; then interpret Codex trajectories
+Blockers: headless doctor keychain_readable=false quarantines all tick dispatch; launchd ticks the main checkout, not this worktree
 
-Worktree: `.worktrees/runner` on `role/runner` @ origin/main (`ddb4b03`).
-Owned paths only: `research/experiments/`, `agents/handoffs/runner.md`.
+## Done tonight
 
-Policy facts (not stretched):
-- `local-controls` admits any oracle/nop spec.
-- `canary` admits `task=canary/*` + codex|claude-code + attempts≤3.
-- `researcher-followups` admits `task=registered/*` + attempts≤5 + requires {schema_valid, dedup_pass, calibrated_judges_only}. Nothing is registered; will not invent that namespace.
-- Tick/nightly fail closed if ANY headless-doctor check fails (including the absent Claude keychain). Free baselines will use `harbor-lab run`/`matrix` (oracle/nop only).
+- 6 studies in `research/experiments/specs/` (one variable each).
+- Every admissible spec submitted via `harbor-lab submit`.
+- Refusals recorded: k5 `per_job_cost_ceiling`; curated + query-optimize `out_of_policy`; preamble A/B not submitted (ExperimentSpec cannot carry `--extra-instruction-path`).
+- Free oracle/nop on event-summary, transaction-reconciliation, html-js-filter, query-optimize. All four families valid (oracle 5/5, nop 0). Journal has n, Wilson intervals, trajectory attribution.
+- Tick attempted: `tick_quarantined` / `headless_doctor_failed:keychain_readable`.
 
-Canary members actually pinned: event-summary, transaction-reconciliation, terminal-bench-html-js-filter. Curated nominees are cards only (no task.toml here).
+## Not done (acceptance gap)
+
+No Codex study completed. Standing policy + "never harbor run a paid agent" + fail-closed tick means Study 01 cannot produce a model result until Peter stores the Claude keychain item **or** the doctor stops requiring it for Codex dispatch.
+
+## For Peter
+
+- `registered/*` is untouched. Studies 05 and 06 are the registration questions.
+- n=5 at the published $2.50/3-attempt rate is $4.17 > $3/job.
+- Shared Postgres: this worktree's `database.initialize` raises `cannot drop columns from view`. Jobs are on disk under `.worktrees/runner/runs/`; they did not ingest.
+- query-optimize is valid and a bad canary (amd64 image, ~10 min/trial, verifier does not fail-fast on nop).
+
+## Queue spec_ids (this worktree)
+
+Approved: `01KZZB36PPBKM863RB5R2MQDZG` `01KZZB36VPXEQ6E8D0QZ13SRNZ` `01KZZB370NKG312T8ZB17Y371H` `01KZZB375FWNZERK8V09RJYNGN` `01KZZB37F6S9NHAYHR7W5KAR5S`
+Waiting: `01KZZB37AF6HKA21A57NP5D0N8` (cost) `01KZZB37M99GPF788SXF5CJ1EF` `01KZZB37SFMQJ9JEAHC41HVXDG` (out_of_policy)

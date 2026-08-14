@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+import json
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pytest
+
+from dashboard.queries import (
+    ATIF_SUMMARY_SQL,
+    CALIBRATION_SQL,
+    CANARY_SQL,
+    LEADERBOARD_SQL,
+    SPEND_SQL,
+    TOOL_USAGE_SQL,
+    atif_activity,
+    calibration_history,
+    canary_history,
+    daily_ceiling,
+    discoveries,
+    leaderboard,
+    queue_funnel,
+    spend_history,
+)
+
+
+@pytest.fixture
+def fixture_rows() -> dict[str, list[dict[str, Any]]]:
+    path = Path(__file__).parent / "fixtures/dashboard.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+class FixtureSource:
+    def __init__(self, rows: dict[str, list[dict[str, Any]]], *, calibration=True) -> None:
+        self.rows = rows
+        self.calibration = calibration
+
+    def query(self, statement: str, parameters: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        del parameters
+        return {
+            LEADERBOARD_SQL: self.rows["leaderboard"],
+            CANARY_SQL: self.rows["canaries"],
+            SPEND_SQL: self.rows["spend"],
+            CALIBRATION_SQL: self.rows["calibrations"],
+        }[statement]
+
+    def relation_exists(self, name: str) -> bool:
+        return name == "judge_calibrations" and self.calibration
+
+
+def test_production_queries_are_select_only():
+    for statement in (
+        LEADERBOARD_SQL,
+        CANARY_SQL,
+        SPEND_SQL,
+        CALIBRATION_SQL,
+        ATIF_SUMMARY_SQL,
+        TOOL_USAGE_SQL,
+    ):
+        normalized = " ".join(statement.upper().split())
+        assert normalized.startswith("SELECT ")
+        assert not any(
+            token in f" {normalized} "
+            for token in (" INSERT ", " UPDATE ", " DELETE ", " CREATE ", " DROP ", " ALTER ")
+        )
+
+
+def test_leaderboard_has_denominator_exceptions_and_wilson_interval(fixture_rows):
+    rows = leaderboard(FixtureSource(fixture_rows))
+    assert rows[0]["n_total"] == 3
+    assert rows[0]["n"] == 2
+    assert rows[0]["exceptions"] == 1
+    assert rows[0]["pass_rate"] == 0.5
+    assert rows[0]["ci_95_low"] == pytest.approx(0.0945312)
+    assert rows[0]["ci_95_high"] == pytest.approx(0.9054688)
+
+
+def test_canary_query_adds_baseline_confidence_interval(fixture_rows):
+    rows = canary_history(FixtureSource(fixture_rows))
+    assert rows[0]["baseline_95_low"] == pytest.approx(0.6520018)
+    assert rows[0]["baseline_95_high"] == pytest.approx(0.8479982)
+
+
+def test_spend_query_fills_missing_days(fixture_rows):
+    rows = spend_history(FixtureSource(fixture_rows), through=date(2026, 8, 14), days=3)
+    assert rows == [
+        {"date": date(2026, 8, 12), "trial_count": 0, "spend_usd": 0.0},
+        {"date": date(2026, 8, 13), "trial_count": 2, "spend_usd": 1.25},
+        {"date": date(2026, 8, 14), "trial_count": 1, "spend_usd": 0.5},
+    ]
+
+
+def test_queue_and_policy_queries_use_file_fixtures(tmp_path):
+    queue = tmp_path / "queue"
+    for state, count in {"pending": 2, "approved": 1, "running": 0, "done": 3, "failed": 1}.items():
+        directory = queue / state
+        directory.mkdir(parents=True)
+        for index in range(count):
+            (directory / f"spec-{index}.json").write_text("{}", encoding="utf-8")
+    policy = tmp_path / "policy.yaml"
+    policy.write_text("daily_cost_ceiling_usd: 20\n", encoding="utf-8")
+
+    assert queue_funnel(queue) == [
+        {"state": "pending", "count": 2},
+        {"state": "approved", "count": 1},
+        {"state": "running", "count": 0},
+        {"state": "done", "count": 3},
+        {"state": "failed", "count": 1},
+    ]
+    assert daily_ceiling(policy) == 20.0
+
+
+def test_calibration_query_uses_catalog_and_file_fallback(fixture_rows, tmp_path):
+    catalog = calibration_history(FixtureSource(fixture_rows), records_root=tmp_path)
+    assert catalog[0]["n"] == 10
+    assert catalog[0]["agreement"] == 0.9
+    assert catalog[0]["ci_95_low"] is not None
+
+    family = tmp_path / "family-a"
+    family.mkdir()
+    (family / "record.json").write_text(
+        json.dumps(fixture_rows["calibrations"][0]), encoding="utf-8"
+    )
+    files = calibration_history(
+        FixtureSource(fixture_rows, calibration=False), records_root=tmp_path
+    )
+    assert [row["record_id"] for row in files] == ["cal-1"]
+
+
+def test_atif_parquet_queries_trial_and_tool_fixtures(tmp_path):
+    partition = tmp_path / "job_id=j1" / "trial_id=t1"
+    partition.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "trial_id": "t1",
+                    "trajectory_count": 1,
+                    "invalid_trajectory_count": 0,
+                    "step_count": 4,
+                    "llm_call_count": 2,
+                    "tool_call_count": 3,
+                }
+            ]
+        ),
+        partition / "trial_facts.parquet",
+    )
+    pq.write_table(
+        pa.Table.from_pylist(
+            [{"trial_id": "t1", "function_name": "shell", "call_count": 3}]
+        ),
+        partition / "tool_usage.parquet",
+    )
+
+    activity = atif_activity(tmp_path)
+    assert activity["summary"] == {
+        "trial_count": 1,
+        "trajectory_count": 1,
+        "step_count": 4,
+        "llm_call_count": 2,
+        "tool_call_count": 3,
+        "invalid_trial_count": 0,
+    }
+    assert activity["tools"] == [
+        {"function_name": "shell", "call_count": 3, "trial_count": 1}
+    ]
+
+
+def test_discovery_query_returns_status_and_claim(tmp_path):
+    journal = tmp_path / "DISCOVERIES.md"
+    journal.write_text(
+        "# Journal\n\n## D-20260814-ABC — validated\n\n- Claim: A supported finding.\n",
+        encoding="utf-8",
+    )
+    assert discoveries(journal) == [
+        {
+            "discovery_id": "D-20260814-ABC",
+            "status": "validated",
+            "claim": "A supported finding.",
+        }
+    ]

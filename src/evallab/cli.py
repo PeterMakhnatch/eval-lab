@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import asdict
@@ -91,6 +92,11 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail closed and print only boolean prerequisite status as JSON",
     )
+
+    dashboard = commands.add_parser("dashboard", help="Open the read-only research overview")
+    dashboard.add_argument("--address", default="127.0.0.1")
+    dashboard.add_argument("--port", type=int, default=8501)
+    dashboard.add_argument("--database-url")
 
     submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
     submit.add_argument("path", type=Path)
@@ -386,6 +392,36 @@ def _matrix_command(args: argparse.Namespace, root: Path) -> int:
     return 1 if mismatch else 0
 
 
+def _dashboard_command(args: argparse.Namespace, root: Path) -> int:
+    environment = os.environ.copy()
+    if args.database_url:
+        environment["DATABASE_URL"] = args.database_url
+    python_path = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = str(root) + (os.pathsep + python_path if python_path else "")
+    try:
+        completed = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--with",
+                "streamlit==1.61.1",
+                "streamlit",
+                "run",
+                str(root / "dashboard/app.py"),
+                f"--server.address={args.address}",
+                f"--server.port={args.port}",
+                "--server.headless=true",
+                "--browser.gatherUsageStats=false",
+            ],
+            cwd=root,
+            env=environment,
+            check=False,
+        )
+    except KeyboardInterrupt:
+        return 130
+    return completed.returncode
+
+
 def _calibrate_command(args: argparse.Namespace, root: Path) -> int:
     if args.dispatch_approved:
         readiness, dispatched = dispatch_approved_codex_calibration(
@@ -465,6 +501,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             return 0 if report.healthy else 1
         if args.command == "doctor":
             return _doctor(root)
+        if args.command == "dashboard":
+            return _dashboard_command(args, root)
         if args.command == "submit":
             spec = read_spec(_resolve(root, args.path))
             path, decision = Executor.from_repo(root).submit(spec)

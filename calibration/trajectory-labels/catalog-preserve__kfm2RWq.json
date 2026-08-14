@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "catalog-preserve__kfm2RWq",
+  "source": "harbor-practice/runs/ar-catalog-nop-2/catalog-preserve__kfm2RWq",
+  "primary_category": "verifier_false_positive",
+  "summary": "No-op left the catalog unchanged and still scored reward 0.89, so invalid work received excessive reward.",
+  "evidence": [
+    {
+      "path": "verifier/grade_notes.json",
+      "step": null,
+      "supports": "target_correctness only lists three already-wrong SKUs; preservation and shortcut_resistance are empty; reward is 0.8928."
+    }
+  ],
+  "agent": "nop",
+  "reward": 0.8928571428571428
+}

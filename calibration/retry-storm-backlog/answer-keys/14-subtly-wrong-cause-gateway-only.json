@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "family": "retry-storm-backlog",
+  "document": "14-subtly-wrong-cause-gateway-only.md",
+  "document_id": "14-subtly-wrong-cause-gateway-only",
+  "variant": "subtly-wrong-cause",
+  "source": "authored-for-calibration",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause is a supposedly sustained gateway outage, not the retry policy."
+      },
+      "separates_trigger_from_cause": {
+        "verdict": "no",
+        "rationale": "Collapses trigger and cause into one vendor outage and ignores amplification."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Cites the vendor confirmation and the queue that lasted until 07:03."
+      },
+      "rules_out_the_decoys": {
+        "verdict": "yes",
+        "rationale": "v2.8.1 is called unrelated."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Single vendor and status-page trust are distinct from the outage claim."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks why the vendor reported 03:17 recovery; that RCA is not in the pack."
+      }
+    },
+    "action_quality": {
+      "bounds_the_amplification": {
+        "verdict": "no",
+        "rationale": "Actions replace the vendor rather than cap retries or isolate slots."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "no",
+        "rationale": "Paging on status-page disagreement is not the missing lag/slot/queue page."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "Vendor replacement, written RCA, second provider, and disagreement page are specific."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the document's vendor-outage findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "yes",
+        "rationale": "Proposes replacing the SMS gateway vendor."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_the_deploy": {
+        "verdict": "no",
+        "rationale": "v2.8.1 is unrelated in this write-up."
+      },
+      "treats_db_cpu_as_cause": {
+        "verdict": "no",
+        "rationale": "DB CPU is not used."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "yes",
+        "rationale": "A sustained (rather than six-minute) gateway outage is asserted as the cause."
+      },
+      "misstates_a_fact": {
+        "verdict": "yes",
+        "rationale": "Contradicts the 03:11\u201303:17 window confirmed in ticket.md and metrics.csv."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "Uses the vendor confirmation already in the pack."
+      }
+    }
+  }
+}

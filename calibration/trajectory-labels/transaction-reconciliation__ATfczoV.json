@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "transaction-reconciliation__ATfczoV",
+  "source": "harbor-practice/runs/codex-transaction-reconciliation-1/transaction-reconciliation__ATfczoV",
+  "primary_category": "unknown",
+  "summary": "Codex reconciled the single mismatch and scored reward 1.0; no failure class applies.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 9,
+      "supports": "Step 9 reports txn_1004 corrected and verification of no remaining mismatches; reward is 1.0."
+    }
+  ],
+  "agent": "codex",
+  "reward": 1.0
+}

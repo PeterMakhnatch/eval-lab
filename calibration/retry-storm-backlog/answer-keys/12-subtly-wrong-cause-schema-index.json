@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "family": "retry-storm-backlog",
+  "document": "12-subtly-wrong-cause-schema-index.md",
+  "document_id": "12-subtly-wrong-cause-schema-index",
+  "variant": "subtly-wrong-cause",
+  "source": "authored-for-calibration",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause is schema-114, not the retry policy."
+      },
+      "separates_trigger_from_cause": {
+        "verdict": "no",
+        "rationale": "Treats the gateway window as coincidental and does not name amplification."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Points at the 2026-07-21 22:30 schema-114 row and the 03:20 CPU warning."
+      },
+      "rules_out_the_decoys": {
+        "verdict": "yes",
+        "rationale": "v2.8.1 is described as log format only."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Missing EXPLAIN gate and schema canary are distinct from the index claim."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks for the query plan before vs after schema-114, which is not supplied."
+      }
+    },
+    "action_quality": {
+      "bounds_the_amplification": {
+        "verdict": "no",
+        "rationale": "Actions revert an index and add DDL gates rather than bound retries."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "no",
+        "rationale": "No lag, slot, or queue-depth paging change is proposed."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "Revert schema-114, EXPLAIN gate, canary replica, and scale primary are specific."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the document's index-regression findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "yes",
+        "rationale": "Proposes reverting schema-114 and scaling the primary."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_the_deploy": {
+        "verdict": "no",
+        "rationale": "v2.8.1 is called unrelated."
+      },
+      "treats_db_cpu_as_cause": {
+        "verdict": "no",
+        "rationale": "CPU is used as color for the index claim, not named as the cause."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "yes",
+        "rationale": "schema-114 is asserted as the established cause."
+      },
+      "misstates_a_fact": {
+        "verdict": "no",
+        "rationale": "schema-114 timestamp matches deploys.csv."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "Uses the schema-114 row already in the pack."
+      }
+    }
+  }
+}

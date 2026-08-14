@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "family": "checkout-pool-exhaustion",
+  "document": "19-fabricated-evidence-dashboards.md",
+  "document_id": "19-fabricated-evidence-dashboards",
+  "variant": "fabricated-evidence",
+  "source": "authored-for-calibration",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "yes",
+        "rationale": "Root cause names workers=32 versus pool max=10 and the 5000ms acquire timeout."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Causal claim cites at least two of startup line, TimeoutError, metrics.csv, and service-config.yaml."
+      },
+      "rules_out_the_decoy": {
+        "verdict": "yes",
+        "rationale": "Payments-vendor advisory is rejected with flat ~130ms latency and wrong timing."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Contributing factors are detection, canary, and review gaps, not a restatement of the pool mismatch."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Open questions include reconciliation or why workers were raised, which the pack cannot settle."
+      }
+    },
+    "action_quality": {
+      "fixes_the_capacity_coupling": {
+        "verdict": "yes",
+        "rationale": "An action couples pool size to workers or fails startup on mismatch."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "no",
+        "rationale": "Importing invented Datadog 88412 does not name a pool-saturation or acquire-wait alert."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "Each action names a concrete config, alert, or process change with a done-when."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the pool mismatch, detection gap, or canary finding stated earlier."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "no",
+        "rationale": "No vendor replacement, ledger-db resize, TLS work, or service rewrite is proposed."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_payments_vendor": {
+        "verdict": "no",
+        "rationale": "Vendor advisory is treated as a rejected hypothesis, not a cause."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "no",
+        "rationale": "Cause is the worker/pool mismatch established by the evidence."
+      },
+      "misstates_a_fact": {
+        "verdict": "no",
+        "rationale": "Times, versions, pool size 10, and worker counts 8/32 match the evidence."
+      },
+      "invents_evidence": {
+        "verdict": "yes",
+        "rationale": "Cites Datadog monitor 88412 and a 12,400-customer PagerDuty note absent from /app/evidence."
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "catalog-preserve__epTRi86",
+  "source": "harbor-practice/runs/ar-catalog-oracle-2/catalog-preserve__epTRi86",
+  "primary_category": "unknown",
+  "summary": "Oracle control passed (reward 1.0, empty grade notes); no failure class applies.",
+  "evidence": [
+    {
+      "path": "verifier/grade_notes.json",
+      "step": null,
+      "supports": "All grade_notes arrays are empty and result.json reward is 1.0."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0
+}

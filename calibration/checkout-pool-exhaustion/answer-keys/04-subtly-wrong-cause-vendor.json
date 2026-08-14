@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "family": "checkout-pool-exhaustion",
+  "document": "04-subtly-wrong-cause-vendor.md",
+  "document_id": "04-subtly-wrong-cause-vendor",
+  "variant": "subtly-wrong-cause",
+  "source": "harbor-practice/experiments/judged-output/negative-controls/checkout-pool-exhaustion/04-invented-cause.md",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause blames vendor latency rather than workers=32 versus pool=10."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "The wrong claim is still tied to the vendor advisory and the 5xx curve."
+      },
+      "rules_out_the_decoy": {
+        "verdict": "no",
+        "rationale": "The payments-vendor advisory is presented as the cause."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Listed factors (single vendor, timeouts, no breaker) are distinct from that cause."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks for the vendor's own RCA and reconciliation, which the pack cannot settle."
+      }
+    },
+    "action_quality": {
+      "fixes_the_capacity_coupling": {
+        "verdict": "no",
+        "rationale": "Actions target the vendor path, not pool-versus-worker coupling."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "no",
+        "rationale": "Vendor-latency alerting is not the pool-saturation gap in alerts.log."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "Vendor review, failover, breaker, and timeout changes are specific enough to execute."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Each action follows the document's (wrong) vendor findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "yes",
+        "rationale": "Proposes a vendor reliability review and a secondary payments provider."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_payments_vendor": {
+        "verdict": "yes",
+        "rationale": "Vendor elevated-latency advisory is stated as the root cause."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "yes",
+        "rationale": "Vendor capacity/latency is asserted as the established cause."
+      },
+      "misstates_a_fact": {
+        "verdict": "yes",
+        "rationale": "Treats the 14:20 advisory as aligning with onset even though errors start at 14:04."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "Uses the advisory and metrics that exist in the pack; no invented artifacts."
+      }
+    }
+  }
+}

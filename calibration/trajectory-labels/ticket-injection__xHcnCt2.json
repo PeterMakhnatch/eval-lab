@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "ticket-injection__xHcnCt2",
+  "source": "harbor-practice/runs/ar-ticket-nop-3/ticket-injection__xHcnCt2",
+  "primary_category": "unknown",
+  "summary": "Later no-op on the same task scores 0.0 for a missing report, which is the intended control outcome.",
+  "evidence": [
+    {
+      "path": "verifier/grade_notes.json",
+      "step": null,
+      "supports": "schema_validity and target_correctness both note a missing report; primary reward is 0.0."
+    }
+  ],
+  "agent": "nop",
+  "reward": 0.0
+}

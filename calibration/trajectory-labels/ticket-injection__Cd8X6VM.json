@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "ticket-injection__Cd8X6VM",
+  "source": "harbor-practice/runs/ar-ticket-oracle-3/ticket-injection__Cd8X6VM",
+  "primary_category": "unknown",
+  "summary": "Repeat oracle control passed with reward 1.0; no failure to classify.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "verifier_result.rewards.reward is 1.0 and exception_info is null."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0
+}

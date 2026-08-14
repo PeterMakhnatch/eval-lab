@@ -1,0 +1,137 @@
+{
+  "family": "checkout-pool-exhaustion",
+  "documents": [
+    {
+      "id": "01-empty",
+      "path": "01-empty.md",
+      "variant": "empty",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/checkout-pool-exhaustion/01-empty.md"
+    },
+    {
+      "id": "02-style-only-fluent-generic",
+      "path": "02-style-only-fluent-generic.md",
+      "variant": "style-only-fluent",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/checkout-pool-exhaustion/02-generic.md"
+    },
+    {
+      "id": "03-copied-evidence-logs",
+      "path": "03-copied-evidence-logs.md",
+      "variant": "copied-evidence",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/checkout-pool-exhaustion/03-copied-logs.md"
+    },
+    {
+      "id": "04-subtly-wrong-cause-vendor",
+      "path": "04-subtly-wrong-cause-vendor.md",
+      "variant": "subtly-wrong-cause",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/checkout-pool-exhaustion/04-invented-cause.md"
+    },
+    {
+      "id": "05-right-cause-useless-actions-tbd",
+      "path": "05-right-cause-useless-actions-tbd.md",
+      "variant": "right-cause-useless-actions",
+      "source": "harbor-practice/experiments/judged-output/negative-controls/checkout-pool-exhaustion/05-no-actions.md"
+    },
+    {
+      "id": "06-correct-oracle",
+      "path": "06-correct-oracle.md",
+      "variant": "correct",
+      "source": "harbor-practice/datasets/judged-output/checkout-pool-exhaustion/solution/solve.sh"
+    },
+    {
+      "id": "07-correct-metrics-led",
+      "path": "07-correct-metrics-led.md",
+      "variant": "correct",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "08-correct-config-led",
+      "path": "08-correct-config-led.md",
+      "variant": "correct",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "09-correct-compact",
+      "path": "09-correct-compact.md",
+      "variant": "correct",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "10-correct-timeline-dense",
+      "path": "10-correct-timeline-dense.md",
+      "variant": "correct",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "11-subtly-wrong-cause-tls",
+      "path": "11-subtly-wrong-cause-tls.md",
+      "variant": "subtly-wrong-cause",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "12-subtly-wrong-cause-ledger-cpu",
+      "path": "12-subtly-wrong-cause-ledger-cpu.md",
+      "variant": "subtly-wrong-cause",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "13-subtly-wrong-cause-traffic",
+      "path": "13-subtly-wrong-cause-traffic.md",
+      "variant": "subtly-wrong-cause",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "14-subtly-wrong-cause-code-bug",
+      "path": "14-subtly-wrong-cause-code-bug.md",
+      "variant": "subtly-wrong-cause",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "15-right-cause-useless-actions-generic",
+      "path": "15-right-cause-useless-actions-generic.md",
+      "variant": "right-cause-useless-actions",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "16-right-cause-useless-actions-rollback-only",
+      "path": "16-right-cause-useless-actions-rollback-only.md",
+      "variant": "right-cause-useless-actions",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "17-right-cause-useless-actions-process",
+      "path": "17-right-cause-useless-actions-process.md",
+      "variant": "right-cause-useless-actions",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "18-fabricated-evidence-warroom",
+      "path": "18-fabricated-evidence-warroom.md",
+      "variant": "fabricated-evidence",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "19-fabricated-evidence-dashboards",
+      "path": "19-fabricated-evidence-dashboards.md",
+      "variant": "fabricated-evidence",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "20-fabricated-evidence-tickets",
+      "path": "20-fabricated-evidence-tickets.md",
+      "variant": "fabricated-evidence",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "21-style-only-fluent-executive",
+      "path": "21-style-only-fluent-executive.md",
+      "variant": "style-only-fluent",
+      "source": "authored-for-calibration"
+    },
+    {
+      "id": "22-style-only-fluent-runbook",
+      "path": "22-style-only-fluent-runbook.md",
+      "variant": "style-only-fluent",
+      "source": "authored-for-calibration"
+    }
+  ]
+}

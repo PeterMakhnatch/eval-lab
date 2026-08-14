@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "family": "checkout-pool-exhaustion",
+  "document": "13-subtly-wrong-cause-traffic.md",
+  "document_id": "13-subtly-wrong-cause-traffic",
+  "variant": "subtly-wrong-cause",
+  "source": "authored-for-calibration",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause is a traffic spike, not the pool-versus-worker mismatch."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Points at metrics.csv request counts and the 14:02 deploy as a failed throughput fix."
+      },
+      "rules_out_the_decoy": {
+        "verdict": "yes",
+        "rationale": "Vendor advisory is called unrelated because latency stayed flat."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Load-shed, planning, and autoscaling gaps are distinct from the spike claim."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks which campaign drove the spike; no marketing ticket is supplied."
+      }
+    },
+    "action_quality": {
+      "fixes_the_capacity_coupling": {
+        "verdict": "no",
+        "rationale": "Autoscaling and load-shed do not couple pool size to workers."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "no",
+        "rationale": "No pool-saturation or acquire-wait alert is added."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "Autoscale, load-shed 503, capacity ticket, and standby region are concrete."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the document's spike and admission-control findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "yes",
+        "rationale": "Treats a traffic-spike capacity program as remediation for this incident."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_payments_vendor": {
+        "verdict": "no",
+        "rationale": "Vendor is called unrelated."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "yes",
+        "rationale": "An unforecasted traffic spike is asserted as the cause."
+      },
+      "misstates_a_fact": {
+        "verdict": "yes",
+        "rationale": "Reads ~1200 req/5min as a surge even though that is the pre-incident baseline in metrics.csv."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "Uses metrics.csv; no invented dashboards or people."
+      }
+    }
+  }
+}

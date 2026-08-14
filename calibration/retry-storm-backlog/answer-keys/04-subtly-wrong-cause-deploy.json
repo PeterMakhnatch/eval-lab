@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "family": "retry-storm-backlog",
+  "document": "04-subtly-wrong-cause-deploy.md",
+  "document_id": "04-subtly-wrong-cause-deploy",
+  "variant": "subtly-wrong-cause",
+  "source": "harbor-practice/experiments/judged-output/negative-controls/retry-storm-backlog/04-invented-cause.md",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause is JSON logging in v2.8.1, not unbounded shared-slot retries."
+      },
+      "separates_trigger_from_cause": {
+        "verdict": "no",
+        "rationale": "Treats the 02:47 deploy as the cause and leaves the six-minute 503 as coincidence."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Ties the claim to the 02:47 deploy row, queue growth, and the 03:20 CPU warning."
+      },
+      "rules_out_the_decoys": {
+        "verdict": "no",
+        "rationale": "v2.8.1 is presented as the cause rather than ruled out."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Load-test gap, db capacity, and alert threshold are distinct from the logging claim."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks how much JSON logging costs, which the pack does not measure."
+      }
+    },
+    "action_quality": {
+      "bounds_the_amplification": {
+        "verdict": "no",
+        "rationale": "Actions roll back logging and scale the database rather than bound retries."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "yes",
+        "rationale": "Lowers notify-queue-depth from 500,000 to 50,000, a gap visible in alerts.log."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "Rollback, benchmark, db scale, threshold, and canary are specific."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the document's logging, db, and alert findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "yes",
+        "rationale": "Proposes rolling back v2.8.1, scaling notifications-db, and reviewing schema-114."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_the_deploy": {
+        "verdict": "yes",
+        "rationale": "v2.8.1 at 02:47 is stated as the root cause."
+      },
+      "treats_db_cpu_as_cause": {
+        "verdict": "yes",
+        "rationale": "86% CPU is presented as compounding the failure rather than as a symptom."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "yes",
+        "rationale": "A logging-performance regression in v2.8.1 is asserted as the cause."
+      },
+      "misstates_a_fact": {
+        "verdict": "yes",
+        "rationale": "Treats the 03:11 gateway window as the deploy 'taking effect under load'."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "Uses deploys.csv, metrics, and the CPU warning already in the pack."
+      }
+    }
+  }
+}

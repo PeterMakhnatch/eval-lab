@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "family": "retry-storm-backlog",
+  "document": "13-subtly-wrong-cause-capacity.md",
+  "document_id": "13-subtly-wrong-cause-capacity",
+  "variant": "subtly-wrong-cause",
+  "source": "authored-for-calibration",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause is 'not enough slots', not unbounded retries occupying those slots."
+      },
+      "separates_trigger_from_cause": {
+        "verdict": "no",
+        "rationale": "Does not use the six-minute 503 versus four-hour outage as trigger vs cause."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Cites 64 busy slots and the leftover queue after 03:17."
+      },
+      "rules_out_the_decoys": {
+        "verdict": "yes",
+        "rationale": "v2.8.1 is not treated as the cause."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Autoscaling, late alert, and missing overflow region are distinct."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks what slot count would have drained without a human; the pack cannot say."
+      }
+    },
+    "action_quality": {
+      "bounds_the_amplification": {
+        "verdict": "no",
+        "rationale": "Autoscaling to 256 slots adds capacity rather than bounding retries."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "no",
+        "rationale": "Lowering an email threshold is mentioned only as color; no paging change is specified."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "256 slots, second region, overflow cluster, and email threshold are specific."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the document's capacity findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "yes",
+        "rationale": "Treats insufficient worker instances as the primary problem and scales the fleet."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_the_deploy": {
+        "verdict": "no",
+        "rationale": "v2.8.1 is not blamed."
+      },
+      "treats_db_cpu_as_cause": {
+        "verdict": "no",
+        "rationale": "DB CPU is not used as a cause."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "yes",
+        "rationale": "Insufficient worker instances are asserted as the primary cause."
+      },
+      "misstates_a_fact": {
+        "verdict": "no",
+        "rationale": "64-slot count matches worker-config.yaml."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "No extra artifacts."
+      }
+    }
+  }
+}

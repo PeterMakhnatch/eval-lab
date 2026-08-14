@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "family": "checkout-pool-exhaustion",
+  "document": "11-subtly-wrong-cause-tls.md",
+  "document_id": "11-subtly-wrong-cause-tls",
+  "variant": "subtly-wrong-cause",
+  "source": "authored-for-calibration",
+  "verdict_convention": "Judge pre-inversion yes/no. Negated EF/AQ items record whether the named flaw is present, not the post-inversion score.",
+  "criteria": {
+    "causal_reasoning": {
+      "identifies_the_mechanism": {
+        "verdict": "no",
+        "rationale": "Root cause is search-api TLS, not the worker/pool mismatch."
+      },
+      "grounded_in_evidence": {
+        "verdict": "yes",
+        "rationale": "Ties the claim to the 14:05 TLS deploy and 14:07:30 cert-expiry notice."
+      },
+      "rules_out_the_decoy": {
+        "verdict": "yes",
+        "rationale": "Payments vendor is rejected using flat ~130ms latency."
+      },
+      "separates_contributing_factors": {
+        "verdict": "yes",
+        "rationale": "Canary, timeout isolation, and vendor time-loss are distinct from the TLS claim."
+      },
+      "uncertainty_is_genuine": {
+        "verdict": "yes",
+        "rationale": "Asks how many 500s were certificate errors, which the pack cannot settle."
+      }
+    },
+    "action_quality": {
+      "fixes_the_capacity_coupling": {
+        "verdict": "no",
+        "rationale": "Actions roll back TLS and add search-api isolation, not pool-to-worker coupling."
+      },
+      "closes_the_detection_gap": {
+        "verdict": "no",
+        "rationale": "Cert-expiry paging is not the missing pool-saturation alert."
+      },
+      "actions_are_actionable": {
+        "verdict": "yes",
+        "rationale": "TLS rollback, cert page, breaker, and TLS canary are concrete."
+      },
+      "actions_trace_to_findings": {
+        "verdict": "yes",
+        "rationale": "Actions follow the document's TLS-dependency findings."
+      },
+      "proposes_unsupported_work": {
+        "verdict": "yes",
+        "rationale": "Proposes remediating the search-api TLS bundle, which the evidence does not establish."
+      }
+    },
+    "evidence_fidelity": {
+      "blames_payments_vendor": {
+        "verdict": "no",
+        "rationale": "Vendor is explicitly called unrelated."
+      },
+      "asserts_unsupported_cause": {
+        "verdict": "yes",
+        "rationale": "search-api TLS is asserted as the cause of checkout 500s."
+      },
+      "misstates_a_fact": {
+        "verdict": "no",
+        "rationale": "Deploy times and vendor latency figures that appear match the files."
+      },
+      "invents_evidence": {
+        "verdict": "no",
+        "rationale": "TLS deploy and cert notice exist in the evidence; no extra artifacts."
+      }
+    }
+  }
+}

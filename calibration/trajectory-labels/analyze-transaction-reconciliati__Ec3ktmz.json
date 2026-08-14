@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "analyze-transaction-reconciliati__Ec3ktmz",
+  "source": "harbor-practice/runs/2026-08-06__16-33-38/analyze-transaction-reconciliati__Ec3ktmz",
+  "primary_category": "harness_failure",
+  "summary": "claude-code never started work: the adapter raised AgentAuthenticationError after 'Not logged in'.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 2,
+      "supports": "ATIF step 2 is the agent message 'Not logged in \u00b7 Please run /login'; exception_info is AgentAuthenticationError."
+    }
+  ],
+  "agent": "claude-code",
+  "reward": 0.0
+}

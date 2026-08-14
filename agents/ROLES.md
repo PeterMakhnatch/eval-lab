@@ -10,6 +10,7 @@ Status column is updated by the role itself or the integrator.
 | ADAPTER | `role/adapter` | `adapters/`, `agents/handoffs/adapter.md` | One external benchmark adapted end-to-end (QuixBugs) | QuixBugs adapter + generated tasks + verification evidence merged. Mission complete pending review. |
 | EVIDENCE | `role/evidence` | `research/calibration/`, `agents/handoffs/evidence.md` | Judge-calibration corpus + failure-taxonomy trajectory labels | Corpus + trajectory labels merged. Mission complete pending review. |
 | RECON | `role/recon` | `research/explorations/`, `agents/handoffs/recon.md` | Working demos + adoption notes for unused Harbor 0.21 capabilities | Capability map + demos merged; self-reported complete. |
+| INGEST | `role/ingest` | `library/benchmarks/`, `agents/handoffs/ingest.md` | Pin and materialize 2026-cite public benches (survey + ≥4 Hub slices) | 16 surveyed; 4 Hub pins materialized + 19-task oracle/nop sample (2026-08-14). |
 
 Peter owns `policy/standing-approvals.yaml` content (agents ship conservative
 defaults, never loosen).

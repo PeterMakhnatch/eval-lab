@@ -20,7 +20,7 @@ Status column is updated by the role itself or the integrator.
 | FORGE | `role/forge` | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening; held PRs for refactors | Done: PR #6 merged after its rebased GitHub checks were fully green. |
 | JUDGE | `role/judge` | `src/evallab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Registered 2026-08-14 |
 | MEDIC | `role/medic-closeout` | CI compatibility, deterministic canary test, premerge gate, and green-check governance (one mission) | Make local and GitHub green agree; land PR #6 | Done: PRs #7 and #6 merged green; PR #8 closes documentation and branch-lifecycle governance. |
-| REFRAME | `role/reframe` | Repository-wide identity migration plus integrator-only repository, directory, launchd, and Compose rename | Establish Eval Lab as the research identity, with Harbor solely the execution engine | Building: quiet-fleet gate passed; code and prose identity migration in progress. |
+| REFRAME | `role/reframe-closeout` | Repository-wide identity migration plus integrator-only repository, directory, launchd, and Compose rename | Establish Eval Lab as the research identity, with Harbor solely the execution engine | Done: PR #9 merged green; repository, local path, worktrees, launchd, Compose, doctor, premerge, and queued Oracle control verified after the move. |
 
 
 **Wave 1 outcome (2026-08-14):** INGEST, OBSERVER, ANALYST, RUNNER, AUTOPILOT,

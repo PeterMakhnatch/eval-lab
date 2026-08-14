@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+from harbor_lab import credentials as credentials_module
 from harbor_lab import database
 from harbor_lab.digest import DigestRenderer, commit_digest
 from harbor_lab.queue import DirectoryQueue, Executor, new_ulid
@@ -23,7 +24,7 @@ from harbor_lab.schemas import (
 
 MIN_FREE_DISK_BYTES = 5 * 1024**3
 MIN_FREE_DISK_FRACTION = 0.05
-KEYCHAIN_SERVICE = "harbor-practice-claude-oauth"
+KEYCHAIN_SERVICE = credentials_module.KEYCHAIN_SERVICE
 
 BooleanProbe = Callable[[], bool]
 LaunchctlRunner = Callable[[list[str], bool], int]
@@ -77,28 +78,18 @@ class HeadlessDoctor:
             postgres_reachable=self._postgres_probe(),
             disk_headroom=self._disk_probe(),
         )
+        infrastructure_ok = (
+            checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
+        )
+        credentials_ok = checks.keychain_readable or checks.codex_auth_present
         return HeadlessDoctorReport(
             checked_at=datetime.now(UTC),
-            healthy=all(checks.model_dump().values()),
+            healthy=infrastructure_ok and credentials_ok,
             checks=checks,
         )
 
     def _probe_keychain(self) -> bool:
-        service = os.environ.get("HARBOR_CLAUDE_KEYCHAIN_SERVICE", KEYCHAIN_SERVICE)
-        account = os.environ.get("HARBOR_CLAUDE_KEYCHAIN_ACCOUNT", os.environ.get("USER", ""))
-        if not account:
-            return False
-        return _quiet_command_succeeds(
-            [
-                "/usr/bin/security",
-                "find-generic-password",
-                "-s",
-                service,
-                "-a",
-                account,
-                "-w",
-            ]
-        )
+        return credentials_module.probe_claude_keychain()
 
     def _probe_docker(self) -> bool:
         checks = {name: ok for name, ok, _ in self.executor.local_runtime_checks()}
@@ -122,6 +113,24 @@ def failed_health_checks(report: HeadlessDoctorReport) -> list[str]:
     return [name for name, succeeded in report.checks.model_dump().items() if not succeeded]
 
 
+def blocking_health_failures(report: HeadlessDoctorReport) -> list[str]:
+    """Failures that justify quarantining the cycle.
+
+    Infrastructure failures always block. Credentials block only when *no*
+    credential is available; a single missing credential merely defers the
+    specs that need it (see Executor.tick).
+    """
+    checks = report.checks
+    blocking = [
+        name
+        for name in ("docker_reachable", "postgres_reachable", "disk_headroom")
+        if not getattr(checks, name)
+    ]
+    if not (checks.keychain_readable or checks.codex_auth_present):
+        blocking.append("no_credentials")
+    return blocking
+
+
 def record_quarantine(
     queue: DirectoryQueue,
     *,
@@ -129,7 +138,7 @@ def record_quarantine(
     report: HeadlessDoctorReport,
     actor: str,
 ) -> None:
-    failed = failed_health_checks(report)
+    failed = blocking_health_failures(report) or failed_health_checks(report)
     queue.append_event(
         QueueEvent(
             event_id=new_ulid(),

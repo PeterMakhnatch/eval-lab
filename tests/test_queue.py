@@ -50,6 +50,7 @@ def executor(
     runner=None,
     ingester=None,
     spent: float = 0,
+    credentials: frozenset[str] | None = None,
 ) -> Executor:
     return Executor(
         repo_root=root,
@@ -59,6 +60,9 @@ def executor(
         ingester=ingester or (lambda path: None),
         spent_today=lambda: spent,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: credentials
+        if credentials is not None
+        else frozenset({"claude_oauth", "codex_auth"}),
     )
 
 
@@ -217,3 +221,29 @@ def test_direct_execution_cannot_bypass_policy_for_billable_agent(tmp_path: Path
         assert "standing-policy queue" in str(exc)
     else:
         raise AssertionError("billable direct execution unexpectedly bypassed policy")
+
+
+def test_missing_credential_defers_spec_without_moving_it(tmp_path: Path) -> None:
+    requests = []
+
+    def run(request):
+        requests.append(request)
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        return destination
+
+    service = executor(tmp_path, runner=run, credentials=frozenset())
+    _, decision = service.submit(spec("codex-blocked", agent="codex", task="canary/event-summary"))
+    assert decision.admitted
+    service.submit(spec("oracle-proceeds"))
+
+    dispatched = service.tick()
+
+    # The credential-less control ran; the codex spec neither ran nor moved.
+    assert dispatched == 1
+    assert [request.name for request in requests] == ["oracle-proceeds"]
+    remaining = [item.name for _, item in service.queue.list_specs("approved")]
+    assert remaining == ["codex-blocked"]
+    events = load_events(tmp_path / "queue/events.jsonl")
+    deferrals = [e for e in events if e.event == "dispatch_deferred"]
+    assert deferrals and deferrals[-1].reason_code == "missing_credential:codex_auth"

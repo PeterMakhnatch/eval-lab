@@ -1,0 +1,29 @@
+#!/bin/bash
+# Run any command with Harbor's Claude/Codex subscription credentials in its
+# environment. The credentials come from the macOS Keychain at launch time and
+# are inherited by every child process, including GUI-launched ones.
+#
+#   scripts/with-claude-auth harbor run -p datasets/judged-output/tasks/... -a oracle
+#   scripts/with-claude-auth harbor view
+#
+# Launching the viewer this way is what keeps Generate Analysis and Reward Kit
+# authenticated: the viewer server inherits the variables from this process.
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=./harbor-auth-env.sh
+source "$script_dir/harbor-auth-env.sh"
+
+if [ "$#" -eq 0 ]; then
+    echo "usage: with-claude-auth <command> [args...]" >&2
+    exit 64
+fi
+
+if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    echo "with-claude-auth: refusing to run; no Claude OAuth token available" >&2
+    echo "with-claude-auth: run scripts/claude-token-setup.sh first" >&2
+    exit 78
+fi
+
+exec "$@"

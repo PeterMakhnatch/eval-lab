@@ -156,9 +156,17 @@ class HeadlessDoctorReport(ContractModel):
 
     @model_validator(mode="after")
     def healthy_matches_checks(self) -> HeadlessDoctorReport:
-        expected = all(self.checks.model_dump().values())
+        infrastructure_ok = (
+            self.checks.docker_reachable
+            and self.checks.postgres_reachable
+            and self.checks.disk_headroom
+        )
+        credentials_ok = self.checks.keychain_readable or self.checks.codex_auth_present
+        expected = infrastructure_ok and credentials_ok
         if self.healthy != expected:
-            raise ValueError("healthy must equal the conjunction of all checks")
+            raise ValueError(
+                "healthy must equal: all infrastructure checks and at least one credential"
+            )
         return self
 
 

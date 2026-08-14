@@ -47,17 +47,22 @@ class StaticDoctor:
         return self.report
 
 
-def health_report(*, keychain_readable: bool = True) -> HeadlessDoctorReport:
+def health_report(
+    *, keychain_readable: bool = True, codex_auth_present: bool = True
+) -> HeadlessDoctorReport:
     checks = HeadlessDoctorChecks(
         keychain_readable=keychain_readable,
-        codex_auth_present=True,
+        codex_auth_present=codex_auth_present,
         docker_reachable=True,
         postgres_reachable=True,
         disk_headroom=True,
     )
+    healthy = (
+        checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
+    ) and (checks.keychain_readable or checks.codex_auth_present)
     return HeadlessDoctorReport(
         checked_at=datetime.now(UTC),
-        healthy=all(checks.model_dump().values()),
+        healthy=healthy,
         checks=checks,
     )
 
@@ -211,7 +216,9 @@ def test_locked_keychain_quarantines_nightly_with_zero_dispatch(tmp_path: Path) 
         )
     )
     result = NightlyCycle(
-        doctor=StaticDoctor(health_report(keychain_readable=False)),  # type: ignore[arg-type]
+        doctor=StaticDoctor(
+            health_report(keychain_readable=False, codex_auth_present=False)
+        ),  # type: ignore[arg-type]
         executor=service,
         renderer=DigestRenderer(
             repo_root=tmp_path,
@@ -286,3 +293,37 @@ def test_commit_digest_commits_only_the_digest(tmp_path: Path) -> None:
     ).stdout.splitlines()
     assert tracked == ["digests/2026-08-13.md"]
     assert unrelated.exists()
+
+
+def test_doctor_codex_only_night_is_healthy(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    (home / ".codex").mkdir(parents=True)
+    (home / ".codex/auth.json").write_text("{}")
+
+    report = HeadlessDoctor(
+        tmp_path,
+        home=home,
+        executor=RuntimeChecks(),  # type: ignore[arg-type]
+        keychain_probe=lambda: False,
+        postgres_probe=lambda: True,
+        disk_probe=lambda: True,
+    ).run()
+
+    assert report.healthy is True
+    assert report.checks.keychain_readable is False
+
+
+def test_doctor_with_no_credentials_quarantines_with_specific_reason(tmp_path: Path) -> None:
+    from harbor_lab.automation import blocking_health_failures
+
+    report = HeadlessDoctor(
+        tmp_path,
+        home=tmp_path / "empty-home",
+        executor=RuntimeChecks(),  # type: ignore[arg-type]
+        keychain_probe=lambda: False,
+        postgres_probe=lambda: True,
+        disk_probe=lambda: True,
+    ).run()
+
+    assert report.healthy is False
+    assert blocking_health_failures(report) == ["no_credentials"]

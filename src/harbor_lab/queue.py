@@ -15,6 +15,7 @@ import yaml
 from pydantic import ValidationError
 
 from harbor_lab import database
+from harbor_lab.credentials import available_credentials, missing_credential_for
 from harbor_lab.results import load_job
 from harbor_lab.runner import (
     CONTROL_AGENTS,
@@ -357,6 +358,7 @@ class DirectoryQueue:
         temporary.replace(path)
 
 
+CredentialProbe = Callable[[], frozenset[str]]
 RunCallable = Callable[[RunRequest], Path]
 IngestCallable = Callable[[Path], None]
 SpendCallable = Callable[[], float]
@@ -376,6 +378,7 @@ class Executor:
         ingester: IngestCallable | None = None,
         spent_today: SpendCallable | None = None,
         consecutive_harness_failures: FailureCallable | None = None,
+        credential_probe: CredentialProbe | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -383,6 +386,7 @@ class Executor:
         self._runner = runner or self._run_harbor
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
+        self._credential_probe = credential_probe or available_credentials
         self._consecutive_harness_failures = (
             consecutive_harness_failures or self._catalog_harness_failures
         )
@@ -408,9 +412,26 @@ class Executor:
         if self.queue.stop_path.exists():
             return 0
         dispatched = 0
+        credentials = self._credential_probe()
         for path, spec in self.queue.list_specs("approved"):
             if self.queue.stop_path.exists():
                 break
+            missing = missing_credential_for(spec.agent, credentials)
+            if missing is not None:
+                # The spec stays in approved/ and is retried on a later tick;
+                # a missing credential is an operator condition, not a policy
+                # refusal, so it must not land in waiting/.
+                self.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=spec.spec_id,
+                        occurred_at=datetime.now(UTC),
+                        event="dispatch_deferred",
+                        actor="executor",
+                        reason_code=f"missing_credential:{missing}",
+                    )
+                )
+                continue
             human_approved = spec.policy_rule == "human-approval"
             decision = self.gate.decide(
                 spec,

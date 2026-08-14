@@ -32,15 +32,15 @@ harbor-experiment-lab/
 │
 ├── library/                   WHAT WE EVALUATE — task supply, version-pinned
 │   ├── curated/               verified third-party tasks with provenance cards
-│   ├── tasks/                 (pending move) lab-authored tasks
-│   └── adapters/              (pending move) benchmark → Harbor converters
+│   ├── tasks/                 lab-authored tasks
+│   └── adapters/              benchmark → Harbor converters
 │
 ├── research/                  WHAT WE LEARN — produced knowledge
 │   ├── experiments/           experiment specs and matrices
 │   ├── calibration/           judge ground truth: corpora, answer keys, labels
 │   ├── explorations/          capability recon: demos + adoption notes
 │   ├── analysis/              reusable analysis queries
-│   └── evidence/              (pending move) reviewed, immutable control bundles
+│   └── evidence/              reviewed, immutable control bundles
 │
 ├── policy/                    THE HUMAN'S STEERING WHEEL — standing approvals,
 │                              canary suite. Peter-owned content; deliberately
@@ -91,15 +91,10 @@ Done 2026-08-13 (this commit):
 | `analysis/` → `research/analysis/` | README, docs |
 | `prompts/` → `docs/prompts/` | README, docs |
 
-Pending — each is one atomic commit by the named owner at the next quiet
-point (do **not** perform while a session is actively editing the files):
-
-| Move | Blocker right now | Must patch | Owner |
-|---|---|---|---|
-| `adapters/` → `library/adapters/` | active session editing `adapters/quixbugs/*` | docs refs, `agents/ROLES.md`, handoff | integrator, after session ends |
-| `tasks/` → `library/tasks/` | referenced by live canary config | `policy/canary-suite.yaml` (3 `task_path`), `src/harbor_lab/cli.py:172`, `tests/test_{repository_contract,queue,unattended,canary}.py`, `research/experiments/local-controls.json` | BUILDER, single commit + full test run |
-| `evidence/` → `research/evidence/` | `tests/test_repository_contract.py` under active edit | that test, README, AGENTS.md refs | BUILDER |
-| `AGENTS.md` repo map refresh + link to this file | file under active edit | — | integrator, after session ends |
+Completed 2026-08-14: `tasks/` and `adapters/` → `library/`, `evidence/` →
+`research/`, `AGENTS.md` map refreshed. Patched: `policy/canary-suite.yaml`,
+`src/harbor_lab/cli.py`, four test files, `research/experiments/
+local-controls.json`, ruff excludes in `pyproject.toml`, README, docs.
 
 Considered and kept at root: `policy/` (the human steering wheel — visibility
 beats purity), `digests/` (the human's daily surface), `queue/`+`runs/`
@@ -111,3 +106,5 @@ for today).
 
 - 2026-08-13 — created; buckets `library/` and `research/` introduced; six
   moves executed, four pending (Claude, at Peter's direction).
+- 2026-08-14 — migration complete: all ledger moves executed; root is at its
+  target state (Claude).

@@ -3,7 +3,7 @@
 This private repository is the durable home for Peter Makhnatch's Harbor-style
 evaluation experiments. Keep evaluation definitions, infrastructure, analysis
 code, and small curated evidence here. Treat generated runs as immutable once
-they have been promoted to `evidence/runs/`.
+they have been promoted to `research/evidence/runs/`.
 
 ## Working rules
 
@@ -20,7 +20,7 @@ they have been promoted to `evidence/runs/`.
 - Never commit `.env`, API keys, OAuth data, database volumes, unredacted model
   prompts, or arbitrary large run directories.
 - Keep Harbor job directories under `runs/` during exploration. Promote only a
-  small, reviewed evidence bundle to `evidence/runs/`.
+  small, reviewed evidence bundle to `research/evidence/runs/`.
 - Preserve hidden verifier inputs: do not place `tests/` or `solution/` in an
   evaluated agent's environment image.
 - Change one experimental variable at a time and record the exact task, agent,
@@ -39,17 +39,20 @@ they have been promoted to `evidence/runs/`.
 
 ## Repository map
 
-- `tasks/`: Harbor task definitions and deterministic verifiers.
-- `experiments/`: checked-in run matrices and hypotheses.
-- `src/harbor_lab/`: run, inspect, summarize, and ingest tooling.
-- `sql/`: PostgreSQL schema and analysis views.
-- `runs/`: ignored raw Harbor output.
-- `queue/`: ignored runtime state; atomic files and `events.jsonl` drive unattended work.
+The full, binding layout — including where anything new must go — is
+`agents/STRUCTURE.md`. The root is frozen; adding a top-level entry requires
+editing that file in the same PR. Buckets in one line each:
+
+- `agents/`: coordination — workflow, role registry, structure, handoffs.
+- `docs/`: design and decisions; implementation briefs under `docs/prompts/`.
+- `library/`: evaluable task supply — `tasks/`, `curated/`, `adapters/`.
+- `research/`: produced knowledge — `experiments/`, `calibration/`,
+  `explorations/`, `analysis/`, `evidence/` (reviewed control runs).
 - `policy/`: committed standing approvals; agents must never loosen this policy.
-- `digests/`: committed daily derived reports; nightly stages only its dated digest.
-- `evidence/runs/`: small, intentionally tracked control runs.
-- `docs/`: architecture, operating procedures, and scaling decisions.
-- `prompts/`: ordered, bounded implementation briefs for coding agents.
+- `src/harbor_lab/`, `tests/`, `sql/`, `scripts/`: the lab software.
+- `digests/`: committed daily derived reports.
+- `queue/`, `runs/`: ignored runtime state; `queue/events.jsonl` drives
+  unattended work.
 
 ## Safe run pattern
 
@@ -58,7 +61,7 @@ explicit acknowledgement:
 
 ```bash
 uv run harbor-lab run \
-  --task tasks/event-summary \
+  --task library/tasks/event-summary \
   --agent oracle \
   --name event-summary-oracle
 ```

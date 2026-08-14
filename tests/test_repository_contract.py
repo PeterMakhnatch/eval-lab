@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TASK = ROOT / "tasks/event-summary"
+TASK = ROOT / "library/tasks/event-summary"
 IGNORED_PARTS = {
     ".git",
     ".pytest_cache",
@@ -100,7 +100,7 @@ def test_repository_contains_no_jvm_source_or_build_tooling() -> None:
 
 
 def test_quixbugs_adapter_manifest_is_python_only() -> None:
-    manifest_path = ROOT / "adapters/quixbugs/generated/generation_manifest.json"
+    manifest_path = ROOT / "library/adapters/quixbugs/generated/generation_manifest.json"
     manifest = json.loads(manifest_path.read_text())
 
     assert manifest["selection"]["language"] == "python"
@@ -110,7 +110,7 @@ def test_quixbugs_adapter_manifest_is_python_only() -> None:
 
 
 def test_curated_evidence_files_remain_reviewable() -> None:
-    evidence = ROOT / "evidence/runs"
+    evidence = ROOT / "research/evidence/runs"
     oversized = [
         path.relative_to(ROOT).as_posix()
         for path in evidence.rglob("*")

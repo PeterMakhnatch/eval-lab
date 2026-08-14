@@ -84,7 +84,7 @@ Run one explicit experiment:
 
 ```bash
 uv run harbor-lab run \
-  --task tasks/event-summary \
+  --task library/tasks/event-summary \
   --agent oracle \
   --name event-summary-oracle-local
 ```
@@ -108,7 +108,7 @@ queue recovery.
 | `tasks/`, `research/experiments/`, `src/`, `sql/`, `docs/`, `docs/prompts/` | Always versioned |
 | `research/analysis/` | Versioned SQL and notebook-ready queries |
 | `runs/` | Generated, local, ignored |
-| `evidence/runs/` | Small reviewed controls only; versioned intentionally |
+| `research/evidence/runs/` | Small reviewed controls only; versioned intentionally |
 | PostgreSQL volume | Local derived state; never versioned |
 | `.env` and credentials | Never versioned |
 
@@ -123,9 +123,9 @@ uv run harbor-lab tick
 uv run harbor-lab doctor --headless
 uv run harbor-lab schedule install
 uv run harbor-lab nightly
-uv run harbor-lab summarize runs evidence/runs
+uv run harbor-lab summarize runs research/evidence/runs
 uv run harbor-lab db init
-uv run harbor-lab ingest runs evidence/runs
+uv run harbor-lab ingest runs research/evidence/runs
 uv run harbor-lab db list
 uv run pytest
 uv run ruff check .

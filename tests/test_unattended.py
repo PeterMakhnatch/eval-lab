@@ -144,7 +144,7 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
         ExperimentSpec(
             name="nightly-oracle-control",
             hypothesis="control remains healthy",
-            task="tasks/event-summary",
+            task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
         )
@@ -205,7 +205,7 @@ def test_locked_keychain_quarantines_nightly_with_zero_dispatch(tmp_path: Path) 
         ExperimentSpec(
             name="must-not-dispatch",
             hypothesis="locked credentials quarantine all dispatch",
-            task="tasks/event-summary",
+            task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
         )

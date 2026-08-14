@@ -2,14 +2,14 @@
 
 - Role/branch: `ADAPTER` / `role/adapter`
 - Worktree: `~/Developer/helab-adapter`
-- Owned path: `adapters/` only
+- Owned path: `library/adapters/` only
 - Status: complete and ready for integration
 
 ## Delivered
 
-- Self-contained `uv` adapter at `adapters/quixbugs/`, initialized with `harbor adapter init`.
+- Self-contained `uv` adapter at `library/adapters/quixbugs/`, initialized with `harbor adapter init`.
 - Source pinned to QuixBugs commit `4257f44b0ff1181dedaedee6a447e133219fcebf`.
-- Deterministic full output in `adapters/quixbugs/generated/`: 40 Python tasks.
+- Deterministic full output in `library/adapters/quixbugs/generated/`: 40 Python tasks.
 - Required CLI flags: `--output-dir`, `--limit`, and `--task-ids`; also `--source-dir` and `--overwrite`.
 - Hidden separate verifier inputs and Oracle solutions for every task; Harbor transfers only the target source artifact.
 - Verifier-owned read-only runners, non-root candidate execution, digest-pinned images, and hash-locked Python packages.
@@ -27,7 +27,7 @@
 - The retained three-task Python subset had 9/9 Oracle rewards of `1.0` and
   3/3 no-op rewards of `0.0`, with no errors.
 - The original `pytest.py` bypass regression received reward `0.0` with no error.
-- Structured record: `adapters/quixbugs/verification_evidence.json`.
+- Structured record: `library/adapters/quixbugs/verification_evidence.json`.
 - Raw ignored jobs:
   - `runs/quixbugs-adapter/separate-oracle-final/2026-08-13__22-09-37/`
   - `runs/quixbugs-adapter/separate-nop-final/2026-08-13__22-11-13/`
@@ -38,16 +38,16 @@
 Run from the worktree root unless a command changes directory:
 
 ```bash
-uv run --frozen ruff check adapters/quixbugs/src
+uv run --frozen ruff check library/adapters/quixbugs/src
 
-cd adapters/quixbugs
+cd library/adapters/quixbugs
 uv sync --frozen
 rm -rf /tmp/quixbugs-clean-regeneration
 uv run quixbugs --output-dir /tmp/quixbugs-clean-regeneration
 diff -qr generated /tmp/quixbugs-clean-regeneration
 ```
 
-The exact five-task Harbor commands are in `adapters/quixbugs/README.md`.
+The exact five-task Harbor commands are in `library/adapters/quixbugs/README.md`.
 
 ## Next step
 
@@ -59,8 +59,8 @@ None. The structural review's three warnings are intentionally null adapter/data
 
 ## Process-document note
 
-The review referenced `docs/parallel-work.md`, but that file does not exist in this branch/worktree. ADAPTER therefore applied the available root `AGENTS.md` and `docs/architecture.md` rules and preserved the assigned `adapters/`-only boundary. If `docs/parallel-work.md` is required for integration, the coordinating branch should restore or add it; creating a root documentation file is outside ADAPTER ownership.
+The review referenced `docs/parallel-work.md`, but that file does not exist in this branch/worktree. ADAPTER therefore applied the available root `AGENTS.md` and `docs/architecture.md` rules and preserved the assigned `library/adapters/`-only boundary. If `docs/parallel-work.md` is required for integration, the coordinating branch should restore or add it; creating a root documentation file is outside ADAPTER ownership.
 
 ## Coordination
 
-No files outside `adapters/` were intentionally modified. Root `pyproject.toml` and `uv.lock` were not edited. Before integration, inspect `git status`, rerun the structural checks, and commit only `adapters/` paths.
+No files outside `library/adapters/` were intentionally modified. Root `pyproject.toml` and `uv.lock` were not edited. Before integration, inspect `git status`, rerun the structural checks, and commit only `library/adapters/` paths.

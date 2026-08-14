@@ -28,7 +28,7 @@ def spec(
     name: str,
     *,
     agent: str = "oracle",
-    task: str = "tasks/event-summary",
+    task: str = "library/tasks/event-summary",
     model: str | None = None,
     est_cost_usd: float = 0,
 ) -> ExperimentSpec:
@@ -36,7 +36,7 @@ def spec(
         name=name,
         hypothesis="exercise the queue state machine",
         task=task,
-        task_path="tasks/event-summary" if task.startswith("canary/") else None,
+        task_path="library/tasks/event-summary" if task.startswith("canary/") else None,
         agent=agent,
         model=model,
         submitted_by="test-agent",
@@ -203,7 +203,7 @@ def test_quiet_failure_rule_only_quarantines_billable_specs(tmp_path: Path) -> N
 def test_direct_execution_cannot_bypass_policy_for_billable_agent(tmp_path: Path) -> None:
     service = executor(tmp_path)
     request = RunRequest(
-        task=tmp_path / "tasks/event-summary",
+        task=tmp_path / "library/tasks/event-summary",
         agent="codex",
         model="openai/example",
         name="bypass-attempt",

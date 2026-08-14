@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "event-summary-local-controls",
   "hypothesis": "Oracle passes and no-op fails while task, environment, and verifier stay fixed.",
-  "task": "tasks/event-summary",
+  "task": "library/tasks/event-summary",
   "environment": "docker",
   "jobs_dir": "runs",
   "concurrency": 1,

@@ -59,13 +59,13 @@ class StaticDoctor:
 def make_suite(root: Path) -> CanarySuite:
     members = []
     for index in range(3):
-        task = root / f"tasks/canary-{index}"
+        task = root / f"library/tasks/canary-{index}"
         task.mkdir(parents=True)
         (task / "task.toml").write_text(f'name = "test/canary-{index}"\n')
         members.append(
             CanaryMember(
                 name=f"fixture-{index}",
-                task_path=f"tasks/canary-{index}",
+                task_path=f"library/tasks/canary-{index}",
                 task_version="1.0.0",
                 task_digest=task_directory_digest(task),
                 source_ref=f"test/canary-{index}@1",

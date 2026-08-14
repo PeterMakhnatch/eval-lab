@@ -169,7 +169,8 @@ def _doctor(root: Path) -> int:
     except Exception as exc:  # Doctor should report all checks, not stop at the first.
         checks.append(("postgres", False, f"unavailable: {type(exc).__name__}"))
 
-    checks.append(("task", (root / "tasks/event-summary/task.toml").is_file(), "event-summary"))
+    task_toml = root / "library/tasks/event-summary/task.toml"
+    checks.append(("task", task_toml.is_file(), "event-summary"))
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     required = {"harbor", "docker", "docker-daemon", "uv", "task"}

@@ -7,7 +7,7 @@ Status column is updated by the role itself or the integrator.
 |---|---|---|---|---|
 | BUILDER | `main` | `src/`, `tests/`, `sql/`, `docs/prompts/`, `docs/`, `scripts/`, `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile` | Briefs from `docs/design-additions.md` + `docs/fleet-tracking.md` | Briefs 05–07 merged (executor, nightly digest, canaries). Next: brief 08 (Phoenix) or 12 (fleet reporting). |
 | CURATOR | `role/curator` | `library/curated/`, `agents/handoffs/curator.md` | Verified library of 15–25 open-source Harbor tasks with provenance/verification cards | 17-task library merged; verification runs still in progress in its worktree. |
-| ADAPTER | `role/adapter` | `adapters/`, `agents/handoffs/adapter.md` | One external benchmark adapted end-to-end (QuixBugs) | QuixBugs adapter + generated tasks + verification evidence merged. Mission complete pending review. |
+| ADAPTER | `role/adapter` | `library/adapters/`, `agents/handoffs/adapter.md` | One external benchmark adapted end-to-end (QuixBugs) | QuixBugs adapter + generated tasks + verification evidence merged. Mission complete pending review. |
 | EVIDENCE | `role/evidence` | `research/calibration/`, `agents/handoffs/evidence.md` | Judge-calibration corpus + failure-taxonomy trajectory labels | Corpus + trajectory labels merged. Mission complete pending review. |
 | RECON | `role/recon` | `research/explorations/`, `agents/handoffs/recon.md` | Working demos + adoption notes for unused Harbor 0.21 capabilities | Capability map + demos merged; self-reported complete. |
 

@@ -5,9 +5,9 @@ members, one agent, and three attempts per agent/job:
 
 | Canary | Local path | Immutable source |
 |---|---|---|
-| transaction reconciliation | `tasks/transaction-reconciliation` | local task version `0.1.0`, migrated from the frozen source repository |
-| Terminal-Bench HTML/JS filter | `tasks/terminal-bench-html-js-filter` | Harbor dataset `terminal-bench/terminal-bench@1`, task `html-js-filter` |
-| event summary | `tasks/event-summary` | local task version `1.0.0` |
+| transaction reconciliation | `library/tasks/transaction-reconciliation` | local task version `0.1.0`, migrated from the frozen source repository |
+| Terminal-Bench HTML/JS filter | `library/tasks/terminal-bench-html-js-filter` | Harbor dataset `terminal-bench/terminal-bench@1`, task `html-js-filter` |
+| event summary | `library/tasks/event-summary` | local task version `1.0.0` |
 
 The Terminal-Bench task was obtained with:
 
@@ -15,7 +15,7 @@ The Terminal-Bench task was obtained with:
 uv run harbor-lab canary import-terminal-bench \
   --dataset-ref terminal-bench/terminal-bench@1 \
   --task-name html-js-filter \
-  --destination tasks/terminal-bench-html-js-filter
+  --destination library/tasks/terminal-bench-html-js-filter
 ```
 
 Dataset revision 1 is an immutable Harbor Hub revision, not the mutable

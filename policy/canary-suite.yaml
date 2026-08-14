@@ -3,20 +3,20 @@ attempts: 3
 agents: [codex]
 members:
   - name: transaction-reconciliation
-    task_path: tasks/transaction-reconciliation
+    task_path: library/tasks/transaction-reconciliation
     task_version: 0.1.0
     task_digest: sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820
     source_ref: local/transaction-reconciliation@0.1.0
     est_cost_usd: 2.5
   - name: terminal-bench-html-js-filter
-    task_path: tasks/terminal-bench-html-js-filter
+    task_path: library/tasks/terminal-bench-html-js-filter
     task_version: terminal-bench/terminal-bench@1
     task_digest: sha256:36bef48eb1f5a2ed2211705ddd23dab1f98cb0158196e892fad8d3dd3a4aa956
     source_ref: terminal-bench/terminal-bench@1
     source_task_name: html-js-filter
     est_cost_usd: 2.5
   - name: event-summary
-    task_path: tasks/event-summary
+    task_path: library/tasks/event-summary
     task_version: 1.0.0
     task_digest: sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d
     source_ref: local/event-summary@1.0.0

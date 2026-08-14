@@ -33,7 +33,7 @@ controls:
 	uv run harbor-lab matrix experiments/local-controls.json
 
 ingest:
-	uv run harbor-lab ingest runs evidence/runs
+	uv run harbor-lab ingest runs research/evidence/runs
 
 summarize:
-	uv run harbor-lab summarize runs evidence/runs
+	uv run harbor-lab summarize runs research/evidence/runs

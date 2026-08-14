@@ -29,7 +29,7 @@ Example control spec:
   "schema_version": 1,
   "name": "event-summary-oracle-queue-1",
   "hypothesis": "The reference solution remains accepted.",
-  "task": "tasks/event-summary",
+  "task": "library/tasks/event-summary",
   "agent": "oracle",
   "submitted_by": "peter",
   "priority": 100,
@@ -135,7 +135,7 @@ the task or harness before spending model tokens.
 ## Ingest and query
 
 ```bash
-uv run harbor-lab ingest runs evidence/runs
+uv run harbor-lab ingest runs research/evidence/runs
 uv run harbor-lab db list --limit 50
 ```
 
@@ -144,7 +144,7 @@ their reward/artifact/file inventories, and leaves raw files untouched.
 
 ## Evidence promotion checklist
 
-Only small representative runs belong in `evidence/runs/`:
+Only small representative runs belong in `research/evidence/runs/`:
 
 1. Confirm the run has final job and trial `result.json` files.
 2. Inspect agent/verifier logs and all declared artifacts.

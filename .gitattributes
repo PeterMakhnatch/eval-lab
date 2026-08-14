@@ -6,3 +6,7 @@
 *.sql text eol=lf
 *.toml text eol=lf
 *.yaml text eol=lf
+
+# Harbor logs are immutable upstream evidence and can contain emitted trailing
+# spaces. Preserve their bytes instead of normalizing generated output.
+evidence/runs/**/*.log -whitespace

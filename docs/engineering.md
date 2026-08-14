@@ -283,13 +283,36 @@ FORGE §3 corpus (10 jobs / 24 `result.json` / 263,439 bytes from mixed
 | `Executor.tick` N=100, stubs | 70.26 ms | **44.73 / 43.45 ms** | Same N, stubbed runner |
 | `scripts/fleet-status.sh` | 1287 ms | **1858 / 1446 ms** | git + stubbed `gh`; host-bound |
 
-Reading: on the committed fixture, ingest+projection together are ~32 ms.
-That is already small versus tick catalog overhead in §3 and versus
-fleet-status. As of 2026-08-14 `gh pr list` / `git log origin/main` show
-no merged PIPELINE PR, so SPEED did not edit `atif.py` / `facts.py` /
-`digest.py` and added no Polars dependency. A post-PIPELINE re-profile of
-the merged ingest+projection path is required before claiming a win or an
-already-optimal finding on that path.
+Reading: on the committed fixture, separate ingest+projection is ~33 ms.
+
+### Post-PIPELINE ingest+projection (2026-08-14, `3ba570c`)
+
+`origin/main` now includes `PIPELINE: unify catalog ingest and Parquet
+projection` (#17). The shipped seam is `atif.ingest_and_project`: catalog
+`database.ingest`, then `facts.ingest_catalog`, then per-job Parquet
+(`jobs.parquet` + `rebuild_from_raw`). Same machine, same 2-job evidence
+corpus, same harness, scratch DB `evallab_speed_prof`, Harbor stubbed.
+
+| Path | Pre-PIPELINE SPEED §5 | Post-PIPELINE | Notes |
+|---|---:|---:|---|
+| ingest (`database.ingest`) | 29.01 / 31.08 ms | **30.47 ms** | Same seam; jitter |
+| projection (`export_trajectories`) | 2.69 / 2.65 ms | **3.20 ms** | Same seam; jitter |
+| **ingest+projection** (`ingest_and_project`) | n/a (did not exist) | **46.77 ms** (42.61–53.18) | Unified path does ingest + fact catalog + full rebuild |
+
+**Finding: already optimal for this corpus. Polars was not adopted.**
+
+The Python-side transforms (`project_trial`, `export_trajectories`,
+`export_facts`) are 3–4 ms. The unified path's extra ~14 ms versus
+ingest+projection separately is `ingest_catalog` plus
+`rebuild_from_raw`, not a loop that Polars can shrink. Two jobs / a few
+dozen rows is below the break-even for a DataFrame library; converting
+to Polars and back would add import and copy cost. DuckDB is not on this
+path (it is used later for analysis queries) and was not touched.
+
+A real win would need a much larger fixture (hundreds of jobs) or a
+change to catalog round-trips, which is the FORGE open item on
+`queue.py`, not this grant. Re-measure with `scripts/profile/harness.py`
+(the `ingest+projection` row) if the committed corpus grows.
 
 CI ratchet: `scripts/profile/budgets.json` + `.github/workflows/perf.yml`.
 An injected `digest=500` slowdown against a 5 ms budget fails with

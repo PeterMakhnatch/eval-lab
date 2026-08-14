@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from evallab.atif import export_trajectories  # noqa: E402
+from evallab.atif import export_trajectories, ingest_and_project  # noqa: E402
 from evallab.database import ingest, ingest_job, initialize  # noqa: E402
 from evallab.digest import DigestRenderer, DigestTrial  # noqa: E402
 from evallab.facts import export_facts  # noqa: E402
@@ -182,6 +182,23 @@ def _time_ingest(
     assert_not_shared_catalog(database_url)
     initialize(database_url)
     ingest(database_url, jobs, root=root)
+
+
+def _time_ingest_and_project(
+    jobs: list[JobRecord],
+    *,
+    root: Path,
+    database_url: str,
+    output: Path,
+    inject_ms: dict[str, float],
+) -> None:
+    _inject_delay(inject_ms, "ingest+projection")
+    if output.exists():
+        for child in output.rglob("*"):
+            if child.is_file():
+                child.unlink()
+    assert_not_shared_catalog(database_url)
+    ingest_and_project(database_url, jobs, root=root, output_root=output)
 
 
 def _time_projection(jobs: list[JobRecord], output: Path, inject_ms: dict[str, float]) -> None:
@@ -388,6 +405,18 @@ def run_profile(
         if fleet_fn is None
         else "injected fleet-status callable",
     )
+    if not cpu_only and database_url is not None:
+        add(
+            "ingest+projection",
+            lambda: _time_ingest_and_project(
+                jobs,
+                root=REPO_ROOT,
+                database_url=database_url,
+                output=scratch / "merged-parquet",
+                inject_ms=inject_ms,
+            ),
+            "atif.ingest_and_project (PIPELINE unified path)",
+        )
 
     missing = [name for name in PATH_NAMES if name not in {item.path for item in timings}]
     if missing:

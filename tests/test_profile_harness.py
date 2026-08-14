@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from evallab.atif import export_trajectories
+from evallab.atif import export_trajectories, ingest_and_project
 from evallab.database import ingest, ingest_job
 from evallab.facts import export_facts
 
@@ -26,11 +26,12 @@ def test_harness_binds_shipped_ingest_projection_and_facts() -> None:
     harness = _load_harness()
     source = HARNESS_PATH.read_text()
     assert "from evallab.database import ingest, ingest_job, initialize" in source
-    assert "from evallab.atif import export_trajectories" in source
+    assert "from evallab.atif import export_trajectories, ingest_and_project" in source
     assert "from evallab.facts import export_facts" in source
     assert harness.ingest is ingest
     assert harness.ingest_job is ingest_job
     assert harness.export_trajectories is export_trajectories
+    assert harness.ingest_and_project is ingest_and_project
     assert harness.export_facts is export_facts
 
 

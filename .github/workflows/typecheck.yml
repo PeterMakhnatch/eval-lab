@@ -1,0 +1,83 @@
+name: typecheck
+
+# Static type checking, deliberately kept in its own workflow file.
+#
+# Why not inside ci.yml: the unmerged branch `codex/restore-green-ci` rewrites
+# ci.yml (SHA-pinned actions, concurrency, lint/test split, python matrix).
+# Adding a job there would guarantee a merge conflict. A separate workflow
+# merges cleanly in either order and runs in parallel with `quality`, so it
+# costs no extra wall-clock. Folding the two together is a fine daytime
+# follow-up *after* that branch lands.
+#
+# Why non-blocking today: `ty` reports 4 pre-existing diagnostics, all in
+# src/harbor_lab/{database,queue}.py. Those files are owned by other roles, so
+# FORGE must not edit them (agents/WORKFLOW.md). The job therefore reports
+# without failing the PR. See docs/engineering.md for the exact diagnostic
+# list and the condition for flipping this to blocking.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Non-regression ratchet. Recorded baseline from docs/engineering.md.
+  # The job fails if ty reports MORE than this. Lower it whenever the real
+  # count drops; never raise it without saying why in the PR.
+  TY_BASELINE: 33
+
+jobs:
+  ty:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+          # 3.12, not 3.11: uv.lock declares requires-python ">=3.11" but its
+          # supported-markers are ">=3.12", so `uv sync --locked` cannot install
+          # on 3.11 at all. This is the lowest interpreter the lock actually
+          # supports. See docs/engineering.md — pyproject/uv.lock/ci.yml disagree
+          # about 3.11 and that is a BUILDER-owned fix, not a FORGE one.
+          python-version: "3.12"
+          version: "0.9.24"
+      - run: uv sync --locked
+
+      - name: ty check
+        run: |
+          # ty is pre-1.0; pin it so a checker release cannot turn CI red on its own.
+          # ty exits non-zero whenever diagnostics exist, so its exit code is
+          # captured rather than propagated — the ratchet below is the gate.
+          uvx ty@0.0.71 check src/ --output-format=concise > ty.txt 2>&1 || true
+          count="$(grep -oE 'Found [0-9]+ diagnostic' ty.txt | grep -oE '[0-9]+' || echo 0)"
+          echo "count=$count" >> "$GITHUB_ENV"
+
+          {
+            echo "## ty — $count diagnostic(s), baseline $TY_BASELINE"
+            echo
+            echo '```'
+            cat ty.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$count" -gt "$TY_BASELINE" ]; then
+            echo "::error::ty reports $count diagnostics, above the baseline of $TY_BASELINE."
+            echo "New type errors were introduced. See the job summary for the full list."
+            exit 1
+          fi
+
+          if [ "$count" -lt "$TY_BASELINE" ]; then
+            echo "::notice::ty is down to $count (baseline $TY_BASELINE) — lower TY_BASELINE in this workflow."
+          fi
+
+          echo "ty at or below baseline ($count <= $TY_BASELINE)."

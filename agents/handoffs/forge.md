@@ -1,0 +1,170 @@
+Status: review-wanted
+Last: PR #6 green on the ty ratchet (33<=33); baselines + engineering.md shipped
+Next: Peter/integrator: resolve ty-vs-mypy, and decide the 3.11 question (BUILDER-owned)
+Blockers: main CI red for reasons FORGE cannot fix (uv.lock excludes 3.11; canary test fails on runner)
+
+PR: https://github.com/PeterMakhnatch/harbor-experiment-lab/pull/6 — left open,
+not self-merged.
+
+# FORGE handoff
+
+Role: engineering quality and performance. Owns `.github/`,
+`docs/engineering.md`, this file; `pyproject.toml` only via a PR that FORGE
+does not self-merge.
+
+## Session log — 2026-08-14
+
+**Setup.** Worktree `.worktrees/forge` already existed at `origin/main`
+(0 ahead / 0 behind), so no rebase was needed. `uv sync` clean, 17 packages.
+
+**Baseline verification.** At session start `origin/main` was **red**:
+`ruff` reported 9 errors (4x E501 in `library/curated/_emit_card.py` (CURATOR)
+and 4x E501 + UP017 + F401 in `research/explorations/harbor-021/demos/*`
+(RECON)). Per `agents/WORKFLOW.md` line 27 I did not touch another role's
+paths. `codex/restore-green-ci` has since merged as `65ef29c` and fixed all
+nine.
+
+**Final verification, rebased onto `d0d6760`:**
+
+- `uv run ruff check .` — **All checks passed.**
+- `uv run pytest -q` — **49 passed, 0.67 s.**
+- `uvx ty@0.0.71 check src/` — 33 diagnostics, none in FORGE-owned files.
+
+## ⚠ Live collision — a second writer is in the FORGE worktree
+
+At 09:32:40 on 2026-08-14, while this session was running,
+`.github/workflows/ci.yml` **inside `.worktrees/forge`** was modified by
+something that is not this session. This session has never written that file;
+its only writes were `typecheck.yml`, `docs/engineering.md`, this handoff,
+`agents/ROLES.md`, and the gitignored `runs/_forge/` scratch tree.
+
+This breaks the one-writer-per-tree invariant in `agents/WORKFLOW.md`.
+
+**What I did about it:** nothing destructive. Per the protocol ("on any
+conflict: stop, record it, continue with other mission work") I left the edit
+in place, **unstaged and uncommitted**, and staged only FORGE-owned paths by
+explicit path. Their work is intact in the working tree. Do not `git checkout`
+that file without finding out whose it is first.
+
+**Why it matters beyond the invariant:** their edit adds a **mypy** typecheck
+step to `ci.yml`, covering six `src/harbor_lab/*.py` modules. FORGE
+independently shipped a **ty** typecheck as `typecheck.yml`. The repository
+now has two competing type checkers proposed at once. They should not both
+merge.
+
+Rough comparison, so the decision is informed rather than arbitrary:
+
+| | ty (`typecheck.yml`, FORGE) | mypy (`ci.yml`, other writer) |
+|---|---|---|
+| Runtime | 0.18 s warm, whole `src/` | not measured — mypy is typically seconds |
+| Version risk | pre-1.0 (0.0.71), **pinned** | mature, but invoked unpinned via `uv run --with mypy` |
+| Blocking | ratchet: fails only above the 33 baseline | yes — would turn PRs red immediately |
+| Scope | all of `src/` | 6 explicitly listed modules |
+
+My recommendation: pick one. If the goal is a gate that passes today, theirs
+needs the same 4-diagnostic problem solved (and `--check-untyped-defs` on
+`queue.py`/`database.py` will surface more, in files nobody may edit tonight).
+If the goal is a gate that works today and tightens over time, mine is already that. I am not
+deleting anyone's work to force the answer.
+
+## Collision watch (resolved)
+
+`codex/restore-green-ci` also rewrote `.github/workflows/ci.yml` — a
+FORGE-owned path. It merged mid-session as `65ef29c`. Its version is good work
+(SHA-pinned actions, `concurrency` + `cancel-in-progress`, split `lint`/`test`
+jobs, a 3.11/3.14 matrix, `uv sync --locked`, `timeout-minutes`), and FORGE
+did not touch it — which is exactly why the merge was clean and this branch
+rebased with zero conflicts in its own commit.
+
+## Measured findings
+
+Full numbers and the reproduction recipe are in `docs/engineering.md`.
+
+The headline: **`Executor.tick()` issues 2 PostgreSQL round-trips per approved
+spec**, from `_spent_today()` and `_consecutive_harness_failures()` called
+inside the dispatch loop (`src/harbor_lab/queue.py:438-439`), each opening its
+own connection. Measured with production seams wired in:
+
+| N approved specs | queue scan only | with production seams | ratio |
+|---|---|---|---|
+| 10 | 17.57 ms | 149.53 ms | 8.5x |
+| 50 | 40.61 ms | 772.18 ms | 19x |
+| 100 | 70.26 ms | 1594.27 ms | 23x |
+
+~15.2 ms of DB overhead per spec; at N=100 roughly 96% of tick wall-clock is
+catalog round-trips rather than queue work.
+
+**Not fixed, deliberately.** `queue.py` is hot tonight (mission: "queue and
+automation are hot — leave them; note findings instead"). There is also a real
+semantic question a fix must answer first: spend *changes* as jobs dispatch
+within a tick, so the per-iteration re-read may be intentional for the
+$20/day ceiling. The safe optimization is connection reuse, **not** hoisting
+the query out of the loop. Recorded here for daytime pickup rather than
+guessed at.
+
+## Main's CI is red, and not because of this PR
+
+PR #6 surfaced two pre-existing failures. Neither is in a FORGE-owned file.
+
+1. **The 3.11 CI leg cannot pass.** `uv.lock` says
+   `requires-python = ">=3.11"` but its `supported-markers` are
+   `python_full_version >= '3.12'`, so `uv sync --locked` fails immediately on
+   3.11. `ci.yml` pins `lint` to 3.11 and includes 3.11 in the test matrix, so
+   two of three jobs fail regardless of the code. FORGE hit this by copying the
+   3.11 pin into `typecheck.yml` and moved it to 3.12. Fixing it properly means
+   editing `pyproject.toml`/`uv.lock` (BUILDER-only) — either drop 3.11 or
+   re-lock to genuinely include it.
+
+2. **`test_canaries_run_two_consecutive_nights_with_three_attempts` fails on
+   the runner** (`assert 3 == 0`: enqueued 3, dispatched 0) while passing
+   locally — 49 passed, 1 failed on 3.14. It arrived with `177b20d`
+   (per-agent default model). Local green / CI red points at a
+   credential-or-Docker environment difference, which is worth knowing given
+   the Claude keychain token is absent tonight.
+
+## Other observations (no action taken)
+
+- `agents/WORKFLOW.md:45` references `harbor-lab fleet`; that subcommand does
+  not exist. Only `scripts/fleet-status.sh` does. Doc/reality drift.
+- `fleet-status.sh` takes ~1.2-1.5 s, dominated by subprocess `git`/`gh`
+  calls. Fine for human use; would need batching if it ever runs per-tick.
+- The worktree venv resolves to Python 3.13 while `pyproject.toml` declares
+  `requires-python = ">=3.11"` and the in-flight CI matrix tests 3.11 and
+  3.14 — 3.13 itself is never exercised in CI.
+
+## Final state
+
+PR #6 (`role/forge` -> `main`), three commits, diff confined to
+`.github/workflows/typecheck.yml`, `docs/engineering.md`, and this file.
+
+CI on the PR:
+
+| Check | Result | Whose problem |
+|---|---|---|
+| `ty` | **pass** — 33 <= baseline 33 | FORGE (this PR) |
+| `lint` | fail | main: `uv sync --locked` cannot install on 3.11 |
+| `test (3.11)` | fail | same |
+| `test (3.14)` | fail | main: `test_canaries_run_two_consecutive_nights_...` |
+
+Local verification on the branch: `ruff` clean, `pytest` 50 passed in 0.80 s.
+
+**Branch base.** `role/forge` sits on `177b20d`, a few commits behind the tip
+of `main`. That is deliberate: a rebase had already rewritten commits that were
+pushed, and the protocol forbids force-pushing, so the branch was reset to the
+remote tip and the last commit cherry-picked on top to keep the push a
+fast-forward. GitHub reports the PR MERGEABLE. If the integrator wants it on
+the tip, merge `main` into it rather than rebasing a pushed branch.
+
+**Left for recovery, do not delete blindly:** the other writer's `ci.yml` edit
+lives in `stash@{0}` of this worktree and in
+`runs/_forge/OTHER-WRITER-ci.yml.bak`. The profiling harness and its raw
+`baseline.json` are in `runs/_forge/` (gitignored).
+
+**Cleaned up:** the scratch profiling database `harbor_lab_forge_prof` was
+dropped; the shared `harbor_lab` catalog was never written to by profiling.
+
+## Continuation list (not started)
+
+Pre-commit config PR, test-speed pass, coverage into CI artifacts. Deferred:
+the measurement and CI work above consumed the session, and the two blocking
+questions (ty-vs-mypy, 3.11) should be settled before more CI surface is added.

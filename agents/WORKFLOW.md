@@ -61,18 +61,24 @@ Free prose below. A stale header is treated as "unknown — investigate."
    `uv run pytest` + `uv run ruff check .`; content dirs → your own recorded
    verification), push, open a PR titled `ROLE: summary`
    (`CURATOR: add 8 verified tasks`).
-4. **Self-merge** (squash) is allowed when *all* hold: diff touches only your
-   owned paths; verification recorded in the PR or handoff; CI green.
-   Anything else stays open with the reason in your handoff.
+4. **No merge by anyone** — role, human, or integrator — until
+   `gh pr checks <number>` reports every GitHub check complete and successful
+   for the current PR head. Local green, mergeability, or a previous run is not
+   a substitute. Self-merge (squash) also requires a diff confined to owned
+   paths and verification recorded in the PR or handoff. Anything else stays
+   open with the reason in the handoff.
 5. Never force-push `main`; never resolve someone else's conflict; on any
    conflict, stop and record it.
 
 ## Integration and sunset
 
 - An integrator (BUILDER, or Peter's assistant) may merge a role's committed
-  work into `main` at any time, and may commit *finished-but-uncommitted*
-  work on a role's branch with `(integrated by <name>)` in the message —
-  only when the role's session is inactive.
+  work only after the current PR head is fully green on GitHub. Before any
+  local merge is pushed, the integrator runs `scripts/premerge.sh` on the merge
+  result and records `Premerge: scripts/premerge.sh (pass)` plus the green PR
+  number and head SHA in the merge commit body. An integrator may commit
+  *finished-but-uncommitted* work on a role's branch with `(integrated by
+  <name>)` in the message only when the role's session is inactive.
 - When a role's mission completes: final PR, handoff `Status: done`, then the
   integrator runs `git worktree remove .worktrees/<role>` and deletes or
   keeps the branch per `ROLES.md`. Worktrees are workspaces, not archives.

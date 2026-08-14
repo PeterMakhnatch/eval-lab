@@ -1,8 +1,9 @@
-.PHONY: help sync check db-up db-down db-init doctor controls ingest summarize
+.PHONY: help sync check premerge db-up db-down db-init doctor controls ingest summarize
 
 help:
 	@echo "sync       Install locked Python dependencies"
 	@echo "check      Run lint and tests"
+	@echo "premerge   Mirror the complete CI gate on Python 3.12"
 	@echo "db-up      Start local PostgreSQL"
 	@echo "db-down    Stop local PostgreSQL (preserves volume)"
 	@echo "db-init    Apply the idempotent database schema"
@@ -16,6 +17,9 @@ sync:
 check:
 	uv run ruff check .
 	uv run pytest
+
+premerge:
+	scripts/premerge.sh
 
 db-up:
 	docker compose up -d postgres

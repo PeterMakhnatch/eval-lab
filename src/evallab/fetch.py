@@ -558,12 +558,17 @@ def list_fetchable(harbor: HarborBackend) -> list[str]:
     return lines
 
 
+def is_audit_bench(path: Path) -> bool:
+    """True for a materialized ingest: a non-dot directory with MANIFEST.md."""
+    return path.is_dir() and not path.name.startswith(".") and (path / MANIFEST_NAME).is_file()
+
+
 def audit_library(root: Path) -> list[AuditRow]:
     benches = root / "library" / "benchmarks"
     if not benches.is_dir():
         return [AuditRow(name="library/benchmarks", status="fail", detail="directory missing")]
     rows: list[AuditRow] = []
-    for dest in sorted(path for path in benches.iterdir() if path.is_dir()):
+    for dest in sorted(path for path in benches.iterdir() if is_audit_bench(path)):
         rows.append(audit_one(dest))
     return rows
 

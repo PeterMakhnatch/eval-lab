@@ -43,6 +43,13 @@ from evallab.facts import (
     write_analysis_review,
     write_failure_taxonomy_agreement,
 )
+from evallab.fetch import (
+    FetchError,
+    FetchService,
+    HarborBackend,
+    SubprocessHarbor,
+    format_audit,
+)
 from evallab.queue import DirectoryQueue, Executor, load_policy, read_spec
 from evallab.researchers import ResearcherLoop
 from evallab.results import JobRecord, load_job, load_jobs
@@ -292,7 +299,59 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also trace oracle/nop control trials",
     )
+
+    fetch = commands.add_parser(
+        "fetch",
+        help="Acquire a pinned Harbor Hub dataset into library/benchmarks/",
+    )
+    fetch.add_argument(
+        "ref",
+        nargs="?",
+        help="Pinned name@version (never @latest or other unpinned refs)",
+    )
+    fetch.add_argument(
+        "--list",
+        dest="fetch_list",
+        action="store_true",
+        help="Show fetchable Hub pins and named adapter lanes",
+    )
+    fetch.add_argument(
+        "--audit",
+        dest="fetch_audit",
+        action="store_true",
+        help="Re-verify digests of every library/benchmarks ingest",
+    )
+    fetch.add_argument(
+        "--verify-sample",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Run free oracle/nop on N tasks (Harbor -n <= 2) and record rewards",
+    )
     return root
+
+
+def _fetch_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None
+) -> int:
+    service = FetchService(
+        root=root,
+        harbor=harbor if harbor is not None else SubprocessHarbor(),
+    )
+    if args.fetch_list:
+        print("\n".join(service.list_lines()))
+        return 0
+    if args.fetch_audit:
+        rows = service.audit()
+        print(format_audit(rows), end="")
+        return 0 if all(row.status == "pass" for row in rows) else 1
+    if not args.ref:
+        raise FetchError("provide name@version, or --list / --audit")
+    result = service.fetch(args.ref, verify_sample=args.verify_sample)
+    print(f"{result.status}: {result.message}")
+    if result.manifest_path is not None:
+        print(f"manifest: {result.manifest_path}")
+    return 0
 
 
 def _resolve(root: Path, path: Path) -> Path:
@@ -452,12 +511,19 @@ def _calibrate_command(args: argparse.Namespace, root: Path) -> int:
     return 0
 
 
-def run_cli(argv: Sequence[str] | None = None) -> int:
-    root = repo_root()
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    workspace: Path | None = None,
+    harbor: HarborBackend | None = None,
+) -> int:
+    root = workspace if workspace is not None else repo_root()
     load_local_env(root / ".env")
     args = parser().parse_args(argv)
     instrument_openinference()
     try:
+        if args.command == "fetch":
+            return _fetch_command(args, root, harbor=harbor)
         if args.command == "doctor" and args.headless:
             executor = Executor.from_repo(root)
             report = HeadlessDoctor(root, executor=executor).run()

@@ -132,6 +132,25 @@ Expected outcome: Oracle has `reward=1`, no-op has `reward=0`, neither has an
 exception, and both have verifier evidence. If either expectation fails, debug
 the task or harness before spending model tokens.
 
+## Pinned benchmark fetch
+
+Acquire a Harbor Hub dataset into `library/benchmarks/<name>/` at an immutable
+pin. `@latest`, `@head`, and other unpinned refs are refused.
+
+```bash
+uv run evallab fetch --list
+uv run evallab fetch hello-world@1.0
+uv run evallab fetch hello-world@1.0 --verify-sample 1
+uv run evallab fetch --audit
+```
+
+`--verify-sample N` runs free `oracle` then `nop` on N tasks with Harbor
+`-n` ≤ 2 and writes the rewards into that bench's `MANIFEST.md`. Re-fetching
+the same pin verifies the recorded Harbor sync digest and no-ops. Existing
+INGEST pins (`aime`, `gpqa-diamond`, `humanevalfix`, `terminal-bench-sample`)
+are never rewritten. `--audit` walks every `library/benchmarks/*/MANIFEST.md`
+and prints pass or the exact drift reason.
+
 ## Ingest and query
 
 ```bash

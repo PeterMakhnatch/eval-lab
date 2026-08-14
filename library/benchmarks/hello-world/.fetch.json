@@ -1,0 +1,19 @@
+{
+  "lane": "hub",
+  "license": "See upstream Harbor dataset card; lab-internal eval use.",
+  "pin": "hello-world@1.0",
+  "sample": [
+    {
+      "nop": 0.0,
+      "nop_job": "nop-fetch-hello-world-hello-world",
+      "oracle": 1.0,
+      "oracle_job": "oracle-fetch-hello-world-hello-world",
+      "task": "hello-world"
+    }
+  ],
+  "task_count": 1,
+  "task_git_sha": null,
+  "task_git_url": null,
+  "tree_digest": "sha256:cff230d09ea952d092daf99796d0c52ec5bfb92d86f13021af902ce7b6b36720",
+  "version": "1.0"
+}

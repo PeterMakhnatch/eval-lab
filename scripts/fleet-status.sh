@@ -88,8 +88,8 @@ fi
 bar
 
 echo "## recent lab events"
-if [ -f events.jsonl ]; then
-    tail -8 events.jsonl | sed 's/^/  /'
+if [ -f queue/events.jsonl ]; then
+    tail -8 queue/events.jsonl | sed 's/^/  /'
 else
     echo "  (no events.jsonl yet)"
 fi

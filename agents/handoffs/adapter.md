@@ -9,23 +9,24 @@
 
 - Self-contained `uv` adapter at `adapters/quixbugs/`, initialized with `harbor adapter init`.
 - Source pinned to QuixBugs commit `4257f44b0ff1181dedaedee6a447e133219fcebf`.
-- Deterministic full output in `adapters/quixbugs/generated/`: 80 tasks (40 Python + 40 Java).
-- Required CLI flags: `--output-dir`, `--limit`, and `--task-ids`; also `--language`, `--source-dir`, and `--overwrite`.
+- Deterministic full output in `adapters/quixbugs/generated/`: 40 Python tasks.
+- Required CLI flags: `--output-dir`, `--limit`, and `--task-ids`; also `--source-dir` and `--overwrite`.
 - Hidden separate verifier inputs and Oracle solutions for every task; Harbor transfers only the target source artifact.
-- Verifier-owned read-only runners/build files, non-root candidate execution, digest-pinned images, hash-locked Python packages, and checksum-verified offline Java tests.
+- Verifier-owned read-only runners, non-root candidate execution, digest-pinned images, and hash-locked Python packages.
 - Staged whole-dataset generation; bounded overwrite and injected-failure regressions cover manifest consistency and non-destructive failure behavior.
 - README documents regeneration, controls, parity deferral, limitations, and three canaries.
 - Parity remains deferred/model-unset at `$0`; no paid or cloud model run was made.
 
 ## Evidence
 
-- Full content digest: `894c6cfd59cc5513c75fa758a0092420a8b24befdeedc5fb46a9f91b8dc60445`.
+- Full content digest: `23cebf7f3c641e27afade09d3886dc4de8f55ac72027e900d079b2f49e3789eb`.
 - Clean network regeneration was byte-identical (`diff -qr` empty).
 - Harbor structural review: 30 passed, 0 errors, 3 expected warnings for null PR links on the deferred parity record.
-- Static validation: Ruff passed; all 80 TOML files parsed; all 160 generated shell scripts passed `bash -n`; all 40 starting and 40 Oracle sources compiled in each language.
-- Five-task Oracle sample with `k=3`, concurrency `2`: 15/15 reward `1.0`, 0 errors.
-- Same five tasks with nop, `k=1`, concurrency `2`: 5/5 reward `0.0`, 0 errors.
-- Original `pytest.py` and mutable-`build.gradle` bypass regressions: 2/2 reward `0.0`, 0 errors.
+- Static validation covers 40 Python task contracts, 80 generated shell scripts,
+  and compilation of the 40 starting and 40 Oracle Python sources.
+- The retained three-task Python subset had 9/9 Oracle rewards of `1.0` and
+  3/3 no-op rewards of `0.0`, with no errors.
+- The original `pytest.py` bypass regression received reward `0.0` with no error.
 - Structured record: `adapters/quixbugs/verification_evidence.json`.
 - Raw ignored jobs:
   - `runs/quixbugs-adapter/separate-oracle-final/2026-08-13__22-09-37/`

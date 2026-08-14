@@ -10,23 +10,11 @@ Everything lives inside `~/Developer/harbor-experiment-lab`. **Creating any
 file or directory outside the repository root is a protocol violation** — no
 sibling folders, no `~/tmp` scratch, no second clones. Parallel isolation
 comes from git worktrees kept *inside* the repo under `.worktrees/`
-(gitignored, hidden from Finder):
+(gitignored, hidden from Finder).
 
-```
-harbor-experiment-lab/
-├── AGENTS.md              repository rules (read first)
-├── agents/                multi-agent coordination — this folder
-│   ├── WORKFLOW.md        how to work (this file)
-│   ├── ROLES.md           role registry: who exists, what they own, status
-│   └── handoffs/<role>.md one handoff file per role (owned by that role)
-├── docs/                  system design (architecture, briefs, tracking)
-├── prompts/               implementation briefs taken from docs/design-additions.md
-├── src/ tests/ sql/       lab code (BUILDER-owned)
-├── policy/                standing approvals (Peter-owned content)
-├── curated/ adapters/ calibration/ explorations/   role work products
-├── queue/ runs/ digests/  generated state (queue+runs gitignored)
-└── .worktrees/<name>/     parallel working trees (gitignored)
-```
+The directory map and the rules for where anything new goes live in
+**`agents/STRUCTURE.md`** — the root is frozen; adding a top-level entry
+requires editing that file in the same PR.
 
 ## One writer per tree, disjoint paths per role
 

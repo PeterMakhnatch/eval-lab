@@ -4,7 +4,7 @@
 > `165ebeb`, Harbor 0.21.0. This file is additive: it changes no existing code
 > or doc. It records two decisions Peter has made, validates the chosen tool
 > stack, and specifies — as implementation briefs 05–11, continuing the
-> `prompts/` numbering — how to build the unattended research loop. An earlier
+> `docs/prompts/` numbering — how to build the unattended research loop. An earlier
 > draft lived at `agent-evals/learning/CLAUDE_LAB_DESIGN_ADDITIONS.md`; this
 > file supersedes it.
 
@@ -18,7 +18,7 @@ The earlier two-repo idea (separate "task foundry") is rejected. Consequences:
   written there. Its durable assets migrate here in one move (brief 11):
   the tasks and datasets (`tasks/`, `datasets/judged-output`,
   `datasets/adversarial-robustness`), the negative-control corpora under
-  `experiments/`, the keychain auth scripts (`scripts/with-claude-auth`,
+  `research/experiments/`, the keychain auth scripts (`scripts/with-claude-auth`,
   `claude-token-setup.sh`, `auth-status.sh` — the executor needs these for
   headless billable runs), and the reports. History does not need to migrate;
   the files do, with a pointer left behind.
@@ -213,15 +213,15 @@ action. The Streamlit app is the pull surface behind it.
 
 ## 3. Implementation briefs 05–11
 
-Continuation of `prompts/01–04`. Each is a bounded unit with acceptance
-criteria; Codex may copy these into `prompts/` files verbatim. Order matters:
+Continuation of `docs/prompts/01–04`. Each is a bounded unit with acceptance
+criteria; Codex may copy these into `docs/prompts/` files verbatim. Order matters:
 05 → 06 → 07 are the unattended backbone; 08–11 attach to it.
 
 ### 05 — Queue + executor + policy gate
 
 Build `src/harbor_lab/queue.py` and extend the CLI with `submit`, `tick`,
 `approve`, `reject`, `stop`, `resume`. Directory queue as in §2.1; pydantic
-`ExperimentSpec` (extend the existing `experiments/*.json` schema with
+`ExperimentSpec` (extend the existing `research/experiments/*.json` schema with
 `submitted_by`, `priority`, `est_cost_usd`, `policy_rule`); policy loader for
 `policy/standing-approvals.yaml`; cost ledger check against the catalog;
 `events.jsonl` appender. The executor wraps the existing `harbor_lab.runner`

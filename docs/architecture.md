@@ -284,7 +284,7 @@ The included control matrix changes only the agent adapter (`oracle` versus
 6. Add object storage, workers, Kubernetes, or ClickHouse only when the scaling
    gates are actually crossed.
 
-The implementation briefs in [`prompts/`](../prompts/) follow this order.
+The implementation briefs in [`docs/prompts/`](../docs/prompts/) follow this order.
 
 ## References
 

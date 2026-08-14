@@ -42,8 +42,8 @@ See [docs/architecture.md](docs/architecture.md) for the system boundaries,
 [docs/analysis-loop.md](docs/analysis-loop.md) for the evidence-to-experiment
 state machine, and [docs/scaling.md](docs/scaling.md) for the gates governing
 object storage, Kubernetes, and ClickHouse. Ordered implementation briefs live
-under [prompts/](prompts/README.md).
-The reusable queries in [analysis/queries.sql](analysis/queries.sql) cover
+under [docs/prompts/](docs/prompts/README.md).
+The reusable queries in [research/analysis/queries.sql](research/analysis/queries.sql) cover
 leaderboards, exceptions, cost, latency, and artifact-transfer failures.
 
 ## Requirements
@@ -69,7 +69,7 @@ uv run harbor-lab doctor
 Run both local controls:
 
 ```bash
-uv run harbor-lab matrix experiments/local-controls.json
+uv run harbor-lab matrix research/experiments/local-controls.json
 ```
 
 By default, generated jobs go under ignored `runs/`. Inspect and ingest them:
@@ -105,8 +105,8 @@ queue recovery.
 
 | Path | Policy |
 |---|---|
-| `tasks/`, `experiments/`, `src/`, `sql/`, `docs/`, `prompts/` | Always versioned |
-| `analysis/` | Versioned SQL and notebook-ready queries |
+| `tasks/`, `research/experiments/`, `src/`, `sql/`, `docs/`, `docs/prompts/` | Always versioned |
+| `research/analysis/` | Versioned SQL and notebook-ready queries |
 | `runs/` | Generated, local, ignored |
 | `evidence/runs/` | Small reviewed controls only; versioned intentionally |
 | PostgreSQL volume | Local derived state; never versioned |

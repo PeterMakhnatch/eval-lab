@@ -5,17 +5,17 @@ Updated: 2026-08-13
 ## Goal
 
 Map unused Harbor 0.21 capabilities: one-page notes + tiny free/local demos
-under `explorations/harbor-021/`. Rank adoption in `explorations/EXPLORATIONS.md`.
+under `research/explorations/harbor-021/`. Rank adoption in `research/explorations/EXPLORATIONS.md`.
 
 ## What changed
 
 - Worktree `~/Developer/helab-recon` on `role/recon` from `origin/main`.
-- Nine notes in `explorations/harbor-021/` covering check, analyze,
+- Nine notes in `research/explorations/harbor-021/` covering check, analyze,
   `--plugin`, exec, hub+dataset, multi-step, allowlist, separate verifier,
-  atif2otel. Ranking in `explorations/EXPLORATIONS.md`.
-- Demos under `explorations/harbor-021/demos/`; captures under
-  `explorations/harbor-021/captures/`.
-- Real Codex ATIF fixture at `explorations/harbor-021/fixtures/trajectory.json`
+  atif2otel. Ranking in `research/explorations/EXPLORATIONS.md`.
+- Demos under `research/explorations/harbor-021/demos/`; captures under
+  `research/explorations/harbor-021/captures/`.
+- Real Codex ATIF fixture at `research/explorations/harbor-021/fixtures/trajectory.json`
   (copied from harbor-practice; also at `runs/atif-source-trial/`).
 
 ## How it was verified
@@ -36,7 +36,7 @@ No compose, no Hub publish, no paid model.
 
 ## Next step
 
-Done for this mission. Commit `111ce67` is on `role/recon` (explorations/
+Done for this mission. Commit `111ce67` is on `role/recon` (research/explorations/
 only). Do not open/merge the PR (out of scope). BUILDER can take
 atif2otel + plugin into briefs 08/05.
 
@@ -46,5 +46,5 @@ None. Allowlist is unusable on Docker Desktop — recorded, not blocking.
 
 ## Do not
 
-- Edit anything outside `explorations/`.
+- Edit anything outside `research/explorations/`.
 - Publish to Hub, start compose, or invoke a billable agent.

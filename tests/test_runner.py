@@ -45,7 +45,7 @@ def test_non_control_agent_requires_billable_acknowledgement(tmp_path: Path) -> 
 def test_existing_control_matrix_is_valid() -> None:
     root = Path(__file__).resolve().parents[1]
 
-    matrix = load_matrix(root / "experiments/local-controls.json")
+    matrix = load_matrix(root / "research/experiments/local-controls.json")
 
     assert {run.agent for run in matrix.runs} == {"oracle", "nop"}
     assert [run.expect_reward for run in matrix.runs] == [1.0, 0.0]

@@ -124,7 +124,7 @@ are labeled harness-drift suspects, never capability news.
 ## Run controls before model experiments
 
 ```bash
-uv run harbor-lab matrix experiments/local-controls.json
+uv run harbor-lab matrix research/experiments/local-controls.json
 uv run harbor-lab summarize runs
 ```
 

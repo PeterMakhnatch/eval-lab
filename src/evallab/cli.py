@@ -5,7 +5,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -50,6 +50,13 @@ from evallab.fetch import (
     HarborBackend,
     SubprocessHarbor,
     format_audit,
+)
+from evallab.gc import (
+    append_gc_plan_to_digest,
+    doctor_disk_line,
+    format_plan,
+    nightly_gc_plan,
+    run_gc,
 )
 from evallab.queue import DirectoryQueue, Executor, load_policy, read_spec
 from evallab.researchers import ResearcherLoop
@@ -334,6 +341,22 @@ def parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Run free oracle/nop on N tasks (Harbor -n <= 2) and record rewards",
     )
+
+    gc = commands.add_parser(
+        "gc",
+        help="Plan or apply compression/pruning of unpromoted ingested runs",
+    )
+    gc.add_argument(
+        "--apply",
+        action="store_true",
+        help="Execute the plan (default is a dry-run that mutates nothing)",
+    )
+    gc.add_argument(
+        "--runs-dir",
+        type=Path,
+        default=Path("runs"),
+        help="Job directory root to scan (default: runs/)",
+    )
     return root
 
 
@@ -402,6 +425,7 @@ def _doctor(root: Path) -> int:
     checks.append(("task", task_toml.is_file(), "event-summary"))
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
+    print(doctor_disk_line(root))
     required = {"harbor", "docker", "docker-daemon", "uv", "task"}
     return 0 if all(ok for name, ok, _ in checks if name in required) else 1
 
@@ -625,6 +649,7 @@ def run_cli(
             report_date = args.report_date or date.today()
             path = _digest_renderer(root).write(report_date=report_date)
             ResearcherLoop.from_repo(root).enrich_digest(path, report_date)
+            append_gc_plan_to_digest(path, nightly_gc_plan(root))
             print(f"digest: {path}")
             return 0
         if args.command == "research":
@@ -679,9 +704,7 @@ def run_cli(
                 researcher_pass=lambda day: get_researcher_loop().run(
                     report_date=day
                 ).invocation_count,
-                digest_enricher=lambda path, day: get_researcher_loop().enrich_digest(
-                    path, day
-                ),
+                digest_enricher=_nightly_digest_enricher(root, get_researcher_loop),
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
             print(f"enqueued: {result.enqueued}")
@@ -703,7 +726,19 @@ def run_cli(
                 )
             except TraceError as exc:
                 print(f"trace skipped: {exc}")
+            plan = nightly_gc_plan(root)
+            print(format_plan(plan))
             return 1 if result.quarantined else 0
+        if args.command == "gc":
+            plan, applied = run_gc(
+                root,
+                apply=args.apply,
+                runs_dir=_resolve(root, args.runs_dir),
+            )
+            print(format_plan(plan))
+            if applied is not None:
+                print(f"applied: {len(applied.tombstones)} tombstone(s)")
+            return 0
         if args.command == "trace":
             batch = trace_path(
                 _resolve(root, args.path),
@@ -894,6 +929,14 @@ def run_cli(
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 2
+
+
+def _nightly_digest_enricher(root: Path, get_loop: Callable[[], ResearcherLoop]):
+    def enrich(path: Path, day: date) -> None:
+        get_loop().enrich_digest(path, day)
+        append_gc_plan_to_digest(path, nightly_gc_plan(root))
+
+    return enrich
 
 
 def _digest_renderer(root: Path) -> DigestRenderer:

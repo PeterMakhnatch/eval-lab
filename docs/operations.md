@@ -151,6 +151,34 @@ INGEST pins (`aime`, `gpqa-diamond`, `humanevalfix`, `terminal-bench-sample`)
 are never rewritten. `--audit` walks every `library/benchmarks/*/MANIFEST.md`
 and prints pass or the exact drift reason.
 
+## Disk retention (`evallab gc`)
+
+Unpromoted Harbor jobs under `runs/` are eligible only after they are
+completed, ingested, and projected. The policy is:
+
+- compress after 14 days
+- prune after 60 days
+- each action writes `runs/.tombstones/<job-id>.json` (job id, spec id,
+  digests, reward summary, why removed)
+- `--apply` also appends `gc_compressed` / `gc_pruned` lines to
+  `queue/events.jsonl` and retargets the catalog path at the tombstone so
+  no row points at a deleted directory
+
+Never eligible: `research/evidence/`, anything named in a digest or
+`digests/DISCOVERIES.md`, jobs that are not ingested+projected, and the
+tombstones themselves.
+
+Default is a dry-run plan:
+
+```bash
+uv run evallab gc
+uv run evallab gc --apply    # human-triggered only
+```
+
+Nightly calls the same planner in plan-only mode and appends a
+**GC would reclaim** section to the digest. Doctor prints one `disk …`
+trend line with candidate counts. Apply is never invoked by nightly.
+
 ## Ingest and query
 
 ```bash

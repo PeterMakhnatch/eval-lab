@@ -1,5 +1,5 @@
 Status: blocked
-Last: Aborted required rebase after src/evallab/cli.py conflicted with five new origin/main commits
+Last: Opened conflicting PR #16 after recording and aborting the required cli.py rebase conflict
 Next: Integrator must resolve the cli.py conflict on current origin/main; then rerun premerge, push PR, require green checks, and merge
 Blockers: agents/WORKFLOW.md says this role must not resolve another role's rebase conflict
 
@@ -124,3 +124,10 @@ branch), and the rebase stopped with a content conflict in
 `agents/WORKFLOW.md` ("never resolve someone else's conflict; on any conflict,
 stop and record it"), the rebase was aborted. The working tree is restored to
 the coherent checkpoint, one commit ahead and five behind `origin/main`.
+
+PR: `https://github.com/PeterMakhnatch/eval-lab/pull/16`, titled
+`PIPELINE: unify catalog ingest and Parquet projection`. GitHub reports
+`mergeable=CONFLICTING`; no checks attached because the pull-request merge ref
+could not be created. Do not merge until an integrator reconciles current main,
+runs `make premerge` on that result, pushes it, and `gh pr checks 16` is fully
+green for the resulting head SHA.

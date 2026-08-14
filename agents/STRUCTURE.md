@@ -10,7 +10,7 @@ change here first. Iterate by PR; log changes at the bottom.
 ## The map
 
 ```
-harbor-experiment-lab/
+eval-lab/
 │
 ├── AGENTS.md                  repository rules — every agent reads this first
 ├── README.md                  human orientation
@@ -94,7 +94,7 @@ Done 2026-08-13 (this commit):
 
 Completed 2026-08-14: `tasks/` and `adapters/` → `library/`, `evidence/` →
 `research/`, `AGENTS.md` map refreshed. Patched: `policy/canary-suite.yaml`,
-`src/harbor_lab/cli.py`, four test files, `research/experiments/
+`src/evallab/cli.py`, four test files, `research/experiments/
 local-controls.json`, ruff excludes in `pyproject.toml`, README, docs.
 
 Considered and kept at root: `policy/` (the human steering wheel — visibility

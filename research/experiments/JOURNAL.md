@@ -13,15 +13,15 @@ only).
 
 | Check | Result |
 |---|---|
-| `harbor-lab doctor` (human) | harbor, docker, uv, postgres, event-summary task all ok |
-| `harbor-lab doctor --headless` | **unhealthy** — `keychain_readable=false` (Claude OAuth item `harbor-practice-claude-oauth` absent) |
+| `evallab doctor` (human) | harbor, docker, uv, postgres, event-summary task all ok |
+| `evallab doctor --headless` | **unhealthy** — `keychain_readable=false` (Claude OAuth item `harbor-practice-claude-oauth` absent) |
 | Codex auth | `~/.codex/auth.json` present |
 | Guarded tick | dispatches **nothing** while the doctor is unhealthy, including oracle/nop and Codex |
-| Launchd tick | `cd ~/Developer/harbor-experiment-lab && uv run harbor-lab tick` every 30 min; main-checkout `queue/events.jsonl` is a sequence of `tick_quarantined` / `nightly_quarantined` with `headless_doctor_failed:keychain_readable` |
+| Launchd tick | `cd ~/Developer/eval-lab && uv run evallab tick` every 30 min; main-checkout `queue/events.jsonl` is a sequence of `tick_quarantined` / `nightly_quarantined` with `headless_doctor_failed:keychain_readable` |
 | This worktree queue | independent of the main checkout; launchd will not drain it |
 
 Consequence: billable specs are submitted and then sit. Free baselines
-run via `harbor-lab matrix` (oracle/nop only; `execute_direct` refuses
+run via `evallab matrix` (oracle/nop only; `execute_direct` refuses
 Codex). That is not a policy bypass. It is the only path that actually
 produces control evidence while tick is fail-closed.
 
@@ -200,12 +200,12 @@ Do not add it to the nightly canary suite.
 
 ## Control baselines (oracle / nop)
 
-Free. Run with `harbor-lab matrix` from this worktree, `jobs_dir=runs`,
+Free. Run with `evallab matrix` from this worktree, `jobs_dir=runs`,
 concurrency 2. These test task and harness validity. They are not
 model evidence.
 
 Wilson 95% for 5/5 is (0.566, 1.000); for 0/5 is (0.000, 0.434). For
-n=1, (0.207, 1.000) / (0.000, 0.793). `harbor-lab matrix` exits 1 on
+n=1, (0.207, 1.000) / (0.000, 0.793). `evallab matrix` exits 1 on
 every k>1 job because `expected_primary_reward` only compares when
 `len(trials)==1` and otherwise treats the actual as `None`. That is a
 lab-harness quirk, not a task failure. Rewards below are from each
@@ -268,7 +268,7 @@ network). That is task-image waste, not flakiness in this n=5.
 ### html-js-filter — done
 
 Jobs: `runs/runner-hjf-oracle-k5`, `runs/runner-hjf-nop-k1`. Separate
-`harbor-lab run` calls (the matrix path died on catalog ingest after
+`evallab run` calls (the matrix path died on catalog ingest after
 query-optimize oracle). Harbor still wrote complete job directories.
 
 | Agent | n | rewards | Wilson 95% | seconds / trial |
@@ -319,11 +319,11 @@ Attribution: **task** (requires `/app/sol.sql`) + **agent** (nop).
 The 9-minute nop is **harness/verifier**: it does not fail fast; it
 still pays the x86_64 setup tax. Not a capability result.
 
-After query-optimize oracle, `harbor-lab matrix` crashed in
+After query-optimize oracle, `evallab matrix` crashed in
 `database.initialize` with `psycopg.errors.InvalidTableDefinition:
 cannot drop columns from view`. The shared Postgres catalog has a
 schema this worktree's `sql/schema.sql` cannot re-apply. Subsequent
-`harbor-lab run` calls still produced jobs; each then failed at
+`evallab run` calls still produced jobs; each then failed at
 ingest with the same error. RUNNER does not edit `sql/`. Evidence is
 the job directories, not the catalog.
 
@@ -370,15 +370,15 @@ validity decision.
 | html-js-filter nop: `filter.py` missing | contract | nop writes nothing | verifier fail-fast (good) |
 | query-optimize nop: `/app/sol.sql` missing | contract | nop writes nothing | verifier does **not** fail-fast (~9 min) |
 | query-optimize 9 min / trial | amd64 image + uvx CPython | n/a | environment + verifier setup |
-| `harbor-lab matrix` / `run` exit 1 after success | n/a | n/a | catalog `initialize` vs live views |
-| `harbor-lab matrix` "expected 1, got None" on k=5 | n/a | n/a | compare only when `len(trials)==1` |
+| `evallab matrix` / `run` exit 1 after success | n/a | n/a | catalog `initialize` vs live views |
+| `evallab matrix` "expected 1, got None" on k=5 | n/a | n/a | compare only when `len(trials)==1` |
 | Codex / claude-code not dispatched | n/a | n/a | headless doctor requires Claude keychain |
 
 ---
 
 ## Queue log
 
-Submitted 2026-08-14T05:14:40Z from this worktree. `harbor-lab tick`
+Submitted 2026-08-14T05:14:40Z from this worktree. `evallab tick`
 immediately after: `dispatched 0`, `quarantined: yes`,
 `reason_code=headless_doctor_failed:keychain_readable`.
 
@@ -399,7 +399,7 @@ or policy_waiting, then one `tick_quarantined`). Reason files:
 `queue/reasons/<spec_id>-<ulid>.json`. Launchd continues to tick the
 **main checkout**, not this worktree.
 
-PR: https://github.com/PeterMakhnatch/harbor-experiment-lab/pull/5
+PR: https://github.com/PeterMakhnatch/eval-lab/pull/5
 (left open; CI ruff fails on files this role does not own).
 
 Peter: to run the five approved jobs, store the Claude keychain item

@@ -43,7 +43,7 @@ trustworthy experiments and analyses.
           tasks + experiment specs + rubrics + policies
                               |
                               v
-                    harbor-lab control plane
+                    evallab control plane
              validate -> approve -> invoke -> record
                               |
                               v
@@ -86,7 +86,7 @@ run begins.
 ### 2. Execution plane
 
 Harbor owns environment creation, agent invocation, verification, rewards,
-artifacts, and native trial/job results. `harbor-lab` should delegate those
+artifacts, and native trial/job results. `evallab` should delegate those
 responsibilities rather than copying Harbor internals.
 
 The local Docker provider is the authoring default. Harbor already supports

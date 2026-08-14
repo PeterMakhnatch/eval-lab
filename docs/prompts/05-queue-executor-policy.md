@@ -1,12 +1,12 @@
 # 05 — Queue + executor + policy gate
 
-Build `src/harbor_lab/queue.py` and extend the CLI with `submit`, `tick`,
+Build `src/evallab/queue.py` and extend the CLI with `submit`, `tick`,
 `approve`, `reject`, `stop`, `resume`. Directory queue as in
 `docs/design-additions.md` §2.1; pydantic `ExperimentSpec` (extend the existing
 `experiments/*.json` schema with `submitted_by`, `priority`, `est_cost_usd`,
 `policy_rule`); policy loader for `policy/standing-approvals.yaml`; cost ledger
 check against the catalog; `events.jsonl` appender. The executor wraps the
-existing `harbor_lab.runner` and auto-ingests on completion.
+existing `evallab.runner` and auto-ingests on completion.
 
 Acceptance: two agents submit concurrently without interference; an
 out-of-policy spec lands in `waiting/`; a spec past the ceiling is refused with
@@ -17,7 +17,7 @@ a reason file; `STOP` halts dispatch; every transition appears in
 
 - Preserve immutable `runs/` and rebuildable PostgreSQL.
 - Keep deterministic extraction before model analysis.
-- Put every new JSON contract in `src/harbor_lab/schemas.py` as a Pydantic
+- Put every new JSON contract in `src/evallab/schemas.py` as a Pydantic
   model.
 - Add dependencies only with `uv add`; `uv.lock` is authoritative.
 - The executor is the only application code path that may invoke Harbor or

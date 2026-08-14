@@ -2,7 +2,7 @@
 
 ## Mission
 
-Extend Harbor Experiment Lab so it can discover, validate, summarize, and query
+Extend Eval Lab so it can discover, validate, summarize, and query
 ATIF trajectories without modifying the source Harbor job directory. This is the
 first implementation of the trajectory analytics plane described in
 `docs/architecture.md`.
@@ -13,9 +13,9 @@ models/validator before editing.
 
 ## Current state
 
-- `harbor-lab ingest` indexes job/trial/reward/artifact/file metadata in
+- `evallab ingest` indexes job/trial/reward/artifact/file metadata in
   PostgreSQL.
-- `src/harbor_lab/results.py` inventories files but does not parse ATIF.
+- `src/evallab/results.py` inventories files but does not parse ATIF.
 - The raw Harbor job directory is immutable and canonical.
 - PostgreSQL is rebuildable; large trajectories must not be inserted as blobs.
 
@@ -42,9 +42,9 @@ models/validator before editing.
    `derived/` directory. Partition keys must be stable and include at least the
    source job and trial identities. Re-export must be deterministic and
    idempotent.
-6. Add a `harbor-lab trajectories` command that reports validation status and
+6. Add a `evallab trajectories` command that reports validation status and
    basic counts from raw job directories without requiring PostgreSQL.
-7. Add a `harbor-lab trajectories export` command, or an equally clear
+7. Add a `evallab trajectories export` command, or an equally clear
    subcommand, that writes Parquet and prints the exact output paths and row
    counts.
 8. Extend the PostgreSQL schema only for document-level catalog facts and
@@ -85,7 +85,7 @@ At minimum, run:
 ```bash
 uv run pytest
 uv run ruff check .
-uv run harbor-lab trajectories evidence/runs
+uv run evallab trajectories evidence/runs
 ```
 
 Also run a local DuckDB query against the fixture-derived Parquet if the chosen
@@ -100,11 +100,11 @@ generated `derived/` files.
 
 ## Implemented contract (ANALYST, 2026-08-14)
 
-- `harbor-lab trajectories [paths...]` reports `valid`, `invalid`,
+- `evallab trajectories [paths...]` reports `valid`, `invalid`,
   `unsupported`, or `none` without PostgreSQL; `--export` writes all ATIF and
   trial-fact tables beneath `derived/parquet/job_id=*/trial_id=*/`.
 - Harbor is installed as isolated tool version 0.21.0 and cannot be imported by
-  the project venv. `harbor_lab.atif` uses Harbor's Pydantic model when it is
+  the project venv. `evallab.atif` uses Harbor's Pydantic model when it is
   importable and otherwise records use of its strict ATIF-v1.0–v1.7 fallback.
 - The fallback validates sequential steps, tool/observation links, embedded
   subagent IDs, continuations, and local external subagent files. Remote

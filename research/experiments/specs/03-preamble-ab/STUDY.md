@@ -22,7 +22,7 @@ plausible, small intervention. The task is also the cheapest canary.
 `--extra-instruction-path`. Two lab contracts do not:
 
 - `ExperimentSpec` uses `extra="forbid"` and has no such field.
-- `harbor_lab.runner.build_command` never forwards the flag.
+- `evallab.runner.build_command` never forwards the flag.
 
 RUNNER does not edit `src/`. Submitting two specs that the runner would
 execute identically would be a fake A/B. The treatment arm is therefore

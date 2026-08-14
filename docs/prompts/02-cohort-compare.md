@@ -56,7 +56,7 @@ Use fixtures for:
 A good interface is:
 
 ```bash
-uv run harbor-lab compare experiments/comparisons/example.json
+uv run evallab compare experiments/comparisons/example.json
 ```
 
 The exact syntax may change if current CLI conventions require it, but the input
@@ -67,7 +67,7 @@ spec and generated JSON/Markdown paths must be explicit.
 ```bash
 uv run pytest
 uv run ruff check .
-uv run harbor-lab compare <fixture-or-example-spec>
+uv run evallab compare <fixture-or-example-spec>
 ```
 
 ## Handoff
@@ -78,7 +78,7 @@ not. Do not invoke a model during implementation or validation.
 
 ## Implemented contract (ANALYST, 2026-08-14)
 
-- `harbor-lab compare <spec>` reads raw jobs, writes deterministic JSON and a
+- `evallab compare <spec>` reads raw jobs, writes deterministic JSON and a
   Markdown rendering under `derived/comparisons/`, and needs no database or
   model. `research/analysis/control-oracle-vs-nop.json` is the tracked example.
 - Causal mode fixes task and verifier identity and refuses any consequential

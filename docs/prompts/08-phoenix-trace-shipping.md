@@ -1,6 +1,6 @@
 # 08 — Phoenix + trace shipping
 
-Add the Phoenix compose service. `harbor-lab trace <trial>` converts the
+Add the Phoenix compose service. `evallab trace <trial>` converts the
 trial's ATIF via `harbor-atif2otel` and ships it OTLP → Phoenix; a job path
 ships all trials of that job; nightly ships completed billable trials
 automatically (free oracle/nop controls only with `--include-controls`).
@@ -18,7 +18,7 @@ by fixture tests that need no live Phoenix.
   `4317` OTLP/gRPC. Persistence via `PHOENIX_WORKING_DIR=/mnt/data`.
 - Do not start compose from a role worktree. Integrator starts Phoenix from
   the main checkout: `docker compose up -d phoenix`.
-- Converter + ship live in `src/harbor_lab/tracing.py`. Missing or invalid
+- Converter + ship live in `src/evallab/tracing.py`. Missing or invalid
   ATIF is a `TraceError` (clear message); the CLI does not dump a traceback.
 - Starting material: `research/explorations/harbor-021/` (RECON atif2otel
   demo + `fixtures/trajectory.json`).

@@ -1,8 +1,9 @@
-# Harbor Experiment Lab
+# Eval Lab
 
-A private, local-first lab for authoring Harbor tasks, running controlled agent
-evaluations, preserving raw evidence, and querying many runs without turning the
-database into the only copy of the experiment.
+Eval Lab is an evaluation research lab for agent evaluation in real environments,
+with Harbor as its execution engine. It preserves experiment intent, raw evidence,
+analysis provenance, and the guarded feedback loop without turning the database
+into the only copy of an experiment.
 
 The first checked-in evaluation is deliberately small. The Oracle control must
 produce the correct event summary and the no-op control must fail. Together they
@@ -48,7 +49,7 @@ leaderboards, exceptions, cost, latency, and artifact-transfer failures.
 
 ## Requirements
 
-- Python 3.11 or newer
+- Python 3.12 or newer
 - [uv](https://docs.astral.sh/uv/)
 - Harbor 0.21 or newer on `PATH`
 - Docker Desktop or another Docker daemon
@@ -62,28 +63,28 @@ No model credential is needed for the control experiments.
 uv sync
 cp .env.example .env
 docker compose up -d postgres
-uv run harbor-lab db init
-uv run harbor-lab doctor
+uv run evallab db init
+uv run evallab doctor
 ```
 
 Run both local controls:
 
 ```bash
-uv run harbor-lab matrix research/experiments/local-controls.json
+uv run evallab matrix research/experiments/local-controls.json
 ```
 
 By default, generated jobs go under ignored `runs/`. Inspect and ingest them:
 
 ```bash
-uv run harbor-lab summarize runs
-uv run harbor-lab ingest runs
-uv run harbor-lab db list
+uv run evallab summarize runs
+uv run evallab ingest runs
+uv run evallab db list
 ```
 
 Run one explicit experiment:
 
 ```bash
-uv run harbor-lab run \
+uv run evallab run \
   --task library/tasks/event-summary \
   --agent oracle \
   --name event-summary-oracle-local
@@ -94,8 +95,8 @@ submitted to the directory queue and admitted only by the committed standing
 policy:
 
 ```bash
-uv run harbor-lab submit /path/to/experiment-spec.json
-uv run harbor-lab tick
+uv run evallab submit /path/to/experiment-spec.json
+uv run evallab tick
 ```
 
 See [docs/operations.md](docs/operations.md) for approvals, STOP/resume, and
@@ -105,7 +106,7 @@ queue recovery.
 
 | Path | Policy |
 |---|---|
-| `tasks/`, `research/experiments/`, `src/`, `sql/`, `docs/`, `docs/prompts/` | Always versioned |
+| `library/tasks/`, `research/experiments/`, `src/`, `sql/`, `docs/`, `docs/prompts/` | Always versioned |
 | `research/analysis/` | Versioned SQL and notebook-ready queries |
 | `runs/` | Generated, local, ignored |
 | `research/evidence/runs/` | Small reviewed controls only; versioned intentionally |
@@ -115,21 +116,24 @@ queue recovery.
 ## Core commands
 
 ```bash
-uv run harbor-lab doctor
-uv run harbor-lab run --help
-uv run harbor-lab matrix --help
-uv run harbor-lab submit --help
-uv run harbor-lab tick
-uv run harbor-lab doctor --headless
-uv run harbor-lab schedule install
-uv run harbor-lab nightly
-uv run harbor-lab summarize runs research/evidence/runs
-uv run harbor-lab db init
-uv run harbor-lab ingest runs research/evidence/runs
-uv run harbor-lab db list
+uv run evallab doctor
+uv run evallab run --help
+uv run evallab matrix --help
+uv run evallab submit --help
+uv run evallab tick
+uv run evallab doctor --headless
+uv run evallab schedule install
+uv run evallab nightly
+uv run evallab summarize runs research/evidence/runs
+uv run evallab db init
+uv run evallab ingest runs research/evidence/runs
+uv run evallab db list
 uv run pytest
 uv run ruff check .
 ```
+
+`harbor-lab` remains a deprecated command alias through 2026-08-21 so existing
+automation has one transition week. New commands and documentation use `evallab`.
 
 ## Experimental interpretation
 

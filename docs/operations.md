@@ -7,8 +7,8 @@ beyond localhost, and start PostgreSQL:
 
 ```bash
 docker compose up -d postgres
-uv run harbor-lab db init
-uv run harbor-lab db list
+uv run evallab db init
+uv run evallab db list
 ```
 
 `docker compose down` stops PostgreSQL and preserves the named volume. Deleting
@@ -40,20 +40,20 @@ Example control spec:
 Submit and drain:
 
 ```bash
-uv run harbor-lab submit /path/to/spec.json
-uv run harbor-lab tick
+uv run evallab submit /path/to/spec.json
+uv run evallab tick
 ```
 
 Out-of-policy work waits for an explicit decision:
 
 ```bash
-uv run harbor-lab approve <spec-id> --actor peter
-uv run harbor-lab reject <spec-id> --actor peter --reason "not this week"
+uv run evallab approve <spec-id> --actor peter
+uv run evallab reject <spec-id> --actor peter --reason "not this week"
 ```
 
 An approval does not override the hard per-job or daily cost ceiling. Pause new
-dispatch after the current trial with `uv run harbor-lab stop`; re-enable it
-with `uv run harbor-lab resume`. A restart reconciles `queue/running/` against
+dispatch after the current trial with `uv run evallab stop`; re-enable it
+with `uv run evallab resume`. A restart reconciles `queue/running/` against
 completed immutable Harbor jobs before starting new work.
 
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
@@ -65,7 +65,7 @@ The scheduler fails closed. This command prints a versioned JSON object whose
 runtime fields are booleans only:
 
 ```bash
-uv run harbor-lab doctor --headless
+uv run evallab doctor --headless
 ```
 
 It checks that the Claude OAuth Keychain item is readable without a GUI prompt,
@@ -79,14 +79,14 @@ only the service/account names with `HARBOR_CLAUDE_KEYCHAIN_SERVICE` and
 Install the two user-session LaunchAgents:
 
 ```bash
-uv run harbor-lab schedule install
+uv run evallab schedule install
 ```
 
-- `com.petermakhnatch.harbor-lab.tick` runs every 30 minutes.
-- `com.petermakhnatch.harbor-lab.nightly` runs at 02:30 local time.
+- `com.petermakhnatch.evallab.tick` runs every 30 minutes.
+- `com.petermakhnatch.evallab.nightly` runs at 02:30 local time.
 
-Both invoke `/bin/zsh -lc 'cd <repo> && uv run harbor-lab …'`. Logs live under
-`~/Library/Logs/harbor-lab/`. Reinstalling replaces and reloads the definitions.
+Both invoke `/bin/zsh -lc 'cd <repo> && uv run evallab …'`. Logs live under
+`~/Library/Logs/evallab/`. Reinstalling replaces and reloads the definitions.
 Because these are LaunchAgents, not system daemons, they run inside the logged-in
 user session where Keychain access is possible. The plist supplies a bounded
 command `PATH` including `~/.local/bin`, so launchd can find `uv` without
@@ -101,14 +101,14 @@ Render a digest on demand (the file date is the morning/report date; its primary
 reporting period is the preceding catalog day):
 
 ```bash
-uv run harbor-lab digest --date 2026-08-14
+uv run evallab digest --date 2026-08-14
 ```
 
 The nightly command additionally commits only `digests/YYYY-MM-DD.md`; unrelated
 working-tree changes are never staged:
 
 ```bash
-uv run harbor-lab nightly
+uv run evallab nightly
 ```
 
 The digest includes the prior day's trials, early-morning automation, policy
@@ -124,8 +124,8 @@ are labeled harness-drift suspects, never capability news.
 ## Run controls before model experiments
 
 ```bash
-uv run harbor-lab matrix research/experiments/local-controls.json
-uv run harbor-lab summarize runs
+uv run evallab matrix research/experiments/local-controls.json
+uv run evallab summarize runs
 ```
 
 Expected outcome: Oracle has `reward=1`, no-op has `reward=0`, neither has an
@@ -135,8 +135,8 @@ the task or harness before spending model tokens.
 ## Ingest and query
 
 ```bash
-uv run harbor-lab ingest runs research/evidence/runs
-uv run harbor-lab db list --limit 50
+uv run evallab ingest runs research/evidence/runs
+uv run evallab db list --limit 50
 ```
 
 The ingester is idempotent. It updates jobs and trials by Harbor UUID, replaces
@@ -151,7 +151,7 @@ Only small representative runs belong in `research/evidence/runs/`:
 3. Check that no token, `.env`, prompt secret, credential file, or unrelated
    user data is present.
 4. Confirm each file is small enough for ordinary Git review.
-5. Copy the complete small job directory and run `uv run harbor-lab summarize`.
+5. Copy the complete small job directory and run `uv run evallab summarize`.
 6. Run the repository secret/size audit in `uv run pytest` before commit.
 
 For large evidence, leave the job in ignored `runs/`, ingest its metadata, and

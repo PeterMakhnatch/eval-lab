@@ -15,7 +15,7 @@ perturbation (e.g. bumping a task version) is flagged in the digest.
 
 - Preserve immutable `runs/` and rebuildable PostgreSQL.
 - Keep deterministic extraction before model analysis.
-- Put every new JSON contract in `src/harbor_lab/schemas.py` as a Pydantic
+- Put every new JSON contract in `src/evallab/schemas.py` as a Pydantic
   model.
 - Add dependencies only with `uv add`; `uv.lock` is authoritative.
 - The executor is the only application code path that may invoke Harbor or

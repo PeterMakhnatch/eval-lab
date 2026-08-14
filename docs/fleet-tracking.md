@@ -37,7 +37,7 @@ Next: <one line>
 Blockers: <one line or "none">
 ```
 
-`fleet-status.sh` and later `harbor-lab fleet` parse exactly these. Agents
+`fleet-status.sh` and later `evallab fleet` parse exactly these. Agents
 update them at every stopping point; a stale header is treated as "unknown,
 investigate."
 
@@ -81,20 +81,20 @@ Markdown — no image pipeline):
    proposed → approved → running → done/failed, with today's numbers on the
    edges.
 
-Generator lives in `src/harbor_lab/diagrams.py` (brief 12); output goes into
+Generator lives in `src/evallab/diagrams.py` (brief 12); output goes into
 the daily digest and `docs/diagrams/` (overwritten, committed, therefore
 diffable — a diagram diff in a PR is itself a system-change report).
 
 ## Brief 12 — fleet reporting and delivery (BUILDER, after 05–07)
 
-Build `harbor-lab fleet` (render the fleet-status sections from the five
-sources; `--json` for the dashboard), `harbor-lab report --daily` (digest +
+Build `evallab fleet` (render the fleet-status sections from the five
+sources; `--json` for the dashboard), `evallab report --daily` (digest +
 fleet section + Mermaid diagrams), delivery step in the nightly (`gh issue`
 pinned-issue update; issue number in `.env` as `LAB_REPORT_ISSUE`), the
 Streamlit Fleet tab, and `diagrams.py`. Absorb `scripts/fleet-status.sh`
-(keep it as a thin wrapper calling `harbor-lab fleet` so the ten-second path
+(keep it as a thin wrapper calling `evallab fleet` so the ten-second path
 never needs the venv warm). Acceptance: with two role branches active and one
-queued job running, `harbor-lab fleet` shows all three correctly; the morning
+queued job running, `evallab fleet` shows all three correctly; the morning
 after an unattended night, the pinned issue contains the digest with all three
 diagrams rendered; deleting Postgres and re-ingesting reproduces the same
 report (rebuildability holds for reporting too).

@@ -9,7 +9,7 @@ Worktree: `.worktrees/judge` on `role/judge`.
 
 Implemented so far:
 
-- `harbor-lab calibrate <family>` modes for deterministic stub, queued judge
+- `evallab calibrate <family>` modes for deterministic stub, queued judge
   staging, prediction collection, catalog persistence, and DSPy split audit.
 - Raw Reward Kit pre-inversion verdict semantics and exact per-criterion agreement.
 - Runtime-generated Harbor judge tasks keep all answer keys out of the agent and

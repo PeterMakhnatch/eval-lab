@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -269,4 +269,82 @@ class CanaryDriftObservation(ContractModel):
     def suspect_has_reason(self) -> CanaryDriftObservation:
         if self.is_harness_drift_suspect != (self.drift_reason is not None):
             raise ValueError("drift suspects require a reason and clean rows require none")
+        return self
+
+
+class JudgeCriterionVerdict(ContractModel):
+    verdict: Literal["yes", "no"]
+    rationale: str = Field(min_length=1)
+
+
+class JudgeDocumentPrediction(ContractModel):
+    document_id: str = Field(min_length=1)
+    criteria: dict[str, dict[str, JudgeCriterionVerdict]]
+
+
+class JudgePredictionBundle(ContractModel):
+    schema_version: Literal[1] = 1
+    family: str = Field(min_length=1)
+    judge_backend: str = Field(min_length=1)
+    judge_model: str = Field(min_length=1)
+    judge_engine_version: str | None = None
+    rubric_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    corpus_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    generated_at: datetime
+    predictions: list[JudgeDocumentPrediction] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def document_ids_are_unique(self) -> JudgePredictionBundle:
+        ids = [prediction.document_id for prediction in self.predictions]
+        if len(ids) != len(set(ids)):
+            raise ValueError("judge prediction document ids must be unique")
+        return self
+
+
+class CriterionAgreementRate(ContractModel):
+    agreements: int = Field(ge=0)
+    total: int = Field(ge=1)
+    rate: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def rate_matches_counts(self) -> CriterionAgreementRate:
+        if self.agreements > self.total:
+            raise ValueError("agreements cannot exceed total")
+        expected = self.agreements / self.total
+        if abs(self.rate - expected) > 1e-12:
+            raise ValueError("agreement rate must equal agreements / total")
+        return self
+
+
+class JudgeCalibrationRecord(ContractModel):
+    schema_version: Literal[1] = 1
+    record_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    family: str = Field(min_length=1)
+    status: Literal["measured", "stub"]
+    judge_backend: str = Field(min_length=1)
+    judge_model: str = Field(min_length=1)
+    judge_engine_version: str | None = None
+    rubric_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    corpus_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    per_criterion_agreement: dict[str, CriterionAgreementRate] = Field(min_length=1)
+    mean_agreement: float = Field(ge=0, le=1)
+    agreement_floor: float = Field(default=0.9, ge=0, le=1)
+    meets_floor: bool
+    reportable: bool
+    document_count: int = Field(ge=1)
+    evaluated_on: date
+    prediction_artifact: str = Field(min_length=1)
+    pending_backends: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def summary_matches_criterion_counts(self) -> JudgeCalibrationRecord:
+        agreements = sum(item.agreements for item in self.per_criterion_agreement.values())
+        total = sum(item.total for item in self.per_criterion_agreement.values())
+        expected_mean = agreements / total
+        if abs(self.mean_agreement - expected_mean) > 1e-12:
+            raise ValueError("mean agreement must equal total agreements / comparisons")
+        if self.meets_floor != (self.mean_agreement >= self.agreement_floor):
+            raise ValueError("meets_floor must reflect the configured agreement floor")
+        if self.reportable != (self.status == "measured"):
+            raise ValueError("only measured calibration records are reportable")
         return self

@@ -43,15 +43,27 @@ _FLEET_END = "<!-- fleet:end -->"
 _JOURNAL_HEADING = "# Harbor lab discovery journal"
 _MAX_EVIDENCE_TRIALS = 8
 _MAX_JOURNAL_TAIL_CHARS = 6_000
-_DANGEROUS_ENVIRONMENT_KEYS = {
-    "ANTHROPIC_API_KEY",
-    "CLAUDE_CODE_OAUTH_TOKEN",
-    "CODEX_API_KEY",
-    "DATABASE_URL",
-    "GH_TOKEN",
-    "GITHUB_TOKEN",
-    "HARBOR_DATABASE_URL",
-    "OPENAI_API_KEY",
+_RESEARCHER_ENVIRONMENT_KEYS = {
+    "ALL_PROXY",
+    "CODEX_HOME",
+    "COLORTERM",
+    "HOME",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "LOGNAME",
+    "NO_COLOR",
+    "NO_PROXY",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "TERM",
+    "USER",
+    "all_proxy",
+    "https_proxy",
+    "http_proxy",
+    "no_proxy",
 }
 
 
@@ -1187,12 +1199,7 @@ def _validate_citations(citations: Sequence[EvidenceCitation], allowed: set[str]
 def _parse_codex_events(output: str) -> tuple[InvocationUsage, bool]:
     usage = InvocationUsage()
     used_tools = False
-    tool_types = {
-        "command_execution",
-        "file_change",
-        "mcp_tool_call",
-        "web_search",
-    }
+    passive_item_types = {"agent_message", "error", "reasoning"}
     for line in output.splitlines():
         if not line.strip():
             continue
@@ -1201,7 +1208,8 @@ def _parse_codex_events(output: str) -> tuple[InvocationUsage, bool]:
         except json.JSONDecodeError:
             continue
         item = event.get("item") or {}
-        if item.get("type") in tool_types:
+        item_type = item.get("type")
+        if item_type and item_type not in passive_item_types:
             used_tools = True
         if event.get("type") == "turn.completed":
             with suppress(ValidationError):
@@ -1262,7 +1270,7 @@ def _researcher_environment(
     environment = {
         key: value
         for key, value in os.environ.items()
-        if key not in _DANGEROUS_ENVIRONMENT_KEYS
+        if key in _RESEARCHER_ENVIRONMENT_KEYS
     }
     executable_path = Path(executable).absolute() if "/" in executable else None
     path_entries = ["/usr/bin", "/bin"]

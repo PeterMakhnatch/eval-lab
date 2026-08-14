@@ -204,3 +204,24 @@ def test_exceptions_are_reported_beside_but_excluded_from_denominator(
     assert left["exception_count"] == 1
     assert left["exceptions"] == {"AgentTimeoutError": 1}
     assert left["pass_at_k"][0]["denominator"] == 1
+
+
+def test_pass_at_one_uses_trials_and_pass_at_two_uses_task_groups(tmp_path: Path) -> None:
+    _synthetic_job(tmp_path / "left-1", suffix=1, agent="oracle", reward=1.0)
+    _synthetic_job(tmp_path / "left-2", suffix=2, agent="oracle", reward=0.0)
+    _synthetic_job(tmp_path / "right-1", suffix=3, agent="nop", reward=0.0)
+    _synthetic_job(tmp_path / "right-2", suffix=4, agent="nop", reward=0.0)
+    spec = _synthetic_spec(
+        left_paths=["left-1/sample-job", "left-2/sample-job"],
+        right_paths=["right-1/sample-job", "right-2/sample-job"],
+    ).model_copy(update={"pass_k": [1, 2]})
+
+    report = compare(spec, repo_root=tmp_path)
+
+    left = report["cohorts"][0]
+    assert left["pass_at_k"][0]["selection"] == "all-exception-free-scored-trials"
+    assert left["pass_at_k"][0]["passes"] == 1
+    assert left["pass_at_k"][0]["denominator"] == 2
+    assert left["pass_at_k"][1]["selection"] == "first-k-by-trial-id-per-pairing-key"
+    assert left["pass_at_k"][1]["passes"] == 1
+    assert left["pass_at_k"][1]["denominator"] == 1

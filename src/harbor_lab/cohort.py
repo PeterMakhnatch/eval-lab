@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+import psycopg
+from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from harbor_lab.facts import TrialFact, digest_json, extract_trial_fact
@@ -248,11 +250,33 @@ def _pass_at_k(
     k: int,
     threshold: float,
 ) -> dict[str, Any]:
+    eligible_trials = [
+        member
+        for member in members
+        if member.exception_class is None and member.reward is not None
+    ]
+    if k == 1:
+        successes = sum(float(member.reward) >= threshold for member in eligible_trials)
+        interval = wilson_interval(successes, len(eligible_trials))
+        return {
+            "k": 1,
+            "selection": "all-exception-free-scored-trials",
+            "passes": successes,
+            "denominator": len(eligible_trials),
+            "rate": successes / len(eligible_trials) if eligible_trials else None,
+            "wilson_95": list(interval) if interval is not None else None,
+            "insufficient_attempt_groups": [],
+            "missing_pairing_key_trials": 0,
+            "selected_trials": {
+                "all": [
+                    member.trial_id
+                    for member in sorted(eligible_trials, key=lambda item: item.trial_id)
+                ]
+            },
+        }
     groups: dict[str, list[CohortMember]] = defaultdict(list)
     missing_pairing_key = 0
-    for member in members:
-        if member.exception_class is not None or member.reward is None:
-            continue
+    for member in eligible_trials:
         key = _pairing_value(member, pairing_key)
         if key is None:
             missing_pairing_key += 1
@@ -471,8 +495,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             "## Interpretation boundary",
             "",
             "These are deterministic summaries of the selected trials. Wilson intervals describe ",
-            "the realized task-level first-k success proportion; they do not establish broad "
-            "model ",
+            "the pass@1 trial proportion and realized task-level first-k proportions; they do "
+            "not establish broad model ",
             "capability or statistical significance.",
             "",
         ]
@@ -499,3 +523,56 @@ def write_comparison(
         temporary.write_text(payload)
         temporary.replace(path)
     return json_path, markdown_path, report
+
+
+def index_comparison_associations(
+    database_url: str,
+    *,
+    spec_path: Path,
+    report: dict[str, Any],
+    repo_root: Path,
+) -> None:
+    """Associate legacy/raw jobs only when a reviewed cohort spec declares it."""
+    spec = load_spec(spec_path)
+    if report.get("spec_digest") != digest_json(spec.model_dump(mode="json")):
+        raise ValueError("comparison report does not match the supplied spec")
+    provenance = {
+        "comparison_spec": (
+            spec_path.resolve().relative_to(repo_root.resolve()).as_posix()
+            if repo_root.resolve() in spec_path.resolve().parents
+            else spec_path.resolve().as_posix()
+        ),
+        "spec_digest": report["spec_digest"],
+        "declared_variable": spec.declared_variable,
+        "mode": spec.mode,
+    }
+    job_ids = sorted(
+        {
+            member["job_id"]
+            for cohort in report["cohorts"]
+            for member in cohort["members"]
+        }
+    )
+    with psycopg.connect(database_url) as connection:
+        connection.execute(
+            """
+            INSERT INTO experiments (id, source_kind, raw_provenance)
+            VALUES (%s, 'cohort-spec', %s)
+            ON CONFLICT (id) DO NOTHING
+            """,
+            (spec.experiment_id, Jsonb(provenance)),
+        )
+        for job_id in job_ids:
+            row = connection.execute(
+                "SELECT experiment_id FROM jobs WHERE id = %s", (job_id,)
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"comparison job is not indexed: {job_id}")
+            if row[0] not in (None, spec.experiment_id):
+                raise ValueError(
+                    f"job {job_id} is already associated with experiment {row[0]!r}"
+                )
+            connection.execute(
+                "UPDATE jobs SET experiment_id = %s WHERE id = %s",
+                (spec.experiment_id, job_id),
+            )

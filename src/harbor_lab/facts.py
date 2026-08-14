@@ -2,18 +2,30 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid4
 
 import psycopg
 import pyarrow as pa
 import pyarrow.parquet as pq
 from psycopg.types.json import Jsonb
+from pydantic import ValidationError
 
 from harbor_lab.atif import ExportedTable, ExportResult, export_trajectories, project_trial
-from harbor_lab.results import JobRecord, TrialRecord, duration_seconds, sha256_file
+from harbor_lab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
+from harbor_lab.schemas import (
+    AnalysisProvenance,
+    AnalysisReview,
+    AnalysisSourceDigests,
+    TrialAnalysisOutput,
+    TrialAnalysisSidecar,
+)
 
 JsonObject = dict[str, Any]
 
@@ -22,8 +34,12 @@ def _canonical_bytes(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
+def _digest_bytes(value: bytes) -> str:
+    return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
 def digest_json(value: Any) -> str:
-    return f"sha256:{hashlib.sha256(_canonical_bytes(value)).hexdigest()}"
+    return _digest_bytes(_canonical_bytes(value))
 
 
 def _string(value: Any) -> str | None:
@@ -493,10 +509,17 @@ def ingest_catalog(
                     """,
                     (association, Jsonb(experiment)),
                 )
-            connection.execute(
-                "UPDATE jobs SET experiment_id = %s WHERE id = %s",
-                (association, job.id),
-            )
+                existing = connection.execute(
+                    "SELECT experiment_id FROM jobs WHERE id = %s", (job.id,)
+                ).fetchone()
+                if existing is not None and existing[0] not in (None, association):
+                    raise ValueError(
+                        f"job {job.id} is already associated with experiment {existing[0]!r}"
+                    )
+                connection.execute(
+                    "UPDATE jobs SET experiment_id = %s WHERE id = %s",
+                    (association, job.id),
+                )
             facts = extract_job_facts(job)
             for trial, trial_fact in zip(
                 sorted(job.trials, key=lambda item: item.id), facts.trials, strict=True
@@ -594,3 +617,569 @@ def ingest_catalog(
                     """,
                     {**asdict(trial_fact), "raw_facts": Jsonb(asdict(trial_fact))},
                 )
+
+
+@dataclass(frozen=True)
+class AnalyzerCallResult:
+    raw_output: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
+
+
+AnalyzerCallable = Callable[[str, dict[str, Any]], AnalyzerCallResult]
+
+
+@dataclass(frozen=True)
+class AnalysisPlan:
+    experiment_id: str | None
+    job_id: str
+    source_trial_id: str
+    source_trial_path: str
+    agent: str
+    agent_version: str
+    model: str
+    estimated_model_calls: int
+    maximum_model_calls: int
+    queue_policy_rule: str
+    destination_root: str
+    prompt_digest: str
+    rubric_digest: str
+    output_schema_digest: str
+
+
+def load_analysis_source(path: Path) -> tuple[JobRecord, TrialRecord]:
+    result_path = path / "result.json"
+    if not result_path.is_file():
+        raise ValueError(f"analysis source has no result.json: {path}")
+    result = json.loads(result_path.read_text())
+    if not isinstance(result, dict):
+        raise ValueError(f"analysis source result is not an object: {path}")
+    if "trial_name" in result and "task_name" in result:
+        job = load_job(path.parent)
+        trial = next((item for item in job.trials if item.path.resolve() == path.resolve()), None)
+        if trial is None:
+            raise ValueError(f"trial is not a member of parent job: {path}")
+        return job, trial
+    job = load_job(path)
+    if len(job.trials) != 1:
+        raise ValueError("analysis plan requires a trial path or a single-trial job")
+    return job, job.trials[0]
+
+
+def _analysis_file_digest(path: Path) -> str:
+    return f"sha256:{sha256_file(path)}"
+
+
+def _trial_tree_digests(trial_dir: Path) -> dict[str, str]:
+    return {
+        path.relative_to(trial_dir).as_posix(): _analysis_file_digest(path)
+        for path in sorted(trial_dir.rglob("*"))
+        if path.is_file()
+    }
+
+
+def analysis_plan(
+    job: JobRecord,
+    trial: TrialRecord,
+    *,
+    repo_root: Path,
+    destination_root: Path,
+    prompt_path: Path,
+    rubric_path: Path,
+    agent: str,
+    agent_version: str,
+    model: str,
+) -> AnalysisPlan:
+    schema = TrialAnalysisOutput.model_json_schema()
+    rubric = json.loads(rubric_path.read_text())
+    prompt = _render_analysis_prompt(
+        trial,
+        prompt_template=prompt_path.read_text(),
+        rubric=rubric,
+        schema=schema,
+    )
+    try:
+        source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        source_path = trial.path.resolve().as_posix()
+    return AnalysisPlan(
+        experiment_id=experiment_id(job),
+        job_id=job.id,
+        source_trial_id=trial.id,
+        source_trial_path=source_path,
+        agent=agent,
+        agent_version=agent_version,
+        model=model,
+        estimated_model_calls=1,
+        maximum_model_calls=2,
+        queue_policy_rule="researcher-followups",
+        destination_root=_relative_or_absolute(destination_root, repo_root),
+        prompt_digest=_digest_bytes(prompt.encode()),
+        rubric_digest=digest_json(rubric),
+        output_schema_digest=digest_json(schema),
+    )
+
+
+def _render_analysis_prompt(
+    trial: TrialRecord,
+    *,
+    prompt_template: str,
+    rubric: JsonObject,
+    schema: dict[str, Any],
+) -> str:
+    return prompt_template.format(
+        source_trial_path=trial.path.resolve().as_posix(),
+        rubric=json.dumps(rubric, indent=2, sort_keys=True),
+        output_schema=json.dumps(schema, indent=2, sort_keys=True),
+    )
+
+
+def _task_source_digest(trial: TrialRecord) -> str:
+    digest = _task_digest(trial)
+    if isinstance(digest, str) and len(digest) == 71 and digest.startswith("sha256:"):
+        return digest
+    lock_path = trial.path / "lock.json"
+    return _analysis_file_digest(lock_path)
+
+
+def _source_digests(trial: TrialRecord, cited_paths: set[str]) -> AnalysisSourceDigests:
+    result_path = trial.path / "result.json"
+    trajectory_path = trial.path / "agent/trajectory.json"
+    required_paths = {"result.json", "lock.json"} | cited_paths
+    files = {
+        relative: _analysis_file_digest(trial.path / relative)
+        for relative in sorted(required_paths)
+        if (trial.path / relative).is_file()
+    }
+    return AnalysisSourceDigests(
+        result=_analysis_file_digest(result_path),
+        task=_task_source_digest(trial),
+        trajectory=(
+            _analysis_file_digest(trajectory_path) if trajectory_path.is_file() else None
+        ),
+        files=files,
+    )
+
+
+def _load_trajectory_steps(path: Path) -> list[JsonObject] | None:
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or not str(payload.get("schema_version", "")).startswith(
+        "ATIF-"
+    ):
+        return None
+    steps = payload.get("steps")
+    return [item for item in steps if isinstance(item, dict)] if isinstance(steps, list) else []
+
+
+def validate_analysis_evidence(
+    trial: TrialRecord,
+    output: TrialAnalysisOutput,
+) -> list[str]:
+    errors: list[str] = []
+    trial_root = trial.path.resolve()
+    for index, citation in enumerate(output.evidence):
+        path = (trial.path / citation.path).resolve()
+        if path != trial_root and trial_root not in path.parents:
+            errors.append(f"evidence[{index}] path escapes source trial")
+            continue
+        if not path.is_file():
+            errors.append(f"evidence[{index}] missing file: {citation.path}")
+            continue
+        steps = _load_trajectory_steps(path)
+        if steps is None:
+            if citation.step_id is not None or citation.tool_call_id is not None:
+                errors.append(
+                    f"evidence[{index}] cites a step/tool on non-ATIF file: {citation.path}"
+                )
+            continue
+        if citation.step_id is None:
+            errors.append(f"evidence[{index}] ATIF citation requires step_id")
+            continue
+        step = next(
+            (item for item in steps if item.get("step_id") == citation.step_id),
+            None,
+        )
+        if step is None:
+            errors.append(
+                f"evidence[{index}] missing step {citation.step_id} in {citation.path}"
+            )
+            continue
+        if citation.tool_call_id is not None:
+            call_ids = {
+                item.get("tool_call_id")
+                for item in step.get("tool_calls") or []
+                if isinstance(item, dict)
+            }
+            if citation.tool_call_id not in call_ids:
+                errors.append(
+                    f"evidence[{index}] missing tool call {citation.tool_call_id} "
+                    f"at step {citation.step_id}"
+                )
+    exception_class = _exception_class(trial.result)
+    agent_failure_categories = {
+        "planning",
+        "evidence_use",
+        "tool_use",
+        "implementation",
+        "verification_behavior",
+        "context_management",
+        "policy_or_refusal",
+    }
+    if exception_class is not None and output.validity == "valid_agent_attempt":
+        errors.append(
+            f"source has harness exception {exception_class}; cannot label valid_agent_attempt"
+        )
+    if exception_class is not None and output.primary_category in agent_failure_categories:
+        errors.append(
+            f"source has harness exception {exception_class}; agent failure category is unsupported"
+        )
+    return errors
+
+
+def _parse_analysis_with_retry(
+    analyzer: AnalyzerCallable,
+    *,
+    prompt: str,
+    schema: dict[str, Any],
+) -> tuple[TrialAnalysisOutput, AnalyzerCallResult]:
+    validation_error = ""
+    last_result: AnalyzerCallResult | None = None
+    for attempt in range(2):
+        current_prompt = prompt
+        if attempt:
+            current_prompt += (
+                "\n\nYour prior response failed schema validation. Return only corrected JSON. "
+                f"Validation error: {validation_error}"
+            )
+        last_result = analyzer(current_prompt, schema)
+        try:
+            payload = json.loads(last_result.raw_output)
+            return TrialAnalysisOutput.model_validate(payload), last_result
+        except (json.JSONDecodeError, ValidationError) as exc:
+            validation_error = str(exc)
+    raise ValueError(f"analysis output failed validation after one retry: {validation_error}")
+
+
+def run_trial_analysis(
+    job: JobRecord,
+    trial: TrialRecord,
+    *,
+    analyzer: AnalyzerCallable,
+    repo_root: Path,
+    destination_root: Path,
+    prompt_path: Path,
+    rubric_path: Path,
+    agent: str,
+    agent_version: str,
+    model: str,
+    created_at: datetime | None = None,
+) -> tuple[Path, TrialAnalysisSidecar]:
+    before = _trial_tree_digests(trial.path)
+    prompt_template = prompt_path.read_text()
+    rubric = json.loads(rubric_path.read_text())
+    schema = TrialAnalysisOutput.model_json_schema()
+    prompt = _render_analysis_prompt(
+        trial,
+        prompt_template=prompt_template,
+        rubric=rubric,
+        schema=schema,
+    )
+    output, call_result = _parse_analysis_with_retry(
+        analyzer,
+        prompt=prompt,
+        schema=schema,
+    )
+    validation_errors = validate_analysis_evidence(trial, output)
+    analysis_id = uuid4()
+    try:
+        source_path = trial.path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        source_path = trial.path.resolve().as_posix()
+    sidecar = TrialAnalysisSidecar(
+        analysis_id=analysis_id,
+        experiment_id=experiment_id(job),
+        job_id=UUID(job.id),
+        source_trial_id=UUID(trial.id),
+        source_trial_path=source_path,
+        source_digests=_source_digests(
+            trial,
+            {citation.path for citation in output.evidence},
+        ),
+        analysis_provenance=AnalysisProvenance(
+            agent=agent,
+            agent_version=agent_version,
+            model=model,
+            prompt_digest=_digest_bytes(prompt.encode()),
+            rubric_digest=digest_json(rubric),
+            output_schema_digest=digest_json(schema),
+            created_at=created_at or datetime.now(UTC),
+            input_tokens=call_result.input_tokens,
+            output_tokens=call_result.output_tokens,
+            cost_usd=call_result.cost_usd,
+        ),
+        output=output,
+        validation_status="invalid" if validation_errors else "valid",
+        validation_errors=validation_errors,
+        raw_response_digest=_digest_bytes(call_result.raw_output.encode()),
+    )
+    if _trial_tree_digests(trial.path) != before:
+        raise RuntimeError("analysis modified the immutable source trial")
+    sidecar_dir = destination_root.resolve() / str(analysis_id)
+    sidecar_dir.mkdir(parents=True, exist_ok=False)
+    sidecar_path = sidecar_dir / "analysis.json"
+    sidecar_path.write_text(sidecar.model_dump_json(indent=2) + "\n")
+    return sidecar_path, sidecar
+
+
+def write_analysis_review(
+    sidecar_path: Path,
+    *,
+    disposition: str,
+    rationale: str,
+    reviewer: str,
+    superseded_by: UUID | None = None,
+    reviewed_at: datetime | None = None,
+) -> tuple[Path, AnalysisReview]:
+    sidecar = TrialAnalysisSidecar.model_validate_json(sidecar_path.read_text())
+    review = AnalysisReview(
+        review_id=uuid4(),
+        analysis_id=sidecar.analysis_id,
+        disposition=disposition,
+        rationale=rationale,
+        reviewer=reviewer,
+        reviewed_at=reviewed_at or datetime.now(UTC),
+        superseded_by=superseded_by,
+    )
+    reviews_dir = sidecar_path.parent / "reviews"
+    reviews_dir.mkdir(exist_ok=True)
+    review_path = reviews_dir / f"{review.review_id}.json"
+    with review_path.open("x") as handle:
+        handle.write(review.model_dump_json(indent=2) + "\n")
+    return review_path, review
+
+
+def validate_queue_authorization(
+    authorization_path: Path,
+    *,
+    repo_root: Path,
+    source_trial_id: str,
+) -> JsonObject:
+    resolved = authorization_path.resolve()
+    running = (repo_root / "queue/running").resolve()
+    if resolved.parent != running:
+        raise ValueError("live analysis requires an authorization in queue/running")
+    payload = json.loads(resolved.read_text())
+    if not isinstance(payload, dict):
+        raise ValueError("queue authorization must be an object")
+    required = {
+        "kind": "researcher-followup",
+        "policy_rule": "researcher-followups",
+        "source_trial_id": source_trial_id,
+    }
+    for field, expected in required.items():
+        if payload.get(field) != expected:
+            raise ValueError(f"queue authorization {field} must be {expected!r}")
+    if payload.get("max_model_calls") != 2:
+        raise ValueError("queue authorization must cap max_model_calls at 2")
+    return payload
+
+
+class CodexExecAnalyzer:
+    """Queue-gated headless Codex adapter; tests should inject a stub instead."""
+
+    def __init__(
+        self,
+        *,
+        repo_root: Path,
+        trial: TrialRecord,
+        model: str,
+        authorization_path: Path,
+        scratch_dir: Path,
+    ) -> None:
+        validate_queue_authorization(
+            authorization_path,
+            repo_root=repo_root,
+            source_trial_id=trial.id,
+        )
+        self.repo_root = repo_root
+        self.trial = trial
+        self.model = model
+        self.authorization_path = authorization_path
+        self.scratch_dir = scratch_dir.resolve()
+        self.scratch_dir.mkdir(parents=True, exist_ok=True)
+        self._calls = 0
+
+    def __call__(self, prompt: str, schema: dict[str, Any]) -> AnalyzerCallResult:
+        validate_queue_authorization(
+            self.authorization_path,
+            repo_root=self.repo_root,
+            source_trial_id=self.trial.id,
+        )
+        if self._calls >= 2:
+            raise RuntimeError("queue authorization caps analysis at two model calls")
+        self._calls += 1
+        call_id = uuid4()
+        schema_path = self.scratch_dir / f"{call_id}.schema.json"
+        output_path = self.scratch_dir / f"{call_id}.output.json"
+        schema_path.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n")
+        completed = subprocess.run(
+            [
+                "codex",
+                "exec",
+                "--ephemeral",
+                "--sandbox",
+                "read-only",
+                "--model",
+                self.model,
+                "--output-schema",
+                str(schema_path),
+                "--output-last-message",
+                str(output_path),
+                "--cd",
+                str(self.trial.path),
+                prompt,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            raise RuntimeError(
+                f"codex exec failed with {completed.returncode}: "
+                f"{completed.stderr.strip()[:500]}"
+            )
+        return AnalyzerCallResult(raw_output=output_path.read_text())
+
+
+def ingest_analysis_sidecar(
+    database_url: str,
+    sidecar_path: Path,
+    *,
+    root: Path,
+) -> TrialAnalysisSidecar:
+    sidecar = TrialAnalysisSidecar.model_validate_json(sidecar_path.read_text())
+    sidecar_sha256 = _analysis_file_digest(sidecar_path)
+    with psycopg.connect(database_url) as connection:
+        existing = connection.execute(
+            "SELECT sidecar_sha256 FROM analysis_invocations WHERE id = %s",
+            (str(sidecar.analysis_id),),
+        ).fetchone()
+        if existing is not None and existing[0] not in (None, sidecar_sha256):
+            raise ValueError(
+                f"analysis {sidecar.analysis_id} is already indexed with different bytes"
+            )
+        connection.execute(
+            """
+            INSERT INTO analysis_invocations (
+                id, source_trial_id, sidecar_path, sidecar_sha256, validation_status,
+                agent_name, agent_version, model_name, prompt_digest,
+                rubric_digest, output_schema_digest, source_digests,
+                created_at, input_tokens, output_tokens, cost_usd, raw_sidecar
+            ) VALUES (
+                %(id)s, %(source_trial_id)s, %(sidecar_path)s, %(sidecar_sha256)s,
+                %(validation_status)s, %(agent_name)s, %(agent_version)s,
+                %(model_name)s, %(prompt_digest)s, %(rubric_digest)s,
+                %(output_schema_digest)s, %(source_digests)s, %(created_at)s,
+                %(input_tokens)s, %(output_tokens)s, %(cost_usd)s, %(raw_sidecar)s
+            )
+            ON CONFLICT (id) DO UPDATE SET
+                sidecar_path = EXCLUDED.sidecar_path,
+                sidecar_sha256 = EXCLUDED.sidecar_sha256,
+                validation_status = EXCLUDED.validation_status,
+                raw_sidecar = EXCLUDED.raw_sidecar
+            WHERE analysis_invocations.sidecar_sha256 IS NULL
+            """,
+            {
+                "id": str(sidecar.analysis_id),
+                "source_trial_id": str(sidecar.source_trial_id),
+                "sidecar_path": _relative_or_absolute(sidecar_path, root),
+                "sidecar_sha256": sidecar_sha256,
+                "validation_status": sidecar.validation_status,
+                "agent_name": sidecar.analysis_provenance.agent,
+                "agent_version": sidecar.analysis_provenance.agent_version,
+                "model_name": sidecar.analysis_provenance.model,
+                "prompt_digest": sidecar.analysis_provenance.prompt_digest,
+                "rubric_digest": sidecar.analysis_provenance.rubric_digest,
+                "output_schema_digest": sidecar.analysis_provenance.output_schema_digest,
+                "source_digests": Jsonb(sidecar.source_digests.model_dump(mode="json")),
+                "created_at": sidecar.analysis_provenance.created_at,
+                "input_tokens": sidecar.analysis_provenance.input_tokens,
+                "output_tokens": sidecar.analysis_provenance.output_tokens,
+                "cost_usd": sidecar.analysis_provenance.cost_usd,
+                "raw_sidecar": Jsonb(sidecar.model_dump(mode="json")),
+            },
+        )
+        connection.execute(
+            """
+            INSERT INTO analysis_findings (
+                analysis_id, validity, primary_category, summary,
+                earliest_failure_step_id, confidence, proposed_discriminator,
+                alternative_explanations
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (analysis_id) DO UPDATE SET
+                validity = EXCLUDED.validity,
+                primary_category = EXCLUDED.primary_category,
+                summary = EXCLUDED.summary,
+                earliest_failure_step_id = EXCLUDED.earliest_failure_step_id,
+                confidence = EXCLUDED.confidence,
+                proposed_discriminator = EXCLUDED.proposed_discriminator,
+                alternative_explanations = EXCLUDED.alternative_explanations
+            """,
+            (
+                str(sidecar.analysis_id),
+                sidecar.output.validity,
+                sidecar.output.primary_category,
+                sidecar.output.summary,
+                sidecar.output.earliest_failure_step_id,
+                sidecar.output.confidence,
+                sidecar.output.proposed_discriminator,
+                Jsonb(sidecar.output.alternative_explanations),
+            ),
+        )
+        connection.execute(
+            "DELETE FROM analysis_evidence_citations WHERE analysis_id = %s",
+            (str(sidecar.analysis_id),),
+        )
+        for index, citation in enumerate(sidecar.output.evidence):
+            connection.execute(
+                """
+                INSERT INTO analysis_evidence_citations (
+                    analysis_id, citation_index, source_path, step_id,
+                    tool_call_id, supports
+                ) VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    str(sidecar.analysis_id),
+                    index,
+                    citation.path,
+                    citation.step_id,
+                    citation.tool_call_id,
+                    citation.supports,
+                ),
+            )
+        for review_path in sorted((sidecar_path.parent / "reviews").glob("*.json")):
+            review = AnalysisReview.model_validate_json(review_path.read_text())
+            connection.execute(
+                """
+                INSERT INTO analysis_reviews (
+                    id, analysis_id, disposition, rationale, reviewer,
+                    reviewed_at, superseded_by, review_path
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (
+                    str(review.review_id),
+                    str(review.analysis_id),
+                    review.disposition,
+                    review.rationale,
+                    review.reviewer,
+                    review.reviewed_at,
+                    str(review.superseded_by) if review.superseded_by else None,
+                    _relative_or_absolute(review_path, root),
+                ),
+            )
+    return sidecar

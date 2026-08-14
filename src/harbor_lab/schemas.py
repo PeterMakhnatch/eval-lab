@@ -194,6 +194,58 @@ class RunProvenance(ContractModel):
     policy_rule: str | None = None
 
 
+class CohortSelector(ContractModel):
+    label: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    paths: list[str] = Field(min_length=1)
+    trial_names: list[str] = Field(default_factory=list)
+
+    @field_validator("paths")
+    @classmethod
+    def paths_stay_in_repository(cls, values: list[str]) -> list[str]:
+        for value in values:
+            if value.startswith("/") or ".." in value.split("/"):
+                raise ValueError("cohort paths must stay relative to the repository")
+        return values
+
+
+class CohortComparisonSpec(ContractModel):
+    schema_version: Literal[1] = 1
+    comparison_id: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    experiment_id: str = Field(min_length=1)
+    declared_variable: Literal[
+        "agent_name",
+        "agent_version",
+        "model_name",
+        "model_settings_digest",
+        "environment_digest",
+    ]
+    mode: Literal["causal", "exploratory"] = "causal"
+    reward_name: str = "reward"
+    pass_threshold: float = 1.0
+    pass_k: list[int] = Field(default_factory=lambda: [1], min_length=1)
+    pairing_key: Literal["task_digest", "task_name", "trial_name"] = "task_digest"
+    constraints: dict[
+        Literal["task_digest", "verifier_digest", "environment_digest"], str
+    ] = Field(default_factory=dict)
+    cohorts: list[CohortSelector] = Field(min_length=2)
+
+    @field_validator("pass_k")
+    @classmethod
+    def pass_k_is_positive_and_unique(cls, values: list[int]) -> list[int]:
+        if any(value < 1 for value in values):
+            raise ValueError("pass_k values must be positive")
+        if len(values) != len(set(values)):
+            raise ValueError("pass_k values must be unique")
+        return sorted(values)
+
+    @model_validator(mode="after")
+    def cohort_labels_are_unique(self) -> CohortComparisonSpec:
+        labels = [cohort.label for cohort in self.cohorts]
+        if len(labels) != len(set(labels)):
+            raise ValueError("cohort labels must be unique")
+        return self
+
+
 class CanaryMember(ContractModel):
     name: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
     task_path: str = Field(min_length=1)

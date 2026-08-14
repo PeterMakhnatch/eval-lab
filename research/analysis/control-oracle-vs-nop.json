@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "comparison_id": "event-summary-oracle-vs-nop",
+  "experiment_id": "event-summary-local-controls",
+  "declared_variable": "agent_name",
+  "mode": "causal",
+  "reward_name": "reward",
+  "pass_threshold": 1.0,
+  "pass_k": [1],
+  "pairing_key": "task_digest",
+  "cohorts": [
+    {
+      "label": "oracle",
+      "paths": ["evidence/runs/event-summary-oracle-evidence"]
+    },
+    {
+      "label": "nop",
+      "paths": ["evidence/runs/event-summary-nop-evidence"]
+    }
+  ]
+}

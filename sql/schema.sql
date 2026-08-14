@@ -20,6 +20,27 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE UNIQUE INDEX IF NOT EXISTS jobs_evidence_path_idx ON jobs (evidence_path);
 CREATE INDEX IF NOT EXISTS jobs_started_at_idx ON jobs (started_at);
 
+CREATE TABLE IF NOT EXISTS experiments (
+    id text PRIMARY KEY,
+    source_kind text NOT NULL,
+    raw_provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+    ingested_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS experiment_id text;
+CREATE INDEX IF NOT EXISTS jobs_experiment_idx ON jobs (experiment_id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'jobs_experiment_id_fkey'
+    ) THEN
+        ALTER TABLE jobs
+            ADD CONSTRAINT jobs_experiment_id_fkey
+            FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS trials (
     id uuid PRIMARY KEY,
     job_id uuid NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -88,6 +109,52 @@ CREATE TABLE IF NOT EXISTS run_files (
 CREATE INDEX IF NOT EXISTS run_files_kind_idx ON run_files (kind);
 CREATE INDEX IF NOT EXISTS run_files_sha256_idx ON run_files (sha256);
 
+CREATE TABLE IF NOT EXISTS trajectory_documents (
+    id text PRIMARY KEY,
+    trial_id uuid NOT NULL REFERENCES trials(id) ON DELETE CASCADE,
+    source_path text NOT NULL,
+    source_sha256 text NOT NULL,
+    embedded_path text,
+    schema_version text,
+    session_id text,
+    trajectory_id text,
+    validation_status text NOT NULL,
+    validator text NOT NULL,
+    validation_error text,
+    step_count integer NOT NULL,
+    llm_call_count integer NOT NULL,
+    parquet_path text
+);
+
+CREATE INDEX IF NOT EXISTS trajectory_documents_trial_idx
+    ON trajectory_documents (trial_id);
+CREATE INDEX IF NOT EXISTS trajectory_documents_status_idx
+    ON trajectory_documents (validation_status);
+
+CREATE TABLE IF NOT EXISTS deterministic_trial_facts (
+    trial_id uuid PRIMARY KEY REFERENCES trials(id) ON DELETE CASCADE,
+    verifier_digest text NOT NULL,
+    environment_digest text NOT NULL,
+    agent_config_digest text NOT NULL,
+    exception_phase text,
+    environment_setup_seconds double precision,
+    agent_setup_seconds double precision,
+    agent_execution_seconds double precision,
+    verifier_seconds double precision,
+    trajectory_count integer NOT NULL,
+    invalid_trajectory_count integer NOT NULL,
+    step_count integer NOT NULL,
+    llm_call_count integer NOT NULL,
+    tool_call_count integer NOT NULL,
+    command_failure_count integer NOT NULL,
+    repeated_failed_command_count integer NOT NULL,
+    artifact_count integer NOT NULL,
+    missing_artifact_count integer NOT NULL,
+    artifact_set_digest text NOT NULL,
+    raw_facts jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE OR REPLACE VIEW trial_observations AS
 SELECT
     j.job_name,
@@ -107,7 +174,8 @@ SELECT
     t.cache_tokens,
     t.output_tokens,
     t.cost_usd,
-    t.evidence_path
+    t.evidence_path,
+    j.experiment_id
 FROM trials t
 JOIN jobs j ON j.id = t.job_id;
 

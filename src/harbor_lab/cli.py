@@ -10,7 +10,9 @@ from pathlib import Path
 from harbor_lab import __version__, database
 from harbor_lab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
 from harbor_lab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
+from harbor_lab.cohort import write_comparison
 from harbor_lab.digest import DigestRenderer
+from harbor_lab.facts import ingest_catalog, rebuild_from_raw
 from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
 from harbor_lab.results import JobRecord, load_job, load_jobs
 from harbor_lab.runner import (
@@ -120,6 +122,28 @@ def parser() -> argparse.ArgumentParser:
     ingest = commands.add_parser("ingest", help="Upsert Harbor job metadata into PostgreSQL")
     ingest.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
     ingest.add_argument("--database-url")
+    ingest.add_argument("--derived-dir", type=Path, default=Path("derived/parquet"))
+
+    trajectories = commands.add_parser(
+        "trajectories",
+        help="Validate ATIF and optionally rebuild deterministic Parquet facts",
+    )
+    trajectories.add_argument(
+        "paths",
+        type=Path,
+        nargs="*",
+        default=[Path("runs"), Path("research/evidence/runs"), Path("evidence/runs")],
+    )
+    trajectories.add_argument(
+        "--export",
+        action="store_true",
+        help="Write trajectory and trial facts to partitioned Parquet",
+    )
+    trajectories.add_argument("--output-dir", type=Path, default=Path("derived/parquet"))
+
+    compare = commands.add_parser("compare", help="Compare declared trial cohorts")
+    compare.add_argument("path", type=Path)
+    compare.add_argument("--output-dir", type=Path, default=Path("derived/comparisons"))
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)
@@ -320,7 +344,51 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             url = database_url_from_environment(args.database_url)
             database.initialize(url)
             count = database.ingest(url, jobs, root=root)
+            derived_root = _resolve(root, args.derived_dir)
+            rebuild_from_raw(jobs, derived_root)
+            ingest_catalog(url, jobs, root=root, derived_root=derived_root)
             print(f"ingested {count} job(s)")
+            return 0
+        if args.command == "trajectories":
+            from harbor_lab.atif import project_trial
+
+            jobs = load_jobs([_resolve(root, path) for path in args.paths])
+            if not jobs:
+                print("No completed Harbor jobs found.", file=sys.stderr)
+                return 1
+            print("| job | trial | status | documents | steps | tools |")
+            print("|---|---|---|---:|---:|---:|")
+            for job in jobs:
+                for trial in job.trials:
+                    projection = project_trial(job, trial)
+                    statuses = {item.validation_status for item in projection.trajectories}
+                    status = (
+                        "none"
+                        if not statuses
+                        else "invalid"
+                        if "invalid" in statuses
+                        else "unsupported"
+                        if "unsupported" in statuses
+                        else "valid"
+                    )
+                    print(
+                        f"| {job.name} | {trial.name} | {status} | "
+                        f"{len(projection.trajectories)} | {len(projection.steps)} | "
+                        f"{len(projection.tool_calls)} |"
+                    )
+            if args.export:
+                rebuilt = rebuild_from_raw(jobs, _resolve(root, args.output_dir))
+                for table in rebuilt.tables:
+                    print(f"{table.table}: {table.rows} row(s) -> {table.path}")
+            return 0
+        if args.command == "compare":
+            json_path, markdown_path, _ = write_comparison(
+                _resolve(root, args.path),
+                repo_root=root,
+                output_root=_resolve(root, args.output_dir),
+            )
+            print(f"json: {json_path}")
+            print(f"markdown: {markdown_path}")
             return 0
         if args.command == "db" and args.db_command == "init":
             url = database_url_from_environment(args.database_url)

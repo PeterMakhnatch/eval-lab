@@ -90,6 +90,7 @@ def make_executor(root: Path, requests: list, ingested: list[Path]) -> Executor:
         ingester=ingested.append,
         spent_today=lambda: 0,
         consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset({"codex_auth"}),
     )
 
 

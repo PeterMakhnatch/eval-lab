@@ -85,9 +85,18 @@ echo "Stored. Verifying (no value is printed):"
 echo
 
 stored="$(/usr/bin/security find-generic-password -s "$SERVICE" -a "$ACCOUNT" -w 2>/dev/null)"
-if [ -z "$stored" ]; then
+read_status=$?
+if [ "$read_status" -ne 0 ]; then
     echo "  readable non-interactively: no  <- unexpected, re-run this script" >&2
     exit 70
+fi
+if [ -z "$stored" ]; then
+    echo "  an EMPTY value was stored: the paste did not land at the hidden prompts." >&2
+    echo "  (This happens when the clipboard was empty or Return was pressed twice.)" >&2
+    echo "  Removing the empty item. Copy the token, re-run this script, and type" >&2
+    echo "  'skip' at the first prompt to go straight to the paste step." >&2
+    /usr/bin/security delete-generic-password -s "$SERVICE" -a "$ACCOUNT" >/dev/null 2>&1
+    exit 65
 fi
 echo "  readable non-interactively: yes"
 case "$stored" in
@@ -98,7 +107,9 @@ case "$stored" in
         echo "  looks like a Claude OAuth token: NO"
         echo
         echo "  The stored value does not start with 'sk-ant-oat'. That usually means" >&2
-        echo "  something other than the token was pasted. Re-run this script." >&2
+        echo "  something other than the token was pasted. Removing it; re-run this" >&2
+        echo "  script and type 'skip' at the first prompt." >&2
+        /usr/bin/security delete-generic-password -s "$SERVICE" -a "$ACCOUNT" >/dev/null 2>&1
         unset stored
         exit 65
         ;;

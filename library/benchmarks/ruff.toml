@@ -1,0 +1,7 @@
+# Vendored Harbor Hub datasets. Pin integrity (task_checksum) beats lab style.
+# INGEST cannot edit root pyproject.toml; this nearest-config file silences
+# upstream task sources the same way `adapters/quixbugs/generated` is excluded
+# at the root.
+
+[lint]
+select = []

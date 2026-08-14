@@ -1,0 +1,4 @@
+  Solve the following problem. Reason step by step, create the file `/app/answer.txt`, and put your final answer there.
+  Your answer should be a single integer from 1 to 999 inclusive.
+
+    Six points $A, B, C, D, E$ and $F$ lie in a straight line in that order. Suppose that $G$ is a point not on the line and that $AC = 26$, $BD = 22$, $CE = 31$, $DF = 33$, $AF = 73$, $CG = 40$, and $DG = 30$. Find the area of $\triangle BGE$.

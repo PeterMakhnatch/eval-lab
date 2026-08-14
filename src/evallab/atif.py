@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import deque
+from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -157,6 +158,72 @@ class ExportResult:
         for table in self.tables:
             counts[table.table] = counts.get(table.table, 0) + table.rows
         return counts
+
+
+PROJECTION_FAILURE_REASON = "projection_failed"
+JOB_PROJECTION_FILE = "jobs.parquet"
+PROJECTED_TABLES = frozenset(
+    {
+        "trajectories.parquet",
+        "steps.parquet",
+        "tool_calls.parquet",
+        "observations.parquet",
+        "trial_facts.parquet",
+        "reward_facts.parquet",
+        "artifact_facts.parquet",
+        "tool_usage.parquet",
+    }
+)
+
+
+@dataclass(frozen=True)
+class ProjectionFailure:
+    job_id: str
+    job_name: str
+    error_type: str
+    message: str
+
+    @property
+    def reason_code(self) -> str:
+        return f"{PROJECTION_FAILURE_REASON}:{self.job_id}:{self.error_type}"
+
+
+@dataclass(frozen=True)
+class IngestProjectionResult:
+    cataloged_jobs: int
+    tables: tuple[ExportedTable, ...]
+    failures: tuple[ProjectionFailure, ...]
+
+    @property
+    def row_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for table in self.tables:
+            counts[table.table] = counts.get(table.table, 0) + table.rows
+        return counts
+
+
+@dataclass(frozen=True)
+class ProjectionInvariant:
+    catalog_job_ids: frozenset[str]
+    projected_job_ids: frozenset[str]
+    excepted_job_ids: frozenset[str]
+    missing_job_ids: frozenset[str]
+    extra_job_ids: frozenset[str]
+
+    @property
+    def ok(self) -> bool:
+        return not self.missing_job_ids and not self.extra_job_ids
+
+    @property
+    def detail(self) -> str:
+        return (
+            f"catalog={len(self.catalog_job_ids)} projected={len(self.projected_job_ids)} "
+            f"exceptions={len(self.excepted_job_ids)} "
+            f"missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
+        )
+
+
+CatalogRowsLoader = Callable[[str], list[tuple[str, str, str | None]]]
 
 
 def _load_json(path: Path) -> tuple[Any | None, str | None]:
@@ -592,6 +659,13 @@ def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjecti
 
 
 PARQUET_SCHEMAS = {
+    "jobs": pa.schema(
+        [
+            pa.field("job_id", pa.string(), nullable=False),
+            pa.field("job_name", pa.string(), nullable=False),
+            pa.field("trial_count", pa.int64(), nullable=False),
+        ]
+    ),
     "trajectories": pa.schema(
         [
             pa.field("job_id", pa.string(), nullable=False),
@@ -710,3 +784,159 @@ def export_trajectories(jobs: list[JobRecord], output_root: Path) -> ExportResul
                     _write_parquet(partition / f"{table_name}.parquet", table_name, rows)
                 )
     return ExportResult(root=output_root, tables=tuple(exported))
+
+
+def ingest_and_project(
+    database_url: str,
+    jobs: list[JobRecord],
+    *,
+    root: Path,
+    output_root: Path,
+) -> IngestProjectionResult:
+    """Land completed jobs in the catalog, then rebuild their derived Parquet.
+
+    Catalog transactions finish before any Parquet write begins. A filesystem or
+    Arrow failure is therefore returned to the caller for event attribution and
+    never rolls back the searchable job/trial catalog.
+    """
+    from evallab import database
+    from evallab.facts import ingest_catalog, rebuild_from_raw
+
+    ordered_jobs = sorted(jobs, key=lambda item: item.id)
+    derived_root = output_root.resolve()
+    database.initialize(database_url)
+    cataloged_jobs = database.ingest(database_url, ordered_jobs, root=root)
+    # Index document-level and deterministic facts before touching Parquet. The
+    # paths describe the deterministic target even when a later write is recorded
+    # as a projection exception.
+    ingest_catalog(
+        database_url,
+        ordered_jobs,
+        root=root,
+        derived_root=derived_root,
+    )
+
+    tables: list[ExportedTable] = []
+    failures: list[ProjectionFailure] = []
+    for job in ordered_jobs:
+        try:
+            job_table = _write_parquet(
+                derived_root / f"job_id={job.id}" / JOB_PROJECTION_FILE,
+                "jobs",
+                [{"job_id": job.id, "job_name": job.name, "trial_count": len(job.trials)}],
+            )
+            tables.append(job_table)
+            rebuilt = rebuild_from_raw([job], derived_root)
+        except Exception as exc:  # Projection failure is data, not an agent result.
+            failures.append(
+                ProjectionFailure(
+                    job_id=job.id,
+                    job_name=job.name,
+                    error_type=type(exc).__name__,
+                    message=f"{type(exc).__name__}: {exc}",
+                )
+            )
+            continue
+        tables.extend(rebuilt.tables)
+    return IngestProjectionResult(
+        cataloged_jobs=cataloged_jobs,
+        tables=tuple(tables),
+        failures=tuple(failures),
+    )
+
+
+def _load_catalog_projection_rows(database_url: str) -> list[tuple[str, str, str | None]]:
+    import psycopg
+
+    with psycopg.connect(database_url, connect_timeout=2) as connection:
+        return [
+            (str(job_id), str(job_name), str(trial_id) if trial_id is not None else None)
+            for job_id, job_name, trial_id in connection.execute(
+                """
+                SELECT j.id, j.job_name, t.id
+                FROM jobs j
+                LEFT JOIN trials t ON t.job_id = j.id
+                ORDER BY j.id, t.id
+                """
+            ).fetchall()
+        ]
+
+
+def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
+    if not events_path.is_file():
+        return frozenset()
+    job_ids: set[str] = set()
+    for line in events_path.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        reason = payload.get("reason_code") if isinstance(payload, dict) else None
+        if not isinstance(reason, str) or not reason.startswith(
+            f"{PROJECTION_FAILURE_REASON}:"
+        ):
+            continue
+        parts = reason.split(":", 3)
+        if len(parts) >= 3 and parts[1]:
+            job_ids.add(parts[1])
+    return frozenset(job_ids)
+
+
+def check_projection_invariant(
+    database_url: str,
+    output_root: Path,
+    events_path: Path,
+    *,
+    catalog_rows_loader: CatalogRowsLoader = _load_catalog_projection_rows,
+) -> ProjectionInvariant:
+    """Check catalog jobs against complete Parquet trial partitions.
+
+    A catalog job without a complete partition is acceptable only while its job
+    ID has a recorded projection-failure reason in the append-only queue events.
+    """
+    catalog_rows = catalog_rows_loader(database_url)
+    catalog_trials: dict[str, set[str]] = defaultdict(set)
+    for job_id, _job_name, trial_id in catalog_rows:
+        if trial_id is not None:
+            catalog_trials[job_id].add(trial_id)
+        else:
+            catalog_trials.setdefault(job_id, set())
+    catalog_job_ids = frozenset(catalog_trials)
+
+    derived_root = output_root.resolve()
+    present_job_ids = {
+        path.name.removeprefix("job_id=")
+        for path in derived_root.glob("job_id=*")
+        if path.is_dir()
+    }
+    projected_job_ids: set[str] = set()
+    for job_id, trial_ids in catalog_trials.items():
+        job_root = derived_root / f"job_id={job_id}"
+        if not (job_root / JOB_PROJECTION_FILE).is_file():
+            continue
+        if not trial_ids:
+            projected_job_ids.add(job_id)
+            continue
+        if all(
+            {
+                child.name
+                for child in (job_root / f"trial_id={trial_id}").glob("*.parquet")
+                if child.is_file()
+            }
+            >= PROJECTED_TABLES
+            for trial_id in trial_ids
+        ):
+            projected_job_ids.add(job_id)
+
+    recorded = _recorded_projection_exceptions(events_path)
+    missing = catalog_job_ids - projected_job_ids
+    excepted = missing & recorded
+    return ProjectionInvariant(
+        catalog_job_ids=catalog_job_ids,
+        projected_job_ids=frozenset(projected_job_ids),
+        excepted_job_ids=frozenset(excepted),
+        missing_job_ids=frozenset(missing - excepted),
+        extra_job_ids=frozenset(present_job_ids - catalog_job_ids),
+    )

@@ -136,11 +136,26 @@ the task or harness before spending model tokens.
 
 ```bash
 uv run evallab ingest runs research/evidence/runs
+uv run evallab trajectories runs research/evidence/runs
 uv run evallab db list --limit 50
 ```
 
-The ingester is idempotent. It updates jobs and trials by Harbor UUID, replaces
-their reward/artifact/file inventories, and leaves raw files untouched.
+Every completed job uses one idempotent ingest-and-project path. Queue completion,
+the nightly backfill, `ingest`, and the manual `trajectories` rebuild all update
+PostgreSQL first, then write a `jobs.parquet` marker per job and the eight
+deterministic trial tables below `derived/parquet/job_id=*/trial_id=*/`. The
+job marker keeps zero-trial completed jobs inside the same invariant. Rebuilds
+replace catalog inventories and Parquet partitions by stable Harbor UUID while
+leaving raw evidence untouched.
+
+A Parquet failure cannot roll back catalog ingest or turn a completed agent run
+into an execution failure. It appends a
+`projection_failed:<job-id>:<error-type>` queue event and leaves the job done so
+the cause is visibly attributed to the harness. `uv run evallab doctor` enforces
+the operational invariant: every catalog job has complete trial partitions, or
+its exact job ID has such a recorded exception. Remove `derived/parquet/` and run
+`evallab trajectories` over all raw roots to prove full rebuildability; identical
+table row counts are expected.
 
 ## Evidence promotion checklist
 

@@ -13,8 +13,14 @@ from typing import Any
 
 from evallab import credentials as credentials_module
 from evallab import database
+from evallab.atif import IngestProjectionResult
 from evallab.digest import DigestRenderer, commit_digest
-from evallab.queue import DirectoryQueue, Executor, new_ulid
+from evallab.queue import (
+    DirectoryQueue,
+    Executor,
+    new_ulid,
+    record_projection_failures,
+)
 from evallab.runner import database_url_from_environment
 from evallab.schemas import (
     HeadlessDoctorChecks,
@@ -32,6 +38,7 @@ DigestCommitter = Callable[[Path], bool]
 CanaryEnqueuer = Callable[[date], int]
 ResearcherPass = Callable[[date], int]
 DigestEnricher = Callable[[Path, date], None]
+CompletedJobIngester = Callable[[], IngestProjectionResult]
 
 
 def _quiet_command_succeeds(command: list[str]) -> bool:
@@ -224,6 +231,7 @@ class NightlyCycle:
         canary_enqueuer: CanaryEnqueuer | None = None,
         researcher_pass: ResearcherPass | None = None,
         digest_enricher: DigestEnricher | None = None,
+        completed_job_ingester: CompletedJobIngester | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
@@ -232,6 +240,7 @@ class NightlyCycle:
         self.canary_enqueuer = canary_enqueuer
         self.researcher_pass = researcher_pass
         self.digest_enricher = digest_enricher
+        self.completed_job_ingester = completed_job_ingester
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
@@ -240,7 +249,30 @@ class NightlyCycle:
         enqueued = 0
         dispatched = 0
         researcher_invocations = 0
-        if report.healthy:
+        if report.healthy and self.completed_job_ingester is not None:
+            try:
+                ingest_result = self.completed_job_ingester()
+            except Exception as exc:
+                quarantined = True
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="nightly_quarantined",
+                        actor="nightly",
+                        reason_code=f"catalog_ingest_failed:{type(exc).__name__}",
+                        report_date=target_date.isoformat(),
+                    )
+                )
+            else:
+                record_projection_failures(
+                    self.executor.queue,
+                    ingest_result,
+                    actor="nightly",
+                    spec_id=f"system-{new_ulid()}",
+                )
+        if report.healthy and not quarantined:
             try:
                 if self.canary_enqueuer is not None:
                     enqueued = self.canary_enqueuer(target_date)
@@ -289,7 +321,7 @@ class NightlyCycle:
                                     report_date=target_date.isoformat(),
                                 )
                             )
-        else:
+        elif not report.healthy:
             record_quarantine(
                 self.executor.queue,
                 event="nightly_quarantined",

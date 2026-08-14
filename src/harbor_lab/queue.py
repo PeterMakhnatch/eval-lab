@@ -15,7 +15,11 @@ import yaml
 from pydantic import ValidationError
 
 from harbor_lab import database
-from harbor_lab.credentials import available_credentials, missing_credential_for
+from harbor_lab.credentials import (
+    DEFAULT_AGENT_MODELS,
+    available_credentials,
+    missing_credential_for,
+)
 from harbor_lab.results import load_job
 from harbor_lab.runner import (
     CONTROL_AGENTS,
@@ -496,7 +500,9 @@ class Executor:
             name=spec.name,
             jobs_dir=jobs_dir,
             environment=spec.environment,
-            model=spec.model,
+            # Harbor's installed agents hard-require a model name; specs that
+            # do not pin one fall back to the per-agent default.
+            model=spec.model or DEFAULT_AGENT_MODELS.get(spec.agent),
             concurrency=spec.concurrency,
             attempts=spec.attempts,
             allow_billable=spec.billable,

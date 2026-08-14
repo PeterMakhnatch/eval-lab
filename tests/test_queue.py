@@ -247,3 +247,24 @@ def test_missing_credential_defers_spec_without_moving_it(tmp_path: Path) -> Non
     events = load_events(tmp_path / "queue/events.jsonl")
     deferrals = [e for e in events if e.event == "dispatch_deferred"]
     assert deferrals and deferrals[-1].reason_code == "missing_credential:codex_auth"
+
+
+def test_spec_without_model_gets_agent_default_and_explicit_model_wins(tmp_path: Path) -> None:
+    requests = []
+
+    def run(request):
+        requests.append(request)
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        return destination
+
+    service = executor(tmp_path, runner=run)
+    service.submit(spec("codex-default-model", agent="codex", task="canary/event-summary"))
+    service.submit(
+        spec("codex-pinned-model", agent="codex", task="canary/event-summary", model="pinned-x")
+    )
+    service.tick()
+
+    by_name = {request.name: request.model for request in requests}
+    assert by_name["codex-default-model"] == "gpt-5.6-terra"
+    assert by_name["codex-pinned-model"] == "pinned-x"

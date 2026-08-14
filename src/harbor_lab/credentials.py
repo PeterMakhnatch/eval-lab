@@ -61,3 +61,14 @@ def missing_credential_for(agent: str, available: frozenset[str]) -> str | None:
     if required is None or required in available:
         return None
     return required
+
+
+# Default model per agent when a spec does not pin one. The codex value is
+# proven: it is the model recorded in the successful harbor-practice codex run
+# (2026-08-06, transaction-reconciliation). The claude-code value follows
+# Harbor's model-string convention but is unverified until the Claude
+# credential exists — pin models explicitly in specs for comparisons.
+DEFAULT_AGENT_MODELS: dict[str, str] = {
+    "codex": "gpt-5.6-terra",
+    "claude-code": "anthropic/claude-fable-5",
+}

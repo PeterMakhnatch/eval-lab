@@ -1,7 +1,7 @@
 Status: review-wanted
-Last: brief 08 implemented; fixture tests + dry-run CLI green; Phoenix not started from this worktree
-Next: rebase onto origin/main, push role/observer, open PR
-Blockers: none — integrator must `docker compose up -d phoenix` from the main checkout to render a live span tree
+Last: PR #2 opened — Phoenix compose + harbor-lab trace; fixture tests green
+Next: integrator starts Phoenix from main checkout and ships the RECON fixture
+Blockers: none — do not self-merge (tests/test_tracing.py + uv.lock sit outside the strict owned set)
 
 ## Goal
 

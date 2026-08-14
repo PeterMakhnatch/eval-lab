@@ -30,6 +30,8 @@ BooleanProbe = Callable[[], bool]
 LaunchctlRunner = Callable[[list[str], bool], int]
 DigestCommitter = Callable[[Path], bool]
 CanaryEnqueuer = Callable[[date], int]
+ResearcherPass = Callable[[date], int]
+DigestEnricher = Callable[[Path, date], None]
 
 
 def _quiet_command_succeeds(command: list[str]) -> bool:
@@ -151,6 +153,26 @@ def record_quarantine(
     )
 
 
+def record_researcher_deferral(
+    queue: DirectoryQueue,
+    *,
+    report_date: date,
+    actor: str,
+    reason: str,
+) -> None:
+    queue.append_event(
+        QueueEvent(
+            event_id=new_ulid(),
+            spec_id=f"system-{new_ulid()}",
+            occurred_at=date_time_now(),
+            event="researcher_pass_deferred",
+            actor=actor,
+            reason_code=reason,
+            report_date=report_date.isoformat(),
+        )
+    )
+
+
 def date_time_now() -> datetime:
     # Kept as one seam so tests can validate event shape without patching datetime.
     return datetime.now(UTC)
@@ -188,6 +210,7 @@ class NightlyResult:
     dispatched: int
     digest_path: Path
     committed: bool
+    researcher_invocations: int = 0
 
 
 class NightlyCycle:
@@ -199,12 +222,16 @@ class NightlyCycle:
         renderer: DigestRenderer,
         committer: DigestCommitter = commit_digest,
         canary_enqueuer: CanaryEnqueuer | None = None,
+        researcher_pass: ResearcherPass | None = None,
+        digest_enricher: DigestEnricher | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
         self.renderer = renderer
         self.committer = committer
         self.canary_enqueuer = canary_enqueuer
+        self.researcher_pass = researcher_pass
+        self.digest_enricher = digest_enricher
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
@@ -212,6 +239,7 @@ class NightlyCycle:
         quarantined = not report.healthy
         enqueued = 0
         dispatched = 0
+        researcher_invocations = 0
         if report.healthy:
             try:
                 if self.canary_enqueuer is not None:
@@ -231,6 +259,36 @@ class NightlyCycle:
                 )
             else:
                 dispatched = self.executor.tick()
+                if self.researcher_pass is not None:
+                    if self.executor.queue.stop_path.exists():
+                        record_researcher_deferral(
+                            self.executor.queue,
+                            report_date=target_date,
+                            actor="nightly",
+                            reason="stop_file_present",
+                        )
+                    elif not report.checks.codex_auth_present:
+                        record_researcher_deferral(
+                            self.executor.queue,
+                            report_date=target_date,
+                            actor="nightly",
+                            reason="missing_credential:codex",
+                        )
+                    else:
+                        try:
+                            researcher_invocations = self.researcher_pass(target_date)
+                        except (OSError, RuntimeError, ValueError) as exc:
+                            self.executor.queue.append_event(
+                                QueueEvent(
+                                    event_id=new_ulid(),
+                                    spec_id=f"system-{new_ulid()}",
+                                    occurred_at=date_time_now(),
+                                    event="researcher_pass_failed",
+                                    actor="nightly",
+                                    reason_code=f"researcher_failed:{type(exc).__name__}",
+                                    report_date=target_date.isoformat(),
+                                )
+                            )
         else:
             record_quarantine(
                 self.executor.queue,
@@ -243,6 +301,22 @@ class NightlyCycle:
             health_report=report,
             dispatched=dispatched,
         )
+        if self.digest_enricher is not None:
+            try:
+                self.digest_enricher(digest_path, target_date)
+            except (OSError, RuntimeError, ValueError) as exc:
+                quarantined = True
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="digest_enrichment_failed",
+                        actor="nightly",
+                        reason_code=f"fleet_digest_failed:{type(exc).__name__}",
+                        report_date=target_date.isoformat(),
+                    )
+                )
         return NightlyResult(
             report=report,
             quarantined=quarantined,
@@ -250,6 +324,7 @@ class NightlyCycle:
             dispatched=dispatched,
             digest_path=digest_path,
             committed=self.committer(digest_path),
+            researcher_invocations=researcher_invocations,
         )
 
 

@@ -11,7 +11,14 @@ from pathlib import Path
 from uuid import UUID
 
 from harbor_lab import __version__, database
-from harbor_lab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
+from harbor_lab.automation import (
+    GuardedTick,
+    HeadlessDoctor,
+    NightlyCycle,
+    ScheduleInstaller,
+    record_quarantine,
+    record_researcher_deferral,
+)
 from harbor_lab.calibrate import (
     dispatch_approved_codex_calibration,
     dspy_split_summary,
@@ -37,6 +44,7 @@ from harbor_lab.facts import (
     write_failure_taxonomy_agreement,
 )
 from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
+from harbor_lab.researchers import ResearcherLoop
 from harbor_lab.results import JobRecord, load_job, load_jobs
 from harbor_lab.runner import (
     RunRequest,
@@ -110,6 +118,12 @@ def parser() -> argparse.ArgumentParser:
 
     nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")
     nightly.add_argument("--date", dest="report_date", type=date.fromisoformat)
+
+    research = commands.add_parser(
+        "research",
+        help="Run one guarded analyst/synthesizer/proposer pass",
+    )
+    research.add_argument("--date", dest="report_date", type=date.fromisoformat)
 
     canary = commands.add_parser("canary", help="Manage version-pinned nightly canaries")
     canary_commands = canary.add_subparsers(dest="canary_command", required=True)
@@ -506,19 +520,72 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         if args.command == "digest":
             report_date = args.report_date or date.today()
             path = _digest_renderer(root).write(report_date=report_date)
+            ResearcherLoop.from_repo(root).enrich_digest(path, report_date)
             print(f"digest: {path}")
+            return 0
+        if args.command == "research":
+            report_date = args.report_date or date.today()
+            executor = Executor.from_repo(root)
+            report = HeadlessDoctor(root, executor=executor).run()
+            if not report.healthy:
+                record_quarantine(
+                    executor.queue,
+                    event="researcher_quarantined",
+                    report=report,
+                    actor="manual-researcher",
+                )
+                print("researcher pass quarantined by headless doctor")
+                return 1
+            if not report.checks.codex_auth_present:
+                record_researcher_deferral(
+                    executor.queue,
+                    report_date=report_date,
+                    actor="manual-researcher",
+                    reason="missing_credential:codex",
+                )
+                print("researcher pass deferred: missing Codex credential")
+                return 0
+            result = ResearcherLoop.from_repo(root).run(report_date=report_date)
+            print(f"pass: {result.pass_id}")
+            print(f"invocations: {result.invocation_count}")
+            print(f"attributed cost: ${result.attributed_cost_usd:.2f}")
+            if result.proposal_path is not None:
+                print(f"proposal: {result.proposal_path}")
+            if result.deferred_reason:
+                print(f"deferred: {result.deferred_reason}")
+            if result.failed_reason:
+                print(f"failed: {result.failed_reason}")
+                return 1
             return 0
         if args.command == "nightly":
             executor = Executor.from_repo(root)
+            researcher_loop: ResearcherLoop | None = None
+
+            def get_researcher_loop() -> ResearcherLoop:
+                nonlocal researcher_loop
+                if researcher_loop is None:
+                    researcher_loop = ResearcherLoop.from_repo(root)
+                return researcher_loop
+
             result = NightlyCycle(
                 doctor=HeadlessDoctor(root, executor=executor),
                 executor=executor,
                 renderer=_digest_renderer(root),
                 canary_enqueuer=CanaryEnqueuer.from_repo(root, executor).enqueue,
+                researcher_pass=lambda day: get_researcher_loop().run(
+                    report_date=day
+                ).invocation_count,
+                digest_enricher=lambda path, day: get_researcher_loop().enrich_digest(
+                    path, day
+                ),
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
             print(f"enqueued: {result.enqueued}")
             print(f"dispatched: {result.dispatched}")
+            print(
+                "researcher invocations: "
+                f"{getattr(result, 'researcher_invocations', 0)}"
+            )
             print(f"quarantined: {'yes' if result.quarantined else 'no'}")
             try:
                 print(

@@ -1,7 +1,7 @@
-Status: ready-for-rebase
-Last: Completed live analyst/synthesizer/proposer pass 01KZZCK33HJM4R8HW3V0Y25DXE with three no-tool calls and a proposed-only spec.
-Next: Rebase onto origin/main after credential-aware health lands, rerun checks, push, and open the AUTOPILOT PR.
-Blockers: Credential-aware health is green in draft PR #1 but not yet on origin/main.
+Status: blocked-on-upstream
+Last: Completed and validated live pass 01KZZCK33HJM4R8HW3V0Y25DXE; aborted the required rebase at an unowned CURATOR conflict.
+Next: After PR #1 lands, rebase the AUTOPILOT-only commits onto origin/main, rerun checks, push, and open the PR.
+Blockers: PR #1 is still draft; `git rebase origin/main` conflicts in agents/handoffs/curator.md while replaying 7189fe4, so protocol forbids resolving or skipping it.
 
 AUTOPILOT is integrating the headless researcher pass without changing the
 standing-approvals policy or giving researcher subprocesses write/network

@@ -45,8 +45,11 @@ _MAX_EVIDENCE_TRIALS = 8
 _MAX_JOURNAL_TAIL_CHARS = 6_000
 _DANGEROUS_ENVIRONMENT_KEYS = {
     "ANTHROPIC_API_KEY",
+    "CLAUDE_CODE_OAUTH_TOKEN",
     "CODEX_API_KEY",
     "DATABASE_URL",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
     "HARBOR_DATABASE_URL",
     "OPENAI_API_KEY",
 }
@@ -311,6 +314,10 @@ class CodexInvoker:
             "--config",
             "features.hooks=false",
             "--config",
+            "features.shell_tool=false",
+            "--config",
+            "features.unified_exec=false",
+            "--config",
             "features.rollout_budget.enabled=true",
             "--config",
             f"features.rollout_budget.limit_tokens={limits.max_tokens}",
@@ -538,7 +545,6 @@ class ResearcherLoop:
             return self._defer(pass_id, target_date, manifest_path, "stop_file_present")
 
         try:
-            catalog_spend = self._catalog_spend(budget_day)
             bundle_path = pass_dir / "evidence.json"
             bundle = self._evidence_loader(target_date, bundle_path)
             _write_model(bundle_path, bundle)
@@ -552,7 +558,6 @@ class ResearcherLoop:
                 prompt=self._analyst_prompt(bundle),
                 output_model=AnalystOutput,
                 work_dir=pass_dir / "analyst",
-                catalog_spend=catalog_spend,
                 validator=lambda candidate: self._validate_analyst(
                     candidate, bundle, allowed_paths
                 ),
@@ -567,7 +572,6 @@ class ResearcherLoop:
                 prompt=self._synthesizer_prompt(bundle, analyst),
                 output_model=SynthesisOutput,
                 work_dir=pass_dir / "synthesizer",
-                catalog_spend=catalog_spend,
                 validator=lambda candidate: self._validate_synthesis(
                     candidate, bundle, allowed_paths
                 ),
@@ -589,7 +593,6 @@ class ResearcherLoop:
                 prompt=self._proposer_prompt(synthesis, journal.tail(), registry),
                 output_model=ProposalDraft,
                 work_dir=pass_dir / "proposer",
-                catalog_spend=catalog_spend,
                 validator=validate_proposal,
             )
             proposal_draft_path = pass_dir / "proposal-draft.json"
@@ -678,7 +681,6 @@ class ResearcherLoop:
         prompt: str,
         output_model: type[T],
         work_dir: Path,
-        catalog_spend: float,
         validator: Callable[[T], None] | None = None,
     ) -> T:
         errors: list[str] = []
@@ -690,7 +692,7 @@ class ResearcherLoop:
                 day=day,
                 limits=limits,
                 policy=self.policy,
-                catalog_spend_usd=catalog_spend,
+                catalog_spend_usd=self._catalog_spend(day),
             )
             invocation_prompt = prompt
             if errors:

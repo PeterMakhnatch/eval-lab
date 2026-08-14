@@ -14,6 +14,7 @@ from harbor_lab.automation import (
     NightlyCycle,
     ScheduleInstaller,
     record_quarantine,
+    record_researcher_deferral,
 )
 from harbor_lab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
 from harbor_lab.digest import DigestRenderer
@@ -316,6 +317,15 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                 )
                 print("researcher pass quarantined by headless doctor")
                 return 1
+            if not report.checks.codex_auth_present:
+                record_researcher_deferral(
+                    executor.queue,
+                    report_date=report_date,
+                    actor="manual-researcher",
+                    reason="missing_credential:codex",
+                )
+                print("researcher pass deferred: missing Codex credential")
+                return 0
             result = ResearcherLoop.from_repo(root).run(report_date=report_date)
             print(f"pass: {result.pass_id}")
             print(f"invocations: {result.invocation_count}")

@@ -12,6 +12,7 @@ Researcher subprocesses use `codex exec` with:
 - a Pydantic-derived JSON output schema;
 - a read-only, no-network permissions profile over the reviewed bundle;
 - user config, apps, hooks, multi-agent tools, and web search disabled;
+- shell and unified execution tools disabled, with tool events still rejected;
 - a hard rollout-token budget and wall-clock timeout;
 - machine-readable events, with any tool-use event rejecting the result;
 - one schema or semantic-policy validation retry, then a recorded failure.
@@ -20,6 +21,9 @@ The local call ledger reserves an attributed amount before every attempt. It
 enforces twelve calls per role per day (at most six bounded passes including one
 retry each), the committed per-job ceiling, and the combined
 catalog-plus-researcher daily ceiling.
+Catalog spend is refreshed immediately before every call reservation. A
+Claude-only healthy machine records a Codex-credential deferral instead of
+starting a researcher subprocess.
 
 ## Outputs
 

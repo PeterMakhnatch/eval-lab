@@ -153,6 +153,26 @@ def record_quarantine(
     )
 
 
+def record_researcher_deferral(
+    queue: DirectoryQueue,
+    *,
+    report_date: date,
+    actor: str,
+    reason: str,
+) -> None:
+    queue.append_event(
+        QueueEvent(
+            event_id=new_ulid(),
+            spec_id=f"system-{new_ulid()}",
+            occurred_at=date_time_now(),
+            event="researcher_pass_deferred",
+            actor=actor,
+            reason_code=reason,
+            report_date=report_date.isoformat(),
+        )
+    )
+
+
 def date_time_now() -> datetime:
     # Kept as one seam so tests can validate event shape without patching datetime.
     return datetime.now(UTC)
@@ -239,21 +259,36 @@ class NightlyCycle:
                 )
             else:
                 dispatched = self.executor.tick()
-                if self.researcher_pass is not None and not self.executor.queue.stop_path.exists():
-                    try:
-                        researcher_invocations = self.researcher_pass(target_date)
-                    except (OSError, RuntimeError, ValueError) as exc:
-                        self.executor.queue.append_event(
-                            QueueEvent(
-                                event_id=new_ulid(),
-                                spec_id=f"system-{new_ulid()}",
-                                occurred_at=date_time_now(),
-                                event="researcher_pass_failed",
-                                actor="nightly",
-                                reason_code=f"researcher_failed:{type(exc).__name__}",
-                                report_date=target_date.isoformat(),
-                            )
+                if self.researcher_pass is not None:
+                    if self.executor.queue.stop_path.exists():
+                        record_researcher_deferral(
+                            self.executor.queue,
+                            report_date=target_date,
+                            actor="nightly",
+                            reason="stop_file_present",
                         )
+                    elif not report.checks.codex_auth_present:
+                        record_researcher_deferral(
+                            self.executor.queue,
+                            report_date=target_date,
+                            actor="nightly",
+                            reason="missing_credential:codex",
+                        )
+                    else:
+                        try:
+                            researcher_invocations = self.researcher_pass(target_date)
+                        except (OSError, RuntimeError, ValueError) as exc:
+                            self.executor.queue.append_event(
+                                QueueEvent(
+                                    event_id=new_ulid(),
+                                    spec_id=f"system-{new_ulid()}",
+                                    occurred_at=date_time_now(),
+                                    event="researcher_pass_failed",
+                                    actor="nightly",
+                                    reason_code=f"researcher_failed:{type(exc).__name__}",
+                                    report_date=target_date.isoformat(),
+                                )
+                            )
         else:
             record_quarantine(
                 self.executor.queue,

@@ -36,8 +36,9 @@ No compose, no Hub publish, no paid model.
 
 ## Next step
 
-Commit on `role/recon` is the remaining bookkeeping. Do not open/merge the
-PR (out of scope). BUILDER can take atif2otel + plugin into briefs 08/05.
+Done for this mission. Commit `111ce67` is on `role/recon` (explorations/
+only). Do not open/merge the PR (out of scope). BUILDER can take
+atif2otel + plugin into briefs 08/05.
 
 ## Blockers
 

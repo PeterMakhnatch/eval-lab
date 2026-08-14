@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "record_id": "checkout-pool-exhaustion-20260814-gpt-5-6-sol-bbfcdacbd3",
+  "family": "checkout-pool-exhaustion",
+  "status": "measured",
+  "judge_backend": "harbor-codex-agent",
+  "judge_model": "gpt-5.6-sol",
+  "judge_engine_version": null,
+  "rubric_digest": "sha256:86890290c3f2b615b474911f95d73d2bc2ff1bbbc0f7e9659191e916b6b1dc83",
+  "corpus_digest": "sha256:bbfcdacbd3746a5ec1554a7e8481777bebfc37b749da6a8f69901d3559991224",
+  "per_criterion_agreement": {
+    "action_quality.actions_are_actionable": {
+      "agreements": 20,
+      "total": 22,
+      "rate": 0.9090909090909091
+    },
+    "action_quality.actions_trace_to_findings": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "action_quality.closes_the_detection_gap": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "action_quality.fixes_the_capacity_coupling": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "action_quality.proposes_unsupported_work": {
+      "agreements": 8,
+      "total": 22,
+      "rate": 0.36363636363636365
+    },
+    "causal_reasoning.grounded_in_evidence": {
+      "agreements": 17,
+      "total": 22,
+      "rate": 0.7727272727272727
+    },
+    "causal_reasoning.identifies_the_mechanism": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "causal_reasoning.rules_out_the_decoy": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "causal_reasoning.separates_contributing_factors": {
+      "agreements": 17,
+      "total": 22,
+      "rate": 0.7727272727272727
+    },
+    "causal_reasoning.uncertainty_is_genuine": {
+      "agreements": 14,
+      "total": 22,
+      "rate": 0.6363636363636364
+    },
+    "evidence_fidelity.asserts_unsupported_cause": {
+      "agreements": 7,
+      "total": 22,
+      "rate": 0.3181818181818182
+    },
+    "evidence_fidelity.blames_payments_vendor": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "evidence_fidelity.invents_evidence": {
+      "agreements": 4,
+      "total": 22,
+      "rate": 0.18181818181818182
+    },
+    "evidence_fidelity.misstates_a_fact": {
+      "agreements": 19,
+      "total": 22,
+      "rate": 0.8636363636363636
+    }
+  },
+  "mean_agreement": 0.762987012987013,
+  "agreement_floor": 0.9,
+  "meets_floor": false,
+  "reportable": true,
+  "document_count": 22,
+  "evaluated_on": "2026-08-14",
+  "prediction_artifact": "runs/judge-checkout-codex-gpt-5-6-sol-authjson-20260814/judge-checkout-codex-gpt-5-6-sol__Zse26kE/artifacts/app/output/judgments.json",
+  "pending_backends": [
+    "rewardkit-anthropic:credential-unavailable"
+  ]
+}

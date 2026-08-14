@@ -712,7 +712,7 @@ def valid() -> tuple[bool, str]:
         if not isinstance(blocks, dict) or set(blocks) != set(CRITERIA):
             return False, "wrong dimensions"
         for dimension, names in CRITERIA.items():
-            if list(blocks[dimension]) != names:
+            if set(blocks[dimension]) != set(names):
                 return False, f"wrong criteria for {{dimension}}"
             for cell in blocks[dimension].values():
                 if cell.get("verdict") not in {{"yes", "no"}} or not cell.get("rationale"):

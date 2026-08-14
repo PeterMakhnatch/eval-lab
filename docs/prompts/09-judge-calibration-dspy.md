@@ -91,6 +91,26 @@ The generated task verifier checks only prediction completeness and shape. It
 contains no answer key and therefore cannot turn calibration labels into agent
 context.
 
+## First measured result
+
+The submitted Codex fallback job
+`judge-checkout-codex-gpt-5-6-sol-authjson-20260814` completed one trial with no
+agent exception. Harbor reported 739,429 input tokens, 689,152 cache tokens,
+17,194 output tokens, and `$1.111781` cost. The prediction artifact contains all
+22 documents and every rubric criterion; the model sorted JSON object keys, which
+exposed and prompted removal of an invalid key-order requirement in the generated
+shape verifier. JSON object order does not affect the host calibration validator
+or any verdict.
+
+The measured `harbor-codex-agent` / `gpt-5.6-sol` agreement is `0.762987` on the
+checkout corpus. It is reportable as a measured result but does not meet the
+`0.90` gate, so this judge/rubric/corpus tuple must not be used as a calibrated
+judge. The weakest criteria are `evidence_fidelity.invents_evidence` (`0.1818`),
+`evidence_fidelity.asserts_unsupported_cause` (`0.3182`), and
+`action_quality.proposes_unsupported_work` (`0.3636`). The append-only JSON record
+and matching catalog row use id
+`checkout-pool-exhaustion-20260814-gpt-5-6-sol-bbfcdacbd3`.
+
 ## Credential fallback
 
 Reward Kit 0.1.7 supports both provider judges and CLI agent judges. Its binary
@@ -150,7 +170,8 @@ normal `harbor-lab` commands do not acquire or import DSPy.
 
 - Both corpus families complete end to end with the deterministic stub and emit
   non-reportable records outside the tracked records tree.
-- A real Codex queue run produces at least one measured calibration record.
+- A real Codex queue run produced a measured calibration record (`0.762987`);
+  because it misses the `0.90` floor it is not eligible for the judge gate.
 - The absent/locked Claude token produces no Anthropic call and is named as
   pending in the record and handoff.
 - The DSPy program instantiates with a stub LM, and a spy optimizer proves no

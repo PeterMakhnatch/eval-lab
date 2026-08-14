@@ -1,7 +1,7 @@
-Status: building
-Last: Explicit-model job reached Codex but Harbor passed an empty API key; cost/tokens remain null.
-Next: Dispatch one auth.json-forced gpt-5.6-sol calibration, then collect its measured record.
-Blockers: Claude credential absent; catalog schema init fails on a pre-existing view; full Ruff has 9 upstream errors.
+Status: validating
+Last: Codex calibration measured 0.762987 and was persisted to JSON plus Postgres.
+Next: Rebase origin/main, run full pytest/Ruff, push role/judge, and open the JUDGE PR.
+Blockers: Claude credential absent; Codex misses the 0.90 gate; full Ruff had 9 upstream errors before rebase.
 
 # JUDGE handoff
 
@@ -19,9 +19,9 @@ Implemented so far:
 - Checkout DSPy split: 12 train, 4 optimizer-validation, 6 sealed holdouts; overlap
   assertion is active.
 
-No billable call has been made yet. Runtime-only staged tasks/specs live under the
-ignored `queue/` tree in this worktree. EVIDENCE's corpus and answer keys are
-unchanged.
+One billable call was made, only from a submitted queue spec and under the `$3`
+job cap. Runtime-only staged tasks/specs live under the ignored `queue/` tree in
+this worktree. EVIDENCE's corpus and answer keys are unchanged.
 
 The first Codex spec was approved under `researcher-followups`, capped at `$2.75`.
 The narrow fallback dispatcher rechecks the policy plus Codex auth, Docker,
@@ -40,6 +40,24 @@ token fields are again null. Installed Harbor 0.21 supports
 `CODEX_FORCE_AUTH_JSON=1`; the narrow dispatcher now sets it only around `tick`,
 causing Harbor itself to upload `~/.codex/auth.json` without exposing its contents.
 
+The auth.json-backed replacement spec `01KZZC6XNT7KKJJEAKACWEY3HN` completed one
+trial with no agent exception for `$1.111781`. Its artifact covers all 22 checkout
+documents. The task verifier rejected the artifact only because the model sorted
+JSON object keys; the verifier generator now compares criterion membership rather
+than semantically irrelevant object order. The host validator accepted the same
+unchanged artifact and opened the sealed keys only after prediction completion.
+
+Measured record:
+
+- id: `checkout-pool-exhaustion-20260814-gpt-5-6-sol-bbfcdacbd3`
+- backend/model: `harbor-codex-agent` / `gpt-5.6-sol`
+- mean exact agreement: `0.762987` across 308 criterion decisions
+- gate: failed (`0.762987 < 0.90`), so this tuple is not calibrated for judging
+- weakest criteria: `invents_evidence=0.1818`,
+  `asserts_unsupported_cause=0.3182`, `proposes_unsupported_work=0.3636`
+- persistence: append-only JSON plus a verified matching `judge_calibrations` row
+- pending: `rewardkit-anthropic:credential-unavailable`
+
 Verification checkpoint:
 
 - `uv run pytest -q`: 36 passed.
@@ -53,3 +71,6 @@ Verification checkpoint:
   Second smoke completed one trial with zero exceptions and reward 0 as expected
   for nop. Post-run ingestion still fails in BUILDER-owned catalog DDL with
   `psycopg.errors.InvalidTableDefinition: cannot drop columns from view`.
+- The DSPy MIPROv2 queue spec remains staged and unsubmitted. The measured baseline
+  now exists, but the optimizer must not be treated as calibrated against a baseline
+  judge that misses the policy floor; its six held-out controls remain sealed.

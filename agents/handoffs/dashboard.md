@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: Rebased on origin/main and passed premerge plus all 8 dashboard fixture tests.
-Next: Push role/dashboard, open the DASHBOARD PR, and require every GitHub check green.
+Status: done
+Last: PR #11 squash-merged after all checks passed; post-merge main workflows are green.
+Next: none
 Blockers: none
 
 # DASHBOARD handoff
@@ -41,3 +41,16 @@ Blockers: none
   update: `0ca449f436cc1446df31a767192ce905e6283cee`.
 - `make premerge` after rebase: pass — Ruff clean, 54 tests, ty 33 <= 33.
 - `uv run pytest dashboard/tests -q` after rebase: 8 passed.
+
+## Merge and closeout
+
+- PR: https://github.com/PeterMakhnatch/eval-lab/pull/11
+- Exact green head: `5bbd450e9f7ece7a4dfe07ee765d021c3f25df6d`.
+- PR checks: quality run `31828924640` — lint, Python 3.12, and Python 3.14 passed;
+  typecheck run `31828924657` — ty passed.
+- Squash merge: `9afa97cc27eb8c33f816dc5c7584d96daf63b5ea`, 2026-08-14 18:30:52Z.
+- Post-merge main: quality run `31829005654` and typecheck run `31829005672` passed.
+- Latest main `acb6d335d9e6d9ce0738bc3a75e2e25e16ae31cf` also has green quality and
+  typecheck runs (`31829073788`, `31829073883`).
+- The spent `role/dashboard` branch was deleted locally and remotely. This handoff update is on
+  fresh branch `role/dashboard-closeout` from `origin/main`; the old branch was not reused.

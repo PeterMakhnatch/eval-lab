@@ -10,10 +10,12 @@ import pytest
 from harbor_lab.facts import (
     AnalyzerCallResult,
     analysis_plan,
+    failure_taxonomy_agreement,
     load_analysis_source,
     run_trial_analysis,
     validate_queue_authorization,
     write_analysis_review,
+    write_failure_taxonomy_agreement,
 )
 from harbor_lab.results import load_job
 from harbor_lab.schemas import TrialAnalysisSidecar
@@ -300,3 +302,57 @@ def test_live_adapter_requires_matching_running_queue_authorization(tmp_path: Pa
         source_trial_id="trial-1",
     )
     assert authorization["max_model_calls"] == 2
+
+
+def test_failure_taxonomy_agreement_uses_only_valid_sidecars(tmp_path: Path) -> None:
+    job, trial = load_analysis_source(
+        ROOT
+        / "evidence/runs/event-summary-oracle-evidence"
+        / "event-summary__FZg7pvq"
+    )
+    valid_path, valid = _run(job, trial, tmp_path / "analyses")
+    invalid_payload = valid.model_dump(mode="json")
+    invalid_payload["analysis_id"] = "00000000-0000-0000-0000-000000000001"
+    invalid_payload["validation_status"] = "invalid"
+    invalid_payload["validation_errors"] = ["fixture-invalid citation"]
+    invalid_dir = tmp_path / "analyses/invalid"
+    invalid_dir.mkdir()
+    invalid_path = invalid_dir / "analysis.json"
+    invalid_path.write_text(json.dumps(invalid_payload, indent=2, sort_keys=True) + "\n")
+
+    labels_root = ROOT / "research/calibration/trajectory-labels"
+    before = _tree_digests(labels_root)
+    report = failure_taxonomy_agreement(
+        [valid_path, invalid_path],
+        labels_root=labels_root,
+        reference_root=ROOT,
+    )
+
+    assert report["n_labels"] == 25
+    assert report["n_sidecars"] == 2
+    assert report["n_matched_valid"] == 1
+    assert report["n_invalid_analyses"] == 1
+    assert report["exact_matches"] == 1
+    assert report["exact_agreement"] == 1.0
+    assert report["label_coverage"] == 1 / 25
+    assert len(report["labels_without_valid_analysis"]) == 24
+    assert report["comparisons"][0]["label_sha256"].startswith("sha256:")
+    assert report["comparisons"][0]["sidecar_sha256"].startswith("sha256:")
+    assert _tree_digests(labels_root) == before
+
+    report_path = tmp_path / "reports/agreement.json"
+    written_path, written = write_failure_taxonomy_agreement(
+        [tmp_path / "analyses"],
+        labels_root=labels_root,
+        output_path=report_path,
+        reference_root=ROOT,
+    )
+    first_bytes = written_path.read_bytes()
+    write_failure_taxonomy_agreement(
+        [tmp_path / "analyses"],
+        labels_root=labels_root,
+        output_path=report_path,
+        reference_root=ROOT,
+    )
+    assert written == report
+    assert report_path.read_bytes() == first_bytes

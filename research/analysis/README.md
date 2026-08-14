@@ -136,6 +136,19 @@ adapter has no direct CLI execution route: it revalidates a matching
 call and caps schema retry plus initial call at two. No live model was invoked
 for this implementation.
 
+Compare completed valid sidecars with the fixed calibration labels without
+altering either source:
+
+```bash
+uv run harbor-lab analyze agreement derived/analyses \
+  --labels research/calibration/trajectory-labels
+```
+
+The deterministic JSON report records source-file digests, exact category
+agreement, valid-sidecar label coverage, unmatched analyses, and labels lacking
+a valid analysis. Sidecars marked invalid are reported but excluded from both
+the agreement and coverage denominators.
+
 ## Verification
 
 ```bash

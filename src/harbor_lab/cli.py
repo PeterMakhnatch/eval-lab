@@ -24,6 +24,7 @@ from harbor_lab.facts import (
     rebuild_from_raw,
     run_trial_analysis,
     write_analysis_review,
+    write_failure_taxonomy_agreement,
 )
 from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
 from harbor_lab.results import JobRecord, load_job, load_jobs
@@ -196,6 +197,20 @@ def parser() -> argparse.ArgumentParser:
     analyze_review.add_argument("--rationale", required=True)
     analyze_review.add_argument("--reviewer", required=True)
     analyze_review.add_argument("--superseded-by")
+    analyze_agreement = analyze_commands.add_parser(
+        "agreement", help="Compare valid analysis categories with fixed labels"
+    )
+    analyze_agreement.add_argument("paths", type=Path, nargs="+")
+    analyze_agreement.add_argument(
+        "--labels",
+        type=Path,
+        default=Path("research/calibration/trajectory-labels"),
+    )
+    analyze_agreement.add_argument(
+        "--output",
+        type=Path,
+        default=Path("derived/analysis/failure-taxonomy-agreement.json"),
+    )
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)
@@ -517,6 +532,23 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             )
             print(f"review: {review_path}")
             print(f"disposition: {review.disposition}")
+            return 0
+        if args.command == "analyze" and args.analyze_command == "agreement":
+            report_path, report = write_failure_taxonomy_agreement(
+                [_resolve(root, path) for path in args.paths],
+                labels_root=_resolve(root, args.labels),
+                output_path=_resolve(root, args.output),
+                reference_root=root,
+            )
+            agreement = report["exact_agreement"]
+            print(f"report: {report_path}")
+            print(
+                "agreement: "
+                f"{report['exact_matches']}/{report['n_matched_valid']} "
+                f"({'n/a' if agreement is None else f'{agreement:.3f}'})"
+            )
+            coverage = report["label_coverage"]
+            print(f"label coverage: {'n/a' if coverage is None else f'{coverage:.3f}'}")
             return 0
         if args.command == "db" and args.db_command == "init":
             url = database_url_from_environment(args.database_url)

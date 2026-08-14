@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 from uuid import UUID, uuid4
 
 import psycopg
@@ -23,6 +23,7 @@ from harbor_lab.schemas import (
     AnalysisProvenance,
     AnalysisReview,
     AnalysisSourceDigests,
+    FailureCategory,
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
 )
@@ -1183,3 +1184,123 @@ def ingest_analysis_sidecar(
                 ),
             )
     return sidecar
+
+
+def failure_taxonomy_agreement(
+    sidecar_roots: list[Path],
+    *,
+    labels_root: Path,
+    reference_root: Path | None = None,
+) -> dict[str, Any]:
+    def report_path(path: Path) -> str:
+        if reference_root is None:
+            return path.as_posix()
+        return _relative_or_absolute(path, reference_root)
+
+    label_paths = sorted(labels_root.glob("*.json"))
+    labels: dict[str, tuple[str, Path]] = {}
+    allowed_categories = set(get_args(FailureCategory))
+    for path in label_paths:
+        payload = json.loads(path.read_text())
+        if not isinstance(payload, dict):
+            raise ValueError(f"trajectory label is not an object: {path}")
+        trial_name = payload.get("trial_name")
+        category = payload.get("primary_category")
+        if not isinstance(trial_name, str) or not isinstance(category, str):
+            raise ValueError(f"trajectory label lacks trial_name/category: {path}")
+        if category not in allowed_categories:
+            raise ValueError(f"trajectory label has unknown category {category!r}: {path}")
+        if trial_name in labels:
+            raise ValueError(f"duplicate trajectory label for {trial_name}")
+        labels[trial_name] = (category, path)
+
+    discovered: dict[Path, None] = {}
+    for root in sidecar_roots:
+        resolved = root.resolve()
+        if resolved.is_file() and resolved.name == "analysis.json":
+            discovered[resolved] = None
+        elif resolved.is_dir():
+            for path in resolved.rglob("analysis.json"):
+                discovered[path.resolve()] = None
+
+    rows: list[dict[str, Any]] = []
+    valid_predicted_trials: set[str] = set()
+    unmatched_predictions: list[str] = []
+    invalid_analyses = 0
+    for path in sorted(discovered):
+        sidecar = TrialAnalysisSidecar.model_validate_json(path.read_text())
+        trial_name = Path(sidecar.source_trial_path).name
+        if sidecar.validation_status == "valid":
+            valid_predicted_trials.add(trial_name)
+        else:
+            invalid_analyses += 1
+        label = labels.get(trial_name)
+        if label is None:
+            unmatched_predictions.append(str(sidecar.analysis_id))
+            continue
+        expected, label_path = label
+        rows.append(
+            {
+                "analysis_id": str(sidecar.analysis_id),
+                "trial_name": trial_name,
+                "analysis_validation_status": sidecar.validation_status,
+                "predicted_category": sidecar.output.primary_category,
+                "expected_category": expected,
+                "exact_match": sidecar.output.primary_category == expected,
+                "sidecar_path": report_path(path),
+                "sidecar_sha256": _analysis_file_digest(path),
+                "label_path": report_path(label_path),
+                "label_sha256": _analysis_file_digest(label_path),
+            }
+        )
+    valid_rows = [row for row in rows if row["analysis_validation_status"] == "valid"]
+    matches = sum(bool(row["exact_match"]) for row in valid_rows)
+    return {
+        "schema_version": 1,
+        "labels_digest": digest_json(
+            [
+                {
+                    "path": report_path(path),
+                    "sha256": _analysis_file_digest(path),
+                }
+                for path in label_paths
+            ]
+        ),
+        "sidecars_digest": digest_json(
+            [
+                {"path": report_path(path), "sha256": _analysis_file_digest(path)}
+                for path in sorted(discovered)
+            ]
+        ),
+        "n_labels": len(labels),
+        "n_sidecars": len(discovered),
+        "n_matched_valid": len(valid_rows),
+        "n_invalid_analyses": invalid_analyses,
+        "exact_matches": matches,
+        "exact_agreement": matches / len(valid_rows) if valid_rows else None,
+        "label_coverage": (
+            len(set(labels) & valid_predicted_trials) / len(labels) if labels else None
+        ),
+        "unmatched_analysis_ids": sorted(unmatched_predictions),
+        "labels_without_valid_analysis": sorted(set(labels) - valid_predicted_trials),
+        "comparisons": sorted(rows, key=lambda row: (row["trial_name"], row["analysis_id"])),
+    }
+
+
+def write_failure_taxonomy_agreement(
+    sidecar_roots: list[Path],
+    *,
+    labels_root: Path,
+    output_path: Path,
+    reference_root: Path | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    report = failure_taxonomy_agreement(
+        sidecar_roots,
+        labels_root=labels_root,
+        reference_root=reference_root,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output_path.with_suffix(output_path.suffix + ".tmp")
+    temporary.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    temporary.replace(output_path)
+    return output_path, report

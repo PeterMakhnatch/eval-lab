@@ -1054,6 +1054,7 @@ class DiscoveryJournal:
         proposal_path: str,
     ) -> str:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        created = False
         if not self.path.exists():
             descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
             try:
@@ -1068,6 +1069,7 @@ class DiscoveryJournal:
                 )
             finally:
                 os.close(descriptor)
+            created = True
         entry_id = f"D-{report_date.strftime('%Y%m%d')}-{new_ulid()[-8:]}"
         thread = builds_on or f"new thread — {new_thread_justification}"
         lines = [
@@ -1079,10 +1081,11 @@ class DiscoveryJournal:
         ]
         for citation in evidence:
             lines.append(f"  - [{citation.path}](../{citation.path}) — {citation.supports}")
-        lines.extend([f"- Proposed spec: [{proposal_path}](../{proposal_path})", "", ""])
+        lines.append(f"- Proposed spec: [{proposal_path}](../{proposal_path})")
         descriptor = os.open(self.path, os.O_WRONLY | os.O_APPEND)
         try:
-            os.write(descriptor, "\n".join(lines).encode())
+            prefix = "" if created else "\n"
+            os.write(descriptor, (prefix + "\n".join(lines) + "\n").encode())
         finally:
             os.close(descriptor)
         return entry_id

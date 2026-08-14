@@ -13,4 +13,3 @@ it extends or justifies a new thread.
   - [research/evidence/runs/event-summary-nop-evidence/result.json](../research/evidence/runs/event-summary-nop-evidence/result.json) — Reports an event-summary nop control with reward 0.0 and no exception.
   - [research/evidence/runs/event-summary-oracle-evidence/result.json](../research/evidence/runs/event-summary-oracle-evidence/result.json) — Reports an event-summary oracle control with reward 1.0 and no exception.
 - Proposed spec: [queue/proposed/codex-01KZZCN7X9PA643W1QCKQNNNY5.json](../queue/proposed/codex-01KZZCN7X9PA643W1QCKQNNNY5.json)
-

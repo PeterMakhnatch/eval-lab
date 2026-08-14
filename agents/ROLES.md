@@ -19,7 +19,7 @@ Status column is updated by the role itself or the integrator.
 | AUTOPILOT | `role/autopilot` | `src/harbor_lab/researchers.py`, `digests/DISCOVERIES.md`, `agents/handoffs/autopilot.md` | Bounded 24/7 researcher loop + discovery journal | Registered 2026-08-14 |
 | FORGE | `role/forge` | `.github/`, `docs/engineering.md`, `agents/handoffs/forge.md` | Measured performance + CI/type hardening; held PRs for refactors | Done: PR #6 merged after its rebased GitHub checks were fully green. |
 | JUDGE | `role/judge` | `src/harbor_lab/calibrate.py`, `research/calibration/records/`, `agents/handoffs/judge.md` | Judge calibration + DSPy experiment 1 (brief 09) | Registered 2026-08-14 |
-| MEDIC | `role/medic-closeout` | CI compatibility, deterministic canary test, premerge gate, and green-check governance (one mission) | Make local and GitHub green agree; land PR #6 | Closeout in review after PRs #7 and #6 merged with fully green GitHub checks. |
+| MEDIC | `role/medic-closeout` | CI compatibility, deterministic canary test, premerge gate, and green-check governance (one mission) | Make local and GitHub green agree; land PR #6 | Done: PRs #7 and #6 merged green; PR #8 closes documentation and branch-lifecycle governance. |
 
 
 **Wave 1 outcome (2026-08-14):** INGEST, OBSERVER, ANALYST, RUNNER, AUTOPILOT,

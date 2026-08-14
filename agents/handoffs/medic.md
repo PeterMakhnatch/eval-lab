@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: PR #7 and PR #6 merged with fully green GitHub checks; closeout updates are on a fresh branch from origin/main.
-Next: Open MEDIC: closeout, require fully green GitHub checks, record done, recheck, merge, and delete the closeout branch and worktree.
+Status: done
+Last: PR #8's review-ready head passed every GitHub check; the final status is now recorded.
+Next: Merge only after this final head is fully green, then delete the closeout branch and worktree.
 Blockers: none; branch-protection product decision remains Peter's.
 
 # MEDIC handoff
@@ -35,6 +35,11 @@ already squash-merged `role/medic` branch. The rebase was aborted, the spent
 worktree and local branch were deleted, and this follow-up started from a
 fresh `role/medic-closeout` branch at `origin/main`. `agents/CHECKS.md` now
 records that invariant for every role.
+
+PR #8's review-ready head `eea7b47` passed quality run
+[31821666951](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31821666951)
+and typecheck run
+[31821666903](https://github.com/PeterMakhnatch/harbor-experiment-lab/actions/runs/31821666903).
 
 ## Verified diagnosis
 

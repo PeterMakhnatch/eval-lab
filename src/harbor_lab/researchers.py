@@ -195,19 +195,19 @@ class RoleLimits:
 
 DEFAULT_ROLE_LIMITS: Mapping[ResearchRole, RoleLimits] = {
     "analyst": RoleLimits(
-        max_calls_per_day=8,
+        max_calls_per_day=10,
         max_tokens=8_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "synthesizer": RoleLimits(
-        max_calls_per_day=8,
+        max_calls_per_day=10,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "proposer": RoleLimits(
-        max_calls_per_day=8,
+        max_calls_per_day=10,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
@@ -273,7 +273,8 @@ class CodexInvoker:
         work_dir.mkdir(parents=True, exist_ok=False)
         schema_path = work_dir / "output-schema.json"
         output_path = work_dir / "output.json"
-        schema_path.write_text(json.dumps(output_model.model_json_schema(), indent=2) + "\n")
+        output_schema = _strict_output_schema(output_model.model_json_schema())
+        schema_path.write_text(json.dumps(output_schema, indent=2) + "\n")
 
         permission_key = _toml_key(str(work_dir.resolve()))
         permission_table = (
@@ -316,6 +317,8 @@ class CodexInvoker:
             "--config",
             "features.rollout_budget.reminder_at_remaining_tokens=[1000]",
             "--config",
+            "suppress_unstable_features_warning=true",
+            "--config",
             'permissions.researcher.description="Read-only reviewed evidence bundle"',
             "--config",
             permission_table,
@@ -338,11 +341,13 @@ class CodexInvoker:
             stdout, stderr = process.communicate(prompt, timeout=limits.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
             os.killpg(process.pid, signal.SIGKILL)
-            process.communicate()
+            stdout, stderr = process.communicate()
+            _write_invocation_logs(work_dir, stdout, stderr)
             raise TimeoutError(
                 f"{role} exceeded its {limits.timeout_seconds}s wall-clock limit"
             ) from exc
 
+        _write_invocation_logs(work_dir, stdout, stderr)
         usage, used_tools = _parse_codex_events(stdout)
         if process.returncode != 0:
             detail = _safe_error(stderr or stdout)
@@ -1177,6 +1182,29 @@ def _parse_codex_events(output: str) -> tuple[InvocationUsage, bool]:
             with suppress(ValidationError):
                 usage = InvocationUsage.model_validate(event.get("usage") or {})
     return usage, used_tools
+
+
+def _strict_output_schema(value):
+    """Make Pydantic JSON Schema compatible with strict Responses output."""
+    if isinstance(value, list):
+        return [_strict_output_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {
+        key: _strict_output_schema(item)
+        for key, item in value.items()
+        if key != "default"
+    }
+    properties = result.get("properties")
+    if isinstance(properties, dict):
+        result["required"] = list(properties)
+        result["additionalProperties"] = False
+    return result
+
+
+def _write_invocation_logs(work_dir: Path, stdout: str, stderr: str) -> None:
+    (work_dir / "events.jsonl").write_text(stdout)
+    (work_dir / "stderr.log").write_text(stderr)
 
 
 def _researcher_environment(

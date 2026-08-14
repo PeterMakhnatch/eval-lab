@@ -1,7 +1,7 @@
-Status: building
-Last: Backfilled 14 existing jobs, auto-ingested queued Oracle as job 15, and proved destructive rebuild parity
-Next: Commit, run make premerge, push PR, require green GitHub checks, then merge
-Blockers: none
+Status: blocked
+Last: Aborted required rebase after src/evallab/cli.py conflicted with five new origin/main commits
+Next: Integrator must resolve the cli.py conflict on current origin/main; then rerun premerge, push PR, require green checks, and merge
+Blockers: agents/WORKFLOW.md says this role must not resolve another role's rebase conflict
 
 ## Scope
 
@@ -103,4 +103,24 @@ Found 33 diagnostics
 ```
 
 The 33-diagnostic type output is the repository's documented passing ratchet.
-`make premerge` and GitHub check evidence will be appended after the commit.
+CI-parity gate on the coherent checkpoint:
+
+```text
+$ make premerge
+All checks passed!
+60 passed in 0.74s
+Found 33 diagnostics
+premerge green: Python 3.12; ty 33 <= 33
+```
+
+GitHub check evidence remains pending the integration-conflict resolution.
+
+## Integration blocker
+
+`git fetch origin && git rebase origin/main` was attempted after checkpoint
+`5b2b07f`. `origin/main` had advanced through `2e5c9a2` (five commits beyond this
+branch), and the rebase stopped with a content conflict in
+`src/evallab/cli.py`; `docs/operations.md` merged automatically. Per
+`agents/WORKFLOW.md` ("never resolve someone else's conflict; on any conflict,
+stop and record it"), the rebase was aborted. The working tree is restored to
+the coherent checkpoint, one commit ahead and five behind `origin/main`.

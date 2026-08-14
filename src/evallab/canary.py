@@ -9,8 +9,8 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
-from harbor_lab.queue import QUEUE_STATES, Executor
-from harbor_lab.schemas import CanarySuite, ExperimentSpec
+from evallab.queue import QUEUE_STATES, Executor
+from evallab.schemas import CanarySuite, ExperimentSpec
 
 
 def load_canary_suite(path: Path) -> CanarySuite:
@@ -134,7 +134,7 @@ class TerminalBenchCanaryImporter:
             raise ValueError("import destination must stay inside the repository")
         if target.exists():
             raise FileExistsError(f"import destination already exists: {target}")
-        with tempfile.TemporaryDirectory(prefix="harbor-lab-canary-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="evallab-canary-") as temporary:
             downloaded = self.executor.download_dataset(dataset_ref, Path(temporary))
             matches = [
                 path.parent

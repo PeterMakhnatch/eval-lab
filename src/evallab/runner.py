@@ -14,8 +14,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from harbor_lab.results import load_job
-from harbor_lab.schemas import ExperimentMatrix, MatrixRun, RunProvenance
+from evallab.results import load_job
+from evallab.schemas import ExperimentMatrix, MatrixRun, RunProvenance
 
 CONTROL_AGENTS = {"oracle", "nop"}
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
@@ -195,5 +195,5 @@ def expected_primary_reward(run: MatrixRun) -> float | None:
 def database_url_from_environment(explicit: str | None = None) -> str:
     return explicit or os.environ.get(
         "DATABASE_URL",
-        "postgresql://harbor_lab:local-development-only@localhost:54329/harbor_lab",
+        "postgresql://evallab:local-development-only@localhost:54329/evallab",
     )

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from harbor_lab.tracing import (
+from evallab.tracing import (
     TraceError,
     convert_atif,
     convert_source,

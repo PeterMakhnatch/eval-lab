@@ -14,21 +14,21 @@ from typing import Any, cast
 import yaml
 from pydantic import ValidationError
 
-from harbor_lab import database
-from harbor_lab.credentials import (
+from evallab import database
+from evallab.credentials import (
     DEFAULT_AGENT_MODELS,
     available_credentials,
     missing_credential_for,
 )
-from harbor_lab.results import load_job
-from harbor_lab.runner import (
+from evallab.results import load_job
+from evallab.runner import (
     CONTROL_AGENTS,
     RunRequest,
     database_url_from_environment,
     run_experiment,
     tool_version,
 )
-from harbor_lab.schemas import (
+from evallab.schemas import (
     ExperimentSpec,
     PolicyDecision,
     QueueEvent,

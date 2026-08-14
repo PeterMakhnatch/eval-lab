@@ -7,7 +7,7 @@
 #   scripts/fleet-status.sh --since 6h # only commits from the last N hours
 #
 # BUILDER: brief 12 (docs/fleet-tracking.md) absorbs this into
-# `harbor-lab fleet` with the same sections; keep the section names stable.
+# `evallab fleet` with the same sections; keep the section names stable.
 set -uo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

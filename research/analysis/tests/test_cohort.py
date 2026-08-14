@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from harbor_lab.cohort import compare, wilson_interval, write_comparison
-from harbor_lab.schemas import CohortComparisonSpec
+from evallab.cohort import compare, wilson_interval, write_comparison
+from evallab.schemas import CohortComparisonSpec
 
 from .test_atif import _make_job
 

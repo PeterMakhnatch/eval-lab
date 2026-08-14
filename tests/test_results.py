@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from harbor_lab.results import discover_job_dirs, load_job
+from evallab.results import discover_job_dirs, load_job
 
 
 def write_json(path: Path, value: object) -> None:

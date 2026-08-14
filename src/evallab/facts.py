@@ -17,9 +17,9 @@ import pyarrow.parquet as pq
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from harbor_lab.atif import ExportedTable, ExportResult, export_trajectories, project_trial
-from harbor_lab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
-from harbor_lab.schemas import (
+from evallab.atif import ExportedTable, ExportResult, export_trajectories, project_trial
+from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
+from evallab.schemas import (
     AnalysisProvenance,
     AnalysisReview,
     AnalysisSourceDigests,

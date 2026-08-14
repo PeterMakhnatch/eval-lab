@@ -28,16 +28,16 @@ db-down:
 	docker compose down
 
 db-init:
-	uv run harbor-lab db init
+	uv run evallab db init
 
 doctor:
-	uv run harbor-lab doctor
+	uv run evallab doctor
 
 controls:
-	uv run harbor-lab matrix experiments/local-controls.json
+	uv run evallab matrix research/experiments/local-controls.json
 
 ingest:
-	uv run harbor-lab ingest runs research/evidence/runs
+	uv run evallab ingest runs research/evidence/runs
 
 summarize:
-	uv run harbor-lab summarize runs research/evidence/runs
+	uv run evallab summarize runs research/evidence/runs

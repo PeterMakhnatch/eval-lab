@@ -6,8 +6,6 @@ resolution-markers = [
     "python_full_version == '3.13.*'",
     "python_full_version < '3.13'",
 ]
-supported-markers = [
-]
 
 [[package]]
 name = "annotated-types"
@@ -197,6 +195,55 @@ wheels = [
 ]
 
 [[package]]
+name = "eval-lab"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "duckdb" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pyarrow" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+]
+observability = [
+    { name = "harbor-atif2otel" },
+    { name = "openinference-instrumentation-dspy" },
+    { name = "openinference-instrumentation-litellm" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-proto" },
+    { name = "opentelemetry-sdk" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "duckdb", specifier = ">=1.5.5" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
+    { name = "pyarrow", specifier = ">=25.0.1" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.4,<9" },
+    { name = "ruff", specifier = ">=0.12,<1" },
+]
+observability = [
+    { name = "harbor-atif2otel", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-dspy", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-litellm", specifier = ">=0.1.0" },
+    { name = "opentelemetry-exporter-otlp", specifier = ">=1.38.0" },
+    { name = "opentelemetry-proto", specifier = ">=1.38.0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.38.0" },
+]
+
+[[package]]
 name = "googleapis-common-protos"
 version = "1.75.1"
 source = { registry = "https://pypi.org/simple" }
@@ -259,55 +306,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/01/2e/3e23f912e6f939e48488e4bf6065ff7af9dc48ae5b56cf1bf6de4f28d79a/harbor_atif2otel-0.1.0.tar.gz", hash = "sha256:7d359676ce328f01354beb0a9817fff8d52cc0a29d569d19582146e292d61065", size = 37703, upload-time = "2026-07-17T05:52:13.582Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/95/d2/d527047943e9c5a64d8b98f84be5827da16678e63b252cbf0e730714201a/harbor_atif2otel-0.1.0-py3-none-any.whl", hash = "sha256:0f3afd8e8da4650ab7dcb3ee86a1462575878fd3533dc392e37492698289e693", size = 18413, upload-time = "2026-07-17T05:52:12.077Z" },
-]
-
-[[package]]
-name = "harbor-experiment-lab"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "duckdb" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "ruff" },
-]
-observability = [
-    { name = "harbor-atif2otel" },
-    { name = "openinference-instrumentation-dspy" },
-    { name = "openinference-instrumentation-litellm" },
-    { name = "opentelemetry-exporter-otlp" },
-    { name = "opentelemetry-proto" },
-    { name = "opentelemetry-sdk" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "duckdb", specifier = ">=1.5.5" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
-    { name = "pyarrow", specifier = ">=25.0.1" },
-    { name = "pydantic", specifier = ">=2.13.4" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.4,<9" },
-    { name = "ruff", specifier = ">=0.12,<1" },
-]
-observability = [
-    { name = "harbor-atif2otel", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-dspy", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-litellm", specifier = ">=0.1.0" },
-    { name = "opentelemetry-exporter-otlp", specifier = ">=1.38.0" },
-    { name = "opentelemetry-proto", specifier = ">=1.38.0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.38.0" },
 ]
 
 [[package]]

@@ -12,9 +12,9 @@ import psycopg
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from harbor_lab.facts import TrialFact, digest_json, extract_trial_fact
-from harbor_lab.results import JobRecord, TrialRecord, load_job, load_jobs
-from harbor_lab.schemas import CohortComparisonSpec, CohortSelector
+from evallab.facts import TrialFact, digest_json, extract_trial_fact
+from evallab.results import JobRecord, TrialRecord, load_job, load_jobs
+from evallab.schemas import CohortComparisonSpec, CohortSelector
 
 CONSEQUENTIAL_FIELDS = (
     "task_digest",

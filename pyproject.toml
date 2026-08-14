@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "harbor-experiment-lab"
+name = "eval-lab"
 version = "0.1.0"
-description = "Reproducible local infrastructure and analysis for Harbor evaluations"
+description = "Evaluation research in real environments, using Harbor as the execution engine"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -17,7 +17,8 @@ dependencies = [
 ]
 
 [project.scripts]
-harbor-lab = "harbor_lab.cli:main"
+evallab = "evallab.cli:main"
+harbor-lab = "evallab.cli:legacy_main"
 
 [dependency-groups]
 dev = [
@@ -37,7 +38,7 @@ observability = [
 default-groups = ["dev", "observability"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/harbor_lab"]
+packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

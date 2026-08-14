@@ -8,8 +8,8 @@ from typing import Any
 import psycopg
 from psycopg.types.json import Jsonb
 
-from harbor_lab.results import JobRecord, duration_seconds
-from harbor_lab.schemas import CanaryDriftObservation
+from evallab.results import JobRecord, duration_seconds
+from evallab.schemas import CanaryDriftObservation
 
 
 def schema_path() -> Path:

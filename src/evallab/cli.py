@@ -10,8 +10,8 @@ from datetime import date
 from pathlib import Path
 from uuid import UUID
 
-from harbor_lab import __version__, database
-from harbor_lab.automation import (
+from evallab import __version__, database
+from evallab.automation import (
     GuardedTick,
     HeadlessDoctor,
     NightlyCycle,
@@ -19,7 +19,7 @@ from harbor_lab.automation import (
     record_quarantine,
     record_researcher_deferral,
 )
-from harbor_lab.calibrate import (
+from evallab.calibrate import (
     dispatch_approved_codex_calibration,
     dspy_split_summary,
     evaluate_predictions,
@@ -29,10 +29,10 @@ from harbor_lab.calibrate import (
     write_calibration_record,
     write_catalog_record,
 )
-from harbor_lab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
-from harbor_lab.cohort import index_comparison_associations, write_comparison
-from harbor_lab.digest import DigestRenderer
-from harbor_lab.facts import (
+from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
+from evallab.cohort import index_comparison_associations, write_comparison
+from evallab.digest import DigestRenderer
+from evallab.facts import (
     AnalyzerCallResult,
     analysis_plan,
     ingest_analysis_sidecar,
@@ -43,17 +43,17 @@ from harbor_lab.facts import (
     write_analysis_review,
     write_failure_taxonomy_agreement,
 )
-from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
-from harbor_lab.researchers import ResearcherLoop
-from harbor_lab.results import JobRecord, load_job, load_jobs
-from harbor_lab.runner import (
+from evallab.queue import DirectoryQueue, Executor, load_policy, read_spec
+from evallab.researchers import ResearcherLoop
+from evallab.results import JobRecord, load_job, load_jobs
+from evallab.runner import (
     RunRequest,
     database_url_from_environment,
     expected_primary_reward,
     load_matrix,
     request_from_matrix,
 )
-from harbor_lab.tracing import (
+from evallab.tracing import (
     TraceError,
     format_batch,
     instrument_openinference,
@@ -79,8 +79,8 @@ def load_local_env(path: Path) -> None:
 
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
-        prog="harbor-lab",
-        description="Run, inspect, and index Harbor evaluation experiments.",
+        prog="evallab",
+        description="Run, inspect, and analyze agent evaluations through Harbor.",
     )
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
@@ -310,7 +310,7 @@ def _print_summary(jobs: Sequence[JobRecord]) -> None:
             exception = result.get("exception_info") or {}
             started = result.get("started_at")
             finished = result.get("finished_at")
-            from harbor_lab.results import duration_seconds
+            from evallab.results import duration_seconds
 
             seconds = duration_seconds(started, finished)
             reward = "" if trial.primary_reward is None else f"{trial.primary_reward:g}"
@@ -408,7 +408,7 @@ def _calibrate_command(args: argparse.Namespace, root: Path) -> int:
         )
         print(f"task: {staged.task_path}")
         print(f"queue spec: {staged.spec_path}")
-        print(f"submit with: uv run harbor-lab submit {staged.spec_path.relative_to(root)}")
+        print(f"submit with: uv run evallab submit {staged.spec_path.relative_to(root)}")
         return 0
 
     if args.stub:
@@ -638,7 +638,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             print(f"ingested {count} job(s)")
             return 0
         if args.command == "trajectories":
-            from harbor_lab.atif import project_trial
+            from evallab.atif import project_trial
 
             jobs = load_jobs([_resolve(root, path) for path in args.paths])
             if not jobs:
@@ -802,6 +802,11 @@ def _digest_renderer(root: Path) -> DigestRenderer:
 
 def main() -> None:
     raise SystemExit(run_cli())
+
+
+def legacy_main() -> None:
+    print("warning: harbor-lab is deprecated; use evallab", file=sys.stderr)
+    main()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "query-optimize-local-controls",
+  "hypothesis": "Oracle passes and no-op fails on lab-authored query-optimize. Oracle n=5 tests harness stability on a timing-sensitive verifier; nop n=1 is the empty-agent control.",
+  "task": "tasks/query-optimize",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 2,
+  "runs": [
+    {
+      "name": "runner-qo-oracle-k5",
+      "agent": "oracle",
+      "attempts": 5,
+      "expect_reward": 1.0
+    },
+    {
+      "name": "runner-qo-nop-k1",
+      "agent": "nop",
+      "attempts": 1,
+      "expect_reward": 0.0
+    }
+  ]
+}

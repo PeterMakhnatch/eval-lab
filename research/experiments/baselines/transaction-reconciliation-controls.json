@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "txn-recon-local-controls-k5",
+  "hypothesis": "Oracle passes and no-op fails on transaction-reconciliation with task, environment, and verifier fixed. n=5 tests harness stability, not model capability.",
+  "task": "tasks/transaction-reconciliation",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 2,
+  "runs": [
+    {
+      "name": "runner-tr-oracle-k5",
+      "agent": "oracle",
+      "attempts": 5,
+      "expect_reward": 1.0
+    },
+    {
+      "name": "runner-tr-nop-k5",
+      "agent": "nop",
+      "attempts": 5,
+      "expect_reward": 0.0
+    }
+  ]
+}

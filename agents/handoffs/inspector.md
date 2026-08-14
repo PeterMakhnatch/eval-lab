@@ -1,6 +1,6 @@
-Status: building
-Last: Drafted all three evidence-linked inspection reports and completed first-pass peer review.
-Next: Validate links and arithmetic, run repository checks, then rebase and open the INSPECTOR PR.
+Status: review-wanted
+Last: Rebased onto origin/main and validated all three peer-reviewed inspection reports on the exact head.
+Next: Open the INSPECTOR PR, require all current-head checks green, then merge only after final root review.
 Blockers: none
 
 # INSPECTOR handoff
@@ -31,3 +31,14 @@ Evidence checkpoint:
 Draft reports: `research/inspections/transaction-reconciliation.md`,
 `research/inspections/judge-floor.md`, and
 `research/inspections/discoveries-first-pass.md`.
+
+Verification after rebasing onto `origin/main`:
+
+- `make premerge`: pass; Ruff clean, 73 pytest tests passed, ty stayed at the
+  33-diagnostic ratchet.
+- Markdown evidence links: 114 occurrences, zero missing relative or local
+  filesystem targets.
+- Judge arithmetic, 24-trial hidden denominator, and local brief-07
+  `f7aa4c5:tasks/transaction-reconciliation/tests/verify.py` object rechecked.
+- `git diff --check origin/main...HEAD`: pass; diff confined to INSPECTOR-owned
+  report and handoff paths.

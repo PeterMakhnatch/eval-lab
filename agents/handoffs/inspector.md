@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: Opened PR #19; final root diff/content review passed and a handoff-only freshness commit is pending CI.
-Next: Require every current-head PR #19 check green, then merge.
+Status: done
+Last: Opened PR #19 and validated the final reports and owned-path diff.
+Next: Integrator merge after every current-head PR #19 check is green.
 Blockers: PR #19 current-head GitHub Actions pending
 
 # INSPECTOR handoff

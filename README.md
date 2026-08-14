@@ -120,6 +120,9 @@ uv run harbor-lab run --help
 uv run harbor-lab matrix --help
 uv run harbor-lab submit --help
 uv run harbor-lab tick
+uv run harbor-lab doctor --headless
+uv run harbor-lab schedule install
+uv run harbor-lab nightly
 uv run harbor-lab summarize runs evidence/runs
 uv run harbor-lab db init
 uv run harbor-lab ingest runs evidence/runs

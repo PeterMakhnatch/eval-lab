@@ -59,6 +59,61 @@ completed immutable Harbor jobs before starting new work.
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
 All real-model work must pass through the queue and standing policy.
 
+## Headless readiness and scheduling
+
+The scheduler fails closed. This command prints a versioned JSON object whose
+runtime fields are booleans only:
+
+```bash
+uv run harbor-lab doctor --headless
+```
+
+It checks that the Claude OAuth Keychain item is readable without a GUI prompt,
+Codex's `~/.codex/auth.json` exists, Docker is reachable, PostgreSQL responds,
+and at least the configured disk headroom remains. It never prints or stores a
+credential value. The default Keychain service remains
+`harbor-practice-claude-oauth` until brief 11 migrates the auth scripts; override
+only the service/account names with `HARBOR_CLAUDE_KEYCHAIN_SERVICE` and
+`HARBOR_CLAUDE_KEYCHAIN_ACCOUNT`.
+
+Install the two user-session LaunchAgents:
+
+```bash
+uv run harbor-lab schedule install
+```
+
+- `com.petermakhnatch.harbor-lab.tick` runs every 30 minutes.
+- `com.petermakhnatch.harbor-lab.nightly` runs at 02:30 local time.
+
+Both invoke `/bin/zsh -lc 'cd <repo> && uv run harbor-lab …'`. Logs live under
+`~/Library/Logs/harbor-lab/`. Reinstalling replaces and reloads the definitions.
+Because these are LaunchAgents, not system daemons, they run inside the logged-in
+user session where Keychain access is possible.
+
+`tick` and `nightly` both run the headless doctor first. If any check fails,
+they append a boolean-only quarantine event and dispatch nothing. In particular,
+a locked or unreadable Keychain produces zero reward-bearing trials rather than
+misclassifying authentication failures as agent failures.
+
+Render a digest on demand (the file date is the morning/report date; its primary
+reporting period is the preceding catalog day):
+
+```bash
+uv run harbor-lab digest --date 2026-08-14
+```
+
+The nightly command additionally commits only `digests/YYYY-MM-DD.md`; unrelated
+working-tree changes are never staged:
+
+```bash
+uv run harbor-lab nightly
+```
+
+The digest includes the prior day's trials, early-morning automation, policy
+attribution, cost, exception taxonomy, queue depth, waiting rationales, evidence
+growth, and quarantine state. PostgreSQL remains rebuildable from raw jobs; the
+digest is a human-facing derived report.
+
 ## Run controls before model experiments
 
 ```bash

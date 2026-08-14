@@ -4,10 +4,13 @@ import argparse
 import os
 import sys
 from collections.abc import Sequence
+from datetime import date
 from pathlib import Path
 
 from harbor_lab import __version__, database
-from harbor_lab.queue import DirectoryQueue, Executor, read_spec
+from harbor_lab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
+from harbor_lab.digest import DigestRenderer
+from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
 from harbor_lab.results import JobRecord, load_job, load_jobs
 from harbor_lab.runner import (
     RunRequest,
@@ -41,7 +44,12 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
 
-    commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
+    doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
+    doctor.add_argument(
+        "--headless",
+        action="store_true",
+        help="Fail closed and print only boolean prerequisite status as JSON",
+    )
 
     submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
     submit.add_argument("path", type=Path)
@@ -59,6 +67,16 @@ def parser() -> argparse.ArgumentParser:
 
     commands.add_parser("stop", help="Stop dispatch after the current trial")
     commands.add_parser("resume", help="Remove the queue stop marker")
+
+    schedule = commands.add_parser("schedule", help="Manage unattended launchd schedules")
+    schedule_commands = schedule.add_subparsers(dest="schedule_command", required=True)
+    schedule_commands.add_parser("install", help="Install and load tick/nightly LaunchAgents")
+
+    digest = commands.add_parser("digest", help="Render one daily digest from catalog and events")
+    digest.add_argument("--date", dest="report_date", type=date.fromisoformat)
+
+    nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")
+    nightly.add_argument("--date", dest="report_date", type=date.fromisoformat)
 
     run = commands.add_parser("run", help="Run one explicitly named Harbor job")
     run.add_argument("--task", type=Path, required=True)
@@ -197,6 +215,11 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     load_local_env(root / ".env")
     args = parser().parse_args(argv)
     try:
+        if args.command == "doctor" and args.headless:
+            executor = Executor.from_repo(root)
+            report = HeadlessDoctor(root, executor=executor).run()
+            print(report.model_dump_json(indent=2))
+            return 0 if report.healthy else 1
         if args.command == "doctor":
             return _doctor(root)
         if args.command == "submit":
@@ -206,9 +229,14 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             print(decision.message)
             return 0
         if args.command == "tick":
-            count = Executor.from_repo(root).tick()
-            print(f"dispatched {count} experiment(s)")
-            return 0
+            executor = Executor.from_repo(root)
+            result = GuardedTick(
+                doctor=HeadlessDoctor(root, executor=executor),
+                executor=executor,
+            ).run()
+            print(f"dispatched {result.dispatched} experiment(s)")
+            print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
+            return 0 if result.report.healthy else 1
         if args.command == "approve":
             path = DirectoryQueue(root / "queue").approve(args.spec_id, actor=args.actor)
             print(f"approved: {path}")
@@ -227,6 +255,27 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             DirectoryQueue(root / "queue").resume()
             print("queue resumed")
             return 0
+        if args.command == "schedule" and args.schedule_command == "install":
+            paths = ScheduleInstaller(root).install()
+            for path in paths:
+                print(f"installed: {path}")
+            return 0
+        if args.command == "digest":
+            report_date = args.report_date or date.today()
+            path = _digest_renderer(root).write(report_date=report_date)
+            print(f"digest: {path}")
+            return 0
+        if args.command == "nightly":
+            executor = Executor.from_repo(root)
+            result = NightlyCycle(
+                doctor=HeadlessDoctor(root, executor=executor),
+                executor=executor,
+                renderer=_digest_renderer(root),
+            ).run(report_date=args.report_date)
+            print(f"digest: {result.digest_path}")
+            print(f"dispatched: {result.dispatched}")
+            print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
+            return 0 if result.report.healthy else 1
         if args.command == "run":
             return _run_command(args, root)
         if args.command == "matrix":
@@ -267,6 +316,14 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 2
+
+
+def _digest_renderer(root: Path) -> DigestRenderer:
+    return DigestRenderer(
+        repo_root=root,
+        queue=DirectoryQueue(root / "queue"),
+        policy=load_policy(root / "policy/standing-approvals.yaml"),
+    )
 
 
 def main() -> None:

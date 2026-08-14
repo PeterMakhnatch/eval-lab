@@ -20,6 +20,7 @@ auth.json
 /exports/
 /queue/
 /derived/
+/logs/
 /notebooks/.ipynb_checkpoints/
 
 # Local database and tooling

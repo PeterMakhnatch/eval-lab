@@ -120,6 +120,7 @@ class QueueEvent(ContractModel):
     policy_rule: str | None = None
     reason_code: str | None = None
     job_name: str | None = None
+    report_date: str | None = None
 
 
 class QueueReason(ContractModel):
@@ -137,3 +138,48 @@ class PolicyDecision(ContractModel):
     policy_rule: str | None = None
     reason_code: str | None = None
     message: str
+
+
+class HeadlessDoctorChecks(ContractModel):
+    keychain_readable: bool
+    codex_auth_present: bool
+    docker_reachable: bool
+    postgres_reachable: bool
+    disk_headroom: bool
+
+
+class HeadlessDoctorReport(ContractModel):
+    schema_version: Literal[1] = 1
+    checked_at: datetime
+    healthy: bool
+    checks: HeadlessDoctorChecks
+
+    @model_validator(mode="after")
+    def healthy_matches_checks(self) -> HeadlessDoctorReport:
+        expected = all(self.checks.model_dump().values())
+        if self.healthy != expected:
+            raise ValueError("healthy must equal the conjunction of all checks")
+        return self
+
+
+class DigestJob(ContractModel):
+    job_name: str
+    task_name: str | None = None
+    agent_name: str | None = None
+    reward: float | None = None
+    exception_type: str | None = None
+    cost_usd: float | None = None
+    policy_rule: str | None = None
+
+
+class DailyDigestData(ContractModel):
+    schema_version: Literal[1] = 1
+    date: str
+    quarantined: bool
+    quarantine_reasons: list[str] = Field(default_factory=list)
+    jobs: list[DigestJob] = Field(default_factory=list)
+    spend_usd: float = Field(default=0.0, ge=0)
+    daily_cost_ceiling_usd: float = Field(ge=0)
+    disk_bytes: int = Field(default=0, ge=0)
+    queue_depths: dict[str, int] = Field(default_factory=dict)
+    waiting_proposals: list[str] = Field(default_factory=list)

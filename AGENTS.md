@@ -36,6 +36,7 @@ they have been promoted to `evidence/runs/`.
 - `runs/`: ignored raw Harbor output.
 - `queue/`: ignored runtime state; atomic files and `events.jsonl` drive unattended work.
 - `policy/`: committed standing approvals; agents must never loosen this policy.
+- `digests/`: committed daily derived reports; nightly stages only its dated digest.
 - `evidence/runs/`: small, intentionally tracked control runs.
 - `docs/`: architecture, operating procedures, and scaling decisions.
 - `prompts/`: ordered, bounded implementation briefs for coding agents.

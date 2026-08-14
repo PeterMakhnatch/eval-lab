@@ -284,3 +284,32 @@ def consecutive_harness_failures(database_url: str) -> int:
             break
         count += 1
     return count
+
+
+def digest_trials(database_url: str, day: date) -> list[tuple[Any, ...]]:
+    """Return deterministic trial facts for one catalog-local calendar day."""
+    with psycopg.connect(database_url, connect_timeout=2) as connection:
+        return list(
+            connection.execute(
+                """
+                SELECT
+                    j.job_name,
+                    t.task_name,
+                    t.agent_name,
+                    t.model_name,
+                    t.primary_reward,
+                    t.exception_type,
+                    COALESCE(t.cost_usd, 0),
+                    t.finished_at
+                FROM trials t
+                JOIN jobs j ON j.id = t.job_id
+                WHERE t.finished_at IS NOT NULL
+                  AND (
+                    t.finished_at::timestamptz
+                    AT TIME ZONE current_setting('TIMEZONE')
+                  )::date = %s
+                ORDER BY j.job_name, t.trial_name
+                """,
+                (day,),
+            ).fetchall()
+        )

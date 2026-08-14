@@ -5,4 +5,3 @@ WORKDIR /app
 COPY events.jsonl /app/input/events.jsonl
 
 RUN mkdir -p /app/output
-

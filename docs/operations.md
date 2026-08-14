@@ -50,4 +50,3 @@ Only small representative runs belong in `evidence/runs/`:
 For large evidence, leave the job in ignored `runs/`, ingest its metadata, and
 write a small report with digests and a durable artifact URI once object storage
 is configured.
-

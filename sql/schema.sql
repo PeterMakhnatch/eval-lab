@@ -125,4 +125,3 @@ FROM trials t
 JOIN rewards r ON r.trial_id = t.id
 WHERE t.exception_type IS NULL
 GROUP BY t.task_name, t.agent_name, COALESCE(t.model_name, 'adhoc'), r.name;
-

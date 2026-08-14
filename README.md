@@ -113,4 +113,3 @@ the verifier accepts the intended output. No-op reward `0` shows the initial
 state does not pass. Neither result measures a real model. A model experiment
 becomes interpretable only after both controls are healthy and after the
 trajectory and verifier evidence have been inspected.
-

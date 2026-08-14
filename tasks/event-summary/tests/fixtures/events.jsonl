@@ -6,4 +6,3 @@
 {"event_id":"evt-006","kind":"cache_hit","duration_ms":5}
 {"event_id":"evt-007","kind":"error","duration_ms":900}
 {"event_id":"evt-008","kind":"request","duration_ms":150}
-

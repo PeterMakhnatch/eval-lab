@@ -6,4 +6,3 @@
 *.sql text eol=lf
 *.toml text eol=lf
 *.yaml text eol=lf
-

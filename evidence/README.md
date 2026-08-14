@@ -10,4 +10,3 @@ The initial pair varies only the adapter:
 - No-op: the untouched environment should earn reward `0`.
 
 These controls validate the task/harness boundary; they do not evaluate a model.
-

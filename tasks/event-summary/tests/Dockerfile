@@ -6,4 +6,3 @@ RUN mkdir -p /app/input /app/output /logs/verifier \
     && chmod +x /tests/test.sh
 
 WORKDIR /app
-

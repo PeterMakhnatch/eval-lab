@@ -15,4 +15,3 @@ The output must be one JSON object with exactly these fields:
 
 Write valid UTF-8 JSON with a trailing newline. Do not modify or replace the
 input file. Do not create additional files under `/app/output`.
-

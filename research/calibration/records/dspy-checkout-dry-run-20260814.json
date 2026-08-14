@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-14",
+  "family": "checkout-pool-exhaustion",
+  "dspy_version": "3.2.1",
+  "program": "ChainOfThought(family, rubric_json, document -> judgments_json)",
+  "metric": "exact per-criterion raw-verdict agreement",
+  "stub_lm_metric": 1.0,
+  "optimizer": "spy",
+  "optimizer_train_ids": [
+    "03-copied-evidence-logs",
+    "04-subtly-wrong-cause-vendor",
+    "05-right-cause-useless-actions-tbd",
+    "08-correct-config-led",
+    "09-correct-compact",
+    "10-correct-timeline-dense",
+    "13-subtly-wrong-cause-traffic",
+    "14-subtly-wrong-cause-code-bug",
+    "16-right-cause-useless-actions-rollback-only",
+    "19-fabricated-evidence-dashboards",
+    "20-fabricated-evidence-tickets",
+    "22-style-only-fluent-runbook"
+  ],
+  "optimizer_validation_ids": [
+    "02-style-only-fluent-generic",
+    "07-correct-metrics-led",
+    "12-subtly-wrong-cause-ledger-cpu",
+    "17-right-cause-useless-actions-process"
+  ],
+  "heldout_ids": [
+    "01-empty",
+    "06-correct-oracle",
+    "11-subtly-wrong-cause-tls",
+    "15-right-cause-useless-actions-generic",
+    "18-fabricated-evidence-warroom",
+    "21-style-only-fluent-executive"
+  ],
+  "optimizer_received_heldout": false,
+  "dependency_mode": "ephemeral uv --with; project dependencies unchanged"
+}

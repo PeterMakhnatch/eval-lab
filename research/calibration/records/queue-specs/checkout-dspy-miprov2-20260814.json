@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "spec_id": null,
+  "name": "judge-checkout-dspy-miprov2-20260814",
+  "hypothesis": "MIPROv2 can improve held-out checkout judge agreement over the handwritten rubric at equal-or-lower judge cost without seeing the six held-out controls.",
+  "task": "registered/judge-optimization/checkout-pool-exhaustion",
+  "task_path": "queue/calibration-tasks/judge-checkout-dspy-miprov2-20260814",
+  "agent": "codex",
+  "model": null,
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "concurrency": 1,
+  "submitted_by": "judge",
+  "priority": 60,
+  "est_cost_usd": 2.75,
+  "policy_rule": "researcher-followups",
+  "requires": [
+    "schema_valid",
+    "dedup_pass",
+    "calibrated_judges_only"
+  ],
+  "expected_reward": null,
+  "task_version": "brief09-dspy-miprov2-v1",
+  "verifier_digest": "sha256:86890290c3f2b615b474911f95d73d2bc2ff1bbbc0f7e9659191e916b6b1dc83",
+  "submitted_at": null
+}

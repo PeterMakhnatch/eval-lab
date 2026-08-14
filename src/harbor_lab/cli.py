@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from collections.abc import Sequence
@@ -9,6 +10,15 @@ from pathlib import Path
 
 from harbor_lab import __version__, database
 from harbor_lab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
+from harbor_lab.calibrate import (
+    dspy_split_summary,
+    evaluate_predictions,
+    load_prediction_bundle,
+    make_stub_bundle,
+    stage_queue_bundle,
+    write_calibration_record,
+    write_catalog_record,
+)
 from harbor_lab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
 from harbor_lab.digest import DigestRenderer
 from harbor_lab.queue import DirectoryQueue, Executor, load_policy, read_spec
@@ -88,6 +98,26 @@ def parser() -> argparse.ArgumentParser:
     import_task.add_argument("--dataset-ref", required=True)
     import_task.add_argument("--task-name", required=True)
     import_task.add_argument("--destination", type=Path, required=True)
+
+    calibrate = commands.add_parser(
+        "calibrate", help="Measure a judge against one sealed calibration family"
+    )
+    calibrate.add_argument(
+        "family", choices=("checkout-pool-exhaustion", "retry-storm-backlog")
+    )
+    calibration_mode = calibrate.add_mutually_exclusive_group()
+    calibration_mode.add_argument("--predictions", type=Path)
+    calibration_mode.add_argument("--stub", action="store_true")
+    calibration_mode.add_argument("--stage", choices=("codex", "anthropic"))
+    calibration_mode.add_argument("--dspy-dry-run", action="store_true")
+    calibrate.add_argument("--judge-model")
+    calibrate.add_argument("--est-cost-usd", type=float, default=2.75)
+    calibrate.add_argument("--date", dest="calibration_date", type=date.fromisoformat)
+    calibrate.add_argument("--records-dir", type=Path)
+    calibrate.add_argument("--prediction-artifact")
+    calibrate.add_argument("--pending-backend", action="append", default=[])
+    calibrate.add_argument("--database-url")
+    calibrate.add_argument("--skip-catalog", action="store_true")
 
     run = commands.add_parser("run", help="Run one explicitly named Harbor job")
     run.add_argument("--task", type=Path, required=True)
@@ -221,6 +251,65 @@ def _matrix_command(args: argparse.Namespace, root: Path) -> int:
     return 1 if mismatch else 0
 
 
+def _calibrate_command(args: argparse.Namespace, root: Path) -> int:
+    if args.dspy_dry_run:
+        print(json.dumps(dspy_split_summary(root, args.family), indent=2))
+        return 0
+    if args.predictions is None and not args.stub:
+        staged = stage_queue_bundle(
+            root,
+            args.family,
+            backend=args.stage or "codex",
+            judge_model=args.judge_model,
+            est_cost_usd=args.est_cost_usd,
+            run_date=args.calibration_date,
+        )
+        print(f"task: {staged.task_path}")
+        print(f"queue spec: {staged.spec_path}")
+        print(f"submit with: uv run harbor-lab submit {staged.spec_path.relative_to(root)}")
+        return 0
+
+    if args.stub:
+        bundle = make_stub_bundle(root, args.family)
+        prediction_artifact = args.prediction_artifact or "stub://deterministic-all-no"
+        status = "stub"
+    else:
+        prediction_path = _resolve(root, args.predictions)
+        bundle = load_prediction_bundle(prediction_path)
+        if bundle.family != args.family:
+            raise ValueError(
+                f"prediction family {bundle.family!r} does not match CLI family {args.family!r}"
+            )
+        if args.judge_model:
+            bundle = bundle.model_copy(update={"judge_model": args.judge_model})
+        prediction_artifact = (
+            args.prediction_artifact or prediction_path.relative_to(root).as_posix()
+        )
+        status = "measured"
+    record = evaluate_predictions(
+        root,
+        bundle,
+        prediction_artifact=prediction_artifact,
+        evaluated_on=args.calibration_date,
+        status=status,
+        pending_backends=args.pending_backend,
+    )
+    if args.records_dir is not None:
+        records_root = _resolve(root, args.records_dir)
+    elif status == "stub":
+        records_root = root / "queue/stub-calibration-records"
+    else:
+        records_root = None
+    record_path = write_calibration_record(root, record, records_root=records_root)
+    if status == "measured" and not args.skip_catalog:
+        write_catalog_record(record, record_path, database_url=args.database_url)
+    print(f"record: {record_path}")
+    print(f"mean agreement: {record.mean_agreement:.4f}")
+    print(f"reportable: {'yes' if record.reportable else 'no (stub)'}")
+    print(f"meets {record.agreement_floor:.2f} floor: {'yes' if record.meets_floor else 'no'}")
+    return 0
+
+
 def run_cli(argv: Sequence[str] | None = None) -> int:
     root = repo_root()
     load_local_env(root / ".env")
@@ -260,6 +349,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             )
             print(f"imported: {imported}")
             return 0
+        if args.command == "calibrate":
+            return _calibrate_command(args, root)
         if args.command == "approve":
             path = DirectoryQueue(root / "queue").approve(args.spec_id, actor=args.actor)
             print(f"approved: {path}")

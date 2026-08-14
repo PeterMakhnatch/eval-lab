@@ -1,0 +1,43 @@
+{
+  "results": {
+    "summary": {
+      "failed": 3,
+      "other": 0,
+      "passed": 1,
+      "pending": 0,
+      "skipped": 0,
+      "start": 0,
+      "stop": 0,
+      "tests": 4
+    },
+    "tests": [
+      {
+        "duration": 0,
+        "message": "input bytes match trusted fixture",
+        "name": "input_preservation",
+        "status": "passed"
+      },
+      {
+        "duration": 0,
+        "message": "summary.json is missing",
+        "name": "schema",
+        "status": "failed"
+      },
+      {
+        "duration": 0,
+        "message": "wrong summary",
+        "name": "correctness",
+        "status": "failed"
+      },
+      {
+        "duration": 0,
+        "message": "extra/missing output",
+        "name": "output_hygiene",
+        "status": "failed"
+      }
+    ],
+    "tool": {
+      "name": "event-summary-verifier"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+    "job_name": "event-summary-nop-evidence",
+    "jobs_dir": "/Users/petermakhnatch/Developer/harbor-experiment-lab/evidence/runs",
+    "n_concurrent_trials": 1,
+    "agents": [
+        {
+            "name": "nop"
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/tasks/event-summary"
+        }
+    ]
+}

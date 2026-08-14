@@ -1,0 +1,11 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/tasks/event-summary"
+    },
+    "trial_name": "event-summary__edzDz6R",
+    "trials_dir": "/Users/petermakhnatch/Developer/harbor-experiment-lab/evidence/runs/event-summary-nop-evidence",
+    "agent": {
+        "name": "nop"
+    },
+    "job_id": "08032ad4-7418-447b-a656-fee3db3e44dc"
+}

@@ -1,0 +1,1 @@
+{"checks": {"correctness": {"message": "wrong summary", "passed": false}, "input_preservation": {"message": "input bytes match trusted fixture", "passed": true}, "output_hygiene": {"message": "extra/missing output", "passed": false}, "schema": {"message": "summary.json is missing", "passed": false}}, "passed": false}

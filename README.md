@@ -34,6 +34,8 @@ file digests. Large blobs stay out of PostgreSQL and Git.
 
 See [docs/architecture.md](docs/architecture.md) for the trade-offs and the
 threshold for adding S3-compatible storage or Kubernetes.
+The reusable queries in [analysis/queries.sql](analysis/queries.sql) cover
+leaderboards, exceptions, cost, latency, and artifact-transfer failures.
 
 ## Requirements
 
@@ -87,6 +89,7 @@ acknowledgement, not a credential or cost limit.
 | Path | Policy |
 |---|---|
 | `tasks/`, `experiments/`, `src/`, `sql/`, `docs/` | Always versioned |
+| `analysis/` | Versioned SQL and notebook-ready queries |
 | `runs/` | Generated, local, ignored |
 | `evidence/runs/` | Small reviewed controls only; versioned intentionally |
 | PostgreSQL volume | Local derived state; never versioned |

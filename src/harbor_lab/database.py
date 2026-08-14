@@ -43,6 +43,14 @@ def _executemany(
 
 def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Path) -> None:
     stats = job.result.get("stats") or {}
+    evidence_path = _relative_or_absolute(job.path, root)
+    # A named local evidence directory can be intentionally regenerated before
+    # publication. The filesystem remains authoritative, so remove a stale row
+    # that points at the same path but carries the superseded Harbor UUID.
+    connection.execute(
+        "DELETE FROM jobs WHERE evidence_path = %s AND id <> %s",
+        (evidence_path, job.id),
+    )
     connection.execute(
         """
         INSERT INTO jobs (
@@ -74,7 +82,7 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
         {
             "id": job.id,
             "job_name": job.name,
-            "evidence_path": _relative_or_absolute(job.path, root),
+            "evidence_path": evidence_path,
             "harbor_version": job.harbor_version,
             "started_at": job.result.get("started_at"),
             "finished_at": job.result.get("finished_at"),

@@ -1,0 +1,10 @@
+{
+    "job_name": "event-summary-oracle-evidence",
+    "jobs_dir": "/Users/petermakhnatch/Developer/harbor-experiment-lab/evidence/runs",
+    "n_concurrent_trials": 1,
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/harbor-experiment-lab/tasks/event-summary"
+        }
+    ]
+}

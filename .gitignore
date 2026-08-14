@@ -32,3 +32,6 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# In-repo parallel worktrees (agents/WORKFLOW.md)
+.worktrees/

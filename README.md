@@ -138,3 +138,11 @@ the verifier accepts the intended output. No-op reward `0` shows the initial
 state does not pass. Neither result measures a real model. A model experiment
 becomes interpretable only after both controls are healthy and after the
 trajectory and verifier evidence have been inspected.
+
+## Repository layout and agent workflow
+
+All work — human and agent — lives inside this one folder. Parallel agent
+worktrees are hidden under `.worktrees/` (gitignored). The multi-agent
+protocol is `agents/WORKFLOW.md`; the role registry with current status is
+`agents/ROLES.md`; per-role handoffs are `agents/handoffs/`. Fleet state at
+any moment: `scripts/fleet-status.sh`.

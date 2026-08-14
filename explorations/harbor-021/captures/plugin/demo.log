@@ -1,0 +1,38 @@
+=== harbor plugins list ===
+No Harbor plugins installed.
+Plugins register under the harbor.plugins entry point group.
+
+=== harbor run --plugin file_hook_plugin:FileHookPlugin (oracle) ===
+  1/1 Correctness: 1.000 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:00:08 0:00:00
+
+adhoc • oracle
+┏━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Trials ┃ Exceptions ┃ Correctness ┃ Input_Preserv… ┃ Output_Hygiene ┃ Reward ┃
+┡━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│      1 │          0 │       1.000 │          1.000 │          1.000 │  1.000 │
+└────────┴────────────┴─────────────┴────────────────┴────────────────┴────────┘
+
+┏━━━━━━━━┳━━━━━━━┓
+┃ Reward ┃ Count ┃
+┡━━━━━━━━╇━━━━━━━┩
+│ 1.0    │     1 │
+│ 1.0    │     1 │
+│ 1.0    │     1 │
+│ 1.0    │     1 │
+└────────┴───────┘
+
+Job Info
+Total runtime: 8s
+Results written to 
+/Users/petermakhnatch/Developer/helab-recon/runs/plugin-oracle-demo/result.json
+Inspect results by running `harbor view 
+/Users/petermakhnatch/Developer/helab-recon/runs`
+Share results by running `harbor upload 
+/Users/petermakhnatch/Developer/helab-recon/runs/plugin-oracle-demo`
+
+
+=== hook log ===
+{"event": "on_job_start", "ts": "2026-08-14T01:40:45.706648+00:00", "job_name": "plugin-oracle-demo", "job_dir": "/Users/petermakhnatch/Developer/helab-recon/runs/plugin-oracle-demo", "n_tasks": 1}
+{"event": "trial_event", "ts": "2026-08-14T01:40:45.766052+00:00", "trial_event": "start", "trial_name": "event-summary__LoHW4aD", "task_name": "local-lab/event-summary"}
+{"event": "trial_event", "ts": "2026-08-14T01:40:54.586309+00:00", "trial_event": "end", "trial_name": "event-summary__LoHW4aD", "task_name": "local-lab/event-summary"}
+{"event": "on_job_end", "ts": "2026-08-14T01:40:54.596079+00:00", "job_id": "787aae27-eae2-4dc5-be1d-5f7024db71c3", "n_total_trials": 1, "n_completed": 1, "n_errored": 0, "finished_at": "2026-08-13 21:40:54.591468"}

@@ -1,0 +1,51 @@
+schema_version = "1.4"
+artifacts = ["/app/name.txt", "/app/greeting.txt"]
+
+[task]
+name = "local-lab/two-step-echo"
+version = "1.0.0"
+description = "Two sequential steps sharing one environment: write a name, then greet it"
+keywords = ["multi-step", "recon-demo"]
+
+[[task.authors]]
+name = "Peter Makhnatch"
+email = "p.makhnatch@gmail.com"
+
+[metadata]
+difficulty = "easy"
+category = "demo"
+tags = ["multi-step", "oracle-control"]
+
+[environment]
+build_timeout_sec = 180.0
+workdir = "/app"
+os = "linux"
+cpus = 1
+memory_mb = 256
+storage_mb = 1024
+network_mode = "public"
+
+[agent]
+timeout_sec = 60.0
+
+[verifier]
+timeout_sec = 30.0
+
+[[steps]]
+name = "write-name"
+min_reward = 1.0
+
+[steps.agent]
+timeout_sec = 30.0
+
+[steps.verifier]
+timeout_sec = 20.0
+
+[[steps]]
+name = "greet"
+
+[steps.agent]
+timeout_sec = 30.0
+
+[steps.verifier]
+timeout_sec = 20.0

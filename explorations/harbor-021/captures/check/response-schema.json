@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "CheckOutcome": {
+      "enum": [
+        "pass",
+        "fail",
+        "not_applicable"
+      ],
+      "title": "CheckOutcome",
+      "type": "string"
+    },
+    "QualityCheckModel": {
+      "properties": {
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/CheckOutcome"
+        }
+      },
+      "required": [
+        "explanation",
+        "outcome"
+      ],
+      "title": "QualityCheckModel",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "behavior_in_task_description": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "behavior_in_tests": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "informative_test_structure": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "anti_cheating_measures": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "structured_data_schema": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "pinned_dependencies": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "typos": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "tests_or_solution_in_image": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "test_deps_in_image": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "hardcoded_solution": {
+      "$ref": "#/$defs/QualityCheckModel"
+    },
+    "file_reference_mentioned": {
+      "$ref": "#/$defs/QualityCheckModel"
+    }
+  },
+  "required": [
+    "behavior_in_task_description",
+    "behavior_in_tests",
+    "informative_test_structure",
+    "anti_cheating_measures",
+    "structured_data_schema",
+    "pinned_dependencies",
+    "typos",
+    "tests_or_solution_in_image",
+    "test_deps_in_image",
+    "hardcoded_solution",
+    "file_reference_mentioned"
+  ],
+  "title": "QualityCheckResponse",
+  "type": "object"
+}

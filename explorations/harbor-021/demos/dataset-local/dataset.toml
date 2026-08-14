@@ -1,0 +1,15 @@
+# Dataset manifest for lab/recon-demo
+# Add tasks using: harbor add <org>/<name>
+# Publish using: harbor publish
+
+[dataset]
+name = "lab/recon-demo"
+version = "1.0.0"
+description = "Local-only recon demo dataset; never published."
+authors = []
+keywords = []
+
+[[tasks]]
+name = "local-lab/event-summary"
+digest = "sha256:2c16dfb286d74d3ba9069ea19f436d3754887df8cac9613947a20e1b60cebdb3"
+

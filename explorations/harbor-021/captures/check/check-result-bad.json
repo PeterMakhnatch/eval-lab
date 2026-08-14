@@ -1,0 +1,42 @@
+{
+  "behavior_in_tests": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for behavior_in_tests"
+  },
+  "informative_test_structure": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for informative_test_structure"
+  },
+  "anti_cheating_measures": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for anti_cheating_measures"
+  },
+  "structured_data_schema": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for structured_data_schema"
+  },
+  "pinned_dependencies": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for pinned_dependencies"
+  },
+  "typos": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for typos"
+  },
+  "tests_or_solution_in_image": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for tests_or_solution_in_image"
+  },
+  "test_deps_in_image": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for test_deps_in_image"
+  },
+  "hardcoded_solution": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for hardcoded_solution"
+  },
+  "file_reference_mentioned": {
+    "outcome": "pass",
+    "explanation": "oracle-seeded local check for file_reference_mentioned"
+  }
+}

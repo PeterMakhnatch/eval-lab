@@ -17,7 +17,7 @@ Researcher subprocesses use `codex exec` with:
 - one validation retry, then a recorded failure.
 
 The local call ledger reserves an attributed amount before every attempt. It
-enforces four calls per role per day (at most two bounded passes including one
+enforces six calls per role per day (at most three bounded passes including one
 retry each), the committed per-job ceiling, and the combined
 catalog-plus-researcher daily ceiling.
 

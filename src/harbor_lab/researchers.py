@@ -195,19 +195,19 @@ class RoleLimits:
 
 DEFAULT_ROLE_LIMITS: Mapping[ResearchRole, RoleLimits] = {
     "analyst": RoleLimits(
-        max_calls_per_day=4,
+        max_calls_per_day=6,
         max_tokens=8_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "synthesizer": RoleLimits(
-        max_calls_per_day=4,
+        max_calls_per_day=6,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "proposer": RoleLimits(
-        max_calls_per_day=4,
+        max_calls_per_day=6,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
@@ -276,6 +276,10 @@ class CodexInvoker:
         schema_path.write_text(json.dumps(output_model.model_json_schema(), indent=2) + "\n")
 
         permission_key = _toml_key(str(work_dir.resolve()))
+        permission_table = (
+            'permissions.researcher.filesystem={":minimal" = "read", '
+            f'{permission_key} = "read"}}'
+        )
         command = [
             self.executable,
             "exec",
@@ -312,9 +316,7 @@ class CodexInvoker:
             "--config",
             'permissions.researcher.description="Read-only reviewed evidence bundle"',
             "--config",
-            'permissions.researcher.filesystem.":minimal"="read"',
-            "--config",
-            f'permissions.researcher.filesystem.{permission_key}="read"',
+            permission_table,
             "--config",
             'default_permissions="researcher"',
             "-",

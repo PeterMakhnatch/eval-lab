@@ -17,8 +17,9 @@ Researcher subprocesses use `codex exec` with:
 - one validation retry, then a recorded failure.
 
 The local call ledger reserves an attributed amount before every attempt. It
-enforces two calls per role per day (the second is the retry), the committed
-per-job ceiling, and the combined catalog-plus-researcher daily ceiling.
+enforces four calls per role per day (at most two bounded passes including one
+retry each), the committed per-job ceiling, and the combined
+catalog-plus-researcher daily ceiling.
 
 ## Outputs
 
@@ -46,4 +47,3 @@ per-job ceiling, and the combined catalog-plus-researcher daily ceiling.
    ```
 
 5. Run `uv run pytest -q` and `uv run ruff check .` before the PR.
-

@@ -195,19 +195,19 @@ class RoleLimits:
 
 DEFAULT_ROLE_LIMITS: Mapping[ResearchRole, RoleLimits] = {
     "analyst": RoleLimits(
-        max_calls_per_day=2,
+        max_calls_per_day=4,
         max_tokens=8_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "synthesizer": RoleLimits(
-        max_calls_per_day=2,
+        max_calls_per_day=4,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
     ),
     "proposer": RoleLimits(
-        max_calls_per_day=2,
+        max_calls_per_day=4,
         max_tokens=6_000,
         timeout_seconds=300,
         attributed_cost_usd=1.0,
@@ -1185,7 +1185,7 @@ def _researcher_environment(
         for key, value in os.environ.items()
         if key not in _DANGEROUS_ENVIRONMENT_KEYS
     }
-    executable_path = Path(executable).resolve() if "/" in executable else None
+    executable_path = Path(executable).absolute() if "/" in executable else None
     path_entries = ["/usr/bin", "/bin"]
     if executable_path is not None:
         path_entries.insert(0, str(executable_path.parent))

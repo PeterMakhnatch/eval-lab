@@ -1,10 +1,12 @@
 Status: review-wanted
-Last: opened SPEED PR #14; premerge green locally; waiting on GitHub checks
-Next: merge #14 only when gh pr checks is fully green on the head
-Blockers: PIPELINE PR is not on origin/main — criterion 4 remains blocked
+Last: post-PIPELINE re-profile; ingest_and_project 46.77 ms; documented already-optimal; no Polars
+Next: open SPEED PR from role/speed-2; merge when gh pr checks is fully green
+Blockers: none
 
 Harness location: `scripts/profile/`
-PR: https://github.com/PeterMakhnatch/eval-lab/pull/14
-Premerge: scripts/premerge.sh (pass) — 68 pytest, ruff clean, ty 33 <= 33
+PIPELINE is on origin/main as 3ba570c (#17). Fresh branch `role/speed-2`
+(do not reuse squash-merged `role/speed`).
 
-PIPELINE gate: no PIPELINE PR on origin/main. Did not edit atif/facts/digest.
+Merged-path measurement (scratch `evallab_speed_prof`, Harbor stubbed):
+ingest 30.47 ms, projection 3.20 ms, ingest+projection 46.77 ms.
+Already optimal on the 2-job fixture; Polars not added.

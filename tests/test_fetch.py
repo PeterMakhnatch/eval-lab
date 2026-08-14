@@ -119,6 +119,30 @@ def test_audit_reports_flipped_digest(tmp_path: Path) -> None:
     assert "digest drift" in hello.detail
 
 
+def test_audit_skips_ruff_cache_and_dirs_without_manifest(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    harbor = FakeHarbor()
+    service = FetchService(root=tmp_path, harbor=harbor)
+    service.fetch("hello-world@1.0")
+    cache = tmp_path / "library/benchmarks/.ruff_cache"
+    cache.mkdir()
+    (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n")
+    stray = tmp_path / "library/benchmarks/not-an-ingest"
+    stray.mkdir()
+    (stray / "notes.txt").write_text("no MANIFEST.md\n")
+    rows = service.audit()
+    assert [row.name for row in rows] == ["hello-world"]
+    assert rows[0].status == "pass"
+    code = cli.run_cli(["fetch", "--audit"], workspace=tmp_path, harbor=harbor)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "hello-world" in out
+    assert ".ruff_cache" not in out
+    assert "not-an-ingest" not in out
+    assert "MANIFEST.md missing" not in out
+
+
 def test_verify_sample_caps_n_and_records_rewards(tmp_path: Path) -> None:
     harbor = FakeHarbor()
     service = FetchService(root=tmp_path, harbor=harbor)

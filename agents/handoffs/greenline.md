@@ -1,7 +1,7 @@
 Status: review-wanted
-Last: premerge x3 + clean-worktree premerge green; 263 passed; PR not merged
-Next: wait for GitHub checks; do not self-merge while REGISTER #36 is open
-Blockers: REGISTER PR #36 is open; do not self-merge GREENLINE
+Last: opened PR #38; premerge x3 + clean-worktree green; 263 passed
+Next: wait for GitHub checks on #38; do not self-merge while REGISTER #36 is open
+Blockers: REGISTER PR #36 is open; do not self-merge GREENLINE #38
 
 Worktree already existed at start. Rebased/used `.worktrees/greenline` on
 `role/greenline` at `078dd7b` (origin/main PROGRAM merge). Did not delete it.
@@ -69,6 +69,7 @@ Worktree then removed. Did not delete the pre-existing
 
 ## Merge
 
+PR: https://github.com/PeterMakhnatch/eval-lab/pull/38
 REGISTER PR #36 (`role/register`) is open. GREENLINE will not self-merge.
 
 Scratch: `/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/grok-goal-9d250547c72f/implementer/`

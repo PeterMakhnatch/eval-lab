@@ -1024,6 +1024,8 @@ def run_cli(
                         f"{len(projection.trajectories)} | {len(projection.steps)} | "
                         f"{len(projection.tool_calls)} |"
                     )
+            if not args.export:
+                return 0
             result = ingest_and_project(
                 database_url_from_environment(args.database_url),
                 jobs,

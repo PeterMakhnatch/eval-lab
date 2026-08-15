@@ -169,7 +169,8 @@
       <tr><td>CLI control plane</td><td><span class="tag live">proven live</span></td><td><code>cli.py</code>; <code>evallab --help</code>; <code>tests/test_cli_audit.py</code></td></tr>
       <tr><td>Oracle/nop through queue</td><td><span class="tag live">proven live</span></td><td><code>queue.py</code>; <code>tests/test_smoke.py</code>; <code>research/evidence/runs/</code></td></tr>
       <tr><td>Policy ceilings</td><td><span class="tag live">proven live</span></td><td><code>policy/standing-approvals.yaml</code>; <code>tests/test_queue.py</code></td></tr>
-      <tr><td>Canary pin (3×Codex k=3)</td><td><span class="tag live">proven live</span> pin / runtime scores</td><td><code>policy/canary-suite.yaml</code>; <code>STATUS.md</code> (runs not in Git)</td></tr>
+      <tr><td>Canary pin (3 tasks, Codex, k=3)</td><td><span class="tag live">proven live</span></td><td><code>policy/canary-suite.yaml</code>; <code>src/evallab/canary.py</code>; <code>tests/test_canary.py</code></td></tr>
+      <tr><td>Codex canary scores (2026-08-15)</td><td><span class="tag des">designed</span></td><td><code>STATUS.md</code> + baseline extracts; runtime <code>runs/</code> not in Git — unproven as retained evidence</td></tr>
       <tr><td>Catalog + Parquet unify</td><td><span class="tag fix">fixture-proven only</span></td><td><code>atif.ingest_and_project</code>; <code>tests/test_pipeline.py</code></td></tr>
       <tr><td>Status + explorer + dashboard</td><td><span class="tag fix">fixture-proven only</span></td><td><code>status.py</code>, <code>explorer.py</code>; matching tests</td></tr>
       <tr><td>Compare / power / stub analyze</td><td><span class="tag fix">fixture-proven only</span></td><td><code>cohort.py</code>, <code>analyze</code>; <code>tests/test_truth.py</code></td></tr>
@@ -320,7 +321,7 @@ uv run python -m evallab.smoke --docker-free</pre>
     <li><strong>What ran?</strong> Promoted oracle/nop; 2026-08-15 Codex canaries scored in STATUS, not in Git.</li>
     <li><strong>What is running?</strong> Open PRs #47 M006 and #49 M007. STATUS said queue empty that morning. ACTIVE.md is stale.</li>
     <li><strong>What comes next?</strong> PROGRAM NEXT; do not submit withdrawn EXP-N1.</li>
-    <li><strong>What tasks exist?</strong> 4 runnable local packages, 17 curated cards, 0 registry records, 3 canary pins.</li>
+    <li><strong>What tasks exist?</strong> 4 runnable local packages, 19 curated cards, 0 registry records, 3 canary pins.</li>
     <li><strong>Where is analysis?</strong> Stub sidecar, <code>analyze *</code>, explorer, STATUS briefs. Worker is pending.</li>
     <li><strong>Who authorizes?</strong> Peter: policy, register, publish, direction. Integrator: merge. Policy file: spend.</li>
     <li><strong>Training later?</strong> Zone-04 export of our Zone-02 ATIF + rewards, then rented S4. Not shipped.</li>

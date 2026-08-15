@@ -78,12 +78,13 @@ End-to-end loop that exists on this checkout:
 | Compare | Declared cohorts | `evallab compare` | fixture-proven (`tests/test_truth.py`, `research/analysis/control-oracle-vs-nop.json`) |
 | Next experiment | Program ledger | `research/experiments/PROGRAM.json` + `STATUS.md` | designed + reviewed notes; several next cells **blocked** |
 
-**Observation.** `uv run evallab --help` on this tree lists 27 command
-groups including `dashboard`, `fetch`, `gc`, `registry`, `status`,
-`analyze`. That **supersedes** the 2026-08-14 checkpoint claim that
-`gc`/`fetch`/`dashboard` were missing from the CLI
-(`docs/checkpoints/2026-08-14.md` §Broken). Inference: MENDER/later
-waves wired those entry points; the old checkpoint is historical.
+**Observation.** `uv run evallab --help` on this tree lists **29**
+command groups (`doctor` through `registry`, including `dashboard`,
+`fetch`, `gc`, `registry`, `status`, `analyze`). That **supersedes**
+the 2026-08-14 checkpoint claim that `gc`/`fetch`/`dashboard` were
+missing from the CLI (`docs/checkpoints/2026-08-14.md` §Broken).
+Inference: MENDER/later waves wired those entry points; the old
+checkpoint is historical.
 
 **What Peter cannot do today without further work or his own
 authority.** Dispatch `registered/*` researcher-followups (zero
@@ -106,7 +107,7 @@ PR**, **blocked**, **designed**.
 | CLI control plane | proven live | `src/evallab/cli.py` | `uv run evallab --help`; `tests/test_cli_audit.py` |
 | Oracle/nop queue dispatch | proven live | `queue.py` `Executor`; `runner.py` | `tests/test_queue.py`; `tests/test_smoke.py`; promoted `research/evidence/runs/event-summary-*-evidence/` |
 | Standing policy ceilings | proven live | `policy/standing-approvals.yaml` + `PolicyGate` | `tests/test_queue.py`; file itself |
-| Canary pin (3 tasks, Codex, k=3) | proven live (pin) / mixed (runs) | `policy/canary-suite.yaml`; `src/evallab/canary.py` | `tests/test_canary.py`; 2026-08-15 scores in `STATUS.md` (runtime `runs/`, **not** Git) |
+| Canary pin (3 tasks, Codex, k=3) | proven live | `policy/canary-suite.yaml`; `src/evallab/canary.py` | `tests/test_canary.py` |
 | Promoted control evidence | proven live | `research/evidence/runs/` | two job trees; `CONTROL_RESULTS.md` |
 | Catalog + Parquet unify | fixture-proven only | `atif.ingest_and_project` | `tests/test_pipeline.py` |
 | Docker-free smoke compose | fixture-proven only | `src/evallab/smoke.py` | `tests/test_smoke.py`; `docs/operator-demo.md` |
@@ -121,12 +122,12 @@ PR**, **blocked**, **designed**.
 | Fetch Hub datasets | fixture-proven only | `src/evallab/fetch.py` | `tests/test_fetch.py` (no live Hub in this session) |
 | GC plan/apply | fixture-proven only | `src/evallab/gc.py` | `tests/test_gc.py` |
 | Trace convert | fixture-proven only | `src/evallab/tracing.py` | `tests/test_tracing.py`; `--dry-run` allowed |
-| Phoenix as store | designed (derived view) | `compose.yaml` phoenix service; `docs/observability.md` | compose file; **not** canonical evidence |
+| Phoenix as store | designed | `compose.yaml` phoenix service; `docs/observability.md` | compose file; derived view, **not** canonical evidence |
 | Post-trial analysis worker | pending in PR | GitHub PR #47 (not on this tree) | pending; PR claims worker tests |
 | Task-quality workbench | pending in PR | GitHub PR #49 (not on this tree) | pending; PR claims workbench tests |
 | FOUNDRY / LADDER | designed | `docs/path-forward-2026-08.md` only | unproven in `src/` |
 | Training / SFT export | designed | Zone 04 in `docs/data-architecture.md` | no `derived/curated/` product; unproven |
-| Codex capability on canaries | mixed | scored 2026-08-15 jobs (runtime) | `research/experiments/STATUS.md` + baseline md; **not** promoted to `research/evidence/` |
+| Codex canary scores (2026-08-15) | designed | reviewed extracts in `research/experiments/STATUS.md` + `research/experiments/baselines/codex-canary-20260815.md` | runtime `runs/` **not** in Git; not promoted to `research/evidence/` — unproven as retained evidence |
 | Oracle/nop as model skill | — | — | **Not model evidence** (`AGENTS.md`, stub analysis text) |
 
 M006 `#47` and M007 `#49` are **open**. This map does not treat their
@@ -498,8 +499,9 @@ A mid-level engineer should answer without opening `src/`:
 2. What is running? → board vs `gh pr list` (M006/M007 open); queue
    empty on the STATUS snapshot.
 3. What comes next? → PROGRAM NEXT; do not submit withdrawn N1.
-4. What tasks exist? → four `library/tasks`; 17 curated **cards**; 0
-   registry records; 3 canary pins.
+4. What tasks exist? → four `library/tasks`; 19 curated **cards**
+   (`library/curated/README.md`; 19 on-disk card dirs); 0 registry
+   records; 3 canary pins.
 5. Where does analysis appear? → stub sidecar, `analyze *`, explorer
    Analysis, STATUS briefs; worker is pending #47.
 6. Who authorizes what? → Peter: policy, register, publish, direction.

@@ -1,5 +1,5 @@
 Status: building
-Last: launchd tick 6/6 exited 0 at 23:16:02 EDT on the rebased/remediated code with the correct no-work event and zero scheduler stderr.
+Last: CLI audit now pins read-only-by-default family/card reports; focused and full tests pass, with 28 ty diagnostics below the 33 baseline. Launchd tick 6/6 remains clean.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then run exact-head repeated/fresh-clone gates and the reviewed PR workflow.
 Blockers: none.
 
@@ -543,8 +543,9 @@ The branch now closes each finding:
   failure as a quarantine with zero dispatch;
 - event rotation now has cross-process writer/reader coverage and fleet status
   reads numbered archives before the active log;
-- upstream `report family` reads the shared derived root by default, and the CLI
-  audit now pins 27 top-level commands and 38 help paths.
+- upstream `report family` reads the shared derived root by default; family and
+  card reports render without writing unless an output flag is explicit; and
+  the CLI audit pins 27 top-level commands and 38 help paths.
 
 The separate integrator fetched `origin/main` at
 `e844456714b821ae62cba1048a5ea2132a5f38f2` and rebased all 32 SOLIDIFY commits.
@@ -574,3 +575,27 @@ All checks passed!
 This is remediation evidence, not final acceptance: the exact final head still
 requires three complete premerge runs, three full local smokes, and a fresh
 protocol-compliant clone after the four-hour soak completes.
+
+## Continuation CLI read-only correction
+
+The structural CLI inventory exposed one semantic gap: `report family` and
+`report card` were suitable inspection commands but published files by default.
+`family_report` was already pure; the card path is now split into pure
+`build_eval_card` and the backward-compatible explicit writer
+`draft_eval_card`. The CLI renders by default and writes only with
+`--output-dir` or `--output`. Operations documentation and regression tests pin
+that behavior.
+
+```text
+$ ruff check src/evallab/report.py src/evallab/cli.py tests/test_cli_audit.py
+All checks passed!
+$ pytest -q tests/test_cli_audit.py tests/test_truth.py
+....................................................                     [100%]
+$ ruff check . && pytest -q
+All checks passed!
+........................................................................ [ 38%]
+........................................................................ [ 77%]
+..........................................                               [100%]
+$ uvx 'ty@0.0.71' check src/ --output-format=concise
+Found 28 diagnostics
+```

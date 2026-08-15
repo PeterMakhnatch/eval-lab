@@ -208,7 +208,30 @@ class GuardedTick:
                 actor="scheduled-tick",
             )
             return GuardedTickResult(report=report, dispatched=0)
-        return GuardedTickResult(report=report, dispatched=self.executor.tick())
+        dispatched = self.executor.tick()
+        if dispatched:
+            event = "tick_dispatched"
+            reason = f"dispatched:{dispatched}"
+        elif self.executor.queue.stop_path.exists():
+            event = "tick_deferred"
+            reason = "stop_file_present"
+        elif self.executor.queue.list_specs("approved"):
+            event = "tick_deferred"
+            reason = "approved_specs_deferred"
+        else:
+            event = "tick_deferred"
+            reason = "no_approved_specs"
+        self.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event=event,
+                actor="scheduled-tick",
+                reason_code=reason,
+            )
+        )
+        return GuardedTickResult(report=report, dispatched=dispatched)
 
 
 @dataclass(frozen=True)

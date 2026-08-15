@@ -5,10 +5,10 @@ import subprocess
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from evallab.automation import HeadlessDoctor, NightlyCycle, ScheduleInstaller
+from evallab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
 from evallab.paths import DERIVED_ROOT_ENV
-from evallab.queue import DirectoryQueue, Executor
+from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.schemas import (
     AutoRunRule,
     ExperimentSpec,
@@ -199,6 +199,55 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     assert "nightly-oracle-control" in content
     assert "local-controls" in content
     assert "Quarantined: no" in content
+
+
+def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+
+    def runner(request):
+        job = request.jobs_dir / request.name
+        job.mkdir(parents=True)
+        return job
+
+    service = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        runner=runner,
+        ingester=lambda _path: None,
+        spent_today=lambda: 0,
+        consecutive_harness_failures=lambda: 0,
+    )
+    tick = GuardedTick(
+        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
+        executor=service,
+    )
+
+    assert tick.run().dispatched == 0
+    service.queue.stop()
+    assert tick.run().dispatched == 0
+    service.queue.resume()
+    service.submit(
+        ExperimentSpec(
+            name="tick-outcome-control",
+            hypothesis="record a dispatched cycle",
+            task="library/tasks/event-summary",
+            agent="oracle",
+            submitted_by="scheduler-test",
+        )
+    )
+    assert tick.run().dispatched == 1
+
+    outcomes = [
+        (event.event, event.reason_code)
+        for event in load_events(queue.events_path)
+        if event.actor == "scheduled-tick"
+    ]
+    assert outcomes == [
+        ("tick_deferred", "no_approved_specs"),
+        ("tick_deferred", "stop_file_present"),
+        ("tick_dispatched", "dispatched:1"),
+    ]
 
 
 def test_locked_keychain_quarantines_nightly_with_zero_dispatch(tmp_path: Path) -> None:

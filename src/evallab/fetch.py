@@ -7,10 +7,20 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
+from urllib.parse import quote
+from urllib.request import Request, urlopen
+
+import pyarrow.parquet as pq
+
+from evallab.atif import export_trajectories
+from evallab.results import JobRecord, TrialRecord
+from evallab.schemas import ProvenanceMetadata
 
 UNPINNED_VERSIONS = frozenset({"latest", "head", "main", "master"})
 PROTECTED_INGESTS = frozenset(
@@ -841,3 +851,203 @@ class FetchService:
             verify_sample=verify_sample,
             jobs_dir=jobs_dir,
         )
+
+
+@dataclass(frozen=True)
+class PublicAtifSource:
+    """Anonymous, immutable Hugging Face ATIF file."""
+
+    item_id: str
+    repo_id: str
+    revision: str
+    filename: str
+    sha256: str
+    license: str
+
+    @property
+    def url(self) -> str:
+        path = quote(self.filename, safe="/")
+        return f"https://huggingface.co/datasets/{self.repo_id}/resolve/{self.revision}/{path}"
+
+
+PROOFJUDGE_ATIF_SAMPLE = PublicAtifSource(
+    item_id="proofjudge-eval-traces@qwen3-32b",
+    repo_id="SJCaldwell/proofjudge-eval-traces",
+    revision="aac1f0f4c96e8394da6315a04778e4b7f13ac900",
+    filename="data/traces_qwen3-32b.jsonl",
+    sha256="79b7d3e71d28af6dc1630cb135d697c035a4e74de5eb9226db6e1c0cd3ee17fb",
+    license="mit",
+)
+
+
+@dataclass(frozen=True)
+class ExternalAtifFetchResult:
+    status: str
+    source: PublicAtifSource
+    dest: Path
+    source_sha256: str
+    records: int
+    valid: int
+    invalid: int
+    unsupported: int
+    row_counts: dict[str, int]
+    provenance_path: Path
+
+
+DownloadBytes = Callable[[str], bytes]
+
+
+def _anonymous_download(url: str) -> bytes:
+    request = Request(url, headers={"User-Agent": "evallab-public-atif/0.1"})
+    with urlopen(request, timeout=60) as response:  # noqa: S310 - pinned HTTPS source
+        return response.read()
+
+
+def _validate_public_atif_source(source: PublicAtifSource) -> None:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._@-]{0,119}", source.item_id):
+        raise FetchError(f"invalid external ATIF item id: {source.item_id!r}")
+    if not re.fullmatch(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+", source.repo_id):
+        raise FetchError(f"invalid Hugging Face dataset id: {source.repo_id!r}")
+    if not re.fullmatch(r"[0-9a-f]{40}", source.revision):
+        raise FetchError("public ATIF sources require a 40-hex commit revision")
+    if not re.fullmatch(r"[0-9a-f]{64}", source.sha256):
+        raise FetchError("public ATIF sources require a sha256 content digest")
+    if source.filename.startswith("/") or ".." in Path(source.filename).parts:
+        raise FetchError("public ATIF filename must stay relative to the dataset")
+
+
+def _external_atif_counts(dest: Path) -> tuple[dict[str, int], dict[str, int]]:
+    row_counts: dict[str, int] = {}
+    statuses = {"valid": 0, "invalid": 0, "unsupported": 0}
+    for path in sorted(dest.rglob("*.parquet")):
+        table_name = path.stem
+        parquet = pq.ParquetFile(path)
+        row_counts[table_name] = row_counts.get(table_name, 0) + parquet.metadata.num_rows
+        if table_name != "trajectories":
+            continue
+        for value in parquet.read(columns=["validation_status"])["validation_status"]:
+            status = value.as_py()
+            if status in statuses:
+                statuses[status] += 1
+    return row_counts, statuses
+
+
+def _existing_external_atif(
+    dest: Path, source: PublicAtifSource
+) -> ExternalAtifFetchResult | None:
+    provenance_path = dest / "provenance.json"
+    if not provenance_path.is_file():
+        return None
+    provenance = ProvenanceMetadata.model_validate_json(provenance_path.read_text())
+    expected_digest = f"sha256:{source.sha256}"
+    if provenance.revision != source.revision or provenance.material_digest != expected_digest:
+        raise FetchError(f"existing external projection does not match {source.item_id}")
+    row_counts, statuses = _external_atif_counts(dest)
+    records = sum(statuses.values())
+    return ExternalAtifFetchResult(
+        status="noop",
+        source=source,
+        dest=dest,
+        source_sha256=expected_digest,
+        records=records,
+        valid=statuses["valid"],
+        invalid=statuses["invalid"],
+        unsupported=statuses["unsupported"],
+        row_counts=row_counts,
+        provenance_path=provenance_path,
+    )
+
+
+def fetch_public_atif(
+    source: PublicAtifSource,
+    *,
+    output_root: Path,
+    downloader: DownloadBytes | None = None,
+    fetched_at: datetime | None = None,
+) -> ExternalAtifFetchResult:
+    """Download, checksum, validate, and project a public JSONL ATIF file.
+
+    The default downloader is anonymous and sends no credential header. Tests
+    inject bytes, so CI never reaches the network or a host cache.
+    """
+
+    _validate_public_atif_source(source)
+    root = output_root.resolve()
+    dest = root / "external" / source.item_id
+    if dest.exists():
+        existing = _existing_external_atif(dest, source)
+        if existing is not None:
+            return existing
+        raise FetchError(f"refusing to replace unrecognized external projection: {dest}")
+
+    payload = (downloader or _anonymous_download)(source.url)
+    actual = hashlib.sha256(payload).hexdigest()
+    if actual != source.sha256:
+        raise FetchError(
+            f"public ATIF digest mismatch for {source.item_id}: "
+            f"expected {source.sha256}, got {actual}"
+        )
+    lines = [line for line in payload.splitlines() if line.strip()]
+    if not lines:
+        raise FetchError(f"public ATIF source is empty: {source.item_id}")
+
+    root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".external-atif-", dir=root) as temporary:
+        work = Path(temporary)
+        raw = work / "raw"
+        projection = work / "projection"
+        trials: list[TrialRecord] = []
+        for index, line in enumerate(lines, start=1):
+            record_sha = hashlib.sha256(line).hexdigest()
+            trial_id = f"external-{index:06d}-{record_sha[:12]}"
+            trial_dir = raw / trial_id
+            trajectory_path = trial_dir / "agent" / "trajectory.json"
+            trajectory_path.parent.mkdir(parents=True)
+            trajectory_path.write_bytes(line + b"\n")
+            trials.append(
+                TrialRecord(
+                    path=trial_dir,
+                    result={"id": trial_id, "trial_name": trial_id},
+                    config={},
+                    lock={},
+                    rewards={},
+                    artifacts=(),
+                )
+            )
+        job = JobRecord(
+            path=raw,
+            result={"id": f"external-{source.sha256[:16]}"},
+            config={},
+            lock={},
+            metadata={},
+            trials=tuple(trials),
+        )
+        export_trajectories([job], projection)
+        provenance = ProvenanceMetadata(
+            item_id=source.item_id,
+            zone="01-external",
+            source_uri=f"https://huggingface.co/datasets/{source.repo_id}",
+            revision=source.revision,
+            material_digest=f"sha256:{source.sha256}",
+            license=source.license,
+            created_at=fetched_at or datetime.now(UTC),
+            created_by="evallab-fetch",
+        )
+        provenance_path = projection / "provenance.json"
+        provenance_path.write_text(provenance.model_dump_json(indent=2) + "\n")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        projection.replace(dest)
+
+    row_counts, statuses = _external_atif_counts(dest)
+    return ExternalAtifFetchResult(
+        status="fetched",
+        source=source,
+        dest=dest,
+        source_sha256=f"sha256:{source.sha256}",
+        records=len(lines),
+        valid=statuses["valid"],
+        invalid=statuses["invalid"],
+        unsupported=statuses["unsupported"],
+        row_counts=row_counts,
+        provenance_path=dest / "provenance.json",
+    )

@@ -456,7 +456,32 @@ def test_failed_candidate_packet_preserves_exact_diagnostics(tmp_path: Path) -> 
     assert candidate_path.is_file()
     certification = json.loads(certification_path.read_text())
     assert certification["status"] == "needs_changes"
+    assert certification["check_vector"] == {
+        "invalid_outputs_rejected": False,
+        "isolation": False,
+        "nop_exact_0": False,
+        "oracle_exact_1": False,
+        "static": False,
+        "verifier_deterministic": False,
+    }
     assert any(item["code"] == "required_file_missing" for item in certification["diagnostics"])
+
+
+def test_controls_pending_packet_does_not_claim_unobserved_control_success(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    report = check_candidate(_inspect(repo, task))
+    _, certification_path = write_packet(repo_root=repo, report=report)
+    certification = json.loads(certification_path.read_text())
+
+    assert certification["status"] == "controls_pending"
+    assert certification["check_vector"]["static"] is True
+    assert certification["check_vector"]["isolation"] is True
+    assert certification["check_vector"]["oracle_exact_1"] is False
+    assert certification["check_vector"]["nop_exact_0"] is False
+    assert certification["check_vector"]["invalid_outputs_rejected"] is False
+    assert certification["check_vector"]["verifier_deterministic"] is False
 
 
 def test_source_provenance_and_license_fail_closed(tmp_path: Path) -> None:

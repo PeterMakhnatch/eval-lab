@@ -1,6 +1,6 @@
-Status: verifying
-Last: deterministic workbench, regression fixtures, retained good/bad packets, and real free control cycle completed
-Next: run full repository verification, rebase exact origin/main, push the review-only PR, and obtain Tasks review
+Status: ready for review
+Last: deterministic workbench, retained evidence, real free controls, full suite, and premerge all passed
+Next: complete independent Tasks review, push the review-only PR, and wait for exact-head GitHub CI
 Blockers: repository contains zero human-registered tasks; exercise will use the documented event-summary registration candidate and state that limitation explicitly
 
 # M007 task-quality workbench handoff
@@ -77,7 +77,7 @@ target: tests/fixtures/task_workbench/cases/unpinned-dependency
 candidate: candidate-c4ec5c27d830ea208cf30382
 result: needs_changes (21 retained task-defect diagnostics; no controls)
 candidate sha256: 3c5b69fde775df39f249675dd7f89c973fa7d0e836a3b43d5f3fa008a549a9ab
-certification sha256: d8c765fb97d69748b7226f57395ed5a65d5944b50c3037c799900cc17883d5fb
+certification sha256: ed96412937151f9b55a0d64b92ac765120f44fcee25f5a941c251ca0e74d4512
 second packet build: identical hashes and expected exit 1
 ```
 
@@ -119,3 +119,35 @@ origin/main: 00f36ab INTEGRATION: release M006 and M007 (#46)
 uv sync --locked: installed successfully with CPython 3.12.11
 open PRs at dispatch: none
 ```
+
+Local verification evidence:
+
+```text
+uv run pytest tests/test_task_workbench.py -q
+....................... [100%]
+24 passed
+
+uv run ruff check .
+All checks passed!
+
+uv run pytest -q
+395 passed
+
+scripts/premerge.sh
+Resolved 43 packages; audited 41 packages
+All checks passed!
+395 passed in 17.50s
+doctor/smoke: PASS (both stores agree)
+ty: 28 diagnostics; premerge green because ratchet is 28 <= 28
+premerge green: Python 3.12
+
+git fetch origin; git rebase origin/main
+origin/main: 00f36ab
+Current branch role/m007-task-workbench is up to date.
+```
+
+No M007 file adds an API-key variable, model selector, queue import, registry
+write, publication path, or absolute home path. Packet admission remains false.
+The final self-audit also made unobserved control claims fail closed: a
+`controls_pending`, interrupted, or static-failure packet cannot report Oracle,
+Nop, adversarial, or verifier-determinism checks as true.

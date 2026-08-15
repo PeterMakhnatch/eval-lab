@@ -1852,6 +1852,36 @@ def check_candidate(inspection: Inspection, controls: ControlBundle | None = Non
 
 
 def _certification_record(report: CheckReport) -> dict[str, Any]:
+    observations = (
+        {item.control_id: item for item in report.controls.observations}
+        if report.controls is not None
+        else {}
+    )
+
+    def control_matches(plan: ControlPlanEntry) -> bool:
+        observation = observations.get(plan.control_id)
+        return bool(
+            observation is not None
+            and observation.status == "completed"
+            and observation.exception_type is None
+            and observation.reward == plan.expected_reward
+            and observation.verifier_output_digest is not None
+            and observation.evidence_digest is not None
+        )
+
+    oracle_plan = [item for item in report.inspection.control_plan if item.kind == "oracle"]
+    nop_plan = [item for item in report.inspection.control_plan if item.kind == "nop"]
+    adversarial_plan = [
+        item for item in report.inspection.control_plan if item.kind == "adversarial"
+    ]
+    oracle_exact = len(oracle_plan) == ORACLE_REPETITIONS and all(
+        control_matches(item) for item in oracle_plan
+    )
+    oracle_outputs = [
+        observations[item.control_id].verifier_output_digest
+        for item in oracle_plan
+        if item.control_id in observations
+    ]
     body: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "task_workbench_certification",
@@ -1864,22 +1894,17 @@ def _certification_record(report: CheckReport) -> dict[str, Any]:
         "diagnostics": [item.to_dict() for item in report.diagnostics],
         "check_vector": {
             "static": report.inspection.static_passed,
-            "oracle_exact_1": not any(
-                item.code == "oracle_false_negative" for item in report.diagnostics
+            "oracle_exact_1": oracle_exact,
+            "nop_exact_0": len(nop_plan) == 1 and all(
+                control_matches(item) for item in nop_plan
             ),
-            "nop_exact_0": not any(
-                item.code == "verifier_permissive" and item.path == "nop-1"
-                for item in report.diagnostics
-            ),
-            "invalid_outputs_rejected": not any(
-                item.code == "verifier_permissive" and item.path.startswith("adversarial-")
-                for item in report.diagnostics
-            ),
-            "verifier_deterministic": not any(
-                item.code in {"verifier_nondeterministic", "verifier_nondeterminism_static"}
-                for item in report.diagnostics
-            ),
-            "isolation": not any(
+            "invalid_outputs_rejected": len(adversarial_plan) >= MIN_ADVERSARIAL_CASES
+            and all(control_matches(item) for item in adversarial_plan),
+            "verifier_deterministic": oracle_exact
+            and len(oracle_outputs) == ORACLE_REPETITIONS
+            and len(set(oracle_outputs)) == 1,
+            "isolation": report.inspection.static_passed
+            and not any(
                 item.code
                 in {
                     "agent_image_hidden_leak",

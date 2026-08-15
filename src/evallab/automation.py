@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import plistlib
 import shlex
@@ -264,6 +265,7 @@ class NightlyCycle:
         digest_enricher: DigestEnricher | None = None,
         completed_job_ingester: CompletedJobIngester | None = None,
         database_backup: DatabaseBackup | None = None,
+        analysis_stager: Callable[[], object] | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
@@ -274,6 +276,10 @@ class NightlyCycle:
         self.digest_enricher = digest_enricher
         self.completed_job_ingester = completed_job_ingester
         self.database_backup = database_backup
+        # M006: nightly may DISCOVER/STAGE analysis requests only. Staging
+        # freezes identity and never calls a model; execution requires the
+        # worker's own admission path in an operator-driven invocation.
+        self.analysis_stager = analysis_stager
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
@@ -283,6 +289,12 @@ class NightlyCycle:
         dispatched = 0
         researcher_invocations = 0
         backup_path: Path | None = None
+        if report.healthy and self.analysis_stager is not None:
+            # Stage-only by construction: freezing identity makes no model
+            # call, and nightly holds no adapter to escalate with.
+            with contextlib.suppress(Exception):
+                # staging is best-effort; execution has its own gates
+                self.analysis_stager()
         if report.healthy and self.completed_job_ingester is not None:
             try:
                 ingest_result = self.completed_job_ingester()

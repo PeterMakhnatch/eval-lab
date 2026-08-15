@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "experiment": {
+    "spec_id": "exp-operability-join",
+    "task": "library/tasks/event-summary"
+  }
+}

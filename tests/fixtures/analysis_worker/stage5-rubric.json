@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "questions": [
+    "Was this a valid agent attempt or an infrastructure, task, harness, or verifier failure?",
+    "Did the verifier accept an invalid shortcut or reject a valid result?",
+    "What is the earliest evidence-supported failure point?",
+    "Which documented failure category best describes the outcome?",
+    "What direct path-and-step evidence supports the classification?",
+    "What alternative explanation remains plausible?",
+    "What smallest one-variable experiment would distinguish the explanations?"
+  ],
+  "rules": {
+    "read_only": true,
+    "unknown_is_allowed": true,
+    "evidence_paths_must_be_trial_relative": true,
+    "atif_citations_require_step_id": true,
+    "confidence_is_a_calibration_label": true
+  }
+}

@@ -364,6 +364,16 @@ def parser() -> argparse.ArgumentParser:
     analyze_plan_parser.add_argument(
         "--output-dir", type=Path, default=Path("derived/analyses")
     )
+    analyze_commands.add_parser(
+        "worker-plan", help="Read-only: what an analysis-worker cycle would do"
+    )
+    analyze_commands.add_parser(
+        "worker-status", help="Read-only: analysis request counts and states"
+    )
+    analyze_worker_run = analyze_commands.add_parser(
+        "worker-run-one", help="Run ONE request through normal admission (never self-approves)"
+    )
+    analyze_worker_run.add_argument("request_id")
     analyze_stub = analyze_commands.add_parser(
         "stub", help="Validate a saved response and write an immutable sidecar"
     )
@@ -1216,6 +1226,21 @@ def run_cli(
             print(f"analysis: {sidecar_path}")
             print(f"validation: {sidecar.validation_status}")
             return 0 if sidecar.validation_status == "valid" else 1
+        if args.command == "analyze" and args.analyze_command in {
+            "worker-plan", "worker-status", "worker-run-one"
+        }:
+            from evallab.analysis_worker import default_job_roots, default_worker
+
+            worker = default_worker(root)
+            if args.analyze_command == "worker-plan":
+                print(json.dumps(worker.plan(default_job_roots(root)), indent=2))
+                return 0
+            if args.analyze_command == "worker-status":
+                print(json.dumps(worker.status(), indent=2))
+                return 0
+            transition = worker.run_one(args.request_id)
+            print(json.dumps({"state": transition.state, "reason": transition.reason}))
+            return 0 if transition.state == "completed" else 1
         if args.command == "analyze" and args.analyze_command == "ingest-sidecar":
             sidecar_path = _resolve(root, args.path)
             url = database_url_from_environment(args.database_url)

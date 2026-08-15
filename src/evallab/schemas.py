@@ -525,3 +525,54 @@ class JudgeCalibrationRecord(ContractModel):
         if self.reportable != (self.status == "measured"):
             raise ValueError("only measured calibration records are reportable")
         return self
+
+
+class ProvenanceMetadata(ContractModel):
+    """Auditable sidecar for every data item the lab stores or derives.
+
+    One instance accompanies each dataset, trajectory corpus, synthetic task
+    batch, or distilled export. Zones are defined in docs/data-architecture.md:
+    01 external, 02 local evidence, 03 synthetic, 04 curated distillation.
+    """
+
+    schema_version: Literal[1] = 1
+    item_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._@-]+$", max_length=120)
+    zone: Literal["01-external", "02-local-evidence", "03-synthetic", "04-curated"]
+    source_uri: str = Field(min_length=1)
+    revision: str | None = None
+    material_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    license: str | None = None
+    created_at: datetime
+    created_by: str = Field(min_length=1)
+    transform: str | None = Field(
+        default=None,
+        description="converter/generator identity as name@version; None for raw acquisitions",
+    )
+    parent_digests: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+    @field_validator("parent_digests")
+    @classmethod
+    def parents_are_sha256(cls, value: list[str]) -> list[str]:
+        for digest in value:
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+                raise ValueError(f"parent digest is not sha256-formatted: {digest!r}")
+        return value
+
+    @field_validator("transform")
+    @classmethod
+    def transform_is_versioned(cls, value: str | None) -> str | None:
+        pattern = r"[a-z0-9][a-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*"
+        if value is not None and not re.fullmatch(pattern, value):
+            raise ValueError("transform must be name@version")
+        return value
+
+    @model_validator(mode="after")
+    def zone_invariants(self) -> ProvenanceMetadata:
+        if self.zone == "01-external" and not self.revision:
+            raise ValueError("zone 01 items require an immutable revision pin")
+        if self.zone in {"03-synthetic", "04-curated"} and self.transform is None:
+            raise ValueError(f"zone {self.zone} items are machine-produced and require a transform")
+        if self.zone == "04-curated" and not self.parent_digests:
+            raise ValueError("zone 04 distillations must cite parent digests")
+        return self

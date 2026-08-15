@@ -122,3 +122,200 @@ ORDER BY s.job_id, s.trial_id, calls DESC, tc.function_name;
 SELECT *
 FROM experiment_trial_analysis_path
 ORDER BY experiment_id, job_id, trial_id, trajectory_document_id, analysis_id;
+
+-- Trajectory intelligence (DuckDB). Tests execute every statement between the
+-- begin/end markers against typed Parquet fixtures.
+-- BEGIN TRAJECTORY_INTELLIGENCE_DUCKDB
+
+-- name: loop-index
+WITH signature_counts AS (
+    SELECT
+        job_id,
+        trial_id,
+        count(*) AS tool_calls,
+        count(DISTINCT concat(function_name, ':', arguments_sha256)) AS distinct_signatures
+    FROM read_parquet('derived/parquet/**/tool_calls.parquet')
+    GROUP BY job_id, trial_id
+)
+SELECT
+    job_id,
+    trial_id,
+    tool_calls,
+    distinct_signatures,
+    (tool_calls - distinct_signatures)::DOUBLE / nullif(tool_calls, 0) AS loop_index
+FROM signature_counts
+ORDER BY loop_index DESC NULLS LAST, job_id, trial_id;
+
+-- name: tool-efficiency-ratio
+WITH call_outcomes AS (
+    SELECT
+        tc.job_id,
+        tc.trial_id,
+        tc.document_id,
+        tc.tool_call_id,
+        count(o.observation_index) AS linked_observations,
+        max(CASE WHEN o.command_exit_code <> 0 THEN 1 ELSE 0 END) AS had_nonzero_exit
+    FROM read_parquet('derived/parquet/**/tool_calls.parquet') AS tc
+    LEFT JOIN read_parquet('derived/parquet/**/observations.parquet') AS o
+        ON o.job_id = tc.job_id
+       AND o.trial_id = tc.trial_id
+       AND o.document_id = tc.document_id
+       AND o.source_call_id = tc.tool_call_id
+    GROUP BY tc.job_id, tc.trial_id, tc.document_id, tc.tool_call_id
+)
+SELECT
+    job_id,
+    trial_id,
+    count(*) AS tool_calls,
+    count(*) FILTER (WHERE linked_observations = 0) AS unlinked_calls,
+    count(*) FILTER (
+        WHERE linked_observations > 0 AND had_nonzero_exit = 0
+    )::DOUBLE / nullif(count(*), 0) AS tool_efficiency_ratio
+FROM call_outcomes
+GROUP BY job_id, trial_id
+ORDER BY tool_efficiency_ratio, job_id, trial_id;
+
+-- name: context-bloat-velocity
+WITH measured AS (
+    SELECT
+        job_id,
+        trial_id,
+        document_id,
+        step_id,
+        prompt_tokens,
+        row_number() OVER (
+            PARTITION BY job_id, trial_id, document_id ORDER BY step_id
+        ) AS llm_step_ordinal
+    FROM read_parquet('derived/parquet/**/steps.parquet')
+    WHERE prompt_tokens IS NOT NULL
+)
+SELECT
+    job_id,
+    trial_id,
+    document_id,
+    count(*) AS measured_steps,
+    first(prompt_tokens ORDER BY step_id) AS first_prompt_tokens,
+    last(prompt_tokens ORDER BY step_id) AS last_prompt_tokens,
+    regr_slope(prompt_tokens::DOUBLE, llm_step_ordinal::DOUBLE) AS context_bloat_velocity
+FROM measured
+GROUP BY job_id, trial_id, document_id
+ORDER BY context_bloat_velocity DESC NULLS LAST, job_id, trial_id;
+
+-- name: context-growth-spikes
+WITH deltas AS (
+    SELECT
+        job_id,
+        trial_id,
+        document_id,
+        step_id,
+        prompt_tokens,
+        prompt_tokens - lag(prompt_tokens) OVER (
+            PARTITION BY job_id, trial_id, document_id ORDER BY step_id
+        ) AS prompt_token_delta
+    FROM read_parquet('derived/parquet/**/steps.parquet')
+    WHERE prompt_tokens IS NOT NULL
+)
+SELECT *
+FROM deltas
+WHERE prompt_token_delta IS NOT NULL
+ORDER BY abs(prompt_token_delta) DESC, job_id, trial_id, step_id;
+
+-- name: flaky-verifier-candidates
+SELECT
+    task_digest,
+    verifier_digest,
+    count(*) AS trials,
+    count(*) FILTER (WHERE primary_reward >= 1.0) AS passing_trials,
+    count(*) FILTER (WHERE primary_reward < 1.0) AS failing_trials,
+    count(DISTINCT coalesce(agent_config_digest, '')) AS agent_configs
+FROM read_parquet('derived/parquet/**/trial_facts.parquet')
+WHERE exception_class IS NULL AND primary_reward IS NOT NULL
+GROUP BY task_digest, verifier_digest
+HAVING passing_trials > 0 AND failing_trials > 0
+ORDER BY trials DESC, task_digest;
+
+-- name: tool-hallucination-candidates
+SELECT
+    tc.job_id,
+    tc.trial_id,
+    tc.document_id,
+    tc.step_id,
+    tc.tool_call_id,
+    tc.function_name
+FROM read_parquet('derived/parquet/**/tool_calls.parquet') AS tc
+LEFT JOIN read_parquet('derived/parquet/**/observations.parquet') AS o
+    ON o.job_id = tc.job_id
+   AND o.trial_id = tc.trial_id
+   AND o.document_id = tc.document_id
+   AND o.source_call_id = tc.tool_call_id
+GROUP BY ALL
+HAVING count(o.observation_index) = 0
+ORDER BY tc.job_id, tc.trial_id, tc.step_id, tc.tool_call_id;
+
+-- name: timeout-failures
+SELECT
+    job_id,
+    trial_id,
+    task_name,
+    agent_name,
+    model_name,
+    exception_class,
+    exception_phase,
+    duration_seconds
+FROM read_parquet('derived/parquet/**/trial_facts.parquet')
+WHERE lower(coalesce(exception_class, '')) LIKE '%timeout%'
+   OR lower(coalesce(exception_phase, '')) LIKE '%timeout%'
+ORDER BY duration_seconds DESC NULLS LAST, job_id, trial_id;
+
+-- name: surrender-candidates
+SELECT
+    job_id,
+    trial_id,
+    task_name,
+    agent_name,
+    model_name,
+    primary_reward,
+    step_count,
+    tool_call_count
+FROM read_parquet('derived/parquet/**/trial_facts.parquet')
+WHERE exception_class IS NULL
+  AND (primary_reward IS NULL OR primary_reward < 1.0)
+  AND step_count <= 3
+  AND tool_call_count = 0
+ORDER BY step_count, job_id, trial_id;
+
+-- name: repeated-failed-commands
+SELECT
+    tc.job_id,
+    tc.trial_id,
+    tc.function_name,
+    tc.arguments_sha256,
+    count(*) AS failed_attempts,
+    min(tc.step_id) AS first_failed_step,
+    max(tc.step_id) AS last_failed_step
+FROM read_parquet('derived/parquet/**/tool_calls.parquet') AS tc
+JOIN read_parquet('derived/parquet/**/observations.parquet') AS o
+    ON o.job_id = tc.job_id
+   AND o.trial_id = tc.trial_id
+   AND o.document_id = tc.document_id
+   AND o.source_call_id = tc.tool_call_id
+WHERE o.command_exit_code <> 0
+GROUP BY tc.job_id, tc.trial_id, tc.function_name, tc.arguments_sha256
+HAVING failed_attempts >= 2
+ORDER BY failed_attempts DESC, tc.job_id, tc.trial_id;
+
+-- name: token-cost-coverage
+SELECT
+    coalesce(model_name, 'unknown') AS model_name,
+    count(*) AS trajectories,
+    count(prompt_tokens) AS with_prompt_tokens,
+    count(completion_tokens) AS with_completion_tokens,
+    count(cost_usd) AS with_cost,
+    sum(prompt_tokens) AS prompt_tokens,
+    sum(completion_tokens) AS completion_tokens,
+    sum(cost_usd) AS cost_usd
+FROM read_parquet('derived/parquet/**/trajectories.parquet')
+GROUP BY coalesce(model_name, 'unknown')
+ORDER BY trajectories DESC, model_name;
+
+-- END TRAJECTORY_INTELLIGENCE_DUCKDB

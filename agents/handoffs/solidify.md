@@ -1,6 +1,6 @@
 Status: building
-Last: P1 full smoke passed three consecutive oracle runs and premerge passed with the Docker-free composed smoke; fresh-checkout proof remains.
-Next: Commit P1, prove it from a fresh checkout, then implement the P2 multi-spec credential-scoping regression test.
+Last: P1 accepted after three consecutive full oracle smokes, premerge, and one full smoke from a fresh clone.
+Next: Implement the P2 multi-spec credential-scoping regression test with injected credential probes.
 Blockers: none
 
 # SOLIDIFY handoff
@@ -75,4 +75,19 @@ PASS parquet job_id=886e92a2-0de4-4384-b7ad-aa8c623e96b1
 SMOKE PASS both-stores-agree
 Found 33 diagnostics
 premerge green: Python 3.12; ty 33 <= 33
+```
+
+Fresh clone acceptance at committed P1 head `9144ee1`:
+
+```text
+$ git clone --local --branch role/solidify --single-branch ... .worktrees/solidify-fresh-clone
+$ uv sync --locked
+Installed 41 packages
+$ make smoke
+PASS doctor mode=full
+PASS submit->tick job=smoke-oracle-brvpcy00qeta trials=1
+PASS catalog job_id=57de95bf-5175-49b2-8320-10b537c2a730
+PASS parquet job_id=57de95bf-5175-49b2-8320-10b537c2a730
+PASS digest path=runs/_smoke/smoke-oracle-brvpcy00qeta/digests/2026-08-14.md
+SMOKE PASS both-stores-agree
 ```

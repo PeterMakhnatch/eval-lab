@@ -68,3 +68,48 @@ fully green gh checks before merge; never touch registered/* or loosen policy/.
 - Ten named DuckDB statements appended to `research/analysis/queries.sql`;
   `pytest -q tests/test_trajectory_queries.py tests/test_provenance.py` →
   `10 passed`; Ruff and `git diff --check` pass.
+
+## P3 evidence (2026-08-15)
+
+- ProvenanceMetadata appended to src/evallab/schemas.py (additive; BUILDER
+  file touched on explicit mission order). tests/test_provenance.py:
+
+```
+$ uv run pytest tests/test_provenance.py -q
+.........                                                                [100%]
+9 passed
+```
+
+- Full suite after change: 101 passed (72%+28% progress bars, 0 failures).
+- docs/data-architecture.md revised to normative form (zones, admission
+  gates, allowed transitions, rebuild invariants) during review; committed as
+  P3.1.
+
+## P4 evidence (2026-08-15)
+
+- Live-store validation (DuckDB over derived/parquet in the main checkout,
+  read-only), correct statement splitter:
+
+```
+DS-1: OK rows=5   DS-2: OK rows=0   DS-3: OK rows=0   DS-4: OK rows=0
+DS-5: OK rows=0   DS-6: OK rows=46  DS-7: OK rows=2   DS-8: OK rows=0
+DS-9: OK rows=0   DS-10: OK rows=1  DS-11: OK rows=1  DS-12: OK rows=0
+12/12 DS queries validate against the live Zone 02 store
+```
+
+- Zero-row results are expected: the local corpus is dominated by oracle/nop
+  controls whose trajectories carry no tool calls. DS-6 classifies all 46
+  trials; DS-1 sample:
+
+```
+local-lab/event-summary            oracle  adhoc          28  1.0  0.0
+local-lab/event-summary            nop     adhoc           2  0.0  0.0
+petermakhnatch/transaction-recon.  oracle  adhoc           1  1.0  0.0
+petermakhnatch/transaction-recon.  codex   gpt-5.6-terra   3  0.0  0.0
+terminal-bench/html-js-filter      codex   gpt-5.6-terra   3  0.0  0.0
+```
+
+- DS-7 flagged event-summary digests where rewards disagree (0.0 vs 1.0):
+  inspection shows oracle-vs-nop splits — a true candidate correctly resolved
+  by the documented interpretation boundary (agent difference, not verifier
+  flakiness). The candidate/adjudication split works as designed.

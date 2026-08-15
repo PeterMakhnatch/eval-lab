@@ -14,7 +14,9 @@ Treat generated runs as immutable once promoted to `research/evidence/runs/`.
   tooling. Ask Peter before introducing TypeScript or another programming
   language, including inside an imported or generated task.
 - Do not invoke a paid model, cloud sandbox, large sweep, deploy, or publish a
-  task without explicit approval.
+  task without explicit approval. Cloud execution (Modal) is installed but
+  token-gated; read `docs/execution-tiers.md` before deciding where any task
+  can run or whether you may run it.
 - `oracle` and `nop` are the default local controls. They test task and harness
   validity; they are not evidence of model capability.
 - Never commit `.env`, API keys, OAuth data, database volumes, unredacted model

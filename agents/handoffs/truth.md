@@ -1,6 +1,6 @@
 Status: building
-Last: Passed three premerge runs plus a fresh-clone run; corrected the real-evidence zero-step wording.
-Next: Repeat acceptance after the wording regression fix, refresh the clone, then open and land the PR.
+Last: Final code passed three consecutive premerge runs and fresh-clone default/non-default suites.
+Next: Rebase once more, open the TRUTH PR, require all GitHub checks green, then merge and sunset.
 Blockers: none
 
 # TRUTH handoff
@@ -94,6 +94,45 @@ Recognizable verification ... was unknown for 2 trial(s) without readable ATIF.
 
 The smoke exposed wording that called a no-ATIF control “0 steps.” The implementation now treats
 step length as unavailable unless a trajectory exists, with a regression test.
+
+### Final-code acceptance (remote commit `0b1a7b7`)
+
+```text
+$ scripts/premerge.sh  # pass 1
+All checks passed!
+91 passed in 6.42s
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 33
+
+$ scripts/premerge.sh  # pass 2
+All checks passed!
+91 passed in 6.76s
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 33
+
+$ scripts/premerge.sh  # pass 3
+All checks passed!
+91 passed in 6.58s
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 33
+```
+
+The final remote branch was cloned again at
+`0b1a7b79b58b94aa91a60b2cbe97b8687c3777f1`; the temporary clone was removed after:
+
+```text
+$ scripts/premerge.sh
+Using CPython 3.12.11
+Creating virtual environment at: .venv
+Installed 41 packages
+All checks passed!
+91 passed in 13.13s
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 33
+
+$ uv run pytest -q research/analysis/tests dashboard/tests
+.................................                                        [100%]
+```
 
 ## Deferred coordination
 

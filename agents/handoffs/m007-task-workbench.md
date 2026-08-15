@@ -1,6 +1,6 @@
-Status: ready for review
-Last: deterministic workbench, retained evidence, real free controls, full suite, and premerge all passed
-Next: complete independent Tasks review, push the review-only PR, and wait for exact-head GitHub CI
+Status: verifying review fixes
+Last: first Tasks review blockers fixed; real no-network controls and portable evidence packet passed
+Next: rerun full/premerge validation, obtain Tasks re-review, then push the review-only PR and wait for exact-head GitHub CI
 Blockers: repository contains zero human-registered tasks; exercise will use the documented event-summary registration candidate and state that limitation explicitly
 
 # M007 task-quality workbench handoff
@@ -36,17 +36,26 @@ Implementation:
   digests. Commands are stored with `$REPO`, so clone location is not identity.
 - Static admission checks task schema/metadata/timeouts/artifacts, executable
   entry points, path and symlink escapes, agent/verifier isolation, pinned
-  images and dependencies, explicit network policy and runtime network use,
+  images and dependencies, JSON/shell Docker copies, explicit network policy
+  and runtime network use,
   deterministic verifier constructs, reward output, hidden/golden leakage,
   adversarial coverage, source/license provenance, and forged registration
   claims.
 - Static failure makes zero control calls. Admitted controls are fixed to three
   Oracle jobs, one Nop job, and every declared invalid solution; the latter run
   as Oracle only in isolated staging copies. The command fixes Docker, one
-  attempt, and concurrency one. No model/cloud/paid execution is reachable.
-- Complete bundles resume idempotently. Incomplete, missing, or digest-invalid
-  evidence fails closed. Outcomes are explicitly classified as task defect,
-  harness defect, agent failure, or expected.
+  attempt, concurrency one, and a digest-frozen Compose override that enforces
+  `main.network_mode = none`. No model/cloud/paid execution is reachable.
+- Complete bundles are reused idempotently. Incomplete, missing, or
+  digest-invalid evidence is preserved and fails closed rather than being
+  overwritten or silently retried. Outcomes are explicitly classified as task
+  defect, harness defect, agent failure, or expected.
+- Supplied bundle claims never certify by themselves. The assessor resolves
+  exact candidate job/stage paths, recomputes both trees and reward vectors,
+  checks the free agent and separate verifier, and rejects missing or changed
+  evidence. Packet-local evidence records retain scrubbed raw result objects
+  plus complete manifests while omitting output/log content that could leak a
+  golden answer.
 - Packet writes are restricted to `research/registration/candidates/`, use
   create-or-verify semantics, and cannot target registry/queue/policy/outside.
   Both packet documents say admission is false and requires a separate human
@@ -74,19 +83,19 @@ Bad-fixture exercise:
 
 ```text
 target: tests/fixtures/task_workbench/cases/unpinned-dependency
-candidate: candidate-c4ec5c27d830ea208cf30382
+candidate: candidate-b982b6f484cdc89e9e35d8b6
 result: needs_changes (21 retained task-defect diagnostics; no controls)
-candidate sha256: 3c5b69fde775df39f249675dd7f89c973fa7d0e836a3b43d5f3fa008a549a9ab
-certification sha256: ed96412937151f9b55a0d64b92ac765120f44fcee25f5a941c251ca0e74d4512
+candidate sha256: bb338ae9e282d09af31e31b8efe1c1714dd4c09407ca6a0afda8b3a44d60a8b1
+certification sha256: 01484a8852ebb5b8407cd0cc747e4784b3f80d5fb4050cf3081175e434257c23
 second packet build: identical hashes and expected exit 1
 ```
 
 Real free-control evidence:
 
 ```text
-candidate: candidate-8f6a76d350ece0574a069910
+candidate: candidate-ee3d580b186b15e6e55a1ab9
 source: local/m007-uppercase-fixture@1.0.0 (MIT, synthetic)
-bundle: sha256:4e7c3aef2ebd374e780150a35d6fca9ddf939f3488daf4e21acafa5c0a54bd62
+bundle: sha256:e6e4863cdee165d7617997279d6ae24dd87aeb2dc4b711bf91214174954916a0
 oracle-1, oracle-2, oracle-3: completed, reward 1.0
 nop-1: completed, reward 0.0
 adversarial-empty-output: completed, reward 0.0
@@ -95,9 +104,11 @@ adversarial-wrong-value: completed, reward 0.0
 verifier output: identical across all three Oracle runs
 models/cloud/paid calls: 0
 concurrency: 1
+network: Docker main service forced to network_mode none for every control
 status: certified_for_review (not admitted)
-candidate sha256: b1b80219ee147c44a245876d9a88ff94f5cc6c061ee0db199763a9389c5207f7
-certification sha256: 2f7ded1b93d663da2f47bde25230c5ccb776e8a0527befa49510d268821535ee
+retained packet evidence: 7 per-control records; no outputs/logs/golden bytes
+candidate sha256: 0ae5720b48d05669e3eb2f613b723047feac6a6169be5f3c5fce707f3674524c
+certification sha256: 20be519d1c30edfd68a88c2104d169544b6f6538e6970749192abac61c88d70a
 second packet build: identical hashes
 ```
 
@@ -151,3 +162,20 @@ write, publication path, or absolute home path. Packet admission remains false.
 The final self-audit also made unobserved control claims fail closed: a
 `controls_pending`, interrupted, or static-failure packet cannot report Oracle,
 Nop, adversarial, or verifier-determinism checks as true.
+
+Independent Tasks review:
+
+```text
+reviewed head: e8e9005
+result: not approved
+blocking: caller-authored controls could certify without retained evidence;
+          Docker JSON-array COPY could bypass hidden-source detection
+additional: public-network safety relied on regexes; build defects could be
+            mislabeled harness defects; ignored runs made evidence non-portable
+```
+
+All findings were accepted and addressed before PR: local evidence and stage
+recomputation are mandatory, Docker copy parsing fails closed, controls use a
+real no-network Compose override, build/task exceptions classify as task
+defects, and seven portable evidence records are included without output or
+verifier-log content. A fresh Tasks re-review is required on the fixed head.

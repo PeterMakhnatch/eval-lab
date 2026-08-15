@@ -3,15 +3,20 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from evallab.task_workbench import (
+    NETWORK_OVERLAY_CONTENT,
+    NETWORK_OVERLAY_RELATIVE,
     CandidateSource,
     ControlBundle,
     ControlObservation,
     ControlsNotAdmittedError,
+    HarborControlBackend,
     PacketConflictError,
     UnsafePathError,
     WorkbenchError,
@@ -98,7 +103,6 @@ class FixtureBackend:
         self.calls: list[str] = []
 
     def run(self, *, repo_root, task_dir, candidate, plan, run_root):
-        del repo_root, task_dir, run_root
         self.calls.append(plan.control_id)
         override = self.overrides.get(plan.control_id, {})
         status = override.get("status", "completed")
@@ -106,10 +110,52 @@ class FixtureBackend:
         if status != "completed":
             reward = None
         seed = override.get("verifier_output_seed", f"{plan.kind}:{reward}")
-        verifier_output_digest = _digest(str(seed).encode()) if status == "completed" else None
-        evidence_digest = (
-            _digest(f"evidence:{plan.control_id}".encode()) if status == "completed" else None
-        )
+        stage = run_root / "staging" / plan.control_id
+        shutil.copytree(task_dir, stage)
+        if plan.mutation_path is not None:
+            mutation = stage / plan.mutation_path
+            shutil.copyfile(mutation, stage / "solution/solve.sh")
+        overlay = stage / NETWORK_OVERLAY_RELATIVE
+        overlay.parent.mkdir(parents=True, exist_ok=True)
+        overlay.write_bytes(NETWORK_OVERLAY_CONTENT)
+        staged_digest = _tree_digest(stage)
+        verifier_output_digest = None
+        evidence_digest = None
+        job_path = None
+        if status == "completed":
+            job_name = plan.command[plan.command.index("--job-name") + 1]
+            job = run_root / "jobs" / job_name
+            trial = job / f"{plan.control_id}__fixture"
+            trial.mkdir(parents=True)
+            (job / "result.json").write_bytes(
+                _canonical(
+                    {
+                        "id": f"job-{plan.control_id}",
+                        "n_total_trials": 1,
+                        "stats": {},
+                        "finished_at": "2026-08-15T00:00:00Z",
+                    }
+                )
+            )
+            vector = {"reward": reward}
+            (trial / "result.json").write_bytes(
+                _canonical(
+                    {
+                        "id": f"trial-{plan.control_id}",
+                        "task_name": candidate["task_name"],
+                        "trial_name": f"{plan.control_id}__fixture",
+                        "agent_info": {"name": plan.agent},
+                        "verifier_result": {"rewards": vector},
+                        "verifier_environment_mode": "separate",
+                        "exception_info": None,
+                    }
+                )
+            )
+            verifier_output_digest = _digest(_canonical(vector))
+            if "verifier_output_seed" in override:
+                verifier_output_digest = _digest(str(seed).encode())
+            evidence_digest = _tree_digest(job)
+            job_path = job.relative_to(repo_root).as_posix()
         digests = candidate["digests"]
         return ControlObservation(
             control_id=plan.control_id,
@@ -121,24 +167,31 @@ class FixtureBackend:
             image_digest=digests["image_definition"],
             verifier_digest=digests["verifier"],
             source_package_digest=digests["package"],
-            staged_package_digest=_digest(f"stage:{plan.control_id}".encode()),
+            staged_package_digest=staged_digest,
             command=plan.command,
             command_digest=plan.command_digest,
-            job_path=f"runs/task-workbench/jobs/{plan.control_id}",
+            job_path=job_path,
             exception_type=None,
             diagnostic=override.get("diagnostic"),
         )
 
 
-def _bundle(inspection, *, case: str | None = None) -> ControlBundle:
+def _bundle(
+    inspection,
+    *,
+    repo: Path,
+    task: Path,
+    case: str | None = None,
+) -> ControlBundle:
     backend = FixtureBackend(case=case)
+    run_root = repo / "runs/task-workbench" / inspection.candidate["candidate_id"]
     observations = [
         backend.run(
-            repo_root=Path("."),
-            task_dir=Path("task"),
+            repo_root=repo,
+            task_dir=task,
             candidate=inspection.candidate,
             plan=plan,
-            run_root=Path("runs"),
+            run_root=run_root,
         )
         for plan in inspection.control_plan
     ]
@@ -159,6 +212,20 @@ def _tree_snapshot(path: Path) -> dict[str, str]:
         for item in sorted(path.rglob("*"))
         if item.is_file() and not item.is_symlink()
     }
+
+
+def _tree_digest(path: Path) -> str:
+    payload = [
+        {
+            "path": item.relative_to(path).as_posix(),
+            "type": "file",
+            "size_bytes": item.stat().st_size,
+            "digest": _digest(item.read_bytes()),
+        }
+        for item in sorted(path.rglob("*"))
+        if item.is_file() and not item.is_symlink()
+    ]
+    return _digest(_canonical(payload))
 
 
 def test_valid_candidate_inspection_freezes_every_digest_and_safe_command(
@@ -182,6 +249,13 @@ def test_valid_candidate_inspection_freezes_every_digest_and_safe_command(
     assert all("--model" not in item.command for item in inspection.control_plan)
     assert all(
         item.command[item.command.index("--n-concurrent") + 1] == "1"
+        for item in inspection.control_plan
+    )
+    assert all("--extra-docker-compose" in item.command for item in inspection.control_plan)
+    assert all(
+        item.command[item.command.index("--extra-docker-compose") + 1].endswith(
+            NETWORK_OVERLAY_RELATIVE
+        )
         for item in inspection.control_plan
     )
 
@@ -243,6 +317,13 @@ def test_candidate_argument_and_symlink_path_escape_are_refused(tmp_path: Path) 
     shutil.copytree(VALID, outside)
     with pytest.raises(UnsafePathError, match="escapes repository"):
         inspect_candidate(repo_root=repo, task_path=outside, source=_source())
+
+
+def test_json_form_copy_of_hidden_solution_is_rejected(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path, "json-copy-leak")
+    inspection = _inspect(repo, task)
+
+    assert "agent_image_hidden_leak" in _codes(inspection)
 
 
 def test_hidden_golden_leak_is_named_without_disclosing_hidden_bytes(tmp_path: Path) -> None:
@@ -319,7 +400,9 @@ def test_valid_controls_certify_and_rescan_is_idempotent(tmp_path: Path) -> None
     )
 
     assert len(backend.calls) == 7
-    assert check_candidate(inspection, bundle).disposition == "certified_for_review"
+    assert check_candidate(inspection, bundle, repo_root=repo).disposition == (
+        "certified_for_review"
+    )
     backend.calls.clear()
     second = run_controls(
         inspection=inspection,
@@ -345,7 +428,11 @@ def test_control_regression_fixtures(
 ) -> None:
     repo, task = _copy_candidate(tmp_path)
     inspection = _inspect(repo, task)
-    report = check_candidate(inspection, _bundle(inspection, case=case))
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task, case=case),
+        repo_root=repo,
+    )
 
     assert report.disposition == disposition
     assert code in {item.code for item in report.diagnostics}
@@ -367,7 +454,7 @@ def test_outcome_classifier_separates_task_harness_and_agent_failures() -> None:
             exception_type="EnvironmentBuildError",
             expected_reward=1.0,
         )
-        == "harness_defect"
+        == "task_defect"
     )
     assert (
         classify_trial_outcome(
@@ -397,10 +484,36 @@ def test_outcome_classifier_separates_task_harness_and_agent_failures() -> None:
     )
 
 
+def test_task_owned_docker_build_failure_is_not_a_harness_defect(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    backend = HarborControlBackend(
+        command_runner=lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0],
+            returncode=1,
+            stdout="",
+            stderr="EnvironmentBuildError: Dockerfile failed to build",
+        ),
+        environment_provider=lambda: {},
+    )
+    plan = inspection.control_plan[0]
+
+    observation = backend.run(
+        repo_root=repo,
+        task_dir=task,
+        candidate=inspection.candidate,
+        plan=plan,
+        run_root=repo / "runs/task-workbench" / inspection.candidate["candidate_id"],
+    )
+
+    assert observation.status == "harness_error"
+    assert observation.failure_classification == "task_defect"
+
+
 def test_control_bundle_rejects_unknown_fields_and_digest_tampering(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path)
     inspection = _inspect(repo, task)
-    value = _bundle(inspection).to_dict()
+    value = _bundle(inspection, repo=repo, task=task).to_dict()
 
     value["unknown"] = True
     with pytest.raises(WorkbenchError, match="unknown fields"):
@@ -411,21 +524,79 @@ def test_control_bundle_rejects_unknown_fields_and_digest_tampering(tmp_path: Pa
         ControlBundle.from_dict(value)
 
 
+def test_self_authored_controls_without_retained_job_cannot_certify(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    valid = _bundle(inspection, repo=repo, task=task)
+    forged_observations = list(valid.observations)
+    forged_observations[0] = replace(
+        forged_observations[0],
+        job_path="runs/does-not-exist",
+        evidence_digest="sha256:" + "a" * 64,
+        staged_package_digest="sha256:" + "b" * 64,
+    )
+    forged = ControlBundle.build(
+        candidate_id=valid.candidate_id,
+        source_package_digest=valid.source_package_digest,
+        observations=forged_observations,
+    )
+
+    report = check_candidate(inspection, forged, repo_root=repo)
+
+    assert report.disposition != "certified_for_review"
+    assert "control_job_path_invalid" in {item.code for item in report.diagnostics}
+
+
+def test_retained_job_and_stage_bytes_are_recomputed_before_certification(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    bundle = _bundle(inspection, repo=repo, task=task)
+    observation = bundle.observations[0]
+    assert observation.job_path is not None
+    job_result = repo / observation.job_path / "result.json"
+    job_result.write_text(job_result.read_text() + " ")
+
+    report = check_candidate(inspection, bundle, repo_root=repo)
+
+    assert report.disposition == "needs_changes"
+    assert "control_evidence_tampered" in {item.code for item in report.diagnostics}
+
+
 def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path)
     inspection = _inspect(repo, task)
-    report = check_candidate(inspection, _bundle(inspection))
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
     first_paths = write_packet(repo_root=repo, report=report)
     first_bytes = tuple(path.read_bytes() for path in first_paths)
+    first_evidence = {
+        path.relative_to(repo).as_posix(): path.read_bytes()
+        for path in sorted(first_paths[0].parent.joinpath("evidence").glob("*.json"))
+    }
     second_paths = write_packet(repo_root=repo, report=report)
 
     assert second_paths == first_paths
     assert tuple(path.read_bytes() for path in second_paths) == first_bytes
+    assert len(first_evidence) == 7
+    assert {
+        path.relative_to(repo).as_posix(): path.read_bytes()
+        for path in sorted(first_paths[0].parent.joinpath("evidence").glob("*.json"))
+    } == first_evidence
     candidate = json.loads(first_paths[0].read_text())
     certification = json.loads(first_paths[1].read_text())
     assert candidate["admission_boundary"]["can_register"] is False
     assert certification["admission_granted"] is False
     assert certification["certified"] is True
+    assert len(certification["retained_evidence"]) == 7
+    assert all(
+        (repo / item["path"]).is_file() for item in certification["retained_evidence"]
+    )
+    assert "ALPHA-BETA-GAMMA" not in b"".join(first_evidence.values()).decode()
 
     first_paths[1].write_text("tampered\n")
     with pytest.raises(PacketConflictError, match="non-identical"):
@@ -501,7 +672,11 @@ def test_inspect_check_and_packet_never_change_candidate_bytes(tmp_path: Path) -
     repo, task = _copy_candidate(tmp_path)
     before = _tree_snapshot(task)
     inspection = _inspect(repo, task)
-    report = check_candidate(inspection, _bundle(inspection))
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
     write_packet(repo_root=repo, report=report)
 
     assert _tree_snapshot(task) == before
@@ -528,7 +703,9 @@ def test_cli_plan_check_packet_without_shared_cli_wiring(
     plan_payload = json.loads(capsys.readouterr().out)
     inspection = _inspect(repo, task)
     controls_path = tmp_path / "controls.json"
-    controls_path.write_bytes(_canonical(_bundle(inspection).to_dict()))
+    controls_path.write_bytes(
+        _canonical(_bundle(inspection, repo=repo, task=task).to_dict())
+    )
 
     assert run_cli(["check", *common, "--controls", str(controls_path)]) == 0
     check_payload = json.loads(capsys.readouterr().out)
@@ -555,7 +732,7 @@ def test_load_bundle_fixture_file_and_unknown_json_fail_closed(tmp_path: Path) -
     repo, task = _copy_candidate(tmp_path)
     inspection = _inspect(repo, task)
     path = tmp_path / "controls.json"
-    expected = _bundle(inspection)
+    expected = _bundle(inspection, repo=repo, task=task)
     path.write_bytes(_canonical(expected.to_dict()))
     assert load_control_bundle(path) == expected
 

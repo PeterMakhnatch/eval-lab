@@ -40,11 +40,19 @@ instructions, environment, and solution. At least three executable adversarial
 solutions are required. They are substituted for the Oracle solution only in
 isolated staging copies.
 
+Both shell-form and JSON-array Docker `COPY`/`ADD` instructions are parsed.
+Dynamic, wildcard, variable, escaping, or otherwise unresolved sources fail
+closed. V1 also rejects task-authored Docker Compose files because it cannot
+prove isolation for arbitrary sidecar networking.
+
 Source identity must include a non-floating source reference and a declared
 license. Base and verifier images must be digest-pinned. Network policy must be
 explicit in `task.toml`; runtime scripts containing network fetch/install
-commands fail static admission even when Harbor's Docker backend cannot enforce
-a no-network mode on the local platform.
+commands fail static admission. For every control, the workbench also injects a
+fixed Docker Compose overlay that forces Harbor's `main` service to
+`network_mode: none`. The overlay is named in the frozen command, included in
+the staged-task digest, and revalidated after the run. Text scanning is defense
+in depth, not the network safety boundary.
 
 ## Commands
 
@@ -80,10 +88,14 @@ Harbor Oracle/Nop, one attempt per job, and concurrency one. There is no model
 argument or generic shell-execution surface.
 
 An interrupted or incomplete run remains under
-`runs/task-workbench/<candidate-id>/` and reports `harness_blocked`; rerun the
-same command to resume. A complete, digest-valid bundle is reused without
-another call. Stored bundles can instead be assessed with
-`--controls path/to/controls.json`.
+`runs/task-workbench/<candidate-id>/` and reports `harness_blocked`. It is never
+silently replaced or retried: preserve and assess it with
+`--controls path/to/controls.json`. A deliberate reattempt needs a distinct,
+pinned candidate identity and therefore a new run root. A complete,
+digest-valid bundle is reused without another call. Supplied JSON is not proof:
+the workbench resolves each frozen job and stage under the candidate's local
+run root, recomputes their tree digests and reward vector, and refuses missing,
+escaping, changed, or inconsistent evidence.
 
 ```bash
 python -m evallab.task_workbench packet path/to/candidate \
@@ -100,12 +112,17 @@ python -m evallab.task_workbench packet path/to/candidate \
 ```text
 research/registration/candidates/<candidate-id>/candidate.json
 research/registration/candidates/<candidate-id>/certification.json
+research/registration/candidates/<candidate-id>/evidence/<control-id>.json
 ```
 
 The default output root is enforced. An output under the registry, queue,
 policy directory, or outside the repository is refused. Existing identical
 bytes are accepted as an idempotent rebuild; different existing bytes cause a
-conflict rather than an overwrite.
+conflict rather than an overwrite. Each portable evidence record retains the
+scrubbed raw Harbor job/trial results and full job/stage manifests needed to
+rederive the score and digests. Agent logs, candidate outputs, and verifier
+stdout/stderr are deliberately omitted to avoid leaking golden data; their raw
+file digests remain in the manifest.
 
 ## What is checked
 
@@ -126,7 +143,9 @@ The control assessment requires:
   digests;
 - one Nop reward exactly equal to `0`;
 - every declared invalid output to receive exactly `0`;
-- unchanged source, image, and verifier digests across controls.
+- unchanged source, image, and verifier digests across controls;
+- a reconstructible staged task with the fixed no-network overlay and a local
+  Harbor job whose raw result agrees with every claimed reward.
 
 Diagnostics distinguish `task_defect`, `harness_defect`, and `agent_failure`.
 Oracle failures and verifier/reward failures are task defects; infrastructure,
@@ -148,6 +167,6 @@ control evidence, then independently create the registry record if warranted.
 
 `tests/fixtures/task_workbench/valid/` is a small deterministic fixture with
 digest-pinned agent and verifier images. The committed example packet under
-`research/registration/candidates/candidate-8f6a76d350ece0574a069910/`
+`research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/`
 records its real local Harbor controls. It is test evidence, not a registered or
 published task.

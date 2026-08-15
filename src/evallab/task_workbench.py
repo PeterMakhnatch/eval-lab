@@ -33,7 +33,7 @@ from evallab.results import load_job
 from evallab.runner import subscription_environment
 
 SCHEMA_VERSION = 1
-WORKBENCH_VERSION = "m007-v1"
+WORKBENCH_VERSION = "m007-v1.1"
 MAX_CONTROL_CONCURRENCY = 2
 ORACLE_REPETITIONS = 3
 MIN_ADVERSARIAL_CASES = 3
@@ -43,7 +43,9 @@ FLOATING_REFS = {"head", "latest", "main", "master", "trunk", "tip"}
 FORBIDDEN_AGENT_IMAGE_PARTS = {"solution", "tests", "verifier", "workbench"}
 NETWORK_SCRIPT_PATTERN = re.compile(
     r"(?:https?://|\bcurl\b|\bwget\b|\bapt(?:-get)?\b|\bpip(?:3)?\s+install\b|"
-    r"\buvx\b|\bnpm\s+(?:install|ci)\b|\byarn\s+install\b)",
+    r"\buvx\b|\bnpm\s+(?:install|ci)\b|\byarn\s+install\b|\bgit\s+clone\b|"
+    r"\b(?:ssh|scp|nc|ncat|netcat|telnet)\b|\bsocket\.(?:socket|create_connection)\b|"
+    r"\burllib\.|\brequests\.|\bhttpx\.|\baiohttp\.)",
     re.IGNORECASE,
 )
 NONDETERMINISM_PATTERN = re.compile(
@@ -51,6 +53,8 @@ NONDETERMINISM_PATTERN = re.compile(
     r"\bdatetime\.now\b|/dev/(?:u?random)|\bdate\s+\+)",
     re.IGNORECASE,
 )
+NETWORK_OVERLAY_RELATIVE = "environment/.workbench-network-none.yaml"
+NETWORK_OVERLAY_CONTENT = b"services:\n  main:\n    network_mode: none\n"
 
 Severity = Literal["error", "warning", "info"]
 Classification = Literal["task_defect", "harness_defect", "agent_failure", "expected"]
@@ -732,6 +736,35 @@ def _docker_logical_lines(text: str) -> list[str]:
     return [line.strip() for line in text.replace("\\\n", " ").splitlines() if line.strip()]
 
 
+def _docker_copy_sources(arguments: str) -> tuple[list[str], bool]:
+    """Parse COPY/ADD sources and fail closed on unsupported dynamic syntax."""
+    payload = arguments.strip()
+    while payload.startswith("--"):
+        match = re.match(r"--[^\s]+\s+", payload)
+        if match is None:
+            return [], True
+        payload = payload[match.end() :].lstrip()
+    if payload.startswith("["):
+        try:
+            value = json.loads(payload)
+        except json.JSONDecodeError:
+            return [], True
+        if (
+            not isinstance(value, list)
+            or len(value) < 2
+            or any(not isinstance(item, str) for item in value)
+        ):
+            return [], True
+        return list(value[:-1]), False
+    try:
+        tokens = shlex.split(payload)
+    except ValueError:
+        return [], True
+    if len(tokens) < 2:
+        return [], True
+    return tokens[:-1], False
+
+
 def _validate_dockerfile(task_dir: Path, diagnostics: list[Diagnostic]) -> str | None:
     path = task_dir / "environment/Dockerfile"
     if not path.is_file():
@@ -758,19 +791,22 @@ def _validate_dockerfile(task_dir: Path, diagnostics: list[Diagnostic]) -> str |
                     )
         copy_match = re.match(r"(?i)^(?:COPY|ADD)\s+(.+)$", line)
         if copy_match:
-            try:
-                tokens = [
-                    item for item in shlex.split(copy_match.group(1)) if not item.startswith("--")
-                ]
-            except ValueError:
-                tokens = []
-            sources = tokens[:-1] if len(tokens) >= 2 else []
+            sources, unsupported = _docker_copy_sources(copy_match.group(1))
+            if unsupported:
+                diagnostics.append(
+                    _diag(
+                        "agent_image_copy_unsupported",
+                        "environment/Dockerfile",
+                        "COPY/ADD syntax must be statically resolvable",
+                    )
+                )
             for source in sources:
                 pure = PurePosixPath(source)
                 if (
                     source in {".", "./"}
                     or pure.is_absolute()
                     or ".." in pure.parts
+                    or bool(re.search(r"[$*?\[\]{}]", source))
                     or any(part in FORBIDDEN_AGENT_IMAGE_PARTS for part in pure.parts)
                 ):
                     diagnostics.append(
@@ -891,6 +927,15 @@ def _validate_network_and_isolation(
                 "verifier_network_invalid",
                 "task.toml",
                 "verifier network_mode is invalid",
+            )
+        )
+    compose_path = task_dir / "environment/docker-compose.yaml"
+    if compose_path.exists():
+        diagnostics.append(
+            _diag(
+                "custom_compose_unsupported",
+                "environment/docker-compose.yaml",
+                "v1 cannot prove network isolation for task-authored Compose services",
             )
         )
 
@@ -1108,6 +1153,7 @@ def _control_command(candidate_id: str, task_id: str, entry_id: str, agent: str)
     job_name = f"m007-{safe_task}-{candidate_id[-8:]}-{entry_id}"
     staging = f"$REPO/runs/task-workbench/{candidate_id}/staging/{entry_id}"
     jobs = f"$REPO/runs/task-workbench/{candidate_id}/jobs"
+    network_overlay = f"{staging}/{NETWORK_OVERLAY_RELATIVE}"
     return (
         "harbor",
         "run",
@@ -1117,6 +1163,8 @@ def _control_command(candidate_id: str, task_id: str, entry_id: str, agent: str)
         agent,
         "--env",
         "docker",
+        "--extra-docker-compose",
+        network_overlay,
         "--job-name",
         job_name,
         "--jobs-dir",
@@ -1247,6 +1295,8 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
                 if isinstance(config.get("verifier"), dict)
                 else None
             ),
+            "control_enforcement": "docker-compose main network_mode=none",
+            "control_overlay_digest": _sha256_bytes(NETWORK_OVERLAY_CONTENT),
         },
         "keywords": keywords,
         "artifacts": artifacts,
@@ -1296,6 +1346,33 @@ def _reward_vector_from_trial(result: Mapping[str, Any]) -> dict[str, float]:
     }
 
 
+def _runner_failure_classification(message: str) -> Classification:
+    normalized = message.lower()
+    task_markers = (
+        "dockerfile",
+        "environmentbuilderror",
+        "failed to build",
+        "failed to solve",
+        "imagepullerror",
+        "invalid task",
+        "taskconfigerror",
+        "taskvalidationerror",
+    )
+    infrastructure_markers = (
+        "cannot connect to the docker daemon",
+        "credential",
+        "docker daemon is not running",
+        "operation timed out",
+        "permission denied",
+        "service unavailable",
+    )
+    if any(marker in normalized for marker in task_markers):
+        return "task_defect"
+    if any(marker in normalized for marker in infrastructure_markers):
+        return "harness_defect"
+    return "harness_defect"
+
+
 class HarborControlBackend:
     """Fixed-command local Harbor backend; only oracle and nop are accepted."""
 
@@ -1303,8 +1380,10 @@ class HarborControlBackend:
         self,
         *,
         command_runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
+        environment_provider: Callable[[], Mapping[str, str]] | None = None,
     ) -> None:
         self._command_runner = command_runner or subprocess.run
+        self._environment_provider = environment_provider or subscription_environment
 
     def run(
         self,
@@ -1353,6 +1432,9 @@ class HarborControlBackend:
             solution = stage / "solution/solve.sh"
             shutil.copyfile(mutation, solution)
             solution.chmod(mutation.stat().st_mode)
+        overlay = stage / NETWORK_OVERLAY_RELATIVE
+        overlay.parent.mkdir(parents=True, exist_ok=True)
+        overlay.write_bytes(NETWORK_OVERLAY_CONTENT)
         staged_digest = _tree_digest(stage)
         canonical_command = tuple(plan.command)
         materialized = _materialize_command(canonical_command, repo_root)
@@ -1377,7 +1459,7 @@ class HarborControlBackend:
                 capture_output=True,
                 text=True,
                 timeout=21_600,
-                env=subscription_environment(),
+                env=dict(self._environment_provider()),
             )
         except KeyboardInterrupt as exc:
             raise ControlInterrupted("operator interrupted Harbor control") from exc
@@ -1402,6 +1484,7 @@ class HarborControlBackend:
             )
         if completed.returncode != 0 and not (job_dir / "result.json").is_file():
             diagnostic = completed.stderr or completed.stdout or "Harbor returned nonzero"
+            failure_classification = _runner_failure_classification(diagnostic)
             return ControlObservation(
                 control_id=plan.control_id,
                 status="harness_error",
@@ -1418,7 +1501,7 @@ class HarborControlBackend:
                 job_path=_repo_relative(job_dir, repo_root) if job_dir.exists() else None,
                 exception_type="HarborNonZeroExit",
                 diagnostic=_scrub_diagnostic(diagnostic, repo_root),
-                failure_classification="harness_defect",
+                failure_classification=failure_classification,
             )
         runner_diagnostic = None
         if completed.returncode != 0:
@@ -1650,8 +1733,13 @@ def classify_trial_outcome(
     """Keep infrastructure, task, and ordinary-agent outcomes separate."""
     if exception_type:
         if exception_type in {
+            "DockerfileBuildError",
+            "EnvironmentBuildError",
+            "ImagePullError",
             "RewardFileNotFoundError",
             "RewardFileEmptyError",
+            "TaskConfigError",
+            "TaskValidationError",
             "VerifierOutputParseError",
         }:
             return "task_defect"
@@ -1677,7 +1765,200 @@ def classify_trial_outcome(
     return "expected"
 
 
-def _assess_controls(inspection: Inspection, bundle: ControlBundle) -> tuple[Diagnostic, ...]:
+def _trial_exception_type(result: Mapping[str, Any]) -> str | None:
+    exception = result.get("exception_info")
+    if not isinstance(exception, Mapping):
+        return None
+    raw_type = exception.get("exception_type")
+    return str(raw_type) if raw_type else "HarborTrialException"
+
+
+def _expected_stage_digest(inspection: Inspection, plan: ControlPlanEntry) -> str:
+    raw_files = inspection.candidate.get("files")
+    if not isinstance(raw_files, list):
+        raise WorkbenchError("candidate files manifest is invalid")
+    entries = [dict(_required_mapping(item, "candidate file")) for item in raw_files]
+    if plan.mutation_path is not None:
+        mutation = next(
+            (item for item in entries if item.get("path") == plan.mutation_path),
+            None,
+        )
+        solution = next(
+            (item for item in entries if item.get("path") == "solution/solve.sh"),
+            None,
+        )
+        if mutation is None or solution is None:
+            raise WorkbenchError("adversarial plan cannot be reconstructed from manifest")
+        solution["size_bytes"] = mutation["size_bytes"]
+        solution["digest"] = mutation["digest"]
+    entries.append(
+        {
+            "path": NETWORK_OVERLAY_RELATIVE,
+            "role": "image",
+            "type": "file",
+            "size_bytes": len(NETWORK_OVERLAY_CONTENT),
+            "digest": _sha256_bytes(NETWORK_OVERLAY_CONTENT),
+        }
+    )
+    tree_payload = [
+        {
+            "path": item["path"],
+            "type": item["type"],
+            "size_bytes": item["size_bytes"],
+            "digest": item["digest"],
+        }
+        for item in sorted(entries, key=lambda item: str(item["path"]))
+    ]
+    return _sha256_bytes(_canonical_bytes(tree_payload))
+
+
+def _validate_control_evidence(
+    *,
+    inspection: Inspection,
+    plan: ControlPlanEntry,
+    observation: ControlObservation,
+    repo_root: Path | None,
+) -> tuple[Diagnostic, ...]:
+    if observation.status != "completed":
+        return ()
+    if repo_root is None:
+        return (
+            _diag(
+                "control_evidence_root_missing",
+                observation.control_id,
+                "completed controls require a repository root for evidence verification",
+                classification="harness_defect",
+            ),
+        )
+    candidate_id = _required_string(inspection.candidate, "candidate_id")
+    run_root = repo_root.resolve() / "runs/task-workbench" / candidate_id
+    job_name = plan.command[plan.command.index("--job-name") + 1]
+    expected_job = run_root / "jobs" / job_name
+    expected_job_relative = _repo_relative(expected_job, repo_root)
+    stage = run_root / "staging" / plan.control_id
+    diagnostics: list[Diagnostic] = []
+    if observation.job_path != expected_job_relative:
+        diagnostics.append(
+            _diag(
+                "control_job_path_invalid",
+                observation.control_id,
+                "job_path does not name the frozen control job",
+            )
+        )
+        return tuple(diagnostics)
+    if not expected_job.is_dir():
+        diagnostics.append(
+            _diag(
+                "control_evidence_missing",
+                observation.control_id,
+                "the cited Harbor job directory is not retained",
+                classification="harness_defect",
+            )
+        )
+        return tuple(diagnostics)
+    actual_evidence_digest = _tree_digest(expected_job)
+    if observation.evidence_digest != actual_evidence_digest:
+        diagnostics.append(
+            _diag(
+                "control_evidence_tampered",
+                observation.control_id,
+                "retained Harbor job bytes do not match evidence_digest",
+            )
+        )
+    if not stage.is_dir():
+        diagnostics.append(
+            _diag(
+                "control_stage_missing",
+                observation.control_id,
+                "the isolated staged task is not retained",
+                classification="harness_defect",
+            )
+        )
+    else:
+        overlay = stage / NETWORK_OVERLAY_RELATIVE
+        if not overlay.is_file() or overlay.read_bytes() != NETWORK_OVERLAY_CONTENT:
+            diagnostics.append(
+                _diag(
+                    "control_network_isolation_missing",
+                    observation.control_id,
+                    "the deterministic Docker no-network overlay is absent or changed",
+                )
+            )
+        actual_stage_digest = _tree_digest(stage)
+        expected_stage_digest = _expected_stage_digest(inspection, plan)
+        if (
+            observation.staged_package_digest != actual_stage_digest
+            or actual_stage_digest != expected_stage_digest
+        ):
+            diagnostics.append(
+                _diag(
+                    "control_stage_tampered",
+                    observation.control_id,
+                    "staged task bytes do not reconstruct from candidate and control plan",
+                )
+            )
+    try:
+        job = load_job(expected_job)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        diagnostics.append(
+            _diag(
+                "control_evidence_invalid",
+                observation.control_id,
+                f"retained Harbor job cannot be loaded: {type(exc).__name__}",
+            )
+        )
+        return tuple(diagnostics)
+    if len(job.trials) != 1:
+        diagnostics.append(
+            _diag(
+                "control_trial_count_invalid",
+                observation.control_id,
+                f"retained Harbor job has {len(job.trials)} trials instead of one",
+            )
+        )
+        return tuple(diagnostics)
+    trial = job.trials[0]
+    reward_vector = _reward_vector_from_trial(trial.result)
+    verifier_output_digest = (
+        _sha256_bytes(_canonical_bytes(reward_vector)) if reward_vector else None
+    )
+    actual_agent = trial.result.get("agent_info")
+    actual_agent_name = actual_agent.get("name") if isinstance(actual_agent, Mapping) else None
+    if actual_agent_name != plan.agent:
+        diagnostics.append(
+            _diag(
+                "control_agent_mismatch",
+                observation.control_id,
+                "retained trial did not use the planned free control agent",
+            )
+        )
+    if trial.result.get("verifier_environment_mode") != "separate":
+        diagnostics.append(
+            _diag(
+                "control_verifier_not_isolated",
+                observation.control_id,
+                "retained trial did not use a separate verifier environment",
+            )
+        )
+    if (
+        observation.reward != trial.primary_reward
+        or observation.reward_vector != reward_vector
+        or observation.verifier_output_digest != verifier_output_digest
+        or observation.exception_type != _trial_exception_type(trial.result)
+    ):
+        diagnostics.append(
+            _diag(
+                "control_result_tampered",
+                observation.control_id,
+                "control claims do not match the retained Harbor trial result",
+            )
+        )
+    return _sort_diagnostics(diagnostics)
+
+
+def _assess_controls(
+    inspection: Inspection, bundle: ControlBundle, *, repo_root: Path | None
+) -> tuple[Diagnostic, ...]:
     diagnostics: list[Diagnostic] = []
     candidate_id = _required_string(inspection.candidate, "candidate_id")
     digests = _required_mapping(inspection.candidate.get("digests"), "digests")
@@ -1726,6 +2007,14 @@ def _assess_controls(inspection: Inspection, bundle: ControlBundle) -> tuple[Dia
                     "command digest is invalid",
                 )
             )
+        diagnostics.extend(
+            _validate_control_evidence(
+                inspection=inspection,
+                plan=plan,
+                observation=observation,
+                repo_root=repo_root,
+            )
+        )
         if observation.source_package_digest != package_digest:
             diagnostics.append(
                 _diag(
@@ -1823,11 +2112,20 @@ def _assess_controls(inspection: Inspection, bundle: ControlBundle) -> tuple[Dia
     return _sort_diagnostics(diagnostics)
 
 
-def check_candidate(inspection: Inspection, controls: ControlBundle | None = None) -> CheckReport:
+def check_candidate(
+    inspection: Inspection,
+    controls: ControlBundle | None = None,
+    *,
+    repo_root: Path | None = None,
+) -> CheckReport:
     diagnostics = list(inspection.diagnostics)
     control_diagnostics: tuple[Diagnostic, ...] = ()
     if controls is not None:
-        control_diagnostics = _assess_controls(inspection, controls)
+        control_diagnostics = _assess_controls(
+            inspection,
+            controls,
+            repo_root=repo_root.resolve() if repo_root is not None else None,
+        )
         diagnostics.extend(control_diagnostics)
     sorted_diagnostics = _sort_diagnostics(diagnostics)
     if any(item.severity == "error" for item in inspection.diagnostics):
@@ -1851,7 +2149,11 @@ def check_candidate(inspection: Inspection, controls: ControlBundle | None = Non
     )
 
 
-def _certification_record(report: CheckReport) -> dict[str, Any]:
+def _certification_record(
+    report: CheckReport,
+    *,
+    retained_evidence: Sequence[Mapping[str, str]] = (),
+) -> dict[str, Any]:
     observations = (
         {item.control_id: item for item in report.controls.observations}
         if report.controls is not None
@@ -1918,12 +2220,101 @@ def _certification_record(report: CheckReport) -> dict[str, Any]:
         },
         "control_plan": [item.to_dict() for item in report.inspection.control_plan],
         "control_bundle": report.controls.to_dict() if report.controls else None,
+        "retained_evidence": [dict(item) for item in retained_evidence],
         "human_action_required": (
             "Review this candidate packet; admission requires a separate human-created "
             "library/registry record."
         ),
     }
     body["certification_id"] = "cert-" + hashlib.sha256(_canonical_bytes(body)).hexdigest()[:24]
+    return body
+
+
+def _scrub_repo_paths(value: Any, repo_root: Path) -> Any:
+    if isinstance(value, str):
+        return value.replace(str(repo_root), "$REPO")
+    if isinstance(value, list):
+        return [_scrub_repo_paths(item, repo_root) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): _scrub_repo_paths(item, repo_root)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    return value
+
+
+def _manifest(root: Path) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": path,
+            "type": entry_type,
+            "size_bytes": size,
+            "digest": digest,
+        }
+        for path, entry_type, size, digest in _tree_entries(root)
+    ]
+
+
+def _retained_evidence_record(
+    *,
+    repo_root: Path,
+    report: CheckReport,
+    plan: ControlPlanEntry,
+    observation: ControlObservation,
+) -> dict[str, Any]:
+    if observation.status != "completed" or observation.job_path is None:
+        raise WorkbenchError("only completed, cited controls can be retained")
+    candidate_id = _required_string(report.inspection.candidate, "candidate_id")
+    expected_job_name = plan.command[plan.command.index("--job-name") + 1]
+    expected_job = repo_root / "runs/task-workbench" / candidate_id / "jobs" / expected_job_name
+    if observation.job_path != _repo_relative(expected_job, repo_root):
+        raise WorkbenchError("control job path changed before packet retention")
+    stage = repo_root / "runs/task-workbench" / candidate_id / "staging" / plan.control_id
+    if not expected_job.is_dir() or not stage.is_dir():
+        raise WorkbenchError("control evidence disappeared before packet retention")
+    if _tree_digest(expected_job) != observation.evidence_digest:
+        raise WorkbenchError("control evidence changed before packet retention")
+    if _tree_digest(stage) != observation.staged_package_digest:
+        raise WorkbenchError("control stage changed before packet retention")
+    job = load_job(expected_job)
+    if len(job.trials) != 1:
+        raise WorkbenchError("control evidence must retain exactly one Harbor trial")
+    trial = job.trials[0]
+    job_result_path = expected_job / "result.json"
+    trial_result_path = trial.path / "result.json"
+    body: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "task_workbench_retained_control_evidence",
+        "candidate_id": candidate_id,
+        "control_id": plan.control_id,
+        "command": list(plan.command),
+        "command_digest": plan.command_digest,
+        "source_package_digest": observation.source_package_digest,
+        "staged_package_digest": observation.staged_package_digest,
+        "image_digest": observation.image_digest,
+        "verifier_digest": observation.verifier_digest,
+        "job_tree_digest": observation.evidence_digest,
+        "job_manifest": _manifest(expected_job),
+        "stage_manifest": _manifest(stage),
+        "raw_job_result_digest": _sha256_file(job_result_path),
+        "raw_trial_result_digest": _sha256_file(trial_result_path),
+        "job_result": _scrub_repo_paths(job.result, repo_root),
+        "trial_result": _scrub_repo_paths(trial.result, repo_root),
+        "claim_extract": {
+            "agent": plan.agent,
+            "exception_type": _trial_exception_type(trial.result),
+            "reward": trial.primary_reward,
+            "reward_vector": _reward_vector_from_trial(trial.result),
+            "verifier_environment_mode": trial.result.get("verifier_environment_mode"),
+        },
+        "omitted_content": [
+            "agent logs",
+            "artifacts",
+            "verifier stdout/stderr",
+        ],
+        "omission_reason": "avoid retaining candidate outputs or hidden verifier content",
+    }
+    body["evidence_record_digest"] = _sha256_bytes(_canonical_bytes(body))
     return body
 
 
@@ -1942,7 +2333,35 @@ def write_packet(
     candidate_path = packet_dir / "candidate.json"
     certification_path = packet_dir / "certification.json"
     _atomic_create_or_verify(candidate_path, _canonical_bytes(report.inspection.candidate))
-    _atomic_create_or_verify(certification_path, _canonical_bytes(_certification_record(report)))
+    retained: list[dict[str, str]] = []
+    if report.controls is not None:
+        plan_by_id = {item.control_id: item for item in report.inspection.control_plan}
+        for observation in report.controls.observations:
+            if observation.status != "completed":
+                continue
+            plan = plan_by_id.get(observation.control_id)
+            if plan is None:
+                raise WorkbenchError("cannot retain evidence for an unknown control")
+            record = _retained_evidence_record(
+                repo_root=repo_root,
+                report=report,
+                plan=plan,
+                observation=observation,
+            )
+            evidence_path = packet_dir / "evidence" / f"{observation.control_id}.json"
+            content = _canonical_bytes(record)
+            _atomic_create_or_verify(evidence_path, content)
+            retained.append(
+                {
+                    "control_id": observation.control_id,
+                    "path": _repo_relative(evidence_path, repo_root),
+                    "digest": _sha256_bytes(content),
+                }
+            )
+    _atomic_create_or_verify(
+        certification_path,
+        _canonical_bytes(_certification_record(report, retained_evidence=retained)),
+    )
     return candidate_path, certification_path
 
 
@@ -2009,7 +2428,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                 task_path=args.task,
                 backend=HarborControlBackend(),
             )
-        report = check_candidate(inspection, controls)
+        report = check_candidate(inspection, controls, repo_root=repo_root)
         if args.command == "check":
             sys.stdout.buffer.write(_canonical_bytes(report.to_dict()))
             return 0 if report.passed else 1

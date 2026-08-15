@@ -1,6 +1,6 @@
-Status: building
-Last: integrator repair implemented and focused tests passed (35/35)
-Next: run full checks, rebase origin/main, push the repaired PR #49 head, and stop at review
+Status: review-wanted
+Last: repaired PR #49 is rebased; exact premerge and all five GitHub checks passed
+Next: integrator semantic review and merge decision; worker must not merge
 Blockers: none
 
 # M007 task-quality workbench handoff
@@ -237,6 +237,16 @@ Focused repair evidence:
 
 .venv/bin/ruff check src/evallab/task_workbench.py tests/test_task_workbench.py
 All checks passed!
+
+git fetch origin; git rebase origin/main
+Successfully rebased onto 903abe4 (INTEGRATION: add system cartographer mission)
+
+scripts/premerge.sh
+All checks passed!
+407 passed in 17.96s
+SMOKE PASS both-stores-agree
+ty: 28 diagnostics; premerge green because ratchet is 28 <= 28
+premerge green: Python 3.12
 ```
 
 PR and GitHub verification:

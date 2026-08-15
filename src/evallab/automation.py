@@ -214,6 +214,9 @@ class GuardedTick:
         if dispatched:
             event = "tick_dispatched"
             reason = f"dispatched:{dispatched}"
+        elif self.executor.last_tick_reason is not None:
+            event = "tick_deferred"
+            reason = self.executor.last_tick_reason
         elif self.executor.queue.stop_path.exists():
             event = "tick_deferred"
             reason = "stop_file_present"

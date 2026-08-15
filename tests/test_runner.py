@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import evallab.runner as runner_module
 from evallab.cli import load_local_env
 from evallab.database import _exception_type, count_consecutive_harness_failures
 from evallab.runner import (
@@ -20,6 +21,7 @@ from evallab.runner import (
     run_harbor_process,
     subscription_command,
     subscription_environment,
+    transient_provider_exception,
     transient_provider_reason,
     validate_request,
 )
@@ -84,6 +86,56 @@ def test_executor_process_enforces_wall_clock_timeout(tmp_path: Path) -> None:
     assert result.timed_out is True
     assert time.monotonic() - started < 2
     assert result.log_path.is_file()
+
+
+def test_executor_watchdog_enforces_each_trial_in_multi_attempt_job(
+    tmp_path: Path,
+) -> None:
+    job_dir = tmp_path / "jobs/multi-attempt"
+    script = (
+        "import json, pathlib, sys, time; "
+        "job=pathlib.Path(sys.argv[1]); job.mkdir(parents=True); "
+        "done=job/'task__done'; done.mkdir(); "
+        "(done/'result.json').write_text(json.dumps({'finished_at':'done'})); "
+        "hung=job/'task__hung'; hung.mkdir(); "
+        "(hung/'result.json').write_text(json.dumps({'finished_at':None})); "
+        "time.sleep(5)"
+    )
+
+    result = run_harbor_process(
+        [sys.executable, "-c", script, str(job_dir)],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        trial_timeout_seconds=0.05,
+        job_dir=job_dir,
+        log_path=tmp_path / "multi-attempt.log",
+    )
+
+    assert result.timed_out is True
+    assert result.timed_out_trial == "task__hung"
+
+
+def test_executor_watchdog_ignores_completed_trial_directories(tmp_path: Path) -> None:
+    job_dir = tmp_path / "jobs/completed"
+    script = (
+        "import json, pathlib, sys, time; "
+        "job=pathlib.Path(sys.argv[1]); job.mkdir(parents=True); "
+        "done=job/'task__done'; done.mkdir(); "
+        "(done/'result.json').write_text(json.dumps({'finished_at':'done'})); "
+        "time.sleep(0.2)"
+    )
+
+    result = run_harbor_process(
+        [sys.executable, "-c", script, str(job_dir)],
+        cwd=tmp_path,
+        timeout_seconds=2,
+        trial_timeout_seconds=0.05,
+        job_dir=job_dir,
+        log_path=tmp_path / "completed.log",
+    )
+
+    assert result.timed_out is False
+    assert result.timed_out_trial is None
 
 
 def test_subscription_environment_never_forwards_api_keys() -> None:
@@ -191,6 +243,32 @@ def test_provider_status_classification(message: str, reason: str | None) -> Non
     assert transient_provider_reason(message) == reason
 
 
+def test_provider_retry_requires_structured_agent_exception() -> None:
+    provider_failure = {
+        "exception_info": {
+            "exception_type": "AgentRunError",
+            "message": "provider returned status code 503",
+        }
+    }
+    task_server_failure = {
+        "exception_info": {
+            "exception_type": "VerifierError",
+            "message": "task server returned status code 503",
+        }
+    }
+    successful_result_with_log_text = {
+        "finished_at": "2026-08-15T00:00:00Z",
+        "exception_info": None,
+        "agent_log": "provider returned status code 503 and recovered",
+    }
+
+    assert transient_provider_exception(provider_failure) == (
+        "transient_harness:provider_http_5xx"
+    )
+    assert transient_provider_exception(task_server_failure) is None
+    assert transient_provider_exception(successful_result_with_log_text) is None
+
+
 def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
     normalized = _exception_type(
         {
@@ -271,3 +349,36 @@ def test_orphan_cleanup_removes_only_new_harbor_tagged_task_containers(
     assert removed == ("new-harbor",)
     assert ["docker", "rm", "-f", "--", "new-harbor"] in calls
     assert all("prune" not in command for command in calls)
+
+
+def test_hanging_docker_inspection_is_bounded(tmp_path: Path) -> None:
+    timeouts: list[float] = []
+
+    def hangs(command: list[str], **kwargs):
+        timeouts.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    with pytest.raises(RuntimeError, match="cannot inspect Docker"):
+        runner_module.harbor_container_ids(tmp_path, command_runner=hangs)
+
+    assert timeouts == [runner_module.SUPPORT_COMMAND_TIMEOUT_SECONDS]
+
+
+def test_cleanup_failure_is_secondary_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="cleanup-secondary",
+        jobs_dir=tmp_path / "runs",
+    )
+    monkeypatch.setattr(
+        runner_module,
+        "cleanup_new_harbor_containers",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError()),
+    )
+
+    assert runner_module._cleanup_failure(
+        request, frozenset(), request.jobs_dir / request.name
+    ) == "cleanup_failed:TimeoutError"

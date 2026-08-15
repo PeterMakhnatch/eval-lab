@@ -270,3 +270,11 @@ else:
     st.info("No discovery entries are recorded.")
 
 st.caption(f"Snapshot loaded in {time.perf_counter() - started:.3f}s · cached for 30 seconds")
+
+st.divider()
+st.subheader("Run & analysis explorer")
+st.caption(
+    "Drill into any task, job, trial, trajectory, or analysis — read-only, "
+    "with per-field provenance and copyable next-action commands:"
+)
+st.code("uv run --with streamlit==1.61.1 streamlit run dashboard/explorer.py", language="bash")

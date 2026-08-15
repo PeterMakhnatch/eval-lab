@@ -1,0 +1,18 @@
+{
+ "id": "00000000-0000-4000-8000-000000000003",
+ "task_name": "lab/demo",
+ "trial_name": "t1",
+ "agent_info": {
+  "name": "codex",
+  "model_info": {
+   "name": "gpt-5.6-terra"
+  }
+ },
+ "verifier_result": {},
+ "exception_info": {
+  "exception_type": "AgentTimeoutError",
+  "phase": "agent"
+ },
+ "started_at": "2026-08-15T00:00:00.000000Z",
+ "finished_at": "2026-08-15T00:00:09.000000Z"
+}

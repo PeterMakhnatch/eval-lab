@@ -1,0 +1,76 @@
+{
+ "schema_version": "ATIF-v1.6",
+ "session_id": "s2",
+ "steps": [
+  {
+   "step_id": 1,
+   "source": "agent",
+   "message": "m",
+   "tool_calls": [
+    {
+     "tool_call_id": "L0",
+     "function": {
+      "name": "run_bash",
+      "arguments": {
+       "cmd": "make build"
+      }
+     }
+    },
+    {
+     "tool_call_id": "L1",
+     "function": {
+      "name": "run_bash",
+      "arguments": {
+       "cmd": "make build"
+      }
+     }
+    }
+   ],
+   "observations": [
+    {
+     "source_call_id": "L0",
+     "command_exit_code": 2
+    },
+    {
+     "source_call_id": "L1",
+     "command_exit_code": 2
+    }
+   ]
+  },
+  {
+   "step_id": 2,
+   "source": "agent",
+   "message": "m",
+   "tool_calls": [
+    {
+     "tool_call_id": "L2",
+     "function": {
+      "name": "run_bash",
+      "arguments": {
+       "cmd": "make build"
+      }
+     }
+    },
+    {
+     "tool_call_id": "L3",
+     "function": {
+      "name": "run_bash",
+      "arguments": {
+       "cmd": "make build"
+      }
+     }
+    }
+   ],
+   "observations": [
+    {
+     "source_call_id": "L2",
+     "command_exit_code": 2
+    },
+    {
+     "source_call_id": "L3",
+     "command_exit_code": 2
+    }
+   ]
+  }
+ ]
+}

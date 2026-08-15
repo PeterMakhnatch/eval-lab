@@ -1,5 +1,5 @@
 Status: building
-Last: launchd tick 4/4 exited 0 at 22:15:56 EDT with one correct no-work event; scheduler stderr and active/failure/quarantine queue states remain empty.
+Last: launchd tick 5/5 exited 0 at 22:45:59 EDT with one correct no-work event; scheduler stderr and active/failure/quarantine queue states remain empty.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then final fetch/rebase/premerge/PR checks and merge.
 Blockers: none
 
@@ -303,6 +303,8 @@ runs = 3; last exit code = 0
 2026-08-15T01:45:53.118591Z tick_deferred reason=no_approved_specs
 runs = 4; last exit code = 0
 2026-08-15T02:15:56.374586Z tick_deferred reason=no_approved_specs
+runs = 5; last exit code = 0
+2026-08-15T02:45:59.191665Z tick_deferred reason=no_approved_specs
 ```
 
 ### Continuations in progress
@@ -465,3 +467,29 @@ SMOKE PASS both-stores-agree
 $ evallab doctor
 ok    catalog-parquet catalog=38 projected=38 exceptions=0 missing=0 extra=0
 ```
+
+The completion audit closed a first-event race in the continuation: event
+readers now acquire the shared lock before discovering active/archived
+segments, so a reader cannot return an empty snapshot while the first writer
+finishes. A deterministic regression fails under the old ordering; the focused
+rotation/reader acceptance passed three consecutive times. CLI help now also
+states the `trajectories` read-only default accurately. The current branch gate
+after both fixes is green:
+
+```text
+$ pytest -q tests/test_queue.py -k 'event_log or event_reader'  # 3 times
+... [100%]
+$ scripts/premerge.sh
+All checks passed!
+147 passed in 5.64s
+SMOKE PASS both-stores-agree
+Found 33 diagnostics
+premerge green: Python 3.12; ty 33 <= 33
+```
+
+The refreshed primary read-only CLI audit passed doctor, summarize,
+trajectories, database listing, no-call analysis planning, DSPy calibration
+dry-run, fetch integrity audit, GC plan, and a live Harbor registry listing.
+The first registry-list attempt was DNS-blocked by the sandbox; the identical
+read-only command passed with ordinary network access. No stateful, model, or
+cloud action was used.

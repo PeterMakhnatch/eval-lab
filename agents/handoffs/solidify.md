@@ -1,6 +1,6 @@
 Status: building
-Last: P3 accepted after migration, three topology-aware full smokes, premerge, and a fresh-clone full smoke against the shared store.
-Next: Implement P4 executor timeout, Harbor-label-only orphan cleanup, and capped transient-provider retry/classification.
+Last: P4 accepted after three focused suites, three real Harbor timeouts, three normal full smokes, premerge, and fresh-clone timeout/smoke evidence.
+Next: Start P5 launchd soak for at least four hours; work the event rotation, nightly pg_dump, and CLI audit continuation during the soak.
 Blockers: none
 
 # SOLIDIFY handoff
@@ -195,4 +195,91 @@ PASS doctor mode=docker-free
 SMOKE PASS both-stores-agree
 Found 33 diagnostics
 premerge green: Python 3.12; ty 33 <= 33
+```
+
+## P4 — bounded, scoped, attributable failure handling
+
+Each spec now carries a validated 1–21,600 second per-attempt wall-clock
+allowance (default 1,800). Harbor runs in its own process group under an
+executor deadline; timeout metadata and logs remain beside the job. Cleanup
+requires all of: Harbor's Compose config label, a working directory below the
+current task, a Compose project matching a trial-session directory recorded in
+the current job, and a container ID absent before launch. It removes only those
+exact IDs with `docker rm -f --`; no prune command exists.
+
+Provider 429/5xx evidence normalizes to `transient_harness` and specific queue
+reason codes. Two retries maximum use 5/10-second backoff; prior attempts and
+per-attempt executor logs are retained. Each billable retry reserves another
+full estimate through the unchanged policy gate. Catalog normalization and the
+digest separate transient capacity, and quiet-failure counting skips it. All
+model-facing subprocess environments now use a non-secret allowlist; the `.env`
+loader ignores model API-key names and the Keychain probe sends secret output
+directly to `/dev/null` rather than Python.
+
+Three consecutive focused runs (timeout, label scoping, provider
+classification, retry cap/backoff, budget reservation, quiet-failure exclusion,
+digest taxonomy, and environment filtering):
+
+```text
+$ pytest -q tests/test_runner.py tests/test_queue.py tests/test_unattended.py -k 'timeout or transient or provider or orphan or subscription or local_env'
+............ [100%]
+$ <same command>
+............ [100%]
+$ <same command>
+............ [100%]
+```
+
+Three consecutive real Harbor timeouts at five seconds reached container
+creation. Docker event names match the job's recorded trial-session directories,
+and the post-run inventory contains only the `eval-lab` infrastructure project:
+
+```text
+PASS resilience-timeout-control-3 trial_wall_clock_timeout
+PASS resilience-timeout-control-4 trial_wall_clock_timeout
+PASS resilience-timeout-control-5 trial_wall_clock_timeout
+
+created: event-summary__be596hl__env-main-1
+created: event-summary__ie4inhm__env-main-1
+created: event-summary__mshy65q__env-main-1
+
+$ docker ps -a --filter label=com.docker.compose.project ...
+1bdc828d1ac0 eval-lab .../eval-lab/compose.yaml
+4cbac9e731c4 eval-lab .../eval-lab/compose.yaml
+```
+
+Three consecutive normal full smokes on committed P4 head `7d82e40`:
+
+```text
+PASS job=smoke-oracle-1wke1jcp0f5w job_id=ae9d8be9-cc3d-45c9-80f8-c758442d5cb3 both-stores-agree
+PASS job=smoke-oracle-7btbecdknw1m job_id=4b8dd780-bc6d-45f4-a8c3-5351620129c2 both-stores-agree
+PASS job=smoke-oracle-etmmprn7pr26 job_id=1c12b25d-a0b3-4828-ae40-c6a0cb743fd7 both-stores-agree
+```
+
+Fresh-clone acceptance at `7d82e40`; its cataloged smoke raw evidence was moved
+into the active worktree before the temporary clone was deleted:
+
+```text
+$ uv sync --locked
+Installed 41 packages
+$ pytest ... -k 'timeout or transient or provider or orphan or subscription or local_env'
+............ [100%]
+FRESH PASS trial_wall_clock_timeout
+PASS submit->tick job=smoke-oracle-dbqb5hqvftpb trials=1
+PASS catalog job_id=f26f07e6-ded8-4002-8346-dfb387188dfa
+PASS parquet job_id=f26f07e6-ded8-4002-8346-dfb387188dfa
+SMOKE PASS both-stores-agree
+```
+
+Current P4 gates:
+
+```text
+$ scripts/premerge.sh
+All checks passed!
+100 passed in 3.61s
+SMOKE PASS both-stores-agree
+Found 33 diagnostics
+premerge green: Python 3.12; ty 33 <= 33
+
+$ evallab doctor
+ok    catalog-parquet catalog=29 projected=29 exceptions=0 missing=0 extra=0
 ```

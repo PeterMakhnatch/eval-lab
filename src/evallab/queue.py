@@ -6,6 +6,7 @@ import os
 import secrets
 import shutil
 import subprocess
+import time
 from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -25,9 +26,12 @@ from evallab.paths import derived_root_from_environment
 from evallab.results import load_job
 from evallab.runner import (
     CONTROL_AGENTS,
+    ExecutionFailure,
     RunRequest,
+    TransientHarnessFailure,
     database_url_from_environment,
     run_experiment,
+    subscription_environment,
     tool_version,
 )
 from evallab.schemas import (
@@ -380,6 +384,11 @@ RunCallable = Callable[[RunRequest], Path]
 IngestCallable = Callable[[Path], IngestProjectionResult | None]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
+Sleeper = Callable[[float], None]
+
+MAX_TRANSIENT_RETRIES = 2
+TRANSIENT_BACKOFF_BASE_SECONDS = 5.0
+TRANSIENT_BACKOFF_CAP_SECONDS = 30.0
 
 
 def record_projection_failures(
@@ -417,6 +426,8 @@ class Executor:
         spent_today: SpendCallable | None = None,
         consecutive_harness_failures: FailureCallable | None = None,
         credential_probe: CredentialProbe | None = None,
+        sleeper: Sleeper = time.sleep,
+        max_transient_retries: int = MAX_TRANSIENT_RETRIES,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -425,6 +436,10 @@ class Executor:
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
         self._credential_probe = credential_probe or available_credentials
+        self._sleeper = sleeper
+        if max_transient_retries < 0:
+            raise ValueError("max_transient_retries cannot be negative")
+        self._max_transient_retries = max_transient_retries
         self._consecutive_harness_failures = (
             consecutive_harness_failures or self._catalog_harness_failures
         )
@@ -498,9 +513,14 @@ class Executor:
             try:
                 job_dir = self.execute_spec(spec)
             except Exception as exc:
+                reason_code = (
+                    exc.reason_code
+                    if isinstance(exc, ExecutionFailure)
+                    else "execution_failed"
+                )
                 failure = PolicyDecision(
                     admitted=False,
-                    reason_code="execution_failed",
+                    reason_code=reason_code,
                     message=(
                         "execution failed; inspect the immutable job evidence and logs "
                         f"({type(exc).__name__})"
@@ -566,6 +586,7 @@ class Executor:
             model=spec.model or DEFAULT_AGENT_MODELS.get(spec.agent),
             concurrency=spec.concurrency,
             attempts=spec.attempts,
+            timeout_seconds=spec.timeout_seconds,
             allow_billable=spec.billable,
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
@@ -575,7 +596,96 @@ class Executor:
                 policy_rule=spec.policy_rule,
             ),
         )
-        return self._runner(request)
+        return self._run_with_transient_retries(spec, request)
+
+    def _run_with_transient_retries(
+        self,
+        spec: ExperimentSpec,
+        request: RunRequest,
+    ) -> Path:
+        for retry_number in range(self._max_transient_retries + 1):
+            try:
+                return self._runner(request)
+            except TransientHarnessFailure as exc:
+                if retry_number >= self._max_transient_retries:
+                    raise
+                if not self._retry_within_policy(spec, retry_number + 1):
+                    raise
+                archived = self._archive_transient_attempt(request, retry_number + 1)
+                delay = min(
+                    TRANSIENT_BACKOFF_BASE_SECONDS * (2**retry_number),
+                    TRANSIENT_BACKOFF_CAP_SECONDS,
+                )
+                self.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=str(spec.spec_id),
+                        occurred_at=datetime.now(UTC),
+                        event="dispatch_retry_scheduled",
+                        actor="executor",
+                        reason_code=exc.reason_code,
+                        job_name=spec.name,
+                    )
+                )
+                if archived is not None:
+                    self.queue.append_event(
+                        QueueEvent(
+                            event_id=new_ulid(),
+                            spec_id=str(spec.spec_id),
+                            occurred_at=datetime.now(UTC),
+                            event="transient_attempt_archived",
+                            actor="executor",
+                            reason_code="transient_harness:attempt_archived",
+                            job_name=spec.name,
+                        )
+                    )
+                self._sleeper(delay)
+        raise AssertionError("transient retry loop exhausted without a result")
+
+    def _retry_within_policy(self, spec: ExperimentSpec, retry_number: int) -> bool:
+        if not spec.billable:
+            return True
+        reserved_spend = retry_number * spec.est_cost_usd
+        decision = self.gate.decide(
+            spec,
+            spent_today_usd=self._spent_today() + reserved_spend,
+            consecutive_harness_failures=self._consecutive_harness_failures(),
+            human_approved=spec.policy_rule == "human-approval",
+        )
+        if decision.admitted:
+            return True
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(spec.spec_id),
+                occurred_at=datetime.now(UTC),
+                event="dispatch_retry_refused",
+                actor="executor",
+                reason_code=f"transient_retry:{decision.reason_code}",
+                job_name=spec.name,
+            )
+        )
+        return False
+
+    @staticmethod
+    def _archive_transient_attempt(
+        request: RunRequest,
+        retry_number: int,
+    ) -> Path | None:
+        job_dir = request.jobs_dir / request.name
+        if not job_dir.exists():
+            return None
+        archive = (
+            request.jobs_dir
+            / ".transient-attempts"
+            / request.name
+            / f"attempt-{retry_number}"
+        )
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        if archive.exists():
+            raise FileExistsError(f"transient attempt archive already exists: {archive}")
+        job_dir.replace(archive)
+        return archive
 
     def download_dataset(self, dataset_ref: str, output_dir: Path) -> Path:
         """Download an immutable Harbor dataset through the executor boundary."""
@@ -600,6 +710,7 @@ class Executor:
             ],
             cwd=self.repo_root,
             check=False,
+            env=subscription_environment(),
         )
         if completed.returncode != 0:
             raise RuntimeError(f"Harbor dataset download exited {completed.returncode}")
@@ -645,6 +756,7 @@ class Executor:
                 check=False,
                 capture_output=True,
                 text=True,
+                env=subscription_environment(),
             )
             output = (completed.stdout or completed.stderr).strip().splitlines()
             detail = output[0] if output else "no version output"

@@ -99,6 +99,38 @@ they append a boolean-only quarantine event and dispatch nothing. In particular,
 a locked or unreadable Keychain produces zero reward-bearing trials rather than
 misclassifying authentication failures as agent failures.
 
+## Executor resilience boundary
+
+Every queue spec carries `timeout_seconds` (default 1,800; maximum 21,600). The
+executor gives the Harbor process one such wall-clock allowance per requested
+attempt, runs it in a separate process group, and terminates that group when the
+deadline expires. Timeout evidence remains under the job directory and the queue
+records `trial_wall_clock_timeout`; it is never reported as an agent score.
+
+After an interrupted Harbor run, cleanup snapshots only containers with all of
+these properties: Docker Compose project labels, a Compose config path inside
+`harbor/environments/docker`, a working directory under the current task, and a
+Compose project matching a trial-session directory recorded in the current job.
+The container ID must also have been absent before the run. Only those exact IDs
+are passed to `docker rm -f`. The executor never runs a global container, image,
+volume, or system prune, so the lab's PostgreSQL/Phoenix Compose project,
+concurrent Harbor jobs, and unrelated containers are outside the cleanup set.
+
+Provider HTTP 429 and 5xx failures are normalized to `transient_harness` with
+the more specific queue reason `transient_harness:provider_http_429` or
+`transient_harness:provider_http_5xx`. The executor permits at most two
+infrastructure retries, with 5- then 10-second backoff (hard-capped at 30
+seconds). Failed attempt evidence moves to
+`runs/.transient-attempts/<job>/attempt-N/` before the same declared job is
+retried. A billable retry reserves another full `est_cost_usd` and is refused if
+that reservation would cross the standing ceiling. Transient provider capacity
+is shown separately in digests and skipped, rather than counted or treated as a
+success, by the quiet-failure circuit breaker.
+
+Harbor subprocesses receive a non-secret environment allowlist. Model API-key
+variables are neither accessed nor forwarded; supported model access remains
+subscription authentication through Keychain or the agent's auth file.
+
 Render a digest on demand (the file date is the morning/report date; its primary
 reporting period is the preceding catalog day):
 

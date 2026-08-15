@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from evallab import database
 from evallab.queue import DirectoryQueue, load_events
-from evallab.runner import database_url_from_environment
+from evallab.runner import database_url_from_environment, subscription_environment
 from evallab.schemas import (
     CanaryDriftObservation,
     HeadlessDoctorReport,
@@ -170,7 +170,13 @@ class DigestRenderer:
 
         spend = sum(trial.cost_usd for trial in trials + early_trials)
         exceptions = Counter(
-            "harness_failure" for trial in trials + early_trials if trial.exception_type
+            (
+                "transient_harness"
+                if trial.exception_type == "transient_harness"
+                else "harness_failure"
+            )
+            for trial in trials + early_trials
+            if trial.exception_type
         )
         exceptions["harness_failure"] += sum(
             observation.is_harness_drift_suspect for observation in drift
@@ -355,11 +361,18 @@ class DigestRenderer:
 def commit_digest(path: Path) -> bool:
     repo_root = path.resolve().parent.parent
     relative = path.resolve().relative_to(repo_root)
-    subprocess.run(["git", "add", "--", str(relative)], cwd=repo_root, check=True)
+    environment = subscription_environment()
+    subprocess.run(
+        ["git", "add", "--", str(relative)],
+        cwd=repo_root,
+        check=True,
+        env=environment,
+    )
     changed = subprocess.run(
         ["git", "diff", "--cached", "--quiet", "--", str(relative)],
         cwd=repo_root,
         check=False,
+        env=environment,
     ).returncode
     if changed == 0:
         return False
@@ -377,6 +390,7 @@ def commit_digest(path: Path) -> bool:
         ],
         cwd=repo_root,
         check=True,
+        env=environment,
     )
     return True
 

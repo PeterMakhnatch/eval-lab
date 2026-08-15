@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from evallab.runner import subscription_environment
+
 UNPINNED_VERSIONS = frozenset({"latest", "head", "main", "master"})
 PROTECTED_INGESTS = frozenset(
     {"aime", "gpqa-diamond", "humanevalfix", "terminal-bench-sample"}
@@ -522,6 +524,7 @@ def _run_command(
         check=False,
         capture_output=True,
         text=True,
+        env=subscription_environment(),
     )
 
 

@@ -63,7 +63,7 @@ from evallab.gc import (
     nightly_gc_plan,
     run_gc,
 )
-from evallab.paths import derived_root_from_environment
+from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.queue import (
     DirectoryQueue,
     Executor,
@@ -81,6 +81,7 @@ from evallab.runner import (
     expected_primary_reward,
     load_matrix,
     request_from_matrix,
+    subscription_environment,
 )
 from evallab.tracing import (
     TraceError,
@@ -95,6 +96,19 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+LOCAL_ENV_KEYS = {
+    "DATABASE_URL",
+    DERIVED_ROOT_ENV,
+    "HARBOR_CLAUDE_KEYCHAIN_ACCOUNT",
+    "HARBOR_CLAUDE_KEYCHAIN_SERVICE",
+    "LAB_REPORT_ISSUE",
+    "POSTGRES_DB",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_PORT",
+    "POSTGRES_USER",
+}
+
+
 def load_local_env(path: Path) -> None:
     if not path.is_file():
         return
@@ -103,7 +117,9 @@ def load_local_env(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+        normalized_key = key.strip()
+        if normalized_key in LOCAL_ENV_KEYS:
+            os.environ.setdefault(normalized_key, value.strip().strip("'\""))
 
 
 def parser() -> argparse.ArgumentParser:
@@ -199,6 +215,12 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--environment", default="docker")
     run.add_argument("--concurrency", type=int, default=1)
     run.add_argument("--attempts", type=int, default=1)
+    run.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=1_800,
+        help="executor wall-clock allowance per attempted trial",
+    )
     run.add_argument(
         "--allow-billable",
         action="store_true",
@@ -514,6 +536,7 @@ def _run_command(args: argparse.Namespace, root: Path) -> int:
         model=args.model,
         concurrency=args.concurrency,
         attempts=args.attempts,
+        timeout_seconds=args.timeout_seconds,
         allow_billable=args.allow_billable,
     )
     job_dir = Executor.from_repo(root).execute_direct(request)
@@ -637,11 +660,10 @@ def _report_command(args: argparse.Namespace, root: Path) -> int:
 
 
 def _dashboard_command(args: argparse.Namespace, root: Path) -> int:
-    environment = os.environ.copy()
-    if args.database_url:
-        environment["DATABASE_URL"] = args.database_url
-    python_path = environment.get("PYTHONPATH")
-    environment["PYTHONPATH"] = str(root) + (os.pathsep + python_path if python_path else "")
+    environment = subscription_environment()
+    environment["DATABASE_URL"] = database_url_from_environment(args.database_url)
+    environment[DERIVED_ROOT_ENV] = str(derived_root_from_environment(root))
+    environment["PYTHONPATH"] = str(root)
     try:
         completed = subprocess.run(
             [

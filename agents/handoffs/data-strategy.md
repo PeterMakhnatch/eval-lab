@@ -1,7 +1,7 @@
-Status: building
-Last: P3 + P4 implemented and locally validated (4-zone provenance; 10 DuckDB intelligence queries)
-Next: P5 synthetic-task design, then public ATIF fetch prototype + live sample verification
-Blockers: `uv sync --locked` panics in macOS SystemConfiguration; existing locked .venv imports all required dependencies
+Status: review-wanted
+Last: continuation fetcher implemented, fully tested, and live-verified against a pinned public ATIF shard
+Next: run scripts/premerge.sh, open/merge the DATA-STRATEGY continuation PR only after all GitHub checks are green
+Blockers: `uv sync --locked` panics in this sandbox's macOS SystemConfiguration; the already locked `.venv` imports required dependencies and the full test/lint suite passes
 
 # DATA-STRATEGY handoff
 
@@ -139,3 +139,41 @@ repeated-failed-commands: OK rows=0   token-cost-coverage: OK rows=1
   event-summary — true candidates, resolved by the documented interpretation
   boundary. surrender-candidates' 2 rows are nop-control trials, correctly
   excluded by the doc's "controls must be excluded during review" note.
+
+## Continuation — public ATIF fetch prototype (2026-08-15)
+
+- Implemented `fetch_public_atif` in `src/evallab/fetch.py`. It accepts only a
+  40-hex Hugging Face commit revision and expected SHA-256, downloads
+  anonymously with no credential argument or environment lookup, verifies bytes
+  before parsing, projects the JSONL via the existing ATIF exporter, writes a
+  strict Zone 01 provenance sidecar, and refuses unknown destinations. A repeat
+  call audits the sidecar/Parquet and returns `noop` without downloading.
+- Tests add successful projection, checksum drift refusal, unsafe ID/revision
+  refusal, malformed-JSONL audit, and no-op coverage. Commands run:
+
+```
+$ .venv/bin/pytest -q tests/test_fetch.py tests/test_provenance.py tests/test_trajectory_queries.py
+.........................                                                [100%]
+
+$ .venv/bin/pytest -q
+........................................................................ [ 67%]
+...................................                                      [100%]
+
+$ .venv/bin/ruff check .
+All checks passed!
+```
+
+- Live anonymous acceptance fetch of the pinned ProofJudge Qwen ATIF v1.6 shard
+  (`aac1f0f4c96e8394da6315a04778e4b7f13ac900`, SHA-256
+  `79b7d3e71d28af6dc1630cb135d697c035a4e74de5eb9226db6e1c0cd3ee17fb`):
+
+```
+status=fetched records=246 valid=246 invalid=0 unsupported=0
+row_counts={trajectories: 246, steps: 1746, tool_calls: 1028, observations: 1028}
+```
+
+- Independent DuckDB read of the written Parquet confirmed 246 valid ATIF v1.6
+  trajectories, 8,688,317 prompt tokens, 952,971 completion tokens, five tool
+  names, and provenance `zone=01-external` with the exact source revision and
+  digest. A second call with a downloader that raises if invoked returned
+  `status=noop`, records=246, valid=246, and identical row counts.

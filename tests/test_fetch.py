@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from evallab import cli
 from evallab.fetch import (
+    PROOFJUDGE_ATIF_SAMPLE,
     ControlCall,
     DatasetListing,
     FetchError,
     FetchService,
+    PublicAtifSource,
+    fetch_public_atif,
     parse_pin,
+)
+
+ATIF_FIXTURE = (
+    Path(__file__).parents[1]
+    / "research/explorations/harbor-021/fixtures/trajectory.json"
 )
 
 
@@ -177,3 +187,111 @@ def test_refuses_to_mutate_existing_different_pin(tmp_path: Path) -> None:
     service.fetch("hello-world@1.0")
     with pytest.raises(FetchError, match="refusing to mutate"):
         service.fetch("hello-world@2.0")
+
+
+def _public_source(payload: bytes, *, revision: str = "a" * 40) -> PublicAtifSource:
+    import hashlib
+
+    return PublicAtifSource(
+        item_id="public-atif@test",
+        repo_id="example/public-atif",
+        revision=revision,
+        filename="data/sample.jsonl",
+        sha256=hashlib.sha256(payload).hexdigest(),
+        license="apache-2.0",
+    )
+
+
+def _atif_payload() -> bytes:
+    trajectory = json.loads(ATIF_FIXTURE.read_text())
+    return (json.dumps(trajectory, separators=(",", ":")) + "\n").encode()
+
+
+def test_public_atif_fetch_checksums_validates_and_projects(tmp_path: Path) -> None:
+    payload = _atif_payload()
+    source = _public_source(payload)
+    seen: list[str] = []
+
+    def download(url: str) -> bytes:
+        seen.append(url)
+        return payload
+
+    result = fetch_public_atif(
+        source,
+        output_root=tmp_path / "derived/parquet",
+        downloader=download,
+        fetched_at=datetime(2026, 8, 15, tzinfo=UTC),
+    )
+    provenance = json.loads(result.provenance_path.read_text())
+    assert result.status == "fetched"
+    assert result.records == 1
+    assert result.valid == 1
+    assert result.invalid == 0
+    assert result.row_counts["trajectories"] == 1
+    assert result.row_counts["steps"] > 0
+    assert provenance["zone"] == "01-external"
+    assert provenance["revision"] == "a" * 40
+    assert provenance["material_digest"] == f"sha256:{source.sha256}"
+    assert seen == [source.url]
+
+    second = fetch_public_atif(
+        source,
+        output_root=tmp_path / "derived/parquet",
+        downloader=lambda _url: pytest.fail("no-op fetch must not download"),
+    )
+    assert second.status == "noop"
+    assert second.row_counts == result.row_counts
+
+
+def test_public_atif_fetch_refuses_digest_drift(tmp_path: Path) -> None:
+    payload = _atif_payload()
+    source = _public_source(payload)
+    with pytest.raises(FetchError, match="digest mismatch"):
+        fetch_public_atif(
+            source,
+            output_root=tmp_path / "derived/parquet",
+            downloader=lambda _url: payload + b"drift\n",
+        )
+    assert not (tmp_path / "derived/parquet/external/public-atif@test").exists()
+
+
+def test_public_atif_fetch_requires_commit_revision(tmp_path: Path) -> None:
+    payload = _atif_payload()
+    source = _public_source(payload, revision="main")
+    with pytest.raises(FetchError, match="40-hex commit"):
+        fetch_public_atif(
+            source,
+            output_root=tmp_path / "derived/parquet",
+            downloader=lambda _url: payload,
+        )
+
+
+def test_public_atif_fetch_rejects_unsafe_item_id(tmp_path: Path) -> None:
+    payload = _atif_payload()
+    source = _public_source(payload)
+    source = replace(source, item_id="../escape")
+    with pytest.raises(FetchError, match="item id"):
+        fetch_public_atif(
+            source,
+            output_root=tmp_path / "derived/parquet",
+            downloader=lambda _url: payload,
+        )
+
+
+def test_public_atif_fetch_audits_invalid_jsonl(tmp_path: Path) -> None:
+    payload = b"not-json\n"
+    result = fetch_public_atif(
+        _public_source(payload),
+        output_root=tmp_path / "derived/parquet",
+        downloader=lambda _url: payload,
+    )
+    assert result.records == 1
+    assert result.valid == 0
+    assert result.invalid == 1
+    assert result.row_counts["trajectories"] == 1
+
+
+def test_proofjudge_sample_is_commit_and_checksum_pinned() -> None:
+    assert len(PROOFJUDGE_ATIF_SAMPLE.revision) == 40
+    assert len(PROOFJUDGE_ATIF_SAMPLE.sha256) == 64
+    assert "resolve/main" not in PROOFJUDGE_ATIF_SAMPLE.url

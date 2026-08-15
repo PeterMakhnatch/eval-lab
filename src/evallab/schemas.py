@@ -125,6 +125,8 @@ class QueueEvent(ContractModel):
     reason_code: str | None = None
     job_name: str | None = None
     report_date: str | None = None
+    attempt_number: int | None = Field(default=None, ge=1)
+    estimated_cost_usd: float | None = Field(default=None, ge=0)
 
 
 class QueueReason(ContractModel):

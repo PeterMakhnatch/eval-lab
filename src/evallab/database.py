@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
@@ -10,7 +9,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from evallab.results import JobRecord, duration_seconds
-from evallab.runner import transient_provider_reason
+from evallab.runner import transient_provider_exception
 from evallab.schemas import CanaryDriftObservation
 
 
@@ -34,7 +33,7 @@ def _relative_or_absolute(path: Path, root: Path) -> str:
 
 def _exception_type(result: dict[str, Any]) -> str | None:
     exception = result.get("exception_info") or {}
-    if transient_provider_reason(json.dumps(exception, sort_keys=True)) is not None:
+    if transient_provider_exception(result) is not None:
         return "transient_harness"
     value = exception.get("exception_type")
     return str(value) if value else None

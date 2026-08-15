@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import fcntl
 import fnmatch
 import json
 import os
 import secrets
 import shutil
 import subprocess
+import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -58,6 +61,7 @@ QUEUE_STATES: tuple[QueueState, ...] = (
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_EVENT_BACKUPS = 7
+_TICK_THREAD_LOCK = threading.Lock()
 
 
 def new_ulid(*, timestamp_ms: int | None = None, randomness: int | None = None) -> str:
@@ -198,6 +202,27 @@ class DirectoryQueue:
 
     def state_dir(self, state: QueueState) -> Path:
         return self.root / state
+
+    @contextmanager
+    def tick_lock(self) -> Iterator[bool]:
+        """Try to become the one executor allowed to claim specs from this queue."""
+        if not _TICK_THREAD_LOCK.acquire(blocking=False):
+            yield False
+            return
+        lock_path = self.root / ".tick.lock"
+        try:
+            with lock_path.open("a+b") as lock:
+                try:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    yield False
+                else:
+                    try:
+                        yield True
+                    finally:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        finally:
+            _TICK_THREAD_LOCK.release()
 
     def submit(
         self,
@@ -484,6 +509,7 @@ class Executor:
         self._consecutive_harness_failures = (
             consecutive_harness_failures or self._catalog_harness_failures
         )
+        self.last_tick_reason: str | None = None
 
     @classmethod
     def from_repo(cls, root: Path) -> Executor:
@@ -497,11 +523,19 @@ class Executor:
         return self.queue.submit(
             spec,
             gate=self.gate,
-            spent_today_usd=self._spent_today(),
+            spent_today_usd=self._effective_spend_today(),
             consecutive_harness_failures=self._consecutive_harness_failures(),
         )
 
     def tick(self) -> int:
+        with self.queue.tick_lock() as acquired:
+            if not acquired:
+                self.last_tick_reason = "executor_busy"
+                return 0
+            self.last_tick_reason = None
+            return self._tick_locked()
+
+    def _tick_locked(self) -> int:
         self.reconcile_running()
         if self.queue.stop_path.exists():
             return 0
@@ -530,7 +564,7 @@ class Executor:
             human_approved = spec.policy_rule == "human-approval"
             decision = self.gate.decide(
                 spec,
-                spent_today_usd=self._spent_today(),
+                spent_today_usd=self._effective_spend_today(),
                 consecutive_harness_failures=self._consecutive_harness_failures(),
                 human_approved=human_approved,
             )
@@ -645,12 +679,13 @@ class Executor:
         request: RunRequest,
     ) -> Path:
         for retry_number in range(self._max_transient_retries + 1):
+            self._reserve_attempt(spec, retry_number + 1)
             try:
                 return self._runner(request)
             except TransientHarnessFailure as exc:
                 if retry_number >= self._max_transient_retries:
                     raise
-                if not self._retry_within_policy(spec, retry_number + 1):
+                if not self._retry_within_policy(spec):
                     raise
                 archived = self._archive_transient_attempt(request, retry_number + 1)
                 delay = min(
@@ -683,13 +718,12 @@ class Executor:
                 self._sleeper(delay)
         raise AssertionError("transient retry loop exhausted without a result")
 
-    def _retry_within_policy(self, spec: ExperimentSpec, retry_number: int) -> bool:
+    def _retry_within_policy(self, spec: ExperimentSpec) -> bool:
         if not spec.billable:
             return True
-        reserved_spend = retry_number * spec.est_cost_usd
         decision = self.gate.decide(
             spec,
-            spent_today_usd=self._spent_today() + reserved_spend,
+            spent_today_usd=self._effective_spend_today(),
             consecutive_harness_failures=self._consecutive_harness_failures(),
             human_approved=spec.policy_rule == "human-approval",
         )
@@ -707,6 +741,51 @@ class Executor:
             )
         )
         return False
+
+    def _reserve_attempt(self, spec: ExperimentSpec, attempt_number: int) -> None:
+        if not spec.billable:
+            return
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(spec.spec_id),
+                occurred_at=datetime.now(UTC),
+                event="dispatch_attempt_reserved",
+                actor="executor",
+                reason_code="billable_attempt_estimate",
+                job_name=spec.name,
+                attempt_number=attempt_number,
+                estimated_cost_usd=spec.est_cost_usd,
+            )
+        )
+
+    def _reserved_attempt_spend_today(self) -> float:
+        today = date.today()
+        reservations: dict[str, list[float]] = {}
+        completed: set[str] = set()
+        for event in load_events(self.queue.events_path):
+            if event.occurred_at.astimezone().date() != today:
+                continue
+            if (
+                event.event == "dispatch_attempt_reserved"
+                and event.estimated_cost_usd is not None
+            ):
+                reservations.setdefault(event.spec_id, []).append(
+                    event.estimated_cost_usd
+                )
+            elif event.event == "dispatch_completed":
+                completed.add(event.spec_id)
+        total = 0.0
+        for spec_id, estimates in reservations.items():
+            # The catalog accounts for the final successful attempt. Earlier
+            # failed attempts, and every attempt of a failed spec, remain
+            # conservatively reserved in the event ledger.
+            unsettled = estimates[:-1] if spec_id in completed else estimates
+            total += sum(unsettled)
+        return total
+
+    def _effective_spend_today(self) -> float:
+        return self._spent_today() + self._reserved_attempt_spend_today()
 
     @staticmethod
     def _archive_transient_attempt(

@@ -8,6 +8,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -23,6 +24,8 @@ CONTROL_AGENTS = {"oracle", "nop"}
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 1_800
 MAX_TRIAL_TIMEOUT_SECONDS = 21_600
+SUPPORT_COMMAND_TIMEOUT_SECONDS = 10
+WATCHDOG_POLL_SECONDS = 0.1
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
@@ -80,9 +83,9 @@ class TrialTimeoutFailure(ExecutionFailure):
 
 
 class TransientHarnessFailure(ExecutionFailure):
-    def __init__(self, reason_code: str) -> None:
+    def __init__(self, reason_code: str, *, message: str | None = None) -> None:
         self.reason_code = reason_code
-        super().__init__(reason_code)
+        super().__init__(message or reason_code)
 
 
 @dataclass(frozen=True)
@@ -135,6 +138,21 @@ def transient_provider_reason(text: str) -> str | None:
     return None
 
 
+def transient_provider_exception(result: Mapping[str, Any]) -> str | None:
+    """Classify only structured provider-facing trial exceptions."""
+    exception = result.get("exception_info")
+    if not isinstance(exception, Mapping):
+        return None
+    exception_type = str(exception.get("exception_type") or "")
+    provider_facing = exception_type == "AgentRunError" or any(
+        marker in exception_type.lower()
+        for marker in ("provider", "ratelimit", "rate_limit", "apistatus")
+    )
+    if not provider_facing:
+        return None
+    return transient_provider_reason(json.dumps(dict(exception), sort_keys=True))
+
+
 def _is_under(path: Path, root: Path) -> bool:
     try:
         path.resolve().relative_to(root.resolve())
@@ -173,32 +191,42 @@ def harbor_container_ids(
     """Return only containers proven by labels to belong to Harbor for this task."""
     runner = command_runner or _run_text_command
     environment = subscription_environment()
-    listed = runner(
-        [
-            "docker",
-            "ps",
-            "-aq",
-            "--filter",
-            f"label={HARBOR_COMPOSE_PROJECT_LABEL}",
-            "--filter",
-            f"label={HARBOR_COMPOSE_CONFIG_LABEL}",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=environment,
-    )
+    try:
+        listed = runner(
+            [
+                "docker",
+                "ps",
+                "-aq",
+                "--filter",
+                f"label={HARBOR_COMPOSE_PROJECT_LABEL}",
+                "--filter",
+                f"label={HARBOR_COMPOSE_CONFIG_LABEL}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+            env=environment,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("cannot inspect Docker for Harbor-labeled containers") from exc
     if listed.returncode != 0:
         raise RuntimeError("cannot inspect Docker for Harbor-labeled containers")
     matches: set[str] = set()
     for container_id in listed.stdout.split():
-        inspected = runner(
-            ["docker", "inspect", "--format", "{{json .Config.Labels}}", container_id],
-            check=False,
-            capture_output=True,
-            text=True,
-            env=environment,
-        )
+        try:
+            inspected = runner(
+                ["docker", "inspect", "--format", "{{json .Config.Labels}}", container_id],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+                env=environment,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(
+                "cannot inspect Docker for Harbor-labeled containers"
+            ) from exc
         if inspected.returncode != 0:
             continue
         try:
@@ -233,13 +261,17 @@ def cleanup_new_harbor_containers(
     if not orphaned:
         return ()
     runner = command_runner or _run_text_command
-    completed = runner(
-        ["docker", "rm", "-f", "--", *orphaned],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=subscription_environment(),
-    )
+    try:
+        completed = runner(
+            ["docker", "rm", "-f", "--", *orphaned],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+            env=subscription_environment(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("failed to remove Harbor-labeled orphan containers") from exc
     if completed.returncode != 0:
         raise RuntimeError("failed to remove Harbor-labeled orphan containers")
     return orphaned
@@ -249,13 +281,17 @@ def tool_version(command: str) -> str | None:
     executable = shutil.which(command)
     if not executable:
         return None
-    completed = subprocess.run(
-        [executable, "--version"],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=subscription_environment(),
-    )
+    try:
+        completed = subprocess.run(
+            [executable, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+            env=subscription_environment(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
     output = (completed.stdout or completed.stderr).strip()
     return output.splitlines()[0] if output else None
 
@@ -263,22 +299,27 @@ def tool_version(command: str) -> str | None:
 def git_state(root: Path) -> dict[str, Any]:
     if not (root / ".git").exists():
         return {"commit": None, "dirty": None}
-    commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-        env=subscription_environment(),
-    )
-    status = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-        env=subscription_environment(),
-    )
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+            env=subscription_environment(),
+        )
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+            env=subscription_environment(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {"commit": None, "dirty": None}
     return {
         "commit": commit.stdout.strip() if commit.returncode == 0 else None,
         "dirty": bool(status.stdout.strip()) if status.returncode == 0 else None,
@@ -361,6 +402,7 @@ class HarborProcessResult:
     returncode: int
     timed_out: bool
     log_path: Path
+    timed_out_trial: str | None = None
 
 
 def _terminate_process_group(process: subprocess.Popen[Any]) -> None:
@@ -375,7 +417,30 @@ def _terminate_process_group(process: subprocess.Popen[Any]) -> None:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             return
-        process.wait()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            return
+
+
+def _trial_is_terminal(trial_dir: Path) -> bool:
+    try:
+        payload = json.loads((trial_dir / "result.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(isinstance(payload, dict) and payload.get("finished_at"))
+
+
+def _active_trial_directories(job_dir: Path) -> tuple[Path, ...]:
+    if not job_dir.is_dir():
+        return ()
+    return tuple(
+        candidate
+        for candidate in job_dir.iterdir()
+        if candidate.is_dir()
+        and "__" in candidate.name
+        and not _trial_is_terminal(candidate)
+    )
 
 
 def run_harbor_process(
@@ -384,8 +449,10 @@ def run_harbor_process(
     cwd: Path,
     timeout_seconds: float,
     log_path: Path,
+    job_dir: Path | None = None,
+    trial_timeout_seconds: float | None = None,
 ) -> HarborProcessResult:
-    """Run Harbor in its own process group under an executor-owned deadline."""
+    """Run Harbor under an aggregate fail-safe and a per-trial watchdog."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("wb") as log:
         process = subprocess.Popen(
@@ -397,15 +464,38 @@ def run_harbor_process(
             env=subscription_environment(),
             start_new_session=True,
         )
-        try:
-            returncode = process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            _terminate_process_group(process)
-            return HarborProcessResult(
-                returncode=process.returncode if process.returncode is not None else -1,
-                timed_out=True,
-                log_path=log_path,
-            )
+        started = time.monotonic()
+        first_seen: dict[Path, float] = {}
+        while True:
+            returncode = process.poll()
+            if returncode is not None:
+                break
+            now = time.monotonic()
+            timed_out_trial: str | None = None
+            if job_dir is not None and trial_timeout_seconds is not None:
+                active = set(_active_trial_directories(job_dir))
+                first_seen = {
+                    path: observed for path, observed in first_seen.items() if path in active
+                }
+                for path in active:
+                    first_seen.setdefault(path, now)
+                    if now - first_seen[path] >= trial_timeout_seconds:
+                        timed_out_trial = path.name
+                        break
+            if timed_out_trial is not None or now - started >= timeout_seconds:
+                _terminate_process_group(process)
+                return HarborProcessResult(
+                    returncode=(
+                        process.returncode if process.returncode is not None else -1
+                    ),
+                    timed_out=True,
+                    log_path=log_path,
+                    timed_out_trial=timed_out_trial,
+                )
+            try:
+                process.wait(timeout=WATCHDOG_POLL_SECONDS)
+            except subprocess.TimeoutExpired:
+                continue
     return HarborProcessResult(
         returncode=returncode,
         timed_out=False,
@@ -446,21 +536,34 @@ def _harbor_project_prefixes(job_dir: Path) -> frozenset[str]:
     )
 
 
-def _transient_reason_from_job(job_dir: Path, process_log: Path) -> str | None:
-    texts = [_tail_text(process_log)]
+def _transient_reason_from_job(job_dir: Path) -> str | None:
     if job_dir.is_dir():
         for path in sorted(job_dir.rglob("result.json")):
             try:
                 payload = json.loads(path.read_text())
             except (OSError, json.JSONDecodeError):
                 continue
-            if not isinstance(payload, dict) or not payload.get("exception_info"):
-                continue
-            texts.append(json.dumps(payload["exception_info"], sort_keys=True))
-        for pattern in ("job.log", "trial.log"):
-            for path in sorted(job_dir.rglob(pattern)):
-                texts.append(_tail_text(path))
-    return transient_provider_reason("\n".join(texts))
+            if isinstance(payload, dict):
+                reason = transient_provider_exception(payload)
+                if reason is not None:
+                    return reason
+    return None
+
+
+def _cleanup_failure(
+    request: RunRequest,
+    containers_before: frozenset[str],
+    job_dir: Path,
+) -> str | None:
+    try:
+        cleanup_new_harbor_containers(
+            request.task,
+            containers_before,
+            project_prefixes=_harbor_project_prefixes(job_dir),
+        )
+    except Exception as exc:
+        return f"cleanup_failed:{type(exc).__name__}"
+    return None
 
 
 def _write_run_metadata(
@@ -482,6 +585,7 @@ def _write_run_metadata(
         "finished_at": finished.isoformat(),
         "exit_code": process.returncode,
         "timed_out": process.timed_out,
+        "timed_out_trial": process.timed_out_trial,
         "trial_timeout_seconds": request.timeout_seconds,
         "job_timeout_seconds": request.job_timeout_seconds,
         "executor_log": process.log_path.relative_to(request.jobs_dir).as_posix(),
@@ -525,6 +629,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         cwd=repo_root,
         timeout_seconds=request.job_timeout_seconds,
         log_path=executor_log,
+        job_dir=job_dir,
+        trial_timeout_seconds=request.timeout_seconds,
     )
     finished = datetime.now(UTC)
     _write_run_metadata(
@@ -537,35 +643,29 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     )
 
     if process.timed_out:
-        cleanup_new_harbor_containers(
-            request.task,
-            containers_before,
-            project_prefixes=_harbor_project_prefixes(job_dir),
+        cleanup_failure = _cleanup_failure(request, containers_before, job_dir)
+        scope = (
+            f"trial {process.timed_out_trial!r} exceeded {request.timeout_seconds}s"
+            if process.timed_out_trial is not None
+            else f"Harbor exceeded aggregate fail-safe {request.job_timeout_seconds}s"
         )
+        cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
         raise TrialTimeoutFailure(
-            f"Harbor exceeded the executor deadline of {request.job_timeout_seconds}s; "
-            f"inspect {executor_log}"
+            f"{scope}; inspect {executor_log}{cleanup_detail}"
         )
-    transient_reason = _transient_reason_from_job(job_dir, executor_log)
+    transient_reason = _transient_reason_from_job(job_dir)
     if process.returncode != 0:
-        cleanup_new_harbor_containers(
-            request.task,
-            containers_before,
-            project_prefixes=_harbor_project_prefixes(job_dir),
-        )
+        cleanup_failure = _cleanup_failure(request, containers_before, job_dir)
+        cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
         if transient_reason is not None:
-            raise TransientHarnessFailure(transient_reason)
+            raise TransientHarnessFailure(
+                transient_reason,
+                message=transient_reason + cleanup_detail,
+            )
         raise ExecutionFailure(
-            f"Harbor exited with {process.returncode}; inspect {executor_log}"
+            f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
         )
     load_job(job_dir)
-    if transient_reason is not None:
-        cleanup_new_harbor_containers(
-            request.task,
-            containers_before,
-            project_prefixes=_harbor_project_prefixes(job_dir),
-        )
-        raise TransientHarnessFailure(transient_reason)
     return job_dir
 
 

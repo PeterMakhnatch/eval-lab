@@ -1,7 +1,9 @@
+import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Event
 
 import pytest
 
@@ -86,6 +88,12 @@ def _event(index: int) -> QueueEvent:
     )
 
 
+def _append_events_process(root: str, start: int, count: int) -> None:
+    queue = DirectoryQueue(Path(root), events_max_bytes=500, event_backups=20)
+    for index in range(start, start + count):
+        queue.append_event(_event(index))
+
+
 def test_event_log_rotation_is_bounded_and_reads_oldest_first(tmp_path: Path) -> None:
     queue = DirectoryQueue(tmp_path / "queue", events_max_bytes=320, event_backups=2)
 
@@ -110,6 +118,32 @@ def test_event_log_concurrent_writes_remain_valid_json(tmp_path: Path) -> None:
     events = load_events(queue.events_path)
     assert len(events) == 100
     assert {event.event_id for event in events} == {f"event-{index}" for index in range(100)}
+
+
+def test_event_rotation_is_consistent_across_writer_processes_and_reader(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "queue"
+    context = multiprocessing.get_context("spawn")
+    processes = [
+        context.Process(target=_append_events_process, args=(str(root), start, 10))
+        for start in (0, 10)
+    ]
+    for process in processes:
+        process.start()
+    while any(process.is_alive() for process in processes):
+        # Every snapshot must either parse fully or wait on the process lock;
+        # a reader must never observe half a rotation.
+        load_events(root / "events.jsonl")
+    for process in processes:
+        process.join(timeout=5)
+        assert process.exitcode == 0
+
+    events = load_events(root / "events.jsonl")
+    assert len(events) == 20
+    assert {event.event_id for event in events} == {
+        f"event-{index}" for index in range(20)
+    }
 
 
 def test_event_reader_checks_for_first_append_under_lock(
@@ -509,3 +543,79 @@ def test_billable_transient_retry_reserves_budget_before_another_call(
     assert [event.reason_code for event in refused] == [
         "transient_retry:daily_cost_ceiling"
     ]
+
+
+def test_failed_attempt_reservations_survive_executor_restart(tmp_path: Path) -> None:
+    calls = 0
+
+    def transient(_request: RunRequest) -> Path:
+        nonlocal calls
+        calls += 1
+        raise TransientHarnessFailure("transient_harness:provider_http_503")
+
+    first = executor(tmp_path, runner=transient, spent=15)
+    first.submit(
+        spec(
+            "durable-provider-retry",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+
+    assert first.tick() == 1
+    assert calls == 2
+    reservations = [
+        event
+        for event in load_events(first.queue.events_path)
+        if event.event == "dispatch_attempt_reserved"
+    ]
+    assert [(event.attempt_number, event.estimated_cost_usd) for event in reservations] == [
+        (1, 2),
+        (2, 2),
+    ]
+
+    restarted = executor(tmp_path, runner=lambda request: request.jobs_dir, spent=15)
+    destination, decision = restarted.submit(
+        spec(
+            "later-billable-spec",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+
+    assert decision.admitted is False
+    assert decision.reason_code == "daily_cost_ceiling"
+    assert destination.parent.name == "waiting"
+
+
+def test_concurrent_executor_tick_defers_to_single_queue_owner(tmp_path: Path) -> None:
+    entered = Event()
+    release = Event()
+    calls: list[str] = []
+
+    def blocking_run(request: RunRequest) -> Path:
+        calls.append(request.name)
+        entered.set()
+        assert release.wait(timeout=2)
+        return request.jobs_dir / request.name
+
+    first = executor(tmp_path, runner=blocking_run)
+    second = executor(
+        tmp_path,
+        runner=lambda request: (_ for _ in ()).throw(
+            AssertionError(f"second executor ran {request.name}")
+        ),
+    )
+    first.submit(spec("single-owner-control"))
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        running = pool.submit(first.tick)
+        assert entered.wait(timeout=2)
+        assert second.tick() == 0
+        assert second.last_tick_reason == "executor_busy"
+        release.set()
+        assert running.result(timeout=2) == 1
+
+    assert calls == ["single-owner-control"]

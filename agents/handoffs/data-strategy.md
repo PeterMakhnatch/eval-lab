@@ -113,3 +113,29 @@ terminal-bench/html-js-filter      codex   gpt-5.6-terra   3  0.0  0.0
   inspection shows oracle-vs-nop splits — a true candidate correctly resolved
   by the documented interpretation boundary (agent difference, not verifier
   flakiness). The candidate/adjudication split works as designed.
+
+## P5 + shipping evidence (2026-08-15)
+
+- P5 blueprint committed (544705a): TB3-contract synthesis, exact-score
+  certification gate (oracle k=3 == 1.0, nop == 0.0, cheat probes,
+  determinism, leakage scan), five perturbation operators, human-only
+  registration. Nothing in the pipeline is billable.
+
+- Second-writer note, on the record: commits 849e002/e096171/544705a in this
+  worktree were authored by Peter directly during the mission (live review).
+  The committed queries section was restructured to `-- name:` convention;
+  I validated the COMMITTED version, not my draft:
+
+```
+loop-index: OK rows=0            tool-efficiency-ratio: OK rows=0
+context-bloat-velocity: OK rows=0  context-growth-spikes: OK rows=0
+flaky-verifier-candidates: OK rows=2  tool-hallucination-candidates: OK rows=0
+timeout-failures: OK rows=0      surrender-candidates: OK rows=2
+repeated-failed-commands: OK rows=0   token-cost-coverage: OK rows=1
+10/10 named queries valid on committed state
+```
+
+- flaky-verifier-candidates' 2 rows are oracle-vs-nop splits on
+  event-summary — true candidates, resolved by the documented interpretation
+  boundary. surrender-candidates' 2 rows are nop-control trials, correctly
+  excluded by the doc's "controls must be excluded during review" note.

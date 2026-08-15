@@ -1,6 +1,6 @@
-Status: ready-to-publish
-Last: rebased candidate 871a39b passed three consecutive 215-test premerge gates, three full Oracle controls, and a clean configured fresh-clone premerge/full-smoke gate.
-Next: Publish the rebased head without force-pushing the existing remote branch, open a replacement SOLIDIFY PR, require all GitHub checks green, merge, and reinstall LaunchAgents from primary main.
+Status: done
+Last: PR #34 merged at fefabe3 with all five checks green; primary main was fast-forwarded, both LaunchAgents were reinstalled from it, and full doctor plus the first scheduled tick passed.
+Next: none; SOLIDIFY P1–P5 and all sub-hour continuation items are complete.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -977,4 +977,45 @@ $ pytest -q tests/test_unattended.py -k 'backup_failure or enrichment_failure or
 ....                                                                     [100%]
 $ pytest -q tests/test_unattended.py tests/test_canary.py tests/test_pipeline.py
 .............................                                            [100%]
+```
+
+## Merge and installed-state closeout
+
+Rebasing could not update PR #31 without a prohibited force-push, so its
+history was preserved and the accepted head was published to
+`role/solidify-final`. Replacement PR #34 passed every required GitHub check
+and was squash-merged. The primary checkout retained its unrelated untracked
+backup and overview files while fast-forwarding to the merge commit.
+
+```text
+$ gh pr checks 34
+lint          pass
+profile       pass
+test (3.12)  pass
+test (3.14)  pass
+ty            pass
+$ gh pr view 34 --json state,mergedAt,mergeCommit
+state=MERGED mergedAt=2026-08-15T05:51:37Z merge=fefabe3839b111e85f3ef4897933fcaaf2b13536
+$ git log -1 --oneline origin/main
+fefabe3 SOLIDIFY: harden the evaluation loop (#34)
+```
+
+Both installed plists now execute from
+`/Users/petermakhnatch/Developer/eval-lab` and set
+`EVALLAB_DERIVED_ROOT=/Users/petermakhnatch/Developer/eval-lab/derived/parquet`.
+The install itself started one safe empty-queue tick from merged main.
+
+```text
+$ uv run evallab doctor
+ok    harbor         0.21.0
+ok    docker-daemon  client=29.4.1 server=29.4.1
+ok    postgres       PostgreSQL 18.4
+ok    catalog-parquet catalog=66 projected=66 exceptions=0 missing=0 extra=0
+$ launchctl print gui/501/com.petermakhnatch.evallab.tick
+runs = 1
+last exit code = 0
+$ tail -1 queue/events.jsonl
+{"event":"tick_deferred","actor":"scheduled-tick","reason_code":"no_approved_specs"}
+$ wc -c ~/Library/Logs/evallab/tick.error.log
+0
 ```

@@ -612,3 +612,26 @@ SMOKE PASS both-stores-agree
 Found 28 diagnostics
 premerge green: Python 3.12; ty 28 <= 28
 ```
+
+Live continuation checks also confirm that no legacy worktree-only Parquet job
+is absent from the shared store, the configured invariant is exact, and the
+existing real PostgreSQL custom-format dump still matches its private manifest.
+The new report/power read paths were exercised against the shared store without
+creating report files; real tests separately prove explicit publication.
+
+```text
+$ comm -23 <local Parquet job ids> <shared Parquet job ids>
+# no output
+local=3
+shared=38
+$ evallab doctor
+ok    catalog-parquet catalog=38 projected=38 exceptions=0 missing=0 extra=0
+$ create_postgres_backup(..., date(2026, 8, 14))
+/Users/petermakhnatch/Developer/eval-lab/backups/postgres/evallab-2026-08-14.dump
+$ shasum -a 256 .../evallab-2026-08-14.dump
+84c2998200ff9e6ef4acb41da0d220cd3a52ad9aa9eeef9103857bbd84195e4a
+$ evallab report family event-summary
+This family contains 33 trials across 31 jobs.
+$ pytest -q tests/test_cli_audit.py tests/test_truth.py
+....................................................                     [100%]
+```

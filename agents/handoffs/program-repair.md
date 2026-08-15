@@ -1,5 +1,5 @@
 Status: review-wanted
-Last: Exact commit 4a01431 passed locked clean-worktree acceptance after three local rounds and premerge.
+Last: Rebased exact commit f0c2881 passed three local rounds, premerge, and locked clean-worktree acceptance.
 Next: Open PROGRAM-REPAIR PR and leave it unmerged for an independent reviewer.
 Blockers: none
 
@@ -54,16 +54,16 @@ are explicitly inherited/unresolved rather than silently treated as primary evid
 Each round ran the actual validator, all negative fixtures, the full default suite, and Ruff:
 
 ```text
-round 1: PROGRAM.json OK; 17 negative/regression tests passed; 215 passed in 9.86s; Ruff passed
-round 2: PROGRAM.json OK; 17 negative/regression tests passed; 215 passed in 9.73s; Ruff passed
-round 3: PROGRAM.json OK; 17 negative/regression tests passed; 215 passed in 9.91s; Ruff passed
+round 1: PROGRAM.json OK; 17 negative/regression tests passed; 263 passed in 11.73s; Ruff passed
+round 2: PROGRAM.json OK; 17 negative/regression tests passed; 263 passed in 11.69s; Ruff passed
+round 3: PROGRAM.json OK; 17 negative/regression tests passed; 263 passed in 11.55s; Ruff passed
 ```
 
 ### Repository premerge
 
 ```text
 All checks passed!
-215 passed in 9.73s
+263 passed in 11.49s
 SMOKE PASS both-stores-agree
 Found 28 diagnostics
 premerge green: Python 3.12; ty 28 <= 28
@@ -74,9 +74,10 @@ cloud, or scientific benchmark study was launched by this mission.
 
 ### Clean in-repository worktree
 
-Created a detached in-repo worktree at exact commit
-`4a0143167bdd560e3cc8779893e684b44d45e091`, two commits plus this evidence record atop current
-`origin/main` `078dd7b`. The worktree began and ended git-clean and was removed after:
+After GREENLINE PR #38 advanced main, rebased without conflict and repeated all acceptance from
+scratch. Created a detached in-repo worktree at exact commit
+`f0c2881f0fc7f41e1dd20bb78374d7d4e7db788d`, which contains current `origin/main` `b2e2898`.
+The worktree began and ended git-clean and was removed after:
 
 ```text
 $ uv sync --locked
@@ -90,7 +91,7 @@ $ .venv/bin/pytest -q research/experiments/tests/test_validate_program.py
 .................                                                        [100%]
 
 $ .venv/bin/pytest
-215 passed in 16.05s
+263 passed in 16.39s
 
 $ .venv/bin/ruff check .
 All checks passed!

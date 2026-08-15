@@ -57,7 +57,8 @@ with `uv run evallab resume`. A restart reconciles `queue/running/` against
 completed immutable Harbor jobs before starting new work. The cost-policy day
 is UTC: both catalog spend and durable attempt reservations cross the daily
 ceiling boundary at 00:00 UTC, regardless of the host or PostgreSQL session
-timezone.
+timezone. The researcher call ledger uses that same UTC budget day before it
+combines attributed researcher reservations with catalog spend.
 
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
 All real-model work must pass through the queue and standing policy.

@@ -514,6 +514,7 @@ class CallLedger:
 
 CatalogSpendLoader = Callable[[date], float]
 EvidenceLoader = Callable[[date, Path], EvidenceBundle]
+UtcClock = Callable[[], datetime]
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -528,6 +529,7 @@ class ResearcherLoop:
         limits: Mapping[ResearchRole, RoleLimits] = DEFAULT_ROLE_LIMITS,
         catalog_spend: CatalogSpendLoader | None = None,
         evidence_loader: EvidenceLoader | None = None,
+        clock: UtcClock | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.invoker = invoker
@@ -537,6 +539,7 @@ class ResearcherLoop:
         self.ledger = CallLedger(self.repo_root / "queue/researchers/calls.jsonl")
         self._catalog_spend = catalog_spend or self._load_catalog_spend
         self._evidence_loader = evidence_loader or self._load_catalog_evidence
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     @classmethod
     def from_repo(cls, repo_root: Path) -> ResearcherLoop:
@@ -549,7 +552,10 @@ class ResearcherLoop:
 
     def run(self, *, report_date: date | None = None) -> ResearcherPassResult:
         target_date = report_date or date.today()
-        budget_day = date.today()
+        budget_now = self._clock()
+        if budget_now.tzinfo is None:
+            raise ValueError("researcher budget clock must be timezone-aware")
+        budget_day = budget_now.astimezone(UTC).date()
         pass_id = new_ulid()
         pass_dir = self.repo_root / "queue/researchers/passes" / target_date.isoformat() / pass_id
         pass_dir.mkdir(parents=True, exist_ok=False)

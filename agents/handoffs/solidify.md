@@ -1,6 +1,6 @@
 Status: building
-Last: exact-head review found that a safely unresolved partial job still allowed other approved work and the nightly researcher to run. Unresolved `running/` specs now block both paths with `running_specs_unresolved`, preventing overlap with detached/billable Harbor work; Ruff and all 208 tests pass.
-Next: Checkpoint the dispatch barrier, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
+Last: final review found the researcher ledger still used a host-local budget day while queue/catalog use UTC. Its injected clock now normalizes to UTC before reservations and combined-ceiling checks, with a 20:30 EDT/00:30 UTC boundary regression.
+Next: Checkpoint the unified researcher policy day, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
 Blockers: none.
 
 # SOLIDIFY handoff

@@ -1,5 +1,5 @@
 Status: building
-Last: launchd tick 2/2 exited 0 at 21:15:49 EDT and recorded the expected no-work deferral; no quarantine or dispatch.
+Last: launchd tick 3/3 exited 0 at 21:45:53 EDT and recorded the expected no-work deferral; scheduler stderr remains empty.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then final fetch/rebase/premerge/PR checks and merge.
 Blockers: none
 
@@ -299,6 +299,8 @@ runs = 1; last exit code = 0
 2026-08-15T00:45:46.706855Z tick_deferred reason=no_approved_specs
 runs = 2; last exit code = 0
 2026-08-15T01:15:49.952436Z tick_deferred reason=no_approved_specs
+runs = 3; last exit code = 0
+2026-08-15T01:45:53.118591Z tick_deferred reason=no_approved_specs
 ```
 
 ### Continuations in progress
@@ -316,6 +318,12 @@ top-level commands and 34 visible top-level/nested help paths; all 34 are pinned
 The audit caught and repaired an existing contract violation: `trajectories`
 used to write PostgreSQL and Parquet even without `--export`; it is now genuinely
 read-only by default.
+
+Nightly catches all ordinary backup failures at its fail-closed boundary,
+including the subprocess's 600-second `TimeoutExpired`; both timeout and I/O
+failure regressions prove that canary dispatch remains zero and a specific
+`postgres_backup_failed` reason is appended. The latest full suite passes 146
+tests.
 
 ```text
 $ pytest -q tests/test_queue.py tests/test_pipeline.py tests/test_unattended.py tests/test_gc.py

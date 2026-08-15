@@ -30,3 +30,12 @@ anyway records the stacked reason codes. Do not interpret k1 vs k3 as
 per-job ceiling must move or the per-attempt estimate must be measured
 (from a completed k=3 job's actual `cost_usd`) and shown to be ≤ $0.60.
 Do not lower `est_cost_usd` to sneak k=5 through.
+
+## 2026-08-15 PROGRAM reconciliation
+
+k=3 cell now has scored evidence: three trials in
+`runs/canary-transaction-reconciliation-codex-20260815/*/result.json`
+with `verifier_result.rewards.reward=1.0` and `exception_info=null`.
+Harbor-recorded `cost_usd` sums to 0.0793556. k=1 still has no scored
+Codex job on the primary checkout. k=5 remains unrun (`per_job_cost_ceiling`
+plus canary `max_attempts=3`). Do not call this “sensitivity” yet.

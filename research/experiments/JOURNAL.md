@@ -1,5 +1,24 @@
 # Experiment journal
 
+**2026-08-15 PROGRAM reconciliation (do not erase the 2026-08-14 narrative).**
+Study index below is updated. Full citations:
+`baselines/codex-canary-20260815.md`, `PROGRAM.json`, `STATUS.md`.
+2026-08-14 “No Codex trials” described the runner worktree queue. Primary
+`runs/` now has scored 2026-08-15 Codex canaries. Earlier
+`ValueError` / `NonZeroAgentExitCodeError` jobs remain invalid or
+excepted — they are not rewritten as successes.
+
+Updated study index:
+
+| ID | Variable | Reconciled class | Status 2026-08-15 |
+| --- | --- | --- | --- |
+| 01 | canary task identity, Codex k=3 | 2026-08-15 scored; 2026-08-14 invalid harness | analyzed (families, not a rank) |
+| 02 | attempts {1,3,5} on txn-recon | k=3 scored; k=1 never scored; k=5 policy/cost | waiting |
+| 03 | extra-instruction preamble | designed; harness cannot express | designed |
+| 04 | agent {codex, claude-code} | Codex cell scored; claude never dispatched | designed (auth) |
+| 05 | curated nominee identity | policy refusal | waiting `out_of_policy` |
+| 06 | query-optimize registration | policy refusal; oracle/nop validity only | waiting `out_of_policy` |
+
 Running thread for the RUNNER role. Read top to bottom. Each study has
 one section that is updated in place as status changes. Job directories
 are under this worktree's `runs/` unless noted. Queue events are under

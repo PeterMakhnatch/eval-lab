@@ -31,3 +31,9 @@ validity only.
 **Next spec this implies.** If Peter registers it, resubmit as
 `registered/query-optimize` with the three requires once those checks
 exist. If the oracle baseline fails, do not register it.
+
+## 2026-08-15 PROGRAM reconciliation
+
+No Codex query-optimize job in primary `runs/`. Oracle/nop validity
+claims stay in the 2026-08-14 journal (runner worktree matrices). Policy
+class remains `out_of_policy`.

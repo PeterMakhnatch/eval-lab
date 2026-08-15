@@ -6,6 +6,8 @@ and are not committed.
 
 | Path | What it is |
 |---|---|
+| `PROGRAM.json` | Versioned machine-readable ledger (`validate_program.py`) |
+| `STATUS.md` | Human page: RECENT / RUNNING NOW / NEXT / TASK DECISIONS |
 | `JOURNAL.md` | Running scientific thread: what / why / status / results / links |
 | `specs/` | One study per directory; JSON files are `ExperimentSpec` documents |
 | `preambles/` | Extra-instruction files for studies the runner cannot yet express |

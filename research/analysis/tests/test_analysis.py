@@ -75,7 +75,7 @@ def _run(
 def test_plan_is_bounded_and_makes_no_model_call(tmp_path: Path) -> None:
     trial_path = (
         ROOT
-        / "evidence/runs/event-summary-oracle-evidence"
+        / "research/evidence/runs/event-summary-oracle-evidence"
         / "event-summary__FZg7pvq"
     )
     job, trial = load_analysis_source(trial_path)
@@ -103,7 +103,7 @@ def test_plan_is_bounded_and_makes_no_model_call(tmp_path: Path) -> None:
 def test_saved_output_writes_new_sidecars_with_complete_provenance(tmp_path: Path) -> None:
     trial_path = (
         ROOT
-        / "evidence/runs/event-summary-oracle-evidence"
+        / "research/evidence/runs/event-summary-oracle-evidence"
         / "event-summary__FZg7pvq"
     )
     job, trial = load_analysis_source(trial_path)
@@ -128,7 +128,7 @@ def test_saved_output_writes_new_sidecars_with_complete_provenance(tmp_path: Pat
 def test_schema_validation_retries_once(tmp_path: Path) -> None:
     job, trial = load_analysis_source(
         ROOT
-        / "evidence/runs/event-summary-oracle-evidence"
+        / "research/evidence/runs/event-summary-oracle-evidence"
         / "event-summary__FZg7pvq"
     )
     responses = [
@@ -151,7 +151,7 @@ def test_schema_validation_retries_once(tmp_path: Path) -> None:
 def test_unknown_failure_category_is_rejected_after_one_retry(tmp_path: Path) -> None:
     job, trial = load_analysis_source(
         ROOT
-        / "evidence/runs/event-summary-oracle-evidence"
+        / "research/evidence/runs/event-summary-oracle-evidence"
         / "event-summary__FZg7pvq"
     )
     output = json.loads(STUB.read_text())
@@ -252,7 +252,7 @@ def test_harness_exception_cannot_be_mislabeled_as_agent_failure(tmp_path: Path)
 def test_review_is_append_only_and_preserves_original_analysis(tmp_path: Path) -> None:
     job, trial = load_analysis_source(
         ROOT
-        / "evidence/runs/event-summary-oracle-evidence"
+        / "research/evidence/runs/event-summary-oracle-evidence"
         / "event-summary__FZg7pvq"
     )
     sidecar_path, sidecar = _run(job, trial, tmp_path)
@@ -307,7 +307,7 @@ def test_live_adapter_requires_matching_running_queue_authorization(tmp_path: Pa
 def test_failure_taxonomy_agreement_uses_only_valid_sidecars(tmp_path: Path) -> None:
     job, trial = load_analysis_source(
         ROOT
-        / "evidence/runs/event-summary-oracle-evidence"
+        / "research/evidence/runs/event-summary-oracle-evidence"
         / "event-summary__FZg7pvq"
     )
     valid_path, valid = _run(job, trial, tmp_path / "analyses")

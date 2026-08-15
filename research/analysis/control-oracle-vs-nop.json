@@ -11,11 +11,11 @@
   "cohorts": [
     {
       "label": "oracle",
-      "paths": ["evidence/runs/event-summary-oracle-evidence"]
+      "paths": ["research/evidence/runs/event-summary-oracle-evidence"]
     },
     {
       "label": "nop",
-      "paths": ["evidence/runs/event-summary-nop-evidence"]
+      "paths": ["research/evidence/runs/event-summary-nop-evidence"]
     }
   ]
 }

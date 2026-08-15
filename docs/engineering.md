@@ -77,33 +77,29 @@ ship two type checkers.
 
 ### The type-check baseline
 
-`ty` 0.0.71 reports **33 diagnostics** on `src/` as of the wave-1 merge
-(`d0d6760`). Distribution:
+`ty` 0.0.71 reports **28 diagnostics** on `src/` as of the SOLIDIFY
+continuation. This lowers the original wave-1 baseline of 33 after the five
+`cohort.py` diagnostics were removed. Current distribution:
 
-| File | Count | Owner tonight |
-|---|---|---|
-| `atif.py` | 14 | other role |
-| `facts.py` | 7 | other role |
-| `cohort.py` | 5 | other role |
-| `database.py` | 3 | BUILDER |
-| `tracing.py` | 2 | other role |
-| `queue.py` | 2 | hot — do not touch |
+| File | Count |
+|---|---:|
+| `atif.py` | 14 |
+| `facts.py` | 7 |
+| `database.py` | 3 |
+| `tracing.py` | 2 |
+| `queue.py` | 2 |
 
-By rule: 14 `unresolved-attribute`, 10 `invalid-argument-type`, 3
+By rule: 13 `unresolved-attribute`, 6 `invalid-argument-type`, 3
 `unresolved-import`, 3 `not-subscriptable`, 1 `not-iterable`, 1
-`no-matching-overload`, 1 `redundant-cast`.
+`no-matching-overload`, and 1 `redundant-cast`.
 
 Three of these are not code defects: `tracing.py` imports `litellm` and `dspy`,
 which are optional runtime dependencies absent from the locked dev
 environment. Those want a dependency-group entry or a per-module ignore, not a
 code change.
 
-FORGE fixed none of them. Every file above belongs to another role
-(`agents/WORKFLOW.md`), and `queue.py` was under active work the night this
-was written.
-
 **The job is a non-regression ratchet, not a pass/fail gate on zero.**
-`typecheck.yml` sets `TY_BASELINE: 33`. The job fails only if ty reports *more*
+`typecheck.yml` sets `TY_BASELINE: 28`. The job fails only if ty reports *more*
 than the baseline, and emits a notice when the count drops so the baseline can
 be lowered. This was the only design that satisfies all three constraints at
 once: type checking runs on every PR, new type errors are caught, and FORGE

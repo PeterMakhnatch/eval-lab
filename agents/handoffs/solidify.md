@@ -1,5 +1,5 @@
 Status: building
-Last: CLI audit now pins read-only-by-default family/card reports; focused and full tests pass, with 28 ty diagnostics below the 33 baseline. Launchd tick 6/6 remains clean.
+Last: CLI audit now pins read-only-by-default family/card reports; premerge passes 186 tests and Docker-free smoke, and the ty ceiling is tightened from 33 to the observed 28. Launchd tick 6/6 remains clean.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then run exact-head repeated/fresh-clone gates and the reviewed PR workflow.
 Blockers: none.
 
@@ -598,4 +598,17 @@ All checks passed!
 ..........................................                               [100%]
 $ uvx 'ty@0.0.71' check src/ --output-format=concise
 Found 28 diagnostics
+```
+
+The type ratchet had five stale diagnostics of slack after upstream removed the
+`cohort.py` findings. Both local premerge and GitHub CI now cap ty at 28, and
+the engineering guide records the current per-file and per-rule distribution.
+
+```text
+$ scripts/premerge.sh
+All checks passed!
+186 passed in 10.20s
+SMOKE PASS both-stores-agree
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 28
 ```

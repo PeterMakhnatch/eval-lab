@@ -1,6 +1,6 @@
-Status: building
-Last: Final code passed three consecutive premerge runs and fresh-clone default/non-default suites.
-Next: Rebase once more, open the TRUTH PR, require all GitHub checks green, then merge and sunset.
+Status: done
+Last: PR #29 passed all five GitHub checks after three local premerge runs and fresh-clone acceptance.
+Next: Push this closeout record, require its replacement check run to be fully green, then squash-merge and sunset.
 Blockers: none
 
 # TRUTH handoff
@@ -133,6 +133,19 @@ premerge green: Python 3.12; ty 28 <= 33
 $ uv run pytest -q research/analysis/tests dashboard/tests
 .................................                                        [100%]
 ```
+
+### Exact PR-head acceptance (remote commit `5ed156f`)
+
+The handoff-bearing PR head passed three further consecutive `scripts/premerge.sh` runs: all
+91 tests passed in 6.58s, 6.46s, and 6.51s respectively; Ruff passed and the type ratchet stayed
+at 28/33 on each run. A new clone of the same remote commit then passed premerge (`91 passed in
+12.28s`) and the 33 non-default analysis/dashboard tests. The clone was removed afterward.
+
+PR [#29](https://github.com/PeterMakhnatch/eval-lab/pull/29) then passed all GitHub checks:
+
+- [lint and Python 3.12/3.14](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31859653962)
+- [profile](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31859653943)
+- [type ratchet](https://github.com/PeterMakhnatch/eval-lab/actions/runs/31859653976)
 
 ## Deferred coordination
 

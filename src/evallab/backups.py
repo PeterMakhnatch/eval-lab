@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
 import secrets
 import subprocess
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import BinaryIO, TextIO
@@ -15,6 +18,7 @@ from evallab.runner import subscription_environment
 
 POSTGRES_BACKUP_TIMEOUT_SECONDS = 600
 BackupRunner = Callable[[list[str], BinaryIO], subprocess.CompletedProcess[bytes]]
+_BACKUP_THREAD_LOCK = threading.Lock()
 
 
 def _private_descriptor(path: Path) -> int:
@@ -27,6 +31,18 @@ def _open_private_binary(path: Path) -> BinaryIO:
 
 def _open_private_text(path: Path) -> TextIO:
     return os.fdopen(_private_descriptor(path), "w")
+
+
+@contextmanager
+def _backup_lock(backup_dir: Path) -> Iterator[None]:
+    lock_path = backup_dir / ".backup.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    with _BACKUP_THREAD_LOCK, os.fdopen(descriptor, "a+b") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
 def _run_backup(command: list[str], output: BinaryIO) -> subprocess.CompletedProcess[bytes]:
@@ -74,39 +90,41 @@ def create_postgres_backup(
         'exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom',
     ]
 
-    try:
-        with _open_private_binary(temporary) as output:
-            completed = runner(command, output)
-            output.flush()
-            os.fsync(output.fileno())
-        if completed.returncode != 0:
-            detail = completed.stderr.decode(errors="replace").strip()[:500]
-            raise RuntimeError(
-                f"pg_dump exited {completed.returncode}" + (f": {detail}" if detail else "")
-            )
-        size = temporary.stat().st_size
-        if size == 0:
-            raise RuntimeError("pg_dump produced an empty backup")
-        digest_builder = hashlib.sha256()
-        with temporary.open("rb") as dump:
-            while chunk := dump.read(1024 * 1024):
-                digest_builder.update(chunk)
-        manifest = {
-            "schema_version": 1,
-            "created_at": now().astimezone(UTC).isoformat(),
-            "report_date": report_date.isoformat(),
-            "dump": destination.name,
-            "format": "postgres-custom",
-            "size_bytes": size,
-            "sha256": digest_builder.hexdigest(),
-        }
-        with _open_private_text(manifest_temporary) as manifest_output:
-            manifest_output.write(json.dumps(manifest, indent=2) + "\n")
-            manifest_output.flush()
-            os.fsync(manifest_output.fileno())
-        temporary.replace(destination)
-        manifest_temporary.replace(manifest_path)
-    finally:
-        temporary.unlink(missing_ok=True)
-        manifest_temporary.unlink(missing_ok=True)
+    with _backup_lock(backup_dir):
+        try:
+            with _open_private_binary(temporary) as output:
+                completed = runner(command, output)
+                output.flush()
+                os.fsync(output.fileno())
+            if completed.returncode != 0:
+                detail = completed.stderr.decode(errors="replace").strip()[:500]
+                raise RuntimeError(
+                    f"pg_dump exited {completed.returncode}"
+                    + (f": {detail}" if detail else "")
+                )
+            size = temporary.stat().st_size
+            if size == 0:
+                raise RuntimeError("pg_dump produced an empty backup")
+            digest_builder = hashlib.sha256()
+            with temporary.open("rb") as dump:
+                while chunk := dump.read(1024 * 1024):
+                    digest_builder.update(chunk)
+            manifest = {
+                "schema_version": 1,
+                "created_at": now().astimezone(UTC).isoformat(),
+                "report_date": report_date.isoformat(),
+                "dump": destination.name,
+                "format": "postgres-custom",
+                "size_bytes": size,
+                "sha256": digest_builder.hexdigest(),
+            }
+            with _open_private_text(manifest_temporary) as manifest_output:
+                manifest_output.write(json.dumps(manifest, indent=2) + "\n")
+                manifest_output.flush()
+                os.fsync(manifest_output.fileno())
+            temporary.replace(destination)
+            manifest_temporary.replace(manifest_path)
+        finally:
+            temporary.unlink(missing_ok=True)
+            manifest_temporary.unlink(missing_ok=True)
     return destination

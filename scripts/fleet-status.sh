@@ -88,8 +88,16 @@ fi
 bar
 
 echo "## recent lab events"
-if [ -f queue/events.jsonl ]; then
-    tail -8 queue/events.jsonl | sed 's/^/  /'
+event_segments="$(find queue -maxdepth 1 -type f -name 'events.jsonl.*' 2>/dev/null | sort -t. -k3,3nr)"
+if [ -f queue/events.jsonl ] || [ -n "$event_segments" ]; then
+    {
+        while IFS= read -r segment; do
+            [ -n "$segment" ] && cat "$segment"
+        done <<EOF
+$event_segments
+EOF
+        [ -f queue/events.jsonl ] && cat queue/events.jsonl
+    } | tail -8 | sed 's/^/  /'
 else
     echo "  (no events.jsonl yet)"
 fi

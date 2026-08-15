@@ -30,7 +30,8 @@ def test_postgres_backup_is_atomic_and_has_integrity_manifest(tmp_path: Path) ->
 
     assert result.read_bytes() == payload
     assert stat.S_IMODE(result.stat().st_mode) == 0o600
-    assert stat.S_IMODE(result.with_suffix(".dump.json").stat().st_mode) == 0o600
+    manifest_path = result.parent / "manifest.json"
+    assert stat.S_IMODE(manifest_path.stat().st_mode) == 0o600
     assert commands == [
         [
             "docker",
@@ -45,17 +46,17 @@ def test_postgres_backup_is_atomic_and_has_integrity_manifest(tmp_path: Path) ->
             'exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom',
         ]
     ]
-    manifest = json.loads(result.with_suffix(".dump.json").read_text())
+    manifest = json.loads(manifest_path.read_text())
     assert manifest == {
         "schema_version": 1,
         "created_at": "2026-08-15T02:30:00+00:00",
         "report_date": "2026-08-14",
-        "dump": "evallab-2026-08-14.dump",
+        "dump": "database.dump",
         "format": "postgres-custom",
         "size_bytes": len(payload),
         "sha256": hashlib.sha256(payload).hexdigest(),
     }
-    assert list(result.parent.glob("*.tmp")) == []
+    assert list(result.parent.parent.glob("*.tmp")) == []
 
 
 def test_postgres_backup_failure_leaves_no_partial_artifacts(tmp_path: Path) -> None:
@@ -72,19 +73,18 @@ def test_postgres_backup_failure_leaves_no_partial_artifacts(tmp_path: Path) -> 
     else:
         raise AssertionError("failed pg_dump was accepted")
 
-    assert [path.name for path in (tmp_path / "backups/postgres").iterdir()] == [
+    assert sorted(path.name for path in (tmp_path / "backups/postgres").iterdir()) == [
         ".backup.lock"
     ]
 
 
 def test_concurrent_backups_leave_matching_dump_and_manifest(tmp_path: Path) -> None:
     (tmp_path / "compose.yaml").write_text("name: eval-lab\n")
-    payloads = iter((b"first complete dump", b"second complete dump"))
+    payloads = iter((b"first complete dump",))
 
     def backup(_index: int) -> Path:
-        payload = next(payloads)
-
         def runner(command, output):
+            payload = next(payloads)
             output.write(payload)
             return subprocess.CompletedProcess(command, 0, b"", b"")
 
@@ -99,7 +99,33 @@ def test_concurrent_backups_leave_matching_dump_and_manifest(tmp_path: Path) -> 
 
     assert paths[0] == paths[1]
     final_payload = paths[0].read_bytes()
-    manifest = json.loads(paths[0].with_suffix(".dump.json").read_text())
-    assert final_payload in {b"first complete dump", b"second complete dump"}
+    manifest = json.loads((paths[0].parent / "manifest.json").read_text())
+    assert final_payload == b"first complete dump"
     assert manifest["size_bytes"] == len(final_payload)
     assert manifest["sha256"] == hashlib.sha256(final_payload).hexdigest()
+
+
+def test_publication_failure_leaves_no_visible_or_partial_generation(tmp_path: Path) -> None:
+    (tmp_path / "compose.yaml").write_text("name: eval-lab\n")
+
+    def runner(command, output):
+        output.write(b"complete but unpublished")
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    def fail_publish(_source: Path, _destination: Path) -> None:
+        raise OSError("simulated rename failure")
+
+    try:
+        create_postgres_backup(
+            tmp_path,
+            date(2026, 8, 14),
+            runner=runner,
+            publisher=fail_publish,
+        )
+    except OSError as exc:
+        assert "simulated rename failure" in str(exc)
+    else:
+        raise AssertionError("failed publication was accepted")
+
+    backup_dir = tmp_path / "backups/postgres"
+    assert sorted(path.name for path in backup_dir.iterdir()) == [".backup.lock"]

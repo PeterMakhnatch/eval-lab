@@ -84,7 +84,8 @@ class DigestRenderer:
         quarantine_events = [
             event
             for event in period_events + report_events
-            if event.event in {"nightly_quarantined", "tick_quarantined"}
+            if event.event
+            in {"nightly_quarantined", "tick_quarantined", "postgres_backup_failed"}
         ]
         is_quarantined = bool(quarantine_events) or (
             health_report is not None and not health_report.healthy

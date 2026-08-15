@@ -143,6 +143,13 @@ def test_standing_policy_keeps_conservative_defaults() -> None:
     assert "agents: [oracle, nop]" in policy
 
 
+def test_fleet_status_reads_rotated_event_segments() -> None:
+    script = (ROOT / "scripts/fleet-status.sh").read_text()
+
+    assert "events.jsonl.*" in script
+    assert "cat queue/events.jsonl" in script
+
+
 def test_project_exposes_evallab_cli_and_transition_alias() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
     legacy_cli = "harbor" + "-lab"

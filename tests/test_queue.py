@@ -7,6 +7,7 @@ from threading import Event
 
 import pytest
 
+import evallab.queue as queue_module
 from evallab import eventlog
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
@@ -255,6 +256,26 @@ def test_tick_uses_stub_runner_ingests_and_records_every_transition(tmp_path: Pa
         "dispatch_started",
         "dispatch_completed",
     ]
+
+
+def test_doctor_docker_daemon_probe_is_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_timeouts: list[float] = []
+
+    def timeout(_command, **kwargs):
+        observed_timeouts.append(kwargs["timeout"])
+        raise queue_module.subprocess.TimeoutExpired(_command, kwargs["timeout"])
+
+    monkeypatch.setattr(queue_module, "tool_version", lambda _command: "present")
+    monkeypatch.setattr(queue_module.shutil, "which", lambda _command: "/bin/docker")
+    monkeypatch.setattr(queue_module.subprocess, "run", timeout)
+
+    checks = executor(tmp_path).local_runtime_checks()
+
+    assert checks[-1] == ("docker-daemon", False, "unavailable: TimeoutExpired")
+    assert observed_timeouts == [queue_module.SUPPORT_COMMAND_TIMEOUT_SECONDS]
 
 
 def test_human_approval_does_not_override_hard_cost_ceiling(tmp_path: Path) -> None:
@@ -588,6 +609,45 @@ def test_failed_attempt_reservations_survive_executor_restart(tmp_path: Path) ->
     assert decision.admitted is False
     assert decision.reason_code == "daily_cost_ceiling"
     assert destination.parent.name == "waiting"
+
+
+def test_running_reconciliation_settles_the_final_attempt_reservation(
+    tmp_path: Path,
+) -> None:
+    service = executor(tmp_path, spent=2)
+    approved, decision = service.submit(
+        spec(
+            "reconciled-billable-spec",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+    assert decision.admitted
+    queued = service.queue.load(approved)
+    running = service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    service._reserve_attempt(queued, 1)
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}}\n'
+    )
+
+    restarted = executor(tmp_path, spent=2)
+    restarted.reconcile_running()
+
+    assert not running.exists()
+    assert restarted.queue.locate(str(queued.spec_id), ("done",)).is_file()
+    assert restarted._reserved_attempt_spend_today() == 0
+    assert restarted._effective_spend_today() == 2
+    assert "running_reconciled" in [
+        event.event for event in load_events(restarted.queue.events_path)
+    ]
 
 
 def test_concurrent_executor_tick_defers_to_single_queue_owner(tmp_path: Path) -> None:

@@ -30,6 +30,7 @@ from evallab.paths import derived_root_from_environment
 from evallab.results import load_job
 from evallab.runner import (
     CONTROL_AGENTS,
+    SUPPORT_COMMAND_TIMEOUT_SECONDS,
     ExecutionFailure,
     RunRequest,
     TransientHarnessFailure,
@@ -773,7 +774,7 @@ class Executor:
                 reservations.setdefault(event.spec_id, []).append(
                     event.estimated_cost_usd
                 )
-            elif event.event == "dispatch_completed":
+            elif event.event in {"dispatch_completed", "running_reconciled"}:
                 completed.add(event.spec_id)
         total = 0.0
         for spec_id, estimates in reservations.items():
@@ -866,21 +867,28 @@ class Executor:
             version = tool_version(command)
             checks.append((command, version is not None, version or "not found"))
         if shutil.which("docker"):
-            completed = subprocess.run(
-                [
-                    "docker",
-                    "version",
-                    "--format",
-                    "client={{.Client.Version}} server={{.Server.Version}}",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                env=subscription_environment(),
-            )
-            output = (completed.stdout or completed.stderr).strip().splitlines()
-            detail = output[0] if output else "no version output"
-            checks.append(("docker-daemon", completed.returncode == 0, detail))
+            try:
+                completed = subprocess.run(
+                    [
+                        "docker",
+                        "version",
+                        "--format",
+                        "client={{.Client.Version}} server={{.Server.Version}}",
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+                    env=subscription_environment(),
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                checks.append(
+                    ("docker-daemon", False, f"unavailable: {type(exc).__name__}")
+                )
+            else:
+                output = (completed.stdout or completed.stderr).strip().splitlines()
+                detail = output[0] if output else "no version output"
+                checks.append(("docker-daemon", completed.returncode == 0, detail))
         return checks
 
     def reconcile_running(self) -> None:

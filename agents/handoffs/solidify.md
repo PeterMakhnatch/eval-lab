@@ -1,6 +1,6 @@
 Status: building
-Last: independent review rejected green PR #31 for stale/partial digest publication after enrichment failure and fleet's separate wall-clock date filter; both are repaired with deterministic EDT-midnight tests.
-Next: Checkpoint the review repair, obtain exact-head reviewer approval, and restart all repeated/fresh-clone/CI gates before merge.
+Last: second independent review found four P4 gaps: rc=0 Harbor jobs bypassed transient classification, Harbor 0.21 provider exception types were missed, the Docker doctor probe was unbounded, and crash reconciliation double-counted the final reservation. All four plus Claude Keychain selector propagation now have focused regression coverage; 198 tests and Ruff pass locally.
+Next: Checkpoint the P4 repair, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -25,6 +25,32 @@ P1 composed smoke; P2 credential-scoped tick; P3 shared Parquet topology;
 P4 timeouts, labeled orphan cleanup, and transient provider resilience; P5
 four-hour launchd soak followed by event rotation, nightly PostgreSQL backup,
 and CLI surface audit. No policy loosening and no billable calls.
+
+## Independent review repair (current candidate)
+
+The executor now inspects completed Harbor jobs for structured transient trial
+exceptions even when Harbor itself exits 0. The classifier recognizes Harbor
+0.21's `ApiRateLimitError`, `ApiInternalServerError`, and
+`ApiOverloadedError`, while generic nonzero agent failures remain fail-closed so
+task prompt text cannot manufacture a retry. The doctor bounds its Docker
+daemon probe, crash reconciliation settles the final successful reservation,
+and the subscription environment preserves only the non-secret custom Claude
+Keychain service/account selectors.
+
+```text
+$ uv run --no-sync ruff check .
+All checks passed!
+
+$ uv run --no-sync pytest -q
+........................................................................ [ 36%]
+........................................................................ [ 72%]
+.......................................................                  [100%]
+```
+
+`uv sync --locked` and unqualified `uv run` initially hit `uv`'s macOS
+SystemConfiguration panic inside the restricted command sandbox. The pinned
+sync succeeds outside that network sandbox; `--no-sync` proves the installed
+environment while final premerge will run outside the restricted sandbox.
 
 ## P1 — composed smoke
 

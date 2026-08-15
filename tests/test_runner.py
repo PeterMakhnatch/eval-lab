@@ -14,10 +14,13 @@ from evallab.runner import (
     HARBOR_COMPOSE_CONFIG_LABEL,
     HARBOR_COMPOSE_PROJECT_LABEL,
     HARBOR_COMPOSE_WORKDIR_LABEL,
+    HarborProcessResult,
     RunRequest,
+    TransientHarnessFailure,
     build_command,
     cleanup_new_harbor_containers,
     load_matrix,
+    run_experiment,
     run_harbor_process,
     subscription_command,
     subscription_environment,
@@ -141,6 +144,8 @@ def test_executor_watchdog_ignores_completed_trial_directories(tmp_path: Path) -
 def test_subscription_environment_never_forwards_api_keys() -> None:
     source = {
         "HOME": "/safe/home",
+        "HARBOR_CLAUDE_KEYCHAIN_ACCOUNT": "operator",
+        "HARBOR_CLAUDE_KEYCHAIN_SERVICE": "eval-lab-claude",
         "PATH": "/safe/bin",
         "OPENAI_API_KEY": "must-not-be-read-or-forwarded",
         "ANTHROPIC_API_KEY": "must-not-be-read-or-forwarded",
@@ -150,6 +155,8 @@ def test_subscription_environment_never_forwards_api_keys() -> None:
         "CLAUDE_FORCE_OAUTH": "1",
         "CODEX_FORCE_AUTH_JSON": "1",
         "HOME": "/safe/home",
+        "HARBOR_CLAUDE_KEYCHAIN_ACCOUNT": "operator",
+        "HARBOR_CLAUDE_KEYCHAIN_SERVICE": "eval-lab-claude",
         "PATH": "/safe/bin",
         "REWARDKIT_FORCE_OAUTH": "1",
     }
@@ -266,6 +273,127 @@ def test_provider_retry_requires_structured_agent_exception() -> None:
     )
     assert transient_provider_exception(task_server_failure) is None
     assert transient_provider_exception(successful_result_with_log_text) is None
+
+
+@pytest.mark.parametrize(
+    ("exception_type", "message", "reason"),
+    [
+        (
+            "ApiRateLimitError",
+            "model provider rate limited the request",
+            "transient_harness:provider_http_429",
+        ),
+        (
+            "ApiInternalServerError",
+            "API Error: Internal server error",
+            "transient_harness:provider_http_5xx",
+        ),
+        (
+            "ApiOverloadedError",
+            "API Error: Overloaded",
+            "transient_harness:provider_http_5xx",
+        ),
+        (
+            "NonZeroAgentExitCodeError",
+            "upstream API returned status code 503",
+            None,
+        ),
+        (
+            "UnknownApiError",
+            "upstream API returned status code 503",
+            "transient_harness:provider_http_5xx",
+        ),
+        (
+            "NonZeroAgentExitCodeError",
+            "unexpected status 401 Unauthorized",
+            None,
+        ),
+    ],
+)
+def test_harbor_021_provider_exception_classification(
+    exception_type: str,
+    message: str,
+    reason: str | None,
+) -> None:
+    result = {
+        "exception_info": {
+            "exception_type": exception_type,
+            "exception_message": message,
+        }
+    }
+
+    assert transient_provider_exception(result) == reason
+
+
+def test_generic_agent_failure_does_not_classify_status_from_task_prompt() -> None:
+    result = {
+        "exception_info": {
+            "exception_type": "UnknownApiError",
+            "exception_message": (
+                "Command failed: repair a provider status 503 example\n"
+                "stdout: unexpected status 401 Unauthorized"
+            ),
+        }
+    }
+
+    assert transient_provider_exception(result) is None
+
+
+def test_successful_harbor_process_with_transient_trial_is_retried(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="provider-overloaded",
+        jobs_dir=tmp_path / "runs",
+    )
+    cleaned: list[Path] = []
+
+    def completed_with_transient_trial(*_args, **kwargs) -> HarborProcessResult:
+        job_dir = kwargs["job_dir"]
+        job_dir.mkdir(parents=True)
+        (job_dir / "result.json").write_text(
+            json.dumps({"n_total_trials": 1, "stats": {}})
+        )
+        trial_dir = job_dir / "task__trial"
+        trial_dir.mkdir()
+        (trial_dir / "result.json").write_text(
+            json.dumps(
+                {
+                    "task_name": "task",
+                    "trial_name": "task__trial",
+                    "exception_info": {
+                        "exception_type": "ApiOverloadedError",
+                        "exception_message": "API Error: Overloaded",
+                    },
+                }
+            )
+        )
+        return HarborProcessResult(
+            returncode=0,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed_with_transient_trial)
+    monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        runner_module,
+        "_cleanup_failure",
+        lambda _request, _before, job_dir: cleaned.append(job_dir) or None,
+    )
+
+    with pytest.raises(
+        TransientHarnessFailure,
+        match="transient_harness:provider_http_5xx",
+    ):
+        run_experiment(request, repo_root=tmp_path)
+
+    assert cleaned == [request.jobs_dir / request.name]
 
 
 def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:

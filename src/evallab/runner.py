@@ -40,6 +40,12 @@ _PROVIDER_5XX = re.compile(
     r"\b5\d\d\b.{0,80}(?:provider|upstream|api|server|gateway|service unavailable))",
     re.IGNORECASE | re.DOTALL,
 )
+_KNOWN_TRANSIENT_PROVIDER_EXCEPTIONS = {
+    "ApiRateLimitError": "transient_harness:provider_http_429",
+    "ApiInternalServerError": "transient_harness:provider_http_5xx",
+    "ApiOverloadedError": "transient_harness:provider_http_5xx",
+}
+_PROVIDER_WRAPPER_EXCEPTIONS = {"AgentRunError", "UnknownApiError"}
 _SUBSCRIPTION_ENVIRONMENT_KEYS = {
     "CLAUDE_FORCE_OAUTH",
     "CODEX_HOME",
@@ -48,6 +54,8 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS = {
     "DOCKER_CONTEXT",
     "DOCKER_HOST",
     "HOME",
+    "HARBOR_CLAUDE_KEYCHAIN_ACCOUNT",
+    "HARBOR_CLAUDE_KEYCHAIN_SERVICE",
     "LANG",
     "LC_ALL",
     "LC_CTYPE",
@@ -143,13 +151,23 @@ def transient_provider_exception(result: Mapping[str, Any]) -> str | None:
     if not isinstance(exception, Mapping):
         return None
     exception_type = str(exception.get("exception_type") or "")
-    provider_facing = exception_type == "AgentRunError" or any(
-        marker in exception_type.lower()
-        for marker in ("provider", "ratelimit", "rate_limit", "apistatus")
-    )
-    if not provider_facing:
+    known_reason = _KNOWN_TRANSIENT_PROVIDER_EXCEPTIONS.get(exception_type)
+    if known_reason is not None:
+        return known_reason
+    if exception_type not in _PROVIDER_WRAPPER_EXCEPTIONS:
         return None
-    return transient_provider_reason(json.dumps(dict(exception), sort_keys=True))
+    message = exception.get("exception_message") or exception.get("message")
+    if not isinstance(message, str):
+        return None
+    # Installed-agent failures embed the full shell command (and therefore the
+    # task prompt) before the adapter's output. Never let a task that mentions
+    # an HTTP status manufacture a retry classification.
+    if message.startswith("Command failed"):
+        _, separator, adapter_output = message.rpartition("\nstdout:")
+        if not separator:
+            return None
+        message = adapter_output
+    return transient_provider_reason(message)
 
 
 def _is_under(path: Path, root: Path) -> bool:
@@ -665,6 +683,13 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
         )
     load_job(job_dir)
+    if transient_reason is not None:
+        cleanup_failure = _cleanup_failure(request, containers_before, job_dir)
+        cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+        raise TransientHarnessFailure(
+            transient_reason,
+            message=transient_reason + cleanup_detail,
+        )
     return job_dir
 
 

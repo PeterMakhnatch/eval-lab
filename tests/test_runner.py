@@ -18,6 +18,7 @@ from evallab.runner import (
     cleanup_new_harbor_containers,
     load_matrix,
     run_harbor_process,
+    subscription_command,
     subscription_environment,
     transient_provider_reason,
     validate_request,
@@ -94,9 +95,59 @@ def test_subscription_environment_never_forwards_api_keys() -> None:
     }
 
     assert subscription_environment(source) == {
+        "CLAUDE_FORCE_OAUTH": "1",
+        "CODEX_FORCE_AUTH_JSON": "1",
         "HOME": "/safe/home",
         "PATH": "/safe/bin",
+        "REWARDKIT_FORCE_OAUTH": "1",
     }
+
+
+def test_subscription_environment_forwards_only_oauth_subscription_token() -> None:
+    source = {
+        "CLAUDE_CODE_OAUTH_TOKEN": "oauth-token",
+        "OPENAI_API_KEY": "must-not-forward",
+        "ANTHROPIC_API_KEY": "must-not-forward",
+    }
+
+    assert subscription_environment(source) == {
+        "CLAUDE_CODE_OAUTH_TOKEN": "oauth-token",
+        "CLAUDE_FORCE_OAUTH": "1",
+        "CODEX_FORCE_AUTH_JSON": "1",
+        "REWARDKIT_FORCE_OAUTH": "1",
+    }
+
+
+def test_subscription_command_routes_only_claude_through_keychain_wrapper(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    wrapper = repo / "scripts/with-claude-auth"
+    wrapper.parent.mkdir(parents=True)
+    wrapper.write_text("#!/bin/sh\n")
+    harbor_command = ["harbor", "run"]
+    claude = RunRequest(
+        task=task(tmp_path),
+        agent="claude-code",
+        model="anthropic/example",
+        name="claude-subscription",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+    codex = RunRequest(
+        task=claude.task,
+        agent="codex",
+        model="openai/example",
+        name="codex-subscription",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    assert subscription_command(claude, harbor_command, repo_root=repo) == [
+        str(wrapper.resolve()),
+        *harbor_command,
+    ]
+    assert subscription_command(codex, harbor_command, repo_root=repo) == harbor_command
 
 
 def test_local_env_loader_ignores_model_api_keys(

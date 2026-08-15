@@ -165,12 +165,9 @@ class HeadlessDoctorReport(ContractModel):
             and self.checks.postgres_reachable
             and self.checks.disk_headroom
         )
-        credentials_ok = self.checks.keychain_readable or self.checks.codex_auth_present
-        expected = infrastructure_ok and credentials_ok
+        expected = infrastructure_ok
         if self.healthy != expected:
-            raise ValueError(
-                "healthy must equal: all infrastructure checks and at least one credential"
-            )
+            raise ValueError("healthy must equal all infrastructure checks")
         return self
 
 

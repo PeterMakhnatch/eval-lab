@@ -93,10 +93,13 @@ class HeadlessDoctor:
         infrastructure_ok = (
             checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
         )
-        credentials_ok = checks.keychain_readable or checks.codex_auth_present
         return HeadlessDoctorReport(
             checked_at=datetime.now(UTC),
-            healthy=infrastructure_ok and credentials_ok,
+            # Credential availability is informational and enforced per spec
+            # by Executor.tick(). Controls need no credential, so a machine
+            # with healthy infrastructure and zero model credentials remains
+            # capable of useful, free work.
+            healthy=infrastructure_ok,
             checks=checks,
         )
 
@@ -138,8 +141,6 @@ def blocking_health_failures(report: HeadlessDoctorReport) -> list[str]:
         for name in ("docker_reachable", "postgres_reachable", "disk_headroom")
         if not getattr(checks, name)
     ]
-    if not (checks.keychain_readable or checks.codex_auth_present):
-        blocking.append("no_credentials")
     return blocking
 
 

@@ -60,9 +60,7 @@ def health_report(
         postgres_reachable=True,
         disk_headroom=True,
     )
-    healthy = (
-        checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
-    ) and (checks.keychain_readable or checks.codex_auth_present)
+    healthy = checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
     return HeadlessDoctorReport(
         checked_at=datetime.now(UTC),
         healthy=healthy,
@@ -321,7 +319,9 @@ def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -
     ]
 
 
-def test_locked_keychain_quarantines_nightly_with_zero_dispatch(tmp_path: Path) -> None:
+def test_locked_keychain_still_dispatches_credentialless_nightly_control(
+    tmp_path: Path,
+) -> None:
     calls = []
     queue = DirectoryQueue(tmp_path / "queue")
     service = Executor(
@@ -336,7 +336,7 @@ def test_locked_keychain_quarantines_nightly_with_zero_dispatch(tmp_path: Path) 
     approved, _ = service.submit(
         ExperimentSpec(
             name="must-not-dispatch",
-            hypothesis="locked credentials quarantine all dispatch",
+            hypothesis="locked model credentials do not block a free control",
             task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
@@ -356,13 +356,11 @@ def test_locked_keychain_quarantines_nightly_with_zero_dispatch(tmp_path: Path) 
         committer=lambda path: True,
     ).run(report_date=date.today())
 
-    assert result.dispatched == 0
-    assert calls == []
+    assert result.dispatched == 1
+    assert len(calls) == 1
     content = result.digest_path.read_text()
-    assert "Quarantined: yes" in content
-    assert "keychain_readable" in content
-    assert "Zero dispatch enforced: yes" in content
-    assert approved.exists()
+    assert "Quarantined: no" in content
+    assert not approved.exists()
 
 
 def test_digest_uses_queue_when_catalog_is_unavailable(tmp_path: Path) -> None:
@@ -480,7 +478,7 @@ def test_doctor_codex_only_night_is_healthy(tmp_path: Path) -> None:
     assert report.checks.keychain_readable is False
 
 
-def test_doctor_with_no_credentials_quarantines_with_specific_reason(tmp_path: Path) -> None:
+def test_doctor_with_no_credentials_keeps_controls_runnable(tmp_path: Path) -> None:
     from evallab.automation import blocking_health_failures
 
     report = HeadlessDoctor(
@@ -492,5 +490,67 @@ def test_doctor_with_no_credentials_quarantines_with_specific_reason(tmp_path: P
         disk_probe=lambda: True,
     ).run()
 
-    assert report.healthy is False
-    assert blocking_health_failures(report) == ["no_credentials"]
+    assert report.healthy is True
+    assert blocking_health_failures(report) == []
+
+
+def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    requests = []
+    tick_policy = StandingApprovalsPolicy(
+        daily_cost_ceiling_usd=20,
+        per_job_cost_ceiling_usd=3,
+        quiet_failure_rule=3,
+        auto_run=[
+            AutoRunRule(name="local-controls", agents=["oracle", "nop"]),
+            AutoRunRule(name="model-controls", agents=["codex"]),
+        ],
+    )
+    service = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=tick_policy,
+        runner=lambda request: requests.append(request)
+        or (request.jobs_dir / request.name),
+        ingester=lambda _path: None,
+        spent_today=lambda: 0,
+        consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: frozenset(),
+    )
+    service.submit(
+        ExperimentSpec(
+            name="credentialless-control",
+            hypothesis="controls remain runnable without model credentials",
+            task="library/tasks/event-summary",
+            agent="oracle",
+            submitted_by="scheduler-test",
+        )
+    )
+    service.submit(
+        ExperimentSpec(
+            name="credentialless-codex",
+            hypothesis="model work waits for its own credential",
+            task="library/tasks/event-summary",
+                agent="codex",
+                model="openai/example",
+                est_cost_usd=1,
+            submitted_by="scheduler-test",
+        )
+    )
+    doctor = StaticDoctor(
+        health_report(keychain_readable=False, codex_auth_present=False)
+    )
+
+    result = GuardedTick(doctor=doctor, executor=service).run()  # type: ignore[arg-type]
+
+    assert result.dispatched == 1
+    assert [request.name for request in requests] == ["credentialless-control"]
+    assert [spec.name for _, spec in queue.list_specs("approved")] == [
+        "credentialless-codex"
+    ]
+    terminal = [
+        event
+        for event in load_events(queue.events_path)
+        if event.actor == "scheduled-tick"
+    ]
+    assert terminal[-1].event == "tick_dispatched"

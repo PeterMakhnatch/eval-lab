@@ -222,8 +222,15 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     ],
 )
 def test_nightly_backup_failure_quarantines_before_dispatch(
-    tmp_path: Path, failure: Exception, reason: str
+    tmp_path: Path,
+    failure: Exception,
+    reason: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(
+        "evallab.automation.date_time_now",
+        lambda: datetime(2026, 8, 15, 0, 0, 1, tzinfo=UTC),
+    )
     queue = DirectoryQueue(tmp_path / "queue")
     calls = []
     service = Executor(

@@ -1,6 +1,6 @@
 Status: building
-Last: P5 soak passed: 9/9 launchd ticks were terminal no-work deferrals over 4h00m26.735090s, last exit 0, zero quarantines, and zero stderr.
-Next: Freeze this head; run three consecutive premerge/full smokes and the fresh-clone gate, then push the reviewed PR and merge only after all checks are green.
+Last: the first post-soak premerge exposed and fixed a real cross-midnight digest-attribution bug; the deterministic backup-quarantine regression and all unattended/canary/pipeline tests now pass.
+Next: Commit the midnight fix, restart the exact-head three-pass premerge/full-smoke count, then run the fresh-clone and reviewed PR workflow.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -729,4 +729,25 @@ $ wc -c ~/Library/Logs/evallab/tick.error.log
 0
 $ queue state counts
 approved=0 running=0 waiting=0 failed=0
+```
+
+## Final-gate midnight defect
+
+The first post-soak premerge run was not counted: at 00:47 EDT, the two backup
+failure cases rendered `Quarantined: no` for a historical report date even
+though `NightlyResult.quarantined` and the queue event were correct. Digest
+filtering used only the event wall-clock date, so a nightly failure occurring
+after midnight was omitted from the target report. Queue events already carry
+the intended `report_date`; digest attribution now treats that semantic date as
+authoritative and falls back to local occurrence date only when it is absent.
+The regression pins an Aug 14 report with an Aug 15 failure timestamp so it is
+no longer dependent on the wall clock.
+
+```text
+$ scripts/premerge.sh
+FAILED: 2 backup-failure digest assertions (184 passed)
+$ pytest -q tests/test_unattended.py::test_nightly_backup_failure_quarantines_before_dispatch
+..                                                                       [100%]
+$ pytest -q tests/test_unattended.py tests/test_canary.py tests/test_pipeline.py
+...........................                                              [100%]
 ```

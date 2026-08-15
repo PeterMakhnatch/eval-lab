@@ -1,5 +1,5 @@
 Status: building
-Last: Independent review blockers were repaired, an independent integrator rebased cleanly onto `e844456`, and the combined 185-test suite passed.
+Last: launchd tick 6/6 exited 0 at 23:16:02 EDT on the rebased/remediated code with the correct no-work event and zero scheduler stderr.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then run exact-head repeated/fresh-clone gates and the reviewed PR workflow.
 Blockers: none.
 
@@ -305,29 +305,33 @@ runs = 4; last exit code = 0
 2026-08-15T02:15:56.374586Z tick_deferred reason=no_approved_specs
 runs = 5; last exit code = 0
 2026-08-15T02:45:59.191665Z tick_deferred reason=no_approved_specs
+runs = 6; last exit code = 0
+2026-08-15T03:16:02.455344Z tick_deferred reason=no_approved_specs
 ```
 
 ### Continuations in progress
 
 Event writes now rotate at 10 MiB under a thread and process lock, retain seven
-archives, and read oldest-to-newest across every consumer. The projection
+archives, and read oldest-to-newest across application and fleet consumers.
+Cross-process writers plus a concurrent reader exercise rotation. The projection
 invariant explicitly sees archived exception evidence. Atomic nightly custom
-format dumps use `pg_dump` inside the Compose container, write a SHA-256
-manifest under the primary checkout's ignored `backups/postgres/`, and
+format dumps use `pg_dump` inside the Compose container and atomically publish
+one fsynced generation directory with its SHA-256 manifest under the primary
+checkout's ignored `backups/postgres/`, and
 quarantine before canary dispatch on failure or empty output. Neither the host
 command nor Python reads a database password or any model API-key variable.
 
-The continuation described 22 CLI commands, but the current parser exposes 25
-top-level commands and 34 visible top-level/nested help paths; all 34 are pinned.
+The continuation described 22 CLI commands, but the rebased parser exposes 27
+top-level commands and 38 visible top-level/nested help paths; all 38 are pinned.
 The audit caught and repaired an existing contract violation: `trajectories`
 used to write PostgreSQL and Parquet even without `--export`; it is now genuinely
 read-only by default.
 
 Nightly catches all ordinary backup failures at its fail-closed boundary,
 including the subprocess's 600-second `TimeoutExpired`; both timeout and I/O
-failure regressions prove that canary dispatch remains zero and a specific
-`postgres_backup_failed` reason is appended. The latest full suite passes 146
-tests.
+failure regressions prove that canary dispatch remains zero, a specific
+`postgres_backup_failed` reason is appended, and the digest reports the cycle as
+quarantined. The latest full suite collects 185 tests.
 
 ```text
 $ pytest -q tests/test_queue.py tests/test_pipeline.py tests/test_unattended.py tests/test_gc.py

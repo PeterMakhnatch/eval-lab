@@ -305,7 +305,7 @@ class NightlyCycle:
         if report.healthy and not quarantined and self.database_backup is not None:
             try:
                 backup_path = self.database_backup(target_date)
-            except (OSError, RuntimeError, ValueError) as exc:
+            except Exception as exc:
                 quarantined = True
                 self.executor.queue.append_event(
                     QueueEvent(

@@ -27,6 +27,7 @@ class ExperimentSpec(ContractModel):
     jobs_dir: str = "runs"
     attempts: int = Field(default=1, ge=1)
     concurrency: int = Field(default=1, ge=1)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
     submitted_by: str = Field(min_length=1)
     priority: int = Field(default=100, ge=0, le=1000)
     est_cost_usd: float = Field(default=0.0, ge=0)
@@ -78,6 +79,7 @@ class ExperimentMatrix(ContractModel):
     environment: str = "docker"
     jobs_dir: str = "runs"
     concurrency: int = Field(default=1, ge=1)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
     runs: list[MatrixRun] = Field(min_length=1)
 
 

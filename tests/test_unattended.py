@@ -279,6 +279,46 @@ def test_digest_uses_queue_when_catalog_is_unavailable(tmp_path: Path) -> None:
     assert "waiting-proposal" in content
 
 
+def test_digest_separates_transient_provider_capacity_from_other_failures(
+    tmp_path: Path,
+) -> None:
+    report_date = date(2026, 8, 14)
+    trials = [
+        DigestTrial(
+            job_name="provider-capacity",
+            task_name="canary/example",
+            agent_name="codex",
+            model_name="configured",
+            reward=None,
+            exception_type="transient_harness",
+            cost_usd=0,
+            finished_at="2026-08-13T12:00:00Z",
+        ),
+        DigestTrial(
+            job_name="broken-container",
+            task_name="canary/example",
+            agent_name="codex",
+            model_name="configured",
+            reward=None,
+            exception_type="EnvironmentError",
+            cost_usd=0,
+            finished_at="2026-08-13T12:01:00Z",
+        ),
+    ]
+    renderer = DigestRenderer(
+        repo_root=tmp_path,
+        queue=DirectoryQueue(tmp_path / "queue"),
+        policy=policy(),
+        trial_loader=lambda day: trials if day == date(2026, 8, 13) else [],
+        drift_loader=lambda _day: [],
+    )
+
+    text = renderer.write(report_date=report_date).read_text()
+
+    assert "harness_failure=1" in text
+    assert "transient_harness=1" in text
+
+
 def test_commit_digest_commits_only_the_digest(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)

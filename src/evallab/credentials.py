@@ -13,6 +13,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from evallab.runner import subscription_environment
+
 KEYCHAIN_SERVICE = "harbor-practice-claude-oauth"
 
 CLAUDE_OAUTH = "claude_oauth"
@@ -34,8 +36,11 @@ def probe_claude_keychain() -> bool:
     try:
         completed = subprocess.run(
             ["/usr/bin/security", "find-generic-password", "-s", service, "-a", account, "-w"],
-            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             timeout=10,
+            env=subscription_environment(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return False

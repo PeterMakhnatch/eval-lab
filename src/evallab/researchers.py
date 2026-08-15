@@ -1268,9 +1268,9 @@ def _researcher_environment(
     work_dir: Path,
 ) -> dict[str, str]:
     environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key in _RESEARCHER_ENVIRONMENT_KEYS
+        key: os.environ[key]
+        for key in _RESEARCHER_ENVIRONMENT_KEYS
+        if key in os.environ
     }
     executable_path = Path(executable).absolute() if "/" in executable else None
     path_entries = ["/usr/bin", "/bin"]

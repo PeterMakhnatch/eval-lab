@@ -22,7 +22,7 @@ from evallab.queue import (
     new_ulid,
     record_projection_failures,
 )
-from evallab.runner import database_url_from_environment
+from evallab.runner import database_url_from_environment, subscription_environment
 from evallab.schemas import (
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
@@ -52,6 +52,7 @@ def _quiet_command_succeeds(command: list[str]) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=5,
+            env=subscription_environment(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
@@ -362,7 +363,11 @@ class NightlyCycle:
 
 
 def _launchctl(command: list[str], check: bool) -> int:
-    completed = subprocess.run(command, check=False)
+    completed = subprocess.run(
+        command,
+        check=False,
+        env=subscription_environment(),
+    )
     if check and completed.returncode != 0:
         raise RuntimeError(f"launchctl exited {completed.returncode}")
     return completed.returncode

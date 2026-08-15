@@ -5,7 +5,7 @@ import pytest
 
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
-from evallab.runner import RunRequest
+from evallab.runner import RunRequest, TransientHarnessFailure, TrialTimeoutFailure
 from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
 
 
@@ -54,6 +54,8 @@ def executor(
     ingester=None,
     spent: float = 0,
     credentials: frozenset[str] | None = None,
+    sleeper=lambda _seconds: None,
+    max_transient_retries: int = 2,
 ) -> Executor:
     return Executor(
         repo_root=root,
@@ -66,6 +68,8 @@ def executor(
         credential_probe=lambda: credentials
         if credentials is not None
         else frozenset({"claude_oauth", "codex_auth"}),
+        sleeper=sleeper,
+        max_transient_retries=max_transient_retries,
     )
 
 
@@ -350,3 +354,98 @@ def test_concurrent_tick_claiming_a_spec_mid_listing_is_tolerated(tmp_path: Path
     queue.load = racing_load
     remaining = queue.list_specs("approved")
     assert [item.name for _, item in remaining] == ["stays"]
+
+
+def test_transient_provider_failure_retries_with_capped_backoff_and_archives(
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+    sleeps: list[float] = []
+
+    def run(request: RunRequest) -> Path:
+        calls.append(request.name)
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        (destination / "attempt.txt").write_text(str(len(calls)))
+        if len(calls) < 3:
+            raise TransientHarnessFailure("transient_harness:provider_http_429")
+        return destination
+
+    service = executor(tmp_path, runner=run, sleeper=sleeps.append)
+    service.submit(spec("provider-recovers"))
+
+    assert service.tick() == 1
+    assert calls == ["provider-recovers"] * 3
+    assert sleeps == [5.0, 10.0]
+    assert (
+        tmp_path
+        / "runs/.transient-attempts/provider-recovers/attempt-1/attempt.txt"
+    ).read_text() == "1"
+    assert (
+        tmp_path
+        / "runs/.transient-attempts/provider-recovers/attempt-2/attempt.txt"
+    ).read_text() == "2"
+    events = load_events(service.queue.events_path)
+    assert [event.reason_code for event in events if event.event == "dispatch_retry_scheduled"] == [
+        "transient_harness:provider_http_429",
+        "transient_harness:provider_http_429",
+    ]
+    assert service.queue.list_specs("done")
+
+
+def test_transient_retry_cap_and_timeout_have_distinct_failure_reasons(
+    tmp_path: Path,
+) -> None:
+    transient_calls = 0
+
+    def transient(_request: RunRequest) -> Path:
+        nonlocal transient_calls
+        transient_calls += 1
+        raise TransientHarnessFailure("transient_harness:provider_http_5xx")
+
+    transient_service = executor(tmp_path / "transient", runner=transient)
+    transient_service.submit(spec("provider-stays-down"))
+    assert transient_service.tick() == 1
+    assert transient_calls == 3
+    transient_reason = next(transient_service.queue.reasons_dir.glob("*.json")).read_text()
+    assert '"code": "transient_harness:provider_http_5xx"' in transient_reason
+
+    def timeout(_request: RunRequest) -> Path:
+        raise TrialTimeoutFailure("bounded by executor")
+
+    timeout_service = executor(tmp_path / "timeout", runner=timeout)
+    timeout_service.submit(spec("trial-times-out"))
+    assert timeout_service.tick() == 1
+    timeout_reason = next(timeout_service.queue.reasons_dir.glob("*.json")).read_text()
+    assert '"code": "trial_wall_clock_timeout"' in timeout_reason
+
+
+def test_billable_transient_retry_reserves_budget_before_another_call(
+    tmp_path: Path,
+) -> None:
+    calls = 0
+
+    def transient(_request: RunRequest) -> Path:
+        nonlocal calls
+        calls += 1
+        raise TransientHarnessFailure("transient_harness:provider_http_429")
+
+    service = executor(tmp_path, runner=transient, spent=17)
+    submitted = spec(
+        "budgeted-provider-retry",
+        task="canary/event-summary",
+        agent="codex",
+        est_cost_usd=2,
+    )
+    service.submit(submitted)
+
+    assert service.tick() == 1
+    assert calls == 1
+    refused = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event == "dispatch_retry_refused"
+    ]
+    assert [event.reason_code for event in refused] == [
+        "transient_retry:daily_cost_ceiling"
+    ]

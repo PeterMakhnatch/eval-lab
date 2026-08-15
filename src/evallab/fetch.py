@@ -22,6 +22,8 @@ from evallab.atif import export_trajectories
 from evallab.results import JobRecord, TrialRecord
 from evallab.schemas import ProvenanceMetadata
 
+from evallab.runner import subscription_environment
+
 UNPINNED_VERSIONS = frozenset({"latest", "head", "main", "master"})
 PROTECTED_INGESTS = frozenset(
     {"aime", "gpqa-diamond", "humanevalfix", "terminal-bench-sample"}
@@ -532,6 +534,7 @@ def _run_command(
         check=False,
         capture_output=True,
         text=True,
+        env=subscription_environment(),
     )
 
 

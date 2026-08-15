@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: Rebased exact commit f0c2881 passed three local rounds, premerge, and locked clean-worktree acceptance.
-Next: Open PROGRAM-REPAIR PR and leave it unmerged for an independent reviewer.
+Last: Rebased PROGRAM repair plus its 17 validator regressions passed the 305-test exact premerge gate.
+Next: Push and open the PR, require all exact-head GitHub checks, then merge.
 Blockers: none
 
 # PROGRAM-REPAIR handoff
@@ -96,3 +96,14 @@ $ .venv/bin/pytest
 $ .venv/bin/ruff check .
 All checks passed!
 ```
+
+### Integrator reconciliation — 2026-08-15
+
+- Rebased the clean mission branch onto `origin/main` after GREENLINE PR #38 and
+  REGISTER PR #36 merged.
+- Added `research/experiments/tests/` to pytest's default `testpaths`, the
+  collection-contract test, and the engineering inventory. The 17 scientific
+  validator regressions are therefore a CI gate rather than an opt-in suite.
+- `scripts/premerge.sh` on the combined tree passed: Ruff clean, 305 tests
+  passed, Docker-free composed smoke passed, and ty remained at 28 diagnostics
+  (baseline 28).

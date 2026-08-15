@@ -13,6 +13,7 @@ DECLARED_UNIT_TEST_DIRS = (
     "dashboard/tests",
     "research/analysis/tests",
     "research/calibration/tests",
+    "research/experiments/tests",
 )
 
 def committed_unit_test_modules(root: Path) -> list[Path]:

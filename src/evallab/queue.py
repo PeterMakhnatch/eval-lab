@@ -466,6 +466,7 @@ class Executor:
                         event="dispatch_deferred",
                         actor="executor",
                         reason_code=f"missing_credential:{missing}",
+                        job_name=spec.name,
                     )
                 )
                 continue

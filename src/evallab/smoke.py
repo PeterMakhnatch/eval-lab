@@ -14,6 +14,7 @@ from evallab.atif import (
 )
 from evallab.automation import HeadlessDoctor
 from evallab.digest import DigestRenderer, DigestTrial
+from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, Executor, load_policy, new_ulid
 from evallab.results import JobRecord, load_job
 from evallab.runner import RunRequest, database_url_from_environment
@@ -120,7 +121,9 @@ def run_smoke(
     relative_scratch = Path("runs/_smoke") / job_name
     scratch = root / relative_scratch
     queue = DirectoryQueue(scratch / "queue")
-    derived_root = scratch / "parquet" if docker_free else root / "derived/parquet"
+    derived_root = (
+        scratch / "parquet" if docker_free else derived_root_from_environment(root)
+    )
     target_date = report_date or date.today()
 
     if docker_free:
@@ -202,6 +205,10 @@ def run_smoke(
         trial_loader = None
         drift_loader = None
     _assert_both_stores(job, invariant)
+    if not docker_free and not invariant.ok:
+        raise RuntimeError(
+            "shared catalog/Parquet invariant failed after smoke: " + invariant.detail
+        )
 
     renderer = DigestRenderer(
         repo_root=scratch,

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from evallab.automation import HeadlessDoctor, NightlyCycle, ScheduleInstaller
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
+from evallab.paths import DERIVED_ROOT_ENV
 from evallab.queue import DirectoryQueue, Executor
 from evallab.schemas import (
     AutoRunRule,
@@ -127,6 +128,9 @@ def test_schedule_install_writes_and_loads_two_launchagents(tmp_path: Path) -> N
     assert nightly["Label"] == "com.petermakhnatch.evallab.nightly"
     assert tick["StandardOutPath"].endswith("Library/Logs/evallab/tick.log")
     assert tick["EnvironmentVariables"]["PATH"].startswith(str(tmp_path / ".local/bin"))
+    assert tick["EnvironmentVariables"][DERIVED_ROOT_ENV] == str(
+        tmp_path / "derived/parquet"
+    )
     assert nightly["EnvironmentVariables"] == tick["EnvironmentVariables"]
 
 

@@ -15,6 +15,7 @@ from evallab import credentials as credentials_module
 from evallab import database
 from evallab.atif import IngestProjectionResult
 from evallab.digest import DigestRenderer, commit_digest
+from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.queue import (
     DirectoryQueue,
     Executor,
@@ -391,6 +392,7 @@ class ScheduleInstaller:
     def definitions(self) -> dict[str, dict[str, Any]]:
         logs = self.home / "Library/Logs/evallab"
         environment = {
+            DERIVED_ROOT_ENV: str(derived_root_from_environment(self.repo_root)),
             "PATH": ":".join(
                 [
                     str(self.home / ".local/bin"),

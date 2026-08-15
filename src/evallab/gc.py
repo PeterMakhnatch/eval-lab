@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
 
+from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, new_ulid
 from evallab.results import JobRecord, load_job, sha256_file
 from evallab.schemas import QueueEvent
@@ -321,7 +322,7 @@ class FilesystemCatalog:
 
     def _load(self) -> None:
         self._entries = {}
-        parquet_root = self.repo_root / "derived" / "parquet"
+        parquet_root = derived_root_from_environment(self.repo_root)
         if parquet_root.is_dir():
             for child in parquet_root.iterdir():
                 if child.is_dir() and child.name.startswith("job_id="):

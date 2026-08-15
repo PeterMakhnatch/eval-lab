@@ -90,7 +90,9 @@ Both invoke `/bin/zsh -lc 'cd <repo> && uv run evallab …'`. Logs live under
 Because these are LaunchAgents, not system daemons, they run inside the logged-in
 user session where Keychain access is possible. The plist supplies a bounded
 command `PATH` including `~/.local/bin`, so launchd can find `uv` without
-depending on interactive shell startup files.
+depending on interactive shell startup files. It also captures the resolved,
+non-secret `EVALLAB_DERIVED_ROOT`; reinstall the schedule after changing that
+setting.
 
 `tick` and `nightly` both run the headless doctor first. If any check fails,
 they append a boolean-only quarantine event and dispatch nothing. In particular,
@@ -192,19 +194,45 @@ uv run evallab db list --limit 50
 Every completed job uses one idempotent ingest-and-project path. Queue completion,
 the nightly backfill, `ingest`, and the manual `trajectories` rebuild all update
 PostgreSQL first, then write a `jobs.parquet` marker per job and the eight
-deterministic trial tables below `derived/parquet/job_id=*/trial_id=*/`. The
+deterministic trial tables below the configured shared Parquet root at
+`job_id=*/trial_id=*/`. The
 job marker keeps zero-trial completed jobs inside the same invariant. Rebuilds
 replace catalog inventories and Parquet partitions by stable Harbor UUID while
 leaving raw evidence untouched.
+
+PostgreSQL is shared across linked Git worktrees, so Parquet must be shared too.
+By default, every worktree resolves `derived/parquet` against the repository's
+primary checkout, not against the invoking worktree. `.env.example` records the
+equivalent explicit setting:
+
+```dotenv
+EVALLAB_DERIVED_ROOT=derived/parquet
+```
+
+A relative value is resolved against the primary checkout; an absolute value
+may instead select a shared volume. The `ingest --derived-dir` and
+`trajectories --output-dir` flags are deliberate one-command overrides and
+remain relative to the invoking checkout. This setting is storage topology,
+not authentication: model access remains subscription-only through Keychain or
+the agent's auth file, and API-key variables do not belong in this lab's `.env`.
+
+To migrate an older worktree-local store, stop dispatch, copy each complete
+`job_id=<uuid>` directory into the configured shared root without overwriting an
+existing UUID, and run `uv run evallab doctor`. If the catalog contains a job
+whose raw evidence was intentionally discarded, remove only that exact derived
+catalog row; never drop or recreate the shared database to repair one stale job.
+Once doctor reports equal catalog and projected counts, reinstall the schedule
+and resume dispatch.
 
 A Parquet failure cannot roll back catalog ingest or turn a completed agent run
 into an execution failure. It appends a
 `projection_failed:<job-id>:<error-type>` queue event and leaves the job done so
 the cause is visibly attributed to the harness. `uv run evallab doctor` enforces
 the operational invariant: every catalog job has complete trial partitions, or
-its exact job ID has such a recorded exception. Remove `derived/parquet/` and run
-`evallab trajectories` over all raw roots to prove full rebuildability; identical
-table row counts are expected.
+its exact job ID has such a recorded exception. To prove rebuildability, point
+`EVALLAB_DERIVED_ROOT` at an empty isolated directory and run
+`evallab trajectories` over all raw roots; do not clear the live shared root.
+Identical table row counts are expected.
 
 ## Evidence promotion checklist
 

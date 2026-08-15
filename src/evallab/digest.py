@@ -286,7 +286,16 @@ class DigestRenderer:
 
     @staticmethod
     def _events_on(events: list[QueueEvent], day: date) -> list[QueueEvent]:
-        return [event for event in events if event.occurred_at.astimezone().date() == day]
+        day_text = day.isoformat()
+        return [
+            event
+            for event in events
+            if (
+                event.report_date == day_text
+                if event.report_date is not None
+                else event.occurred_at.astimezone().date() == day
+            )
+        ]
 
     @staticmethod
     def _policy_by_job(events: list[QueueEvent]) -> dict[str, str]:

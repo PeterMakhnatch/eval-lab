@@ -1,0 +1,13 @@
+{
+ "schema_version": "ATIF-v1.6",
+ "session_id": "s3",
+ "steps": [
+  {
+   "step_id": 1,
+   "source": "agent",
+   "message": "m",
+   "tool_calls": [],
+   "observations": []
+  }
+ ]
+}

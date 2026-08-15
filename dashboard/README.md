@@ -22,3 +22,20 @@ configuration intentionally limits normal discovery to `tests/`:
 ```bash
 uv run pytest dashboard/tests
 ```
+
+## Explorer page (M005)
+
+`dashboard/explorer.py` is the read-only drill-down companion to the
+overview: Tasks → Jobs/Trials → Trajectory → Artifacts → Analyses, every
+field labeled observed / derived / draft / unavailable, infrastructure
+exceptions separated from reward failures, and Next Action rendered as
+shell-safe, copyable `evallab` / `harbor view <jobs-root> --jobs` commands
+that the page never executes.
+
+```bash
+uv run --with streamlit==1.61.1 streamlit run dashboard/explorer.py   # repo evidence
+EVALLAB_EXPLORER_ROOT=tests/fixtures/explorer \
+  uv run --with streamlit==1.61.1 streamlit run dashboard/explorer.py # fixture demo
+```
+
+Logic lives in `src/evallab/explorer.py` (`uv run pytest tests/test_explorer.py`).

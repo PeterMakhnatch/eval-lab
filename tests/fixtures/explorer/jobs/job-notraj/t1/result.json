@@ -1,0 +1,17 @@
+{
+ "id": "00000000-0000-4000-8000-000000000004",
+ "task_name": "lab/demo",
+ "trial_name": "t1",
+ "agent_info": {
+  "name": "oracle",
+  "model_info": null
+ },
+ "verifier_result": {
+  "rewards": {
+   "reward": 1.0
+  }
+ },
+ "exception_info": null,
+ "started_at": "2026-08-15T00:00:00.000000Z",
+ "finished_at": "2026-08-15T00:00:09.000000Z"
+}

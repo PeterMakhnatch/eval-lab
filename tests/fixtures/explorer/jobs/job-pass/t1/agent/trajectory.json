@@ -1,0 +1,45 @@
+{
+ "schema_version": "ATIF-v1.6",
+ "session_id": "s1",
+ "steps": [
+  {
+   "step_id": 1,
+   "source": "agent",
+   "message": "m",
+   "tool_calls": [
+    {
+     "tool_call_id": "c1",
+     "function": {
+      "name": "write_file",
+      "arguments": {
+       "p": "a.py"
+      }
+     }
+    }
+   ],
+   "observations": []
+  },
+  {
+   "step_id": 2,
+   "source": "agent",
+   "message": "m",
+   "tool_calls": [
+    {
+     "tool_call_id": "c2",
+     "function": {
+      "name": "run_pytest",
+      "arguments": {
+       "target": "tests/"
+      }
+     }
+    }
+   ],
+   "observations": [
+    {
+     "source_call_id": "c2",
+     "command_exit_code": 0
+    }
+   ]
+  }
+ ]
+}

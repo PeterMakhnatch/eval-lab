@@ -59,6 +59,7 @@ collects every **repository-owned unit suite**:
 - `dashboard/tests/`
 - `research/analysis/tests/`
 - `research/calibration/tests/`
+- `research/experiments/tests/`
 
 `tests/test_ci_coverage.py` fails if a committed `test_*.py` under those
 directories is not collected.

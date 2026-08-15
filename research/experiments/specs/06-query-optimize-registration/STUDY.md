@@ -34,6 +34,7 @@ exist. If the oracle baseline fails, do not register it.
 
 ## 2026-08-15 PROGRAM reconciliation
 
-No Codex query-optimize job in primary `runs/`. Oracle/nop validity
-claims stay in the 2026-08-14 journal (runner worktree matrices). Policy
-class remains `out_of_policy`.
+No Codex query-optimize job exists in primary `runs/`. Oracle/nop validity and
+policy-refusal claims survive only in the 2026-08-14 journal from the removed
+RUNNER worktree. They are inherited / unresolved provenance, not independently
+reverified primary evidence. Registration therefore remains unresolved.

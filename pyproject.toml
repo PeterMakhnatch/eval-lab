@@ -47,6 +47,7 @@ testpaths = [
     "dashboard/tests",
     "research/analysis/tests",
     "research/calibration/tests",
+    "research/experiments/tests",
 ]
 
 [tool.ruff]

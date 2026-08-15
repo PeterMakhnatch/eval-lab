@@ -1,0 +1,151 @@
+[
+  {
+    "name": "hidden-test-instruction",
+    "expected_error": "exposes hidden verifier input",
+    "program": {
+      "schema_version": 1,
+      "updated_at": "2026-08-15",
+      "title": "fixture",
+      "experiments": [
+        {
+          "id": "EXP-fixture-hidden",
+          "research_question": "Does telling the agent to run official tests change reward?",
+          "hypothesis": "The instruction changes reward.",
+          "primary_variable": "instruction to run tests/test_outputs.py",
+          "fixed_elicitation": "agent=x, model=y, k=3",
+          "task_cohort": "fixture-task",
+          "agent": "fixture-agent",
+          "model": "fixture-model",
+          "profile": "docker",
+          "k": 3,
+          "n_tasks": 1,
+          "power_rationale": "fixture",
+          "status": "designed",
+          "references": {"spec": [], "queue": [], "jobs": [], "analysis": [], "cards": []},
+          "evidence_provenance": {"status": "design_only", "basis": "fixture design"},
+          "blocker": "none",
+          "next_action": "run official tests before completion",
+          "predecessor": "none",
+          "decision_rule": {"declared_k": 3, "representative_attempts": null, "rule": "compare reward"},
+          "stopping_condition": "stop after one cell",
+          "notes": "known bad hidden-input design"
+        }
+      ]
+    }
+  },
+  {
+    "name": "journal-only-called-primary",
+    "expected_error": "journal-only and must be inherited_unresolved",
+    "program": {
+      "schema_version": 1,
+      "updated_at": "2026-08-15",
+      "title": "fixture",
+      "experiments": [
+        {
+          "id": "EXP-fixture-journal",
+          "research_question": "What happened in a removed worktree?",
+          "hypothesis": "The journal result is primary.",
+          "primary_variable": "fixture",
+          "fixed_elicitation": "agent=x, model=y, k=3",
+          "task_cohort": "fixture-task",
+          "agent": "fixture-agent",
+          "model": "fixture-model",
+          "profile": "docker",
+          "k": 3,
+          "n_tasks": 1,
+          "power_rationale": "fixture",
+          "status": "analyzed",
+          "references": {
+            "spec": [],
+            "queue": [],
+            "jobs": [],
+            "analysis": ["research/experiments/JOURNAL.md"],
+            "cards": []
+          },
+          "evidence_provenance": {"status": "reviewed_primary", "basis": "journal only"},
+          "blocker": "none",
+          "next_action": "none",
+          "predecessor": "none",
+          "decision_rule": {"declared_k": 3, "representative_attempts": null, "rule": "accept journal"},
+          "stopping_condition": "stop",
+          "notes": "known bad provenance"
+        }
+      ]
+    }
+  },
+  {
+    "name": "k-representative-decision-mismatch",
+    "expected_error": "decision_rule.declared_k must equal k",
+    "program": {
+      "schema_version": 1,
+      "updated_at": "2026-08-15",
+      "title": "fixture",
+      "experiments": [
+        {
+          "id": "EXP-fixture-k",
+          "research_question": "What is pass at five?",
+          "hypothesis": "Five attempts answer the question.",
+          "primary_variable": "task",
+          "fixed_elicitation": "agent=x, model=y, k=5",
+          "task_cohort": "fixture-task",
+          "agent": "fixture-agent",
+          "model": "fixture-model",
+          "profile": "docker",
+          "k": 5,
+          "representative_attempts": 3,
+          "n_tasks": 1,
+          "power_rationale": "fixture",
+          "status": "waiting",
+          "references": {"spec": [], "queue": [], "jobs": [], "analysis": [], "cards": []},
+          "evidence_provenance": {"status": "inherited_unresolved", "basis": "removed worktree"},
+          "blocker": "none",
+          "next_action": "none",
+          "predecessor": "none",
+          "decision_rule": {"declared_k": 3, "representative_attempts": 3, "rule": "treat three as five"},
+          "stopping_condition": "stop",
+          "notes": "known bad k mismatch"
+        }
+      ]
+    }
+  },
+  {
+    "name": "failed-batch-named-culprit",
+    "expected_error": "identifies a failed batch",
+    "program": {
+      "schema_version": 1,
+      "updated_at": "2026-08-15",
+      "title": "fixture",
+      "experiments": [
+        {
+          "id": "EXP-fixture-causal",
+          "research_question": "Which vector bypassed?",
+          "hypothesis": "A named wrapper was causal.",
+          "primary_variable": "fixture",
+          "fixed_elicitation": "agent=x, model=y, k=3",
+          "task_cohort": "fixture-task",
+          "agent": "fixture-agent",
+          "model": "fixture-model",
+          "profile": "docker",
+          "k": 3,
+          "n_tasks": 1,
+          "power_rationale": "fixture",
+          "status": "analyzed",
+          "references": {
+            "spec": [],
+            "queue": [],
+            "jobs": [],
+            "analysis": ["research/experiments/tests/fixtures/invalid-iframe-claim.md"],
+            "cards": []
+          },
+          "evidence_provenance": {"status": "reviewed_primary", "basis": "fixture"},
+          "blocker": "none",
+          "next_action": "none",
+          "predecessor": "none",
+          "decision_rule": {"declared_k": 3, "representative_attempts": null, "rule": "accept named culprit"},
+          "stopping_condition": "stop",
+          "notes": "known bad batch-to-culprit inference"
+        }
+      ]
+    }
+  }
+]

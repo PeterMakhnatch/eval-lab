@@ -21,32 +21,26 @@
         "spec": [
           "research/experiments/specs/01-canary-codex-pass-at-3/"
         ],
-        "queue": [
-          "queue/done/codex-01M021T5SMYY9E4EBCCMNF43A6.json",
-          "queue/done/codex-01M021T5PPHP3QTR08VXE03VEZ.json",
-          "queue/done/codex-01M021T5QYSJKEQV0AVH1WDBJC.json",
-          "queue/failed/codex-01KZZFDCJABF6JCTFPFHWGDMG5.json",
-          "queue/failed/codex-01KZZFDCFK5XHCG3683F8YFNJD.json",
-          "queue/failed/codex-01KZZFDCH2WVCTE5BYTWH1QZ4P.json"
-        ],
-        "jobs": [
-          "runs/canary-event-summary-codex-20260815/",
-          "runs/canary-transaction-reconciliation-codex-20260815/",
-          "runs/canary-terminal-bench-html-js-filter-codex-20260815/",
-          "runs/canary-event-summary-codex-20260814/",
-          "runs/canary-transaction-reconciliation-codex-20260814/",
-          "runs/canary-terminal-bench-html-js-filter-codex-20260814/"
-        ],
+        "queue": [],
+        "jobs": [],
         "analysis": [
           "research/experiments/baselines/codex-canary-20260815.md",
           "research/experiments/analysis/html-js-filter-codex-20260815-brief.md"
         ],
         "cards": []
       },
+      "evidence_provenance": {
+        "status": "reviewed_primary",
+        "basis": "The three 2026-08-15 raw jobs and all nine trial results were inspected in the primary runtime store. The retained baseline records job-result SHA-256 digests and extracted reward, exception, cost, duration, token, step, and tool-call values. Runtime queue/job paths are locations, not retained references."
+      },
       "blocker": "none on the 2026-08-15 scored jobs",
-      "next_action": "Do not rank the three families. Follow html-js brief discriminator (EXP-N1) or stop expanding this slice.",
+      "next_action": "Do not rank the three families. EXP-N1 is withdrawn; do not expand the html-js slice until a legal one-variable discriminator is supported by agent-visible evidence.",
       "predecessor": "none",
-      "decision_rule": "Treat each family separately. Invalid 2026-08-14 ValueError trials stay outside the capability denominator. 2026-08-15 exception_info==null trials are the scored set.",
+      "decision_rule": {
+        "declared_k": 3,
+        "representative_attempts": null,
+        "rule": "Treat each family separately. Invalid 2026-08-14 ValueError trials stay outside the capability denominator. The nine 2026-08-15 trials with exception_info equal to null are the scored set."
+      },
       "stopping_condition": "Stop claiming 'Codex unknown on canaries' once 2026-08-15 jobs are recorded. Stop ranking at n=3.",
       "notes": "2026-08-14 first wave: 9/9 exception_type=ValueError 'Model name is required' (invalid harness). 2026-08-15: event-summary 3/3 reward 1.0; txn-recon 3/3 reward 1.0; html-js 0/3 reward 1.0; 0/9 exceptions. Original RUNNER specs were approved in the runner worktree and never dispatched there."
     },
@@ -68,19 +62,25 @@
         "spec": [
           "research/experiments/specs/02-attempt-count-sensitivity/"
         ],
-        "queue": [
-          "queue/reasons files from RUNNER worktree (k5 per_job_cost_ceiling); not on primary waiting/ except quiet_failure r2"
+        "queue": [],
+        "jobs": [],
+        "analysis": [
+          "research/experiments/baselines/codex-canary-20260815.md"
         ],
-        "jobs": [
-          "runs/canary-transaction-reconciliation-codex-20260815/"
-        ],
-        "analysis": [],
         "cards": []
+      },
+      "evidence_provenance": {
+        "status": "mixed",
+        "basis": "The k=3 reward and cost cell is reviewed primary evidence in the retained baseline. The k=1 non-completion and k=5 refusal were recorded only in the removed RUNNER worktree and inherited journal, so those arms remain inherited and unresolved rather than primary evidence."
       },
       "blocker": "k=5 hits per_job_cost_ceiling and canary max_attempts=3. k=1 spec was approved in runner worktree and never scored on primary.",
       "next_action": "Peter: register n=5 or raise ceiling / measure per-attempt cost from 2026-08-15 actual 0.079/3≈0.026 (would be <$3 at k=5) but canary still caps attempts at 3.",
       "predecessor": "EXP-S01-canary-codex-k3",
-      "decision_rule": "Do not interpret k=3 alone as sensitivity. Need k=5 or an explicit stop.",
+      "decision_rule": {
+        "declared_k": 5,
+        "representative_attempts": null,
+        "rule": "Do not interpret the reviewed k=3 cell alone as attempt-count sensitivity. A legal k=5 arm or an explicit stop is required."
+      },
       "stopping_condition": "Stop if Peter declines n=5 on canary members.",
       "notes": "Actual 2026-08-15 txn cost_usd sum 0.0793556 for k=3. That is below the $2.50 estimate. Policy max_attempts still blocks k=5 on canary/*."
     },
@@ -104,23 +104,31 @@
           "research/experiments/preambles/brief-discipline.md"
         ],
         "queue": [],
-        "jobs": [
-          "runs/canary-event-summary-codex-20260815/"
+        "jobs": [],
+        "analysis": [
+          "research/experiments/baselines/codex-canary-20260815.md"
         ],
-        "analysis": [],
         "cards": []
+      },
+      "evidence_provenance": {
+        "status": "mixed",
+        "basis": "The untreated k=3 control is reviewed primary evidence in the retained baseline. The treatment is design-only and has never been submitted; its runner support remains absent."
       },
       "blocker": "ExperimentSpec still has no extra_instruction_path; build_command does not forward --extra-instruction-path (confirmed grep on src/evallab/schemas.py ExperimentSpec).",
       "next_action": "BUILDER adds the field. Then submit treatment only; pair with 2026-08-15 control. Do not submit a fake second control.",
       "predecessor": "EXP-S01-canary-codex-k3",
-      "decision_rule": "Compare treatment vs 2026-08-15 event-summary 3/3 only after elicitation tuples match except preamble.",
+      "decision_rule": {
+        "declared_k": 3,
+        "representative_attempts": null,
+        "rule": "Compare a future treatment with the reviewed 2026-08-15 event-summary 3/3 control only after the elicitation tuples match except for the preamble."
+      },
       "stopping_condition": "Stop if BUILDER declines the field.",
       "notes": "Not submitted. Control cell has now run (was missing when STUDY.md was written)."
     },
     {
       "id": "EXP-S04-claude-vs-codex",
       "research_question": "Does claude-code complete a scored event-summary canary trial, and how does pass@3 sit beside Codex?",
-      "hypothesis": "Holding task, k=3, docker fixed, claude-code pass@3 differs from Codex enough to see at n=3. First value is completion, not a ranking.",
+      "hypothesis": "Holding task, k=3, and docker fixed, a claude-code arm can first establish whether a scored trial is available. The resulting one-task cells would be descriptive, not a ranking.",
       "primary_variable": "agent in {codex, claude-code}",
       "fixed_elicitation": "task=canary/event-summary, k=3, docker, no extra instruction",
       "task_cohort": "library/tasks/event-summary",
@@ -136,16 +144,24 @@
           "research/experiments/specs/04-claude-code-canary/event-summary.json"
         ],
         "queue": [],
-        "jobs": [
-          "runs/canary-event-summary-codex-20260815/"
+        "jobs": [],
+        "analysis": [
+          "research/experiments/baselines/codex-canary-20260815.md"
         ],
-        "analysis": [],
         "cards": []
       },
-      "blocker": "Claude OAuth keychain item harbor-practice-claude-oauth. Auth exceptions are harness, not capability.",
-      "next_action": "Peter stores the keychain item; then submit Study 04 spec (do not expand to three tasks first).",
+      "evidence_provenance": {
+        "status": "mixed",
+        "basis": "The Codex k=3 control is reviewed primary evidence in the retained baseline. No claude-code trial is retained; prior approval and credential state came from removed runtime/worktree state and are unresolved here."
+      },
+      "blocker": "Current availability of the Claude OAuth keychain item harbor-practice-claude-oauth is unresolved; the prior removed-worktree record reported it absent. Auth exceptions are harness, not capability.",
+      "next_action": "Peter decides whether a separate authorized workflow should verify/provision the keychain item; only then consider Study 04, without expanding to three tasks first.",
       "predecessor": "EXP-S01-canary-codex-k3",
-      "decision_rule": "Auth exception -> stay in harness class. Scored rewards -> decide whether to spend a second night on the other two canaries.",
+      "decision_rule": {
+        "declared_k": 3,
+        "representative_attempts": null,
+        "rule": "An authentication exception stays in the harness class. A scored reward cell may inform whether to propose the other two canaries, but cannot rank agents at n_tasks=1."
+      },
       "stopping_condition": "Stop expansion until one scored claude-code trial exists.",
       "notes": "Original spec was approved in runner worktree and never dispatched. Codex cell is now the 2026-08-15 scored job, not the 2026-08-14 ValueError jobs."
     },
@@ -159,7 +175,8 @@
       "agent": "codex",
       "model": null,
       "profile": "docker",
-      "k": 3,
+      "k": 5,
+      "representative_attempts": 3,
       "n_tasks": 5,
       "power_rationale": "Intended k=5 for comparison; submitted representative used k=3 so the reason code is namespace not ceiling.",
       "status": "waiting",
@@ -178,10 +195,18 @@
           "library/curated/bun-sourcemap-leak/CARD.md"
         ]
       },
+      "evidence_provenance": {
+        "status": "inherited_unresolved",
+        "basis": "The representative policy refusal and CURATOR oracle/nop jobs lived in removed worktrees. Only cards, the intended spec, and journal narrative are retained here; they do not constitute primary execution evidence for this study."
+      },
       "blocker": "Cards only (no task.toml here); not canary/*; k=5 exceeds canary max; estimated $4.17 exceeds $3. Representative was out_of_policy.",
       "next_action": "Peter registers a slice or promotes nominees with digests. PROGRAM does not copy frontier-bench trees.",
       "predecessor": "none",
-      "decision_rule": "Do not interpret CURATOR oracle cards as Codex results.",
+      "decision_rule": {
+        "declared_k": 5,
+        "representative_attempts": 3,
+        "rule": "The 3-attempt representative is a policy probe only and is not a k=5 scientific arm. Do not interpret CURATOR oracle cards or the inherited refusal narrative as Codex results."
+      },
       "stopping_condition": "Stop until registration exists.",
       "notes": "Policy refusal class: out_of_policy. No scored Codex jobs on these cards in primary runs/."
     },
@@ -210,46 +235,60 @@
         ],
         "cards": []
       },
+      "evidence_provenance": {
+        "status": "inherited_unresolved",
+        "basis": "The query-optimize oracle/nop jobs and policy refusal existed only in the removed RUNNER worktree. The retained journal is an inherited narrative, not primary execution evidence; no Codex result exists."
+      },
       "blocker": "out_of_policy for billable Codex. Poor canary (slow amd64 image, ~10 min/trial).",
       "next_action": "Peter decides whether to register. Do not add to nightly canary suite.",
       "predecessor": "none",
-      "decision_rule": "Validity already supported by oracle/nop. Registration is a cost/time decision.",
+      "decision_rule": {
+        "declared_k": 3,
+        "representative_attempts": null,
+        "rule": "Do not treat journal-only oracle/nop statements as independently reverified primary evidence. Registration remains unresolved until retained controls or a human decision exist."
+      },
       "stopping_condition": "Stop promoting to nightly canaries regardless.",
       "notes": "No Codex query-optimize job in primary runs/. Do not invent one."
     },
     {
       "id": "EXP-N1-html-js-official-tests",
-      "research_question": "If Codex must run official html-js tests before finishing, does XSS pass@3 move versus 2026-08-15?",
-      "hypothesis": "The 0/3 XSS failure is dominated by never running the official corpus (process), not by an unfixable srcdoc gap (implementation).",
-      "primary_variable": "extra instruction requiring official tests/ before done",
-      "fixed_elicitation": "codex, gpt-5.6-terra, canary/terminal-bench-html-js-filter, k=3, docker",
+      "research_question": "Can retained agent-visible evidence support a legal one-variable discriminator for the html-js 0/3 result?",
+      "hypothesis": "Withdrawn: the retained batch-level verifier output does not identify a culprit or support the proposed process-versus-implementation discriminator.",
+      "primary_variable": "none; the former hidden-test instruction is withdrawn and no replacement variable is supported",
+      "fixed_elicitation": "source cell only: codex, gpt-5.6-terra, canary/terminal-bench-html-js-filter, k=3, docker",
       "task_cohort": "library/tasks/terminal-bench-html-js-filter",
       "agent": "codex",
       "model": "gpt-5.6-terra",
       "profile": "docker",
       "k": 3,
       "n_tasks": 1,
-      "power_rationale": "Direction check against a 0/3 control. TRUTH: not distinguishable / not comparable as a ranking (n_tasks=1).",
-      "status": "designed",
+      "power_rationale": "No run is licensed. The reviewed source is n_tasks=1, k=3 and cannot identify a causal bypass or support a ranking.",
+      "status": "stopped",
       "references": {
         "spec": [
           "research/experiments/drafts/N1-html-js-official-tests.md"
         ],
         "queue": [],
-        "jobs": [
-          "runs/canary-terminal-bench-html-js-filter-codex-20260815/"
-        ],
+        "jobs": [],
         "analysis": [
           "research/experiments/analysis/html-js-filter-codex-20260815-brief.md"
         ],
         "cards": []
       },
-      "blocker": "extra_instruction_path not on ExperimentSpec.",
-      "next_action": "Do not submit until BUILDER adds the flag. Control already exists — do not rerun it.",
+      "evidence_provenance": {
+        "status": "reviewed_primary",
+        "basis": "All three raw trajectories, trial results, verifier outputs, and the separate verifier implementation were inspected. The verifier output resolves failed batches only; the individual bypassing vector is unresolved."
+      },
+      "blocker": "tests/test_outputs.py is hidden in the separate verifier and must never be copied, mounted, or made runnable in the evaluated agent image.",
+      "next_action": "Needs design. Do not submit or replace this experiment unless retained agent-visible evidence supports one legal variable and competing predictions.",
       "predecessor": "EXP-S01-canary-codex-k3",
-      "decision_rule": "Same srcdoc 0/3 -> implementation-limit. Any reward 1.0 -> process-limit.",
-      "stopping_condition": "Stop instruction tweaks if XSS still fails the same first vectors.",
-      "notes": "Unsubmitted draft."
+      "decision_rule": {
+        "declared_k": 3,
+        "representative_attempts": null,
+        "rule": "Do not run the withdrawn design. A future proposal must keep hidden verifier inputs isolated and must not claim an individual culprit from a failed 16-vector batch."
+      },
+      "stopping_condition": "Stopped unless a legal one-variable discriminator can be derived from agent-visible retained evidence without revealing verifier-only inputs.",
+      "notes": "Withdrawn unsubmitted draft. No replacement experiment is asserted."
     },
     {
       "id": "EXP-N2-event-summary-sol-vs-terra",
@@ -269,19 +308,25 @@
         "spec": [
           "research/experiments/drafts/N2-event-summary-sol-vs-terra.md"
         ],
-        "queue": [
-          "queue/proposed/codex-01M023RP03KGSHB4WZ29WE9DGR.json"
+        "queue": [],
+        "jobs": [],
+        "analysis": [
+          "research/experiments/baselines/codex-canary-20260815.md"
         ],
-        "jobs": [
-          "runs/canary-event-summary-codex-20260815/"
-        ],
-        "analysis": [],
         "cards": []
+      },
+      "evidence_provenance": {
+        "status": "mixed",
+        "basis": "The terra control is reviewed primary evidence in the retained baseline. The sol proposal remains unsubmitted; its queue location is runtime-only and is not a retained reference."
       },
       "blocker": "Human decision: whether sol vs terra is still worth a night. Proposed spec uses registered/event-summary and a superseded hypothesis.",
       "next_action": "Do not submit this draft. Do not approve/reject/delete the proposed spec from this role. Peter decides.",
       "predecessor": "D-20260815-CHEY952N / researcher proposed spec",
-      "decision_rule": "ValueError-avoidance is already answered (terra 3/3 scored). Only run if Peter wants a model-pin A/B on canary/event-summary.",
+      "decision_rule": {
+        "declared_k": 3,
+        "representative_attempts": null,
+        "rule": "ValueError avoidance is already answered by the reviewed terra 3/3 cell. Only propose a sol arm if the decision is explicitly a one-task model-pin A/B."
+      },
       "stopping_condition": "Stop proposing ValueError-avoidance specs.",
       "notes": "Unsubmitted. See STATUS TASK DECISIONS."
     },
@@ -305,16 +350,24 @@
           "research/experiments/specs/04-claude-code-canary/event-summary.json"
         ],
         "queue": [],
-        "jobs": [
-          "runs/canary-event-summary-codex-20260815/"
+        "jobs": [],
+        "analysis": [
+          "research/experiments/baselines/codex-canary-20260815.md"
         ],
-        "analysis": [],
         "cards": []
       },
-      "blocker": "Claude keychain item absent.",
-      "next_action": "Peter stores harbor-practice-claude-oauth; then use existing Study 04 spec.",
+      "evidence_provenance": {
+        "status": "mixed",
+        "basis": "The Codex control is reviewed primary evidence in the retained baseline. The claude-code arm is design-only and has no retained trial; credential state is unresolved runtime provenance."
+      },
+      "blocker": "Claude keychain availability is unresolved; the prior removed-worktree record reported the item absent.",
+      "next_action": "Peter decides whether to verify/provision harbor-practice-claude-oauth in a separate authorized workflow; then reassess the existing Study 04 spec.",
       "predecessor": "EXP-S04-claude-vs-codex",
-      "decision_rule": "Auth exception stays out of capability denominators.",
+      "decision_rule": {
+        "declared_k": 3,
+        "representative_attempts": null,
+        "rule": "Authentication exceptions stay outside capability denominators. A scored claude-code cell may justify a later proposal but cannot rank agents at n_tasks=1."
+      },
       "stopping_condition": "Do not expand to three tasks until one scored trial.",
       "notes": "Unsubmitted duplicate of Study 04 with updated control citation."
     }

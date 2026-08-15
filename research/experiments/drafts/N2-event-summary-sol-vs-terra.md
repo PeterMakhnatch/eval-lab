@@ -17,11 +17,12 @@ arm exists, with named elicitation tuples (agent_version, model_pin, k).
 
 **What would change the decision.**
 
-- sol 3/3 scored, no exception → model pin is interchangeable on this
-  task at n=3; do not keep proposing “avoid ValueError” specs.
+- sol 3/3 scored, no exception → both observed cells are 3/3 on this one
+  task; that does not establish equivalence or interchangeability at n=3.
+  Do not keep proposing “avoid ValueError” specs.
 - sol invalid exception → treat as harness/model-string, not capability.
-- sol scored 0/3 → then a real model difference *on this one task*;
-  still not a ranking.
+- sol scored 0/3 → an observed one-task contrast that can motivate
+  replication; still not a ranking or a general model claim.
 
 **Dependencies.** Policy: `canary` + explicit model. Must **not** use
 `registered/event-summary` (that namespace is not a standing canary
@@ -32,3 +33,8 @@ that spec’s hypothesis (scored result vs model-less ValueError) is
 already answered by the terra 2026-08-15 canary. This draft is the
 remaining *one-variable* question if Peter still wants sol vs terra.
 This draft is not submitted; the proposed spec is not approved/rejected.
+
+**Evidence provenance.** The terra control is reviewed primary evidence
+in `baselines/codex-canary-20260815.md`. The proposed queue object is
+runtime-only and is not a retained reference in `PROGRAM.json`; the sol
+arm is design-only and has no result.

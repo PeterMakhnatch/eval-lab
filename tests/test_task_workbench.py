@@ -20,6 +20,7 @@ from evallab.task_workbench import (
     PacketConflictError,
     UnsafePathError,
     WorkbenchError,
+    _harbor_task_digest,
     check_candidate,
     classify_trial_outcome,
     inspect_candidate,
@@ -138,16 +139,55 @@ class FixtureBackend:
                 )
             )
             vector = {"reward": reward}
+            overlay_path = str(overlay.resolve())
+            stage_path = str(stage.resolve())
             (trial / "result.json").write_bytes(
                 _canonical(
                     {
                         "id": f"trial-{plan.control_id}",
                         "task_name": candidate["task_name"],
                         "trial_name": f"{plan.control_id}__fixture",
+                        "task_id": {"path": stage_path},
+                        "task_checksum": "c" * 64,
+                        "config": {
+                            "task": {"path": stage_path},
+                            "environment": {
+                                "type": "docker",
+                                "extra_docker_compose": [overlay_path],
+                            },
+                        },
                         "agent_info": {"name": plan.agent},
                         "verifier_result": {"rewards": vector},
                         "verifier_environment_mode": "separate",
                         "exception_info": None,
+                    }
+                )
+            )
+            (trial / "lock.json").write_bytes(
+                _canonical(
+                    {
+                        "task": {
+                            "name": plan.control_id,
+                            "version": candidate["task_version"],
+                            "type": "local",
+                            "digest": _harbor_task_digest(stage),
+                            "path": stage_path,
+                        },
+                        "agent": {"name": plan.agent},
+                        "environment": {
+                            "type": "docker",
+                            "extra_docker_compose": [overlay_path],
+                        },
+                        "extra_docker_compose": [
+                            {
+                                "path": overlay_path,
+                                "digest": _digest(NETWORK_OVERLAY_CONTENT),
+                            }
+                        ],
+                        "verifier": {
+                            "disable": False,
+                            "environment_mode": "separate",
+                        },
                     }
                 )
             )
@@ -562,6 +602,35 @@ def test_retained_job_and_stage_bytes_are_recomputed_before_certification(
 
     assert report.disposition == "needs_changes"
     assert "control_evidence_tampered" in {item.code for item in report.diagnostics}
+
+
+def test_wrong_task_job_and_missing_network_binding_cannot_certify(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    valid = _bundle(inspection, repo=repo, task=task)
+    observations = list(valid.observations)
+    first = observations[0]
+    assert first.job_path is not None
+    job = repo / first.job_path
+    trial_result_path = next(path for path in job.glob("*/result.json"))
+    trial_result = json.loads(trial_result_path.read_text())
+    trial_result["task_name"] = "other/task"
+    trial_result["config"]["task"]["path"] = str(repo / "other-task")
+    trial_result["config"]["environment"]["extra_docker_compose"] = []
+    trial_result_path.write_bytes(_canonical(trial_result))
+    observations[0] = replace(first, evidence_digest=_tree_digest(job))
+    forged = ControlBundle.build(
+        candidate_id=valid.candidate_id,
+        source_package_digest=valid.source_package_digest,
+        observations=observations,
+    )
+
+    report = check_candidate(inspection, forged, repo_root=repo)
+    codes = {item.code for item in report.diagnostics}
+
+    assert report.disposition == "needs_changes"
+    assert "control_task_identity_mismatch" in codes
+    assert "control_network_binding_mismatch" in codes
 
 
 def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -> None:

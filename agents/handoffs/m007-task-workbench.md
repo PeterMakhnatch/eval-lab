@@ -1,6 +1,6 @@
-Status: ready for Tasks re-review
-Last: first-review fixes, real no-network controls, portable evidence, rebase, 400-test suite, and premerge passed
-Next: obtain Tasks re-review, then push the review-only PR and wait for exact-head GitHub CI
+Status: verifying final review fix
+Last: second Tasks review's task-binding blocker fixed with a wrong-job regression; real bundle revalidated cleanly
+Next: rerun full/premerge validation, obtain final Tasks re-review, then push the review-only PR and wait for exact-head GitHub CI
 Blockers: repository contains zero human-registered tasks; exercise will use the documented event-summary registration candidate and state that limitation explicitly
 
 # M007 task-quality workbench handoff
@@ -108,7 +108,7 @@ network: Docker main service forced to network_mode none for every control
 status: certified_for_review (not admitted)
 retained packet evidence: 7 per-control records; no outputs/logs/golden bytes
 candidate sha256: 0ae5720b48d05669e3eb2f613b723047feac6a6169be5f3c5fce707f3674524c
-certification sha256: 20be519d1c30edfd68a88c2104d169544b6f6538e6970749192abac61c88d70a
+certification sha256: 8e765efb80bf9a03f397e0564dcde5fbfa91541fc165baa5ecb7379178231ef2
 second packet build: identical hashes
 ```
 
@@ -183,3 +183,12 @@ recomputation are mandatory, Docker copy parsing fails closed, controls use a
 real no-network Compose override, build/task exceptions classify as task
 defects, and seven portable evidence records are included without output or
 verifier-log content. A fresh Tasks re-review is required on the fixed head.
+
+The second Tasks review cleared those findings but found one additional
+blocking provenance gap: the Harbor job bytes were not yet bound to the
+candidate task identity. The final validator now requires the raw trial result
+and lock to match the candidate task name/version, exact staged path, planned
+free agent, Docker environment, separate verifier, exact Compose override path
+and digest, and a Harbor-compatible package digest recomputed from the stage.
+A regression copies a different task identity under the expected job path,
+updates its tree digest, and confirms certification still fails.

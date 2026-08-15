@@ -618,6 +618,14 @@ def _validate_layout(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
             diagnostics.append(
                 _diag("script_not_executable", relative, "script must be executable")
             )
+    if (task_dir / ".gitignore").exists():
+        diagnostics.append(
+            _diag(
+                "custom_package_ignore_unsupported",
+                ".gitignore",
+                "v1 cannot bind Harbor task digests with custom package ignore rules",
+            )
+        )
 
 
 def _validate_task_metadata(
@@ -1812,6 +1820,40 @@ def _expected_stage_digest(inspection: Inspection, plan: ControlPlanEntry) -> st
     return _sha256_bytes(_canonical_bytes(tree_payload))
 
 
+def _harbor_task_digest(task_dir: Path) -> str:
+    """Reproduce Harbor Packager's default local-task content digest."""
+    files: list[Path] = []
+    for relative in ("task.toml", "instruction.md", "README.md"):
+        path = task_dir / relative
+        if path.is_file():
+            files.append(path)
+    for relative in ("environment", "tests", "solution", "steps"):
+        root = task_dir / relative
+        if not root.exists():
+            continue
+        files.extend(path for path in root.rglob("*") if path.is_file())
+
+    def ignored(path: Path) -> bool:
+        relative = path.relative_to(task_dir)
+        return bool(
+            "__pycache__" in relative.parts
+            or path.name == ".DS_Store"
+            or path.suffix == ".pyc"
+            or path.suffix in {".swp", ".swo"}
+            or path.name.endswith("~")
+        )
+
+    outer = hashlib.sha256()
+    for path in sorted(
+        (path for path in files if not ignored(path)),
+        key=lambda item: item.relative_to(task_dir).as_posix(),
+    ):
+        relative = path.relative_to(task_dir).as_posix()
+        file_digest = _sha256_file(path).removeprefix("sha256:")
+        outer.update(f"{relative}\0{file_digest}\n".encode())
+    return f"sha256:{outer.hexdigest()}"
+
+
 def _validate_control_evidence(
     *,
     inspection: Inspection,
@@ -1924,12 +1966,94 @@ def _validate_control_evidence(
     )
     actual_agent = trial.result.get("agent_info")
     actual_agent_name = actual_agent.get("name") if isinstance(actual_agent, Mapping) else None
+    expected_stage_path = str(stage.resolve())
+    expected_overlay_path = str((stage / NETWORK_OVERLAY_RELATIVE).resolve())
+    candidate_name = _required_string(inspection.candidate, "task_name")
+    candidate_version = _required_string(inspection.candidate, "task_version")
+    result_task_id = trial.result.get("task_id")
+    result_config = trial.result.get("config")
+    result_task_config = result_config.get("task") if isinstance(result_config, Mapping) else None
+    result_environment = (
+        result_config.get("environment") if isinstance(result_config, Mapping) else None
+    )
+    task_checksum = trial.result.get("task_checksum")
+    lock_task = trial.lock.get("task")
+    lock_agent = trial.lock.get("agent")
+    lock_environment = trial.lock.get("environment")
+    lock_verifier = trial.lock.get("verifier")
+    lock_compose = trial.lock.get("extra_docker_compose")
+    task_identity_matches = bool(
+        trial.result.get("task_name") == candidate_name
+        and isinstance(result_task_id, Mapping)
+        and result_task_id.get("path") == expected_stage_path
+        and isinstance(result_task_config, Mapping)
+        and result_task_config.get("path") == expected_stage_path
+        and isinstance(task_checksum, str)
+        and re.fullmatch(r"[0-9a-f]{64}", task_checksum)
+        and isinstance(lock_task, Mapping)
+        and lock_task.get("name") == plan.control_id
+        and lock_task.get("version") == candidate_version
+        and lock_task.get("type") == "local"
+        and lock_task.get("path") == expected_stage_path
+    )
+    if not task_identity_matches:
+        diagnostics.append(
+            _diag(
+                "control_task_identity_mismatch",
+                observation.control_id,
+                "retained trial task identity does not name the frozen candidate stage",
+            )
+        )
+    expected_harbor_digest = _harbor_task_digest(stage)
+    if not isinstance(lock_task, Mapping) or lock_task.get("digest") != expected_harbor_digest:
+        diagnostics.append(
+            _diag(
+                "control_task_digest_mismatch",
+                observation.control_id,
+                "Harbor task lock digest does not match the frozen staged task",
+            )
+        )
+    network_binding_matches = bool(
+        isinstance(result_environment, Mapping)
+        and result_environment.get("type") == "docker"
+        and result_environment.get("extra_docker_compose") == [expected_overlay_path]
+        and isinstance(lock_environment, Mapping)
+        and lock_environment.get("type") == "docker"
+        and lock_environment.get("extra_docker_compose") == [expected_overlay_path]
+        and isinstance(lock_compose, list)
+        and lock_compose
+        == [
+            {
+                "path": expected_overlay_path,
+                "digest": _sha256_bytes(NETWORK_OVERLAY_CONTENT),
+            }
+        ]
+        and isinstance(lock_verifier, Mapping)
+        and lock_verifier.get("disable") is False
+        and lock_verifier.get("environment_mode") == "separate"
+    )
+    if not network_binding_matches:
+        diagnostics.append(
+            _diag(
+                "control_network_binding_mismatch",
+                observation.control_id,
+                "retained trial is not bound to the frozen Docker no-network overlay",
+            )
+        )
     if actual_agent_name != plan.agent:
         diagnostics.append(
             _diag(
                 "control_agent_mismatch",
                 observation.control_id,
                 "retained trial did not use the planned free control agent",
+            )
+        )
+    if not isinstance(lock_agent, Mapping) or lock_agent.get("name") != plan.agent:
+        diagnostics.append(
+            _diag(
+                "control_agent_lock_mismatch",
+                observation.control_id,
+                "Harbor trial lock does not name the planned free control agent",
             )
         )
     if trial.result.get("verifier_environment_mode") != "separate":
@@ -2282,6 +2406,7 @@ def _retained_evidence_record(
     trial = job.trials[0]
     job_result_path = expected_job / "result.json"
     trial_result_path = trial.path / "result.json"
+    trial_lock_path = trial.path / "lock.json"
     body: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "task_workbench_retained_control_evidence",
@@ -2298,8 +2423,10 @@ def _retained_evidence_record(
         "stage_manifest": _manifest(stage),
         "raw_job_result_digest": _sha256_file(job_result_path),
         "raw_trial_result_digest": _sha256_file(trial_result_path),
+        "raw_trial_lock_digest": _sha256_file(trial_lock_path),
         "job_result": _scrub_repo_paths(job.result, repo_root),
         "trial_result": _scrub_repo_paths(trial.result, repo_root),
+        "trial_lock": _scrub_repo_paths(trial.lock, repo_root),
         "claim_extract": {
             "agent": plan.agent,
             "exception_type": _trial_exception_type(trial.result),

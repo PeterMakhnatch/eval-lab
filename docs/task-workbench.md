@@ -95,7 +95,10 @@ pinned candidate identity and therefore a new run root. A complete,
 digest-valid bundle is reused without another call. Supplied JSON is not proof:
 the workbench resolves each frozen job and stage under the candidate's local
 run root, recomputes their tree digests and reward vector, and refuses missing,
-escaping, changed, or inconsistent evidence.
+escaping, changed, or inconsistent evidence. The retained trial and lock must
+also name the candidate task and exact stage path, match Harbor's recomputed
+package digest, use the planned Oracle/Nop agent and separate verifier, and
+record the exact no-network Compose path and digest.
 
 ```bash
 python -m evallab.task_workbench packet path/to/candidate \

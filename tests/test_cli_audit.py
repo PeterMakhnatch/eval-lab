@@ -11,6 +11,7 @@ from evallab import atif, cli
 TOP_LEVEL_COMMANDS = (
     "doctor",
     "dashboard",
+    "status",
     "submit",
     "tick",
     "approve",

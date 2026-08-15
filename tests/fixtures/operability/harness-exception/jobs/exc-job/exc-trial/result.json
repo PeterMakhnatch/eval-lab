@@ -1,0 +1,15 @@
+{
+  "id": "44444444-4444-4444-8444-444444444444",
+  "task_name": "local-lab/event-summary",
+  "trial_name": "exc-trial",
+  "agent_info": {"name": "oracle"},
+  "verifier_result": {"rewards": {}},
+  "exception_info": {
+    "exception_type": "RuntimeError",
+    "exception_message": "harbor setup timeout",
+    "exception_traceback": "RuntimeError: harbor setup timeout",
+    "exception_phase": "setup"
+  },
+  "started_at": "2026-08-14T00:00:00.000000Z",
+  "finished_at": "2026-08-14T00:00:03.000000Z"
+}

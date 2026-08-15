@@ -90,6 +90,7 @@ from evallab.runner import (
     request_from_matrix,
     subscription_environment,
 )
+from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.tracing import (
     TraceError,
     format_batch,
@@ -148,6 +149,22 @@ def parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--address", default="127.0.0.1")
     dashboard.add_argument("--port", type=int, default=8501)
     dashboard.add_argument("--database-url")
+
+    status = commands.add_parser(
+        "status",
+        help="Read-only operator snapshot of recent work, health, and saved analysis",
+    )
+    status.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the typed status snapshot as JSON",
+    )
+    status.add_argument(
+        "--from",
+        dest="status_from",
+        type=Path,
+        help="Repository root or smoke scratch (queue/ + jobs/) to read",
+    )
 
     submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
     submit.add_argument("path", type=Path)
@@ -729,6 +746,16 @@ def _report_command(args: argparse.Namespace, root: Path) -> int:
     return 0
 
 
+def _status_command(args: argparse.Namespace, root: Path) -> int:
+    target = _resolve(root, args.status_from) if args.status_from is not None else root
+    snapshot = build_status_snapshot(target)
+    if args.json:
+        print(json.dumps(snapshot_as_dict(snapshot), indent=2))
+    else:
+        print(render_status_text(snapshot), end="")
+    return 0
+
+
 def _dashboard_command(args: argparse.Namespace, root: Path) -> int:
     environment = subscription_environment()
     environment["DATABASE_URL"] = database_url_from_environment(args.database_url)
@@ -850,6 +877,8 @@ def run_cli(
             return _report_command(args, root)
         if args.command == "dashboard":
             return _dashboard_command(args, root)
+        if args.command == "status":
+            return _status_command(args, root)
         if args.command == "submit":
             spec = read_spec(_resolve(root, args.path))
             path, decision = Executor.from_repo(root).submit(spec)

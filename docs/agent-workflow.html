@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eval Lab — Agent Workflow Review</title>
+  <meta name="description" content="How coding agents interact with Eval Lab, what each coordination file means, what works, and what needs cleanup.">
+  <link rel="stylesheet" href="repository-overview.css">
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <span class="mono">EVAL LAB / AGENT OPERATIONS</span>
+      <nav aria-label="Overview pages">
+        <a href="repository-state.html">Repository state</a>
+        <a href="eval-rd-roadmap.html">R&amp;D roadmap</a>
+        <a href="agent-workflow.html" aria-current="page">Agent workflow</a>
+        <a href="../agents/WORKFLOW.md">Workflow source</a>
+      </nav>
+    </div>
+
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Coordination review · 2026-08-14</p>
+        <h1>The protocol makes sense. The status layer needs a reset.</h1>
+        <p class="lede">The agent system uses repository files, isolated Git worktrees, exclusive write scopes, handoffs, and current-head CI to coordinate parallel work. That is a coherent model. The first wave also exposed where the written protocol and the actual post-merge state diverge.</p>
+      </div>
+      <aside class="verdict">
+        <strong>About “.fd files”</strong>
+        <p>There are no <code>.fd</code> files in this repository. You likely meant the Markdown <code>.md</code> files such as <code>AGENTS.md</code>, <code>WORKFLOW.md</code>, and the handoffs. Those are the agent-facing control documents.</p>
+      </aside>
+    </header>
+
+    <div class="metrics">
+      <div class="metric"><span class="value">20</span><span class="label">role handoff files</span></div>
+      <div class="metric"><span class="value good">0</span><span class="label">active role worktrees after closeout</span></div>
+      <div class="metric"><span class="value blocked">15</span><span class="label">handoffs without a done header</span></div>
+      <div class="metric"><span class="value good">0</span><span class="label">open pull requests</span></div>
+      <div class="metric"><span class="value">1</span><span class="label">active source checkout: main</span></div>
+    </div>
+
+    <section id="files">
+      <h2>The files agents are supposed to read</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File or state</th><th>Question it answers</th><th>Assessment</th></tr></thead>
+          <tbody>
+            <tr><td><code>AGENTS.md</code></td><td>What are the repository-wide safety, evidence, language, and Git rules?</td><td><span class="status good">sound</span><small>Short, specific, and correctly establishes Harbor/raw evidence boundaries.</small></td></tr>
+            <tr><td><code>agents/WORKFLOW.md</code></td><td>How does a role create a worktree, commit, hand off, open a PR, and merge?</td><td><span class="status good">sound</span><small>The one-writer and exact-head CI rules directly address observed failures.</small></td></tr>
+            <tr><td><code>agents/STRUCTURE.md</code></td><td>Where does every kind of file belong?</td><td><span class="status partial">mostly sound</span><small>The frozen-root rule is useful, but the map currently omits the existing root <code>dashboard/</code> directory.</small></td></tr>
+            <tr><td><code>agents/ROLES.md</code></td><td>Who owns which paths, and which missions are active or done?</td><td><span class="status partial">current summary</span><small>It accurately records the fleet as done, but BUILDER's broad <code>src/</code> ownership overlaps former roles' file-level ownership.</small></td></tr>
+            <tr><td><code>agents/CHECKS.md</code></td><td>What exactly counts as green?</td><td><span class="status good">strong</span><small>It correctly requires every check on the current PR head and distinguishes local checks from merge authority.</small></td></tr>
+            <tr><td><code>agents/handoffs/*.md</code></td><td>What did a role last do, what is next, and what blocked it?</td><td><span class="status blocked">historical, not current</span><small>Useful evidence bodies remain, but many four-line headers still say blocked or review-wanted after the role is marked done.</small></td></tr>
+            <tr><td><code>docs/prompts/*.md</code></td><td>What mission or implementation brief should an agent execute?</td><td><span class="status good">useful contracts</span><small>Numbered briefs preserve intent and acceptance criteria, though some are now historical and should be labeled as such.</small></td></tr>
+            <tr><td><code>policy/*.yaml</code></td><td>What may execute unattended, with which agents and cost ceilings?</td><td><span class="status good">meaningful authority</span><small>This is a real safety boundary, not documentation: the queue enforces it.</small></td></tr>
+            <tr><td><code>queue/</code> + <code>runs/</code></td><td>What was submitted, admitted, executed, refused, or failed?</td><td><span class="status good">runtime record</span><small>Ignored local state is appropriate, but anything cited from it must be promoted before a durable report depends on it.</small></td></tr>
+            <tr><td><code>digests/</code></td><td>What should the human read as the daily summary?</td><td><span class="status partial">works, needs trust repair</span><small>The daily surface exists; the first autonomous discovery contains broken runtime-only links.</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="lifecycle">
+      <h2>The intended agent lifecycle</h2>
+      <div class="flow">
+        <div class="flow-step"><span class="num">01</span><div><strong>Read the contract</strong><p>Repository rules, workflow, structure, checks, role assignment, and mission brief.</p></div><span class="status good">necessary</span></div>
+        <div class="flow-step"><span class="num">02</span><div><strong>Create an isolated worktree</strong><p>One role, one branch, one writing agent, generated runs kept inside that worktree.</p></div><span class="status good">effective</span></div>
+        <div class="flow-step"><span class="num">03</span><div><strong>Work only in owned paths</strong><p>Disjoint scopes reduce accidental overlap; shared-file edits are explicit exceptions.</p></div><span class="status good">effective with caveats</span></div>
+        <div class="flow-step"><span class="num">04</span><div><strong>Leave durable evidence</strong><p>Small commits, handoff header, raw runs, queue events, reports, and cited paths.</p></div><span class="status partial">citation gap found</span></div>
+        <div class="flow-step"><span class="num">05</span><div><strong>Rebase, validate, and open a role-prefixed PR</strong><p>Conflicts outside the role's ownership stop the role and move to integration.</p></div><span class="status good">worked</span></div>
+        <div class="flow-step"><span class="num">06</span><div><strong>Require current-head green and separate review</strong><p>No merge based on stale CI, mergeability, or local success alone.</p></div><span class="status good">strong gate</span></div>
+        <div class="flow-step"><span class="num">07</span><div><strong>Sunset the role</strong><p>Mark done, merge, remove the worktree, and retire the spent branch.</p></div><span class="status partial">headers left stale</span></div>
+      </div>
+    </section>
+
+    <section id="strengths">
+      <h2>What the agent structure gets right</h2>
+      <div class="grid three">
+        <article class="card"><span class="status good">clear isolation</span><h3>One writer per tree</h3><p>Shared filesystem access is made safe through distinct worktrees and explicit writing ownership rather than optimistic coordination.</p></article>
+        <article class="card"><span class="status good">durable context</span><h3>The repository is the record</h3><p>Sessions may disappear, but commits, handoffs, queue events, runs, and reports remain inspectable.</p></article>
+        <article class="card"><span class="status good">fail closed</span><h3>Authority is encoded</h3><p>Cost and run permissions live in policy and queue transitions, not in a prompt asking an agent to behave.</p></article>
+        <article class="card"><span class="status good">reviewable</span><h3>Small role-shaped PRs</h3><p>Role-prefixed titles and narrow owned paths make the integration queue understandable to a human reviewer.</p></article>
+        <article class="card"><span class="status good">precise gate</span><h3>Exact-head CI</h3><p>The workflow learned not to treat an old green run or local success as permission to merge.</p></article>
+        <article class="card"><span class="status good">sensible escalation</span><h3>Agents stop on foreign conflicts</h3><p>This prevents a role from “solving” an integration conflict by silently changing another role's work.</p></article>
+      </div>
+    </section>
+
+    <section id="gaps">
+      <h2>Where the protocol and reality disagree</h2>
+      <div class="grid">
+        <article class="card"><span class="status blocked">state disagreement</span><h3>ROLES says done; handoffs do not</h3><p>The role table says the wave is fully sunset, while 11 handoffs report a non-done legacy status and four more lack the machine-readable header entirely. <code>fleet-status.sh</code> can therefore render misleading blockers even when no role branch exists.</p></article>
+        <article class="card"><span class="status partial">ownership overlap</span><h3>“Exclusive” is not always exclusive</h3><p>BUILDER owns all of <code>src/</code>, while ANALYST, OBSERVER, AUTOPILOT, and JUDGE also own named files inside <code>src/</code>. That was workable for a wave, but it is not a timeless ownership model.</p></article>
+        <article class="card"><span class="status partial">missing command</span><h3>Fleet design is unfinished</h3><p>Documentation references <code>evallab fleet</code>, <code>evallab report</code>, and generated diagrams, but the CLI still relies on <code>scripts/fleet-status.sh</code>. The script works; the promised unified command does not exist.</p></article>
+        <article class="card"><span class="status blocked">ephemeral evidence</span><h3>Ignored paths leaked into durable prose</h3><p>The first researcher pass appended links into ignored <code>queue/</code> state. Worktree cleanup then made those citations nonportable. Promotion must happen before journal append.</p></article>
+        <article class="card"><span class="status partial">shared-state ambiguity</span><h3>Worktrees isolate code, not every service</h3><p>PostgreSQL is shared while Parquet defaults inside each worktree. A fresh role can therefore fail a global catalog/projection invariant even when its own work is correct.</p></article>
+        <article class="card"><span class="status partial">historical drift</span><h3>Old guidance still reads as current</h3><p>The operating manual, engineering open-items section, README, and some briefs contain claims superseded by later inspections or fixes. Agents need an explicit “current vs historical” convention.</p></article>
+      </div>
+    </section>
+
+    <section id="recommendations">
+      <h2>A simpler agent model for the next wave</h2>
+      <ol class="priority-list">
+        <li><div><strong>Make one source canonical for live fleet status.</strong> When a role is sunset, either archive its handoff or rewrite its header to <code>Status: done</code>. The fleet renderer should ignore historical blockers when the registry says the role is retired and no branch exists.</div></li>
+        <li><div><strong>Separate persistent ownership from mission grants.</strong> Let BUILDER own application code by default; record temporary file-level grants in the mission or a wave manifest instead of keeping overlapping “exclusive” ownership forever.</div></li>
+        <li><div><strong>Add a machine-checkable closeout command.</strong> It should verify: no active worktree, no open PR, role marked done, handoff marked done, branch retired, and all durable links resolvable.</div></li>
+        <li><div><strong>Make evidence promotion part of completion.</strong> A report cannot cite <code>queue/</code>, <code>runs/</code>, or a role worktree unless the cited artifact is copied into reviewed evidence or replaced with a committed aggregate.</div></li>
+        <li><div><strong>Finish or retire the fleet brief.</strong> Either implement <code>evallab fleet/report</code> and generated diagrams, or update the docs to bless the shell script as the final interface. Avoid two promised operating surfaces.</div></li>
+        <li><div><strong>Label historical documents.</strong> Add a visible “superseded by” banner to old checkpoints, briefs, and handoff bodies rather than allowing future agents to treat every Markdown sentence as current truth.</div></li>
+      </ol>
+    </section>
+
+    <section id="sources">
+      <h2>Agent-system sources</h2>
+      <ul class="source-list">
+        <li><a href="../AGENTS.md">AGENTS.md</a></li>
+        <li><a href="../agents/WORKFLOW.md">WORKFLOW.md</a></li>
+        <li><a href="../agents/STRUCTURE.md">STRUCTURE.md</a></li>
+        <li><a href="../agents/ROLES.md">ROLES.md</a></li>
+        <li><a href="../agents/CHECKS.md">CHECKS.md</a></li>
+        <li><a href="fleet-tracking.md">Fleet tracking design</a></li>
+        <li><a href="operating-manual.md">Operating manual</a></li>
+        <li><a href="../agents/handoffs/mender.md">MENDER closeout</a></li>
+        <li><a href="../research/inspections/discoveries-first-pass.md">Discovery-loop audit</a></li>
+        <li><a href="repository-state.html">Repository-state companion</a></li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>The assessment distinguishes the intended protocol from observed state. It does not infer that a role is active merely because an old handoff body records unfinished work.</p>
+    </footer>
+  </main>
+</body>
+</html>

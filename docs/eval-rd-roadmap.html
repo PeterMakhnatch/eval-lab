@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eval Lab — Hardening and R&amp;D Factory Roadmap</title>
+  <meta name="description" content="A practical roadmap for turning Eval Lab into a durable multi-agent evaluation and benchmark R&amp;D factory on Harbor.">
+  <link rel="stylesheet" href="repository-overview.css">
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <span class="mono">EVAL LAB / HARDENING ROADMAP</span>
+      <nav aria-label="Overview pages">
+        <a href="repository-state.html">Repository state</a>
+        <a href="eval-rd-roadmap.html" aria-current="page">R&amp;D roadmap</a>
+        <a href="agent-workflow.html">Agent workflow</a>
+        <a href="scaling.md">Scaling gates</a>
+      </nav>
+    </div>
+
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Opinionated plan · 2026-08-14 · Harbor 0.21.0</p>
+        <h1>Build a trustworthy eval factory.</h1>
+        <p class="lede">Keep Harbor as the execution engine. Harden this repository into the control plane that qualifies benchmarks, authenticates many agent CLIs, preregisters experiments, executes bounded matrices, separates invalid runs from capability results, and turns evidence into reviewable follow-up work around the clock.</p>
+        <p class="snapshot">Deliberately out of scope: RL environments, weight updates, post-training pipelines, custom model serving, and replacing Harbor.</p>
+      </div>
+      <aside class="verdict" aria-label="Strategic verdict">
+        <strong>My recommendation</strong>
+        <p>Pause horizontal feature growth. Finish one trustworthy vertical path from agent credential → qualified task → controlled experiment → valid trial → statistics → eval card → bounded next proposal.</p>
+        <p>Then widen that same path across agents and benchmarks.</p>
+      </aside>
+    </header>
+
+    <div class="metrics" aria-label="Roadmap targets">
+      <div class="metric"><span class="value blocked">5</span><span class="label">foundation blockers before autonomy</span></div>
+      <div class="metric"><span class="value">40</span><span class="label">agent names exposed by installed Harbor</span></div>
+      <div class="metric"><span class="value partial">2</span><span class="label">agent credentials understood by this lab</span></div>
+      <div class="metric"><span class="value good">1</span><span class="label">execution engine to keep: Harbor</span></div>
+      <div class="metric"><span class="value">0</span><span class="label">training systems required</span></div>
+    </div>
+
+    <section id="destination">
+      <h2>The system to aim for</h2>
+      <p class="section-intro">The factory is not “agents running random benchmarks all night.” It is a closed, inspectable pipeline in which every stage produces a typed artifact and the executor is the only component allowed to spend money or start Harbor.</p>
+      <div class="flow" aria-label="Target operating loop">
+        <div class="flow-step"><span class="num">01</span><div><strong>Curate</strong><p>Import, fork, or generate a candidate task with provenance, license, version, and contamination notes.</p></div><span class="status partial">partly built</span></div>
+        <div class="flow-step"><span class="num">02</span><div><strong>Qualify</strong><p>Build it; run oracle, no-op, adversarial, and verifier-robustness checks; freeze the accepted task and verifier digests.</p></div><span class="status partial">controls exist</span></div>
+        <div class="flow-step"><span class="num">03</span><div><strong>Preregister</strong><p>Name the hypothesis, one primary variable, fixed conditions, sample plan, decision rule, stop rule, and budget before dispatch.</p></div><span class="status partial">schema is thin</span></div>
+        <div class="flow-step"><span class="num">04</span><div><strong>Execute</strong><p>Resolve an agent profile, prove its credential and install path, admit the immutable spec, and let Harbor run bounded trials.</p></div><span class="status blocked">multi-agent gap</span></div>
+        <div class="flow-step"><span class="num">05</span><div><strong>Validate</strong><p>Quarantine harness, auth, task, and verifier failures before any score enters a capability comparison.</p></div><span class="status partial">taxonomy exists</span></div>
+        <div class="flow-step"><span class="num">06</span><div><strong>Analyze</strong><p>Compute paired estimates and intervals, inspect trajectories, calibrate judged dimensions, and publish an eval card.</p></div><span class="status blocked">path needs repair</span></div>
+        <div class="flow-step"><span class="num">07</span><div><strong>Propose</strong><p>Read-only researcher agents draft one-variable follow-ups; policy and humans decide what may run next.</p></div><span class="status blocked">draft-only today</span></div>
+      </div>
+    </section>
+
+    <section id="foundation">
+      <h2>Phase 0 — repair before expanding</h2>
+      <p class="section-intro">These are release blockers for a 24/7 loop. They are not polish: each currently allows a green-looking system to produce unusable or misleading research.</p>
+      <div class="grid">
+        <article class="card"><span class="status blocked">P0.1</span><h3>Make CI represent the repo</h3><p>Move dashboard, calibration, and analysis tests into an explicit CI test matrix; repair the ten migrated-path/stale-fixture failures; add coverage for every CLI command that can dispatch, classify, or publish a result. Keep benchmark-container tests separate.</p></article>
+        <article class="card"><span class="status blocked">P0.2</span><h3>Add one composed smoke contract</h3><p>Create <code>make smoke</code> around a free task: submit → policy → Harbor → verifier → immutable job → PostgreSQL → Parquet → summary. Run it on every dependency or Harbor upgrade and on a scheduled local health cycle.</p></article>
+        <article class="card"><span class="status blocked">P0.3</span><h3>Fix authentication at the boundary</h3><p>An auth preflight must exercise the same credential-injection path as the real Harbor run, then abort after the first repeated 401. A trial without an assistant turn, token record, or agent artifact is invalid—not reward zero.</p></article>
+        <article class="card"><span class="status blocked">P0.4</span><h3>Repair comparison and judgment</h3><p>Fix stale evidence roots, freeze the judge input contract, repair the three criteria responsible for most calibration disagreements, and refuse judged metrics below their recorded agreement floor.</p></article>
+        <article class="card"><span class="status blocked">P0.5</span><h3>Make evidence durable before prose</h3><p>Researcher output may cite only promoted, content-hashed evidence. Validate link existence, digest, trial IDs, denominator, selection rule, and fixed task/verifier digests before appending a discovery or generating a runnable proposal.</p></article>
+        <article class="card"><span class="status partial">P0.6</span><h3>Choose one worktree state model</h3><p>PostgreSQL is shared while Parquet is currently worktree-local. Choose shared derived storage, isolated catalogs, or evidence-root-scoped invariants so two agents cannot observe contradictory system health.</p></article>
+      </div>
+      <div class="callout warn" style="margin-top: 1rem"><strong>Exit gate:</strong> one free control and one paid canary complete through the same queue, produce valid trajectories, land in both derived stores, appear in a comparison, and generate an eval card with no manual file repair.</div>
+    </section>
+
+    <section id="agents">
+      <h2>Phase 1 — make agents a first-class subsystem</h2>
+      <p class="section-intro">Harbor already supplies the adapters. Eval Lab needs a provider-neutral registry around them. The current hard-coded Codex/Claude checks will not scale safely to Gemini, Grok, Cursor, OpenHands, or later adapters.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Agent</th><th>Harbor 0.21 path observed</th><th>Eval Lab today</th><th>What to add</th></tr></thead>
+          <tbody>
+            <tr><td>Codex</td><td><code>codex</code>; API-key path or explicit <code>auth.json</code> injection.</td><td><span class="status partial">known, inconsistent</span><small>Doctor sees <code>~/.codex/auth.json</code>; ordinary canaries sent an empty key, while the forced-auth calibration path ran.</small></td><td>One canonical profile and preflight using the exact production injection path.</td></tr>
+            <tr><td>Claude Code</td><td><code>claude-code</code>; Anthropic key/token, Bedrock, or forced Claude subscription OAuth.</td><td><span class="status partial">declared, unproven</span><small>Policy and Keychain probe exist; the current live path has not been accepted end to end.</small></td><td>Separate API and subscription profiles; verify headless Keychain access under launchd.</td></tr>
+            <tr><td>Gemini CLI</td><td><code>gemini-cli</code>; <code>GEMINI_API_KEY</code>, Vertex credentials, or explicit OAuth credential-file injection.</td><td><span class="status blocked">unsupported by lab</span></td><td>Credential probe, secret-source adapter, model normalization, install pin, smoke task, policy class.</td></tr>
+            <tr><td>Grok Build</td><td><code>grok-build</code>; <code>XAI_API_KEY</code>; web search disabled by default in the Harbor adapter.</td><td><span class="status blocked">unsupported by lab</span></td><td>Keychain/env secret source, connectivity preflight, cost/rate limits, version pin, smoke task.</td></tr>
+            <tr><td>Other Harbor agents</td><td>Installed Harbor enumerates 40 names and accepts custom import paths or ACP registry shorthands.</td><td><span class="status blocked">no generic contract</span></td><td>Onboard through profiles and conformance tests; do not add one-off branches to the executor.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid three" style="margin-top: 1rem">
+        <article class="card"><span class="status info">contract</span><h3><code>AgentProfile</code></h3><p>Agent name, adapter version, model ID, auth mode, secret source identifier, required variables/files, ATIF/resume capabilities, environment/network class, and default timeout.</p></article>
+        <article class="card"><span class="status info">operations</span><h3>Provider limits</h3><p>Per-profile concurrency, requests/tokens per minute, retryable errors, backoff, daily dollars, per-trial estimate, and a circuit breaker independent of task reward.</p></article>
+        <article class="card"><span class="status info">proof</span><h3>Conformance ladder</h3><p>Install-only → credential preflight → one tiny paid smoke → one canary → a small qualified benchmark slice. A profile advances only with preserved evidence.</p></article>
+      </div>
+      <div class="callout danger" style="margin-top: 1rem"><strong>Secret boundary:</strong> store credentials in Keychain or provider-native files, never Git or queue JSON. Doctor returns booleans and expiry metadata only. Logs must redact secret values, auth headers, uploaded credential paths, and child-process environments.</div>
+    </section>
+
+    <section id="experiments">
+      <h2>Phase 2 — turn “runs” into experiments</h2>
+      <p class="section-intro">The current spec can launch work, but a research factory needs a durable unit above jobs and trials. The experiment record should make reruns, comparisons, null results, and decisions survive the session that created them.</p>
+      <div class="grid three">
+        <article class="card"><span class="status good">retain</span><h3>Program</h3><p>A continuing research thread such as “tool-use reliability” or “verifier robustness,” with owners, questions, budget envelope, and a queue of unresolved findings.</p></article>
+        <article class="card"><span class="status good">add</span><h3>Experiment</h3><p>Preregistered hypothesis; primary variable; fixed factors; task suite/version; agent profiles; attempts; pairing; analysis plan; decision/stop rules; cost ceiling; immutable config digest.</p></article>
+        <article class="card"><span class="status good">already present</span><h3>Job → trial → trajectory</h3><p>Harbor execution records linked upward to the experiment and downward to raw artifacts, verifier output, ATIF steps, usage, exceptions, and classifications.</p></article>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 1rem">
+        <table>
+          <thead><tr><th>Capability</th><th>Minimum useful implementation</th><th>Why it matters</th></tr></thead>
+          <tbody>
+            <tr><td>Frozen vs. living suites</td><td>Frozen benchmark releases are immutable and comparable over time; diagnostic forks may change and get new versions.</td><td>Agents can tinker without silently rewriting the ruler.</td></tr>
+            <tr><td>Statistics core</td><td>Pass rate/pass@k semantics, paired differences, bootstrap or exact intervals, failure rates, cost and latency summaries, missing/invalid-trial accounting.</td><td>Prevents tiny, failed, or mismatched cohorts from becoming rankings.</td></tr>
+            <tr><td>Eval cards</td><td>One generated and reviewable page per study: question, digests, n, estimate/interval, invalids, judge agreement, threats, decision, and links.</td><td>Makes the result reusable without rereading every trajectory.</td></tr>
+            <tr><td>Failure triage</td><td>Machine-detect auth, install, timeout, capacity, environment, verifier, and task failures; human/agent review handles genuine behavior categories.</td><td>Separates lab reliability from model capability.</td></tr>
+            <tr><td>Elicitation ladder</td><td>Reusable matrices for bare prompt → preamble → tools → retries, holding task and verifier fixed.</td><td>Supports agent/harness R&amp;D without touching weights.</td></tr>
+            <tr><td>Meta-evaluation</td><td>Scheduled requalification of verifiers, judges, canaries, and agent profiles against sealed fixtures.</td><td>The measuring instruments can drift even when benchmark files do not.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="foundry">
+      <h2>Phase 3 — benchmark tinkering and generation</h2>
+      <p class="section-intro">Let agents modify or generate candidates, but never let generated tasks enter the benchmark registry merely because they build. Treat task creation as a quarantined foundry with progressively stronger evidence gates.</p>
+      <div class="flow">
+        <div class="flow-step"><span class="num">01</span><div><strong>Candidate</strong><p>Source benchmark, mutation recipe, or agent-generated task; provenance and license required.</p></div><span class="status info">untrusted</span></div>
+        <div class="flow-step"><span class="num">02</span><div><strong>Static validation</strong><p>Schema, build, deterministic fixture, hidden-verifier isolation, timeout, and network/secret policy.</p></div><span class="status partial">automate</span></div>
+        <div class="flow-step"><span class="num">03</span><div><strong>Control qualification</strong><p>Oracle success, no-op failure, adversarial/gaming probes, repeated determinism, and alternative-correct-solution tests.</p></div><span class="status partial">extend controls</span></div>
+        <div class="flow-step"><span class="num">04</span><div><strong>Pilot</strong><p>Small multi-agent run; trajectory review; difficulty, ambiguity, and failure-mode assessment. No leaderboard claim.</p></div><span class="status blocked">needs profiles</span></div>
+        <div class="flow-step"><span class="num">05</span><div><strong>Register diagnostic</strong><p>Living task with explicit version and known limitations, available for experimentation but not longitudinal claims.</p></div><span class="status info">reviewed</span></div>
+        <div class="flow-step"><span class="num">06</span><div><strong>Freeze release</strong><p>Immutable suite manifest, task/verifier/image digests, contamination note, acceptance evidence, and change policy.</p></div><span class="status good">comparable</span></div>
+      </div>
+      <div class="grid" style="margin-top: 1rem">
+        <article class="card"><span class="status good">good agent work</span><h3>Agents may</h3><p>Search the task catalog, propose mutations, draft task files in quarantine, generate tests, run free controls, compare traces, cluster failures, and draft registrations or experiment specs.</p></article>
+        <article class="card"><span class="status blocked">executor/reviewer only</span><h3>Agents may not</h3><p>Overwrite frozen suites, see hidden answers while solving, approve their own paid sweep, weaken a verifier to improve scores, publish a benchmark, or convert an unreviewed finding into standing policy.</p></article>
+      </div>
+    </section>
+
+    <section id="scale">
+      <h2>Phase 4 — scale the proven path</h2>
+      <p class="section-intro">“Good scale” should mean predictable throughput with intact experiment semantics. Increase concurrency only after invalid-run rate, cost waste, recovery, and evidence integrity are measured.</p>
+      <div class="grid">
+        <article class="card"><span class="status info">scheduler</span><h3>Leases, heartbeats, idempotency</h3><p>Give each dispatch an immutable key, worker lease, heartbeat, cancellation path, and reconciliation logic. Infrastructure retries remain distinct from stochastic attempts.</p></article>
+        <article class="card"><span class="status info">capacity</span><h3>Two-dimensional concurrency</h3><p>Limit both environment slots and per-agent/provider calls. Add weighted scheduling by estimated CPU, memory, duration, dollars, and provider quota instead of one global concurrency number.</p></article>
+        <article class="card"><span class="status info">storage</span><h3>Content-addressed evidence</h3><p>Keep local raw jobs while one workstation is enough. Add S3-compatible immutable objects before adding remote workers or a second analyst; verify uploads before cataloging them complete.</p></article>
+        <article class="card"><span class="status info">data</span><h3>Incremental, rebuildable derivatives</h3><p>Use checkpointed ingestion and projection keyed by raw evidence digest. PostgreSQL owns lineage and queue state; Parquet/DuckDB own analytical scans. Do not add ClickHouse without measured event volume and latency pressure.</p></article>
+        <article class="card"><span class="status info">observability</span><h3>Research and operations telemetry</h3><p>Track queue age, worker utilization, auth/install/harness failure rate, invalid-trial percentage, ingestion lag, bytes, query latency, spend, cost per valid trial, and proposal acceptance rate.</p></article>
+        <article class="card"><span class="status info">reproducibility</span><h3>Pin the whole execution identity</h3><p>Record Harbor, agent CLI, task, verifier, image, model, profile, prompt/preamble, tool policy, environment, and lab commit. A changed pin creates a new cohort.</p></article>
+      </div>
+    </section>
+
+    <section id="autonomy">
+      <h2>Phase 5 — the bounded 24/7 factory</h2>
+      <p class="section-intro">Autonomy should expand by evidence class, not by giving a general agent more shell access. The safe loop is mostly deterministic orchestration with read-only reasoning agents at narrow decision points.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Lane</th><th>May run automatically</th><th>Must wait</th></tr></thead>
+          <tbody>
+            <tr><td>Operations</td><td>Doctor, ingestion, projection, free controls, retention planning, summaries, health alerts.</td><td>Destructive retention apply when evidence references are uncertain.</td></tr>
+            <tr><td>Known experiments</td><td>Qualified tasks and agent profiles under committed attempt, concurrency, and cost ceilings.</td><td>New credential class, remote environment, large sweep, changed verifier, or exceeded ceiling.</td></tr>
+            <tr><td>Analysis</td><td>Deterministic facts/statistics; read-only trajectory classification; draft eval cards with evidence validation.</td><td>Headline finding whose validity, judge floor, or evidence links fail.</td></tr>
+            <tr><td>Research</td><td>Deduplicated one-variable proposals that cite accepted findings and immutable configs.</td><td>New task registration, policy change, benchmark freeze, or publication.</td></tr>
+            <tr><td>Foundry</td><td>Candidate generation and free qualification inside quarantine.</td><td>Paid pilot, registry promotion, hidden-set access, or frozen-suite modification.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn" style="margin-top: 1rem"><strong>Autonomy metric:</strong> optimize cost per valid, decision-relevant experiment—not raw run count. A loop that produces more invalid trials or unreviewed prose is less capable even if utilization rises.</div>
+    </section>
+
+    <section id="sequence">
+      <h2>Recommended implementation sequence</h2>
+      <p class="section-intro">These are dependency-ordered capability gates, not calendar promises. Do not start the next stage merely because code exists; require the acceptance evidence.</p>
+      <ol class="priority-list">
+        <li><div><strong>Green means green.</strong> Repair excluded tests, add the composed control smoke, and make invalid trial classification part of ingestion. Acceptance: the full repository-owned suite is green and an injected auth failure cannot become a score.</div></li>
+        <li><div><strong>Prove Codex and Claude as profiles.</strong> Unify their credential injection and headless doctor behavior. Acceptance: one valid canary each, or an honest credential deferral with zero launched trials.</div></li>
+        <li><div><strong>Add Gemini and Grok through the generic profile contract.</strong> No executor special cases. Acceptance: install, preflight, tiny paid smoke, and canary evidence for each under separate limits.</div></li>
+        <li><div><strong>Ship experiment registry + statistics + eval cards.</strong> Acceptance: rerunning a frozen spec reproduces cohort membership and the generated card accounts for every planned, invalid, missing, and valid attempt.</div></li>
+        <li><div><strong>Ship the candidate-task foundry.</strong> Acceptance: an agent-generated task cannot become registered without provenance, build, controls, adversarial qualification, and review.</div></li>
+        <li><div><strong>Restart the researcher loop on trustworthy inputs.</strong> Acceptance: every discovery link resolves in a clean checkout, every denominator is explicit, proposals preserve digests, and no reasoning agent can execute.</div></li>
+        <li><div><strong>Measure before distributing.</strong> Add object storage or remote workers only when local durability, queue wait, resource saturation, or collaboration metrics cross a recorded threshold.</div></li>
+      </ol>
+    </section>
+
+    <section id="not-now">
+      <h2>What I would not build yet</h2>
+      <div class="grid three">
+        <article class="card"><span class="status blocked">not now</span><h3>RL / post-training</h3><p>It depends on trusted tasks, rewards, cohorts, and trajectories. None of the immediate hardening work requires it.</p></article>
+        <article class="card"><span class="status blocked">not now</span><h3>Another eval harness</h3><p>Harbor is already broad enough. The current failures are in integration, evidence validity, and methodology rather than missing execution adapters.</p></article>
+        <article class="card"><span class="status blocked">not now</span><h3>Kubernetes by default</h3><p>Start with measured local bottlenecks. Remote workers add secret, evidence, retry, and reconciliation complexity before they add research quality.</p></article>
+        <article class="card"><span class="status blocked">not now</span><h3>ClickHouse</h3><p>PostgreSQL plus Parquet/DuckDB is appropriate until event volume or concurrent query latency provides a concrete reason to add a serving database.</p></article>
+        <article class="card"><span class="status blocked">not now</span><h3>Vector memory</h3><p>Similarity search becomes useful after there is a substantial corpus of accepted, durable analysis sidecars. It cannot repair bad evidence contracts.</p></article>
+        <article class="card"><span class="status blocked">not now</span><h3>Write-heavy dashboard</h3><p>Keep approval and policy mutations behind audited CLI/file contracts until the state machine is stable. The dashboard should remain a read surface.</p></article>
+      </div>
+    </section>
+
+    <section id="definition">
+      <h2>Definition of “factory ready”</h2>
+      <ul class="source-list">
+        <li>Four independently authenticated agent profiles pass canaries.</li>
+        <li>Every capability score excludes and reports invalid trials.</li>
+        <li>Every study is reproducible from immutable digests.</li>
+        <li>Every comparison reports n, pairing, interval, and missingness.</li>
+        <li>Every judged dimension names a current calibration record.</li>
+        <li>Every registered task passed controls and adversarial review.</li>
+        <li>Every discovery resolves its evidence in a clean checkout.</li>
+        <li>Every automatic dollar maps to a committed policy rule.</li>
+        <li>Crashes, expired credentials, and rate limits recover without duplicate work.</li>
+        <li>The daily digest explains what ran, what failed, what was learned, and what waits.</li>
+      </ul>
+    </section>
+
+    <section id="sources">
+      <h2>Repository evidence behind the plan</h2>
+      <ul class="source-list">
+        <li><a href="repository-state.html">Current repository-state audit</a></li>
+        <li><a href="architecture.md">Architecture and evidence boundaries</a></li>
+        <li><a href="analysis-loop.md">Analysis validity contract</a></li>
+        <li><a href="scaling.md">Existing scaling gates</a></li>
+        <li><a href="research-questions.md">Research question ladder</a></li>
+        <li><a href="design-additions.md">Unattended-loop design</a></li>
+        <li><a href="mentor-review-2026-08.md">Statistics and eval-card recommendations</a></li>
+        <li><a href="../src/evallab/credentials.py">Current credential registry</a></li>
+        <li><a href="../src/evallab/schemas.py">Current experiment and canary contracts</a></li>
+        <li><a href="../policy/standing-approvals.yaml">Current autonomy policy</a></li>
+        <li><a href="../research/inspections/transaction-reconciliation.md">Canary/auth failure inspection</a></li>
+        <li><a href="../research/inspections/discoveries-first-pass.md">Research-loop trust inspection</a></li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Observed facts are scoped to this checkout and installed Harbor 0.21.0. The sequencing, architecture choices, and acceptance gates are recommendations. “Factory ready” means operationally and methodologically dependable for the stated eval R&amp;D scope, not production reliability for every Harbor adapter or benchmark.</p>
+    </footer>
+  </main>
+</body>
+</html>

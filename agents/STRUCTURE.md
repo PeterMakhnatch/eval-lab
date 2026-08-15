@@ -34,14 +34,16 @@ eval-lab/
 │   ├── curated/               verified third-party tasks with provenance cards
 │   ├── tasks/                 lab-authored tasks
 │   ├── benchmarks/            pinned frontier benchmark ingests (INGEST)
-│   └── adapters/              benchmark → Harbor converters
+│   ├── adapters/              benchmark → Harbor converters
+│   └── registry/              task admission and execution trust records (REGISTER)
 │
 ├── research/                  WHAT WE LEARN — produced knowledge
 │   ├── experiments/           experiment specs and matrices
 │   ├── calibration/           judge ground truth: corpora, answer keys, labels
 │   ├── explorations/          capability recon: demos + adoption notes
 │   ├── analysis/              reusable analysis queries
-│   └── evidence/              reviewed, immutable control bundles
+│   ├── evidence/              reviewed, immutable control bundles
+│   └── registration/          task review packets and admission audits (REGISTER)
 │
 ├── policy/                    THE HUMAN'S STEERING WHEEL — standing approvals,
 │                              canary suite. Peter-owned content; deliberately
@@ -115,3 +117,5 @@ for today).
 - 2026-08-14 — ignored `backups/` declared for nightly PostgreSQL recovery
   snapshots (bucket rule: generated local operational state); existing ignored
   `derived/` made explicit alongside it.
+- 2026-08-15 — `library/registry/` (task admission records) and `research/registration/`
+  (task review packets and admission audits) added for REGISTER role.

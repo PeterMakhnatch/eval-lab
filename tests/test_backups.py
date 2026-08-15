@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 import subprocess
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -27,6 +28,8 @@ def test_postgres_backup_is_atomic_and_has_integrity_manifest(tmp_path: Path) ->
     )
 
     assert result.read_bytes() == payload
+    assert stat.S_IMODE(result.stat().st_mode) == 0o600
+    assert stat.S_IMODE(result.with_suffix(".dump.json").stat().st_mode) == 0o600
     assert commands == [
         [
             "docker",

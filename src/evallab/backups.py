@@ -2,18 +2,31 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import subprocess
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, TextIO
 
 from evallab.paths import shared_checkout_root
 from evallab.runner import subscription_environment
 
 POSTGRES_BACKUP_TIMEOUT_SECONDS = 600
 BackupRunner = Callable[[list[str], BinaryIO], subprocess.CompletedProcess[bytes]]
+
+
+def _private_descriptor(path: Path) -> int:
+    return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+
+
+def _open_private_binary(path: Path) -> BinaryIO:
+    return os.fdopen(_private_descriptor(path), "wb")
+
+
+def _open_private_text(path: Path) -> TextIO:
+    return os.fdopen(_private_descriptor(path), "w")
 
 
 def _run_backup(command: list[str], output: BinaryIO) -> subprocess.CompletedProcess[bytes]:
@@ -62,8 +75,10 @@ def create_postgres_backup(
     ]
 
     try:
-        with temporary.open("xb") as output:
+        with _open_private_binary(temporary) as output:
             completed = runner(command, output)
+            output.flush()
+            os.fsync(output.fileno())
         if completed.returncode != 0:
             detail = completed.stderr.decode(errors="replace").strip()[:500]
             raise RuntimeError(
@@ -85,7 +100,10 @@ def create_postgres_backup(
             "size_bytes": size,
             "sha256": digest_builder.hexdigest(),
         }
-        manifest_temporary.write_text(json.dumps(manifest, indent=2) + "\n")
+        with _open_private_text(manifest_temporary) as manifest_output:
+            manifest_output.write(json.dumps(manifest, indent=2) + "\n")
+            manifest_output.flush()
+            os.fsync(manifest_output.fileno())
         temporary.replace(destination)
         manifest_temporary.replace(manifest_path)
     finally:

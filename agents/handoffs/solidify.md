@@ -1,6 +1,6 @@
 Status: building
-Last: P4 accepted after three focused suites, three real Harbor timeouts, three normal full smokes, premerge, and fresh-clone timeout/smoke evidence.
-Next: Start P5 launchd soak for at least four hours; work the event rotation, nightly pg_dump, and CLI audit continuation during the soak.
+Last: P5 soak started at 2026-08-14T20:45:43-0400 from committed head fbee96e; RunAtLoad recorded a healthy no-work deferral.
+Next: Keep launchd on this worktree through at least 2026-08-15T00:45:43-0400 while implementing event rotation, nightly pg_dump, and the CLI audit.
 Blockers: none
 
 # SOLIDIFY handoff
@@ -282,4 +282,19 @@ premerge green: Python 3.12; ty 33 <= 33
 
 $ evallab doctor
 ok    catalog-parquet catalog=29 projected=29 exceptions=0 missing=0 extra=0
+```
+
+## P5 — launchd soak
+
+Started from committed head `fbee96e` after a green doctor. The scheduler
+captures the shared derived root and points at this worktree. Earliest valid end
+is `2026-08-15T00:45:43-0400`.
+
+```text
+SOAK_START_LOCAL=2026-08-14T20:45:43-0400
+doctor: catalog=29 projected=29 exceptions=0 missing=0 extra=0
+LaunchAgent command: cd .../.worktrees/solidify && uv run evallab tick
+LaunchAgent EVALLAB_DERIVED_ROOT: .../eval-lab/derived/parquet
+runs = 1; last exit code = 0
+2026-08-15T00:45:46.706855Z tick_deferred reason=no_approved_specs
 ```

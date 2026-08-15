@@ -1,11 +1,11 @@
 Status: review-wanted
-Last: batch-1 10 records + 2 calibration; self-audit MATCH; agreement 100%
-Next: premerge + PR OBSERVATORY: workshop and first batch
-Blockers: 23/25 labels unreadable (harbor-practice); one-folder law
+Last: batch-2 10 records on role/observatory-b2; self-audit MATCH
+Next: PR OBSERVATORY: second 10 trial records
+Blockers: 23/25 labels unreadable (harbor-practice)
 
-records produced: 12
+records produced: 22
 current agreement score: 100% (8/8 fields on 2 in-repo labeled trials)
-backlog remaining: 13 completed trials
+backlog remaining: 3 completed trials
 
 ## Calibration
 

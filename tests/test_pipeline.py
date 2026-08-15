@@ -178,7 +178,18 @@ def test_catalog_projection_invariant_requires_partition_or_reasoned_exception(
     assert invariant.excepted_job_ids == {excepted_job}
     assert invariant.detail == "catalog=2 projected=1 exceptions=1 missing=0 extra=0"
 
-    queue.events_path.unlink()
+    archived_events = queue.events_path.with_name("events.jsonl.1")
+    queue.events_path.replace(archived_events)
+    archived = check_projection_invariant(
+        "postgresql://test",
+        tmp_path / "derived",
+        queue.events_path,
+        catalog_rows_loader=lambda url: rows,
+    )
+    assert archived.ok is True
+    assert archived.excepted_job_ids == {excepted_job}
+
+    archived_events.unlink()
     broken = check_projection_invariant(
         "postgresql://test",
         tmp_path / "derived",

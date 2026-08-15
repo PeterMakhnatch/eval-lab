@@ -252,7 +252,7 @@ def parser() -> argparse.ArgumentParser:
 
     trajectories = commands.add_parser(
         "trajectories",
-        help="Validate ATIF and rebuild the catalog and deterministic Parquet facts",
+        help="Validate ATIF; optionally rebuild catalog and deterministic Parquet facts",
     )
     trajectories.add_argument(
         "paths",
@@ -263,7 +263,7 @@ def parser() -> argparse.ArgumentParser:
     trajectories.add_argument(
         "--export",
         action="store_true",
-        help="Write trajectory and trial facts to partitioned Parquet",
+        help="Rebuild the catalog and write trajectory/trial facts to Parquet",
     )
     trajectories.add_argument(
         "--output-dir",

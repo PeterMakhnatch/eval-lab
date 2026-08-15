@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: All four integrator blockers repaired; 37 module tests (14 new regressions); premerge green; pushed to same branch/PR #47
-Next: Integrator re-review of PR #47 — stop at review, never self-merge
+Status: building
+Last: Second-round adversarial tests reproduced 6 failures on b494e50; implementation now passes 46 focused tests
+Next: Review diff, run full pytest/Ruff/premerge, rebase origin/main, push PR #47
 Blockers: none
 
 # M006 handoff — guarded post-trial analysis worker

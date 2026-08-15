@@ -1,7 +1,7 @@
 # Guarded post-trial analysis worker
 
 M006 (Research, Platform review). Code: `src/evallab/analysis_worker.py`.
-Tests: `tests/test_analysis_worker.py` (23). Fixtures:
+Tests: `tests/test_analysis_worker.py` (46). Fixtures:
 `tests/fixtures/analysis_worker/`. Composes existing machinery — discovery
 (`results`), stage-5 execution and sidecars (`facts.run_trial_analysis`),
 catalog indexing (`facts.ingest_analysis_sidecar`), profile preflight
@@ -20,6 +20,9 @@ Every eligible completed trial gets exactly one `AnalysisRequest`:
 - **Transitions are append-only** (`transitions.jsonl`): pending → admitted →
   running → completed, with deferred(reason)/quarantined(reason) anywhere.
   State = last line; the store rebuilds from files alone.
+- **Invocation attempts are append-only and fsynced** (`invocations.jsonl`).
+  `invocation_started` is durable before the analyzer boundary. It is resolved
+  only by a durable sidecar or an explicit operator disposition.
 
 ## Admission (ordered; each gate → zero calls + recorded reason)
 
@@ -45,8 +48,15 @@ and are never sent to a model as agent behavior.
 
 - Sidecar on disk without a `completed` transition → **adopted**, zero new
   calls. Crash before indexing → indexing retried idempotently on rescan.
-- O_EXCL lease per request; a losing concurrent worker defers with
-  `lease_held_by_another_worker`.
+- `invocation_started` without a sidecar is
+  `ambiguous_invocation_requires_operator_resolution`. It never automatically
+  replays a possibly paid invocation. An operator must either quarantine it or
+  explicitly authorize retry; both actions are durable and attributed.
+- A kernel `flock` serializes each request. Its metadata includes a unique
+  owner token, PID, host, and acquisition time. Process death releases the
+  lock; recovery overwrites stale metadata while holding the kernel lock.
+  Release closes only the exact acquired file descriptor and never unlinks the
+  lease path, so it cannot delete a replacement live owner's lease.
 - Cycle×3 against fixtures: 2 calls total ever; cycles 2–3 are no-ops.
 
 ## Surfaces
@@ -55,13 +65,18 @@ and are never sent to a model as agent behavior.
 uv run evallab analyze worker-plan      # read-only: what a cycle would do
 uv run evallab analyze worker-status    # read-only: counts + per-request state
 uv run evallab analyze worker-run-one <request-id>   # normal admission; never self-approves
+uv run evallab analyze worker-resolve-ambiguous <request-id> \
+  --action quarantine --actor <operator>
+# `--action retry` is an explicit acknowledgement that the prior call may have charged.
 ```
 
 `worker-run-one` in the default composition holds **no adapter** — reaching
 execution without an operator-constructed adapter raises before any call.
 Nightly (`automation.NightlyCycle`) accepts an optional `analysis_stager`
 that may **discover and stage only**, inside the healthy branch; staging
-freezes identity and cannot call a model by construction. Reasoning output
+freezes identity and cannot call a model by construction. Thrown staging
+errors and normal returned quarantine/error counts each create one bounded,
+durable queue event. Reasoning output
 cannot approve anything: approval surfaces (`evallab approve`, policy edits)
 are untouched by this mission.
 

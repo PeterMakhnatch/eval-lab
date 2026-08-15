@@ -23,13 +23,15 @@ Contract highlights, all tested:
   and a recorded reason. Harness/auth/infrastructure failures are never
   recorded as agent failures.
 - **Crash safety.** A sidecar on disk without a ``completed`` transition is
-  adopted, never re-executed. A ``running`` record without a sidecar is
-  re-admitted from scratch. Indexing is retried idempotently.
-- **Concurrency.** An O_EXCL lease per request; a losing worker defers.
+  adopted, never re-executed. A durably-started invocation without a sidecar
+  is ambiguous and requires explicit operator resolution; it is never replayed.
+- **Concurrency.** A kernel-backed lease with a unique owner token serializes
+  each request; process death releases it and no owner deletes another's lease.
 """
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -38,6 +40,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -57,21 +60,23 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def _default_pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
 def _sha256_file(path: Path) -> str | None:
     try:
         return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return None
+
+
+def _durable_replace(source: Path, destination: Path) -> None:
+    """Fsync file bytes before atomically publishing the stable sidecar path."""
+    with source.open("rb") as handle:
+        os.fsync(handle.fileno())
+    source.replace(destination)
+    directory_fd = os.open(destination.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
 
 
 class AnalysisRequest(BaseModel):
@@ -127,6 +132,17 @@ class CycleReport:
     deferred: dict[str, int] = field(default_factory=dict)
     quarantined: dict[str, int] = field(default_factory=dict)
     notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class LeaseHandle:
+    """Exact kernel lease acquisition held by one worker invocation."""
+
+    request_id: str
+    owner_token: str
+    fd: int
+    device: int
+    inode: int
 
 
 # ---------------------------------------------------------------------------
@@ -207,63 +223,156 @@ class RequestStore:
         request_id: str,
         *,
         owner_pid: int | None = None,
-        pid_alive: Callable[[int], bool] | None = None,
-        max_age_seconds: float = 3600.0,
+        owner_token: str | None = None,
         clock: Callable[[], datetime] | None = None,
-    ) -> bool:
-        """Crash-recoverable lease: owner pid + timestamp inside the file.
+    ) -> LeaseHandle | None:
+        """Acquire one kernel-backed, token-identified request lease.
 
-        A lease is honored while its owner is demonstrably alive and the
-        lease is younger than *max_age_seconds*. A dead owner's lease (or an
-        unreadably corrupt one, or one past max age) is reclaimed — process
-        crashes cannot strand a request forever. A live owner's lease is
-        NEVER reclaimed.
+        ``flock`` is the ownership authority. Metadata is diagnostic only and
+        is overwritten *after* the kernel grants exclusivity. A process crash
+        releases the lock automatically, so reclaim has no check-to-rename
+        race and never unlinks another worker's path.
         """
         pid = owner_pid if owner_pid is not None else os.getpid()
-        alive = pid_alive or _default_pid_alive
         now = (clock or _utc_now)()
         path = self._lease_path(request_id)
-        payload = json.dumps(
-            {"pid": pid, "acquired_at": now.isoformat(), "host": os.uname().nodename}
-        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        token = owner_token or uuid4().hex
+        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
         try:
-            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            try:
-                existing = json.loads(path.read_text())
-                holder = int(existing["pid"])
-                acquired = datetime.fromisoformat(existing["acquired_at"])
-            except (OSError, ValueError, KeyError, TypeError):
-                holder, acquired = None, None  # corrupt lease
-            if holder is not None and alive(holder):
-                # A demonstrably live owner is NEVER reclaimed — age is
-                # irrelevant when liveness is provable.
-                return False
-            over_age = (
-                acquired is None
-                or (now - acquired).total_seconds() >= max_age_seconds
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(fd)
+            return None
+        try:
+            payload = json.dumps(
+                {
+                    "owner_token": token,
+                    "pid": pid,
+                    "acquired_at": now.isoformat(),
+                    "host": os.uname().nodename,
+                },
+                sort_keys=True,
+            ).encode()
+            os.ftruncate(fd, 0)
+            os.lseek(fd, 0, os.SEEK_SET)
+            os.write(fd, payload)
+            os.fsync(fd)
+            stat = os.fstat(fd)
+            return LeaseHandle(
+                request_id=request_id,
+                owner_token=token,
+                fd=fd,
+                device=stat.st_dev,
+                inode=stat.st_ino,
             )
-            if holder is not None and not over_age:
-                # Dead-by-probe but young: reclaim immediately is still safe
-                # on one host; keep the branch explicit for auditability.
-                pass
-            # Stale: dead or corrupt owner. Reclaim atomically.
-            stale = path.with_name("lease.stale")
-            try:
-                path.replace(stale)
-            except OSError:
-                return False  # someone else reclaimed first
-            stale.unlink(missing_ok=True)
-            try:
-                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            except FileExistsError:
-                return False
-        with os.fdopen(fd, "w") as handle:
-            handle.write(payload)
-        return True
+        except Exception:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+            raise
 
-    def release_lease(self, request_id: str) -> None:
-        self._lease_path(request_id).unlink(missing_ok=True)
+    def release_lease(self, request_id: str, lease: LeaseHandle) -> bool:
+        """Release only ``lease``'s fd; never unlink or rewrite the path.
+
+        The boolean reports whether the current path still names this exact
+        token/inode. A false result exposes replacement but deliberately does
+        not disturb the replacement owner's live lease.
+        """
+        if lease.request_id != request_id:
+            raise ValueError("lease request id mismatch")
+        still_owner = False
+        try:
+            path_stat = self._lease_path(request_id).stat()
+            os.lseek(lease.fd, 0, os.SEEK_SET)
+            payload = json.loads(os.read(lease.fd, 4096))
+            still_owner = (
+                path_stat.st_dev == lease.device
+                and path_stat.st_ino == lease.inode
+                and payload.get("owner_token") == lease.owner_token
+            )
+        except (OSError, ValueError, AttributeError):
+            still_owner = False
+        finally:
+            fcntl.flock(lease.fd, fcntl.LOCK_UN)
+            os.close(lease.fd)
+        return still_owner
+
+    def _invocations_path(self, request_id: str) -> Path:
+        return self.request_dir(request_id) / "invocations.jsonl"
+
+    def _append_invocation_event(self, request_id: str, payload: dict[str, Any]) -> None:
+        """Durably append before crossing a possibly billable boundary."""
+        path = self._invocations_path(request_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        encoded = (json.dumps(payload, sort_keys=True) + "\n").encode()
+        fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+        try:
+            os.write(fd, encoded)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+    def invocation_events(self, request_id: str) -> list[dict[str, Any]]:
+        path = self._invocations_path(request_id)
+        if not path.is_file():
+            return []
+        events: list[dict[str, Any]] = []
+        for line in path.read_text().splitlines():
+            if line.strip():
+                events.append(json.loads(line))
+        return events
+
+    def begin_invocation(
+        self,
+        request_id: str,
+        *,
+        owner_token: str,
+        at: datetime,
+    ) -> str:
+        attempt_id = uuid4().hex
+        self._append_invocation_event(
+            request_id,
+            {
+                "event": "invocation_started",
+                "attempt_id": attempt_id,
+                "at": at.isoformat(),
+                "owner_token": owner_token,
+                "actor": "analysis-worker",
+            },
+        )
+        return attempt_id
+
+    def resolve_invocation(
+        self,
+        request_id: str,
+        attempt_id: str,
+        *,
+        resolution: str,
+        actor: str,
+        at: datetime,
+    ) -> None:
+        self._append_invocation_event(
+            request_id,
+            {
+                "event": "invocation_resolved",
+                "attempt_id": attempt_id,
+                "at": at.isoformat(),
+                "resolution": resolution,
+                "actor": actor,
+            },
+        )
+
+    def unresolved_invocation(self, request_id: str) -> str | None:
+        unresolved: dict[str, None] = {}
+        for event in self.invocation_events(request_id):
+            attempt_id = str(event.get("attempt_id", ""))
+            if not attempt_id:
+                continue
+            if event.get("event") == "invocation_started":
+                unresolved[attempt_id] = None
+            elif event.get("event") == "invocation_resolved":
+                unresolved.pop(attempt_id, None)
+        return next(reversed(unresolved), None) if unresolved else None
 
 
 # ---------------------------------------------------------------------------
@@ -512,7 +621,7 @@ class AnalysisWorker:
     # -- execution ----------------------------------------------------------
 
     def run_one(self, request_id: str) -> Transition:
-        """Full admission, at most one call, crash-safe completion."""
+        """Run once, refusing automatic replay of an ambiguous invocation."""
         request = self.store.load(request_id)
         state = self.store.state(request_id)
         if state == "completed":
@@ -526,7 +635,18 @@ class AnalysisWorker:
             self._complete(request_id, sidecar_path, adopted=True)
             return self.store.transitions(request_id)[-1]
 
-        if not self.store.acquire_lease(request_id):
+        # A durable invocation-start marker with no sidecar crosses the only
+        # boundary we cannot infer across: the provider may have returned and
+        # charged before this process crashed. Never replay it automatically.
+        if self.store.unresolved_invocation(request_id) is not None:
+            reason = "ambiguous_invocation_requires_operator_resolution"
+            previous = self.store.transitions(request_id)[-1]
+            if previous.state != "deferred" or previous.reason != reason:
+                self.store.append(request_id, "deferred", reason)
+            return self.store.transitions(request_id)[-1]
+
+        lease = self.store.acquire_lease(request_id)
+        if lease is None:
             self.store.append(request_id, "deferred", "lease_held_by_another_worker")
             return self.store.transitions(request_id)[-1]
         try:
@@ -554,7 +674,12 @@ class AnalysisWorker:
                 return self.store.transitions(request_id)[-1]
             self.store.append(request_id, "admitted", None)
             job, trial = match
-            self.store.append(request_id, "running", None)
+            attempt_id = self.store.begin_invocation(
+                request_id,
+                owner_token=lease.owner_token,
+                at=self.clock(),
+            )
+            self.store.append(request_id, "running", f"attempt:{attempt_id}")
             sidecar_path.parent.mkdir(parents=True, exist_ok=True)
             written_path, _sidecar = run_trial_analysis(
                 job, trial,
@@ -568,20 +693,87 @@ class AnalysisWorker:
                 model=request.model,
                 created_at=self.clock(),
             )
-            # normalize to the stable per-request location (atomic rename)
-            written_path.replace(sidecar_path)
+            # Normalize to the stable per-request location and make the file
+            # durable before resolving the possibly-paid invocation marker.
+            _durable_replace(written_path, sidecar_path)
+            self.store.resolve_invocation(
+                request_id,
+                attempt_id,
+                resolution="sidecar_persisted",
+                actor="analysis-worker",
+                at=self.clock(),
+            )
             self._complete(request_id, sidecar_path, adopted=False)
             return self.store.transitions(request_id)[-1]
         finally:
-            self.store.release_lease(request_id)
+            self.store.release_lease(request_id, lease)
 
     def _complete(self, request_id: str, sidecar_path: Path, *, adopted: bool) -> None:
         sidecar = TrialAnalysisSidecar.model_validate_json(sidecar_path.read_text())
+        ambiguous = self.store.unresolved_invocation(request_id)
+        if ambiguous is not None:
+            self.store.resolve_invocation(
+                request_id,
+                ambiguous,
+                resolution="sidecar_adopted",
+                actor="analysis-worker",
+                at=self.clock(),
+            )
         if self.indexer is not None:
             self.indexer(sidecar_path)  # idempotent catalog upsert; retried on rescan
         reason = "adopted_existing_sidecar" if adopted else None
         self.store.append(request_id, "completed", reason)
         del sidecar
+
+    def resolve_ambiguous(
+        self,
+        request_id: str,
+        *,
+        action: Literal["retry", "quarantine"],
+        actor: str,
+    ) -> Transition:
+        """Record an explicit operator disposition for one ambiguous call."""
+        normalized_actor = actor.strip()
+        if not normalized_actor or len(normalized_actor) > 128 or "\n" in normalized_actor:
+            raise ValueError("operator actor must be 1-128 characters without newlines")
+        lease = self.store.acquire_lease(request_id)
+        if lease is None:
+            raise RuntimeError("cannot resolve ambiguity while another worker is live")
+        try:
+            sidecar_path = self.store.sidecar_path(request_id)
+            if sidecar_path.is_file():
+                self._complete(request_id, sidecar_path, adopted=True)
+                return self.store.transitions(request_id)[-1]
+            attempt_id = self.store.unresolved_invocation(request_id)
+            if attempt_id is None:
+                raise ValueError("request has no ambiguous invocation to resolve")
+            resolution = (
+                "operator_retry_authorized"
+                if action == "retry"
+                else "operator_quarantined"
+            )
+            self.store.resolve_invocation(
+                request_id,
+                attempt_id,
+                resolution=resolution,
+                actor=normalized_actor,
+                at=self.clock(),
+            )
+            if action == "retry":
+                self.store.append(
+                    request_id,
+                    "pending",
+                    f"operator_retry_authorized:{normalized_actor}",
+                )
+            else:
+                self.store.append(
+                    request_id,
+                    "quarantined",
+                    f"ambiguous_invocation_quarantined:{normalized_actor}",
+                )
+            return self.store.transitions(request_id)[-1]
+        finally:
+            self.store.release_lease(request_id, lease)
 
     def run_cycle(self, job_roots: list[Path]) -> CycleReport:
         stage_report = self.stage(job_roots)
@@ -653,6 +845,9 @@ class AnalysisWorker:
                 "request_id": request_id,
                 "state": state,
                 "reason": last.reason if last else None,
+                "ambiguous_invocation": (
+                    self.store.unresolved_invocation(request_id) is not None
+                ),
                 "provenance": "observed",
             })
         return {"counts": counts, "requests": requests, "provenance": "observed"}

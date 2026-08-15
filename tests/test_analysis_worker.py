@@ -309,12 +309,13 @@ def test_concurrent_worker_lease_prevents_double_call(tmp_path):
     eligible = [rid for rid in worker.store.all_request_ids()
                 if worker.store.state(rid) == "pending"]
     rid = eligible[0]
-    assert worker.store.acquire_lease(rid)  # a second worker holds the lease
+    held = worker.store.acquire_lease(rid)  # a second worker holds the lease
+    assert held is not None
     transition = worker.run_one(rid)
     assert transition.state == "deferred"
     assert transition.reason == "lease_held_by_another_worker"
     assert adapter.calls == 0
-    worker.store.release_lease(rid)
+    worker.store.release_lease(rid, held)
     assert worker.run_one(rid).state == "completed"
     assert adapter.calls == 1
 
@@ -581,17 +582,17 @@ def test_dead_owner_lease_is_reclaimed_before_call(tmp_path):
 
 
 def test_live_owner_lease_is_never_reclaimed_even_when_old(tmp_path):
-    import os as _os
-
     adapter = CountingAdapter()
     worker, root = make_worker(tmp_path, adapter=adapter)
     worker.stage([root / "jobs"])
     rid = _pending(worker)[0]
-    _write_lease(worker, rid, pid=_os.getpid(), age_seconds=100_000)
+    held = worker.store.acquire_lease(rid, owner_token="live-owner")
+    assert held is not None
     transition = worker.run_one(rid)
     assert transition.state == "deferred"
     assert transition.reason == "lease_held_by_another_worker"
     assert adapter.calls == 0
+    worker.store.release_lease(rid, held)
 
 
 def test_corrupt_lease_is_reclaimed(tmp_path):
@@ -676,3 +677,203 @@ def test_default_indexer_failure_leaves_sidecar_adoptable(monkeypatch, tmp_path)
     worker.run_cycle([root / "jobs"])
     assert worker.store.state(stuck[0]) == "completed"
     assert adapter.calls <= 2  # adoption, never a re-call for the stuck one
+
+
+# ============================================================================
+# M006 second repair regressions (integrator re-review on PR #47)
+# ============================================================================
+
+
+def test_call_returned_without_sidecar_is_ambiguous_and_never_replayed(
+    monkeypatch, tmp_path
+):
+    """A provider may have charged even when sidecar construction then crashes."""
+    from evallab import analysis_worker as aw
+
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+
+    def returned_then_crashed(job, trial, *, analyzer, **_kwargs):
+        analyzer("provider received request", {})
+        raise RuntimeError("crash after provider return, before sidecar")
+
+    monkeypatch.setattr(aw, "run_trial_analysis", returned_then_crashed)
+    with pytest.raises(RuntimeError, match="before sidecar"):
+        worker.run_one(rid)
+    assert adapter.calls == 1
+    assert not worker.store.sidecar_path(rid).exists()
+
+    transition = worker.run_one(rid)
+    assert adapter.calls == 1  # an ambiguous possibly-paid call is NEVER replayed
+    assert transition.state == "deferred"
+    assert transition.reason == "ambiguous_invocation_requires_operator_resolution"
+
+
+def test_ambiguous_invocation_requires_explicit_operator_retry(monkeypatch, tmp_path):
+    from evallab import analysis_worker as aw
+
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    real_run = aw.run_trial_analysis
+
+    def returned_then_crashed(job, trial, *, analyzer, **_kwargs):
+        analyzer("provider received request", {})
+        raise RuntimeError("lost response")
+
+    monkeypatch.setattr(aw, "run_trial_analysis", returned_then_crashed)
+    with pytest.raises(RuntimeError, match="lost response"):
+        worker.run_one(rid)
+    assert worker.run_one(rid).reason == (
+        "ambiguous_invocation_requires_operator_resolution"
+    )
+
+    transition = worker.resolve_ambiguous(rid, action="retry", actor="operator-test")
+    assert transition.state == "pending"
+    assert transition.reason == "operator_retry_authorized:operator-test"
+    monkeypatch.setattr(aw, "run_trial_analysis", real_run)
+    assert worker.run_one(rid).state == "completed"
+    assert adapter.calls == 2  # only the explicit resolution permits another call
+
+
+def test_operator_can_quarantine_ambiguity_without_retry(monkeypatch, tmp_path):
+    from evallab import analysis_worker as aw
+
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+
+    def returned_then_crashed(job, trial, *, analyzer, **_kwargs):
+        analyzer("provider received request", {})
+        raise RuntimeError("lost response")
+
+    monkeypatch.setattr(aw, "run_trial_analysis", returned_then_crashed)
+    with pytest.raises(RuntimeError, match="lost response"):
+        worker.run_one(rid)
+    transition = worker.resolve_ambiguous(
+        rid, action="quarantine", actor="operator-test"
+    )
+    assert transition.state == "quarantined"
+    assert adapter.calls == 1
+    assert worker.run_one(rid).state == "quarantined"
+    assert adapter.calls == 1
+
+
+def test_operator_cannot_resolve_while_original_owner_is_live(tmp_path):
+    worker, root = make_worker(tmp_path)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    held = worker.store.acquire_lease(rid, owner_token="live-call")
+    assert held is not None
+    worker.store.begin_invocation(rid, owner_token=held.owner_token, at=FROZEN)
+
+    with pytest.raises(RuntimeError, match="another worker is live"):
+        worker.resolve_ambiguous(rid, action="retry", actor="operator-test")
+    assert worker.store.unresolved_invocation(rid) is not None
+    worker.store.release_lease(rid, held)
+
+
+def test_cli_requires_explicit_actor_and_action_for_ambiguous_resolution():
+    from evallab.cli import parser
+
+    args = parser().parse_args(
+        [
+            "analyze",
+            "worker-resolve-ambiguous",
+            "deadbeefdeadbeef",
+            "--action",
+            "quarantine",
+            "--actor",
+            "operator-test",
+        ]
+    )
+    assert args.action == "quarantine"
+    assert args.actor == "operator-test"
+
+
+def test_kernel_lease_allows_only_one_live_owner(tmp_path):
+    worker, root = make_worker(tmp_path)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+
+    first = worker.store.acquire_lease(rid, owner_token="owner-a")
+    assert first is not None
+    assert worker.store.acquire_lease(rid, owner_token="owner-b") is None
+    worker.store.release_lease(rid, first)
+
+
+def test_release_never_deletes_a_replacement_owners_lease(tmp_path):
+    """Deterministically simulate replacement between ownership check/release."""
+    worker, root = make_worker(tmp_path)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    path = worker.store.request_dir(rid) / "lease"
+
+    old = worker.store.acquire_lease(rid, owner_token="old-owner")
+    assert old is not None
+    path.unlink()  # simulate another implementation replacing the path inode
+    replacement = worker.store.acquire_lease(rid, owner_token="new-live-owner")
+    assert replacement is not None
+
+    assert worker.store.release_lease(rid, old) is False
+    assert json.loads(path.read_text())["owner_token"] == "new-live-owner"
+    assert worker.store.acquire_lease(rid, owner_token="third-owner") is None
+    worker.store.release_lease(rid, replacement)
+
+
+def test_two_stale_reclaimers_cannot_both_acquire(tmp_path):
+    worker, root = make_worker(tmp_path)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    path = worker.store.request_dir(rid) / "lease"
+    path.write_text(json.dumps({"owner_token": "dead", "pid": 99999999}))
+
+    winner = worker.store.acquire_lease(rid, owner_token="winner")
+    assert winner is not None
+    assert worker.store.acquire_lease(rid, owner_token="loser") is None
+    assert json.loads(path.read_text())["owner_token"] == "winner"
+    worker.store.release_lease(rid, winner)
+
+
+def test_real_nightly_stager_persists_bounded_returned_quarantine(tmp_path):
+    """A normal stage report with freeze-time failures must not disappear."""
+    from datetime import date as _date
+
+    from evallab.cli import _nightly_analysis_stager
+    from evallab.queue import load_events
+
+    root = tmp_path / "repo"
+    (root / "runs").mkdir(parents=True)
+    shutil.copytree(FIXTURES / "jobs" / "job-pass", root / "runs" / "job-pass")
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text(
+        "version: 1\ndaily_cost_ceiling_usd: 20\nper_job_cost_ceiling_usd: 3\n"
+        "quiet_failure_rule: 3\n"
+        "auto_run:\n  - name: local-controls\n    agents: [oracle, nop]\n"
+        "escalate_to_human:\n  - new_task_registration\n"
+    )
+    (root / "research/analysis").mkdir(parents=True)
+    shutil.copy(
+        FIXTURES / "stage5-rubric.json",
+        root / "research/analysis/stage5-rubric.json",
+    )
+    # Intentionally omit stage5-prompt.md: stage() returns a quarantine count.
+    order: list[str] = []
+    cycle, queue = _nightly(
+        root,
+        ingester=_ok_ingest(order),
+        stager=_nightly_analysis_stager(root),
+    )
+    cycle.run(report_date=_date(2026, 8, 15))
+
+    events = load_events(queue.events_path)
+    event = next(e for e in events if e.event == "analysis_stage_reported_issues")
+    assert event.reason_code == (
+        "analysis_stage_reported_issues:quarantined=1;errors=0;"
+        "reasons=evidence_unreadable=1"
+    )
+    assert len(event.reason_code) <= 512

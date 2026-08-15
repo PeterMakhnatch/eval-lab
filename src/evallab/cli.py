@@ -374,6 +374,15 @@ def parser() -> argparse.ArgumentParser:
         "worker-run-one", help="Run ONE request through normal admission (never self-approves)"
     )
     analyze_worker_run.add_argument("request_id")
+    analyze_worker_resolve = analyze_commands.add_parser(
+        "worker-resolve-ambiguous",
+        help="Explicitly retry or quarantine one possibly-paid ambiguous invocation",
+    )
+    analyze_worker_resolve.add_argument("request_id")
+    analyze_worker_resolve.add_argument(
+        "--action", choices=("retry", "quarantine"), required=True
+    )
+    analyze_worker_resolve.add_argument("--actor", required=True)
     analyze_stub = analyze_commands.add_parser(
         "stub", help="Validate a saved response and write an immutable sidecar"
     )
@@ -1228,7 +1237,10 @@ def run_cli(
             print(f"validation: {sidecar.validation_status}")
             return 0 if sidecar.validation_status == "valid" else 1
         if args.command == "analyze" and args.analyze_command in {
-            "worker-plan", "worker-status", "worker-run-one"
+            "worker-plan",
+            "worker-status",
+            "worker-run-one",
+            "worker-resolve-ambiguous",
         }:
             from evallab.analysis_worker import default_job_roots, default_worker
 
@@ -1238,6 +1250,14 @@ def run_cli(
                 return 0
             if args.analyze_command == "worker-status":
                 print(json.dumps(worker.status(), indent=2))
+                return 0
+            if args.analyze_command == "worker-resolve-ambiguous":
+                transition = worker.resolve_ambiguous(
+                    args.request_id,
+                    action=args.action,
+                    actor=args.actor,
+                )
+                print(json.dumps({"state": transition.state, "reason": transition.reason}))
                 return 0
             transition = worker.run_one(args.request_id)
             print(json.dumps({"state": transition.state, "reason": transition.reason}))

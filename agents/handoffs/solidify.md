@@ -1,7 +1,7 @@
 Status: building
 Last: launchd tick 5/5 exited 0 at 22:45:59 EDT with one correct no-work event; scheduler stderr and active/failure/quarantine queue states remain empty.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then final fetch/rebase/premerge/PR checks and merge.
-Blockers: none
+Blockers: Rebase onto `7b333b6` conflicts in shared `agents/ROLES.md` with TRUTH's merged row; aborted per workflow and needs an integrator-owned resolution.
 
 # SOLIDIFY handoff
 
@@ -493,3 +493,14 @@ dry-run, fetch integrity audit, GC plan, and a live Harbor registry listing.
 The first registry-list attempt was DNS-blocked by the sandbox; the identical
 read-only command passed with ordinary network access. No stateful, model, or
 cloud action was used.
+
+## Integration note
+
+After tick 5, upstream advanced through TRUTH PR #29 and the path-forward
+checkpoint. `git rebase origin/main` stopped while replaying SOLIDIFY's initial
+mission row because `agents/ROLES.md` now also contains TRUTH's merged row. The
+rebase was immediately aborted; no conflict marker or partial upstream state
+remains. The overlap is additive, but the shared-file workflow forbids this role
+from resolving another role's conflict. Upstream also adds the `power` and
+`report` CLI commands, so the final CLI inventory must be refreshed from 25 to
+27 top-level commands after an integrator rebases the branch.

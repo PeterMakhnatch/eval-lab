@@ -1,6 +1,6 @@
 Status: building
-Last: launchd tick 8/8 exited 0 at 00:16:09 EDT with the expected no-work terminal event and zero scheduler stderr; the observed span is now 3h30m23s.
-Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then run exact-head repeated/fresh-clone gates and the reviewed PR workflow.
+Last: P5 soak passed: 9/9 launchd ticks were terminal no-work deferrals over 4h00m26.735090s, last exit 0, zero quarantines, and zero stderr.
+Next: Freeze this head; run three consecutive premerge/full smokes and the fresh-clone gate, then push the reviewed PR and merge only after all checks are green.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -699,4 +699,34 @@ $ tail -1 queue/events.jsonl
 {"occurred_at":"2026-08-15T04:16:09.272379Z","event":"tick_deferred","actor":"scheduled-tick","reason_code":"no_approved_specs",...}
 $ wc -c ~/Library/Logs/evallab/tick.error.log
 0
+```
+
+## P5 final four-hour soak audit
+
+Tick 9 crossed the required boundary without any state repair or injected
+work. Every launchd run produced exactly one terminal event. The queue remained
+empty, all reason codes matched the empty approved queue, no quarantine event
+appeared, and scheduler stderr remained empty.
+
+```text
+$ launchctl print gui/$(id -u)/com.petermakhnatch.evallab.tick
+runs = 9
+last exit code = 0
+$ jq -s '<terminal event audit>' queue/events.jsonl
+events: 9
+first: 2026-08-15T00:45:46.706855Z
+last: 2026-08-15T04:46:13.441945Z
+actors: scheduled-tick=9
+outcomes: tick_deferred=9
+reasons: no_approved_specs=9
+invalid_terminal: []
+quarantines: []
+$ duration audit
+duration_seconds=14426.735090
+duration=4:00:26.735090
+SOAK PASS every tick terminal, reasons exact, >=4h
+$ wc -c ~/Library/Logs/evallab/tick.error.log
+0
+$ queue state counts
+approved=0 running=0 waiting=0 failed=0
 ```

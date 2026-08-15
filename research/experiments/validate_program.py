@@ -378,8 +378,8 @@ def validate(path: Path, repo_root: Path | None = None) -> list[str]:
     missing = sorted(TOP_LEVEL_KEYS - set(payload))
     if missing:
         errors.append(f"PROGRAM missing {missing}")
-    if payload.get("schema_version") != 2:
-        errors.append("schema_version must be 2")
+    if payload.get("schema_version") != 1:
+        errors.append("schema_version must be 1")
     if not _nonempty_string(payload.get("title")):
         errors.append("title must be a non-empty string")
     updated_at = payload.get("updated_at")

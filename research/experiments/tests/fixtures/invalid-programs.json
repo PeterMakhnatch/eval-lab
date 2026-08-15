@@ -3,7 +3,7 @@
     "name": "hidden-test-instruction",
     "expected_error": "exposes hidden verifier input",
     "program": {
-      "schema_version": 2,
+      "schema_version": 1,
       "updated_at": "2026-08-15",
       "title": "fixture",
       "experiments": [
@@ -37,7 +37,7 @@
     "name": "journal-only-called-primary",
     "expected_error": "journal-only and must be inherited_unresolved",
     "program": {
-      "schema_version": 2,
+      "schema_version": 1,
       "updated_at": "2026-08-15",
       "title": "fixture",
       "experiments": [
@@ -77,7 +77,7 @@
     "name": "k-representative-decision-mismatch",
     "expected_error": "decision_rule.declared_k must equal k",
     "program": {
-      "schema_version": 2,
+      "schema_version": 1,
       "updated_at": "2026-08-15",
       "title": "fixture",
       "experiments": [
@@ -112,7 +112,7 @@
     "name": "failed-batch-named-culprit",
     "expected_error": "identifies a failed batch",
     "program": {
-      "schema_version": 2,
+      "schema_version": 1,
       "updated_at": "2026-08-15",
       "title": "fixture",
       "experiments": [

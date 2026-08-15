@@ -1,4 +1,4 @@
-# PROGRAM.json schema (version 2)
+# PROGRAM.json schema (version 1)
 
 Machine-readable research ledger. Validate with:
 

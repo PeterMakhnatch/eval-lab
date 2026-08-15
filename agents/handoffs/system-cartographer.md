@@ -1,5 +1,5 @@
 Status: review-wanted
-Last: opened PR #52 SYSTEM-CARTOGRAPHER: map the evaluation R&D platform (unmerged)
+Last: PR #52 still open; corrected 19 cards, 29 CLI groups, closed status labels
 Next: integrator review only — do not merge from this role
 Blockers: none
 

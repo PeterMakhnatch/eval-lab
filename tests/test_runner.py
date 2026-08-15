@@ -155,7 +155,7 @@ def test_subscription_environment_never_forwards_api_keys() -> None:
     }
 
 
-def test_subscription_environment_forwards_only_oauth_subscription_token() -> None:
+def test_subscription_environment_does_not_forward_ambient_oauth_token() -> None:
     source = {
         "CLAUDE_CODE_OAUTH_TOKEN": "oauth-token",
         "OPENAI_API_KEY": "must-not-forward",
@@ -163,7 +163,6 @@ def test_subscription_environment_forwards_only_oauth_subscription_token() -> No
     }
 
     assert subscription_environment(source) == {
-        "CLAUDE_CODE_OAUTH_TOKEN": "oauth-token",
         "CLAUDE_FORCE_OAUTH": "1",
         "CODEX_FORCE_AUTH_JSON": "1",
         "REWARDKIT_FORCE_OAUTH": "1",

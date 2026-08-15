@@ -303,7 +303,11 @@ def parser() -> argparse.ArgumentParser:
         "family", help="Explain one task family from Parquet and canonical ATIF"
     )
     report_family.add_argument("task")
-    report_family.add_argument("--parquet-dir", type=Path, default=Path("derived/parquet"))
+    report_family.add_argument(
+        "--parquet-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
     report_family.add_argument(
         "--raw-root",
         type=Path,
@@ -641,7 +645,11 @@ def _report_command(args: argparse.Namespace, root: Path) -> int:
         ]
         json_path, markdown_path, report = write_family_report(
             args.task,
-            parquet_root=_resolve(root, args.parquet_dir),
+            parquet_root=(
+                _resolve(root, args.parquet_dir)
+                if args.parquet_dir is not None
+                else derived_root_from_environment(root)
+            ),
             raw_roots=[_resolve(root, path) for path in raw_roots],
             output_root=_resolve(root, args.output_dir),
         )

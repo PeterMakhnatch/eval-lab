@@ -71,7 +71,10 @@ uv run evallab doctor --headless
 It checks that the Claude OAuth Keychain item is readable without a GUI prompt,
 Codex's `~/.codex/auth.json` exists, Docker is reachable, PostgreSQL responds,
 and at least the configured disk headroom remains. It never prints or stores a
-credential value. The default Keychain service remains
+credential value. Infrastructure determines overall readiness; credential
+booleans determine which model-agent specs can run. Oracle/no-op controls remain
+runnable with neither model credential, and the executor defers only a spec
+whose own credential is absent. The default Keychain service remains
 `harbor-practice-claude-oauth` until brief 11 migrates the auth scripts; override
 only the service/account names with `HARBOR_CLAUDE_KEYCHAIN_SERVICE` and
 `HARBOR_CLAUDE_KEYCHAIN_ACCOUNT`.
@@ -92,7 +95,9 @@ user session where Keychain access is possible. The plist supplies a bounded
 command `PATH` including `~/.local/bin`, so launchd can find `uv` without
 depending on interactive shell startup files. It also captures the resolved,
 non-secret `EVALLAB_DERIVED_ROOT`; reinstall the schedule after changing that
-setting.
+setting. Install from the primary checkout, not a temporary role worktree, and
+reinstall from primary `main` after merging any branch that supplied the active
+definitions.
 
 Queue events rotate before an append would take `queue/events.jsonl` past
 10 MiB. Seven numbered archives are retained (`events.jsonl.1` is newest), and
@@ -101,18 +106,25 @@ active file. A process lock serializes rotation and appends across launchd and
 manual commands. The oldest archive is the only event file removed during a
 rotation; size the retained window into any external backup or audit policy.
 
-`tick` and `nightly` both run the headless doctor first. If any check fails,
+`tick` and `nightly` both run the headless doctor first. If any infrastructure
+check fails,
 they append a boolean-only quarantine event and dispatch nothing. In particular,
-a locked or unreadable Keychain produces zero reward-bearing trials rather than
-misclassifying authentication failures as agent failures.
+a locked or unreadable Keychain defers Claude specs; Codex and credentialless
+controls remain independently eligible. A nonblocking process lock permits only
+one executor to claim queue work; a concurrent tick records `executor_busy`
+instead of double-dispatching or losing its terminal scheduler event.
 
 ## Executor resilience boundary
 
 Every queue spec carries `timeout_seconds` (default 1,800; maximum 21,600). The
-executor gives the Harbor process one such wall-clock allowance per requested
-attempt, runs it in a separate process group, and terminates that group when the
-deadline expires. Timeout evidence remains under the job directory and the queue
-records `trial_wall_clock_timeout`; it is never reported as an agent score.
+executor watches each active Harbor trial directory independently and terminates
+the Harbor process group when any trial exceeds its own wall-clock allowance.
+The looser `timeout_seconds * attempts` process deadline remains only a pre-trial
+and discovery fail-safe. Timeout metadata names the triggering trial when one
+was active. Docker discovery, inspection/removal, tool-version probes, and Git
+metadata probes also have fixed subprocess timeouts; cleanup failure is recorded
+as secondary evidence and cannot replace `trial_wall_clock_timeout` as the
+primary reason.
 
 After an interrupted Harbor run, cleanup snapshots only containers with all of
 these properties: Docker Compose project labels, a Compose config path inside
@@ -123,20 +135,29 @@ are passed to `docker rm -f`. The executor never runs a global container, image,
 volume, or system prune, so the lab's PostgreSQL/Phoenix Compose project,
 concurrent Harbor jobs, and unrelated containers are outside the cleanup set.
 
-Provider HTTP 429 and 5xx failures are normalized to `transient_harness` with
+Structured provider-facing trial exceptions containing HTTP 429 and 5xx are
+normalized to `transient_harness` with
 the more specific queue reason `transient_harness:provider_http_429` or
 `transient_harness:provider_http_5xx`. The executor permits at most two
 infrastructure retries, with 5- then 10-second backoff (hard-capped at 30
 seconds). Failed attempt evidence moves to
 `runs/.transient-attempts/<job>/attempt-N/` before the same declared job is
-retried. A billable retry reserves another full `est_cost_usd` and is refused if
-that reservation would cross the standing ceiling. Transient provider capacity
+retried. Successful jobs, task logs, and verifier failures are never classified
+from free-form status-code text. Every billable attempt reserves `est_cost_usd`
+in the locked, retained event ledger before launch. Failed-attempt reservations
+survive executor restarts; the successful attempt is settled by catalog cost.
+A later retry or spec is refused if catalog spend plus unsettled reservations
+would cross the standing ceiling. Transient provider capacity
 is shown separately in digests and skipped, rather than counted or treated as a
 success, by the quiet-failure circuit breaker.
 
 Harbor subprocesses receive a non-secret environment allowlist. Model API-key
 variables are neither accessed nor forwarded; supported model access remains
-subscription authentication through Keychain or the agent's auth file.
+subscription authentication through Keychain or the agent's auth file. Codex's
+non-secret force-auth-file switch is set by the executor. Claude runs through
+`scripts/with-claude-auth`, which places only the Keychain OAuth token and
+force-OAuth switches in the immediate Harbor child; it never aliases OAuth to
+an API-key variable.
 
 Render a digest on demand (the file date is the morning/report date; its primary
 reporting period is the preceding catalog day):
@@ -155,22 +176,26 @@ uv run evallab nightly
 Before canary dispatch, a healthy nightly cycle runs the Compose PostgreSQL
 container's own `pg_dump` in custom format. Python does not read or forward a
 database password: `POSTGRES_USER` and `POSTGRES_DB` expand inside the container.
-The dump and SHA-256 JSON manifest are written atomically to the primary
-checkout's ignored `backups/postgres/` directory so every linked worktree uses
-one backup history. A process lock prevents overlapping manual and scheduled
-dumps from interleaving their archive/manifest pair. A failed or empty dump records `postgres_backup_failed` and
-quarantines the cycle before dispatch.
+The dump and SHA-256 JSON manifest are fsynced inside one dated generation
+directory, then the complete directory is published with one atomic rename in
+the primary checkout's ignored `backups/postgres/` directory. A same-date rerun
+verifies and reuses the immutable generation rather than replacing it. A process
+lock prevents overlapping manual and scheduled dumps. A failed, empty,
+incomplete, or unpublished dump records `postgres_backup_failed`, renders the
+digest as quarantined, and prevents dispatch.
 
 Validate a dump without restoring it (set the path to the dated dump first):
 
 ```bash
 PRIMARY_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
-DUMP="$PRIMARY_ROOT/backups/postgres/evallab-2026-08-14.dump"
+DUMP="$PRIMARY_ROOT/backups/postgres/evallab-2026-08-14/database.dump"
 docker compose -f "$PRIMARY_ROOT/compose.yaml" exec -T postgres pg_restore --list < "$DUMP"
 shasum -a 256 "$DUMP"
 ```
 
-Compare the second command with the adjacent `.dump.json` manifest. Restoration
+Compare the second command with `manifest.json` in the same generation.
+Legacy verified `.dump`/`.dump.json` pairs remain readable and are reused for
+their date. Restoration
 is intentionally an operator action into a separately named database; nightly
 never overwrites the live database.
 
@@ -275,7 +300,8 @@ EVALLAB_DERIVED_ROOT=derived/parquet
 A relative value is resolved against the primary checkout; an absolute value
 may instead select a shared volume. The `ingest --derived-dir` and
 `trajectories --export --output-dir` flags are deliberate one-command overrides and
-remain relative to the invoking checkout. This setting is storage topology,
+remain relative to the invoking checkout. `report family` also reads the shared
+root by default; its `--parquet-dir` is an explicit local override. This setting is storage topology,
 not authentication: model access remains subscription-only through Keychain or
 the agent's auth file, and API-key variables do not belong in this lab's `.env`.
 

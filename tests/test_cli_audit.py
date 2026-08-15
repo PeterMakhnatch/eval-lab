@@ -29,6 +29,8 @@ TOP_LEVEL_COMMANDS = (
     "ingest",
     "trajectories",
     "compare",
+    "power",
+    "report",
     "analyze",
     "db",
     "trace",
@@ -38,6 +40,8 @@ TOP_LEVEL_COMMANDS = (
 NESTED_COMMANDS = (
     ("schedule", "install"),
     ("canary", "import-terminal-bench"),
+    ("report", "family"),
+    ("report", "card"),
     ("analyze", "plan"),
     ("analyze", "stub"),
     ("analyze", "ingest-sidecar"),
@@ -109,3 +113,22 @@ def test_trajectories_export_rebuilds_derived_stores(tmp_path: Path, monkeypatch
         == 0
     )
     assert calls == ["ingest-and-project"]
+
+
+def test_report_family_default_reads_shared_parquet_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shared = tmp_path / "primary/derived/parquet"
+    captured: dict[str, Path] = {}
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    monkeypatch.setattr(cli, "derived_root_from_environment", lambda _root: shared)
+
+    def write_report(_task, *, parquet_root, raw_roots, output_root):
+        captured["parquet"] = parquet_root
+        return output_root / "report.json", output_root / "report.md", {}
+
+    monkeypatch.setattr(cli, "write_family_report", write_report)
+    monkeypatch.setattr(cli, "render_family_report", lambda _report: "report")
+
+    assert cli.run_cli(["report", "family", "task-family"], workspace=tmp_path) == 0
+    assert captured == {"parquet": shared}

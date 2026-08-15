@@ -1,5 +1,5 @@
 Status: building
-Last: exact-head premerge and full local smoke each passed 3/3; doctor reports catalog=37/projected=37 with no exceptions, missing, or extra rows while launchd tick 3/3 remains clean.
+Last: launchd tick 4/4 exited 0 at 22:15:56 EDT with one correct no-work event; scheduler stderr and active/failure/quarantine queue states remain empty.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then final fetch/rebase/premerge/PR checks and merge.
 Blockers: none
 
@@ -301,6 +301,8 @@ runs = 2; last exit code = 0
 2026-08-15T01:15:49.952436Z tick_deferred reason=no_approved_specs
 runs = 3; last exit code = 0
 2026-08-15T01:45:53.118591Z tick_deferred reason=no_approved_specs
+runs = 4; last exit code = 0
+2026-08-15T02:15:56.374586Z tick_deferred reason=no_approved_specs
 ```
 
 ### Continuations in progress
@@ -416,7 +418,7 @@ smoke-oracle-a3jes7s4jh2g  e382d304-53bb-4a33-a6bf-281d759b2a23  PASS
 fresh smoke-oracle-zzf5fhxxxjzd a28fd5bb-4637-4ce8-98b0-52fde278aa97 PASS
 ```
 
-Current exact-head repeat at `3b2b07f` (after the final backup timeout
+Current committed-code repeat (after the final backup timeout
 regression) passed the complete premerge gate three consecutive times. Every
 run reported Ruff clean, 146 tests passing, the Docker-free composed smoke
 invariant, and the pinned 33-diagnostic type ceiling. Three consecutive full
@@ -434,4 +436,32 @@ smoke-oracle-rr3qaach3j4n 7517c242-7154-42d0-a5b2-820a7853563f PASS
 
 $ evallab doctor
 ok    catalog-parquet catalog=37 projected=37 exceptions=0 missing=0 extra=0
+```
+
+The disposable protocol-compliant clone was recreated after those repetitions
+from the then-current branch head `8a5ca30`, synced from the lockfile, and
+passed the complete premerge gate. Its full smoke explicitly used the canonical
+primary-checkout Parquet root. The one cataloged raw job directory was moved
+back into this worktree before the clean clone was removed; doctor then proved
+the enlarged global invariant. Upstream subsequently added only archived
+mission prompts (`1fc986f`); the 24-commit branch rebased without conflicts.
+
+```text
+$ uv sync --locked
+Installed 41 packages
+$ scripts/premerge.sh
+All checks passed!
+146 passed in 11.00s
+SMOKE PASS both-stores-agree
+Found 33 diagnostics
+premerge green: Python 3.12; ty 33 <= 33
+
+$ EVALLAB_DERIVED_ROOT=.../eval-lab/derived/parquet make smoke
+PASS submit->tick job=smoke-oracle-06jyeb02basb trials=1
+PASS catalog job_id=553392e5-1c59-4b00-b86d-e397308c7b75
+PASS parquet job_id=553392e5-1c59-4b00-b86d-e397308c7b75
+SMOKE PASS both-stores-agree
+
+$ evallab doctor
+ok    catalog-parquet catalog=38 projected=38 exceptions=0 missing=0 extra=0
 ```

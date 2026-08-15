@@ -6,6 +6,7 @@ keychain, network, or wall-clock dependence.
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -118,6 +119,16 @@ def test_keychain_probe_missing_item_gives_reason_not_secret():
     result = probe(builtin_profiles()["claude-code-fable-5"])
     assert not result.ok
     assert "absent" in (result.reason or "")
+
+
+def test_keychain_probe_timeout_fails_closed():
+    def timed_out(args: list[str]) -> int:
+        raise subprocess.TimeoutExpired(cmd=args, timeout=10)
+
+    probe = KeychainProbe(security_runner=timed_out, service="svc", account="acct")
+    result = probe(builtin_profiles()["claude-code-fable-5"])
+    assert not result.ok
+    assert result.reason == "keychain probe failed: TimeoutExpired"
 
 
 def test_auth_file_missing(tmp_path: Path):

@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: Profiles + fail-closed preflight implemented; 22 injected tests green; premerge green (ty 28 <= 28)
-Next: PR "M003: add subscription agent profiles" — stop at review; merge owner is the integrator, never the author
+Status: reviewed; exact-head CI pending
+Last: Integrator rebased onto M002 and made keychain timeouts return a blocked probe result; 347 tests and premerge green (ty 28 <= 28)
+Next: Push the reviewed head, require fresh exact-head checks, then integrator may merge PR #43
 Blockers: none
 
 # M003 handoff — subscription agent profiles
@@ -68,3 +68,20 @@ benchmark, or live model call was made; tests use zero real credentials.
   mismatches ("change profiles, not pins").
 - `scrub_environment` adds a belt-and-suspenders drop of key-shaped names
   even if allowlisted; `subscription_environment` behavior is unchanged.
+
+## Integrator review — 2026-08-15
+
+Rebased onto main after M002. Review found one fail-closed edge: the real
+keychain subprocess can raise `TimeoutExpired`, while `KeychainProbe` only
+translated `OSError` into an unavailable result. The probe now catches both,
+and an injected regression test proves timeout means `ok=False` rather than
+an exception escaping preflight.
+
+```
+$ uv run pytest tests/test_profiles.py tests/test_queue.py tests/test_runner.py -q
+79 passed
+$ bash scripts/premerge.sh
+347 passed; Docker-free smoke PASS; Ruff clean; ty 28 <= 28
+```
+
+No model, Docker, cloud, benchmark, or credential read was invoked by review.

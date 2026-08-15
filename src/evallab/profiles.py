@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -197,7 +198,7 @@ class KeychainProbe:
             status = self.security_runner(
                 ["find-generic-password", "-s", self.service, "-a", self.account]
             )
-        except OSError as exc:
+        except (OSError, subprocess.TimeoutExpired) as exc:
             return ProbeResult(ok=False, reason=f"keychain probe failed: {exc.__class__.__name__}")
         if status != 0:
             return ProbeResult(ok=False, reason=f"keychain item absent for {self.service}")

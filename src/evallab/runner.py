@@ -38,7 +38,10 @@ _PROVIDER_5XX = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _SUBSCRIPTION_ENVIRONMENT_KEYS = {
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_FORCE_OAUTH",
     "CODEX_HOME",
+    "CODEX_FORCE_AUTH_JSON",
     "DOCKER_CONFIG",
     "DOCKER_CONTEXT",
     "DOCKER_HOST",
@@ -48,6 +51,7 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS = {
     "LC_CTYPE",
     "LOGNAME",
     "PATH",
+    "REWARDKIT_FORCE_OAUTH",
     "SECURITYSESSIONID",
     "SHELL",
     "SSH_AUTH_SOCK",
@@ -110,7 +114,17 @@ def subscription_environment(
     agents authenticate through their auth file or Keychain integration.
     """
     source = os.environ if environment is None else environment
-    return {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
+    sanitized = {
+        key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source
+    }
+    # These switches are routing metadata, not credentials. Force Harbor's
+    # installed agents onto subscription authentication even when a caller did
+    # not source the optional interactive helper. API-key variables are never
+    # looked up above and therefore cannot leak into a child process.
+    sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
+    sanitized["CLAUDE_FORCE_OAUTH"] = "1"
+    sanitized["REWARDKIT_FORCE_OAUTH"] = "1"
+    return sanitized
 
 
 def transient_provider_reason(text: str) -> str | None:
@@ -321,6 +335,27 @@ def build_command(request: RunRequest) -> list[str]:
     return command
 
 
+def subscription_command(
+    request: RunRequest,
+    harbor_command: list[str],
+    *,
+    repo_root: Path,
+) -> list[str]:
+    """Route Claude through the Keychain-only OAuth wrapper.
+
+    Codex consumes ``~/.codex/auth.json`` after ``subscription_environment``
+    sets its non-secret routing flag. Claude's Harbor adapter needs the OAuth
+    token in its immediate child environment, so the wrapper reads only the
+    configured Keychain item and never aliases it to an API-key variable.
+    """
+    if request.agent != "claude-code":
+        return harbor_command
+    wrapper = (repo_root / "scripts/with-claude-auth").resolve()
+    if not wrapper.is_file():
+        raise RuntimeError(f"Claude subscription wrapper is missing: {wrapper}")
+    return [str(wrapper), *harbor_command]
+
+
 @dataclass(frozen=True)
 class HarborProcessResult:
     returncode: int
@@ -480,7 +515,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         )
 
     request.jobs_dir.mkdir(parents=True, exist_ok=True)
-    command = build_command(request)
+    harbor_command = build_command(request)
+    command = subscription_command(request, harbor_command, repo_root=repo_root)
     executor_log = _executor_log_path(request)
     containers_before = harbor_container_ids(request.task)
     started = datetime.now(UTC)

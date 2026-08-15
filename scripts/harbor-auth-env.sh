@@ -34,16 +34,6 @@ else
     # Claude Code CLI (Harbor's claude-code agent) subscription auth.
     export CLAUDE_CODE_OAUTH_TOKEN="$_harbor_auth_token"
 
-    # Harbor's own analysis path (`harbor view` -> Generate Analysis, `harbor
-    # analyze`) calls LiteLLM without an explicit api_key, so LiteLLM resolves
-    # ANTHROPIC_API_KEY from the environment. LiteLLM detects the `sk-ant-oat*`
-    # prefix and sends `Authorization: Bearer` instead of `x-api-key`, which is
-    # the subscription path -- an OAuth token cannot be billed as API usage.
-    # A real API key already in the environment is left untouched.
-    if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-        export ANTHROPIC_API_KEY="$_harbor_auth_token"
-    fi
-
     unset _harbor_auth_token
 fi
 

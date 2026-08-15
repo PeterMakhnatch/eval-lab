@@ -1,6 +1,6 @@
-Status: final-gates
-Last: rebased all SOLIDIFY commits onto origin/main at 1c6e805 while preserving DATA-STRATEGY's landed registry state; fixed the resulting import-order integration defect and passed one preliminary 215-test premerge gate.
-Next: Commit the rebase integration fix, run three consecutive premerge/full-smoke gates and a configured fresh-clone gate on that exact head, then publish a non-force replacement branch/PR, require all GitHub checks green, merge, and reinstall LaunchAgents from primary main.
+Status: ready-to-publish
+Last: rebased candidate 871a39b passed three consecutive 215-test premerge gates, three full Oracle controls, and a clean configured fresh-clone premerge/full-smoke gate.
+Next: Publish the rebased head without force-pushing the existing remote branch, open a replacement SOLIDIFY PR, require all GitHub checks green, merge, and reinstall LaunchAgents from primary main.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -143,6 +143,44 @@ SMOKE PASS both-stores-agree
 Found 28 diagnostics
 premerge green: Python 3.12; ty 28 <= 28
 ```
+
+The committed integration candidate `871a39b79dc1b582094426f2c39a640573eb4c4f`
+then passed the required repeated gates. Each full smoke used the free Oracle
+control and produced a distinct PostgreSQL/Parquet job identity.
+
+```text
+premerge pass 1: 215 passed; SMOKE PASS both-stores-agree; ty 28 <= 28
+premerge pass 2: 215 passed; SMOKE PASS both-stores-agree; ty 28 <= 28
+premerge pass 3: 215 passed; SMOKE PASS both-stores-agree; ty 28 <= 28
+
+full smoke 1: smoke-oracle-d7ccheqptmsp 9f3941b9-58e9-4dbc-a980-fe089001a2f6 PASS
+full smoke 2: smoke-oracle-hxdycr413d2g d106a0e4-2e3f-458b-be88-301a698d09c0 PASS
+full smoke 3: smoke-oracle-sxv7bqyt3xqn 8347591c-9275-40eb-9f97-baa5b59aef43 PASS
+
+fresh clone: /private/tmp/eval-lab-solidify-final.6tZCzJ/repo
+$ git rev-parse HEAD
+871a39b79dc1b582094426f2c39a640573eb4c4f
+$ uv sync --locked
+Installed 41 packages
+$ scripts/premerge.sh
+All checks passed!
+215 passed in 15.63s
+SMOKE PASS both-stores-agree
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 28
+$ EVALLAB_DERIVED_ROOT=.../eval-lab/derived/parquet make smoke
+PASS submit->tick job=smoke-oracle-6zwh6pv6q0v5 trials=1
+PASS catalog job_id=d11e0b9a-fbc9-4a16-8f67-914eac2ad7fc
+PASS parquet job_id=d11e0b9a-fbc9-4a16-8f67-914eac2ad7fc
+SMOKE PASS both-stores-agree
+$ git status --short
+# no output
+```
+
+The disposable clone was removed after its clean-state proof. An unconfigured
+clone remains intentionally topology-aware: full smoke must receive the shared
+derived root through `.env` or `EVALLAB_DERIVED_ROOT` so it cannot silently
+compare shared PostgreSQL with a private Parquet directory.
 
 ## P1 — composed smoke
 

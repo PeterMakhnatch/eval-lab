@@ -53,8 +53,8 @@ editing that file in the same PR. Buckets in one line each:
 - `policy/`: committed standing approvals; agents must never loosen this policy.
 - `src/evallab/`, `tests/`, `sql/`, `scripts/`: the lab software.
 - `digests/`: committed daily derived reports.
-- `queue/`, `runs/`: ignored runtime state; `queue/events.jsonl` drives
-  unattended work.
+- `queue/`, `runs/`, `derived/`, `backups/`: ignored runtime state;
+  `queue/events.jsonl` drives unattended work.
 
 ## Safe run pattern
 

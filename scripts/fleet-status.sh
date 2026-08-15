@@ -55,9 +55,20 @@ now_epoch="$(date +%s)"
 active_branches=""
 for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | grep '^role/' || true); do
     ahead="$("$GIT" rev-list --count origin/main.."$branch" 2>/dev/null || echo 0)"
+    wt="$("$GIT" worktree list --porcelain 2>/dev/null \
+        | grep -B2 "branch refs/heads/$branch" | grep '^worktree' | cut -d' ' -f2)"
+    dirty="0"
+    if [ -n "$wt" ] && [ -d "$wt" ]; then
+        dirty="$("$GIT" -C "$wt" status --short 2>/dev/null | wc -l | tr -d ' ')"
+    fi
     state="active"
     reason=""
-    if [ "$ahead" = "0" ]; then
+    # Dirty work wins over ancestry. A newly allocated mission often has zero
+    # commits while its writer is building; calling that worktree SPENT invites
+    # destructive cleanup of live changes.
+    if [ "$dirty" != "0" ]; then
+        state="active"; reason="uncommitted worktree changes"
+    elif [ "$ahead" = "0" ]; then
         state="spent"; reason="0 ahead of origin/main"
     elif "$GIT" diff --quiet "origin/main...$branch" 2>/dev/null; then
         state="spent"; reason="tree identical to origin/main (squash-merged)"
@@ -78,18 +89,13 @@ for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | gr
     [ "$age_h" -ge "$stale_hours" ] && flags="$flags STALE(${age_h}h-since-commit)"
     echo "  $branch  active, +$ahead, last commit ${age_h}h ago${flags:+ —$flags}"
 
-    wt="$("$GIT" worktree list --porcelain 2>/dev/null \
-        | grep -B2 "branch refs/heads/$branch" | grep '^worktree' | cut -d' ' -f2)"
     if [ -n "$wt" ] && [ -d "$wt" ]; then
-        dirty="$("$GIT" -C "$wt" status --short 2>/dev/null | wc -l | tr -d ' ')"
         [ "$dirty" != "0" ] && echo "    uncommitted: $dirty file(s) in $wt"
-        handoff="$(ls "$wt"/agents/handoffs/*.md 2>/dev/null \
-            | xargs grep -l "^Status:" 2>/dev/null \
-            | xargs ls -t 2>/dev/null | head -1)"
-        if [ -n "$handoff" ]; then
+        handoff="$wt/agents/handoffs/${branch#role/}.md"
+        if [ -f "$handoff" ] && grep -q '^Status:' "$handoff"; then
             grep -E '^(Status|Last|Next|Blockers):' "$handoff" | sed 's/^/    /'
         else
-            echo "    handoff: MISSING for this worktree"
+            echo "    handoff: MISSING ($handoff)"
         fi
     else
         echo "    worktree: none attached"
@@ -107,8 +113,21 @@ if [ -f "$board" ]; then
             echo "  !! board lists $b but no such local branch — stale entry or remote-only"
             hygiene_ok=0
         fi
-    done < <(grep -oE 'role/[a-z0-9-]+' "$board" | sort -u)
-    [ "$hygiene_ok" = "1" ] && echo "  board branches all exist locally"
+    done < <(
+        awk -F'|' '
+            function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+            /^\|/ {
+                state = trim($11)
+                if (state != "active" && state != "review") next
+                line = $0
+                while (match(line, /role\/[a-z0-9-]+/)) {
+                    print substr(line, RSTART, RLENGTH)
+                    line = substr(line, RSTART + RLENGTH)
+                }
+            }
+        ' "$board" | sort -u
+    )
+    [ "$hygiene_ok" = "1" ] && echo "  active/review board branches all exist locally"
     bar
 fi
 

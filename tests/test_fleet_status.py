@@ -36,11 +36,13 @@ BOARD = """# Mission board
 
 ---
 
-| ID | Branch |
-|---|---|
-| M001 | `.worktrees/m001` / `role/m001-governance` |
-| LEGACY | `.worktrees/program` / `role/program` |
-| GHOST | `.worktrees/ghost` / `role/ghost` |
+| ID | Outcome | Lane | Agent | Branch | Paths | Deps | Acceptance | PR | State | Owner |
+|---|---|---|---|---|---|---|---|---|---|---|
+| M001 | x | x | x | `role/m001-governance` | x | x | x | — | active | x |
+| LEGACY | x | x | x | `role/program` | x | x | x | — | active | x |
+| DIRTY | x | x | x | `role/dirty-zero` | x | x | x | — | active | x |
+| GHOST | x | x | x | `role/ghost` | x | x | x | — | active | x |
+| FUTURE | x | x | x | `role/future` | x | x | x | — | ready | x |
 """
 
 FAKE_GIT = r"""#!/bin/bash
@@ -49,18 +51,22 @@ args="$*"
 case "$args" in
     "for-each-ref --format=%(refname:short) refs/heads/")
         printf 'role/m001-governance\nrole/program\nrole/spent-zero\n'
-        printf 'role/spent-tree\nrole/rogue\nmain\n' ;;
+        printf 'role/spent-tree\nrole/dirty-zero\nrole/rogue\nmain\n' ;;
     "rev-list --count origin/main..role/m001-governance") echo 3 ;;
     "rev-list --count origin/main..role/program")         echo 2 ;;
     "rev-list --count origin/main..role/spent-zero")      echo 0 ;;
     "rev-list --count origin/main..role/spent-tree")      echo 7 ;;
+    "rev-list --count origin/main..role/dirty-zero")      echo 0 ;;
     "rev-list --count origin/main..role/rogue")           echo 1 ;;
     "diff --quiet origin/main...role/spent-tree") exit 0 ;;
     "diff --quiet origin/main..."*)               exit 1 ;;
     "log -1 --format=%ct role/m001-governance") date +%s ;;
     "log -1 --format=%ct role/program")         echo $(( $(date +%s) - 60*60*100 )) ;;
     "log -1 --format=%ct role/rogue")           date +%s ;;
-    "worktree list --porcelain") printf '' ;;
+    "worktree list --porcelain")
+        printf 'worktree %s/.worktrees/dirty-zero\n' "$FLEET_ROOT"
+        printf 'HEAD 0000000\nbranch refs/heads/role/dirty-zero\n' ;;
+    *"/.worktrees/dirty-zero status --short") echo ' M src/live.py' ;;
     *) exit 0 ;;
 esac
 """
@@ -79,6 +85,7 @@ def make_fixture(tmp_path: Path) -> dict[str, str]:
     root = tmp_path / "repo"
     (root / "agents" / "missions").mkdir(parents=True)
     (root / "agents" / "missions" / "ACTIVE.md").write_text(BOARD)
+    (root / ".worktrees" / "dirty-zero").mkdir(parents=True)
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     for name, body in (("git", FAKE_GIT), ("gh", FAKE_GH)):
@@ -114,6 +121,16 @@ def test_board_sections_are_shown(tmp_path):
 def test_zero_ahead_branch_is_spent(tmp_path):
     out = run_fleet(tmp_path)
     assert "role/spent-zero  SPENT — 0 ahead of origin/main" in out
+
+
+def test_dirty_zero_ahead_worktree_is_active(tmp_path):
+    out = run_fleet(tmp_path)
+    dirty_line = next(
+        line for line in out.splitlines() if line.strip().startswith("role/dirty-zero ")
+    )
+    assert "active, +0" in dirty_line
+    assert "SPENT" not in dirty_line
+    assert "uncommitted: 1 file(s)" in out
 
 
 def test_squash_merged_tree_is_spent_not_active(tmp_path):
@@ -152,6 +169,11 @@ def test_board_hygiene_flags_missing_branch(tmp_path):
     out = run_fleet(tmp_path)
     assert "## board hygiene" in out
     assert "board lists role/ghost but no such local branch" in out
+
+
+def test_board_hygiene_allows_unallocated_ready_branch(tmp_path):
+    out = run_fleet(tmp_path)
+    assert "board lists role/future" not in out
 
 
 def test_missing_board_is_loud(tmp_path):

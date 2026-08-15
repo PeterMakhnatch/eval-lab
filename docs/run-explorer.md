@@ -1,7 +1,7 @@
 # Run & analysis explorer
 
 M005 (Platform). Logic: `src/evallab/explorer.py`. Page:
-`dashboard/explorer.py`. Tests: `tests/test_explorer.py` (16, fixture-driven,
+`dashboard/explorer.py`. Tests: `tests/test_explorer.py` (22, fixture-driven,
 zero host state). Fixtures: `tests/fixtures/explorer/`.
 
 ## What it answers
@@ -29,7 +29,11 @@ EVALLAB_EXPLORER_ROOT=tests/fixtures/explorer \
   their own section; their reward is `unavailable`, never 0.
 - **Citations are verified, not trusted.** Each analysis citation resolves
   against the trial: file exists inside the jail, step exists in the
-  trajectory, tool call exists in that step — or it renders ⛔ with the reason.
+  trajectory, and the tool call belongs to that exact step — or it renders ⛔
+  with the reason. Duplicate source trial IDs leave analyses unlinked.
+- **Registration is explicit.** The repository view reads
+  `library/registry`; absence there is observed as `not registered`. Fixture
+  roots without a registry label registration unavailable.
 - **Path jail.** `..`, absolute paths, and anything under task `tests/` or
   `solution/` resolve to refusal; artifact links are trial-relative only.
 - **No secrets.** Key-shaped names in any rendered mapping are `[redacted]`.
@@ -41,7 +45,9 @@ EVALLAB_EXPLORER_ROOT=tests/fixtures/explorer \
 
 ## Next Action (emits, never executes)
 
-Task → oracle/nop control commands. Trial → `harbor view <trial-dir>` and
-`evallab analyze plan <trial-dir>`; infra exceptions add a status re-check.
-Queue → `evallab submit` / `evallab approve` (policy ceilings still apply).
-Every command is a string in a copy box; the explorer holds no executor.
+Task → oracle/nop control commands. Trial → `harbor view <jobs-root> --jobs`
+(the folder shape Harbor actually accepts) and
+`evallab analyze plan <trial-dir>`; infra exceptions add a status re-check at
+the repository/scratch root. Queue → `evallab submit` / `evallab approve`
+(policy ceilings still apply). Every path is shell-quoted, placeholders are
+non-executable literals, and the explorer holds no executor.

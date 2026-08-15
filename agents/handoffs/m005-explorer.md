@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: Explorer module + page + 16 fixture tests + AppTest render proof; premerge pending below
-Next: PR "M005: add run and analysis explorer" — stop at review; integrator merges, never the author
+Status: reviewed; exact-head CI pending
+Last: integrator corrections pass 22 focused tests, headless AppTest, 371-test premerge, operational smoke, Ruff, and ty ratchet
+Next: push reviewed head, require fresh exact-head checks, then integrator may merge PR #44
 Blockers: none
 
 # M005 handoff — run and analysis explorer
@@ -85,5 +85,36 @@ premerge green: Python 3.12; ty 28 <= 28
 - The explorer never loads Postgres/Parquet directly in this slice; it reads
   raw jobs + sidecars (the status snapshot covers store health). Extending
   to Parquet-backed views is a natural M00x follow-up.
-- Registration state in TaskView is deliberately `derived("evidence-only
-  view")` — loading `library/registry` was out of lease.
+
+## Integrator review — 2026-08-15
+
+Rebased onto current main after M008. Semantic review found that the emitted
+`harbor view` command pointed at a trial directory even though Harbor accepts
+a folder containing job directories, the exception status command pointed at
+a job directory that status interprets as an empty repository, and a citation
+could claim a tool call from a different step. It also found shell-active
+angle-bracket placeholders/unquoted evidence paths and silent ambiguity when
+two trials share an ID.
+
+The reviewed head now:
+
+- emits quoted `harbor view <jobs-root> --jobs`, analysis, and correct-root
+  status commands with inert placeholders and sanitized job names;
+- requires a cited tool call to belong to the cited step;
+- leaves duplicate-ID analyses unlinked with a visible note;
+- reads explicit registry absence as observed `not registered`;
+- recursively redacts key-shaped mappings inside lists; and
+- degrades malformed agent/reward/config shapes without raising.
+
+Focused evidence after review:
+
+```
+$ uv run pytest tests/test_explorer.py -q
+22 passed
+$ uv run ruff check src/evallab/explorer.py dashboard/explorer.py tests/test_explorer.py
+All checks passed!
+$ EVALLAB_EXPLORER_ROOT=tests/fixtures/explorer ... AppTest
+AppTest PASS 11 expanders 13 commands
+$ bash scripts/premerge.sh
+371 passed; Docker-free operational smoke PASS; Ruff clean; ty 28 <= 28
+```

@@ -29,7 +29,8 @@ uv run pytest dashboard/tests
 overview: Tasks → Jobs/Trials → Trajectory → Artifacts → Analyses, every
 field labeled observed / derived / draft / unavailable, infrastructure
 exceptions separated from reward failures, and Next Action rendered as
-copyable `evallab` / `harbor view` commands that the page never executes.
+shell-safe, copyable `evallab` / `harbor view <jobs-root> --jobs` commands
+that the page never executes.
 
 ```bash
 uv run --with streamlit==1.61.1 streamlit run dashboard/explorer.py   # repo evidence

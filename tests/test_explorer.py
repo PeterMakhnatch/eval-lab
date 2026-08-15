@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import shlex
 import shutil
 from pathlib import Path
 
 from evallab.explorer import (
     TrajectoryView,
+    _resolve_citation,
+    _status_root_for_jobs_root,
     build_index,
     jail,
     next_actions_for_queue,
@@ -108,6 +111,8 @@ def test_secret_shaped_config_values_are_redacted():
     assert "sk-should-never-render" not in rendered
     assert "[redacted]" in rendered
     assert redact_mapping({"MY_TOKEN": "x"})["MY_TOKEN"] == "[redacted]"
+    nested = redact_mapping({"providers": [{"PASSWORD": "nested-secret"}]})
+    assert "nested-secret" not in str(nested)
 
 
 # ---- analyses and citations -------------------------------------------------
@@ -131,6 +136,21 @@ def test_invalid_citation_is_flagged_not_hidden():
     assert "step 99" in (citation.resolution.reason or "")
 
 
+def test_tool_call_citation_must_belong_to_the_cited_step():
+    trial = index().trials["job-fail/t1"]
+    citation = _resolve_citation(
+        {
+            "path": "agent/trajectory.json",
+            "step_id": 1,
+            "tool_call_id": "L2",  # exists, but only in step 2
+            "supports": "wrong step",
+        },
+        trial,
+    )
+    assert citation.resolution.provenance == "unavailable"
+    assert "not found in step 1" in (citation.resolution.reason or "")
+
+
 def test_malformed_sidecar_becomes_a_note():
     idx = index()
     assert any("broken.json" in note for note in idx.notes)
@@ -149,11 +169,45 @@ def test_duplicate_trial_keys_are_skipped_and_noted(tmp_path: Path):
     assert any("duplicate trial key" in n for n in dup_notes)
 
 
+def test_duplicate_trial_ids_leave_analysis_unlinked(tmp_path: Path):
+    jobs = tmp_path / "jobs"
+    shutil.copytree(JOBS / "job-pass", jobs / "job-one")
+    shutil.copytree(JOBS / "job-pass", jobs / "job-two")
+    analyses = tmp_path / "analyses"
+    analyses.mkdir()
+    shutil.copy2(ANALYSES / "badstep.json", analyses / "analysis.json")
+    idx = build_index([jobs], analyses)
+    assert idx.analyses[0].trial_key is None
+    assert any("source trial id" in note and "duplicated" in note for note in idx.notes)
+
+
 def test_cold_start_stays_navigable(tmp_path: Path):
     idx = build_index([tmp_path / "nowhere"], tmp_path / "no-analyses")
     assert idx.trials == {} and idx.jobs == () and idx.tasks == ()
     assert any("cold start" in n for n in idx.notes)
     assert any("unavailable" in n for n in idx.notes)
+
+
+def test_malformed_result_shapes_degrade_without_raising(tmp_path: Path):
+    trial = tmp_path / "jobs" / "bad-job" / "t1"
+    trial.mkdir(parents=True)
+    (trial / "result.json").write_text(
+        '{"task_name":"bad","agent_info":[],"verifier_result":'
+        '{"rewards":{"reward":"not-a-number"}}}'
+    )
+    (trial / "config.json").write_text("{}")
+    view = build_index([tmp_path / "jobs"]).trials["bad-job/t1"]
+    assert view.reward.provenance == "unavailable"
+    assert view.outcome_class.provenance == "unavailable"
+    assert view.config.provenance == "observed"
+
+
+def test_registry_absence_is_observed_when_registry_is_loaded(tmp_path: Path):
+    registry = tmp_path / "registry"
+    registry.mkdir()
+    idx = build_index([JOBS], registry_dir=registry)
+    assert idx.tasks[0].registration.value == "not registered"
+    assert idx.tasks[0].registration.provenance == "observed"
 
 
 # ---- status/explorer consistency --------------------------------------------
@@ -182,11 +236,30 @@ def test_next_actions_are_copyable_and_real_verbs():
                for c in task_cmds)
     trial = index().trials["job-fail/t1"]
     trial_cmds = [a.command for a in next_actions_for_trial(trial)]
-    assert any(c.startswith("harbor view ") for c in trial_cmds)
+    viewer = next(c for c in trial_cmds if c.startswith("harbor view "))
+    assert shlex.split(viewer) == ["harbor", "view", trial.jobs_root, "--jobs"]
     assert any("evallab analyze plan" in c for c in trial_cmds)
+    infra_commands = [a.command for a in next_actions_for_trial(index().trials["job-exc/t1"])]
+    status = next(c for c in infra_commands if "evallab status" in c)
+    assert shlex.split(status)[-1] == str(FIXTURES.resolve())
     queue_cmds = [a.command for a in next_actions_for_queue()]
     assert any("evallab submit" in c for c in queue_cmds)
     assert any("evallab approve" in c for c in queue_cmds)
+    assert all("<" not in c and "$" not in c for c in task_cmds + trial_cmds + queue_cmds)
+
+
+def test_next_action_sanitizes_untrusted_task_names_and_quotes_paths():
+    commands = next_actions_for_task("lab/$(touch bad)", "path with spaces/task")
+    for action in commands:
+        assert "$(" not in action.command
+        tokens = shlex.split(action.command)
+        assert tokens[tokens.index("--task") + 1] == "path with spaces/task"
+
+
+def test_status_root_handles_repo_and_promoted_evidence_layouts(tmp_path: Path):
+    assert _status_root_for_jobs_root(tmp_path / "runs") == tmp_path.resolve()
+    promoted = tmp_path / "research" / "evidence" / "runs"
+    assert _status_root_for_jobs_root(promoted) == tmp_path.resolve()
 
 
 def test_index_build_performs_zero_writes():

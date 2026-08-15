@@ -49,6 +49,7 @@ def _index(root_value: str) -> ExplorerIndex:
     return build_index(
         [root / "runs", root / "research" / "evidence" / "runs"],
         root / "derived" / "analyses",
+        root / "library" / "registry",
     )
 
 
@@ -91,6 +92,14 @@ with tasks_tab:
 with trials_tab:
     if not index.trials:
         st.info("No trials found under the configured roots.")
+    if index.jobs:
+        st.subheader("Jobs")
+        for job in index.jobs:
+            with st.expander(f"📦 {job.job_name}"):
+                _labeled(st, "Tasks", job.task_names)
+                st.markdown("**Trials — observed:** " + ", ".join(job.trial_keys))
+                for note in job.notes:
+                    st.warning(note)
     infra = [t for t in index.trials.values()
              if t.outcome_class.value == "infra-exception"]
     scored = [t for t in index.trials.values()

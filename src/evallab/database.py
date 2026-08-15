@@ -270,13 +270,14 @@ def ping(database_url: str) -> str:
 
 
 def daily_cost_usd(database_url: str, day: date) -> float:
+    """Return spend for the explicit UTC policy day, independent of DB settings."""
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         row = connection.execute(
             """
             SELECT COALESCE(sum(cost_usd), 0)
             FROM trials
             WHERE finished_at IS NOT NULL
-              AND (finished_at::timestamptz AT TIME ZONE current_setting('TIMEZONE'))::date = %s
+              AND (finished_at::timestamptz AT TIME ZONE 'UTC')::date = %s
             """,
             (day,),
         ).fetchone()

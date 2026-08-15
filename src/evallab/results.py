@@ -193,7 +193,11 @@ def load_trial(trial_dir: Path) -> TrialRecord:
 
 def load_job(job_dir: Path) -> JobRecord:
     result = _load_object(job_dir / "result.json")
-    if "n_total_trials" not in result or "stats" not in result:
+    if (
+        "n_total_trials" not in result
+        or "stats" not in result
+        or not result.get("finished_at")
+    ):
         raise ValueError(f"Not a completed Harbor job directory: {job_dir}")
 
     trials: list[TrialRecord] = []
@@ -231,7 +235,11 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
         root = raw_root.expanduser().resolve()
         if root.is_dir() and (root / "result.json").is_file():
             result = _load_object(root / "result.json")
-            if "n_total_trials" in result and "stats" in result:
+            if (
+                "n_total_trials" in result
+                and "stats" in result
+                and result.get("finished_at")
+            ):
                 discovered[root] = None
                 continue
         if not root.exists():
@@ -239,7 +247,11 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
         for result_path in root.rglob("result.json"):
             candidate = result_path.parent
             result = _load_object(result_path)
-            if "n_total_trials" in result and "stats" in result:
+            if (
+                "n_total_trials" in result
+                and "stats" in result
+                and result.get("finished_at")
+            ):
                 discovered[candidate] = None
     return sorted(discovered)
 

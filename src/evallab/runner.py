@@ -45,7 +45,11 @@ _KNOWN_TRANSIENT_PROVIDER_EXCEPTIONS = {
     "ApiInternalServerError": "transient_harness:provider_http_5xx",
     "ApiOverloadedError": "transient_harness:provider_http_5xx",
 }
-_PROVIDER_WRAPPER_EXCEPTIONS = {"AgentRunError", "UnknownApiError"}
+_PROVIDER_WRAPPER_EXCEPTIONS = {
+    "AgentRunError",
+    "NonZeroAgentExitCodeError",
+    "UnknownApiError",
+}
 _SUBSCRIPTION_ENVIRONMENT_KEYS = {
     "CLAUDE_FORCE_OAUTH",
     "CODEX_HOME",
@@ -167,6 +171,8 @@ def transient_provider_exception(result: Mapping[str, Any]) -> str | None:
         if not separator:
             return None
         message = adapter_output
+    elif exception_type == "NonZeroAgentExitCodeError":
+        return None
     return transient_provider_reason(message)
 
 

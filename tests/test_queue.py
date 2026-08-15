@@ -635,7 +635,8 @@ def test_running_reconciliation_settles_the_final_attempt_reservation(
     job_dir = tmp_path / queued.jobs_dir / queued.name
     job_dir.mkdir(parents=True)
     (job_dir / "result.json").write_text(
-        '{"n_total_trials": 1, "stats": {}}\n'
+        '{"n_total_trials": 1, "stats": {}, '
+        '"finished_at": "2026-08-15T00:00:00Z"}\n'
     )
 
     restarted = executor(tmp_path, spent=2)
@@ -648,6 +649,137 @@ def test_running_reconciliation_settles_the_final_attempt_reservation(
     assert "running_reconciled" in [
         event.event for event in load_events(restarted.queue.events_path)
     ]
+
+
+def test_reconciliation_never_settles_partial_harbor_job(tmp_path: Path) -> None:
+    ingested: list[Path] = []
+    service = executor(tmp_path, ingester=ingested.append)
+    approved, _ = service.submit(spec("partial-running-control"))
+    queued = service.queue.load(approved)
+    running = service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, "finished_at": null}\n'
+    )
+
+    service.reconcile_running()
+
+    assert running.is_file()
+    assert ingested == []
+    assert not service.queue.list_specs("done")
+
+
+def test_reconciliation_fails_closed_on_terminal_transient_job(
+    tmp_path: Path,
+) -> None:
+    service = executor(
+        tmp_path,
+        ingester=lambda path: (_ for _ in ()).throw(
+            AssertionError(f"transient job was ingested: {path}")
+        ),
+    )
+    approved, _ = service.submit(
+        spec(
+            "interrupted-transient-spec",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+    queued = service.queue.load(approved)
+    service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    service._reserve_attempt(queued, 1)
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    trial_dir = job_dir / "event-summary__trial"
+    trial_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, '
+        '"finished_at": "2026-08-15T00:00:00Z"}\n'
+    )
+    (trial_dir / "result.json").write_text(
+        '{"task_name": "event-summary", '
+        '"trial_name": "event-summary__trial", '
+        '"exception_info": {"exception_type": "ApiOverloadedError", '
+        '"exception_message": "API Error: Overloaded"}}\n'
+    )
+
+    service.reconcile_running()
+
+    assert service.queue.list_specs("failed")
+    assert not service.queue.list_specs("done")
+    assert service._reserved_attempt_spend_today() == 2
+    reason = next(service.queue.reasons_dir.glob("*.json")).read_text()
+    assert "transient_harness:provider_http_5xx" in reason
+
+
+def test_reconciliation_fails_closed_if_retry_archive_has_no_canonical_job(
+    tmp_path: Path,
+) -> None:
+    service = executor(tmp_path)
+    approved, _ = service.submit(
+        spec(
+            "archive-only-transient-spec",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+    queued = service.queue.load(approved)
+    service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    service._reserve_attempt(queued, 1)
+    archive = (
+        tmp_path
+        / queued.jobs_dir
+        / ".transient-attempts"
+        / queued.name
+        / "attempt-1"
+    )
+    archive.mkdir(parents=True)
+
+    service.reconcile_running()
+
+    assert service.queue.list_specs("failed")
+    reason = next(service.queue.reasons_dir.glob("*.json")).read_text()
+    assert "transient_harness:retry_interrupted" in reason
+
+
+def test_reservation_policy_day_is_utc_at_local_evening_boundary(
+    tmp_path: Path,
+) -> None:
+    service = executor(tmp_path)
+    service.queue.append_event(
+        QueueEvent(
+            event_id="utc-boundary-reservation",
+            spec_id="utc-boundary-spec",
+            occurred_at=datetime(2026, 8, 15, 0, 30, tzinfo=UTC),
+            event="dispatch_attempt_reserved",
+            actor="executor",
+            estimated_cost_usd=2,
+        )
+    )
+
+    assert service._reserved_attempt_spend_today(
+        now=datetime(2026, 8, 15, 1, 0, tzinfo=UTC)
+    ) == 2
+    assert service._reserved_attempt_spend_today(
+        now=datetime(2026, 8, 14, 23, 59, tzinfo=UTC)
+    ) == 0
 
 
 def test_concurrent_executor_tick_defers_to_single_queue_owner(tmp_path: Path) -> None:

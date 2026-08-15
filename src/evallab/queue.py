@@ -11,7 +11,7 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -38,6 +38,7 @@ from evallab.runner import (
     run_experiment,
     subscription_environment,
     tool_version,
+    transient_provider_exception,
 )
 from evallab.schemas import (
     ExperimentSpec,
@@ -760,12 +761,12 @@ class Executor:
             )
         )
 
-    def _reserved_attempt_spend_today(self) -> float:
-        today = date.today()
+    def _reserved_attempt_spend_today(self, *, now: datetime | None = None) -> float:
+        today = (now or datetime.now(UTC)).astimezone(UTC).date()
         reservations: dict[str, list[float]] = {}
         completed: set[str] = set()
         for event in load_events(self.queue.events_path):
-            if event.occurred_at.astimezone().date() != today:
+            if event.occurred_at.astimezone(UTC).date() != today:
                 continue
             if (
                 event.event == "dispatch_attempt_reserved"
@@ -894,10 +895,57 @@ class Executor:
     def reconcile_running(self) -> None:
         for path, spec in self.queue.list_specs("running"):
             job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
-            if not (job_dir / "result.json").is_file():
+            archive_root = (
+                self._safe_repo_path(spec.jobs_dir)
+                / ".transient-attempts"
+                / spec.name
+            )
+            if not job_dir.exists():
+                try:
+                    interrupted_retry = archive_root.is_dir() and any(
+                        child.is_dir() for child in archive_root.iterdir()
+                    )
+                except OSError:
+                    interrupted_retry = False
+                if interrupted_retry:
+                    self._fail_reconciled_running(
+                        path,
+                        spec,
+                        reason_code="transient_harness:retry_interrupted",
+                        message=(
+                            "executor stopped between transient attempts; preserved "
+                            "attempt evidence requires operator resubmission"
+                        ),
+                    )
                 continue
             try:
-                load_job(job_dir)
+                job = load_job(job_dir)
+            except Exception:
+                # Harbor creates the top-level result at job start with
+                # finished_at=null. It may still be running and billing, so a
+                # restart must never ingest or settle that partial evidence.
+                continue
+            transient_reason = next(
+                (
+                    reason
+                    for trial in job.trials
+                    if (reason := transient_provider_exception(trial.result))
+                    is not None
+                ),
+                None,
+            )
+            if transient_reason is not None:
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code=transient_reason,
+                    message=(
+                        "executor stopped after a transient provider failure; "
+                        "preserved evidence requires operator resubmission"
+                    ),
+                )
+                continue
+            try:
                 ingest_result = self._ingester(job_dir)
             except Exception:
                 continue
@@ -915,6 +963,29 @@ class Executor:
                 event="running_reconciled",
                 policy_rule=spec.policy_rule,
             )
+
+    def _fail_reconciled_running(
+        self,
+        path: Path,
+        spec: ExperimentSpec,
+        *,
+        reason_code: str,
+        message: str,
+    ) -> None:
+        decision = PolicyDecision(
+            admitted=False,
+            reason_code=reason_code,
+            message=message,
+        )
+        failed = self.queue.transition(
+            path,
+            "failed",
+            actor="executor-reconcile",
+            event="running_reconcile_failed",
+            reason_code=reason_code,
+            policy_rule=spec.policy_rule,
+        )
+        self.queue.write_reason(self.queue.load(failed), decision)
 
     def _safe_repo_path(self, relative: str) -> Path:
         candidate = (self.repo_root / relative).resolve()
@@ -936,7 +1007,10 @@ class Executor:
 
     def _catalog_spend(self) -> float:
         try:
-            return database.daily_cost_usd(database_url_from_environment(), date.today())
+            return database.daily_cost_usd(
+                database_url_from_environment(),
+                datetime.now(UTC).date(),
+            )
         except Exception as exc:
             raise RuntimeError(
                 "cannot enforce cost policy because the catalog is unavailable"

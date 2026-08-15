@@ -183,6 +183,7 @@ def _write_job(
         job / "result.json",
         {
             "id": f"00000000-0000-0000-0000-{sum(map(ord, name)):012d}",
+            "finished_at": "2026-08-14T12:00:00Z",
             "n_total_trials": len(trials),
             "stats": {"n_completed_trials": len(trials), "n_errored_trials": 0},
         },

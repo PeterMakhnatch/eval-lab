@@ -1,6 +1,6 @@
 Status: building
-Last: second independent review found four P4 gaps: rc=0 Harbor jobs bypassed transient classification, Harbor 0.21 provider exception types were missed, the Docker doctor probe was unbounded, and crash reconciliation double-counted the final reservation. All four plus Claude Keychain selector propagation now have focused regression coverage; 198 tests and Ruff pass locally.
-Next: Checkpoint the P4 repair, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
+Last: exact-head review found four further unattended-runtime gaps. Partial Harbor jobs now stay running, interrupted transient phases fail closed with evidence preserved, policy spend uses one UTC day across events/catalog, and digest Git commands are bounded/noninteractive. The narrowed Harbor fallback is also repaired; Ruff and all 206 tests pass.
+Next: Checkpoint the recovery/accounting repair, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -51,6 +51,30 @@ $ uv run --no-sync pytest -q
 SystemConfiguration panic inside the restricted command sandbox. The pinned
 sync succeeds outside that network sandbox; `--no-sync` proves the installed
 environment while final premerge will run outside the restricted sandbox.
+
+Second exact-head review additionally proved that Harbor creates a partial
+top-level result with `finished_at=null`, and that a provider 5xx can remain a
+generic nonzero-agent exception. Completion discovery is now globally strict on
+non-null `finished_at`; recovery classifies terminal transient evidence without
+ingesting or settling it, and an archive-only interrupted retry moves to
+`failed/` for explicit resubmission. The generic classifier accepts only
+Harbor's command/output envelope and scans the adapter-output suffix, not task
+text. Policy spend and reservation events share a UTC day, independent of the
+PostgreSQL session timezone. Scheduled digest Git commands have a fixed timeout
+and no terminal input.
+
+```text
+$ uv run --no-sync ruff check .
+All checks passed!
+
+$ uv run --no-sync pytest -q
+........................................................................ [ 34%]
+........................................................................ [ 69%]
+..............................................................           [100%]
+
+$ uv run --no-sync pytest --collect-only | tail -3
+206 tests collected in 0.16s
+```
 
 ## P1 — composed smoke
 

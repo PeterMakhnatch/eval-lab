@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import evallab.digest as digest_module
 from evallab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
 from evallab.paths import DERIVED_ROOT_ENV
@@ -547,6 +548,38 @@ def test_commit_digest_commits_only_the_digest(tmp_path: Path) -> None:
     ).stdout.splitlines()
     assert tracked == ["digests/2026-08-13.md"]
     assert unrelated.exists()
+
+
+def test_commit_digest_bounds_every_noninteractive_git_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    digest = tmp_path / "digests/2026-08-14.md"
+    digest.parent.mkdir()
+    digest.write_text("daily\n")
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def run(command: list[str], **kwargs):
+        calls.append((command, kwargs))
+        if "diff" in command:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        if "commit" in command:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(digest_module.subprocess, "run", run)
+
+    with pytest.raises(RuntimeError, match="bounded digest Git command failed"):
+        commit_digest(digest)
+
+    assert len(calls) == 3
+    assert all(
+        kwargs["timeout"] == digest_module.SUPPORT_COMMAND_TIMEOUT_SECONDS
+        for _, kwargs in calls
+    )
+    assert all(kwargs["stdin"] is subprocess.DEVNULL for _, kwargs in calls)
+    assert all(kwargs["capture_output"] is True for _, kwargs in calls)
+    assert all(kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0" for _, kwargs in calls)
 
 
 def test_doctor_codex_only_night_is_healthy(tmp_path: Path) -> None:

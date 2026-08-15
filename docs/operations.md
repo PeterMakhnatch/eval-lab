@@ -54,7 +54,10 @@ uv run evallab reject <spec-id> --actor peter --reason "not this week"
 An approval does not override the hard per-job or daily cost ceiling. Pause new
 dispatch after the current trial with `uv run evallab stop`; re-enable it
 with `uv run evallab resume`. A restart reconciles `queue/running/` against
-completed immutable Harbor jobs before starting new work.
+completed immutable Harbor jobs before starting new work. The cost-policy day
+is UTC: both catalog spend and durable attempt reservations cross the daily
+ceiling boundary at 00:00 UTC, regardless of the host or PostgreSQL session
+timezone.
 
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
 All real-model work must pass through the queue and standing policy.
@@ -125,6 +128,18 @@ was active. Docker discovery, inspection/removal, tool-version probes, and Git
 metadata probes also have fixed subprocess timeouts; cleanup failure is recorded
 as secondary evidence and cannot replace `trial_wall_clock_timeout` as the
 primary reason.
+
+Harbor writes a top-level `result.json` when a job starts, but that evidence is
+not complete until `finished_at` is non-null. Restart reconciliation leaves a
+partial job in `running/` and does not ingest or settle it. If the executor dies
+after a terminal transient provider failure, or between archived retry phases,
+the next tick moves the spec to `failed/` with a transient reason and preserves
+all attempt evidence for explicit operator resubmission; it never calls the
+provider implicitly during recovery.
+
+Nightly digest publication also has a fixed timeout on every Git command, uses
+no terminal input, and fails the nightly process instead of waiting for a
+prompt.
 
 After an interrupted Harbor run, cleanup snapshots only containers with all of
 these properties: Docker Compose project labels, a Compose config path inside

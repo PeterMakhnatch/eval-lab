@@ -12,7 +12,11 @@ from pydantic import ValidationError
 
 from evallab import database
 from evallab.queue import DirectoryQueue, load_events
-from evallab.runner import database_url_from_environment, subscription_environment
+from evallab.runner import (
+    SUPPORT_COMMAND_TIMEOUT_SECONDS,
+    database_url_from_environment,
+    subscription_environment,
+)
 from evallab.schemas import (
     CanaryDriftObservation,
     HeadlessDoctorReport,
@@ -374,24 +378,37 @@ class DigestRenderer:
 def commit_digest(path: Path) -> bool:
     repo_root = path.resolve().parent.parent
     relative = path.resolve().relative_to(repo_root)
-    environment = subscription_environment()
-    subprocess.run(
-        ["git", "add", "--", str(relative)],
-        cwd=repo_root,
-        check=True,
-        env=environment,
-    )
-    changed = subprocess.run(
+    environment = {
+        **subscription_environment(),
+        "GIT_EDITOR": ":",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+
+    def run_git(command: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
+        try:
+            return subprocess.run(
+                command,
+                cwd=repo_root,
+                check=check,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+                env=environment,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError("bounded digest Git command failed") from exc
+
+    run_git(["git", "add", "--", str(relative)], check=True)
+    changed = run_git(
         ["git", "diff", "--cached", "--quiet", "--", str(relative)],
-        cwd=repo_root,
         check=False,
-        env=environment,
     ).returncode
     if changed == 0:
         return False
     if changed != 1:
         raise RuntimeError("git could not inspect the staged digest")
-    subprocess.run(
+    run_git(
         [
             "git",
             "commit",
@@ -401,9 +418,7 @@ def commit_digest(path: Path) -> bool:
             "--",
             str(relative),
         ],
-        cwd=repo_root,
         check=True,
-        env=environment,
     )
     return True
 

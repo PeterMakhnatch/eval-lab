@@ -328,7 +328,7 @@ def test_harbor_021_provider_exception_classification(
 def test_generic_agent_failure_does_not_classify_status_from_task_prompt() -> None:
     result = {
         "exception_info": {
-            "exception_type": "UnknownApiError",
+            "exception_type": "NonZeroAgentExitCodeError",
             "exception_message": (
                 "Command failed: repair a provider status 503 example\n"
                 "stdout: unexpected status 401 Unauthorized"
@@ -337,6 +337,23 @@ def test_generic_agent_failure_does_not_classify_status_from_task_prompt() -> No
     }
 
     assert transient_provider_exception(result) is None
+
+
+def test_generic_agent_failure_classifies_only_stripped_adapter_output() -> None:
+    result = {
+        "exception_info": {
+            "exception_type": "NonZeroAgentExitCodeError",
+            "exception_message": (
+                "Command failed: evaluate this task\n"
+                "stdout: unexpected status 500 Internal Server Error\n"
+                "stderr: None"
+            ),
+        }
+    }
+
+    assert transient_provider_exception(result) == (
+        "transient_harness:provider_http_5xx"
+    )
 
 
 def test_successful_harbor_process_with_transient_trial_is_retried(
@@ -355,7 +372,13 @@ def test_successful_harbor_process_with_transient_trial_is_retried(
         job_dir = kwargs["job_dir"]
         job_dir.mkdir(parents=True)
         (job_dir / "result.json").write_text(
-            json.dumps({"n_total_trials": 1, "stats": {}})
+            json.dumps(
+                {
+                    "n_total_trials": 1,
+                    "stats": {},
+                    "finished_at": "2026-08-15T00:00:00Z",
+                }
+            )
         )
         trial_dir = job_dir / "task__trial"
         trial_dir.mkdir()

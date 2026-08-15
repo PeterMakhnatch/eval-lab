@@ -13,6 +13,7 @@ from evallab.status import (
     SECTION_KEYS,
     build_status_snapshot,
     iter_labeled_items,
+    resolve_status_layout,
     snapshot_as_dict,
 )
 
@@ -178,3 +179,24 @@ def test_cold_status_is_readable_without_traceback(tmp_path: Path, capsys) -> No
     assert "Traceback" not in json.dumps(payload)
     assert tuple(key for key in payload if key in SECTION_KEYS) == SECTION_KEYS
     assert payload["Health"]["items"]
+
+
+def test_real_checkout_uses_the_shared_parquet_root(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "checkout"
+    (root / "src/evallab").mkdir(parents=True)
+    monkeypatch.delenv("EVALLAB_DERIVED_ROOT", raising=False)
+    assert resolve_status_layout(root).parquet_root == root / "derived/parquet"
+
+
+def test_dashboard_preserves_research_panes() -> None:
+    source = (ROOT / "dashboard/app.py").read_text()
+    for heading in (
+        "Leaderboard by cohort",
+        "Canary trend vs 7-day baseline",
+        "Spend vs daily ceiling",
+        "Queue funnel",
+        "Calibration history",
+        "ATIF-derived activity",
+        "DISCOVERIES",
+    ):
+        assert heading in source

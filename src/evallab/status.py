@@ -12,6 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from evallab.facts import experiment_id
+from evallab.paths import derived_root_from_environment
 from evallab.queue import QUEUE_STATES
 from evallab.results import discover_job_dirs, load_job
 from evallab.runner import database_url_from_environment
@@ -84,7 +85,7 @@ def resolve_status_layout(root: Path) -> StatusLayout:
         queue_root=resolved / "queue",
         job_roots=[resolved / "runs", resolved / "research" / "evidence" / "runs"],
         analysis_roots=[resolved / "derived" / "analyses"],
-        parquet_root=resolved / "derived" / "atif",
+        parquet_root=derived_root_from_environment(resolved),
         scratch=False,
     )
 

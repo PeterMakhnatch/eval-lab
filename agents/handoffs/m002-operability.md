@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: opened PR #42; smoke x3, 313 pytest, ruff, premerge green
-Next: wait for GitHub checks; do not self-merge
+Last: integrator rebased on M001 and repaired dashboard/Parquet regressions; 324-test premerge green
+Next: require fresh exact-head PR #42 checks, then integrator merges
 Blockers: none; never self-merge M002 #42
 
 Worktree `.worktrees/m002-operability` on `role/m002-operability` from
@@ -48,3 +48,14 @@ Do not start Compose from this worktree. After merge, from
 Details: `docs/operator-demo.md`.
 
 PR: https://github.com/PeterMakhnatch/eval-lab/pull/42
+
+## Integrator review correction
+
+The first green PR head replaced the established research dashboard panes and
+pointed real-checkout status at `derived/atif` instead of the shared
+`derived/parquet` store. CI had no regression for either behavior. The
+integrator restored the leaderboard, canary, spend, queue, calibration, ATIF,
+and discovery panes alongside the new operator tabs; status now calls the same
+shared-derived-root resolver as ingestion. Two regression tests cover those
+contracts. Rebased full premerge: 324 passed, Docker-free composed smoke passed,
+Ruff clean, ty 28 <= 28.

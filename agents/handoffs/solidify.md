@@ -1,7 +1,7 @@
 Status: building
-Last: P5 soak started at 2026-08-14T20:45:43-0400 from committed head fbee96e; RunAtLoad recorded a healthy no-work deferral.
-Next: Keep launchd on this worktree through at least 2026-08-15T00:45:43-0400 while implementing event rotation, nightly pg_dump, and the CLI audit.
-Blockers: none
+Last: P5 continuations committed: lock-safe bounded event rotation, atomic pre-dispatch nightly pg_dump, 25-command/34-path help audit, and read-only trajectories default.
+Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400; finish three-run/fresh-clone continuation acceptance, real pg_dump validation, and the final CLI/runtime audit.
+Blockers: The managed shell currently denies Docker-socket/PostgreSQL connections; approved retries returned no process result. launchd itself remains healthy and unsandboxed.
 
 # SOLIDIFY handoff
 
@@ -298,3 +298,49 @@ LaunchAgent EVALLAB_DERIVED_ROOT: .../eval-lab/derived/parquet
 runs = 1; last exit code = 0
 2026-08-15T00:45:46.706855Z tick_deferred reason=no_approved_specs
 ```
+
+### Continuations in progress
+
+Event writes now rotate at 10 MiB under a thread and process lock, retain seven
+archives, and read oldest-to-newest across every consumer. The projection
+invariant explicitly sees archived exception evidence. Atomic nightly custom
+format dumps use `pg_dump` inside the Compose container, write a SHA-256
+manifest under the primary checkout's ignored `backups/postgres/`, and
+quarantine before canary dispatch on failure or empty output. Neither the host
+command nor Python reads a database password or any model API-key variable.
+
+The continuation described 22 CLI commands, but the current parser exposes 25
+top-level commands and 34 visible top-level/nested help paths; all 34 are pinned.
+The audit caught and repaired an existing contract violation: `trajectories`
+used to write PostgreSQL and Parquet even without `--export`; it is now genuinely
+read-only by default.
+
+```text
+$ pytest -q tests/test_queue.py tests/test_pipeline.py tests/test_unattended.py tests/test_gc.py
+......................................... [100%]
+
+$ pytest -q tests/test_backups.py tests/test_unattended.py tests/test_canary.py tests/test_pipeline.py
+........................... [100%]
+
+$ pytest -q tests/test_cli_audit.py
+..................................... [100%]
+
+$ evallab summarize research/evidence/runs
+event-summary-nop-evidence ... reward=0
+event-summary-oracle-evidence ... reward=1
+
+$ evallab trajectories research/evidence/runs
+event-summary-nop-evidence ... none
+event-summary-oracle-evidence ... none
+
+$ evallab fetch --audit
+5 benches, 0 fail
+
+$ evallab gc
+gc plan: 0 action(s), 0 skipped, reclaim=0 bytes
+```
+
+The first sandboxed real backup attempt failed at Docker-socket access and left
+`backups/postgres/` empty, as required by the no-partial-artifact contract.
+This does not count as the required real backup acceptance; retry it when the
+execution boundary permits Docker.

@@ -1,6 +1,6 @@
-Status: building
-Last: Second-round adversarial tests reproduced 6 failures on b494e50; implementation now passes 46 focused tests
-Next: Review diff, run full pytest/Ruff/premerge, rebase origin/main, push PR #47
+Status: review-wanted
+Last: Second repair rebased on 903abe4; 46 focused + 418 full tests, Ruff, and premerge green
+Next: Integrator re-review of PR #47 — stop at review, never self-merge
 Blockers: none
 
 # M006 handoff — guarded post-trial analysis worker
@@ -138,3 +138,68 @@ total adapter calls: 2
 
 Rebased onto current origin/main before the repair; pushed to the same
 branch; no new PR opened.
+
+## Second repair round (2026-08-15, integrator re-review)
+
+**Executing agent/model:** OpenAI Codex interactive agent, GPT-5. The runtime
+did not expose a more specific model variant. The previous Claude session was
+confirmed finished before this agent became the sole writer in the worktree.
+
+The new adversarial tests were written first against `b494e50`. The focused
+run produced **37 passed, 6 failed**, reproducing every remaining defect:
+call-returned/no-sidecar replayed the adapter; ambiguity had no operator
+resolution; lease APIs had no owner tokens and release was unconditional; and
+a normal stage quarantine produced no durable event.
+
+**Paid-call ambiguity.** Each invocation now has an append-only,
+fsynced `invocations.jsonl`. `invocation_started` lands before entering
+`run_trial_analysis`. The sidecar is fsynced and atomically published before
+that attempt is resolved. A start with neither resolution nor sidecar defers
+as `ambiguous_invocation_requires_operator_resolution` and never calls again.
+A sidecar is adopted safely. Otherwise the operator must use
+`worker-resolve-ambiguous --action retry|quarantine --actor ...`; the action
+and actor are durable. Resolution itself takes the request lease and refuses
+to race a still-live invocation.
+
+**Lease ownership.** The rename/unlink stale-reclaim protocol was replaced
+with `flock(LOCK_EX|LOCK_NB)` on a stable lease file plus a unique owner token.
+Process death releases the kernel lock; stale metadata is overwritten only
+while the new owner holds it. Release unlocks/closes only its exact file
+descriptor and never deletes or rewrites the lease path. Tests cover a live
+owner, two stale reclaimers, and deterministic path replacement between
+ownership and release; the replacement owner's token and lock survive.
+
+**Nightly returned failures.** After the real post-ingest stager returns,
+`NightlyCycle` totals its `quarantined` and `errors` mappings and writes one
+`analysis_stage_reported_issues` queue event. The reason is capped at 512
+characters. The real CLI stager is exercised with a missing frozen prompt;
+its returned `evidence_unreadable=1` is present in the durable event.
+
+Unchanged: post-ingest ordering, all frozen digest checks, catalog retry,
+default `_no_adapter`, and `calibrated_judges_only=False` at measured
+0.762987.
+
+## Second repair evidence
+
+```text
+# Before implementation, with adversarial tests only
+.venv/bin/pytest tests/test_analysis_worker.py -q
+37 passed, 6 failed
+
+# Repaired/rebased implementation
+.venv/bin/pytest tests/test_analysis_worker.py -q
+46 passed
+
+.venv/bin/ruff check .
+All checks passed!
+
+bash scripts/premerge.sh
+418 passed in 17.33s
+SMOKE PASS both-stores-agree
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 28
+```
+
+Rebased without conflicts onto `origin/main` at `903abe4`. No model, Docker,
+cloud, paid call, task, verifier, policy, profile, dashboard, or raw evidence
+was invoked or modified. Existing PR #47 remains the only PR; stop at review.

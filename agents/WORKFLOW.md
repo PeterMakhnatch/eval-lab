@@ -2,7 +2,8 @@
 
 The standardized way every agent works in this repository. This supersedes
 `docs/parallel-work.md`. Repository rules in `AGENTS.md` still apply to
-everyone; this file is the *how*, `agents/ROLES.md` is the *who*.
+everyone; this file is the *how*; `agents/OWNERS.md` (lanes) and
+`agents/missions/ACTIVE.md` (the live board) are the *who*.
 
 ## The one-folder law
 
@@ -23,7 +24,8 @@ requires editing that file in the same PR.
   `.worktrees/brief-<nn>` — never in a sibling directory.
 - Every other role works in `.worktrees/<role>` on branch `role/<role>`,
   writing only inside its owned directory plus its own
-  `agents/handoffs/<role>.md`. Ownership is defined in `agents/ROLES.md`.
+  `agents/handoffs/<role>.md`. Lanes are defined in `agents/OWNERS.md`;
+  a mission's exclusive path lease is its row in `agents/missions/ACTIVE.md`.
 - Nobody edits another role's paths. With disjoint paths, merges cannot
   conflict.
 
@@ -81,7 +83,8 @@ Free prose below. A stale header is treated as "unknown — investigate."
   <name>)` in the message only when the role's session is inactive.
 - When a role's mission completes: final PR, handoff `Status: done`, then the
   integrator runs `git worktree remove .worktrees/<role>` and deletes or
-  keeps the branch per `ROLES.md`. Worktrees are workspaces, not archives.
+  keeps the branch per the mission's board row. Worktrees are workspaces,
+  not archives. Only the integrator edits the board, merges, and sunsets.
 - Stale branches with zero commits ahead of `main` are deleted on sight.
 
 ## Shared resources

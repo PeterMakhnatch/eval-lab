@@ -17,9 +17,10 @@ needs it — and then only the specific file the decision touches.
 
 1. **`digests/<today>.md`** — two minutes. What ran, what it cost, what
    drifted, what's waiting on you.
-2. **`scripts/fleet-status.sh`** — ten seconds. Who is doing what right now:
-   every role's status line, queue depth, uncommitted work.
-3. **`gh pr list`** — the delta. Each PR title starts with its ROLE and says
+2. **`scripts/fleet-status.sh`** — ten seconds. The derived truth: the board's
+   Now/Review/Next/Needs-Peter, active vs SPENT branches, unregistered or
+   stale work, queue depth.
+3. **`gh pr list`** — the delta. Each PR title starts with its mission ID (`M###:`) and says
    one thing. Open PRs are the only work that needs your eyes.
 
 That is "keeping track." If something in those three surfaces confuses you,
@@ -63,8 +64,9 @@ Your authority lives in files, not in vigilance:
   What may run unattended, which agents, cost ceilings. Agents may never
   loosen it; editing it is how you steer spending. Raising a ceiling IS the
   approval.
-- **Ownership grants** — the code authority. A role may write only its paths
-  in `agents/ROLES.md`. Expanding a grant happens in the prompt, explicitly,
+- **Ownership grants** — the code authority. Lanes own paths
+  (`agents/OWNERS.md`); a mission writes only its leased paths on the board
+  (`agents/missions/ACTIVE.md`). Expanding a lease happens in the prompt, explicitly,
   scoped to named files ("for this mission only, you may touch X, Y").
 - **`queue/STOP`** — the brake. Create the file, dispatch halts after the
   current job. `evallab stop` / `resume`.
@@ -147,5 +149,5 @@ turn them into a skill or a doc and point at it.
    digest, model string, judge calibration. An unpinned comparison is a
    vibe.
 7. **Write the decision down where the next agent will look.** STRUCTURE.md
-   for layout, ROLES.md for ownership, policy for permission, handoffs for
+   for layout, OWNERS.md + the mission board for ownership, policy for permission, handoffs for
    state. A rule that lives in chat history doesn't exist.

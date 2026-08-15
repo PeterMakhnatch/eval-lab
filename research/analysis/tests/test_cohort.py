@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.cohort import compare, wilson_interval, write_comparison
+from evallab.cohort import NOT_COMPARABLE, compare, wilson_interval, write_comparison
 from evallab.schemas import CohortComparisonSpec
 
 from .test_atif import _make_job
@@ -28,11 +28,11 @@ def _control_spec(*, mode: str = "causal") -> CohortComparisonSpec:
             "cohorts": [
                 {
                     "label": "oracle",
-                    "paths": ["evidence/runs/event-summary-oracle-evidence"],
+                    "paths": ["research/evidence/runs/event-summary-oracle-evidence"],
                 },
                 {
                     "label": "nop",
-                    "paths": ["evidence/runs/event-summary-nop-evidence"],
+                    "paths": ["research/evidence/runs/event-summary-nop-evidence"],
                 },
             ],
         }
@@ -146,7 +146,7 @@ def test_comparison_output_is_deterministic_and_machine_readable(tmp_path: Path)
     ("field", "value", "match"),
     [
         ("environment", "daytona", "environment_digest"),
-        ("task_digest", "sha256:different", "task_digest"),
+        ("task_digest", "sha256:different", "eligible task"),
     ],
 )
 def test_causal_comparison_refuses_invariant_or_second_variable_difference(
@@ -163,8 +163,10 @@ def test_causal_comparison_refuses_invariant_or_second_variable_difference(
         right_paths=["right/sample-job"],
     )
 
-    with pytest.raises(ValueError, match=match):
-        compare(spec, repo_root=tmp_path)
+    report = compare(spec, repo_root=tmp_path)
+
+    assert report["paired"][0]["statement"].startswith(NOT_COMPARABLE)
+    assert match in report["paired"][0]["statement"]
 
 
 def test_exploratory_comparison_carries_validity_warnings() -> None:
@@ -206,7 +208,7 @@ def test_exceptions_are_reported_beside_but_excluded_from_denominator(
     assert left["pass_at_k"][0]["denominator"] == 1
 
 
-def test_pass_at_one_uses_trials_and_pass_at_two_uses_task_groups(tmp_path: Path) -> None:
+def test_pass_at_one_and_pass_at_two_both_use_task_groups(tmp_path: Path) -> None:
     _synthetic_job(tmp_path / "left-1", suffix=1, agent="oracle", reward=1.0)
     _synthetic_job(tmp_path / "left-2", suffix=2, agent="oracle", reward=0.0)
     _synthetic_job(tmp_path / "right-1", suffix=3, agent="nop", reward=0.0)
@@ -219,9 +221,9 @@ def test_pass_at_one_uses_trials_and_pass_at_two_uses_task_groups(tmp_path: Path
     report = compare(spec, repo_root=tmp_path)
 
     left = report["cohorts"][0]
-    assert left["pass_at_k"][0]["selection"] == "all-exception-free-scored-trials"
+    assert left["pass_at_k"][0]["selection"] == "first-k-by-trial-id-per-task"
     assert left["pass_at_k"][0]["passes"] == 1
-    assert left["pass_at_k"][0]["denominator"] == 2
-    assert left["pass_at_k"][1]["selection"] == "first-k-by-trial-id-per-pairing-key"
+    assert left["pass_at_k"][0]["denominator"] == 1
+    assert left["pass_at_k"][1]["selection"] == "first-k-by-trial-id-per-task"
     assert left["pass_at_k"][1]["passes"] == 1
     assert left["pass_at_k"][1]["denominator"] == 1

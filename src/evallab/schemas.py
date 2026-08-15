@@ -228,6 +228,8 @@ class CohortComparisonSpec(ContractModel):
         "model_name",
         "model_settings_digest",
         "environment_digest",
+        "preamble_hash",
+        "toolset_digest",
     ]
     mode: Literal["causal", "exploratory"] = "causal"
     reward_name: str = "reward"

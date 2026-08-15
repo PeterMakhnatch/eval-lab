@@ -26,6 +26,7 @@ Status column is updated by the role itself or the integrator.
 | SPEED | — | profile harness, perf workflow, `agents/handoffs/speed.md` | Reproducible budgets for six hot paths | Done: PRs #14 and #20 merged; report reproduced by MENDER. |
 | INSPECTOR | — | `research/inspections/`, `agents/handoffs/inspector.md` | Three evidence-quality inspections | Done: PR #19 merged; all three reports reverified by MENDER. |
 | MENDER | — | integration closeout, `agents/ROLES.md`, `agents/handoffs/mender.md` | Verify the merged wave and sunset spent fleet state | Done: PR #22 merged with five green checks; final closeout branch/worktree sunset after this record lands. |
+| TRUTH | `role/truth` | `src/evallab/{cohort,report}.py`, `research/{analysis,cards}/`, `tests/test_truth.py`, `agents/handoffs/truth.md` (+ additive CLI/schema wiring) | Task-clustered inference, power planning, trajectory family reports, and eval cards | Done: task-level intervals and guarded paired comparisons, power planning, trajectory family reports, and eval-card drafts accepted locally, in a fresh clone, and on GitHub PR #29. |
 
 
 **Wave 1 outcome (2026-08-14):** INGEST, OBSERVER, ANALYST, RUNNER, AUTOPILOT,

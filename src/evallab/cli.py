@@ -32,7 +32,13 @@ from evallab.calibrate import (
     write_catalog_record,
 )
 from evallab.canary import CanaryEnqueuer, TerminalBenchCanaryImporter
-from evallab.cohort import index_comparison_associations, write_comparison
+from evallab.cohort import (
+    index_comparison_associations,
+    minimum_detectable_effect,
+    pass_at_k_probability,
+    power_requirements,
+    write_comparison,
+)
 from evallab.digest import DigestRenderer
 from evallab.facts import (
     AnalyzerCallResult,
@@ -65,6 +71,7 @@ from evallab.queue import (
     read_spec,
     record_projection_failures,
 )
+from evallab.report import draft_eval_card, render_family_report, write_family_report
 from evallab.researchers import ResearcherLoop
 from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
@@ -238,6 +245,45 @@ def parser() -> argparse.ArgumentParser:
     compare.add_argument("--output-dir", type=Path, default=Path("derived/comparisons"))
     compare.add_argument("--index", action="store_true")
     compare.add_argument("--database-url")
+
+    power = commands.add_parser("power", help="Plan task-paired pass@k comparison power")
+    power_mode = power.add_mutually_exclusive_group(required=True)
+    power_mode.add_argument(
+        "--n-tasks",
+        type=int,
+        help="Compute the minimum detectable per-attempt difference for this many paired tasks",
+    )
+    power_mode.add_argument(
+        "--target",
+        type=float,
+        help="Compute required paired tasks across k for this per-attempt difference",
+    )
+    power.add_argument("--k", type=int, help="Attempts per task for --n-tasks mode")
+    power.add_argument("--max-k", type=int, default=8, help="Largest k for --target mode")
+    power.add_argument("--baseline", type=float, required=True)
+    power.add_argument("--alpha", type=float, default=0.05)
+    power.add_argument("--power", dest="target_power", type=float, default=0.8)
+    power.add_argument("--pair-correlation", type=float, default=0.0)
+
+    report = commands.add_parser("report", help="Render trajectory families and eval cards")
+    report_commands = report.add_subparsers(dest="report_command", required=True)
+    report_family = report_commands.add_parser(
+        "family", help="Explain one task family from Parquet and canonical ATIF"
+    )
+    report_family.add_argument("task")
+    report_family.add_argument("--parquet-dir", type=Path, default=Path("derived/parquet"))
+    report_family.add_argument(
+        "--raw-root",
+        type=Path,
+        action="append",
+        help="Raw Harbor root; repeat as needed (defaults to runs and reviewed evidence)",
+    )
+    report_family.add_argument("--output-dir", type=Path, default=Path("derived/reports"))
+    report_card = report_commands.add_parser(
+        "card", help="Draft a provenance-bearing eval card from a completed spec"
+    )
+    report_card.add_argument("path", type=Path)
+    report_card.add_argument("--output", type=Path)
 
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
@@ -494,6 +540,93 @@ def _matrix_command(args: argparse.Namespace, root: Path) -> int:
     return 1 if mismatch else 0
 
 
+def _power_command(args: argparse.Namespace) -> int:
+    if args.n_tasks is not None:
+        if args.k is None:
+            raise ValueError("--k is required with --n-tasks")
+        effect = minimum_detectable_effect(
+            n_tasks=args.n_tasks,
+            k=args.k,
+            baseline=args.baseline,
+            alpha=args.alpha,
+            target_power=args.target_power,
+            pair_correlation=args.pair_correlation,
+        )
+        baseline_pass = pass_at_k_probability(args.baseline, args.k)
+        print("Task-paired pass@k power plan")
+        print(f"n_tasks: {args.n_tasks}")
+        print(f"k: {args.k}")
+        print(f"baseline per-attempt pass rate: {args.baseline:.3f}")
+        print(f"baseline pass@{args.k}: {baseline_pass:.3f}")
+        print(f"alpha / power: {args.alpha:.3f} / {args.target_power:.3f}")
+        if effect is None:
+            print("minimum detectable per-attempt difference: unavailable at this n and k")
+        else:
+            comparison_pass = pass_at_k_probability(args.baseline + effect, args.k)
+            print(f"minimum detectable per-attempt difference: {effect:.4f}")
+            print(
+                f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}"
+            )
+        print(
+            "Assumptions: independent attempts for the pass@k transformation and a normal "
+            "approximation to paired task outcomes; "
+            f"pair correlation={args.pair_correlation:.3f}."
+        )
+        return 0
+
+    rows = power_requirements(
+        baseline=args.baseline,
+        attempt_effect=args.target,
+        max_k=args.max_k,
+        alpha=args.alpha,
+        target_power=args.target_power,
+        pair_correlation=args.pair_correlation,
+    )
+    print("| k | baseline pass@k | comparison pass@k | task effect | n_tasks | attempts |")
+    print("|---:|---:|---:|---:|---:|---:|")
+    for row in rows:
+        print(
+            f"| {row['k']} | {row['baseline_pass_at_k']:.3f} | "
+            f"{row['comparison_pass_at_k']:.3f} | {row['task_level_effect']:.3f} | "
+            f"{row['required_n_tasks']} | {row['total_attempts_two_cohorts']} |"
+        )
+    print(
+        "n_tasks is paired tasks per cohort; attempts counts both cohorts. "
+        f"alpha={args.alpha:.3f}, power={args.target_power:.3f}, "
+        f"pair correlation={args.pair_correlation:.3f}."
+    )
+    print("Assumption: attempts are independent for the pass@k transformation.")
+    return 0
+
+
+def _report_command(args: argparse.Namespace, root: Path) -> int:
+    if args.report_command == "family":
+        raw_roots = args.raw_root or [
+            Path("runs"),
+            Path("research/evidence/runs"),
+            Path("evidence/runs"),
+        ]
+        json_path, markdown_path, report = write_family_report(
+            args.task,
+            parquet_root=_resolve(root, args.parquet_dir),
+            raw_roots=[_resolve(root, path) for path in raw_roots],
+            output_root=_resolve(root, args.output_dir),
+        )
+        print(render_family_report(report))
+        print(f"json: {json_path}")
+        print(f"markdown: {markdown_path}")
+        return 0
+    destination = _resolve(root, args.output) if args.output else None
+    path, card = draft_eval_card(
+        _resolve(root, args.path),
+        repo_root=root,
+        output_path=destination,
+    )
+    print(f"eval card: {path}")
+    print(f"config digest: {card['spec_digest']}")
+    return 0
+
+
 def _dashboard_command(args: argparse.Namespace, root: Path) -> int:
     environment = os.environ.copy()
     if args.database_url:
@@ -610,6 +743,10 @@ def run_cli(
             return 0 if report.healthy else 1
         if args.command == "doctor":
             return _doctor(root)
+        if args.command == "power":
+            return _power_command(args)
+        if args.command == "report":
+            return _report_command(args, root)
         if args.command == "dashboard":
             return _dashboard_command(args, root)
         if args.command == "submit":
@@ -883,6 +1020,8 @@ def run_cli(
                     report=report,
                     repo_root=root,
                 )
+            for paired in report["paired"]:
+                print(paired["statement"])
             print(f"json: {json_path}")
             print(f"markdown: {markdown_path}")
             return 0

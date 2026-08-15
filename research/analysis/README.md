@@ -94,13 +94,59 @@ readable validity warnings.
 
 Exceptions remain in `n_total` and the exception breakdown but are excluded
 from `capability_denominator`. Missing rewards are separate exclusions.
-`pass@1` uses every exception-free, scored trial. For `k > 1`, `pass@k` is the
-realized success proportion across task groups after selecting the first `k`
-eligible trials by stable trial UUID. Wilson 95% intervals apply to those binary
-trial/task outcomes. Groups with fewer than `k` eligible attempts are listed
-rather than silently changing the denominator.
-Paired reward differences use the declared pairing key and are descriptive;
-the report makes no significance or broad-capability claim.
+Every `pass@k`, including `pass@1`, groups attempts by task and selects the
+first `k` eligible trials by stable trial UUID. Attempts from one task are one
+evidence unit. Percentile 95% intervals resample tasks, never attempts. Groups
+with fewer than `k` eligible attempts are listed rather than silently changing
+the denominator.
+
+Every two-cohort decision is paired by task. A report prints a ranking only
+when it can name `n_tasks`, `k`, the paired task-bootstrap interval, and a
+uniform elicitation tuple for each cohort (agent version, model pin, preamble
+hash, configured toolset, and `k`), and the interval excludes zero. Otherwise
+it prints `not distinguishable / not comparable` with the reasons. Exploratory
+summaries remain available, but validity warnings prohibit a ranking.
+
+Plan an experiment before spending:
+
+```bash
+# Minimum detectable per-attempt difference for a fixed paired-task design.
+uv run evallab power --n-tasks 100 --k 3 --baseline 0.30
+
+# Required paired tasks and total attempts across candidate k values.
+uv run evallab power --target 0.15 --baseline 0.30 --max-k 8
+```
+
+The planner transforms per-attempt rates to pass@k under an explicit independent-
+attempt planning assumption, then uses a documented normal approximation for
+paired task outcomes. Its between-cohort task-pair correlation assumption is
+explicit and has a neutral default of zero. Empirical comparisons still
+cluster attempts within each task; the planning assumption never changes the
+analysis evidence unit.
+
+## Trajectory family reports and eval cards
+
+After rebuilding Parquet, render one plain-language task-family report:
+
+```bash
+uv run evallab report family event-summary
+```
+
+The report joins task/cost/step facts from Parquet to canonical raw ATIF. It
+shows the first structured command-failure step distribution, repeated identical
+tool-call loop heuristic, recognizable verification before completion, and
+cost/step summaries. The heuristic boundaries are printed alongside the result.
+
+Draft an eval card only after its spec has a completed Harbor job:
+
+```bash
+uv run evallab report card queue/done/<completed-spec>.json
+```
+
+The command fills `research/cards/TEMPLATE.md`, refuses incomplete jobs and
+overwrites, and records config/lock digests, task-bootstrap numbers, elicitation,
+an unresolved contamination note, and observed threats. Drafts require human
+review before publication.
 
 ## Stage-5 sidecars
 
@@ -108,14 +154,14 @@ Dry-run planning never calls a model:
 
 ```bash
 uv run evallab analyze plan \
-  evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq
+  research/evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq
 ```
 
 Fixture/stub validation writes a new immutable sidecar and can index it:
 
 ```bash
 uv run evallab analyze stub \
-  evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq \
+  research/evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq \
   --response research/analysis/stub-oracle-analysis.json \
   --index
 ```

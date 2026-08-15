@@ -1,7 +1,7 @@
 Status: building
-Last: P5 continuations committed: lock-safe bounded event rotation, atomic pre-dispatch nightly pg_dump, 25-command/34-path help audit, and read-only trajectories default.
-Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400; finish three-run/fresh-clone continuation acceptance, real pg_dump validation, and the final CLI/runtime audit.
-Blockers: The managed shell currently denies Docker-socket/PostgreSQL connections; approved retries returned no process result. launchd itself remains healthy and unsandboxed.
+Last: P5 continuation tests pass 3x and from a fresh clone; real pg_dump/manifest/pg_restore validation and current-head full smoke 3x plus fresh clone all pass.
+Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then final fetch/rebase/premerge/PR checks and merge.
+Blockers: none
 
 # SOLIDIFY handoff
 
@@ -342,5 +342,63 @@ gc plan: 0 action(s), 0 skipped, reclaim=0 bytes
 
 The first sandboxed real backup attempt failed at Docker-socket access and left
 `backups/postgres/` empty, as required by the no-partial-artifact contract.
-This does not count as the required real backup acceptance; retry it when the
-execution boundary permits Docker.
+Docker Desktop was subsequently restarted and the required real acceptance
+passed:
+
+```text
+$ create_postgres_backup(..., 2026-08-14)
+/Users/.../eval-lab/backups/postgres/evallab-2026-08-14.dump
+89310
+
+$ shasum -a 256 .../evallab-2026-08-14.dump
+4487516b11f512e6007cc535068484c28c3d430cc32e559efd4c7289298b1356
+$ stat ...dump ...dump.json
+-rw------- 89310 ...dump
+-rw-------   280 ...dump.json
+$ docker compose ... exec -T postgres pg_restore --list < ...dump
+Archive created at 2026-08-15 01:03:10 UTC
+dbname: evallab
+TOC Entries: 77
+Dumped from database version: 18.4
+Dumped by pg_dump version: 18.4
+```
+
+Three consecutive combined continuation runs at committed code (event
+rotation, archived exception invariant, backup atomicity/quarantine, unattended
+flow, and complete CLI help inventory) each passed 74 tests. The full suite and
+repository contracts now run meaningfully inside linked worktrees: fresh-clone
+testing exposed that the old inventory helper excluded every path because the
+absolute path contained `.worktrees`. The helper now tests repo-relative parts,
+has a non-vacuity assertion, and both the linked worktree and clean clone pass
+144 tests.
+
+```text
+$ pytest -q <P5 continuation set>  # repeated three times
+........................................................................ [ 97%]
+..                                                                       [100%]
+
+$ scripts/premerge.sh
+All checks passed!
+144 passed in 5.12s
+SMOKE PASS both-stores-agree
+Found 33 diagnostics
+premerge green: Python 3.12; ty 33 <= 33
+
+$ fresh-clone: ruff check . && pytest -q
+All checks passed!
+........................................................................ [ 50%]
+........................................................................ [100%]
+$ fresh-clone: python -m evallab.smoke --docker-free
+SMOKE PASS both-stores-agree
+```
+
+Current-head full local smokes (followed by one full fresh-clone smoke against
+the shared primary Parquet root) all passed; the fresh clone's ignored raw job
+was moved into this worktree before cleanup:
+
+```text
+smoke-oracle-8ya566yyqwms  055257d1-83f2-413b-8752-9e91dee799f9  PASS
+smoke-oracle-j6stzs3br6te  daae9eb6-0815-46a8-b50a-a61a9e8853bc  PASS
+smoke-oracle-a3jes7s4jh2g  e382d304-53bb-4a33-a6bf-281d759b2a23  PASS
+fresh smoke-oracle-en73aea0zhgc b4afe721-68ea-4269-8cb1-079c69c598fc PASS
+```

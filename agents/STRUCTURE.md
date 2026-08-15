@@ -17,7 +17,10 @@ eval-lab/
 │
 ├── agents/                    HOW WE WORK — coordination and governance
 │   ├── WORKFLOW.md            the work protocol (worktrees, merges, boundaries)
-│   ├── ROLES.md               role registry: who exists, owns what, status
+│   ├── OWNERS.md              four stable lanes + Peter's reserved authority
+│   ├── ROLES.md               superseded — compatibility pointer (M001)
+│   ├── missions/              ACTIVE.md live board + TEMPLATE.md
+│   ├── archive/               dated closed-mission and registry records
 │   ├── STRUCTURE.md           this file
 │   └── handoffs/<role>.md     live status, one file per role
 │
@@ -80,7 +83,8 @@ Rules that fall out of the buckets:
 - `research/` content states its provenance (which runs, which corpus digest).
 - Nothing in `agents/`, `docs/`, or `policy/` is generated; nothing in
   `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
-- Role ownership boundaries (`agents/ROLES.md`) follow these paths.
+- Ownership boundaries (`agents/OWNERS.md` lanes; `agents/missions/ACTIVE.md`
+  leases) follow these paths.
 
 ## Migration ledger
 
@@ -119,3 +123,5 @@ for today).
   `derived/` made explicit alongside it.
 - 2026-08-15 — `library/registry/` (task admission records) and `research/registration/`
   (task review packets and admission audits) added for REGISTER role.
+- 2026-08-15 — M001: `agents/OWNERS.md`, `agents/missions/`, `agents/archive/`
+  added; ROLES.md reduced to a pointer (historical table archived).

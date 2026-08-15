@@ -8,6 +8,15 @@ Snapshot taken after `git fetch origin` at 2026-08-15T17:04:53Z.
 `origin/main` = `9ed987403462df2f752b3001dfde3bf9aa66096e`
 (`PROGRAM-REPAIR: correct scientific record (#39)`).
 
+> **Historical snapshot, not the live mission board.** After this inventory
+> was captured, M001 (#41), M002 (#42), and M003 (#43) merged, and M005 was
+> allocated a new worktree. Those events do not change the evidence or
+> recommendations for the refs that existed at 17:04:53Z, but they do mean
+> this table must not be used as current scheduler state. Use
+> `agents/missions/ACTIVE.md`, `scripts/fleet-status.sh`, and current GitHub PR
+> state for that purpose. No cleanup was executed as part of integrating this
+> report.
+
 ## How a row was classified
 
 Not from squash-merge ancestry alone. For every ref:

@@ -42,7 +42,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from evallab import facts
-from evallab.facts import AnalyzerCallable, run_trial_analysis
+from evallab.facts import AnalyzerCallable, ingest_analysis_sidecar, run_trial_analysis
 from evallab.profiles import AgentProfile, PreflightDecision, ProbeFn, preflight
 from evallab.results import JobRecord, TrialRecord, load_jobs
 from evallab.schemas import StandingApprovalsPolicy, TrialAnalysisSidecar
@@ -55,6 +55,16 @@ WORKER_DIRNAME = "worker"
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def _default_pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _sha256_file(path: Path) -> str | None:
@@ -83,6 +93,7 @@ class AnalysisRequest(BaseModel):
     model: str
     result_sha256: str
     trajectory_sha256: str | None  # None = trial has no trajectory file
+    lock_sha256: str | None  # Harbor lock bytes: source of task/verifier truth
     task_digest: str | None
     verifier_digest: str | None
     rubric_sha256: str
@@ -188,16 +199,71 @@ class RequestStore:
     def sidecar_path(self, request_id: str) -> Path:
         return self.request_dir(request_id) / "sidecar" / "analysis.json"
 
-    def acquire_lease(self, request_id: str) -> bool:
+    def _lease_path(self, request_id: str) -> Path:
+        return self.request_dir(request_id) / "lease"
+
+    def acquire_lease(
+        self,
+        request_id: str,
+        *,
+        owner_pid: int | None = None,
+        pid_alive: Callable[[int], bool] | None = None,
+        max_age_seconds: float = 3600.0,
+        clock: Callable[[], datetime] | None = None,
+    ) -> bool:
+        """Crash-recoverable lease: owner pid + timestamp inside the file.
+
+        A lease is honored while its owner is demonstrably alive and the
+        lease is younger than *max_age_seconds*. A dead owner's lease (or an
+        unreadably corrupt one, or one past max age) is reclaimed — process
+        crashes cannot strand a request forever. A live owner's lease is
+        NEVER reclaimed.
+        """
+        pid = owner_pid if owner_pid is not None else os.getpid()
+        alive = pid_alive or _default_pid_alive
+        now = (clock or _utc_now)()
+        path = self._lease_path(request_id)
+        payload = json.dumps(
+            {"pid": pid, "acquired_at": now.isoformat(), "host": os.uname().nodename}
+        )
         try:
-            fd = os.open(self.request_dir(request_id) / "lease", os.O_CREAT | os.O_EXCL)
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
-            return False
-        os.close(fd)
+            try:
+                existing = json.loads(path.read_text())
+                holder = int(existing["pid"])
+                acquired = datetime.fromisoformat(existing["acquired_at"])
+            except (OSError, ValueError, KeyError, TypeError):
+                holder, acquired = None, None  # corrupt lease
+            if holder is not None and alive(holder):
+                # A demonstrably live owner is NEVER reclaimed — age is
+                # irrelevant when liveness is provable.
+                return False
+            over_age = (
+                acquired is None
+                or (now - acquired).total_seconds() >= max_age_seconds
+            )
+            if holder is not None and not over_age:
+                # Dead-by-probe but young: reclaim immediately is still safe
+                # on one host; keep the branch explicit for auditability.
+                pass
+            # Stale: dead or corrupt owner. Reclaim atomically.
+            stale = path.with_name("lease.stale")
+            try:
+                path.replace(stale)
+            except OSError:
+                return False  # someone else reclaimed first
+            stale.unlink(missing_ok=True)
+            try:
+                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                return False
+        with os.fdopen(fd, "w") as handle:
+            handle.write(payload)
         return True
 
     def release_lease(self, request_id: str) -> None:
-        (self.request_dir(request_id) / "lease").unlink(missing_ok=True)
+        self._lease_path(request_id).unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -244,8 +310,9 @@ def freeze_request(
         "model": profile.model or "",
         "result_sha256": result_sha,
         "trajectory_sha256": _sha256_file(trial.path / "agent" / "trajectory.json"),
-        "task_digest": getattr(trial, "task_digest", None),
-        "verifier_digest": getattr(trial, "verifier_digest", None),
+        "lock_sha256": _sha256_file(trial.path / "lock.json"),
+        "task_digest": facts._task_digest(trial),
+        "verifier_digest": facts._verifier_digest(job, trial),
         "rubric_sha256": rubric_sha,
         "prompt_sha256": prompt_sha,
         "profile_digest": profile.digest,
@@ -308,11 +375,19 @@ class Admission:
 def admit(
     request: AnalysisRequest, store: RequestStore, context: AdmissionContext,
     repo_root: Path,
+    *,
+    job: JobRecord | None = None,
+    trial: TrialRecord | None = None,
+    prompt_path: Path | None = None,
+    rubric_path: Path | None = None,
 ) -> Admission:
     if context.stop_present():
         return Admission("defer", "queue_stop_present")
 
-    # Evidence integrity precedes everything that could spend money.
+    # Every frozen input is recomputed and compared BEFORE anything that
+    # could spend money. Missing or changed inputs fail closed with a
+    # precise reason. Evidence changes quarantine; configuration drift
+    # (prompt/rubric/profile) defers as stale identity.
     trial_dir = repo_root / request.trial_path
     current_result = _sha256_file(trial_dir / "result.json")
     if current_result is None:
@@ -323,6 +398,30 @@ def admit(
     if current_traj != request.trajectory_sha256:
         state = "evidence_missing" if current_traj is None else "evidence_tampered"
         return Admission("quarantine", f"{state}:trajectory.json")
+    current_lock = _sha256_file(trial_dir / "lock.json")
+    if request.lock_sha256 is not None and current_lock is None:
+        return Admission("quarantine", "evidence_missing:lock.json")
+    if current_lock != request.lock_sha256:
+        return Admission("quarantine", "evidence_tampered:lock.json")
+    if job is not None and trial is not None:
+        # Harbor locks are the digest truth: prove the frozen task/verifier
+        # values from the CURRENT lock bytes, not from memory.
+        if facts._task_digest(trial) != request.task_digest:
+            return Admission("quarantine", "evidence_tampered:task_digest")
+        if facts._verifier_digest(job, trial) != request.verifier_digest:
+            return Admission("quarantine", "evidence_tampered:verifier_digest")
+    if prompt_path is not None:
+        current_prompt = _sha256_file(prompt_path)
+        if current_prompt is None:
+            return Admission("quarantine", "evidence_missing:prompt")
+        if current_prompt != request.prompt_sha256:
+            return Admission("defer", "stale_identity:prompt_changed")
+    if rubric_path is not None:
+        current_rubric = _sha256_file(rubric_path)
+        if current_rubric is None:
+            return Admission("quarantine", "evidence_missing:rubric")
+        if current_rubric != request.rubric_sha256:
+            return Admission("defer", "stale_identity:rubric_changed")
     if context.profile.digest != request.profile_digest:
         return Admission("defer", "stale_identity:profile_changed")
 
@@ -431,24 +530,29 @@ class AnalysisWorker:
             self.store.append(request_id, "deferred", "lease_held_by_another_worker")
             return self.store.transitions(request_id)[-1]
         try:
-            admission = admit(request, self.store, self.context, self.repo_root)
-            if admission.kind != "admit":
-                target: State = (
-                    "deferred" if admission.kind == "defer" else "quarantined"
-                )
-                self.store.append(request_id, target, admission.reason)
-                return self.store.transitions(request_id)[-1]
-
-            self.store.append(request_id, "admitted", None)
             job_dir = (self.repo_root / request.trial_path).parent
             jobs = load_jobs([job_dir.parent])
             match = next(
                 ((j, t) for j in jobs for t in j.trials
                  if str(t.id) == request.trial_id), None,
             )
-            if match is None:
-                self.store.append(request_id, "quarantined", "trial_vanished_after_admission")
+            admission = admit(
+                request, self.store, self.context, self.repo_root,
+                job=match[0] if match else None,
+                trial=match[1] if match else None,
+                prompt_path=self.prompt_path,
+                rubric_path=self.rubric_path,
+            )
+            if admission.kind != "admit":
+                target: State = (
+                    "deferred" if admission.kind == "defer" else "quarantined"
+                )
+                self.store.append(request_id, target, admission.reason)
                 return self.store.transitions(request_id)[-1]
+            if match is None:
+                self.store.append(request_id, "quarantined", "trial_vanished")
+                return self.store.transitions(request_id)[-1]
+            self.store.append(request_id, "admitted", None)
             job, trial = match
             self.store.append(request_id, "running", None)
             sidecar_path.parent.mkdir(parents=True, exist_ok=True)
@@ -611,8 +715,26 @@ def default_worker(root: Path, *, adapter: AnalyzerCallable | None = None) -> An
         adapter=adapter or _no_adapter,
         prompt_path=root / "research/analysis/stage5-prompt.md",
         rubric_path=root / "research/analysis/stage5-rubric.json",
-        indexer=None,
+        indexer=_default_indexer(root),
     )
+
+
+def _default_indexer(root: Path) -> IndexFn:
+    """Idempotent catalog indexing via the normal database URL.
+
+    A catalog failure raises: the completed transition is never appended, so
+    the durable sidecar stays adoptable and indexing retries on rescan.
+    """
+
+    def index(sidecar_path: Path) -> None:
+        from evallab import database
+        from evallab.runner import database_url_from_environment
+
+        url = database_url_from_environment()
+        database.initialize(url)
+        ingest_analysis_sidecar(url, sidecar_path, root=root)
+
+    return index
 
 
 def default_job_roots(root: Path) -> list[Path]:

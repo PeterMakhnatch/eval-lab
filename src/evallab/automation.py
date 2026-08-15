@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import os
 import plistlib
 import shlex
@@ -289,12 +288,6 @@ class NightlyCycle:
         dispatched = 0
         researcher_invocations = 0
         backup_path: Path | None = None
-        if report.healthy and self.analysis_stager is not None:
-            # Stage-only by construction: freezing identity makes no model
-            # call, and nightly holds no adapter to escalate with.
-            with contextlib.suppress(Exception):
-                # staging is best-effort; execution has its own gates
-                self.analysis_stager()
         if report.healthy and self.completed_job_ingester is not None:
             try:
                 ingest_result = self.completed_job_ingester()
@@ -318,6 +311,26 @@ class NightlyCycle:
                     actor="nightly",
                     spec_id=f"system-{new_ulid()}",
                 )
+                # M006: stage analysis requests ONLY after successful ingest.
+                # Staging freezes identity and cannot call a model; a failure
+                # is a durable event, never silent suppression.
+                if self.analysis_stager is not None:
+                    try:
+                        self.analysis_stager()
+                    except Exception as exc:
+                        self.executor.queue.append_event(
+                            QueueEvent(
+                                event_id=new_ulid(),
+                                spec_id=f"system-{new_ulid()}",
+                                occurred_at=date_time_now(),
+                                event="analysis_stage_failed",
+                                actor="nightly",
+                                reason_code=(
+                                    f"analysis_stage_failed:{type(exc).__name__}"
+                                ),
+                                report_date=target_date.isoformat(),
+                            )
+                        )
         if report.healthy and not quarantined and self.database_backup is not None:
             try:
                 backup_path = self.database_backup(target_date)

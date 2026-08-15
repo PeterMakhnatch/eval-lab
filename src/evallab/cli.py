@@ -1015,6 +1015,7 @@ def run_cli(
                     output_root=derived_root_from_environment(root),
                 ),
                 database_backup=lambda day: create_postgres_backup(root, day),
+                analysis_stager=_nightly_analysis_stager(root),
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
             print(
@@ -1357,6 +1358,17 @@ def _nightly_digest_enricher(root: Path, get_loop: Callable[[], ResearcherLoop])
         append_gc_plan_to_digest(path, nightly_gc_plan(root))
 
     return enrich
+
+
+def _nightly_analysis_stager(root: Path) -> Callable[[], object]:
+    """Stage-only completion hook (M006): freezes identity, never calls."""
+
+    def stage() -> object:
+        from evallab.analysis_worker import default_job_roots, default_worker
+
+        return default_worker(root).stage(default_job_roots(root))
+
+    return stage
 
 
 def _digest_renderer(root: Path) -> DigestRenderer:

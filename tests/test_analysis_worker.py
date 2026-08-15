@@ -363,3 +363,316 @@ def test_source_evidence_bytes_are_never_modified(tmp_path):
     worker.run_cycle([jobs_root])
     after = {p: p.read_bytes() for p in jobs_root.rglob("*") if p.is_file()}
     assert before == after
+
+
+# ============================================================================
+# M006 repair regressions (integrator review on PR #47)
+# ============================================================================
+
+
+# ---- (1) real nightly composition stages after successful ingest -------------
+
+
+def _nightly(tmp_path, *, stager, ingester):
+
+    from evallab.automation import NightlyCycle
+    from evallab.digest import DigestRenderer
+    from evallab.queue import DirectoryQueue, Executor
+    from evallab.schemas import (
+        HeadlessDoctorChecks,
+        HeadlessDoctorReport,
+    )
+
+    class StaticDoctor:
+        def run(self):
+            checks = HeadlessDoctorChecks(
+                keychain_readable=True, codex_auth_present=True,
+                docker_reachable=True, postgres_reachable=True,
+                disk_headroom=True,
+            )
+            return HeadlessDoctorReport(
+                checked_at=FROZEN, healthy=True, checks=checks
+            )
+
+    queue = DirectoryQueue(tmp_path / "queue")
+    service = Executor(
+        repo_root=tmp_path, queue=queue, policy=POLICY,
+        runner=lambda request: request.jobs_dir / request.name,
+        ingester=lambda job_dir: None,
+        spent_today=lambda: 0.0,
+        consecutive_harness_failures=lambda: 0,
+    )
+    renderer = DigestRenderer(
+        repo_root=tmp_path, queue=queue, policy=POLICY,
+        trial_loader=lambda day: [], drift_loader=lambda day: [],
+    )
+    cycle = NightlyCycle(
+        doctor=StaticDoctor(),  # type: ignore[arg-type]
+        executor=service,
+        renderer=renderer,
+        committer=lambda path: True,
+        completed_job_ingester=ingester,
+        analysis_stager=stager,
+    )
+    return cycle, queue
+
+
+def _ok_ingest(order):
+    from evallab.atif import IngestProjectionResult
+
+    def ingest():
+        order.append("ingest")
+        return IngestProjectionResult(cataloged_jobs=0, tables=(), failures=())
+
+    return ingest
+
+
+def test_nightly_stages_only_after_successful_ingest(tmp_path):
+    order: list[str] = []
+    cycle, _queue = _nightly(
+        tmp_path,
+        ingester=_ok_ingest(order),
+        stager=lambda: order.append("stage"),
+    )
+    from datetime import date as _date
+
+    cycle.run(report_date=_date(2026, 8, 15))
+    assert order == ["ingest", "stage"]  # staging strictly after ingest
+
+
+def test_nightly_skips_staging_when_ingest_fails(tmp_path):
+    order: list[str] = []
+
+    def bad_ingester():
+        order.append("ingest")
+        raise RuntimeError("catalog down")
+
+    cycle, _queue = _nightly(
+        tmp_path, ingester=bad_ingester, stager=lambda: order.append("stage"),
+    )
+    from datetime import date as _date
+
+    cycle.run(report_date=_date(2026, 8, 15))
+    assert order == ["ingest"]  # no staging on failed ingest
+
+
+def test_nightly_staging_failure_emits_durable_event(tmp_path):
+    from datetime import date as _date
+
+    from evallab.queue import load_events
+
+    def bad_stager():
+        raise RuntimeError("stage exploded")
+
+    order: list[str] = []
+    cycle, queue = _nightly(tmp_path, ingester=_ok_ingest(order), stager=bad_stager)
+    cycle.run(report_date=_date(2026, 8, 15))
+    events = load_events(queue.events_path)
+    assert any(
+        e.event == "analysis_stage_failed"
+        and "RuntimeError" in (e.reason_code or "")
+        for e in events
+    ), [e.event for e in events]
+
+
+def test_cli_nightly_stager_composition_stages_real_requests(tmp_path):
+    """The exact callable the CLI wires (not a unit seam) stages requests."""
+    from evallab.cli import _nightly_analysis_stager
+
+    root = tmp_path / "repo"
+    (root / "runs").mkdir(parents=True)
+    shutil.copytree(FIXTURES / "jobs" / "job-pass", root / "runs" / "job-pass")
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text(
+        "version: 1\ndaily_cost_ceiling_usd: 20\nper_job_cost_ceiling_usd: 3\n"
+        "quiet_failure_rule: 3\n"
+        "auto_run:\n  - name: local-controls\n    agents: [oracle, nop]\n"
+        "escalate_to_human:\n  - new_task_registration\n"
+    )
+    (root / "research/analysis").mkdir(parents=True)
+    shutil.copy(FIXTURES / "stage5-prompt.md",
+                root / "research/analysis/stage5-prompt.md")
+    shutil.copy(FIXTURES / "stage5-rubric.json",
+                root / "research/analysis/stage5-rubric.json")
+    report = _nightly_analysis_stager(root)()
+    assert report.staged == 1 and report.calls == 0
+    store_dir = root / "derived/analyses/worker/requests"
+    assert len(list(store_dir.iterdir())) == 1
+
+
+# ---- (2) every frozen input reverified before admission ----------------------
+
+
+def test_prompt_change_defers_before_any_call(tmp_path):
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    (root / "prompt.md").write_text("changed prompt\n")
+    worker.run_cycle([root / "jobs"])
+    assert adapter.calls == 0
+    reasons = {worker.store.transitions(rid)[-1].reason
+               for rid in worker.store.all_request_ids()}
+    assert "stale_identity:prompt_changed" in reasons
+
+
+def test_rubric_missing_quarantines_before_any_call(tmp_path):
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    (root / "rubric.json").unlink()
+    worker.run_cycle([root / "jobs"])
+    assert adapter.calls == 0
+    reasons = {worker.store.transitions(rid)[-1].reason
+               for rid in worker.store.all_request_ids()}
+    assert "evidence_missing:rubric" in reasons
+
+
+def test_lock_tamper_quarantines_task_verifier_truth(tmp_path):
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    lock = root / "jobs" / "job-pass" / "join-trial" / "lock.json"
+    lock.write_text('{"task": {"digest": "sha256:' + "e" * 64 + '"}}')
+    worker.run_cycle([root / "jobs"])
+    quarantined = {worker.store.transitions(rid)[-1].reason
+                   for rid in worker.store.all_request_ids()
+                   if worker.store.state(rid) == "quarantined"}
+    assert "evidence_tampered:lock.json" in quarantined
+    assert adapter.calls == 1  # only the untampered eligible trial ran
+
+
+def test_frozen_request_records_lock_and_task_digests(tmp_path):
+    worker, root = make_worker(tmp_path)
+    worker.stage([root / "jobs"])
+    for rid in worker.store.all_request_ids():
+        request = worker.store.load(rid)
+        assert request.lock_sha256 and request.lock_sha256.startswith("sha256:")
+        assert request.task_digest and request.task_digest.startswith("sha256:")
+        assert request.verifier_digest
+
+
+# ---- (3) crash-recoverable lease ownership -----------------------------------
+
+
+def _write_lease(worker, rid, *, pid, age_seconds=0.0):
+    from datetime import timedelta
+
+    path = worker.store.request_dir(rid) / "lease"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"pid": pid, "acquired_at": (FROZEN - timedelta(seconds=age_seconds)).isoformat(),
+               "host": "testhost"}
+    path.write_text(json.dumps(payload))
+
+
+def _pending(worker):
+    return [rid for rid in worker.store.all_request_ids()
+            if worker.store.state(rid) == "pending"]
+
+
+def test_dead_owner_lease_is_reclaimed_before_call(tmp_path):
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    _write_lease(worker, rid, pid=99999999)  # no such process
+    transition = worker.run_one(rid)
+    assert transition.state == "completed"
+    assert adapter.calls == 1  # reclaimed and ran exactly once
+
+
+def test_live_owner_lease_is_never_reclaimed_even_when_old(tmp_path):
+    import os as _os
+
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    _write_lease(worker, rid, pid=_os.getpid(), age_seconds=100_000)
+    transition = worker.run_one(rid)
+    assert transition.state == "deferred"
+    assert transition.reason == "lease_held_by_another_worker"
+    assert adapter.calls == 0
+
+
+def test_corrupt_lease_is_reclaimed(tmp_path):
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    path = worker.store.request_dir(rid) / "lease"
+    path.write_text("{not json")
+    assert worker.run_one(rid).state == "completed"
+    assert adapter.calls == 1
+
+
+def test_crash_during_call_dead_lease_plus_sidecar_adopts_without_second_call(tmp_path):
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    worker.run_one(rid)  # produces the durable sidecar
+    assert adapter.calls == 1
+    # simulate: process died mid-completion — lease left by a dead pid, and
+    # the completed transition never landed
+    transitions = worker.store.request_dir(rid) / "transitions.jsonl"
+    lines = [ln for ln in transitions.read_text().splitlines()
+             if '"completed"' not in ln]
+    transitions.write_text("\n".join(lines) + "\n")
+    _write_lease(worker, rid, pid=99999999)
+    transition = worker.run_one(rid)
+    assert transition.state == "completed"
+    assert transition.reason == "adopted_existing_sidecar"
+    assert adapter.calls == 1  # ZERO additional calls
+
+
+# ---- (4) default composition indexes through the catalog ---------------------
+
+
+def test_default_worker_has_catalog_indexer(monkeypatch, tmp_path):
+    from evallab import analysis_worker as aw
+
+    root = tmp_path / "repo"
+    (root / "policy").mkdir(parents=True)
+    (root / "policy/standing-approvals.yaml").write_text(
+        "version: 1\ndaily_cost_ceiling_usd: 20\nper_job_cost_ceiling_usd: 3\n"
+        "quiet_failure_rule: 3\n"
+        "auto_run:\n  - name: local-controls\n    agents: [oracle, nop]\n"
+        "escalate_to_human:\n  - new_task_registration\n"
+    )
+    worker = aw.default_worker(root)
+    assert worker.indexer is not None
+
+    indexed: list[tuple[str, Path]] = []
+    monkeypatch.setattr(
+        "evallab.database.initialize", lambda url: indexed.append(("init", Path(url)))
+    )
+    monkeypatch.setattr(
+        aw, "ingest_analysis_sidecar",
+        lambda url, path, root: indexed.append(("ingest", path)),
+    )
+    sidecar = tmp_path / "analysis.json"
+    sidecar.write_text("{}")
+    worker.indexer(sidecar)
+    assert [k for k, _ in indexed] == ["init", "ingest"]
+    assert indexed[1][1] == sidecar
+
+
+def test_default_indexer_failure_leaves_sidecar_adoptable(monkeypatch, tmp_path):
+
+    adapter = CountingAdapter()
+
+    def failing_indexer(path: Path) -> None:
+        raise RuntimeError("catalog offline")
+
+    worker, root = make_worker(tmp_path, adapter=adapter, indexer=failing_indexer)
+    with pytest.raises(RuntimeError):
+        worker.run_cycle([root / "jobs"])
+    # sidecar durable, state not completed -> retryable
+    stuck = [rid for rid in worker.store.all_request_ids()
+             if worker.store.sidecar_path(rid).is_file()
+             and worker.store.state(rid) != "completed"]
+    assert stuck
+    worker.indexer = None  # catalog comes back (no-op indexer for the test)
+    worker.run_cycle([root / "jobs"])
+    assert worker.store.state(stuck[0]) == "completed"
+    assert adapter.calls <= 2  # adoption, never a re-call for the stuck one

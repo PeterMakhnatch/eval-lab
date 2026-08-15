@@ -1,9 +1,11 @@
-.PHONY: help sync check premerge db-up db-down db-init doctor controls ingest summarize
+.PHONY: help sync check premerge smoke smoke-ci db-up db-down db-init doctor controls ingest summarize
 
 help:
 	@echo "sync       Install locked Python dependencies"
 	@echo "check      Run lint and tests"
 	@echo "premerge   Mirror the complete CI gate on Python 3.12"
+	@echo "smoke      Run the full local doctor/Harbor/Postgres/Parquet/digest smoke"
+	@echo "smoke-ci   Run the Docker-free smoke subset with real queue and Parquet"
 	@echo "db-up      Start local PostgreSQL"
 	@echo "db-down    Stop local PostgreSQL (preserves volume)"
 	@echo "db-init    Apply the idempotent database schema"
@@ -20,6 +22,12 @@ check:
 
 premerge:
 	scripts/premerge.sh
+
+smoke:
+	uv run python -m evallab.smoke
+
+smoke-ci:
+	uv run python -m evallab.smoke --docker-free
 
 db-up:
 	docker compose up -d postgres

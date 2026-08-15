@@ -27,6 +27,7 @@ class ExperimentSpec(ContractModel):
     jobs_dir: str = "runs"
     attempts: int = Field(default=1, ge=1)
     concurrency: int = Field(default=1, ge=1)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
     submitted_by: str = Field(min_length=1)
     priority: int = Field(default=100, ge=0, le=1000)
     est_cost_usd: float = Field(default=0.0, ge=0)
@@ -78,6 +79,7 @@ class ExperimentMatrix(ContractModel):
     environment: str = "docker"
     jobs_dir: str = "runs"
     concurrency: int = Field(default=1, ge=1)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
     runs: list[MatrixRun] = Field(min_length=1)
 
 
@@ -123,6 +125,8 @@ class QueueEvent(ContractModel):
     reason_code: str | None = None
     job_name: str | None = None
     report_date: str | None = None
+    attempt_number: int | None = Field(default=None, ge=1)
+    estimated_cost_usd: float | None = Field(default=None, ge=0)
 
 
 class QueueReason(ContractModel):
@@ -163,12 +167,9 @@ class HeadlessDoctorReport(ContractModel):
             and self.checks.postgres_reachable
             and self.checks.disk_headroom
         )
-        credentials_ok = self.checks.keychain_readable or self.checks.codex_auth_present
-        expected = infrastructure_ok and credentials_ok
+        expected = infrastructure_ok
         if self.healthy != expected:
-            raise ValueError(
-                "healthy must equal: all infrastructure checks and at least one credential"
-            )
+            raise ValueError("healthy must equal all infrastructure checks")
         return self
 
 

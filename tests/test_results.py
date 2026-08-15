@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from evallab.results import discover_job_dirs, load_job
 
 
@@ -86,3 +88,15 @@ def test_discovery_does_not_treat_trial_result_as_job(tmp_path: Path) -> None:
     job_dir = make_job(tmp_path)
 
     assert discover_job_dirs([tmp_path]) == [job_dir]
+
+
+def test_partial_harbor_job_is_not_a_completed_job(tmp_path: Path) -> None:
+    job_dir = make_job(tmp_path)
+    result_path = job_dir / "result.json"
+    result = json.loads(result_path.read_text())
+    result["finished_at"] = None
+    write_json(result_path, result)
+
+    assert discover_job_dirs([tmp_path]) == []
+    with pytest.raises(ValueError, match="Not a completed Harbor job"):
+        load_job(job_dir)

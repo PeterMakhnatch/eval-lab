@@ -44,3 +44,5 @@ jobs:
           version: "0.9.24"
       - run: uv sync --locked
       - run: uv run pytest
+      - if: matrix.python-version == '3.12'
+        run: uv run python -m evallab.smoke --docker-free

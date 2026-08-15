@@ -17,6 +17,7 @@ from typing import Literal, Protocol, TypeVar
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from evallab import database
+from evallab.digest import event_belongs_to_report_day
 from evallab.queue import DirectoryQueue, load_events, load_policy, new_ulid
 from evallab.runner import database_url_from_environment
 from evallab.schemas import ContractModel, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
@@ -513,6 +514,7 @@ class CallLedger:
 
 CatalogSpendLoader = Callable[[date], float]
 EvidenceLoader = Callable[[date, Path], EvidenceBundle]
+UtcClock = Callable[[], datetime]
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -527,6 +529,7 @@ class ResearcherLoop:
         limits: Mapping[ResearchRole, RoleLimits] = DEFAULT_ROLE_LIMITS,
         catalog_spend: CatalogSpendLoader | None = None,
         evidence_loader: EvidenceLoader | None = None,
+        clock: UtcClock | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.invoker = invoker
@@ -536,6 +539,7 @@ class ResearcherLoop:
         self.ledger = CallLedger(self.repo_root / "queue/researchers/calls.jsonl")
         self._catalog_spend = catalog_spend or self._load_catalog_spend
         self._evidence_loader = evidence_loader or self._load_catalog_evidence
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     @classmethod
     def from_repo(cls, repo_root: Path) -> ResearcherLoop:
@@ -548,7 +552,6 @@ class ResearcherLoop:
 
     def run(self, *, report_date: date | None = None) -> ResearcherPassResult:
         target_date = report_date or date.today()
-        budget_day = date.today()
         pass_id = new_ulid()
         pass_dir = self.repo_root / "queue/researchers/passes" / target_date.isoformat() / pass_id
         pass_dir.mkdir(parents=True, exist_ok=False)
@@ -566,7 +569,6 @@ class ResearcherLoop:
             analyst = self._invoke_validated(
                 pass_id=pass_id,
                 role="analyst",
-                day=budget_day,
                 prompt=self._analyst_prompt(bundle),
                 output_model=AnalystOutput,
                 work_dir=pass_dir / "analyst",
@@ -580,7 +582,6 @@ class ResearcherLoop:
             synthesis = self._invoke_validated(
                 pass_id=pass_id,
                 role="synthesizer",
-                day=budget_day,
                 prompt=self._synthesizer_prompt(bundle, analyst),
                 output_model=SynthesisOutput,
                 work_dir=pass_dir / "synthesizer",
@@ -601,7 +602,6 @@ class ResearcherLoop:
             proposal = self._invoke_validated(
                 pass_id=pass_id,
                 role="proposer",
-                day=budget_day,
                 prompt=self._proposer_prompt(synthesis, journal.tail(), registry),
                 output_model=ProposalDraft,
                 work_dir=pass_dir / "proposer",
@@ -689,7 +689,6 @@ class ResearcherLoop:
         *,
         pass_id: str,
         role: ResearchRole,
-        day: date,
         prompt: str,
         output_model: type[T],
         work_dir: Path,
@@ -698,13 +697,17 @@ class ResearcherLoop:
         errors: list[str] = []
         for attempt in (1, 2):
             limits = self.limits[role]
+            budget_now = self._clock()
+            if budget_now.utcoffset() is None:
+                raise ValueError("researcher budget clock must be timezone-aware")
+            attempt_day = budget_now.astimezone(UTC).date()
             invocation_id = self.ledger.reserve(
                 pass_id=pass_id,
                 role=role,
-                day=day,
+                day=attempt_day,
                 limits=limits,
                 policy=self.policy,
-                catalog_spend_usd=self._catalog_spend(day),
+                catalog_spend_usd=self._catalog_spend(attempt_day),
             )
             invocation_prompt = prompt
             if errors:
@@ -730,7 +733,7 @@ class ResearcherLoop:
                     invocation_id=invocation_id,
                     pass_id=pass_id,
                     role=role,
-                    day=day,
+                    day=attempt_day,
                     event="timed_out",
                     reason=_safe_error(str(exc)),
                 )
@@ -740,7 +743,7 @@ class ResearcherLoop:
                     invocation_id=invocation_id,
                     pass_id=pass_id,
                     role=role,
-                    day=day,
+                    day=attempt_day,
                     event="failed",
                     reason=_safe_error(str(exc)),
                 )
@@ -750,7 +753,7 @@ class ResearcherLoop:
                     invocation_id=invocation_id,
                     pass_id=pass_id,
                     role=role,
-                    day=day,
+                    day=attempt_day,
                     event="completed",
                     usage=response.usage,
                 )
@@ -1138,7 +1141,7 @@ def append_fleet_section(
     events = [
         event
         for event in load_events(queue.events_path)
-        if event.occurred_at.astimezone().date() == report_date
+        if event_belongs_to_report_day(event, report_date)
     ]
     deferrals = [
         event
@@ -1268,9 +1271,9 @@ def _researcher_environment(
     work_dir: Path,
 ) -> dict[str, str]:
     environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key in _RESEARCHER_ENVIRONMENT_KEYS
+        key: os.environ[key]
+        for key in _RESEARCHER_ENVIRONMENT_KEYS
+        if key in os.environ
     }
     executable_path = Path(executable).absolute() if "/" in executable else None
     path_entries = ["/usr/bin", "/bin"]

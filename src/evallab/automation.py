@@ -15,13 +15,14 @@ from evallab import credentials as credentials_module
 from evallab import database
 from evallab.atif import IngestProjectionResult
 from evallab.digest import DigestRenderer, commit_digest
+from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.queue import (
     DirectoryQueue,
     Executor,
     new_ulid,
     record_projection_failures,
 )
-from evallab.runner import database_url_from_environment
+from evallab.runner import database_url_from_environment, subscription_environment
 from evallab.schemas import (
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
@@ -39,6 +40,7 @@ CanaryEnqueuer = Callable[[date], int]
 ResearcherPass = Callable[[date], int]
 DigestEnricher = Callable[[Path, date], None]
 CompletedJobIngester = Callable[[], IngestProjectionResult]
+DatabaseBackup = Callable[[date], Path]
 
 
 def _quiet_command_succeeds(command: list[str]) -> bool:
@@ -51,6 +53,7 @@ def _quiet_command_succeeds(command: list[str]) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=5,
+            env=subscription_environment(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
@@ -90,10 +93,13 @@ class HeadlessDoctor:
         infrastructure_ok = (
             checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
         )
-        credentials_ok = checks.keychain_readable or checks.codex_auth_present
         return HeadlessDoctorReport(
             checked_at=datetime.now(UTC),
-            healthy=infrastructure_ok and credentials_ok,
+            # Credential availability is informational and enforced per spec
+            # by Executor.tick(). Controls need no credential, so a machine
+            # with healthy infrastructure and zero model credentials remains
+            # capable of useful, free work.
+            healthy=infrastructure_ok,
             checks=checks,
         )
 
@@ -135,8 +141,6 @@ def blocking_health_failures(report: HeadlessDoctorReport) -> list[str]:
         for name in ("docker_reachable", "postgres_reachable", "disk_headroom")
         if not getattr(checks, name)
     ]
-    if not (checks.keychain_readable or checks.codex_auth_present):
-        blocking.append("no_credentials")
     return blocking
 
 
@@ -206,7 +210,33 @@ class GuardedTick:
                 actor="scheduled-tick",
             )
             return GuardedTickResult(report=report, dispatched=0)
-        return GuardedTickResult(report=report, dispatched=self.executor.tick())
+        dispatched = self.executor.tick()
+        if dispatched:
+            event = "tick_dispatched"
+            reason = f"dispatched:{dispatched}"
+        elif self.executor.last_tick_reason is not None:
+            event = "tick_deferred"
+            reason = self.executor.last_tick_reason
+        elif self.executor.queue.stop_path.exists():
+            event = "tick_deferred"
+            reason = "stop_file_present"
+        elif self.executor.queue.list_specs("approved"):
+            event = "tick_deferred"
+            reason = "approved_specs_deferred"
+        else:
+            event = "tick_deferred"
+            reason = "no_approved_specs"
+        self.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event=event,
+                actor="scheduled-tick",
+                reason_code=reason,
+            )
+        )
+        return GuardedTickResult(report=report, dispatched=dispatched)
 
 
 @dataclass(frozen=True)
@@ -218,6 +248,7 @@ class NightlyResult:
     digest_path: Path
     committed: bool
     researcher_invocations: int = 0
+    backup_path: Path | None = None
 
 
 class NightlyCycle:
@@ -232,6 +263,7 @@ class NightlyCycle:
         researcher_pass: ResearcherPass | None = None,
         digest_enricher: DigestEnricher | None = None,
         completed_job_ingester: CompletedJobIngester | None = None,
+        database_backup: DatabaseBackup | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
@@ -241,6 +273,7 @@ class NightlyCycle:
         self.researcher_pass = researcher_pass
         self.digest_enricher = digest_enricher
         self.completed_job_ingester = completed_job_ingester
+        self.database_backup = database_backup
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
@@ -249,6 +282,7 @@ class NightlyCycle:
         enqueued = 0
         dispatched = 0
         researcher_invocations = 0
+        backup_path: Path | None = None
         if report.healthy and self.completed_job_ingester is not None:
             try:
                 ingest_result = self.completed_job_ingester()
@@ -271,6 +305,34 @@ class NightlyCycle:
                     ingest_result,
                     actor="nightly",
                     spec_id=f"system-{new_ulid()}",
+                )
+        if report.healthy and not quarantined and self.database_backup is not None:
+            try:
+                backup_path = self.database_backup(target_date)
+            except Exception as exc:
+                quarantined = True
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="postgres_backup_failed",
+                        actor="nightly",
+                        reason_code=f"pg_dump_failed:{type(exc).__name__}",
+                        report_date=target_date.isoformat(),
+                    )
+                )
+            else:
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="postgres_backup_completed",
+                        actor="nightly",
+                        reason_code="nightly_pg_dump",
+                        report_date=target_date.isoformat(),
+                    )
                 )
         if report.healthy and not quarantined:
             try:
@@ -298,6 +360,13 @@ class NightlyCycle:
                             report_date=target_date,
                             actor="nightly",
                             reason="stop_file_present",
+                        )
+                    elif self.executor.last_tick_reason is not None:
+                        record_researcher_deferral(
+                            self.executor.queue,
+                            report_date=target_date,
+                            actor="nightly",
+                            reason=self.executor.last_tick_reason,
                         )
                     elif not report.checks.codex_auth_present:
                         record_researcher_deferral(
@@ -349,6 +418,14 @@ class NightlyCycle:
                         report_date=target_date.isoformat(),
                     )
                 )
+                # Discard any partial enrichment and render again after the
+                # quarantine event so the committed human digest cannot claim
+                # health while NightlyResult reports a failure.
+                digest_path = self.renderer.write(
+                    report_date=target_date,
+                    health_report=report,
+                    dispatched=dispatched,
+                )
         return NightlyResult(
             report=report,
             quarantined=quarantined,
@@ -357,11 +434,16 @@ class NightlyCycle:
             digest_path=digest_path,
             committed=self.committer(digest_path),
             researcher_invocations=researcher_invocations,
+            backup_path=backup_path,
         )
 
 
 def _launchctl(command: list[str], check: bool) -> int:
-    completed = subprocess.run(command, check=False)
+    completed = subprocess.run(
+        command,
+        check=False,
+        env=subscription_environment(),
+    )
     if check and completed.returncode != 0:
         raise RuntimeError(f"launchctl exited {completed.returncode}")
     return completed.returncode
@@ -391,6 +473,7 @@ class ScheduleInstaller:
     def definitions(self) -> dict[str, dict[str, Any]]:
         logs = self.home / "Library/Logs/evallab"
         environment = {
+            DERIVED_ROOT_ENV: str(derived_root_from_environment(self.repo_root)),
             "PATH": ":".join(
                 [
                     str(self.home / ".local/bin"),

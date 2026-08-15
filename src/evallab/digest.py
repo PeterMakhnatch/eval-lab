@@ -12,7 +12,11 @@ from pydantic import ValidationError
 
 from evallab import database
 from evallab.queue import DirectoryQueue, load_events
-from evallab.runner import database_url_from_environment
+from evallab.runner import (
+    SUPPORT_COMMAND_TIMEOUT_SECONDS,
+    database_url_from_environment,
+    subscription_environment,
+)
 from evallab.schemas import (
     CanaryDriftObservation,
     HeadlessDoctorReport,
@@ -38,6 +42,13 @@ TrialLoader = Callable[[date], list[DigestTrial]]
 
 
 DriftLoader = Callable[[date], list[CanaryDriftObservation]]
+
+
+def event_belongs_to_report_day(event: QueueEvent, day: date) -> bool:
+    """Prefer a nightly event's semantic report date over its wall-clock date."""
+    if event.report_date is not None:
+        return event.report_date == day.isoformat()
+    return event.occurred_at.astimezone().date() == day
 
 
 class DigestRenderer:
@@ -84,7 +95,13 @@ class DigestRenderer:
         quarantine_events = [
             event
             for event in period_events + report_events
-            if event.event in {"nightly_quarantined", "tick_quarantined"}
+            if event.event
+            in {
+                "nightly_quarantined",
+                "tick_quarantined",
+                "postgres_backup_failed",
+                "digest_enrichment_failed",
+            }
         ]
         is_quarantined = bool(quarantine_events) or (
             health_report is not None and not health_report.healthy
@@ -170,7 +187,13 @@ class DigestRenderer:
 
         spend = sum(trial.cost_usd for trial in trials + early_trials)
         exceptions = Counter(
-            "harness_failure" for trial in trials + early_trials if trial.exception_type
+            (
+                "transient_harness"
+                if trial.exception_type == "transient_harness"
+                else "harness_failure"
+            )
+            for trial in trials + early_trials
+            if trial.exception_type
         )
         exceptions["harness_failure"] += sum(
             observation.is_harness_drift_suspect for observation in drift
@@ -279,7 +302,7 @@ class DigestRenderer:
 
     @staticmethod
     def _events_on(events: list[QueueEvent], day: date) -> list[QueueEvent]:
-        return [event for event in events if event.occurred_at.astimezone().date() == day]
+        return [event for event in events if event_belongs_to_report_day(event, day)]
 
     @staticmethod
     def _policy_by_job(events: list[QueueEvent]) -> dict[str, str]:
@@ -355,17 +378,37 @@ class DigestRenderer:
 def commit_digest(path: Path) -> bool:
     repo_root = path.resolve().parent.parent
     relative = path.resolve().relative_to(repo_root)
-    subprocess.run(["git", "add", "--", str(relative)], cwd=repo_root, check=True)
-    changed = subprocess.run(
+    environment = {
+        **subscription_environment(),
+        "GIT_EDITOR": ":",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+
+    def run_git(command: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
+        try:
+            return subprocess.run(
+                command,
+                cwd=repo_root,
+                check=check,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+                env=environment,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError("bounded digest Git command failed") from exc
+
+    run_git(["git", "add", "--", str(relative)], check=True)
+    changed = run_git(
         ["git", "diff", "--cached", "--quiet", "--", str(relative)],
-        cwd=repo_root,
         check=False,
     ).returncode
     if changed == 0:
         return False
     if changed != 1:
         raise RuntimeError("git could not inspect the staged digest")
-    subprocess.run(
+    run_git(
         [
             "git",
             "commit",
@@ -375,7 +418,6 @@ def commit_digest(path: Path) -> bool:
             "--",
             str(relative),
         ],
-        cwd=repo_root,
         check=True,
     )
     return True

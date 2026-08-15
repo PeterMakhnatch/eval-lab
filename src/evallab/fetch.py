@@ -20,6 +20,7 @@ import pyarrow.parquet as pq
 
 from evallab.atif import export_trajectories
 from evallab.results import JobRecord, TrialRecord
+from evallab.runner import subscription_environment
 from evallab.schemas import ProvenanceMetadata
 
 UNPINNED_VERSIONS = frozenset({"latest", "head", "main", "master"})
@@ -532,6 +533,7 @@ def _run_command(
         check=False,
         capture_output=True,
         text=True,
+        env=subscription_environment(),
     )
 
 

@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from evallab.atif import ExportedTable, ExportResult, export_trajectories, project_trial
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
+from evallab.runner import subscription_environment
 from evallab.schemas import (
     AnalysisProvenance,
     AnalysisReview,
@@ -1047,6 +1048,7 @@ class CodexExecAnalyzer:
             check=False,
             capture_output=True,
             text=True,
+            env=subscription_environment(),
         )
         if completed.returncode != 0:
             raise RuntimeError(

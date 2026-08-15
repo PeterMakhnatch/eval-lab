@@ -21,6 +21,7 @@ from dashboard.queries import (
     queue_funnel,
     spend_history,
 )
+from evallab.paths import derived_root_from_environment
 
 REPO_ROOT = Path(
     os.environ.get("EVALLAB_DASHBOARD_ROOT", Path(__file__).resolve().parents[1])
@@ -61,7 +62,9 @@ def load_snapshot(repo_root_value: str, database_url: str, report_day: date) -> 
             ),
             [],
         ),
-        "atif": load("atif", lambda: atif_activity(root / "derived/parquet"), {}),
+        "atif": load(
+            "atif", lambda: atif_activity(derived_root_from_environment(root)), {}
+        ),
         "discoveries": load(
             "discoveries", lambda: discoveries(root / "digests/DISCOVERIES.md"), []
         ),

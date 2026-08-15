@@ -183,6 +183,7 @@ def _write_job(
         job / "result.json",
         {
             "id": f"00000000-0000-0000-0000-{sum(map(ord, name)):012d}",
+            "finished_at": "2026-08-14T12:00:00Z",
             "n_total_trials": len(trials),
             "stats": {"n_completed_trials": len(trials), "n_errored_trials": 0},
         },
@@ -345,6 +346,27 @@ def test_family_report_joins_parquet_to_raw_atif_and_explains_results(
         == 0
     )
     assert "# Trajectory family report: task-family" in capsys.readouterr().out
+    output_root = tmp_path / "derived/reports"
+    assert not output_root.exists()
+    assert (
+        cli.run_cli(
+            [
+                "report",
+                "family",
+                "task-family",
+                "--parquet-dir",
+                "derived/parquet",
+                "--raw-root",
+                "runs",
+                "--output-dir",
+                "derived/reports",
+            ],
+            workspace=tmp_path,
+        )
+        == 0
+    )
+    assert (output_root / "family-task-family.json").is_file()
+    assert (output_root / "family-task-family.md").is_file()
 
 
 def test_family_report_does_not_call_zero_steps_a_trajectory_length(tmp_path: Path) -> None:
@@ -395,6 +417,15 @@ def test_completed_spec_drafts_eval_card_with_digests_intervals_and_threats(
     template.write_text(template_source.read_text(encoding="utf-8"), encoding="utf-8")
 
     output = tmp_path / "research/cards/completed-eval.md"
+    assert (
+        cli.run_cli(
+            ["report", "card", "queue/done/agent-spec.json"],
+            workspace=tmp_path,
+        )
+        == 0
+    )
+    assert not output.exists()
+    assert "# Eval card: completed-eval" in capsys.readouterr().out
     card_path, card = draft_eval_card(
         spec_path,
         repo_root=tmp_path,

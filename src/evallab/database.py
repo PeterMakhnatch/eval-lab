@@ -9,6 +9,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from evallab.results import JobRecord, duration_seconds
+from evallab.runner import transient_provider_exception
 from evallab.schemas import CanaryDriftObservation
 
 
@@ -32,8 +33,22 @@ def _relative_or_absolute(path: Path, root: Path) -> str:
 
 def _exception_type(result: dict[str, Any]) -> str | None:
     exception = result.get("exception_info") or {}
+    if transient_provider_exception(result) is not None:
+        return "transient_harness"
     value = exception.get("exception_type")
     return str(value) if value else None
+
+
+def count_consecutive_harness_failures(exception_types: Iterable[str | None]) -> int:
+    """Count recent failures while treating provider capacity as neutral noise."""
+    count = 0
+    for exception_type in exception_types:
+        if exception_type == "transient_harness":
+            continue
+        if exception_type is None:
+            break
+        count += 1
+    return count
 
 
 def _executemany(
@@ -255,13 +270,14 @@ def ping(database_url: str) -> str:
 
 
 def daily_cost_usd(database_url: str, day: date) -> float:
+    """Return spend for the explicit UTC policy day, independent of DB settings."""
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         row = connection.execute(
             """
             SELECT COALESCE(sum(cost_usd), 0)
             FROM trials
             WHERE finished_at IS NOT NULL
-              AND (finished_at::timestamptz AT TIME ZONE current_setting('TIMEZONE'))::date = %s
+              AND (finished_at::timestamptz AT TIME ZONE 'UTC')::date = %s
             """,
             (day,),
         ).fetchone()
@@ -279,12 +295,7 @@ def consecutive_harness_failures(database_url: str) -> int:
             LIMIT 100
             """
         ).fetchall()
-    count = 0
-    for (exception_type,) in rows:
-        if exception_type is None:
-            break
-        count += 1
-    return count
+    return count_consecutive_harness_failures(exception_type for (exception_type,) in rows)
 
 
 def digest_trials(database_url: str, day: date) -> list[tuple[Any, ...]]:

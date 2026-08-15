@@ -21,6 +21,7 @@ from evallab.automation import (
     record_quarantine,
     record_researcher_deferral,
 )
+from evallab.backups import create_postgres_backup
 from evallab.calibrate import (
     dispatch_approved_codex_calibration,
     dspy_split_summary,
@@ -63,6 +64,7 @@ from evallab.gc import (
     nightly_gc_plan,
     run_gc,
 )
+from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.queue import (
     DirectoryQueue,
     Executor,
@@ -71,7 +73,13 @@ from evallab.queue import (
     read_spec,
     record_projection_failures,
 )
-from evallab.report import draft_eval_card, render_family_report, write_family_report
+from evallab.report import (
+    build_eval_card,
+    draft_eval_card,
+    family_report,
+    render_family_report,
+    write_family_report,
+)
 from evallab.researchers import ResearcherLoop
 from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
@@ -80,6 +88,7 @@ from evallab.runner import (
     expected_primary_reward,
     load_matrix,
     request_from_matrix,
+    subscription_environment,
 )
 from evallab.tracing import (
     TraceError,
@@ -94,6 +103,19 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+LOCAL_ENV_KEYS = {
+    "DATABASE_URL",
+    DERIVED_ROOT_ENV,
+    "HARBOR_CLAUDE_KEYCHAIN_ACCOUNT",
+    "HARBOR_CLAUDE_KEYCHAIN_SERVICE",
+    "LAB_REPORT_ISSUE",
+    "POSTGRES_DB",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_PORT",
+    "POSTGRES_USER",
+}
+
+
 def load_local_env(path: Path) -> None:
     if not path.is_file():
         return
@@ -102,7 +124,9 @@ def load_local_env(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+        normalized_key = key.strip()
+        if normalized_key in LOCAL_ENV_KEYS:
+            os.environ.setdefault(normalized_key, value.strip().strip("'\""))
 
 
 def parser() -> argparse.ArgumentParser:
@@ -199,6 +223,12 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--concurrency", type=int, default=1)
     run.add_argument("--attempts", type=int, default=1)
     run.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=1_800,
+        help="executor wall-clock allowance per attempted trial",
+    )
+    run.add_argument(
         "--allow-billable",
         action="store_true",
         help="Acknowledge that the selected adapter/model may incur charges",
@@ -220,11 +250,15 @@ def parser() -> argparse.ArgumentParser:
     ingest = commands.add_parser("ingest", help="Upsert Harbor job metadata into PostgreSQL")
     ingest.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
     ingest.add_argument("--database-url")
-    ingest.add_argument("--derived-dir", type=Path, default=Path("derived/parquet"))
+    ingest.add_argument(
+        "--derived-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
 
     trajectories = commands.add_parser(
         "trajectories",
-        help="Validate ATIF and rebuild the catalog and deterministic Parquet facts",
+        help="Validate ATIF; optionally rebuild catalog and deterministic Parquet facts",
     )
     trajectories.add_argument(
         "paths",
@@ -235,9 +269,13 @@ def parser() -> argparse.ArgumentParser:
     trajectories.add_argument(
         "--export",
         action="store_true",
-        help="Write trajectory and trial facts to partitioned Parquet",
+        help="Rebuild the catalog and write trajectory/trial facts to Parquet",
     )
-    trajectories.add_argument("--output-dir", type=Path, default=Path("derived/parquet"))
+    trajectories.add_argument(
+        "--output-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
     trajectories.add_argument("--database-url")
 
     compare = commands.add_parser("compare", help="Compare declared trial cohorts")
@@ -271,19 +309,31 @@ def parser() -> argparse.ArgumentParser:
         "family", help="Explain one task family from Parquet and canonical ATIF"
     )
     report_family.add_argument("task")
-    report_family.add_argument("--parquet-dir", type=Path, default=Path("derived/parquet"))
+    report_family.add_argument(
+        "--parquet-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
     report_family.add_argument(
         "--raw-root",
         type=Path,
         action="append",
         help="Raw Harbor root; repeat as needed (defaults to runs and reviewed evidence)",
     )
-    report_family.add_argument("--output-dir", type=Path, default=Path("derived/reports"))
+    report_family.add_argument(
+        "--output-dir",
+        type=Path,
+        help="write JSON and Markdown reports (default: render without writing)",
+    )
     report_card = report_commands.add_parser(
         "card", help="Draft a provenance-bearing eval card from a completed spec"
     )
     report_card.add_argument("path", type=Path)
-    report_card.add_argument("--output", type=Path)
+    report_card.add_argument(
+        "--output",
+        type=Path,
+        help="write the eval card (default: render without writing)",
+    )
 
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
@@ -478,7 +528,7 @@ def _doctor(root: Path) -> int:
         try:
             invariant = check_projection_invariant(
                 database_url,
-                root / "derived/parquet",
+                derived_root_from_environment(root),
                 root / "queue/events.jsonl",
             )
         except Exception as exc:
@@ -505,6 +555,7 @@ def _run_command(args: argparse.Namespace, root: Path) -> int:
         model=args.model,
         concurrency=args.concurrency,
         attempts=args.attempts,
+        timeout_seconds=args.timeout_seconds,
         allow_billable=args.allow_billable,
     )
     job_dir = Executor.from_repo(root).execute_direct(request)
@@ -606,33 +657,50 @@ def _report_command(args: argparse.Namespace, root: Path) -> int:
             Path("research/evidence/runs"),
             Path("evidence/runs"),
         ]
-        json_path, markdown_path, report = write_family_report(
-            args.task,
-            parquet_root=_resolve(root, args.parquet_dir),
-            raw_roots=[_resolve(root, path) for path in raw_roots],
-            output_root=_resolve(root, args.output_dir),
+        parquet_root = (
+            _resolve(root, args.parquet_dir)
+            if args.parquet_dir is not None
+            else derived_root_from_environment(root)
         )
+        resolved_raw_roots = [_resolve(root, path) for path in raw_roots]
+        if args.output_dir is None:
+            report = family_report(
+                args.task,
+                parquet_root=parquet_root,
+                raw_roots=resolved_raw_roots,
+            )
+        else:
+            json_path, markdown_path, report = write_family_report(
+                args.task,
+                parquet_root=parquet_root,
+                raw_roots=resolved_raw_roots,
+                output_root=_resolve(root, args.output_dir),
+            )
         print(render_family_report(report))
-        print(f"json: {json_path}")
-        print(f"markdown: {markdown_path}")
+        if args.output_dir is not None:
+            print(f"json: {json_path}")
+            print(f"markdown: {markdown_path}")
         return 0
-    destination = _resolve(root, args.output) if args.output else None
-    path, card = draft_eval_card(
-        _resolve(root, args.path),
-        repo_root=root,
-        output_path=destination,
-    )
-    print(f"eval card: {path}")
+    spec_path = _resolve(root, args.path)
+    if args.output is None:
+        rendered, card = build_eval_card(spec_path, repo_root=root)
+        print(rendered)
+    else:
+        path, card = draft_eval_card(
+            spec_path,
+            repo_root=root,
+            output_path=_resolve(root, args.output),
+        )
+        print(f"eval card: {path}")
     print(f"config digest: {card['spec_digest']}")
     return 0
 
 
 def _dashboard_command(args: argparse.Namespace, root: Path) -> int:
-    environment = os.environ.copy()
-    if args.database_url:
-        environment["DATABASE_URL"] = args.database_url
-    python_path = environment.get("PYTHONPATH")
-    environment["PYTHONPATH"] = str(root) + (os.pathsep + python_path if python_path else "")
+    environment = subscription_environment()
+    environment["DATABASE_URL"] = database_url_from_environment(args.database_url)
+    environment[DERIVED_ROOT_ENV] = str(derived_root_from_environment(root))
+    environment["PYTHONPATH"] = str(root)
     try:
         completed = subprocess.run(
             [
@@ -872,10 +940,15 @@ def run_cli(
                         ]
                     ),
                     root=root,
-                    output_root=root / "derived/parquet",
+                    output_root=derived_root_from_environment(root),
                 ),
+                database_backup=lambda day: create_postgres_backup(root, day),
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
+            print(
+                "database backup: "
+                f"{getattr(result, 'backup_path', None) or 'not created'}"
+            )
             print(f"enqueued: {result.enqueued}")
             print(f"dispatched: {result.dispatched}")
             print(
@@ -938,7 +1011,10 @@ def run_cli(
                 print("No completed Harbor jobs found.", file=sys.stderr)
                 return 1
             url = database_url_from_environment(args.database_url)
-            derived_root = _resolve(root, args.derived_dir)
+            derived_root = derived_root_from_environment(
+                root,
+                explicit=args.derived_dir,
+            )
             result = ingest_and_project(
                 url,
                 jobs,
@@ -984,11 +1060,16 @@ def run_cli(
                         f"{len(projection.trajectories)} | {len(projection.steps)} | "
                         f"{len(projection.tool_calls)} |"
                     )
+            if not args.export:
+                return 0
             result = ingest_and_project(
                 database_url_from_environment(args.database_url),
                 jobs,
                 root=root,
-                output_root=_resolve(root, args.output_dir),
+                output_root=derived_root_from_environment(
+                    root,
+                    explicit=args.output_dir,
+                ),
             )
             record_projection_failures(
                 DirectoryQueue(root / "queue"),

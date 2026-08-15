@@ -14,6 +14,11 @@ IGNORED_PARTS = {
     ".venv",
     ".worktrees",
     "__pycache__",
+    "backups",
+    "derived",
+    "exports",
+    "logs",
+    "queue",
     "runs",
 }
 SECRET_PATTERNS = [
@@ -30,12 +35,22 @@ def repository_files() -> list[Path]:
     return [
         path
         for path in ROOT.rglob("*")
-        if path.is_file() and not any(part in IGNORED_PARTS for part in path.parts)
+        if path.is_file()
+        and not any(
+            part in IGNORED_PARTS for part in path.relative_to(ROOT).parts
+        )
     ]
 
 
 def contains_high_confidence_secret(data: bytes) -> bool:
     return any(pattern.search(data) for pattern in SECRET_PATTERNS)
+
+
+def test_repository_inventory_includes_source_inside_linked_worktrees() -> None:
+    relative_paths = {path.relative_to(ROOT) for path in repository_files()}
+
+    assert Path("src/evallab/cli.py") in relative_paths
+    assert Path("tests/test_repository_contract.py") in relative_paths
 
 
 def test_task_has_complete_harbor_contract() -> None:
@@ -126,6 +141,20 @@ def test_standing_policy_keeps_conservative_defaults() -> None:
     assert "per_job_cost_ceiling_usd: 3" in policy
     assert "quiet_failure_rule: 3" in policy
     assert "agents: [oracle, nop]" in policy
+
+
+def test_fleet_status_reads_rotated_event_segments() -> None:
+    script = (ROOT / "scripts/fleet-status.sh").read_text()
+
+    assert "events.jsonl.*" in script
+    assert "cat queue/events.jsonl" in script
+
+
+def test_subscription_helpers_never_alias_oauth_to_model_api_key() -> None:
+    for relative in ("scripts/harbor-auth-env.sh", "scripts/auth-status.sh"):
+        helper = (ROOT / relative).read_text()
+        assert "export ANTHROPIC_API_KEY" not in helper
+        assert "${ANTHROPIC_API_KEY" not in helper
 
 
 def test_project_exposes_evallab_cli_and_transition_alias() -> None:

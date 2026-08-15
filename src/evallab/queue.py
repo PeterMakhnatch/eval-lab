@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import fcntl
 import fnmatch
 import json
 import os
 import secrets
 import shutil
 import subprocess
-from collections.abc import Callable, Iterable
-from datetime import UTC, date, datetime
+import threading
+import time
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -21,13 +25,20 @@ from evallab.credentials import (
     available_credentials,
     missing_credential_for,
 )
+from evallab.eventlog import event_log_lock, read_event_log_lines
+from evallab.paths import derived_root_from_environment
 from evallab.results import load_job
 from evallab.runner import (
     CONTROL_AGENTS,
+    SUPPORT_COMMAND_TIMEOUT_SECONDS,
+    ExecutionFailure,
     RunRequest,
+    TransientHarnessFailure,
     database_url_from_environment,
     run_experiment,
+    subscription_environment,
     tool_version,
+    transient_provider_exception,
 )
 from evallab.schemas import (
     ExperimentSpec,
@@ -50,6 +61,9 @@ QUEUE_STATES: tuple[QueueState, ...] = (
     "failed",
 )
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
+DEFAULT_EVENT_BACKUPS = 7
+_TICK_THREAD_LOCK = threading.Lock()
 
 
 def new_ulid(*, timestamp_ms: int | None = None, randomness: int | None = None) -> str:
@@ -161,8 +175,20 @@ class PolicyGate:
 
 
 class DirectoryQueue:
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        events_max_bytes: int = DEFAULT_EVENTS_MAX_BYTES,
+        event_backups: int = DEFAULT_EVENT_BACKUPS,
+    ) -> None:
+        if events_max_bytes < 1:
+            raise ValueError("events_max_bytes must be positive")
+        if event_backups < 1:
+            raise ValueError("event_backups must be positive")
         self.root = root
+        self.events_max_bytes = events_max_bytes
+        self.event_backups = event_backups
         self.reasons_dir = root / "reasons"
         for state in QUEUE_STATES:
             (root / state).mkdir(parents=True, exist_ok=True)
@@ -178,6 +204,27 @@ class DirectoryQueue:
 
     def state_dir(self, state: QueueState) -> Path:
         return self.root / state
+
+    @contextmanager
+    def tick_lock(self) -> Iterator[bool]:
+        """Try to become the one executor allowed to claim specs from this queue."""
+        if not _TICK_THREAD_LOCK.acquire(blocking=False):
+            yield False
+            return
+        lock_path = self.root / ".tick.lock"
+        try:
+            with lock_path.open("a+b") as lock:
+                try:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    yield False
+                else:
+                    try:
+                        yield True
+                    finally:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        finally:
+            _TICK_THREAD_LOCK.release()
 
     def submit(
         self,
@@ -293,12 +340,38 @@ class DirectoryQueue:
         return path
 
     def append_event(self, event: QueueEvent) -> None:
-        payload = event.model_dump_json(exclude_none=True) + "\n"
-        descriptor = os.open(self.events_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
-        try:
-            os.write(descriptor, payload.encode())
-        finally:
-            os.close(descriptor)
+        payload = (event.model_dump_json(exclude_none=True) + "\n").encode()
+        with event_log_lock(self.events_path, exclusive=True):
+            if (
+                self.events_path.is_file()
+                and self.events_path.stat().st_size > 0
+                and self.events_path.stat().st_size + len(payload) > self.events_max_bytes
+            ):
+                self._rotate_events()
+            descriptor = os.open(
+                self.events_path,
+                os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+                0o600,
+            )
+            try:
+                view = memoryview(payload)
+                while view:
+                    view = view[os.write(descriptor, view) :]
+            finally:
+                os.close(descriptor)
+
+    def _rotate_events(self) -> None:
+        oldest = self.events_path.with_name(
+            f"{self.events_path.name}.{self.event_backups}"
+        )
+        oldest.unlink(missing_ok=True)
+        for index in range(self.event_backups - 1, 0, -1):
+            source = self.events_path.with_name(f"{self.events_path.name}.{index}")
+            if source.exists():
+                source.replace(
+                    self.events_path.with_name(f"{self.events_path.name}.{index + 1}")
+                )
+        self.events_path.replace(self.events_path.with_name(f"{self.events_path.name}.1"))
 
     def approve(self, spec_id: str, *, actor: str) -> Path:
         source = self.locate(spec_id, ("proposed", "pending", "waiting"))
@@ -379,6 +452,11 @@ RunCallable = Callable[[RunRequest], Path]
 IngestCallable = Callable[[Path], IngestProjectionResult | None]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
+Sleeper = Callable[[float], None]
+
+MAX_TRANSIENT_RETRIES = 2
+TRANSIENT_BACKOFF_BASE_SECONDS = 5.0
+TRANSIENT_BACKOFF_CAP_SECONDS = 30.0
 
 
 def record_projection_failures(
@@ -416,6 +494,8 @@ class Executor:
         spent_today: SpendCallable | None = None,
         consecutive_harness_failures: FailureCallable | None = None,
         credential_probe: CredentialProbe | None = None,
+        sleeper: Sleeper = time.sleep,
+        max_transient_retries: int = MAX_TRANSIENT_RETRIES,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -424,9 +504,14 @@ class Executor:
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
         self._credential_probe = credential_probe or available_credentials
+        self._sleeper = sleeper
+        if max_transient_retries < 0:
+            raise ValueError("max_transient_retries cannot be negative")
+        self._max_transient_retries = max_transient_retries
         self._consecutive_harness_failures = (
             consecutive_harness_failures or self._catalog_harness_failures
         )
+        self.last_tick_reason: str | None = None
 
     @classmethod
     def from_repo(cls, root: Path) -> Executor:
@@ -440,13 +525,28 @@ class Executor:
         return self.queue.submit(
             spec,
             gate=self.gate,
-            spent_today_usd=self._spent_today(),
+            spent_today_usd=self._effective_spend_today(),
             consecutive_harness_failures=self._consecutive_harness_failures(),
         )
 
     def tick(self) -> int:
+        with self.queue.tick_lock() as acquired:
+            if not acquired:
+                self.last_tick_reason = "executor_busy"
+                return 0
+            self.last_tick_reason = None
+            return self._tick_locked()
+
+    def _tick_locked(self) -> int:
         self.reconcile_running()
         if self.queue.stop_path.exists():
+            return 0
+        if self.queue.list_specs("running"):
+            # A prior executor may have died while Harbor's detached process
+            # was still running and billing. Until that evidence becomes
+            # terminal (or an operator resolves it), starting any other work
+            # could bypass both the single-owner and daily-cost guarantees.
+            self.last_tick_reason = "running_specs_unresolved"
             return 0
         dispatched = 0
         credentials = self._credential_probe()
@@ -466,13 +566,14 @@ class Executor:
                         event="dispatch_deferred",
                         actor="executor",
                         reason_code=f"missing_credential:{missing}",
+                        job_name=spec.name,
                     )
                 )
                 continue
             human_approved = spec.policy_rule == "human-approval"
             decision = self.gate.decide(
                 spec,
-                spent_today_usd=self._spent_today(),
+                spent_today_usd=self._effective_spend_today(),
                 consecutive_harness_failures=self._consecutive_harness_failures(),
                 human_approved=human_approved,
             )
@@ -496,9 +597,14 @@ class Executor:
             try:
                 job_dir = self.execute_spec(spec)
             except Exception as exc:
+                reason_code = (
+                    exc.reason_code
+                    if isinstance(exc, ExecutionFailure)
+                    else "execution_failed"
+                )
                 failure = PolicyDecision(
                     admitted=False,
-                    reason_code="execution_failed",
+                    reason_code=reason_code,
                     message=(
                         "execution failed; inspect the immutable job evidence and logs "
                         f"({type(exc).__name__})"
@@ -564,6 +670,7 @@ class Executor:
             model=spec.model or DEFAULT_AGENT_MODELS.get(spec.agent),
             concurrency=spec.concurrency,
             attempts=spec.attempts,
+            timeout_seconds=spec.timeout_seconds,
             allow_billable=spec.billable,
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
@@ -573,7 +680,141 @@ class Executor:
                 policy_rule=spec.policy_rule,
             ),
         )
-        return self._runner(request)
+        return self._run_with_transient_retries(spec, request)
+
+    def _run_with_transient_retries(
+        self,
+        spec: ExperimentSpec,
+        request: RunRequest,
+    ) -> Path:
+        for retry_number in range(self._max_transient_retries + 1):
+            self._reserve_attempt(spec, retry_number + 1)
+            try:
+                return self._runner(request)
+            except TransientHarnessFailure as exc:
+                if retry_number >= self._max_transient_retries:
+                    raise
+                if not self._retry_within_policy(spec):
+                    raise
+                archived = self._archive_transient_attempt(request, retry_number + 1)
+                delay = min(
+                    TRANSIENT_BACKOFF_BASE_SECONDS * (2**retry_number),
+                    TRANSIENT_BACKOFF_CAP_SECONDS,
+                )
+                self.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=str(spec.spec_id),
+                        occurred_at=datetime.now(UTC),
+                        event="dispatch_retry_scheduled",
+                        actor="executor",
+                        reason_code=exc.reason_code,
+                        job_name=spec.name,
+                    )
+                )
+                if archived is not None:
+                    self.queue.append_event(
+                        QueueEvent(
+                            event_id=new_ulid(),
+                            spec_id=str(spec.spec_id),
+                            occurred_at=datetime.now(UTC),
+                            event="transient_attempt_archived",
+                            actor="executor",
+                            reason_code="transient_harness:attempt_archived",
+                            job_name=spec.name,
+                        )
+                    )
+                self._sleeper(delay)
+        raise AssertionError("transient retry loop exhausted without a result")
+
+    def _retry_within_policy(self, spec: ExperimentSpec) -> bool:
+        if not spec.billable:
+            return True
+        decision = self.gate.decide(
+            spec,
+            spent_today_usd=self._effective_spend_today(),
+            consecutive_harness_failures=self._consecutive_harness_failures(),
+            human_approved=spec.policy_rule == "human-approval",
+        )
+        if decision.admitted:
+            return True
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(spec.spec_id),
+                occurred_at=datetime.now(UTC),
+                event="dispatch_retry_refused",
+                actor="executor",
+                reason_code=f"transient_retry:{decision.reason_code}",
+                job_name=spec.name,
+            )
+        )
+        return False
+
+    def _reserve_attempt(self, spec: ExperimentSpec, attempt_number: int) -> None:
+        if not spec.billable:
+            return
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(spec.spec_id),
+                occurred_at=datetime.now(UTC),
+                event="dispatch_attempt_reserved",
+                actor="executor",
+                reason_code="billable_attempt_estimate",
+                job_name=spec.name,
+                attempt_number=attempt_number,
+                estimated_cost_usd=spec.est_cost_usd,
+            )
+        )
+
+    def _reserved_attempt_spend_today(self, *, now: datetime | None = None) -> float:
+        today = (now or datetime.now(UTC)).astimezone(UTC).date()
+        reservations: dict[str, list[float]] = {}
+        completed: set[str] = set()
+        for event in load_events(self.queue.events_path):
+            if event.occurred_at.astimezone(UTC).date() != today:
+                continue
+            if (
+                event.event == "dispatch_attempt_reserved"
+                and event.estimated_cost_usd is not None
+            ):
+                reservations.setdefault(event.spec_id, []).append(
+                    event.estimated_cost_usd
+                )
+            elif event.event in {"dispatch_completed", "running_reconciled"}:
+                completed.add(event.spec_id)
+        total = 0.0
+        for spec_id, estimates in reservations.items():
+            # The catalog accounts for the final successful attempt. Earlier
+            # failed attempts, and every attempt of a failed spec, remain
+            # conservatively reserved in the event ledger.
+            unsettled = estimates[:-1] if spec_id in completed else estimates
+            total += sum(unsettled)
+        return total
+
+    def _effective_spend_today(self) -> float:
+        return self._spent_today() + self._reserved_attempt_spend_today()
+
+    @staticmethod
+    def _archive_transient_attempt(
+        request: RunRequest,
+        retry_number: int,
+    ) -> Path | None:
+        job_dir = request.jobs_dir / request.name
+        if not job_dir.exists():
+            return None
+        archive = (
+            request.jobs_dir
+            / ".transient-attempts"
+            / request.name
+            / f"attempt-{retry_number}"
+        )
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        if archive.exists():
+            raise FileExistsError(f"transient attempt archive already exists: {archive}")
+        job_dir.replace(archive)
+        return archive
 
     def download_dataset(self, dataset_ref: str, output_dir: Path) -> Path:
         """Download an immutable Harbor dataset through the executor boundary."""
@@ -598,6 +839,7 @@ class Executor:
             ],
             cwd=self.repo_root,
             check=False,
+            env=subscription_environment(),
         )
         if completed.returncode != 0:
             raise RuntimeError(f"Harbor dataset download exited {completed.returncode}")
@@ -633,29 +875,84 @@ class Executor:
             version = tool_version(command)
             checks.append((command, version is not None, version or "not found"))
         if shutil.which("docker"):
-            completed = subprocess.run(
-                [
-                    "docker",
-                    "version",
-                    "--format",
-                    "client={{.Client.Version}} server={{.Server.Version}}",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            output = (completed.stdout or completed.stderr).strip().splitlines()
-            detail = output[0] if output else "no version output"
-            checks.append(("docker-daemon", completed.returncode == 0, detail))
+            try:
+                completed = subprocess.run(
+                    [
+                        "docker",
+                        "version",
+                        "--format",
+                        "client={{.Client.Version}} server={{.Server.Version}}",
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
+                    env=subscription_environment(),
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                checks.append(
+                    ("docker-daemon", False, f"unavailable: {type(exc).__name__}")
+                )
+            else:
+                output = (completed.stdout or completed.stderr).strip().splitlines()
+                detail = output[0] if output else "no version output"
+                checks.append(("docker-daemon", completed.returncode == 0, detail))
         return checks
 
     def reconcile_running(self) -> None:
         for path, spec in self.queue.list_specs("running"):
             job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
-            if not (job_dir / "result.json").is_file():
+            archive_root = (
+                self._safe_repo_path(spec.jobs_dir)
+                / ".transient-attempts"
+                / spec.name
+            )
+            if not job_dir.exists():
+                try:
+                    interrupted_retry = archive_root.is_dir() and any(
+                        child.is_dir() for child in archive_root.iterdir()
+                    )
+                except OSError:
+                    interrupted_retry = False
+                if interrupted_retry:
+                    self._fail_reconciled_running(
+                        path,
+                        spec,
+                        reason_code="transient_harness:retry_interrupted",
+                        message=(
+                            "executor stopped between transient attempts; preserved "
+                            "attempt evidence requires operator resubmission"
+                        ),
+                    )
                 continue
             try:
-                load_job(job_dir)
+                job = load_job(job_dir)
+            except Exception:
+                # Harbor creates the top-level result at job start with
+                # finished_at=null. It may still be running and billing, so a
+                # restart must never ingest or settle that partial evidence.
+                continue
+            transient_reason = next(
+                (
+                    reason
+                    for trial in job.trials
+                    if (reason := transient_provider_exception(trial.result))
+                    is not None
+                ),
+                None,
+            )
+            if transient_reason is not None:
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code=transient_reason,
+                    message=(
+                        "executor stopped after a transient provider failure; "
+                        "preserved evidence requires operator resubmission"
+                    ),
+                )
+                continue
+            try:
                 ingest_result = self._ingester(job_dir)
             except Exception:
                 continue
@@ -674,6 +971,29 @@ class Executor:
                 policy_rule=spec.policy_rule,
             )
 
+    def _fail_reconciled_running(
+        self,
+        path: Path,
+        spec: ExperimentSpec,
+        *,
+        reason_code: str,
+        message: str,
+    ) -> None:
+        decision = PolicyDecision(
+            admitted=False,
+            reason_code=reason_code,
+            message=message,
+        )
+        failed = self.queue.transition(
+            path,
+            "failed",
+            actor="executor-reconcile",
+            event="running_reconcile_failed",
+            reason_code=reason_code,
+            policy_rule=spec.policy_rule,
+        )
+        self.queue.write_reason(self.queue.load(failed), decision)
+
     def _safe_repo_path(self, relative: str) -> Path:
         candidate = (self.repo_root / relative).resolve()
         if candidate != self.repo_root and self.repo_root not in candidate.parents:
@@ -689,12 +1009,15 @@ class Executor:
             url,
             [load_job(job_dir)],
             root=self.repo_root,
-            output_root=self.repo_root / "derived/parquet",
+            output_root=derived_root_from_environment(self.repo_root),
         )
 
     def _catalog_spend(self) -> float:
         try:
-            return database.daily_cost_usd(database_url_from_environment(), date.today())
+            return database.daily_cost_usd(
+                database_url_from_environment(),
+                datetime.now(UTC).date(),
+            )
         except Exception as exc:
             raise RuntimeError(
                 "cannot enforce cost policy because the catalog is unavailable"
@@ -715,16 +1038,16 @@ def _safe_component(value: str) -> str:
 
 
 def load_events(path: Path) -> list[QueueEvent]:
-    if not path.is_file():
-        return []
     events: list[QueueEvent] = []
-    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+    for segment, line_number, line in read_event_log_lines(path):
         if not line.strip():
             continue
         try:
             events.append(QueueEvent.model_validate_json(line))
         except ValidationError as exc:
-            raise ValueError(f"Invalid queue event at {path}:{line_number}: {exc}") from exc
+            raise ValueError(
+                f"Invalid queue event at {segment}:{line_number}: {exc}"
+            ) from exc
     return events
 
 

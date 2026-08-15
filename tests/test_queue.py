@@ -1,9 +1,18 @@
+import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
+from threading import Event
 
+import pytest
+
+import evallab.queue as queue_module
+from evallab import eventlog
+from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
-from evallab.runner import RunRequest
-from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
+from evallab.runner import RunRequest, TransientHarnessFailure, TrialTimeoutFailure
+from evallab.schemas import AutoRunRule, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
 
 
 def policy() -> StandingApprovalsPolicy:
@@ -51,6 +60,8 @@ def executor(
     ingester=None,
     spent: float = 0,
     credentials: frozenset[str] | None = None,
+    sleeper=lambda _seconds: None,
+    max_transient_retries: int = 2,
 ) -> Executor:
     return Executor(
         repo_root=root,
@@ -63,7 +74,98 @@ def executor(
         credential_probe=lambda: credentials
         if credentials is not None
         else frozenset({"claude_oauth", "codex_auth"}),
+        sleeper=sleeper,
+        max_transient_retries=max_transient_retries,
     )
+
+
+def _event(index: int) -> QueueEvent:
+    return QueueEvent(
+        event_id=f"event-{index}",
+        spec_id=f"spec-{index}",
+        occurred_at=datetime(2026, 8, 14, tzinfo=UTC),
+        event="test_event",
+        actor="test",
+    )
+
+
+def _append_events_process(root: str, start: int, count: int) -> None:
+    queue = DirectoryQueue(Path(root), events_max_bytes=500, event_backups=20)
+    for index in range(start, start + count):
+        queue.append_event(_event(index))
+
+
+def test_event_log_rotation_is_bounded_and_reads_oldest_first(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue", events_max_bytes=320, event_backups=2)
+
+    for index in range(5):
+        queue.append_event(_event(index))
+
+    assert [path.name for path in sorted(queue.root.glob("events.jsonl*"))] == [
+        "events.jsonl",
+        "events.jsonl.1",
+        "events.jsonl.2",
+    ]
+    retained = load_events(queue.events_path)
+    assert [event.event_id for event in retained] == [f"event-{index}" for index in range(5)]
+
+
+def test_event_log_concurrent_writes_remain_valid_json(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue", events_max_bytes=1_000_000)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(queue.append_event, [_event(index) for index in range(100)]))
+
+    events = load_events(queue.events_path)
+    assert len(events) == 100
+    assert {event.event_id for event in events} == {f"event-{index}" for index in range(100)}
+
+
+def test_event_rotation_is_consistent_across_writer_processes_and_reader(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "queue"
+    context = multiprocessing.get_context("spawn")
+    processes = [
+        context.Process(target=_append_events_process, args=(str(root), start, 10))
+        for start in (0, 10)
+    ]
+    for process in processes:
+        process.start()
+    while any(process.is_alive() for process in processes):
+        # Every snapshot must either parse fully or wait on the process lock;
+        # a reader must never observe half a rotation.
+        load_events(root / "events.jsonl")
+    for process in processes:
+        process.join(timeout=5)
+        assert process.exitcode == 0
+
+    events = load_events(root / "events.jsonl")
+    assert len(events) == 20
+    assert {event.event_id for event in events} == {
+        f"event-{index}" for index in range(20)
+    }
+
+
+def test_event_reader_checks_for_first_append_under_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    first = _event(1)
+
+    @contextmanager
+    def first_writer_finishes_before_reader(_path: Path, *, exclusive: bool):
+        assert exclusive is False
+        queue.events_path.write_text(first.model_dump_json() + "\n")
+        yield
+
+    monkeypatch.setattr(eventlog, "event_log_lock", first_writer_finishes_before_reader)
+
+    lines = eventlog.read_event_log_lines(queue.events_path)
+
+    assert [(line_number, line) for _, line_number, line in lines] == [
+        (1, first.model_dump_json())
+    ]
 
 
 def test_two_agents_submit_concurrently_without_interference(tmp_path: Path) -> None:
@@ -154,6 +256,26 @@ def test_tick_uses_stub_runner_ingests_and_records_every_transition(tmp_path: Pa
         "dispatch_started",
         "dispatch_completed",
     ]
+
+
+def test_doctor_docker_daemon_probe_is_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_timeouts: list[float] = []
+
+    def timeout(_command, **kwargs):
+        observed_timeouts.append(kwargs["timeout"])
+        raise queue_module.subprocess.TimeoutExpired(_command, kwargs["timeout"])
+
+    monkeypatch.setattr(queue_module, "tool_version", lambda _command: "present")
+    monkeypatch.setattr(queue_module.shutil, "which", lambda _command: "/bin/docker")
+    monkeypatch.setattr(queue_module.subprocess, "run", timeout)
+
+    checks = executor(tmp_path).local_runtime_checks()
+
+    assert checks[-1] == ("docker-daemon", False, "unavailable: TimeoutExpired")
+    assert observed_timeouts == [queue_module.SUPPORT_COMMAND_TIMEOUT_SECONDS]
 
 
 def test_human_approval_does_not_override_hard_cost_ceiling(tmp_path: Path) -> None:
@@ -249,6 +371,67 @@ def test_missing_credential_defers_spec_without_moving_it(tmp_path: Path) -> Non
     assert deferrals and deferrals[-1].reason_code == "missing_credential:codex_auth"
 
 
+@pytest.mark.parametrize(
+    ("credentials", "missing_agent", "missing_reason"),
+    [
+        (frozenset({CLAUDE_OAUTH}), "codex", f"missing_credential:{CODEX_AUTH}"),
+        (frozenset({CODEX_AUTH}), "claude-code", f"missing_credential:{CLAUDE_OAUTH}"),
+    ],
+)
+def test_tick_defers_only_the_agent_with_a_missing_credential(
+    tmp_path: Path,
+    credentials: frozenset[str],
+    missing_agent: str,
+    missing_reason: str,
+) -> None:
+    requests: list[RunRequest] = []
+
+    def run(request: RunRequest) -> Path:
+        requests.append(request)
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        return destination
+
+    service = executor(tmp_path, runner=run, credentials=credentials)
+    submissions = [
+        spec("credential-scope-oracle", agent="oracle"),
+        spec("credential-scope-nop", agent="nop"),
+        spec("credential-scope-codex", agent="codex", task="canary/event-summary"),
+        spec(
+            "credential-scope-claude",
+            agent="claude-code",
+            task="canary/event-summary",
+        ),
+    ]
+    decisions = [service.submit(item)[1] for item in submissions]
+
+    assert all(decision.admitted for decision in decisions)
+    assert service.tick() == 3
+
+    expected_dispatched = {
+        item.name for item in submissions if item.agent != missing_agent
+    }
+    assert {request.name for request in requests} == expected_dispatched
+    approved = [item for _, item in service.queue.list_specs("approved")]
+    assert [(item.name, item.agent) for item in approved] == [
+        (
+            "credential-scope-codex"
+            if missing_agent == "codex"
+            else "credential-scope-claude",
+            missing_agent,
+        )
+    ]
+
+    events = load_events(service.queue.events_path)
+    deferrals = [event for event in events if event.event == "dispatch_deferred"]
+    assert [(event.job_name, event.reason_code) for event in deferrals] == [
+        (approved[0].name, missing_reason)
+    ]
+    assert {
+        event.job_name for event in events if event.event == "dispatch_started"
+    } == expected_dispatched
+
+
 def test_spec_without_model_gets_agent_default_and_explicit_model_wins(tmp_path: Path) -> None:
     requests = []
 
@@ -286,3 +469,370 @@ def test_concurrent_tick_claiming_a_spec_mid_listing_is_tolerated(tmp_path: Path
     queue.load = racing_load
     remaining = queue.list_specs("approved")
     assert [item.name for _, item in remaining] == ["stays"]
+
+
+def test_transient_provider_failure_retries_with_capped_backoff_and_archives(
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+    sleeps: list[float] = []
+
+    def run(request: RunRequest) -> Path:
+        calls.append(request.name)
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        (destination / "attempt.txt").write_text(str(len(calls)))
+        if len(calls) < 3:
+            raise TransientHarnessFailure("transient_harness:provider_http_429")
+        return destination
+
+    service = executor(tmp_path, runner=run, sleeper=sleeps.append)
+    service.submit(spec("provider-recovers"))
+
+    assert service.tick() == 1
+    assert calls == ["provider-recovers"] * 3
+    assert sleeps == [5.0, 10.0]
+    assert (
+        tmp_path
+        / "runs/.transient-attempts/provider-recovers/attempt-1/attempt.txt"
+    ).read_text() == "1"
+    assert (
+        tmp_path
+        / "runs/.transient-attempts/provider-recovers/attempt-2/attempt.txt"
+    ).read_text() == "2"
+    events = load_events(service.queue.events_path)
+    assert [event.reason_code for event in events if event.event == "dispatch_retry_scheduled"] == [
+        "transient_harness:provider_http_429",
+        "transient_harness:provider_http_429",
+    ]
+    assert service.queue.list_specs("done")
+
+
+def test_transient_retry_cap_and_timeout_have_distinct_failure_reasons(
+    tmp_path: Path,
+) -> None:
+    transient_calls = 0
+
+    def transient(_request: RunRequest) -> Path:
+        nonlocal transient_calls
+        transient_calls += 1
+        raise TransientHarnessFailure("transient_harness:provider_http_5xx")
+
+    transient_service = executor(tmp_path / "transient", runner=transient)
+    transient_service.submit(spec("provider-stays-down"))
+    assert transient_service.tick() == 1
+    assert transient_calls == 3
+    transient_reason = next(transient_service.queue.reasons_dir.glob("*.json")).read_text()
+    assert '"code": "transient_harness:provider_http_5xx"' in transient_reason
+
+    def timeout(_request: RunRequest) -> Path:
+        raise TrialTimeoutFailure("bounded by executor")
+
+    timeout_service = executor(tmp_path / "timeout", runner=timeout)
+    timeout_service.submit(spec("trial-times-out"))
+    assert timeout_service.tick() == 1
+    timeout_reason = next(timeout_service.queue.reasons_dir.glob("*.json")).read_text()
+    assert '"code": "trial_wall_clock_timeout"' in timeout_reason
+
+
+def test_billable_transient_retry_reserves_budget_before_another_call(
+    tmp_path: Path,
+) -> None:
+    calls = 0
+
+    def transient(_request: RunRequest) -> Path:
+        nonlocal calls
+        calls += 1
+        raise TransientHarnessFailure("transient_harness:provider_http_429")
+
+    service = executor(tmp_path, runner=transient, spent=17)
+    submitted = spec(
+        "budgeted-provider-retry",
+        task="canary/event-summary",
+        agent="codex",
+        est_cost_usd=2,
+    )
+    service.submit(submitted)
+
+    assert service.tick() == 1
+    assert calls == 1
+    refused = [
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event == "dispatch_retry_refused"
+    ]
+    assert [event.reason_code for event in refused] == [
+        "transient_retry:daily_cost_ceiling"
+    ]
+
+
+def test_failed_attempt_reservations_survive_executor_restart(tmp_path: Path) -> None:
+    calls = 0
+
+    def transient(_request: RunRequest) -> Path:
+        nonlocal calls
+        calls += 1
+        raise TransientHarnessFailure("transient_harness:provider_http_503")
+
+    first = executor(tmp_path, runner=transient, spent=15)
+    first.submit(
+        spec(
+            "durable-provider-retry",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+
+    assert first.tick() == 1
+    assert calls == 2
+    reservations = [
+        event
+        for event in load_events(first.queue.events_path)
+        if event.event == "dispatch_attempt_reserved"
+    ]
+    assert [(event.attempt_number, event.estimated_cost_usd) for event in reservations] == [
+        (1, 2),
+        (2, 2),
+    ]
+
+    restarted = executor(tmp_path, runner=lambda request: request.jobs_dir, spent=15)
+    destination, decision = restarted.submit(
+        spec(
+            "later-billable-spec",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+
+    assert decision.admitted is False
+    assert decision.reason_code == "daily_cost_ceiling"
+    assert destination.parent.name == "waiting"
+
+
+def test_running_reconciliation_settles_the_final_attempt_reservation(
+    tmp_path: Path,
+) -> None:
+    service = executor(tmp_path, spent=2)
+    approved, decision = service.submit(
+        spec(
+            "reconciled-billable-spec",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+    assert decision.admitted
+    queued = service.queue.load(approved)
+    running = service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    service._reserve_attempt(queued, 1)
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, '
+        '"finished_at": "2026-08-15T00:00:00Z"}\n'
+    )
+
+    restarted = executor(tmp_path, spent=2)
+    restarted.reconcile_running()
+
+    assert not running.exists()
+    assert restarted.queue.locate(str(queued.spec_id), ("done",)).is_file()
+    assert restarted._reserved_attempt_spend_today() == 0
+    assert restarted._effective_spend_today() == 2
+    assert "running_reconciled" in [
+        event.event for event in load_events(restarted.queue.events_path)
+    ]
+
+
+def test_reconciliation_never_settles_partial_harbor_job(tmp_path: Path) -> None:
+    ingested: list[Path] = []
+    service = executor(tmp_path, ingester=ingested.append)
+    approved, _ = service.submit(spec("partial-running-control"))
+    queued = service.queue.load(approved)
+    running = service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, "finished_at": null}\n'
+    )
+
+    service.reconcile_running()
+
+    assert running.is_file()
+    assert ingested == []
+    assert not service.queue.list_specs("done")
+
+
+def test_unresolved_running_job_blocks_all_new_dispatch(tmp_path: Path) -> None:
+    requests: list[RunRequest] = []
+    service = executor(tmp_path, runner=lambda request: requests.append(request))
+    partial, _ = service.submit(spec("partial-prior-control"))
+    queued = service.queue.load(partial)
+    service.queue.transition(
+        partial,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, "finished_at": null}\n'
+    )
+    approved, _ = service.submit(spec("must-wait-control", agent="nop"))
+
+    assert service.tick() == 0
+
+    assert requests == []
+    assert approved.is_file()
+    assert service.last_tick_reason == "running_specs_unresolved"
+
+
+def test_reconciliation_fails_closed_on_terminal_transient_job(
+    tmp_path: Path,
+) -> None:
+    service = executor(
+        tmp_path,
+        ingester=lambda path: (_ for _ in ()).throw(
+            AssertionError(f"transient job was ingested: {path}")
+        ),
+    )
+    approved, _ = service.submit(
+        spec(
+            "interrupted-transient-spec",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+    queued = service.queue.load(approved)
+    service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    service._reserve_attempt(queued, 1)
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    trial_dir = job_dir / "event-summary__trial"
+    trial_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, '
+        '"finished_at": "2026-08-15T00:00:00Z"}\n'
+    )
+    (trial_dir / "result.json").write_text(
+        '{"task_name": "event-summary", '
+        '"trial_name": "event-summary__trial", '
+        '"exception_info": {"exception_type": "ApiOverloadedError", '
+        '"exception_message": "API Error: Overloaded"}}\n'
+    )
+
+    service.reconcile_running()
+
+    assert service.queue.list_specs("failed")
+    assert not service.queue.list_specs("done")
+    assert service._reserved_attempt_spend_today() == 2
+    reason = next(service.queue.reasons_dir.glob("*.json")).read_text()
+    assert "transient_harness:provider_http_5xx" in reason
+
+
+def test_reconciliation_fails_closed_if_retry_archive_has_no_canonical_job(
+    tmp_path: Path,
+) -> None:
+    service = executor(tmp_path)
+    approved, _ = service.submit(
+        spec(
+            "archive-only-transient-spec",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        )
+    )
+    queued = service.queue.load(approved)
+    service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    service._reserve_attempt(queued, 1)
+    archive = (
+        tmp_path
+        / queued.jobs_dir
+        / ".transient-attempts"
+        / queued.name
+        / "attempt-1"
+    )
+    archive.mkdir(parents=True)
+
+    service.reconcile_running()
+
+    assert service.queue.list_specs("failed")
+    reason = next(service.queue.reasons_dir.glob("*.json")).read_text()
+    assert "transient_harness:retry_interrupted" in reason
+
+
+def test_reservation_policy_day_is_utc_at_local_evening_boundary(
+    tmp_path: Path,
+) -> None:
+    service = executor(tmp_path)
+    service.queue.append_event(
+        QueueEvent(
+            event_id="utc-boundary-reservation",
+            spec_id="utc-boundary-spec",
+            occurred_at=datetime(2026, 8, 15, 0, 30, tzinfo=UTC),
+            event="dispatch_attempt_reserved",
+            actor="executor",
+            estimated_cost_usd=2,
+        )
+    )
+
+    assert service._reserved_attempt_spend_today(
+        now=datetime(2026, 8, 15, 1, 0, tzinfo=UTC)
+    ) == 2
+    assert service._reserved_attempt_spend_today(
+        now=datetime(2026, 8, 14, 23, 59, tzinfo=UTC)
+    ) == 0
+
+
+def test_concurrent_executor_tick_defers_to_single_queue_owner(tmp_path: Path) -> None:
+    entered = Event()
+    release = Event()
+    calls: list[str] = []
+
+    def blocking_run(request: RunRequest) -> Path:
+        calls.append(request.name)
+        entered.set()
+        assert release.wait(timeout=2)
+        return request.jobs_dir / request.name
+
+    first = executor(tmp_path, runner=blocking_run)
+    second = executor(
+        tmp_path,
+        runner=lambda request: (_ for _ in ()).throw(
+            AssertionError(f"second executor ran {request.name}")
+        ),
+    )
+    first.submit(spec("single-owner-control"))
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        running = pool.submit(first.tick)
+        assert entered.wait(timeout=2)
+        assert second.tick() == 0
+        assert second.last_tick_reason == "executor_busy"
+        release.set()
+        assert running.result(timeout=2) == 1
+
+    assert calls == ["single-owner-control"]

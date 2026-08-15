@@ -4,7 +4,7 @@ set -euo pipefail
 readonly PYTHON_FLOOR="3.12"
 readonly UV_VERSION="0.9.24"
 readonly TY_VERSION="0.0.71"
-readonly TY_BASELINE="33"
+readonly TY_BASELINE="28"
 readonly TY_OUTPUT="runs/_premerge/ty.txt"
 
 if [[ "$(uv --version)" != "uv ${UV_VERSION}"* ]]; then
@@ -17,6 +17,7 @@ export UV_PYTHON="${PYTHON_FLOOR}"
 uv sync --locked
 uv run ruff check .
 uv run pytest
+uv run python -m evallab.smoke --docker-free
 
 mkdir -p "$(dirname "${TY_OUTPUT}")"
 uvx "ty@${TY_VERSION}" check src/ --output-format=concise > "${TY_OUTPUT}" 2>&1 || true

@@ -12,6 +12,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import ValidationError
 
+from evallab.eventlog import read_event_log_lines
 from evallab.results import JobRecord, TrialRecord, sha256_file
 
 JsonObject = dict[str, Any]
@@ -800,7 +801,7 @@ def ingest_and_project(
     never rolls back the searchable job/trial catalog.
     """
     from evallab import database
-    from evallab.facts import ingest_catalog, rebuild_from_raw
+    from evallab.facts import ingest_catalog
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()
@@ -816,6 +817,28 @@ def ingest_and_project(
         derived_root=derived_root,
     )
 
+    tables, failures = project_jobs(ordered_jobs, derived_root)
+    return IngestProjectionResult(
+        cataloged_jobs=cataloged_jobs,
+        tables=tables,
+        failures=failures,
+    )
+
+
+def project_jobs(
+    jobs: list[JobRecord], output_root: Path
+) -> tuple[tuple[ExportedTable, ...], tuple[ProjectionFailure, ...]]:
+    """Project raw jobs without requiring the PostgreSQL catalog.
+
+    This is the deterministic, Docker-free half of the composed ingestion path.
+    The full path remains :func:`ingest_and_project`, which catalogs first and
+    then delegates here. Keeping one projection implementation lets CI exercise
+    real Parquet writes while a local smoke also proves PostgreSQL agreement.
+    """
+    from evallab.facts import rebuild_from_raw
+
+    ordered_jobs = sorted(jobs, key=lambda item: item.id)
+    derived_root = output_root.resolve()
     tables: list[ExportedTable] = []
     failures: list[ProjectionFailure] = []
     for job in ordered_jobs:
@@ -838,11 +861,7 @@ def ingest_and_project(
             )
             continue
         tables.extend(rebuilt.tables)
-    return IngestProjectionResult(
-        cataloged_jobs=cataloged_jobs,
-        tables=tuple(tables),
-        failures=tuple(failures),
-    )
+    return tuple(tables), tuple(failures)
 
 
 def _load_catalog_projection_rows(database_url: str) -> list[tuple[str, str, str | None]]:
@@ -863,10 +882,8 @@ def _load_catalog_projection_rows(database_url: str) -> list[tuple[str, str, str
 
 
 def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
-    if not events_path.is_file():
-        return frozenset()
     job_ids: set[str] = set()
-    for line in events_path.read_text().splitlines():
+    for _segment, _line_number, line in read_event_log_lines(events_path):
         if not line.strip():
             continue
         try:

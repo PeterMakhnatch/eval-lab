@@ -36,7 +36,6 @@ echo "-- exported by scripts/harbor-auth-env.sh --"
     # shellcheck source=./harbor-auth-env.sh
     source "$script_dir/harbor-auth-env.sh" 2>/dev/null
     echo "CLAUDE_CODE_OAUTH_TOKEN set:  $([ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && echo yes || echo no)"
-    echo "ANTHROPIC_API_KEY set:        $([ -n "${ANTHROPIC_API_KEY:-}" ] && echo yes || echo no)"
     echo "CLAUDE_FORCE_OAUTH:           ${CLAUDE_FORCE_OAUTH:-<unset>}"
     echo "REWARDKIT_FORCE_OAUTH:        ${REWARDKIT_FORCE_OAUTH:-<unset>}"
     echo "CODEX_FORCE_AUTH_JSON:        ${CODEX_FORCE_AUTH_JSON:-<unset>}"

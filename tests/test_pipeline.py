@@ -50,6 +50,40 @@ def _failure(job_id: str = "00000000-0000-0000-0000-000000000001") -> Projection
     )
 
 
+def test_daily_cost_query_uses_explicit_utc_policy_day(monkeypatch) -> None:
+    observed: list[tuple[str, tuple[object, ...] | None]] = []
+
+    class Result:
+        def fetchone(self):
+            return (3.5,)
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def execute(self, query, parameters=None):
+            observed.append((query, parameters))
+            return Result()
+
+    monkeypatch.setattr(
+        database.psycopg,
+        "connect",
+        lambda *_args, **_kwargs: Connection(),
+    )
+
+    assert database.daily_cost_usd(
+        "postgresql://catalog",
+        date(2026, 8, 15),
+    ) == 3.5
+    query, parameters = observed[0]
+    assert "AT TIME ZONE 'UTC'" in query
+    assert "current_setting" not in query
+    assert parameters == (date(2026, 8, 15),)
+
+
 def test_catalog_finishes_before_projection_failure_is_returned(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -178,7 +212,18 @@ def test_catalog_projection_invariant_requires_partition_or_reasoned_exception(
     assert invariant.excepted_job_ids == {excepted_job}
     assert invariant.detail == "catalog=2 projected=1 exceptions=1 missing=0 extra=0"
 
-    queue.events_path.unlink()
+    archived_events = queue.events_path.with_name("events.jsonl.1")
+    queue.events_path.replace(archived_events)
+    archived = check_projection_invariant(
+        "postgresql://test",
+        tmp_path / "derived",
+        queue.events_path,
+        catalog_rows_loader=lambda url: rows,
+    )
+    assert archived.ok is True
+    assert archived.excepted_job_ids == {excepted_job}
+
+    archived_events.unlink()
     broken = check_projection_invariant(
         "postgresql://test",
         tmp_path / "derived",

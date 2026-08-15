@@ -42,14 +42,20 @@ isolated staging copies.
 
 Both shell-form and JSON-array Docker `COPY`/`ADD` instructions are parsed.
 Dynamic, wildcard, variable, escaping, or otherwise unresolved sources fail
-closed. V1 also rejects task-authored Docker Compose files because it cannot
-prove isolation for arbitrary sidecar networking.
+closed. Remote `ADD` is forbidden. Candidate symlinks are forbidden rather
+than followed, including links from the agent-visible build context into
+`tests/`, `solution/`, `verifier/`, or `workbench/`. V1 also rejects
+task-authored Docker Compose files because it cannot prove isolation for
+arbitrary sidecar networking.
 
 Source identity must include a non-floating source reference and a declared
 license. Base and verifier images must be digest-pinned. Network policy must be
-explicit in `task.toml`; runtime scripts containing network fetch/install
-commands fail static admission. For every control, the workbench also injects a
-fixed Docker Compose overlay that forces Harbor's `main` service to
+explicit in `task.toml`; runtime scripts and Docker build instructions
+containing network fetch/install commands fail static admission. There is no
+reviewed immutable offline-package mechanism in v1, so package-manager commands
+inside Dockerfiles fail closed even when their package arguments are pinned.
+For every control, the workbench also injects a fixed Docker Compose overlay
+that forces Harbor's `main` service to
 `network_mode: none`. The overlay is named in the frozen command, included in
 the staged-task digest, and revalidated after the run. Text scanning is defense
 in depth, not the network safety boundary.
@@ -71,6 +77,14 @@ python -m evallab.task_workbench plan path/to/candidate \
 `plan` prints the inspection record and exact frozen control plan without
 running Harbor. Commands use `$REPO` placeholders so the same source produces
 the same record after a clone or directory move.
+
+Immediately before a control run, the workbench resolves the task from the
+Inspection's frozen repository-relative path, re-inspects its bytes and package
+digest, and compares the entire candidate and control plan. The Harbor backend
+then independently validates the candidate record, fixed control semantics,
+and exact command. After constructing each isolated stage, it compares the
+stage manifest with the frozen source-plus-mutation plan before invoking any
+Harbor or Docker subprocess.
 
 ```bash
 python -m evallab.task_workbench check path/to/candidate \
@@ -142,13 +156,19 @@ reward output, adversarial coverage, and forged registration claims.
 
 The control assessment requires:
 
-- three Oracle rewards exactly equal to `1` with identical verifier-output
-  digests;
+- three Oracle rewards exactly equal to `1` with identical digests of the
+  actual retained verifier output trees under each Harbor trial's `verifier/`
+  directory;
 - one Nop reward exactly equal to `0`;
 - every declared invalid output to receive exactly `0`;
 - unchanged source, image, and verifier digests across controls;
 - a reconstructible staged task with the fixed no-network overlay and a local
   Harbor job whose raw result agrees with every claimed reward.
+
+Packet check-vector booleans are gated by these recomputed evidence diagnostics.
+A drifted task identity, stage, network binding, verifier mode, command, or raw
+result therefore cannot leave a superficially true Oracle, Nop, adversarial,
+determinism, or isolation subclaim in the packet.
 
 Diagnostics distinguish `task_defect`, `harness_defect`, and `agent_failure`.
 Oracle failures and verifier/reward failures are task defects; infrastructure,

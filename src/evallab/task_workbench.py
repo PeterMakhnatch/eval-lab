@@ -34,7 +34,6 @@ from evallab.runner import subscription_environment
 
 SCHEMA_VERSION = 1
 WORKBENCH_VERSION = "m007-v1.1"
-MAX_CONTROL_CONCURRENCY = 2
 ORACLE_REPETITIONS = 3
 MIN_ADVERSARIAL_CASES = 3
 SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -48,6 +47,17 @@ NETWORK_SCRIPT_PATTERN = re.compile(
     r"\burllib\.|\brequests\.|\bhttpx\.|\baiohttp\.)",
     re.IGNORECASE,
 )
+BUILD_NETWORK_PATTERN = re.compile(
+    r"(?:https?://|ftp://|git://|ssh://|git@|\bcurl\b|\bwget\b|"
+    r"\b(?:git|hg|svn)\s+(?:clone|fetch|pull|checkout)\b|"
+    r"\bapt(?:-get)?\s+(?:update|install|upgrade|dist-upgrade)\b|"
+    r"\b(?:apk|dnf|yum|microdnf|zypper)\s+(?:add|install|update|upgrade)\b|"
+    r"\bpip(?:3)?\s+install\b|\buv\s+(?:pip\s+)?install\b|\buvx\b|"
+    r"\b(?:npm|pnpm|yarn)\s+(?:install|add|ci|dlx)\b|"
+    r"\b(?:gem|cargo)\s+install\b|\bgo\s+(?:get|install)\b|"
+    r"\bInvoke-(?:WebRequest|RestMethod)\b)",
+    re.IGNORECASE,
+)
 NONDETERMINISM_PATTERN = re.compile(
     r"(?:\brandom\.|\bsecrets\.|\buuid\.uuid4\b|\btime\.time\b|"
     r"\bdatetime\.now\b|/dev/(?:u?random)|\bdate\s+\+)",
@@ -59,6 +69,7 @@ NETWORK_OVERLAY_CONTENT = b"services:\n  main:\n    network_mode: none\n"
 Severity = Literal["error", "warning", "info"]
 Classification = Literal["task_defect", "harness_defect", "agent_failure", "expected"]
 ControlStatus = Literal["completed", "harness_error", "interrupted"]
+ProvenanceZone = Literal["01-external", "02-local-evidence", "03-synthetic", "04-curated"]
 Disposition = Literal[
     "needs_changes",
     "controls_pending",
@@ -132,6 +143,14 @@ def _tree_digest(root: Path) -> str:
     return _sha256_bytes(_canonical_bytes(payload))
 
 
+def _verifier_output_digest(trial_dir: Path) -> str | None:
+    """Digest the actual retained verifier files, not a synthesized reward value."""
+    verifier_dir = trial_dir / "verifier"
+    if not verifier_dir.is_dir() or not _tree_entries(verifier_dir):
+        return None
+    return _tree_digest(verifier_dir)
+
+
 def _empty_digest() -> str:
     return _sha256_bytes(b"")
 
@@ -196,9 +215,7 @@ class CandidateSource:
     source_uri: str
     source_ref: str
     license: str
-    provenance_zone: Literal["01-external", "02-local-evidence", "03-synthetic", "04-curated"] = (
-        "03-synthetic"
-    )
+    provenance_zone: ProvenanceZone = "03-synthetic"
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -607,6 +624,14 @@ def _validate_layout(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
         if not path.is_symlink():
             continue
         relative = path.relative_to(task_dir).as_posix()
+        diagnostics.append(
+            _diag(
+                "symlink_unsupported",
+                relative,
+                "candidate packages may not contain symlinks; Harbor build context bytes "
+                "must be regular files",
+            )
+        )
         if not _is_under(path, task_dir):
             diagnostics.append(
                 _diag("path_escape", relative, "symlink resolves outside the candidate package")
@@ -773,11 +798,38 @@ def _docker_copy_sources(arguments: str) -> tuple[list[str], bool]:
     return tokens[:-1], False
 
 
+def _validate_build_network(
+    text: str, relative: str, diagnostics: list[Diagnostic]
+) -> None:
+    for line in _docker_logical_lines(text):
+        if line.startswith("#") or re.match(r"(?i)^FROM\s+", line):
+            continue
+        if BUILD_NETWORK_PATTERN.search(line):
+            diagnostics.append(
+                _diag(
+                    "build_network_use",
+                    relative,
+                    "Docker builds may not fetch from a network or invoke an online package "
+                    "manager; use a separately reviewed immutable offline input",
+                )
+            )
+            return
+
+
+def _is_remote_docker_source(source: str) -> bool:
+    normalized = source.strip().lower()
+    return bool(
+        re.match(r"^(?:https?|ftp|git|ssh)://", normalized)
+        or normalized.startswith("git@")
+    )
+
+
 def _validate_dockerfile(task_dir: Path, diagnostics: list[Diagnostic]) -> str | None:
     path = task_dir / "environment/Dockerfile"
     if not path.is_file():
         return None
     text = _read_text(path)
+    _validate_build_network(text, "environment/Dockerfile", diagnostics)
     base_ref: str | None = None
     for line in _docker_logical_lines(text):
         if line.startswith("#"):
@@ -797,9 +849,10 @@ def _validate_dockerfile(task_dir: Path, diagnostics: list[Diagnostic]) -> str |
                             "every FROM image must be pinned by @sha256 digest",
                         )
                     )
-        copy_match = re.match(r"(?i)^(?:COPY|ADD)\s+(.+)$", line)
+        copy_match = re.match(r"(?i)^(COPY|ADD)\s+(.+)$", line)
         if copy_match:
-            sources, unsupported = _docker_copy_sources(copy_match.group(1))
+            instruction = copy_match.group(1).upper()
+            sources, unsupported = _docker_copy_sources(copy_match.group(2))
             if unsupported:
                 diagnostics.append(
                     _diag(
@@ -809,6 +862,14 @@ def _validate_dockerfile(task_dir: Path, diagnostics: list[Diagnostic]) -> str |
                     )
                 )
             for source in sources:
+                if instruction == "ADD" and _is_remote_docker_source(source):
+                    diagnostics.append(
+                        _diag(
+                            "remote_docker_add",
+                            "environment/Dockerfile",
+                            "remote Docker ADD sources are forbidden even when checksummed",
+                        )
+                    )
                 pure = PurePosixPath(source)
                 if (
                     source in {".", "./"}
@@ -870,6 +931,7 @@ def _validate_verifier_image(task_dir: Path, diagnostics: list[Diagnostic]) -> N
     if not path.is_file():
         return
     text = _read_text(path)
+    _validate_build_network(text, "tests/Dockerfile", diagnostics)
     found_from = False
     for line in _docker_logical_lines(text):
         if line.startswith("#") or not re.match(r"(?i)^FROM\s+", line):
@@ -1337,6 +1399,158 @@ def _materialize_command(command: Sequence[str], repo_root: Path) -> tuple[str, 
     )
 
 
+def _validate_candidate_record(candidate: Mapping[str, Any]) -> None:
+    recorded_digest = _required_digest(candidate, "candidate_record_digest")
+    body = dict(candidate)
+    body.pop("candidate_record_digest")
+    if recorded_digest != _sha256_bytes(_canonical_bytes(body)):
+        raise WorkbenchError("frozen candidate record digest is invalid")
+
+    identity = {
+        "workbench_version": _required_string(candidate, "workbench_version"),
+        "task_id": _required_string(candidate, "task_id"),
+        "task_version": _required_string(candidate, "task_version"),
+        "task_path": _required_string(candidate, "task_path"),
+        "source": dict(_required_mapping(candidate.get("source"), "source")),
+        "package_digest": _required_digest(
+            _required_mapping(candidate.get("digests"), "digests"), "package"
+        ),
+    }
+    expected_id = "candidate-" + hashlib.sha256(_canonical_bytes(identity)).hexdigest()[:24]
+    if _required_string(candidate, "candidate_id") != expected_id:
+        raise WorkbenchError("frozen candidate identity digest is invalid")
+
+
+def _candidate_task_dir(repo_root: Path, candidate: Mapping[str, Any]) -> Path:
+    relative = PurePosixPath(_required_string(candidate, "task_path"))
+    if relative.is_absolute() or ".." in relative.parts:
+        raise UnsafePathError("frozen candidate task_path is unsafe")
+    task_dir = (repo_root / Path(*relative.parts)).resolve()
+    if not _is_under(task_dir, repo_root) or not task_dir.is_dir():
+        raise UnsafePathError("frozen candidate task_path is missing or escapes the repository")
+    return task_dir
+
+
+def _actual_candidate_files(task_dir: Path) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": path,
+            "role": _role_for_path(path),
+            "type": entry_type,
+            "size_bytes": size,
+            "digest": digest,
+        }
+        for path, entry_type, size, digest in _tree_entries(task_dir)
+    ]
+
+
+def _validate_candidate_bytes(
+    *, repo_root: Path, task_dir: Path, candidate: Mapping[str, Any]
+) -> None:
+    _validate_candidate_record(candidate)
+    expected_task_dir = _candidate_task_dir(repo_root, candidate)
+    if task_dir.resolve() != expected_task_dir:
+        raise WorkbenchError("control task_path does not match the frozen Inspection path")
+    symlinks = [
+        path.relative_to(task_dir).as_posix()
+        for path in sorted(task_dir.rglob("*"))
+        if path.is_symlink()
+    ]
+    if symlinks:
+        raise WorkbenchError(f"candidate bytes contain forbidden symlink: {symlinks[0]}")
+    digests = _required_mapping(candidate.get("digests"), "digests")
+    if _tree_digest(task_dir) != _required_digest(digests, "package"):
+        raise WorkbenchError("candidate package bytes drifted after Inspection")
+    raw_files = candidate.get("files")
+    if not isinstance(raw_files, list) or raw_files != _actual_candidate_files(task_dir):
+        raise WorkbenchError("candidate file manifest drifted after Inspection")
+
+
+def _source_from_candidate(candidate: Mapping[str, Any]) -> CandidateSource:
+    raw = _required_mapping(candidate.get("source"), "source")
+    zone = _required_string(raw, "provenance_zone")
+    if zone not in {"01-external", "02-local-evidence", "03-synthetic", "04-curated"}:
+        raise WorkbenchError("frozen source provenance_zone is invalid")
+    return CandidateSource(
+        source_uri=_required_string(raw, "source_uri"),
+        source_ref=_required_string(raw, "source_ref"),
+        license=_required_string(raw, "license"),
+        provenance_zone=zone,
+    )
+
+
+def _reinspect_frozen_candidate(
+    *, inspection: Inspection, repo_root: Path, task_dir: Path
+) -> None:
+    _validate_candidate_bytes(
+        repo_root=repo_root,
+        task_dir=task_dir,
+        candidate=inspection.candidate,
+    )
+    current = inspect_candidate(
+        repo_root=repo_root,
+        task_path=task_dir,
+        source=_source_from_candidate(inspection.candidate),
+    )
+    if current != inspection:
+        raise WorkbenchError("candidate Inspection or frozen control plan drifted before execution")
+
+
+def _validate_backend_plan(candidate: Mapping[str, Any], plan: ControlPlanEntry) -> None:
+    candidate_id = _required_string(candidate, "candidate_id")
+    task_id = _required_string(candidate, "task_id")
+    expected_kind: str
+    expected_agent: str
+    expected_reward: float
+    expected_mutation: str | None
+    if plan.control_id in {f"oracle-{index}" for index in range(1, ORACLE_REPETITIONS + 1)}:
+        expected_kind, expected_agent, expected_reward, expected_mutation = (
+            "oracle",
+            "oracle",
+            1.0,
+            None,
+        )
+    elif plan.control_id == "nop-1":
+        expected_kind, expected_agent, expected_reward, expected_mutation = (
+            "nop",
+            "nop",
+            0.0,
+            None,
+        )
+    elif plan.control_id.startswith("adversarial-"):
+        stem = plan.control_id.removeprefix("adversarial-")
+        expected_kind, expected_agent, expected_reward, expected_mutation = (
+            "adversarial",
+            "oracle",
+            0.0,
+            f"workbench/adversarial/{stem}.sh",
+        )
+        raw_files = candidate.get("files")
+        if not isinstance(raw_files, list) or not any(
+            isinstance(item, Mapping)
+            and item.get("path") == expected_mutation
+            and item.get("role") == "adversarial-control"
+            and item.get("type") == "file"
+            for item in raw_files
+        ):
+            raise WorkbenchError("adversarial plan does not name a frozen candidate file")
+    else:
+        raise WorkbenchError("control plan id is outside the fixed control set")
+
+    if (
+        plan.kind != expected_kind
+        or plan.agent != expected_agent
+        or plan.expected_reward != expected_reward
+        or plan.mutation_path != expected_mutation
+        or plan.concurrency != 1
+    ):
+        raise WorkbenchError("control plan semantics drifted from the fixed control set")
+    expected_command = _control_command(candidate_id, task_id, plan.control_id, plan.agent)
+    expected_digest = _sha256_bytes(_canonical_bytes(list(expected_command)))
+    if plan.command != expected_command or plan.command_digest != expected_digest:
+        raise WorkbenchError("control command drifted from the backend's fixed command")
+
+
 def _scrub_diagnostic(value: str, repo_root: Path, *, limit: int = 2_000) -> str:
     text = value.replace(str(repo_root), "$REPO")
     return text[-limit:]
@@ -1402,10 +1616,14 @@ class HarborControlBackend:
         plan: ControlPlanEntry,
         run_root: Path,
     ) -> ControlObservation:
-        if plan.agent not in {"oracle", "nop"}:
-            raise WorkbenchError("task workbench controls permit only oracle and nop")
-        if plan.concurrency < 1 or plan.concurrency > MAX_CONTROL_CONCURRENCY:
-            raise WorkbenchError("control concurrency exceeds the hard cap of 2")
+        repo_root = repo_root.resolve()
+        task_dir = task_dir.resolve()
+        _validate_candidate_bytes(
+            repo_root=repo_root,
+            task_dir=task_dir,
+            candidate=candidate,
+        )
+        _validate_backend_plan(candidate, plan)
         candidate_id = _required_string(candidate, "candidate_id")
         source_digest = _required_digest(
             _required_mapping(candidate.get("digests"), "digests"), "package"
@@ -1430,7 +1648,7 @@ class HarborControlBackend:
         if stage.exists():
             raise WorkbenchError(f"refusing to replace existing control staging path: {stage}")
         stage.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(task_dir, stage, symlinks=False)
+        shutil.copytree(task_dir, stage, symlinks=True)
         if plan.mutation_path is not None:
             mutation = stage / plan.mutation_path
             if not mutation.is_file() or not _is_under(mutation, stage):
@@ -1444,6 +1662,8 @@ class HarborControlBackend:
         overlay.parent.mkdir(parents=True, exist_ok=True)
         overlay.write_bytes(NETWORK_OVERLAY_CONTENT)
         staged_digest = _tree_digest(stage)
+        if staged_digest != _expected_stage_digest(candidate, plan):
+            raise WorkbenchError("isolated staged task bytes do not match the frozen control plan")
         canonical_command = tuple(plan.command)
         materialized = _materialize_command(canonical_command, repo_root)
         if Path(materialized[materialized.index("--path") + 1]).resolve() != stage.resolve():
@@ -1604,7 +1824,7 @@ class HarborControlBackend:
             status=status,
             reward=trial.primary_reward,
             reward_vector=vector,
-            verifier_output_digest=_sha256_bytes(_canonical_bytes(vector)) if vector else None,
+            verifier_output_digest=_verifier_output_digest(trial.path),
             evidence_digest=_tree_digest(job_dir),
             image_digest=image_digest,
             verifier_digest=verifier_digest,
@@ -1675,6 +1895,11 @@ def run_controls(
     repo_root = repo_root.resolve()
     task_dir = task_path if task_path.is_absolute() else repo_root / task_path
     task_dir = task_dir.resolve()
+    _reinspect_frozen_candidate(
+        inspection=inspection,
+        repo_root=repo_root,
+        task_dir=task_dir,
+    )
     candidate_id = _required_string(inspection.candidate, "candidate_id")
     source_digest = _required_digest(
         _required_mapping(inspection.candidate.get("digests"), "digests"), "package"
@@ -1781,8 +2006,10 @@ def _trial_exception_type(result: Mapping[str, Any]) -> str | None:
     return str(raw_type) if raw_type else "HarborTrialException"
 
 
-def _expected_stage_digest(inspection: Inspection, plan: ControlPlanEntry) -> str:
-    raw_files = inspection.candidate.get("files")
+def _expected_stage_digest(
+    candidate: Mapping[str, Any], plan: ControlPlanEntry
+) -> str:
+    raw_files = candidate.get("files")
     if not isinstance(raw_files, list):
         raise WorkbenchError("candidate files manifest is invalid")
     entries = [dict(_required_mapping(item, "candidate file")) for item in raw_files]
@@ -1927,7 +2154,7 @@ def _validate_control_evidence(
                 )
             )
         actual_stage_digest = _tree_digest(stage)
-        expected_stage_digest = _expected_stage_digest(inspection, plan)
+        expected_stage_digest = _expected_stage_digest(inspection.candidate, plan)
         if (
             observation.staged_package_digest != actual_stage_digest
             or actual_stage_digest != expected_stage_digest
@@ -1961,9 +2188,7 @@ def _validate_control_evidence(
         return tuple(diagnostics)
     trial = job.trials[0]
     reward_vector = _reward_vector_from_trial(trial.result)
-    verifier_output_digest = (
-        _sha256_bytes(_canonical_bytes(reward_vector)) if reward_vector else None
-    )
+    verifier_output_digest = _verifier_output_digest(trial.path)
     actual_agent = trial.result.get("agent_info")
     actual_agent_name = actual_agent.get("name") if isinstance(actual_agent, Mapping) else None
     expected_stage_path = str(stage.resolve())
@@ -2230,7 +2455,7 @@ def _assess_controls(
             _diag(
                 "verifier_nondeterministic",
                 "$controls",
-                "consecutive Oracle verifier output vectors are not byte-identical",
+                "consecutive Oracle retained verifier output trees are not byte-identical",
             )
         )
     return _sort_diagnostics(diagnostics)
@@ -2283,11 +2508,22 @@ def _certification_record(
         if report.controls is not None
         else {}
     )
+    plan_ids = {item.control_id for item in report.inspection.control_plan}
+    recomputed_evidence_failed = any(
+        item.severity == "error" and (item.path in plan_ids or item.path == "$controls")
+        for item in report.diagnostics
+    )
+    verified_controls = (
+        report.inspection.static_passed
+        and report.controls is not None
+        and not recomputed_evidence_failed
+    )
 
     def control_matches(plan: ControlPlanEntry) -> bool:
         observation = observations.get(plan.control_id)
         return bool(
-            observation is not None
+            verified_controls
+            and observation is not None
             and observation.status == "completed"
             and observation.exception_type is None
             and observation.reward == plan.expected_reward
@@ -2330,6 +2566,7 @@ def _certification_record(
             and len(oracle_outputs) == ORACLE_REPETITIONS
             and len(set(oracle_outputs)) == 1,
             "isolation": report.inspection.static_passed
+            and verified_controls
             and not any(
                 item.code
                 in {
@@ -2337,7 +2574,14 @@ def _certification_record(
                     "golden_data_leak",
                     "hidden_artifact_exposure",
                     "path_escape",
+                    "symlink_unsupported",
                     "verifier_not_isolated",
+                    "control_network_binding_mismatch",
+                    "control_network_isolation_missing",
+                    "control_stage_tampered",
+                    "control_task_digest_mismatch",
+                    "control_task_identity_mismatch",
+                    "control_verifier_not_isolated",
                 }
                 for item in report.diagnostics
             ),
@@ -2432,6 +2676,7 @@ def _retained_evidence_record(
             "exception_type": _trial_exception_type(trial.result),
             "reward": trial.primary_reward,
             "reward_vector": _reward_vector_from_trial(trial.result),
+            "verifier_output_digest": _verifier_output_digest(trial.path),
             "verifier_environment_mode": trial.result.get("verifier_environment_mode"),
         },
         "omitted_content": [
@@ -2534,7 +2779,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_cli(argv: Sequence[str] | None = None) -> int:
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    control_backend: ControlBackend | None = None,
+) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     repo_root = args.repo_root.resolve()
@@ -2553,7 +2802,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                 inspection=inspection,
                 repo_root=repo_root,
                 task_path=args.task,
-                backend=HarborControlBackend(),
+                backend=control_backend or HarborControlBackend(),
             )
         report = check_candidate(inspection, controls, repo_root=repo_root)
         if args.command == "check":

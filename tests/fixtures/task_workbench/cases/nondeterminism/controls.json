@@ -1,1 +1,1 @@
-{"override":{"oracle-2":{"verifier_output_seed":"different"}}}
+{"override":{"oracle-2":{"verifier_stdout":"different retained verifier output\n"}}}

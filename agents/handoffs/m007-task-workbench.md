@@ -1,7 +1,7 @@
-Status: stopped at review
-Last: PR #49 opened; Tasks approved; first pushed exact-head GitHub suite fully green
-Next: human review/merge decision; agent must not merge
-Blockers: repository contains zero human-registered tasks; exercise will use the documented event-summary registration candidate and state that limitation explicitly
+Status: building
+Last: integrator repair implemented and focused tests passed (35/35)
+Next: run full checks, rebase origin/main, push the repaired PR #49 head, and stop at review
+Blockers: none
 
 # M007 task-quality workbench handoff
 
@@ -201,6 +201,42 @@ result: APPROVED; no blocking Tasks findings
 scope verified: candidate/stage/task digest, free agent, separate verifier,
                 no-network overlay, portable evidence, wrong-task regression
 review mode: read-only; no state changed
+```
+
+## Integrator repair round
+
+The original worker had stopped before this repair. A sole repair writer resumed
+the same worktree and accepted the integrator's five blocking findings. The
+execution boundary now re-inspects the frozen candidate path and bytes before
+creating runtime state; the concrete Harbor backend independently validates the
+candidate record, plan semantics, command, source manifest, and staged bytes
+before a subprocess can run. Static admission rejects every candidate symlink,
+remote Docker `ADD`, and build-time fetch or online package-manager command.
+
+Verifier determinism now digests the actual canonical file tree retained under
+each Harbor trial's `verifier/` directory. The nondeterminism regression changes
+a retained verifier stdout file and uses that production derivation; it no
+longer injects a synthetic digest seed. The successful candidate packet was
+mechanically regenerated from its already-retained local Oracle/Nop jobs, with
+no new Harbor, Docker, model, cloud, or paid call. The intentionally failed
+candidate packet was preserved unchanged.
+
+Certification check-vector claims now require clean recomputed control evidence.
+Wrong task identity, network overlay binding, or verifier isolation makes the
+control subclaims and isolation false. The real module CLI `check --run-controls`
+is covered through an injected `HarborControlBackend` subprocess runner, proving
+the materialized paths, overlay, free agents, Docker backend, one attempt, and
+concurrency one.
+
+Focused repair evidence:
+
+```text
+.venv/bin/python -m pytest tests/test_task_workbench.py -q
+...................................                                      [100%]
+35 passed
+
+.venv/bin/ruff check src/evallab/task_workbench.py tests/test_task_workbench.py
+All checks passed!
 ```
 
 PR and GitHub verification:

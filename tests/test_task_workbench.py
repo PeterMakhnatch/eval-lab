@@ -21,6 +21,7 @@ from evallab.task_workbench import (
     UnsafePathError,
     WorkbenchError,
     _harbor_task_digest,
+    _verifier_output_digest,
     check_candidate,
     classify_trial_outcome,
     inspect_candidate,
@@ -110,7 +111,6 @@ class FixtureBackend:
         reward = override.get("reward", plan.expected_reward)
         if status != "completed":
             reward = None
-        seed = override.get("verifier_output_seed", f"{plan.kind}:{reward}")
         stage = run_root / "staging" / plan.control_id
         shutil.copytree(task_dir, stage)
         if plan.mutation_path is not None:
@@ -191,9 +191,13 @@ class FixtureBackend:
                     }
                 )
             )
-            verifier_output_digest = _digest(_canonical(vector))
-            if "verifier_output_seed" in override:
-                verifier_output_digest = _digest(str(seed).encode())
+            verifier = trial / "verifier"
+            verifier.mkdir()
+            (verifier / "reward.txt").write_text(f"{reward}\n")
+            (verifier / "test-stdout.txt").write_text(
+                str(override.get("verifier_stdout", ""))
+            )
+            verifier_output_digest = _verifier_output_digest(trial)
             evidence_digest = _tree_digest(job)
             job_path = job.relative_to(repo_root).as_posix()
         digests = candidate["digests"]
@@ -359,6 +363,15 @@ def test_candidate_argument_and_symlink_path_escape_are_refused(tmp_path: Path) 
         inspect_candidate(repo_root=repo, task_path=outside, source=_source())
 
 
+def test_agent_visible_symlink_to_hidden_golden_is_rejected(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path, "golden-symlink")
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    finding = next(item for item in inspection.diagnostics if item.code == "symlink_unsupported")
+    assert finding.path == "environment/golden-link.txt"
+
+
 def test_json_form_copy_of_hidden_solution_is_rejected(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path, "json-copy-leak")
     inspection = _inspect(repo, task)
@@ -384,6 +397,26 @@ def test_runtime_network_use_and_unpinned_dependency_are_rejected(tmp_path: Path
     pin_repo, pin_task = _copy_candidate(tmp_path / "pin", "unpinned-dependency")
     pin = _inspect(pin_repo, pin_task)
     assert "base_image_unpinned" in _codes(pin)
+
+
+def test_remote_add_and_build_time_network_fetch_are_rejected(tmp_path: Path) -> None:
+    remote_repo, remote_task = _copy_candidate(tmp_path / "remote")
+    (remote_task / "environment/Dockerfile").write_text(
+        "FROM ubuntu@sha256:" + "a" * 64 + "\n"
+        "ADD --checksum=sha256:" + "b" * 64
+        + " https://example.invalid/archive.tar /app/archive.tar\n"
+    )
+    remote = _inspect(remote_repo, remote_task)
+    assert "remote_docker_add" in _codes(remote)
+    assert "build_network_use" in _codes(remote)
+
+    fetch_repo, fetch_task = _copy_candidate(tmp_path / "fetch")
+    (fetch_task / "tests/Dockerfile").write_text(
+        "FROM ubuntu@sha256:" + "a" * 64 + "\n"
+        "RUN git clone https://example.invalid/verifier.git /tests\n"
+    )
+    fetch = _inspect(fetch_repo, fetch_task)
+    assert "build_network_use" in _codes(fetch)
 
 
 def test_forged_registration_is_rejected_but_real_record_is_only_observed(
@@ -426,6 +459,76 @@ def test_static_failure_makes_zero_control_calls(tmp_path: Path) -> None:
         )
     assert backend.calls == []
     assert not (repo / "runs").exists()
+
+
+def test_controls_bind_inspection_path_and_current_candidate_bytes(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    backend = FixtureBackend()
+    other = repo / "library/synthetic/m007/other-copy"
+    shutil.copytree(task, other)
+
+    with pytest.raises(WorkbenchError, match="Inspection path"):
+        run_controls(
+            inspection=inspection,
+            repo_root=repo,
+            task_path=other,
+            backend=backend,
+        )
+    assert backend.calls == []
+    assert not (repo / "runs").exists()
+
+    (task / "environment/input.txt").write_text("drifted after inspection\n")
+    with pytest.raises(WorkbenchError, match="drifted after Inspection"):
+        run_controls(
+            inspection=inspection,
+            repo_root=repo,
+            task_path=task,
+            backend=backend,
+        )
+    assert backend.calls == []
+    assert not (repo / "runs").exists()
+
+
+def test_harbor_backend_rejects_drifted_candidate_and_command_before_staging(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    calls: list[list[str]] = []
+    backend = HarborControlBackend(
+        command_runner=lambda command, **kwargs: calls.append(command),
+        environment_provider=lambda: {},
+    )
+    run_root = repo / "runs/task-workbench" / inspection.candidate["candidate_id"]
+    drifted_plan = replace(
+        inspection.control_plan[0],
+        command=(*inspection.control_plan[0].command, "--model", "forbidden"),
+    )
+
+    with pytest.raises(WorkbenchError, match="control command drifted"):
+        backend.run(
+            repo_root=repo,
+            task_dir=task,
+            candidate=inspection.candidate,
+            plan=drifted_plan,
+            run_root=run_root,
+        )
+    assert calls == []
+    assert not run_root.exists()
+
+    drifted_candidate = dict(inspection.candidate)
+    drifted_candidate["task_path"] = "library/synthetic/m007/other"
+    with pytest.raises(WorkbenchError, match="candidate record digest"):
+        backend.run(
+            repo_root=repo,
+            task_dir=task,
+            candidate=drifted_candidate,
+            plan=inspection.control_plan[0],
+            run_root=run_root,
+        )
+    assert calls == []
+    assert not run_root.exists()
 
 
 def test_valid_controls_certify_and_rescan_is_idempotent(tmp_path: Path) -> None:
@@ -480,6 +583,21 @@ def test_control_regression_fixtures(
         finding = next(item for item in report.diagnostics if item.code == code)
         assert finding.classification == "harness_defect"
         assert all(item.classification != "agent_failure" for item in report.diagnostics)
+
+
+def test_verifier_determinism_uses_retained_output_files(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    bundle = _bundle(inspection, repo=repo, task=task, case="nondeterminism")
+    first, second = bundle.observations[:2]
+    assert first.job_path is not None
+    assert second.job_path is not None
+    first_trial = next(path for path in (repo / first.job_path).iterdir() if path.is_dir())
+    second_trial = next(path for path in (repo / second.job_path).iterdir() if path.is_dir())
+
+    assert first.verifier_output_digest == _verifier_output_digest(first_trial)
+    assert second.verifier_output_digest == _verifier_output_digest(second_trial)
+    assert first.verifier_output_digest != second.verifier_output_digest
 
 
 def test_outcome_classifier_separates_task_harness_and_agent_failures() -> None:
@@ -617,6 +735,7 @@ def test_wrong_task_job_and_missing_network_binding_cannot_certify(tmp_path: Pat
     trial_result["task_name"] = "other/task"
     trial_result["config"]["task"]["path"] = str(repo / "other-task")
     trial_result["config"]["environment"]["extra_docker_compose"] = []
+    trial_result["verifier_environment_mode"] = "same"
     trial_result_path.write_bytes(_canonical(trial_result))
     observations[0] = replace(first, evidence_digest=_tree_digest(job))
     forged = ControlBundle.build(
@@ -631,6 +750,15 @@ def test_wrong_task_job_and_missing_network_binding_cannot_certify(tmp_path: Pat
     assert report.disposition == "needs_changes"
     assert "control_task_identity_mismatch" in codes
     assert "control_network_binding_mismatch" in codes
+    assert "control_verifier_not_isolated" in codes
+
+    _, certification_path = write_packet(repo_root=repo, report=report)
+    vector = json.loads(certification_path.read_text())["check_vector"]
+    assert vector["oracle_exact_1"] is False
+    assert vector["nop_exact_0"] is False
+    assert vector["invalid_outputs_rejected"] is False
+    assert vector["verifier_deterministic"] is False
+    assert vector["isolation"] is False
 
 
 def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -> None:
@@ -717,7 +845,7 @@ def test_controls_pending_packet_does_not_claim_unobserved_control_success(
 
     assert certification["status"] == "controls_pending"
     assert certification["check_vector"]["static"] is True
-    assert certification["check_vector"]["isolation"] is True
+    assert certification["check_vector"]["isolation"] is False
     assert certification["check_vector"]["oracle_exact_1"] is False
     assert certification["check_vector"]["nop_exact_0"] is False
     assert certification["check_vector"]["invalid_outputs_rejected"] is False
@@ -783,6 +911,59 @@ def test_cli_plan_check_packet_without_shared_cli_wiring(
     packet_payload = json.loads(capsys.readouterr().out)
     assert packet_payload["candidate"].startswith("research/registration/candidates/")
     assert plan_payload["candidate"]["candidate_id"] == check_payload["candidate_id"]
+
+
+def test_cli_run_controls_composes_fixed_harbor_subprocess_commands(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    captured: list[list[str]] = []
+
+    def runner(command, **kwargs):
+        captured.append(command)
+        stage = Path(command[command.index("--path") + 1])
+        overlay = Path(command[command.index("--extra-docker-compose") + 1])
+        assert stage.is_dir()
+        assert overlay == stage / NETWORK_OVERLAY_RELATIVE
+        assert overlay.read_bytes() == NETWORK_OVERLAY_CONTENT
+        assert not any(path.is_symlink() for path in stage.rglob("*"))
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=1,
+            stdout="",
+            stderr="injected harness stop before Docker",
+        )
+
+    backend = HarborControlBackend(command_runner=runner, environment_provider=lambda: {})
+    common = [
+        str(task),
+        "--repo-root",
+        str(repo),
+        "--source-uri",
+        "local/uppercase-fixture",
+        "--source-ref",
+        "local/uppercase-fixture@1.0.0",
+        "--license",
+        "MIT",
+        "--zone",
+        "02-local-evidence",
+    ]
+
+    assert run_cli(
+        ["check", *common, "--run-controls"],
+        control_backend=backend,
+    ) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["disposition"] == "harness_blocked"
+    assert len(captured) == 7
+    assert {command[command.index("--agent") + 1] for command in captured} == {
+        "oracle",
+        "nop",
+    }
+    assert all(command[command.index("--env") + 1] == "docker" for command in captured)
+    assert all(command[command.index("--n-concurrent") + 1] == "1" for command in captured)
+    assert all(command[command.index("--n-attempts") + 1] == "1" for command in captured)
+    assert all("--model" not in command for command in captured)
 
 
 def test_module_has_no_queue_policy_publish_or_registry_write_capability() -> None:

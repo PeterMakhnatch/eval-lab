@@ -28,3 +28,19 @@ single-task attempt-count study (Study 02) or a trajectory-attributed
 failure note — not a model swap. If all three are 3/3, the next comparison
 needs either a harder task (registration question) or n=5 (policy/cost
 question).
+
+## 2026-08-15 PROGRAM reconciliation
+
+Do not treat 2026-08-14 `ValueError` “Model name is required” (9 trials
+under `runs/canary-*-codex-20260814/`,
+`exception_info.exception_type` in each trial `result.json`) as Codex
+capability. Those are invalid harness attempts.
+
+2026-08-15 scored jobs (`verifier_result.rewards.reward`,
+`exception_info` is null):
+
+- event-summary 3/3 reward 1.0 — `runs/canary-event-summary-codex-20260815/`
+- transaction-reconciliation 3/3 reward 1.0 — `runs/canary-transaction-reconciliation-codex-20260815/`
+- html-js-filter 0/3 reward 1.0 — `runs/canary-terminal-bench-html-js-filter-codex-20260815/`
+
+Not a ranking. See `baselines/codex-canary-20260815.md`.

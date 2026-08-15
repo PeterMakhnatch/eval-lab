@@ -38,3 +38,9 @@ direction check plus trajectory read, not a claim.
 **Next spec this implies.** After the field lands, submit the treatment
 arm only and pair it with Study 01's already-run control. If the control
 has not run, submit both together.
+
+## 2026-08-15 PROGRAM reconciliation
+
+Control cell has now run: `runs/canary-event-summary-codex-20260815/`
+3/3 `reward=1.0`. The harness gap remains (`ExperimentSpec` still has
+no `extra_instruction_path`). Still not submitted.

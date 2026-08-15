@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-15",
+  "title": "Eval Lab research program ledger",
+  "experiments": [
+    {
+      "id": "EXP-S01-canary-codex-k3",
+      "research_question": "What is Codex pass@3 on the three digest-pinned canary tasks under one elicitation?",
+      "hypothesis": "With agent, k, environment, and instruction fixed, Codex pass@3 on the three canary members is a measurable baseline; later excursions are first harness-drift suspects.",
+      "primary_variable": "task identity among the three canary-suite members",
+      "fixed_elicitation": "agent=codex, adapter-default model (2026-08-15 jobs recorded gpt-5.6-terra), k=3, docker, no extra instruction",
+      "task_cohort": "policy/canary-suite.yaml members: event-summary, transaction-reconciliation, terminal-bench-html-js-filter",
+      "agent": "codex",
+      "model": "gpt-5.6-terra",
+      "profile": "docker",
+      "k": 3,
+      "n_tasks": 3,
+      "power_rationale": "k=3 is the canary policy maximum and is below the lab comparison bar of k>=5 and TRUTH n_tasks>=2 paired ranking. These are three family observations, not a ranking.",
+      "status": "analyzed",
+      "references": {
+        "spec": [
+          "research/experiments/specs/01-canary-codex-pass-at-3/"
+        ],
+        "queue": [
+          "queue/done/codex-01M021T5SMYY9E4EBCCMNF43A6.json",
+          "queue/done/codex-01M021T5PPHP3QTR08VXE03VEZ.json",
+          "queue/done/codex-01M021T5QYSJKEQV0AVH1WDBJC.json",
+          "queue/failed/codex-01KZZFDCJABF6JCTFPFHWGDMG5.json",
+          "queue/failed/codex-01KZZFDCFK5XHCG3683F8YFNJD.json",
+          "queue/failed/codex-01KZZFDCH2WVCTE5BYTWH1QZ4P.json"
+        ],
+        "jobs": [
+          "runs/canary-event-summary-codex-20260815/",
+          "runs/canary-transaction-reconciliation-codex-20260815/",
+          "runs/canary-terminal-bench-html-js-filter-codex-20260815/",
+          "runs/canary-event-summary-codex-20260814/",
+          "runs/canary-transaction-reconciliation-codex-20260814/",
+          "runs/canary-terminal-bench-html-js-filter-codex-20260814/"
+        ],
+        "analysis": [
+          "research/experiments/baselines/codex-canary-20260815.md",
+          "research/experiments/analysis/html-js-filter-codex-20260815-brief.md"
+        ],
+        "cards": []
+      },
+      "blocker": "none on the 2026-08-15 scored jobs",
+      "next_action": "Do not rank the three families. Follow html-js brief discriminator (EXP-N1) or stop expanding this slice.",
+      "predecessor": "none",
+      "decision_rule": "Treat each family separately. Invalid 2026-08-14 ValueError trials stay outside the capability denominator. 2026-08-15 exception_info==null trials are the scored set.",
+      "stopping_condition": "Stop claiming 'Codex unknown on canaries' once 2026-08-15 jobs are recorded. Stop ranking at n=3.",
+      "notes": "2026-08-14 first wave: 9/9 exception_type=ValueError 'Model name is required' (invalid harness). 2026-08-15: event-summary 3/3 reward 1.0; txn-recon 3/3 reward 1.0; html-js 0/3 reward 1.0; 0/9 exceptions. Original RUNNER specs were approved in the runner worktree and never dispatched there."
+    },
+    {
+      "id": "EXP-S02-txn-recon-k",
+      "research_question": "Does changing only attempt count on transaction-reconciliation change interval width more than the point estimate?",
+      "hypothesis": "A 1-attempt result is not a comparison; k=5 is what the lab bar wants and what policy/cost refuse.",
+      "primary_variable": "attempts in {1,3,5}",
+      "fixed_elicitation": "task=canary/transaction-reconciliation, agent=codex, docker, no extra instruction",
+      "task_cohort": "library/tasks/transaction-reconciliation (canary member)",
+      "agent": "codex",
+      "model": null,
+      "profile": "docker",
+      "k": 5,
+      "n_tasks": 1,
+      "power_rationale": "k=3 cell now exists (2026-08-15, 3/3 reward 1.0, cost sum 0.079). k=1 never scored. k=5 remains refused (per_job_cost_ceiling and canary max_attempts=3). n_tasks=1 is not a TRUTH ranking.",
+      "status": "waiting",
+      "references": {
+        "spec": [
+          "research/experiments/specs/02-attempt-count-sensitivity/"
+        ],
+        "queue": [
+          "queue/reasons files from RUNNER worktree (k5 per_job_cost_ceiling); not on primary waiting/ except quiet_failure r2"
+        ],
+        "jobs": [
+          "runs/canary-transaction-reconciliation-codex-20260815/"
+        ],
+        "analysis": [],
+        "cards": []
+      },
+      "blocker": "k=5 hits per_job_cost_ceiling and canary max_attempts=3. k=1 spec was approved in runner worktree and never scored on primary.",
+      "next_action": "Peter: register n=5 or raise ceiling / measure per-attempt cost from 2026-08-15 actual 0.079/3≈0.026 (would be <$3 at k=5) but canary still caps attempts at 3.",
+      "predecessor": "EXP-S01-canary-codex-k3",
+      "decision_rule": "Do not interpret k=3 alone as sensitivity. Need k=5 or an explicit stop.",
+      "stopping_condition": "Stop if Peter declines n=5 on canary members.",
+      "notes": "Actual 2026-08-15 txn cost_usd sum 0.0793556 for k=3. That is below the $2.50 estimate. Policy max_attempts still blocks k=5 on canary/*."
+    },
+    {
+      "id": "EXP-S03-preamble-ab",
+      "research_question": "Does a short contract-discipline preamble change Codex pass@3 on event-summary?",
+      "hypothesis": "Appending preambles/brief-discipline.md is the only variable and moves pass@3 relative to the unmodified 2026-08-15 control.",
+      "primary_variable": "extra instruction file present vs absent",
+      "fixed_elicitation": "task=canary/event-summary, agent=codex, model=gpt-5.6-terra, k=3, docker",
+      "task_cohort": "library/tasks/event-summary",
+      "agent": "codex",
+      "model": "gpt-5.6-terra",
+      "profile": "docker",
+      "k": 3,
+      "n_tasks": 1,
+      "power_rationale": "n=3 is a direction check, not a significant A/B. TRUTH: not distinguishable / not comparable as a ranking.",
+      "status": "designed",
+      "references": {
+        "spec": [
+          "research/experiments/specs/03-preamble-ab/treatment.intended.json",
+          "research/experiments/preambles/brief-discipline.md"
+        ],
+        "queue": [],
+        "jobs": [
+          "runs/canary-event-summary-codex-20260815/"
+        ],
+        "analysis": [],
+        "cards": []
+      },
+      "blocker": "ExperimentSpec still has no extra_instruction_path; build_command does not forward --extra-instruction-path (confirmed grep on src/evallab/schemas.py ExperimentSpec).",
+      "next_action": "BUILDER adds the field. Then submit treatment only; pair with 2026-08-15 control. Do not submit a fake second control.",
+      "predecessor": "EXP-S01-canary-codex-k3",
+      "decision_rule": "Compare treatment vs 2026-08-15 event-summary 3/3 only after elicitation tuples match except preamble.",
+      "stopping_condition": "Stop if BUILDER declines the field.",
+      "notes": "Not submitted. Control cell has now run (was missing when STUDY.md was written)."
+    },
+    {
+      "id": "EXP-S04-claude-vs-codex",
+      "research_question": "Does claude-code complete a scored event-summary canary trial, and how does pass@3 sit beside Codex?",
+      "hypothesis": "Holding task, k=3, docker fixed, claude-code pass@3 differs from Codex enough to see at n=3. First value is completion, not a ranking.",
+      "primary_variable": "agent in {codex, claude-code}",
+      "fixed_elicitation": "task=canary/event-summary, k=3, docker, no extra instruction",
+      "task_cohort": "library/tasks/event-summary",
+      "agent": "claude-code",
+      "model": null,
+      "profile": "docker",
+      "k": 3,
+      "n_tasks": 1,
+      "power_rationale": "n=3 cannot support a ranking. TRUTH: not distinguishable / not comparable across models until elicitation tuples are complete and n_tasks>=2 if ranking is desired.",
+      "status": "designed",
+      "references": {
+        "spec": [
+          "research/experiments/specs/04-claude-code-canary/event-summary.json"
+        ],
+        "queue": [],
+        "jobs": [
+          "runs/canary-event-summary-codex-20260815/"
+        ],
+        "analysis": [],
+        "cards": []
+      },
+      "blocker": "Claude OAuth keychain item harbor-practice-claude-oauth. Auth exceptions are harness, not capability.",
+      "next_action": "Peter stores the keychain item; then submit Study 04 spec (do not expand to three tasks first).",
+      "predecessor": "EXP-S01-canary-codex-k3",
+      "decision_rule": "Auth exception -> stay in harness class. Scored rewards -> decide whether to spend a second night on the other two canaries.",
+      "stopping_condition": "Stop expansion until one scored claude-code trial exists.",
+      "notes": "Original spec was approved in runner worktree and never dispatched. Codex cell is now the 2026-08-15 scored job, not the 2026-08-14 ValueError jobs."
+    },
+    {
+      "id": "EXP-S05-curated-nominees",
+      "research_question": "What is Codex pass@5 on CURATOR's five nominated cards?",
+      "hypothesis": "Those five tasks are a broader baseline than the three local canaries.",
+      "primary_variable": "task identity among five curated nominees",
+      "fixed_elicitation": "agent=codex, k=5 intended, docker",
+      "task_cohort": "html-js-filter, foodstuff-beta-activity, fin-saccr-rwa, interleaved-vigenere, bun-sourcemap-leak (cards only in this checkout)",
+      "agent": "codex",
+      "model": null,
+      "profile": "docker",
+      "k": 3,
+      "n_tasks": 5,
+      "power_rationale": "Intended k=5 for comparison; submitted representative used k=3 so the reason code is namespace not ceiling.",
+      "status": "waiting",
+      "references": {
+        "spec": [
+          "research/experiments/specs/05-curated-nominees-pass-at-5/"
+        ],
+        "queue": [],
+        "jobs": [],
+        "analysis": [],
+        "cards": [
+          "library/curated/html-js-filter/CARD.md",
+          "library/curated/foodstuff-beta-activity/CARD.md",
+          "library/curated/fin-saccr-rwa/CARD.md",
+          "library/curated/interleaved-vigenere/CARD.md",
+          "library/curated/bun-sourcemap-leak/CARD.md"
+        ]
+      },
+      "blocker": "Cards only (no task.toml here); not canary/*; k=5 exceeds canary max; estimated $4.17 exceeds $3. Representative was out_of_policy.",
+      "next_action": "Peter registers a slice or promotes nominees with digests. PROGRAM does not copy frontier-bench trees.",
+      "predecessor": "none",
+      "decision_rule": "Do not interpret CURATOR oracle cards as Codex results.",
+      "stopping_condition": "Stop until registration exists.",
+      "notes": "Policy refusal class: out_of_policy. No scored Codex jobs on these cards in primary runs/."
+    },
+    {
+      "id": "EXP-S06-query-optimize-register",
+      "research_question": "Does standing policy admit Codex on lab-authored query-optimize, and is the family valid?",
+      "hypothesis": "The engine answers registration by refusing the real path; oracle/nop decide validity separately.",
+      "primary_variable": "task path tasks/query-optimize versus canary/*",
+      "fixed_elicitation": "agent=codex, k=3, docker, est_cost 2.50 for the refused arm",
+      "task_cohort": "library/tasks/query-optimize",
+      "agent": "codex",
+      "model": null,
+      "profile": "docker",
+      "k": 3,
+      "n_tasks": 1,
+      "power_rationale": "Registration probe, not a comparison. Free oracle 5/5 and nop 0/1 live in RUNNER journal citations (runner worktree jobs), not re-run here.",
+      "status": "waiting",
+      "references": {
+        "spec": [
+          "research/experiments/specs/06-query-optimize-registration/query-optimize.json"
+        ],
+        "queue": [],
+        "jobs": [],
+        "analysis": [
+          "research/experiments/JOURNAL.md"
+        ],
+        "cards": []
+      },
+      "blocker": "out_of_policy for billable Codex. Poor canary (slow amd64 image, ~10 min/trial).",
+      "next_action": "Peter decides whether to register. Do not add to nightly canary suite.",
+      "predecessor": "none",
+      "decision_rule": "Validity already supported by oracle/nop. Registration is a cost/time decision.",
+      "stopping_condition": "Stop promoting to nightly canaries regardless.",
+      "notes": "No Codex query-optimize job in primary runs/. Do not invent one."
+    },
+    {
+      "id": "EXP-N1-html-js-official-tests",
+      "research_question": "If Codex must run official html-js tests before finishing, does XSS pass@3 move versus 2026-08-15?",
+      "hypothesis": "The 0/3 XSS failure is dominated by never running the official corpus (process), not by an unfixable srcdoc gap (implementation).",
+      "primary_variable": "extra instruction requiring official tests/ before done",
+      "fixed_elicitation": "codex, gpt-5.6-terra, canary/terminal-bench-html-js-filter, k=3, docker",
+      "task_cohort": "library/tasks/terminal-bench-html-js-filter",
+      "agent": "codex",
+      "model": "gpt-5.6-terra",
+      "profile": "docker",
+      "k": 3,
+      "n_tasks": 1,
+      "power_rationale": "Direction check against a 0/3 control. TRUTH: not distinguishable / not comparable as a ranking (n_tasks=1).",
+      "status": "designed",
+      "references": {
+        "spec": [
+          "research/experiments/drafts/N1-html-js-official-tests.md"
+        ],
+        "queue": [],
+        "jobs": [
+          "runs/canary-terminal-bench-html-js-filter-codex-20260815/"
+        ],
+        "analysis": [
+          "research/experiments/analysis/html-js-filter-codex-20260815-brief.md"
+        ],
+        "cards": []
+      },
+      "blocker": "extra_instruction_path not on ExperimentSpec.",
+      "next_action": "Do not submit until BUILDER adds the flag. Control already exists — do not rerun it.",
+      "predecessor": "EXP-S01-canary-codex-k3",
+      "decision_rule": "Same srcdoc 0/3 -> implementation-limit. Any reward 1.0 -> process-limit.",
+      "stopping_condition": "Stop instruction tweaks if XSS still fails the same first vectors.",
+      "notes": "Unsubmitted draft."
+    },
+    {
+      "id": "EXP-N2-event-summary-sol-vs-terra",
+      "research_question": "On event-summary, does gpt-5.6-sol differ from the already-scored gpt-5.6-terra pin?",
+      "hypothesis": "If the remaining question is model identity (not 'avoid ValueError'), sol vs terra is the one variable.",
+      "primary_variable": "Codex model pin gpt-5.6-sol vs gpt-5.6-terra",
+      "fixed_elicitation": "task=canary/event-summary, agent=codex, k=3, docker, no extra instruction",
+      "task_cohort": "library/tasks/event-summary",
+      "agent": "codex",
+      "model": "gpt-5.6-sol",
+      "profile": "docker",
+      "k": 3,
+      "n_tasks": 1,
+      "power_rationale": "n_tasks=1, k=3: not distinguishable / not comparable as a ranking. Only a within-task A/B after the sol arm exists.",
+      "status": "designed",
+      "references": {
+        "spec": [
+          "research/experiments/drafts/N2-event-summary-sol-vs-terra.md"
+        ],
+        "queue": [
+          "queue/proposed/codex-01M023RP03KGSHB4WZ29WE9DGR.json"
+        ],
+        "jobs": [
+          "runs/canary-event-summary-codex-20260815/"
+        ],
+        "analysis": [],
+        "cards": []
+      },
+      "blocker": "Human decision: whether sol vs terra is still worth a night. Proposed spec uses registered/event-summary and a superseded hypothesis.",
+      "next_action": "Do not submit this draft. Do not approve/reject/delete the proposed spec from this role. Peter decides.",
+      "predecessor": "D-20260815-CHEY952N / researcher proposed spec",
+      "decision_rule": "ValueError-avoidance is already answered (terra 3/3 scored). Only run if Peter wants a model-pin A/B on canary/event-summary.",
+      "stopping_condition": "Stop proposing ValueError-avoidance specs.",
+      "notes": "Unsubmitted. See STATUS TASK DECISIONS."
+    },
+    {
+      "id": "EXP-N3-claude-code-event-summary",
+      "research_question": "Can claude-code produce a scored event-summary canary trial?",
+      "hypothesis": "Same as Study 04; restated after Codex cell exists.",
+      "primary_variable": "agent claude-code vs existing Codex cell",
+      "fixed_elicitation": "task=canary/event-summary, k=3, docker, no extra instruction",
+      "task_cohort": "library/tasks/event-summary",
+      "agent": "claude-code",
+      "model": null,
+      "profile": "docker",
+      "k": 3,
+      "n_tasks": 1,
+      "power_rationale": "First completion check. not distinguishable / not comparable as a ranking.",
+      "status": "designed",
+      "references": {
+        "spec": [
+          "research/experiments/drafts/N3-claude-code-event-summary.md",
+          "research/experiments/specs/04-claude-code-canary/event-summary.json"
+        ],
+        "queue": [],
+        "jobs": [
+          "runs/canary-event-summary-codex-20260815/"
+        ],
+        "analysis": [],
+        "cards": []
+      },
+      "blocker": "Claude keychain item absent.",
+      "next_action": "Peter stores harbor-practice-claude-oauth; then use existing Study 04 spec.",
+      "predecessor": "EXP-S04-claude-vs-codex",
+      "decision_rule": "Auth exception stays out of capability denominators.",
+      "stopping_condition": "Do not expand to three tasks until one scored trial.",
+      "notes": "Unsubmitted duplicate of Study 04 with updated control citation."
+    }
+  ]
+}

@@ -1,119 +1,154 @@
-# Data architecture: the four zones and the provenance contract
+# Data architecture: four provenance zones
 
-Role: DATA-STRATEGY. Date: 2026-08-15. Companion to `docs/architecture.md`
-(planes) and `agents/STRUCTURE.md` (paths): this document defines the **data
-zones** that cut across both, and the sidecar contract that makes every item
-auditable. Nothing here relaxes an existing rule; where a conflict could
-arise, `docs/architecture.md` wins.
+Status: normative design. Owner: DATA-STRATEGY. Date: 2026-08-15.
 
-## 1. Why zones
+This architecture keeps evidence, imported corpora, generated tasks, and
+training-ready distillations distinguishable even when they share a Parquet
+schema. A row's shape never establishes its evidential status; its zone and
+`ProvenanceMetadata` sidecar do.
 
-The lab now holds four kinds of data whose *trust levels are different by
-construction*: things downloaded, things measured here, things machines
-generated, and things filtered for training. Mixing them silently is the main
-way an eval lab poisons itself — an external trajectory analyzed as local
-evidence, or a synthetic task graded as a real benchmark, produces confident
-nonsense. Zones make the trust level a queryable property, not a memory.
+## The four zones
 
-## 2. The zones
+| Zone | Purpose | Canonical examples | Authority |
+|---|---|---|---|
+| `01-external` | Public material acquired from a third party | Pinned Hugging Face ATIF corpus, Harbor benchmark export | Useful comparative data; never evidence that this lab reproduced a result |
+| `02-local-evidence` | Immutable outputs from this lab's queue | `runs/<job>/`, ATIF, verifier output, catalog rows | Primary evidence for lab claims |
+| `03-synthetic` | Machine-produced tasks or data derived from declared inputs | Generated Harbor tasks, perturbations, normalized external formats | Candidate material until independently certified |
+| `04-curated` | Reviewed, policy-filtered products assembled from prior zones | Distillation sets, analysis-ready cohorts, training exports | Derived product; authority is bounded by its parents and selection contract |
+
+Zone numbers describe lineage, not a mandatory processing order. A local job
+may consume a Zone 01 task and produce Zone 02 evidence. A Zone 04 cohort may
+select from Zones 01 and 02, but it must retain every selected parent's digest.
+
+## Storage boundaries
 
 ```text
-Zone 01 EXTERNAL          Zone 02 LOCAL EVIDENCE        trust: measured here
-  HF trajectory corpora     immutable Harbor job dirs     |
-  benchmark pins            Postgres catalog              |
-  literature extracts       Parquet projection            v
-        |                        |                    ANALYSIS
-        |  (calibrate,           |  (facts, cohorts,      ^
-        |   baseline)            |   canaries)            |
-        v                        v                        |
-Zone 03 SYNTHETIC          Zone 04 CURATED DISTILLATION
-  generated tasks            filtered 1.0 success traces (SFT)
-  perturbed benchmarks       paired preference sets (DPO)
-  (oracle/nop certified)     (lineage mandatory)
+library/benchmarks/_trajectories/    Zone 01 immutable snapshots
+runs/ and research/evidence/runs/    Zone 02 immutable raw jobs
+library/synthetic/                   Zone 03 generated task sources
+derived/parquet/external/            Zone 01 query projection
+derived/parquet/job_id=*/            Zone 02 query projection
+derived/synthetic/                   Zone 03 generated projections
+derived/curated/                     Zone 04 exports
 ```
 
-| Zone | Contents | Repo location | Mutability | Trust stance |
-|---|---|---|---|---|
-| **01 External** | HF/Hub trajectory corpora, benchmark pins, literature extracts | `library/benchmarks/` (+ `_trajectories/`), `docs/research/` | immutable once digested | someone else's claims; pin + digest + license before use |
-| **02 Local evidence** | Harbor job directories, Postgres catalog, Parquet trajectory facts | `runs/` → promoted `research/evidence/`; `derived/parquet/` | job dirs immutable; catalog/Parquet rebuildable | the lab's ground truth; the only zone that supports capability claims |
-| **03 Synthetic** | machine-generated tasks (from commits/diffs), perturbed benchmark variants | `library/tasks/` staging, **never `registered/*` without human review** | versioned, never edited in place | untrusted until oracle=1.0 and nop=0.0 certified (see `docs/research/synthetic-tasks.md`) |
-| **04 Curated distillation** | filtered reward-1.0 traces (SFT), preference pairs (DPO) | `derived/distillation/` (gitignored), promoted bundles by review | append-only exports | derivative; only as trustworthy as its cited parents |
+`derived/` is rebuildable and ignored by Git. Raw snapshots and raw jobs are
+never edited to make a parser succeed. A parser fix creates a new projection;
+a transform creates a new item with a new digest and a parent link.
 
-### Zone rules (binding)
+External and local Parquet roots stay physically separate. Cross-zone analysis
+must name both roots and select a `zone`, preventing a broad glob from silently
+mixing published external runs with locally reproduced evidence.
 
-1. **01 never masquerades as 02.** External Parquet lives under
-   `derived/parquet/external/<item>/`, local evidence under
-   `derived/parquet/local/`. Queries that union them must name both paths
-   explicitly (P4 queries follow this).
-2. **02 is the only source of capability claims.** External corpora calibrate
-   extractors and provide baselines; they cannot ground a claim about an agent
-   the lab didn't run.
-3. **03 enters evaluation only through the certification gate** (oracle 1.0,
-   nop 0.0, cheat-check) and human registration — `policy/` already routes
-   `new_task_registration` to a human; this document makes the data-side rule
-   explicit: agent-authored tasks never merge into `registered/*`.
-4. **04 must cite lineage.** Every distilled example carries the digests of
-   the Zone 02/01 items it came from. No lineage, no export.
-5. **Licenses propagate.** A Zone 04 export inherits the most restrictive
-   license among its parents; the sidecar's `license` field must reflect that,
-   not the lab's preference.
+## Provenance contract
 
-## 3. The provenance sidecar
+Every dataset-sized item has a JSON sidecar validated by
+`evallab.schemas.ProvenanceMetadata`:
 
-Implemented as `ProvenanceMetadata` in `src/evallab/schemas.py` (strict
-`ContractModel`, `extra="forbid"`), validated by `tests/test_provenance.py`.
-One JSON sidecar per data item, written at acquisition/creation time, stored
-next to the item (`<item>/provenance.json`).
+- `item_id`: stable, human-readable identifier;
+- `zone`: one of the four exact zone labels above;
+- `source_uri`: public URI or repository-relative local source;
+- `revision`: immutable upstream pin, required for Zone 01;
+- `material_digest`: SHA-256 of the acquired or produced bytes;
+- `license`: upstream or output license when known;
+- `created_at` and `created_by`: UTC timestamp and producer identity;
+- `transform`: `name@version` for machine-produced Zones 03 and 04;
+- `parent_digests`: content-addressed lineage, required for Zone 04;
+- `notes`: bounded human context, never a substitute for a structured field.
 
-| Field | Meaning | Enforcement |
+The schema rejects unknown fields. That makes migrations explicit: extend the
+model and its tests, or increment `schema_version`; do not hide new semantics in
+an ad hoc sidecar key.
+
+## Zone admission gates
+
+### Zone 01: external
+
+1. Resolve a public source to an immutable revision (commit SHA, not a branch).
+2. Fetch anonymously; gated or credential-dependent datasets are unsupported.
+3. Hash the material before parsing and record the declared license.
+4. Preserve invalid records and report parser failures by count and reason.
+5. Project only into `derived/parquet/external/`.
+
+An external leaderboard score remains a reported upstream result. It can test
+our parser or motivate a hypothesis, but cannot be presented as reproduced.
+
+### Zone 02: local evidence
+
+1. Enter only through the queue/executor ingest path.
+2. Keep the completed raw job immutable.
+3. Catalog and Parquet projection must agree, except for a recorded projection
+   failure with its own reason code.
+4. Preserve task, verifier, environment, scaffold, prompt, and model identity.
+
+This is the only zone from which the lab may make an unqualified statement such
+as "we ran" or "we observed".
+
+### Zone 03: synthetic
+
+1. Record the generator or converter as `name@version` and hash every parent.
+2. Run schema validation and static policy checks.
+3. For Harbor tasks, require an oracle pass and nop score of zero before use.
+4. Keep generation prompts, source diffs, and rejection reasons as lineage.
+5. Never place an agent-authored task directly in `registered/`.
+
+Certification promotes confidence in an item; it does not rewrite its zone or
+erase its synthetic origin.
+
+### Zone 04: curated
+
+1. Declare selection, exclusion, deduplication, and redaction rules.
+2. Cite at least one parent digest per output item or shard.
+3. Record the versioned export transform and exact schema.
+4. Carry licenses and usage constraints forward; incompatible parents stay out.
+5. Make the export reproducible from retained parents and configuration.
+
+Curated means reviewed for a stated purpose, not ground truth. A training set,
+benchmark cohort, and publication table may need different curation contracts.
+
+## Allowed transitions
+
+| From | To | Required operation |
 |---|---|---|
-| `item_id` | slug, stable identity | pattern-checked |
-| `zone` | one of the four zones | Literal |
-| `source_uri` | where it came from (URL, Hub ref, repo-relative run path, generator id) | non-empty |
-| `revision` | immutable upstream pin (commit SHA, dataset revision) | **required for Zone 01** |
-| `material_digest` | sha256 of the payload tree | `sha256:<64hex>` pattern |
-| `license` | detected/declared license | nullable, never guessed |
-| `created_at`, `created_by` | when, and which tool/role | required |
-| `transform` | `name@version` of the converter/generator | **required for Zones 03/04**; pattern-checked |
-| `parent_digests` | lineage as sha256 list | **non-empty for Zone 04**; each pattern-checked |
+| Zone 01 | Zone 01 Parquet | Deterministic parse/projection; raw digest retained |
+| Zone 01 | Zone 03 | Versioned conversion or task synthesis |
+| Zone 01 or 03 | Zone 02 | A fresh local queue run; imported results never become local evidence |
+| Zones 01–03 | Zone 04 | Declared selection/transform with parent digests |
+| Zone 04 | Zone 02 | A fresh local evaluation of the curated artifact |
 
-Design choices, stated:
+There is no metadata-only promotion. In particular, copying an external row
+under the local Parquet root does not make it Zone 02.
 
-- **Digest-based lineage, not path-based.** Paths move (this repo renamed
-  itself once already); digests survive relocation and detect mutation.
-- `RunProvenance` (existing, spec/task identity for a run) is *not* replaced:
-  it answers "which experiment produced this run"; `ProvenanceMetadata`
-  answers "where did this data item come from and what may I do with it."
-  A Zone 02 item can carry both.
-- The sidecar is deliberately storage-agnostic: the same contract serves local
-  filesystem now and object storage later (`docs/scaling.md` gates).
+## Query and publication rules
 
-## 4. Lifecycle walkthroughs
+- Every analysis declares the zones it reads.
+- Nullable token and cost fields remain nullable; missing is not zero.
+- Model, scaffold, task, verifier, and environment versions are grouping keys,
+  not descriptive footnotes.
+- Published aggregates link to the curated manifest and ultimately to parent
+  digests.
+- Raw prompts and observations may contain proprietary or personal data. Zone
+  04 exporters must apply a declared redaction policy before wider release.
 
-**External corpus (Zone 01):** `fetch trajectories org/name@<sha>` → snapshot →
-digest+license → sidecar (`zone=01-external`, `revision=<sha>`) → ATIF
-validation → Parquet under `derived/parquet/external/` (spec:
-`docs/research/external-datasets.md` §4).
+## Rebuild and audit invariants
 
-**Local run (Zone 02):** Harbor job completes → job dir immutable → catalog
-ingest + ATIF→Parquet projection (existing `atif.py`/`facts.py` path) →
-sidecar written beside the projection with `source_uri=<repo-relative job
-path>`, digest over the job dir.
+For each sidecar, the material digest must match the current bytes. For each
+derived item, every parent digest must resolve in the retained provenance
+index. For local jobs, cataloged job IDs must equal projected job IDs plus
+reasoned projection exceptions. For an external ingest, the audit reports:
 
-**Synthetic batch (Zone 03):** generator `taskgen@<ver>` consumes commits →
-emits task dirs + sidecar (`transform=taskgen@<ver>`) → certification gate →
-human registration or rejection; either way the batch and its sidecar are the
-audit trail.
+```text
+dataset revision digest license bytes files parsed invalid projected
+```
 
-**Distillation (Zone 04):** exporter filters Zone 02 reward-1.0 trajectories
-(+ optional Zone 01 baselines) → SFT/DPO files + sidecar citing every parent
-digest → review before any promotion or external use.
+Deleting `derived/` and rerunning pinned fetch/projection commands must recreate
+the same schemas, row counts, and content digests. Rebuildability is tested from
+fixtures in CI and from one public sample during mission acceptance.
 
-## 5. What this enables next
+## Retention
 
-- P4's queries can filter and join on zone without heuristics.
-- GC (`gc.py`) gains a principled retention key: Zone 02 promoted evidence is
-  precious; Zone 01 is re-fetchable by pin; Zone 03/04 are regenerable from
-  recorded transforms.
-- When object storage arrives, the sidecar is the manifest entry — no
-  redesign.
+Zone 02 raw evidence and Zone 04 release manifests are durable. Zone 01 may be
+refetched only while its immutable public revision remains available, so a
+publication dependency should be retained locally. Zone 03 rejected candidates
+may be compressed after their rejection metadata and generator lineage are
+preserved. All Parquet projections are disposable caches.

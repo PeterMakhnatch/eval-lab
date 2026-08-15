@@ -12,6 +12,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import ValidationError
 
+from evallab.eventlog import event_log_paths
 from evallab.results import JobRecord, TrialRecord, sha256_file
 
 JsonObject = dict[str, Any]
@@ -881,24 +882,23 @@ def _load_catalog_projection_rows(database_url: str) -> list[tuple[str, str, str
 
 
 def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
-    if not events_path.is_file():
-        return frozenset()
     job_ids: set[str] = set()
-    for line in events_path.read_text().splitlines():
-        if not line.strip():
-            continue
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        reason = payload.get("reason_code") if isinstance(payload, dict) else None
-        if not isinstance(reason, str) or not reason.startswith(
-            f"{PROJECTION_FAILURE_REASON}:"
-        ):
-            continue
-        parts = reason.split(":", 3)
-        if len(parts) >= 3 and parts[1]:
-            job_ids.add(parts[1])
+    for segment in event_log_paths(events_path):
+        for line in segment.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            reason = payload.get("reason_code") if isinstance(payload, dict) else None
+            if not isinstance(reason, str) or not reason.startswith(
+                f"{PROJECTION_FAILURE_REASON}:"
+            ):
+                continue
+            parts = reason.split(":", 3)
+            if len(parts) >= 3 and parts[1]:
+                job_ids.add(parts[1])
     return frozenset(job_ids)
 
 

@@ -94,6 +94,13 @@ depending on interactive shell startup files. It also captures the resolved,
 non-secret `EVALLAB_DERIVED_ROOT`; reinstall the schedule after changing that
 setting.
 
+Queue events rotate before an append would take `queue/events.jsonl` past
+10 MiB. Seven numbered archives are retained (`events.jsonl.1` is newest), and
+all application readers scan the archives from oldest to newest before the
+active file. A process lock serializes rotation and appends across launchd and
+manual commands. The oldest archive is the only event file removed during a
+rotation; size the retained window into any external backup or audit policy.
+
 `tick` and `nightly` both run the headless doctor first. If any check fails,
 they append a boolean-only quarantine event and dispatch nothing. In particular,
 a locked or unreadable Keychain produces zero reward-bearing trials rather than

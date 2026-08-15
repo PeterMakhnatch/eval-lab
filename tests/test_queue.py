@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -6,7 +7,7 @@ import pytest
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
 from evallab.runner import RunRequest, TransientHarnessFailure, TrialTimeoutFailure
-from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
+from evallab.schemas import AutoRunRule, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
 
 
 def policy() -> StandingApprovalsPolicy:
@@ -71,6 +72,42 @@ def executor(
         sleeper=sleeper,
         max_transient_retries=max_transient_retries,
     )
+
+
+def _event(index: int) -> QueueEvent:
+    return QueueEvent(
+        event_id=f"event-{index}",
+        spec_id=f"spec-{index}",
+        occurred_at=datetime(2026, 8, 14, tzinfo=UTC),
+        event="test_event",
+        actor="test",
+    )
+
+
+def test_event_log_rotation_is_bounded_and_reads_oldest_first(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue", events_max_bytes=320, event_backups=2)
+
+    for index in range(5):
+        queue.append_event(_event(index))
+
+    assert [path.name for path in sorted(queue.root.glob("events.jsonl*"))] == [
+        "events.jsonl",
+        "events.jsonl.1",
+        "events.jsonl.2",
+    ]
+    retained = load_events(queue.events_path)
+    assert [event.event_id for event in retained] == [f"event-{index}" for index in range(5)]
+
+
+def test_event_log_concurrent_writes_remain_valid_json(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue", events_max_bytes=1_000_000)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(queue.append_event, [_event(index) for index in range(100)]))
+
+    events = load_events(queue.events_path)
+    assert len(events) == 100
+    assert {event.event_id for event in events} == {f"event-{index}" for index in range(100)}
 
 
 def test_two_agents_submit_concurrently_without_interference(tmp_path: Path) -> None:

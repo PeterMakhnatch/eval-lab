@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import fcntl
 import fnmatch
 import json
 import os
 import secrets
 import shutil
 import subprocess
+import threading
 import time
 from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime
@@ -22,6 +24,7 @@ from evallab.credentials import (
     available_credentials,
     missing_credential_for,
 )
+from evallab.eventlog import event_log_paths
 from evallab.paths import derived_root_from_environment
 from evallab.results import load_job
 from evallab.runner import (
@@ -55,6 +58,9 @@ QUEUE_STATES: tuple[QueueState, ...] = (
     "failed",
 )
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
+DEFAULT_EVENT_BACKUPS = 7
+_EVENT_THREAD_LOCK = threading.Lock()
 
 
 def new_ulid(*, timestamp_ms: int | None = None, randomness: int | None = None) -> str:
@@ -166,8 +172,20 @@ class PolicyGate:
 
 
 class DirectoryQueue:
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        events_max_bytes: int = DEFAULT_EVENTS_MAX_BYTES,
+        event_backups: int = DEFAULT_EVENT_BACKUPS,
+    ) -> None:
+        if events_max_bytes < 1:
+            raise ValueError("events_max_bytes must be positive")
+        if event_backups < 1:
+            raise ValueError("event_backups must be positive")
         self.root = root
+        self.events_max_bytes = events_max_bytes
+        self.event_backups = event_backups
         self.reasons_dir = root / "reasons"
         for state in QUEUE_STATES:
             (root / state).mkdir(parents=True, exist_ok=True)
@@ -298,12 +316,40 @@ class DirectoryQueue:
         return path
 
     def append_event(self, event: QueueEvent) -> None:
-        payload = event.model_dump_json(exclude_none=True) + "\n"
-        descriptor = os.open(self.events_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
-        try:
-            os.write(descriptor, payload.encode())
-        finally:
-            os.close(descriptor)
+        payload = (event.model_dump_json(exclude_none=True) + "\n").encode()
+        lock_path = self.root / ".events.lock"
+        with _EVENT_THREAD_LOCK, lock_path.open("a+b") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            if (
+                self.events_path.is_file()
+                and self.events_path.stat().st_size > 0
+                and self.events_path.stat().st_size + len(payload) > self.events_max_bytes
+            ):
+                self._rotate_events()
+            descriptor = os.open(
+                self.events_path,
+                os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+                0o600,
+            )
+            try:
+                view = memoryview(payload)
+                while view:
+                    view = view[os.write(descriptor, view) :]
+            finally:
+                os.close(descriptor)
+
+    def _rotate_events(self) -> None:
+        oldest = self.events_path.with_name(
+            f"{self.events_path.name}.{self.event_backups}"
+        )
+        oldest.unlink(missing_ok=True)
+        for index in range(self.event_backups - 1, 0, -1):
+            source = self.events_path.with_name(f"{self.events_path.name}.{index}")
+            if source.exists():
+                source.replace(
+                    self.events_path.with_name(f"{self.events_path.name}.{index + 1}")
+                )
+        self.events_path.replace(self.events_path.with_name(f"{self.events_path.name}.1"))
 
     def approve(self, spec_id: str, *, actor: str) -> Path:
         source = self.locate(spec_id, ("proposed", "pending", "waiting"))
@@ -829,16 +875,17 @@ def _safe_component(value: str) -> str:
 
 
 def load_events(path: Path) -> list[QueueEvent]:
-    if not path.is_file():
-        return []
     events: list[QueueEvent] = []
-    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
-        if not line.strip():
-            continue
-        try:
-            events.append(QueueEvent.model_validate_json(line))
-        except ValidationError as exc:
-            raise ValueError(f"Invalid queue event at {path}:{line_number}: {exc}") from exc
+    for segment in event_log_paths(path):
+        for line_number, line in enumerate(segment.read_text().splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                events.append(QueueEvent.model_validate_json(line))
+            except ValidationError as exc:
+                raise ValueError(
+                    f"Invalid queue event at {segment}:{line_number}: {exc}"
+                ) from exc
     return events
 
 

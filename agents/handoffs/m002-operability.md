@@ -1,7 +1,7 @@
 Status: review-wanted
-Last: docker-free smoke x3, 313 pytest, ruff, premerge green; PR not yet opened
-Next: rebase origin/main, open M002 PR, stop at review
-Blockers: none; never self-merge
+Last: opened PR #42; smoke x3, 313 pytest, ruff, premerge green
+Next: wait for GitHub checks; do not self-merge
+Blockers: none; never self-merge M002 #42
 
 Worktree `.worktrees/m002-operability` on `role/m002-operability` from
 `origin/main` `9ed9874`.
@@ -46,3 +46,5 @@ Do not start Compose from this worktree. After merge, from
 - `uv run evallab dashboard` for the Streamlit click-through
 
 Details: `docs/operator-demo.md`.
+
+PR: https://github.com/PeterMakhnatch/eval-lab/pull/42

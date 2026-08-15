@@ -1,5 +1,5 @@
 Status: building
-Last: launchd tick 7/7 exited 0 at 23:46:05 EDT with the expected no-work terminal event and zero scheduler stderr; the observed span is now 3h00m19s.
+Last: launchd tick 8/8 exited 0 at 00:16:09 EDT with the expected no-work terminal event and zero scheduler stderr; the observed span is now 3h30m23s.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then run exact-head repeated/fresh-clone gates and the reviewed PR workflow.
 Blockers: none.
 
@@ -683,4 +683,20 @@ PASS submit->tick job=smoke-oracle-mz1gyr2gba2a trials=1
 PASS catalog job_id=5553c5c4-3751-4a1c-8de7-ed95d7892ca8
 PASS parquet job_id=5553c5c4-3751-4a1c-8de7-ed95d7892ca8
 SMOKE PASS both-stores-agree
+```
+
+## P5 soak tick 8
+
+```text
+$ date '+%Y-%m-%dT%H:%M:%S%z'
+2026-08-15T00:16:28-0400
+$ launchctl print gui/$(id -u)/com.petermakhnatch.evallab.tick
+runs = 8
+last exit code = 0
+$ wc -l queue/events.jsonl
+8 queue/events.jsonl
+$ tail -1 queue/events.jsonl
+{"occurred_at":"2026-08-15T04:16:09.272379Z","event":"tick_deferred","actor":"scheduled-tick","reason_code":"no_approved_specs",...}
+$ wc -c ~/Library/Logs/evallab/tick.error.log
+0
 ```

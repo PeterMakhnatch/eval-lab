@@ -51,13 +51,17 @@ args="$*"
 case "$args" in
     "for-each-ref --format=%(refname:short) refs/heads/")
         printf 'role/m001-governance\nrole/program\nrole/spent-zero\n'
-        printf 'role/spent-tree\nrole/dirty-zero\nrole/rogue\nmain\n' ;;
+        printf 'role/spent-tree\nrole/renamed-spent\n'
+        printf 'role/dirty-zero\nrole/rogue\nmain\n' ;;
     "rev-list --count origin/main..role/m001-governance") echo 3 ;;
     "rev-list --count origin/main..role/program")         echo 2 ;;
     "rev-list --count origin/main..role/spent-zero")      echo 0 ;;
     "rev-list --count origin/main..role/spent-tree")      echo 7 ;;
+    "rev-list --count origin/main..role/renamed-spent")   echo 5 ;;
     "rev-list --count origin/main..role/dirty-zero")      echo 0 ;;
     "rev-list --count origin/main..role/rogue")           echo 1 ;;
+    "rev-parse role/renamed-spent") echo deadbeef ;;
+    "rev-parse "*) echo "oid-${args##* }" ;;
     "diff --quiet origin/main...role/spent-tree") exit 0 ;;
     "diff --quiet origin/main..."*)               exit 1 ;;
     "log -1 --format=%ct role/m001-governance") date +%s ;;
@@ -74,7 +78,9 @@ esac
 FAKE_GH = r"""#!/bin/bash
 args="$*"
 case "$args" in
-    *"--state merged"*) printf 'role/spent-tree\nrole/old-merged\n' ;;
+    *"--state merged"*)
+        printf 'role/spent-tree\t11111111\n'
+        printf 'role/original-name\tdeadbeef\n' ;;
     *"--state open"*)   printf '#41  Some open PR  role/program\n' ;;
     *) exit 0 ;;
 esac
@@ -138,6 +144,11 @@ def test_squash_merged_tree_is_spent_not_active(tmp_path):
     assert "role/spent-tree  SPENT" in out
     assert "squash-merged" in out
     assert "role/spent-tree  active" not in out
+
+
+def test_renamed_local_branch_matching_merged_head_sha_is_spent(tmp_path):
+    out = run_fleet(tmp_path)
+    assert "role/renamed-spent  SPENT — head of a merged PR" in out
 
 
 def test_unregistered_branch_is_flagged(tmp_path):

@@ -39,11 +39,16 @@ fi
 bar
 
 # ---- merged PR heads (for spent detection); tolerate gh absence -------------
+merged_refs=""
 merged_heads=""
+merged_oids=""
 gh_note=""
 if [ -n "$GH" ] && command -v "${GH%% *}" >/dev/null 2>&1; then
-    merged_heads="$("$GH" pr list --state merged --limit 100 \
-        --json headRefName --jq '.[].headRefName' 2>/dev/null || true)"
+    merged_refs="$("$GH" pr list --state merged --limit 100 \
+        --json headRefName,headRefOid \
+        --jq '.[] | [.headRefName, .headRefOid] | @tsv' 2>/dev/null || true)"
+    merged_heads="$(printf '%s\n' "$merged_refs" | cut -f1)"
+    merged_oids="$(printf '%s\n' "$merged_refs" | cut -f2)"
     [ -z "$merged_heads" ] && gh_note=" (gh returned no merged heads)"
 else
     gh_note=" (gh unavailable — spent detection uses git only)"
@@ -55,6 +60,7 @@ now_epoch="$(date +%s)"
 active_branches=""
 for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | grep '^role/' || true); do
     ahead="$("$GIT" rev-list --count origin/main.."$branch" 2>/dev/null || echo 0)"
+    branch_oid="$("$GIT" rev-parse "$branch" 2>/dev/null || true)"
     wt="$("$GIT" worktree list --porcelain 2>/dev/null \
         | grep -B2 "branch refs/heads/$branch" | grep '^worktree' | cut -d' ' -f2)"
     dirty="0"
@@ -72,7 +78,11 @@ for branch in $("$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | gr
         state="spent"; reason="0 ahead of origin/main"
     elif "$GIT" diff --quiet "origin/main...$branch" 2>/dev/null; then
         state="spent"; reason="tree identical to origin/main (squash-merged)"
-    elif [ -n "$merged_heads" ] && printf '%s\n' "$merged_heads" | grep -qx "$branch"; then
+    elif [ -n "$merged_heads" ] && {
+        printf '%s\n' "$merged_heads" | grep -qx "$branch" \
+            || { [ -n "$branch_oid" ] \
+                && printf '%s\n' "$merged_oids" | grep -qx "$branch_oid"; }
+    }; then
         state="spent"; reason="head of a merged PR"
     fi
     if [ "$state" = "spent" ]; then

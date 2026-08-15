@@ -11,14 +11,12 @@ loop. It does not add another orchestrator, database, or autonomous approver.
 ```text
 MERGED
 ├── M002 operational slice                 PR #42
-└── M003 subscription profiles             PR #43
+├── M003 subscription profiles             PR #43
+└── M005 run + analysis explorer           PR #44
 
 NOW
-├── M005 run + analysis explorer           review at PR #44
-└── M006 post-trial analysis worker        released; dependencies merged
-
-AFTER EITHER M005 OR M006 MERGES
-└── M007 task-quality workbench             use the opened slot
+├── M006 post-trial analysis worker        released; already assigned
+└── M007 task-quality workbench            safe to dispatch in parallel
 
 AFTER M005 + M006 MERGE
 └── integrator live flight: services, real free control, analysis, UI, recovery

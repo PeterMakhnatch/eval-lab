@@ -152,6 +152,27 @@ working-tree changes are never staged:
 uv run evallab nightly
 ```
 
+Before canary dispatch, a healthy nightly cycle runs the Compose PostgreSQL
+container's own `pg_dump` in custom format. Python does not read or forward a
+database password: `POSTGRES_USER` and `POSTGRES_DB` expand inside the container.
+The dump and SHA-256 JSON manifest are written atomically to the primary
+checkout's ignored `backups/postgres/` directory so every linked worktree uses
+one backup history. A failed or empty dump records `postgres_backup_failed` and
+quarantines the cycle before dispatch.
+
+Validate a dump without restoring it (set the path to the dated dump first):
+
+```bash
+PRIMARY_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+DUMP="$PRIMARY_ROOT/backups/postgres/evallab-2026-08-14.dump"
+docker compose -f "$PRIMARY_ROOT/compose.yaml" exec -T postgres pg_restore --list < "$DUMP"
+shasum -a 256 "$DUMP"
+```
+
+Compare the second command with the adjacent `.dump.json` manifest. Restoration
+is intentionally an operator action into a separately named database; nightly
+never overwrites the live database.
+
 The digest includes the prior day's trials, early-morning automation, policy
 attribution, cost, exception taxonomy, queue depth, waiting rationales, evidence
 growth, and quarantine state. PostgreSQL remains rebuildable from raw jobs; the

@@ -40,6 +40,7 @@ CanaryEnqueuer = Callable[[date], int]
 ResearcherPass = Callable[[date], int]
 DigestEnricher = Callable[[Path, date], None]
 CompletedJobIngester = Callable[[], IngestProjectionResult]
+DatabaseBackup = Callable[[date], Path]
 
 
 def _quiet_command_succeeds(command: list[str]) -> bool:
@@ -243,6 +244,7 @@ class NightlyResult:
     digest_path: Path
     committed: bool
     researcher_invocations: int = 0
+    backup_path: Path | None = None
 
 
 class NightlyCycle:
@@ -257,6 +259,7 @@ class NightlyCycle:
         researcher_pass: ResearcherPass | None = None,
         digest_enricher: DigestEnricher | None = None,
         completed_job_ingester: CompletedJobIngester | None = None,
+        database_backup: DatabaseBackup | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
@@ -266,6 +269,7 @@ class NightlyCycle:
         self.researcher_pass = researcher_pass
         self.digest_enricher = digest_enricher
         self.completed_job_ingester = completed_job_ingester
+        self.database_backup = database_backup
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
@@ -274,6 +278,7 @@ class NightlyCycle:
         enqueued = 0
         dispatched = 0
         researcher_invocations = 0
+        backup_path: Path | None = None
         if report.healthy and self.completed_job_ingester is not None:
             try:
                 ingest_result = self.completed_job_ingester()
@@ -296,6 +301,34 @@ class NightlyCycle:
                     ingest_result,
                     actor="nightly",
                     spec_id=f"system-{new_ulid()}",
+                )
+        if report.healthy and not quarantined and self.database_backup is not None:
+            try:
+                backup_path = self.database_backup(target_date)
+            except (OSError, RuntimeError, ValueError) as exc:
+                quarantined = True
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="postgres_backup_failed",
+                        actor="nightly",
+                        reason_code=f"pg_dump_failed:{type(exc).__name__}",
+                        report_date=target_date.isoformat(),
+                    )
+                )
+            else:
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="postgres_backup_completed",
+                        actor="nightly",
+                        reason_code="nightly_pg_dump",
+                        report_date=target_date.isoformat(),
+                    )
                 )
         if report.healthy and not quarantined:
             try:
@@ -382,6 +415,7 @@ class NightlyCycle:
             digest_path=digest_path,
             committed=self.committer(digest_path),
             researcher_invocations=researcher_invocations,
+            backup_path=backup_path,
         )
 
 

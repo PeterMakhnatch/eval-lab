@@ -51,7 +51,8 @@ eval-lab/
 ├── pyproject.toml  uv.lock  Makefile  compose.yaml     build & services
 │
 ├── digests/                   the daily one-pager the human reads (committed)
-├── queue/  runs/              GENERATED STATE (gitignored, rebuildable)
+├── queue/  runs/  derived/    GENERATED STATE (gitignored, rebuildable)
+├── backups/                    nightly local PostgreSQL recovery snapshots
 └── .worktrees/                parallel working trees (gitignored, hidden)
 ```
 
@@ -67,7 +68,7 @@ Ask which question the thing answers:
 | "What did we find out / what is our ground truth?" | `research/` |
 | "What is the lab allowed to do unattended?" | `policy/` |
 | "How does the lab software work?" | `src/` (+ `tests/`, `sql/`, `scripts/`) |
-| "What happened?" (generated, rebuildable) | `runs/`, `queue/`, catalog — never committed |
+| "What happened?" (generated, rebuildable) | `runs/`, `queue/`, `derived/`, `backups/`, catalog — never committed |
 | "What happened?" (curated for humans) | `digests/`, `research/evidence/` |
 
 Rules that fall out of the buckets:
@@ -76,7 +77,7 @@ Rules that fall out of the buckets:
   a task means a new version, never an edit in place.
 - `research/` content states its provenance (which runs, which corpus digest).
 - Nothing in `agents/`, `docs/`, or `policy/` is generated; nothing in
-  `queue/` or `runs/` is hand-edited.
+  `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
 - Role ownership boundaries (`agents/ROLES.md`) follow these paths.
 
 ## Migration ledger
@@ -111,3 +112,6 @@ for today).
   target state (Claude).
 - 2026-08-14 — `library/benchmarks/` added for the INGEST role (bucket rule:
   evaluable task supply).
+- 2026-08-14 — ignored `backups/` declared for nightly PostgreSQL recovery
+  snapshots (bucket rule: generated local operational state); existing ignored
+  `derived/` made explicit alongside it.

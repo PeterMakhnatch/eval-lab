@@ -1,7 +1,7 @@
-Status: review-wanted
-Last: continuation fetcher implemented, fully tested, and live-verified against a pinned public ATIF shard
-Next: run scripts/premerge.sh, open/merge the DATA-STRATEGY continuation PR only after all GitHub checks are green
-Blockers: `uv sync --locked` panics in this sandbox's macOS SystemConfiguration; the already locked `.venv` imports required dependencies and the full test/lint suite passes
+Status: done
+Last: PR #30 (P1–P5) and PR #32 (public ATIF fetch continuation) merged with all GitHub checks green
+Next: none
+Blockers: none
 
 # DATA-STRATEGY handoff
 
@@ -192,3 +192,13 @@ Found 28 diagnostics
 notice: ty is down to 28; lower the baseline from 33
 premerge green: Python 3.12; ty 28 <= 33
 ```
+
+## Final closeout (2026-08-15)
+
+- PR #30, `DATA-STRATEGY: literature, ATIF catalog, 4-zone provenance,
+  trajectory intelligence, synthetic-task blueprint`, merged as `e844456`.
+- PR #32, `DATA-STRATEGY: ingest pinned public ATIF into Parquet`, merged as
+  `7f292e6` after all five checks passed: lint, profile, test (3.12), test
+  (3.14), and ty.
+- The required premerge command was run on the final PR #32 head and reported
+  `107 passed` and `premerge green: Python 3.12; ty 28 <= 33`.

@@ -1,6 +1,6 @@
-Status: verifying final review fix
-Last: second Tasks review's task-binding blocker fixed with a wrong-job regression; real bundle revalidated cleanly
-Next: rerun full/premerge validation, obtain final Tasks re-review, then push the review-only PR and wait for exact-head GitHub CI
+Status: Tasks review approved; awaiting PR CI
+Last: final Tasks review approved exact code head 830c5bd with no blocking findings
+Next: fetch/rebase, run exact-head premerge, push the review-only PR, and wait for GitHub CI; do not merge
 Blockers: repository contains zero human-registered tasks; exercise will use the documented event-summary registration candidate and state that limitation explicitly
 
 # M007 task-quality workbench handoff
@@ -138,19 +138,19 @@ Local verification evidence:
 
 ```text
 uv run pytest tests/test_task_workbench.py -q
-............................ [100%]
-28 passed
+............................. [100%]
+29 passed
 
 uv run ruff check .
 All checks passed!
 
 uv run pytest -q
-400 passed
+401 passed
 
 scripts/premerge.sh
 Resolved 43 packages; audited 41 packages
 All checks passed!
-400 passed in 17.95s
+401 passed in 18.06s
 doctor/smoke: PASS (both stores agree)
 ty: 28 diagnostics; premerge green because ratchet is 28 <= 28
 premerge green: Python 3.12
@@ -158,7 +158,7 @@ premerge green: Python 3.12
 git fetch origin; git rebase origin/main
 origin/main: aee9b81
 Successfully rebased and updated role/m007-task-workbench.
-validated head before this handoff-only update: c05ba3e
+validated code head before this handoff-only update: 830c5bd
 ```
 
 No M007 file adds an API-key variable, model selector, queue import, registry
@@ -192,3 +192,13 @@ free agent, Docker environment, separate verifier, exact Compose override path
 and digest, and a Harbor-compatible package digest recomputed from the stage.
 A regression copies a different task identity under the expected job path,
 updates its tree digest, and confirms certification still fails.
+
+Final independent Tasks decision:
+
+```text
+reviewed exact code head: 830c5bd5e1bdd453be3972caecfc2a4897719f02
+result: APPROVED; no blocking Tasks findings
+scope verified: candidate/stage/task digest, free agent, separate verifier,
+                no-network overlay, portable evidence, wrong-task regression
+review mode: read-only; no state changed
+```

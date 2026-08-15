@@ -347,6 +347,24 @@ def test_family_report_joins_parquet_to_raw_atif_and_explains_results(
     assert "# Trajectory family report: task-family" in capsys.readouterr().out
 
 
+def test_family_report_does_not_call_zero_steps_a_trajectory_length(tmp_path: Path) -> None:
+    job_path = _write_job(
+        tmp_path / "runs",
+        name="control-job",
+        agent="oracle",
+        model=None,
+        task_rewards={"control-task": [1.0]},
+        with_atif=False,
+    )
+    parquet = tmp_path / "derived/parquet"
+    rebuild_from_raw([load_job(job_path)], parquet)
+
+    report = family_report("control-task", parquet_root=parquet, raw_roots=[tmp_path / "runs"])
+
+    assert report["steps"]["n"] == 0
+    assert "No trajectory step counts were available" in render_family_report(report)
+
+
 def test_completed_spec_drafts_eval_card_with_digests_intervals_and_threats(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -1,6 +1,6 @@
 Status: building
-Last: Implemented and focused-tested task bootstrap, power, family reports, and eval-card drafting.
-Next: Run premerge/acceptance repeatedly, verify a fresh clone, then rebase and open the TRUTH PR.
+Last: Passed three premerge runs plus a fresh-clone run; corrected the real-evidence zero-step wording.
+Next: Repeat acceptance after the wording regression fix, refresh the clone, then open and land the PR.
 Blockers: none
 
 # TRUTH handoff
@@ -38,3 +38,65 @@ Blockers: none
 - Both `evallab power` modes render task-paired plans. Example fixed design: baseline 0.300,
   `n_tasks=100`, `k=3`, MDE `0.1428` per attempt (independent-attempt planning assumption is
   printed).
+
+### Three consecutive acceptance runs (rebased commit `afab373`)
+
+```text
+$ scripts/premerge.sh  # pass 1
+All checks passed!
+90 passed in 6.49s
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 33
+
+$ scripts/premerge.sh  # pass 2
+All checks passed!
+90 passed in 6.48s
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 33
+
+$ scripts/premerge.sh  # pass 3
+All checks passed!
+90 passed in 6.46s
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 33
+```
+
+### Fresh-clone acceptance
+
+Cloned remote `role/truth` at `afab37302fda1d10fef6606bc0bedad7f0891e55` into a temporary
+repository-local directory, then removed it after verification.
+
+```text
+$ scripts/premerge.sh
+Using CPython 3.12.11
+Creating virtual environment at: .venv
+Installed 41 packages
+All checks passed!
+90 passed in 11.85s
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 33
+
+$ uv run pytest -q research/analysis/tests dashboard/tests
+.................................                                        [100%]
+```
+
+### Real reviewed-evidence smoke
+
+```text
+$ rebuild_from_raw(research/evidence/runs)  # invoked through the installed package
+{'trial_facts': 2, 'reward_facts': 8, 'artifact_facts': 6, 'tool_usage': 0}
+{'trajectories': 0, 'steps': 0, 'tool_calls': 0, 'observations': 0}
+
+$ uv run evallab report family event-summary ...
+This family contains 2 trials across 2 jobs.
+Recognizable verification ... was unknown for 2 trial(s) without readable ATIF.
+```
+
+The smoke exposed wording that called a no-ATIF control “0 steps.” The implementation now treats
+step length as unavailable unless a trajectory exists, with a regression test.
+
+## Deferred coordination
+
+- The type count fell from 33 to 28, so the shared ratchet should be lowered. Active SOLIDIFY work
+  currently owns and changes `.github/workflows/`, `scripts/premerge.sh`, and related governance;
+  TRUTH did not create an overlapping edit. Its PR/handoff should consume the observed 28 count.

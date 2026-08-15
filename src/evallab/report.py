@@ -193,7 +193,11 @@ def family_report(
 
     failure_counts = Counter(first_failure_by_trial.values())
     costs = [float(row["cost_usd"]) for row in trial_rows if row.get("cost_usd") is not None]
-    steps = [float(row["step_count"]) for row in trial_rows if row.get("step_count") is not None]
+    steps = [
+        float(row["step_count"])
+        for row in trial_rows
+        if row.get("step_count") is not None and int(row.get("trajectory_count") or 0) > 0
+    ]
     rewards = [
         float(row["primary_reward"])
         for row in trial_rows

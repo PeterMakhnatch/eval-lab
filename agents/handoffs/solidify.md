@@ -1,5 +1,5 @@
 Status: building
-Last: launchd tick 3/3 exited 0 at 21:45:53 EDT and recorded the expected no-work deferral; scheduler stderr remains empty.
+Last: exact-head premerge and full local smoke each passed 3/3; doctor reports catalog=37/projected=37 with no exceptions, missing, or extra rows while launchd tick 3/3 remains clean.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then final fetch/rebase/premerge/PR checks and merge.
 Blockers: none
 
@@ -414,4 +414,24 @@ smoke-oracle-8ya566yyqwms  055257d1-83f2-413b-8752-9e91dee799f9  PASS
 smoke-oracle-j6stzs3br6te  daae9eb6-0815-46a8-b50a-a61a9e8853bc  PASS
 smoke-oracle-a3jes7s4jh2g  e382d304-53bb-4a33-a6bf-281d759b2a23  PASS
 fresh smoke-oracle-zzf5fhxxxjzd a28fd5bb-4637-4ce8-98b0-52fde278aa97 PASS
+```
+
+Current exact-head repeat at `3b2b07f` (after the final backup timeout
+regression) passed the complete premerge gate three consecutive times. Every
+run reported Ruff clean, 146 tests passing, the Docker-free composed smoke
+invariant, and the pinned 33-diagnostic type ceiling. Three consecutive full
+local Oracle smokes then passed against the live PostgreSQL/shared-Parquet
+topology:
+
+```text
+premerge pass 1: 146 passed; SMOKE PASS both-stores-agree; ty 33 <= 33
+premerge pass 2: 146 passed; SMOKE PASS both-stores-agree; ty 33 <= 33
+premerge pass 3: 146 passed; SMOKE PASS both-stores-agree; ty 33 <= 33
+
+smoke-oracle-3gcjgjqwyjra e025a979-6bb6-4dab-9bb6-af927c6672ac PASS
+smoke-oracle-cs5c5awpfsdy 530bbba3-ca2b-470c-be26-33f7158b5f7b PASS
+smoke-oracle-rr3qaach3j4n 7517c242-7154-42d0-a5b2-820a7853563f PASS
+
+$ evallab doctor
+ok    catalog-parquet catalog=37 projected=37 exceptions=0 missing=0 extra=0
 ```

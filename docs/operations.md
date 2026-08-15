@@ -248,11 +248,13 @@ trend line with candidate counts. Apply is never invoked by nightly.
 ```bash
 uv run evallab ingest runs research/evidence/runs
 uv run evallab trajectories runs research/evidence/runs
+uv run evallab trajectories runs research/evidence/runs --export
 uv run evallab db list --limit 50
 ```
 
+The first `trajectories` command reports validation and counts without writing.
 Every completed job uses one idempotent ingest-and-project path. Queue completion,
-the nightly backfill, `ingest`, and the manual `trajectories` rebuild all update
+the nightly backfill, `ingest`, and `trajectories --export` all update
 PostgreSQL first, then write a `jobs.parquet` marker per job and the eight
 deterministic trial tables below the configured shared Parquet root at
 `job_id=*/trial_id=*/`. The
@@ -271,7 +273,7 @@ EVALLAB_DERIVED_ROOT=derived/parquet
 
 A relative value is resolved against the primary checkout; an absolute value
 may instead select a shared volume. The `ingest --derived-dir` and
-`trajectories --output-dir` flags are deliberate one-command overrides and
+`trajectories --export --output-dir` flags are deliberate one-command overrides and
 remain relative to the invoking checkout. This setting is storage topology,
 not authentication: model access remains subscription-only through Keychain or
 the agent's auth file, and API-key variables do not belong in this lab's `.env`.
@@ -291,7 +293,7 @@ the cause is visibly attributed to the harness. `uv run evallab doctor` enforces
 the operational invariant: every catalog job has complete trial partitions, or
 its exact job ID has such a recorded exception. To prove rebuildability, point
 `EVALLAB_DERIVED_ROOT` at an empty isolated directory and run
-`evallab trajectories` over all raw roots; do not clear the live shared root.
+`evallab trajectories --export` over all raw roots; do not clear the live shared root.
 Identical table row counts are expected.
 
 ## Evidence promotion checklist

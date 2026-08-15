@@ -20,9 +20,8 @@ import pyarrow.parquet as pq
 
 from evallab.atif import export_trajectories
 from evallab.results import JobRecord, TrialRecord
-from evallab.schemas import ProvenanceMetadata
-
 from evallab.runner import subscription_environment
+from evallab.schemas import ProvenanceMetadata
 
 UNPINNED_VERSIONS = frozenset({"latest", "head", "main", "master"})
 PROTECTED_INGESTS = frozenset(

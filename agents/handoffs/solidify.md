@@ -1,6 +1,6 @@
-Status: acceptance
-Last: independent review approved code candidate ca7c37b with no remaining merge blocker; live atomic backup generation, manifest hash, and pg_restore archive validation also passed.
-Next: Run the final documentation head through three consecutive premerge/full-smoke gates and a fresh clone, then push PR #31, require all GitHub checks green, merge, and reinstall LaunchAgents from primary main.
+Status: final-gates
+Last: rebased all SOLIDIFY commits onto origin/main at 1c6e805 while preserving DATA-STRATEGY's landed registry state; fixed the resulting import-order integration defect and passed one preliminary 215-test premerge gate.
+Next: Commit the rebase integration fix, run three consecutive premerge/full-smoke gates and a configured fresh-clone gate on that exact head, then publish a non-force replacement branch/PR, require all GitHub checks green, merge, and reinstall LaunchAgents from primary main.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -120,6 +120,28 @@ Archive created at 2026-08-15 05:31:39 UTC
 TOC Entries: 77
 Format: CUSTOM
 Dumped from database version: 18.4
+```
+
+## Post-DATA-STRATEGY rebase integration
+
+`origin/main` advanced to `1c6e805` with the pinned public ATIF projection
+while final acceptance was running. All 51 SOLIDIFY commits were rebased onto
+that head. Four conflicts were confined to `agents/ROLES.md`: the resolution
+preserved DATA-STRATEGY's current merged status and retained SOLIDIFY's
+additive row. The first rebased gate exposed one import-order artifact where
+the new provenance import split an existing package import group; that
+mechanical integration defect is fixed before the final exact-head sequence.
+
+```text
+$ git rev-list --left-right --count origin/main...HEAD
+0  51
+$ scripts/premerge.sh
+All checks passed!
+215 passed in 10.21s
+PASS doctor mode=docker-free
+SMOKE PASS both-stores-agree
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 28
 ```
 
 ## P1 — composed smoke

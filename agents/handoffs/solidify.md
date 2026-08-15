@@ -1,6 +1,6 @@
-Status: building
-Last: final review found that one fixed UTC day could still span all six bounded attempts in a researcher pass. The loop now resamples immediately before every reservation and pairs completion to that sample; a mutable `-04:00` clock regression crosses UTC midnight between retry attempts.
-Next: Checkpoint per-attempt UTC accounting, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
+Status: acceptance
+Last: independent review approved code candidate ca7c37b with no remaining merge blocker; live atomic backup generation, manifest hash, and pg_restore archive validation also passed.
+Next: Run the final documentation head through three consecutive premerge/full-smoke gates and a fresh clone, then push PR #31, require all GitHub checks green, merge, and reinstall LaunchAgents from primary main.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -74,6 +74,52 @@ $ uv run --no-sync pytest -q
 
 $ uv run --no-sync pytest --collect-only | tail -3
 206 tests collected in 0.16s
+```
+
+## Final independent review and live backup evidence
+
+The independent reviewer approved code SHA
+`ca7c37bf707a1c6e1036b5ef0dbcfdbbdc28292f` after directly rerunning Ruff and
+all 209 tests. The last repair resamples the aware clock before every researcher
+role attempt/retry, uses the same UTC day for the catalog query, reservation,
+and matching terminal ledger record, and has a mutable `-04:00` regression that
+crosses 00:00 UTC.
+
+```text
+APPROVE exact SHA ca7c37bf707a1c6e1036b5ef0dbcfdbbdc28292f;
+no remaining code merge blocker found.
+
+$ scripts/premerge.sh
+All checks passed!
+209 passed in 10.86s
+PASS doctor mode=docker-free
+SMOKE PASS both-stores-agree
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 28
+
+$ make smoke
+PASS doctor mode=full
+PASS submit->tick job=smoke-oracle-dz4bbmr5atvt trials=1
+PASS catalog job_id=9bc4d1b3-0c01-4bf1-8780-50904186ec4e
+PASS parquet job_id=9bc4d1b3-0c01-4bf1-8780-50904186ec4e
+PASS digest path=runs/_smoke/smoke-oracle-dz4bbmr5atvt/digests/2026-08-15.md
+SMOKE PASS both-stores-agree
+
+$ uv run --no-sync python -c '<create_postgres_backup for 2026-08-15>'
+/Users/petermakhnatch/Developer/eval-lab/backups/postgres/evallab-2026-08-15/database.dump
+
+$ jq -c '{schema_version,report_date,dump,format,size_bytes,sha256}' \
+    backups/postgres/evallab-2026-08-15/manifest.json
+{"schema_version":1,"report_date":"2026-08-15","dump":"database.dump","format":"postgres-custom","size_bytes":116205,"sha256":"dd0386b8515adf4d1e55ea1791833a5e23222c2e4b582fe2b0435ce3c77a232c"}
+
+$ shasum -a 256 backups/postgres/evallab-2026-08-15/database.dump
+dd0386b8515adf4d1e55ea1791833a5e23222c2e4b582fe2b0435ce3c77a232c  backups/postgres/evallab-2026-08-15/database.dump
+
+$ docker compose ... exec -T postgres pg_restore --list < database.dump
+Archive created at 2026-08-15 05:31:39 UTC
+TOC Entries: 77
+Format: CUSTOM
+Dumped from database version: 18.4
 ```
 
 ## P1 — composed smoke

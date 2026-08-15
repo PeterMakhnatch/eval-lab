@@ -63,6 +63,7 @@ from evallab.gc import (
     nightly_gc_plan,
     run_gc,
 )
+from evallab.paths import derived_root_from_environment
 from evallab.queue import (
     DirectoryQueue,
     Executor,
@@ -220,7 +221,11 @@ def parser() -> argparse.ArgumentParser:
     ingest = commands.add_parser("ingest", help="Upsert Harbor job metadata into PostgreSQL")
     ingest.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
     ingest.add_argument("--database-url")
-    ingest.add_argument("--derived-dir", type=Path, default=Path("derived/parquet"))
+    ingest.add_argument(
+        "--derived-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
 
     trajectories = commands.add_parser(
         "trajectories",
@@ -237,7 +242,11 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Write trajectory and trial facts to partitioned Parquet",
     )
-    trajectories.add_argument("--output-dir", type=Path, default=Path("derived/parquet"))
+    trajectories.add_argument(
+        "--output-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
     trajectories.add_argument("--database-url")
 
     compare = commands.add_parser("compare", help="Compare declared trial cohorts")
@@ -478,7 +487,7 @@ def _doctor(root: Path) -> int:
         try:
             invariant = check_projection_invariant(
                 database_url,
-                root / "derived/parquet",
+                derived_root_from_environment(root),
                 root / "queue/events.jsonl",
             )
         except Exception as exc:
@@ -872,7 +881,7 @@ def run_cli(
                         ]
                     ),
                     root=root,
-                    output_root=root / "derived/parquet",
+                    output_root=derived_root_from_environment(root),
                 ),
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
@@ -938,7 +947,10 @@ def run_cli(
                 print("No completed Harbor jobs found.", file=sys.stderr)
                 return 1
             url = database_url_from_environment(args.database_url)
-            derived_root = _resolve(root, args.derived_dir)
+            derived_root = derived_root_from_environment(
+                root,
+                explicit=args.derived_dir,
+            )
             result = ingest_and_project(
                 url,
                 jobs,
@@ -988,7 +1000,10 @@ def run_cli(
                 database_url_from_environment(args.database_url),
                 jobs,
                 root=root,
-                output_root=_resolve(root, args.output_dir),
+                output_root=derived_root_from_environment(
+                    root,
+                    explicit=args.output_dir,
+                ),
             )
             record_projection_failures(
                 DirectoryQueue(root / "queue"),

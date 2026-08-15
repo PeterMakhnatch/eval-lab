@@ -21,6 +21,7 @@ from evallab.credentials import (
     available_credentials,
     missing_credential_for,
 )
+from evallab.paths import derived_root_from_environment
 from evallab.results import load_job
 from evallab.runner import (
     CONTROL_AGENTS,
@@ -690,7 +691,7 @@ class Executor:
             url,
             [load_job(job_dir)],
             root=self.repo_root,
-            output_root=self.repo_root / "derived/parquet",
+            output_root=derived_root_from_environment(self.repo_root),
         )
 
     def _catalog_spend(self) -> float:

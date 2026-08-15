@@ -11,11 +11,13 @@ from evallab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, Schedu
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
 from evallab.paths import DERIVED_ROOT_ENV
 from evallab.queue import DirectoryQueue, Executor, load_events
+from evallab.researchers import CallLedger, append_fleet_section
 from evallab.schemas import (
     AutoRunRule,
     ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
+    QueueEvent,
     StandingApprovalsPolicy,
 )
 
@@ -229,7 +231,7 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
 ) -> None:
     monkeypatch.setattr(
         "evallab.automation.date_time_now",
-        lambda: datetime(2026, 8, 15, 0, 0, 1, tzinfo=UTC),
+        lambda: datetime(2026, 8, 15, 5, 0, 1, tzinfo=UTC),
     )
     queue = DirectoryQueue(tmp_path / "queue")
     calls = []
@@ -279,6 +281,82 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
     assert "Quarantined: yes" in content
     assert f"Failed readiness checks: {reason}" in content
     assert "Zero dispatch enforced: yes" in content
+
+
+def test_digest_enrichment_failure_rerenders_a_quarantined_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "evallab.automation.date_time_now",
+        lambda: datetime(2026, 8, 15, 5, 0, 1, tzinfo=UTC),
+    )
+    queue = DirectoryQueue(tmp_path / "queue")
+    service = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        runner=lambda request: request.jobs_dir / request.name,
+        ingester=lambda _path: None,
+        spent_today=lambda: 0,
+        consecutive_harness_failures=lambda: 0,
+    )
+
+    def partial_enrichment(path: Path, _day: date) -> None:
+        path.write_text(path.read_text() + "PARTIAL ENRICHMENT\n")
+        raise RuntimeError("fleet unavailable")
+
+    result = NightlyCycle(
+        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
+        executor=service,
+        renderer=DigestRenderer(
+            repo_root=tmp_path,
+            queue=queue,
+            policy=policy(),
+            trial_loader=lambda _day: [],
+        ),
+        committer=lambda _path: True,
+        digest_enricher=partial_enrichment,
+    ).run(report_date=date(2026, 8, 14))
+
+    assert result.quarantined is True
+    assert result.committed is True
+    content = result.digest_path.read_text()
+    assert "Quarantined: yes" in content
+    assert "Failed readiness checks: fleet_digest_failed:RuntimeError" in content
+    assert "digest_enrichment_failed" in content
+    assert "PARTIAL ENRICHMENT" not in content
+
+
+def test_fleet_uses_semantic_report_date_across_local_midnight(tmp_path: Path) -> None:
+    report_date = date(2026, 8, 14)
+    digest_path = tmp_path / "digests/2026-08-14.md"
+    digest_path.parent.mkdir(parents=True)
+    digest_path.write_text("# Digest\n")
+    queue = DirectoryQueue(tmp_path / "queue")
+    queue.append_event(
+        QueueEvent(
+            event_id="01M00000000000000000000000",
+            spec_id="system-01M00000000000000000000000",
+            occurred_at=datetime(2026, 8, 15, 5, 0, 1, tzinfo=UTC),
+            event="researcher_pass_deferred",
+            actor="nightly",
+            reason_code="missing_credential:codex",
+            report_date=report_date.isoformat(),
+        )
+    )
+
+    append_fleet_section(
+        digest_path,
+        report_date=report_date,
+        repo_root=tmp_path,
+        policy=policy(),
+        ledger=CallLedger(tmp_path / "queue/researchers/calls.jsonl"),
+        catalog_spend=lambda _day: 0,
+    )
+
+    content = digest_path.read_text()
+    assert "Deferrals: 1" in content
+    assert "researcher_pass_deferred: missing_credential:codex" in content
 
 
 def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -> None:

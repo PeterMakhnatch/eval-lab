@@ -17,6 +17,7 @@ from typing import Literal, Protocol, TypeVar
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from evallab import database
+from evallab.digest import event_belongs_to_report_day
 from evallab.queue import DirectoryQueue, load_events, load_policy, new_ulid
 from evallab.runner import database_url_from_environment
 from evallab.schemas import ContractModel, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
@@ -1138,7 +1139,7 @@ def append_fleet_section(
     events = [
         event
         for event in load_events(queue.events_path)
-        if event.occurred_at.astimezone().date() == report_date
+        if event_belongs_to_report_day(event, report_date)
     ]
     deferrals = [
         event

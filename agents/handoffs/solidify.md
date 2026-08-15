@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: corrected head 5ae301d passed premerge x3, full live smoke x3, and a fresh-clone premerge/full smoke; shared invariant is catalog=43 projected=43 with zero exceptions/missing/extra.
-Next: Revalidate this evidence-only handoff commit, push the PR, obtain independent review and green GitHub checks, then squash-merge and reinstall schedules from primary main.
+Status: building
+Last: independent review rejected green PR #31 for stale/partial digest publication after enrichment failure and fleet's separate wall-clock date filter; both are repaired with deterministic EDT-midnight tests.
+Next: Checkpoint the review repair, obtain exact-head reviewer approval, and restart all repeated/fresh-clone/CI gates before merge.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -793,4 +793,32 @@ PASS parquet job_id=c1244aeb-2963-49b6-b742-6673e2c57a02
 SMOKE PASS both-stores-agree
 $ evallab doctor
 ok    catalog-parquet catalog=43 projected=43 exceptions=0 missing=0 extra=0
+```
+
+## Independent final-head review repair
+
+PR #31 reached five green GitHub checks at `805d45e`, but independent review
+correctly rejected merge. If fleet enrichment partially modified the digest and
+then raised, `NightlyResult` became quarantined while the already-rendered file
+could still say `Quarantined: no`; the failure event was not in the digest's
+quarantine set. The fleet section also implemented its own occurrence-date
+filter instead of honoring semantic `report_date`, and the first midnight test
+used 00:00 UTC, which was still the prior local day in EDT.
+
+The repair now:
+
+- records `digest_enrichment_failed`, rerenders the base digest after the
+  event, and only then calls the committer, removing partial enrichment;
+- classifies that event as a digest quarantine and exposes its reason;
+- shares one semantic report-day predicate between the base digest and fleet;
+- pins 05:00 UTC / 01:00 EDT on Aug 15 for an Aug 14 report in both backup and
+  fleet boundary tests.
+
+```text
+$ ruff check <review-repair files>
+All checks passed!
+$ pytest -q tests/test_unattended.py -k 'backup_failure or enrichment_failure or semantic_report_date'
+....                                                                     [100%]
+$ pytest -q tests/test_unattended.py tests/test_canary.py tests/test_pipeline.py
+.............................                                            [100%]
 ```

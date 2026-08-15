@@ -411,6 +411,14 @@ class NightlyCycle:
                         report_date=target_date.isoformat(),
                     )
                 )
+                # Discard any partial enrichment and render again after the
+                # quarantine event so the committed human digest cannot claim
+                # health while NightlyResult reports a failure.
+                digest_path = self.renderer.write(
+                    report_date=target_date,
+                    health_report=report,
+                    dispatched=dispatched,
+                )
         return NightlyResult(
             report=report,
             quarantined=quarantined,

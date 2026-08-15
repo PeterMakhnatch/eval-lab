@@ -40,6 +40,13 @@ TrialLoader = Callable[[date], list[DigestTrial]]
 DriftLoader = Callable[[date], list[CanaryDriftObservation]]
 
 
+def event_belongs_to_report_day(event: QueueEvent, day: date) -> bool:
+    """Prefer a nightly event's semantic report date over its wall-clock date."""
+    if event.report_date is not None:
+        return event.report_date == day.isoformat()
+    return event.occurred_at.astimezone().date() == day
+
+
 class DigestRenderer:
     def __init__(
         self,
@@ -85,7 +92,12 @@ class DigestRenderer:
             event
             for event in period_events + report_events
             if event.event
-            in {"nightly_quarantined", "tick_quarantined", "postgres_backup_failed"}
+            in {
+                "nightly_quarantined",
+                "tick_quarantined",
+                "postgres_backup_failed",
+                "digest_enrichment_failed",
+            }
         ]
         is_quarantined = bool(quarantine_events) or (
             health_report is not None and not health_report.healthy
@@ -286,16 +298,7 @@ class DigestRenderer:
 
     @staticmethod
     def _events_on(events: list[QueueEvent], day: date) -> list[QueueEvent]:
-        day_text = day.isoformat()
-        return [
-            event
-            for event in events
-            if (
-                event.report_date == day_text
-                if event.report_date is not None
-                else event.occurred_at.astimezone().date() == day
-            )
-        ]
+        return [event for event in events if event_belongs_to_report_day(event, day)]
 
     @staticmethod
     def _policy_by_job(events: list[QueueEvent]) -> dict[str, str]:

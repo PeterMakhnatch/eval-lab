@@ -1,5 +1,5 @@
 Status: building
-Last: P5 continuation tests pass 3x and from a fresh clone; real pg_dump/manifest/pg_restore validation and current-head full smoke 3x plus fresh clone all pass.
+Last: launchd tick 2/2 exited 0 at 21:15:49 EDT and recorded the expected no-work deferral; no quarantine or dispatch.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then final fetch/rebase/premerge/PR checks and merge.
 Blockers: none
 
@@ -297,6 +297,8 @@ LaunchAgent command: cd .../.worktrees/solidify && uv run evallab tick
 LaunchAgent EVALLAB_DERIVED_ROOT: .../eval-lab/derived/parquet
 runs = 1; last exit code = 0
 2026-08-15T00:45:46.706855Z tick_deferred reason=no_approved_specs
+runs = 2; last exit code = 0
+2026-08-15T01:15:49.952436Z tick_deferred reason=no_approved_specs
 ```
 
 ### Continuations in progress
@@ -348,15 +350,15 @@ passed:
 ```text
 $ create_postgres_backup(..., 2026-08-14)
 /Users/.../eval-lab/backups/postgres/evallab-2026-08-14.dump
-89310
+95604
 
 $ shasum -a 256 .../evallab-2026-08-14.dump
-4487516b11f512e6007cc535068484c28c3d430cc32e559efd4c7289298b1356
+84c2998200ff9e6ef4acb41da0d220cd3a52ad9aa9eeef9103857bbd84195e4a
 $ stat ...dump ...dump.json
--rw------- 89310 ...dump
+-rw------- 95604 ...dump
 -rw-------   280 ...dump.json
 $ docker compose ... exec -T postgres pg_restore --list < ...dump
-Archive created at 2026-08-15 01:03:10 UTC
+Archive created at 2026-08-15 01:10:33 UTC
 dbname: evallab
 TOC Entries: 77
 Dumped from database version: 18.4
@@ -365,12 +367,13 @@ Dumped by pg_dump version: 18.4
 
 Three consecutive combined continuation runs at committed code (event
 rotation, archived exception invariant, backup atomicity/quarantine, unattended
-flow, and complete CLI help inventory) each passed 74 tests. The full suite and
+flow, and complete CLI help inventory) each passed 75 tests. The full suite and
 repository contracts now run meaningfully inside linked worktrees: fresh-clone
 testing exposed that the old inventory helper excluded every path because the
 absolute path contained `.worktrees`. The helper now tests repo-relative parts,
-has a non-vacuity assertion, and both the linked worktree and clean clone pass
-144 tests.
+has a non-vacuity assertion. The latest linked worktree passes 145 tests; the
+protocol-compliant fresh clone passed 144 at the preceding code head and will
+be repeated at the final head after the soak.
 
 ```text
 $ pytest -q <P5 continuation set>  # repeated three times
@@ -394,11 +397,13 @@ SMOKE PASS both-stores-agree
 
 Current-head full local smokes (followed by one full fresh-clone smoke against
 the shared primary Parquet root) all passed; the fresh clone's ignored raw job
-was moved into this worktree before cleanup:
+was moved into this worktree before cleanup. An initial `/private/tmp` clone was
+removed after noticing the one-folder protocol; all fresh-clone evidence cited
+here was repeated from `.worktrees/solidify-fresh-clone`:
 
 ```text
 smoke-oracle-8ya566yyqwms  055257d1-83f2-413b-8752-9e91dee799f9  PASS
 smoke-oracle-j6stzs3br6te  daae9eb6-0815-46a8-b50a-a61a9e8853bc  PASS
 smoke-oracle-a3jes7s4jh2g  e382d304-53bb-4a33-a6bf-281d759b2a23  PASS
-fresh smoke-oracle-en73aea0zhgc b4afe721-68ea-4269-8cb1-079c69c598fc PASS
+fresh smoke-oracle-zzf5fhxxxjzd a28fd5bb-4637-4ce8-98b0-52fde278aa97 PASS
 ```

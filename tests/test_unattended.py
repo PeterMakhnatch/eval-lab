@@ -5,6 +5,8 @@ import subprocess
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+import pytest
+
 from evallab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
 from evallab.paths import DERIVED_ROOT_ENV
@@ -211,7 +213,19 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     assert "Quarantined: no" in content
 
 
-def test_nightly_backup_failure_quarantines_before_dispatch(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("failure", "reason"),
+    [
+        (OSError("disk full"), "pg_dump_failed:OSError"),
+        (
+            subprocess.TimeoutExpired(["pg_dump"], 600),
+            "pg_dump_failed:TimeoutExpired",
+        ),
+    ],
+)
+def test_nightly_backup_failure_quarantines_before_dispatch(
+    tmp_path: Path, failure: Exception, reason: str
+) -> None:
     queue = DirectoryQueue(tmp_path / "queue")
     calls = []
     service = Executor(
@@ -243,7 +257,7 @@ def test_nightly_backup_failure_quarantines_before_dispatch(tmp_path: Path) -> N
             trial_loader=lambda _day: [],
         ),
         committer=lambda _path: False,
-        database_backup=lambda _day: (_ for _ in ()).throw(OSError("disk full")),
+        database_backup=lambda _day: (_ for _ in ()).throw(failure),
     ).run(report_date=date(2026, 8, 14))
 
     assert result.quarantined is True
@@ -253,7 +267,7 @@ def test_nightly_backup_failure_quarantines_before_dispatch(tmp_path: Path) -> N
     assert calls == []
     assert any(
         event.event == "postgres_backup_failed"
-        and event.reason_code == "pg_dump_failed:OSError"
+        and event.reason_code == reason
         for event in load_events(queue.events_path)
     )
 

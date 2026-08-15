@@ -268,6 +268,10 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
         and event.reason_code == reason
         for event in load_events(queue.events_path)
     )
+    content = result.digest_path.read_text()
+    assert "Quarantined: yes" in content
+    assert f"Failed readiness checks: {reason}" in content
+    assert "Zero dispatch enforced: yes" in content
 
 
 def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -> None:

@@ -651,3 +651,36 @@ $ tail -1 queue/events.jsonl
 $ wc -c ~/Library/Logs/evallab/tick.error.log
 0
 ```
+
+The post-rebase primary-action audit was repeated without writes. Read-only or
+dry-run commands passed for summarize, trajectories, DSPy split calibration,
+analysis planning, trace conversion, benchmark integrity, GC planning, family
+reporting, power planning, live PostgreSQL listing, and the live Harbor Hub
+registry. The registry needed ordinary network access after the sandboxed run
+failed; it listed pinned versions only. No new file appeared under `derived/`,
+`queue/`, or `runs/` during this audit.
+
+```text
+summarize                 exit=0  oracle reward=1
+trajectories              exit=0  1 trial inspected
+calibrate --dspy-dry-run  exit=0  optimizer_sees_heldout=false
+analyze plan              exit=0  estimated=1 maximum=2 calls (no call made)
+trace --dry-run           exit=0  skipped expected control without ATIF
+fetch --audit             exit=0  5 benches, 0 fail
+fetch --list              exit=0  pinned targets only
+gc                        exit=0  0 actions, 0 bytes
+db list --limit 3         exit=0  3 catalog rows
+```
+
+A full free Oracle preview after this audit also passed the actual
+Harbor/Docker/PostgreSQL path. It does not substitute for the exact-head
+three-run acceptance after the soak.
+
+```text
+$ make smoke
+PASS doctor mode=full
+PASS submit->tick job=smoke-oracle-mz1gyr2gba2a trials=1
+PASS catalog job_id=5553c5c4-3751-4a1c-8de7-ed95d7892ca8
+PASS parquet job_id=5553c5c4-3751-4a1c-8de7-ed95d7892ca8
+SMOKE PASS both-stores-agree
+```

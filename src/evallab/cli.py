@@ -21,6 +21,7 @@ from evallab.automation import (
     record_quarantine,
     record_researcher_deferral,
 )
+from evallab.backups import create_postgres_backup
 from evallab.calibrate import (
     dispatch_approved_codex_calibration,
     dspy_split_summary,
@@ -905,8 +906,13 @@ def run_cli(
                     root=root,
                     output_root=derived_root_from_environment(root),
                 ),
+                database_backup=lambda day: create_postgres_backup(root, day),
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
+            print(
+                "database backup: "
+                f"{getattr(result, 'backup_path', None) or 'not created'}"
+            )
             print(f"enqueued: {result.enqueued}")
             print(f"dispatched: {result.dispatched}")
             print(

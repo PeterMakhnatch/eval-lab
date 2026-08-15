@@ -180,6 +180,8 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
         ]
 
     committed: list[Path] = []
+    backups: list[date] = []
+    backup_path = tmp_path / "backups/postgres/test.dump"
     result = NightlyCycle(
         doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
         executor=service,
@@ -190,15 +192,70 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
             trial_loader=load_trials,
         ),
         committer=lambda path: committed.append(path) or True,
+        database_backup=lambda day: backups.append(day) or backup_path,
     ).run(report_date=report_date)
 
     assert result.dispatched == 1
     assert len(ingested) == 1
     assert committed == [result.digest_path]
+    assert backups == [report_date]
+    assert result.backup_path == backup_path
+    assert any(
+        event.event == "postgres_backup_completed"
+        and event.reason_code == "nightly_pg_dump"
+        for event in load_events(queue.events_path)
+    )
     content = result.digest_path.read_text()
     assert "nightly-oracle-control" in content
     assert "local-controls" in content
     assert "Quarantined: no" in content
+
+
+def test_nightly_backup_failure_quarantines_before_dispatch(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    calls = []
+    service = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        runner=lambda request: calls.append(request),
+        ingester=lambda _path: None,
+        spent_today=lambda: 0,
+        consecutive_harness_failures=lambda: 0,
+    )
+    approved, _ = service.submit(
+        ExperimentSpec(
+            name="backup-gated-control",
+            hypothesis="a failed backup prevents nightly dispatch",
+            task="library/tasks/event-summary",
+            agent="oracle",
+            submitted_by="scheduler-test",
+        )
+    )
+
+    result = NightlyCycle(
+        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
+        executor=service,
+        renderer=DigestRenderer(
+            repo_root=tmp_path,
+            queue=queue,
+            policy=policy(),
+            trial_loader=lambda _day: [],
+        ),
+        committer=lambda _path: False,
+        database_backup=lambda _day: (_ for _ in ()).throw(OSError("disk full")),
+    ).run(report_date=date(2026, 8, 14))
+
+    assert result.quarantined is True
+    assert result.dispatched == 0
+    assert result.backup_path is None
+    assert approved.exists()
+    assert calls == []
+    assert any(
+        event.event == "postgres_backup_failed"
+        and event.reason_code == "pg_dump_failed:OSError"
+        for event in load_events(queue.events_path)
+    )
 
 
 def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -> None:

@@ -1,6 +1,6 @@
 Status: building
-Last: P2 credential-scoped tick passed three consecutive injected-probe runs; fresh-clone proof remains.
-Next: Commit P2, repeat its regression from a fresh clone, then implement the P3 shared derived-root topology.
+Last: P2 accepted after three consecutive injected-probe runs and the same regression in a fresh clone.
+Next: Implement P3 single shared derived root, migrate the current projections, document it, and make smoke topology-aware.
 Blockers: none
 
 # SOLIDIFY handoff
@@ -79,6 +79,15 @@ $ uv run pytest -q tests/test_queue.py
 
 $ uv run pytest -q tests/test_queue.py -k credential
 ... [100%]
+$ uv run pytest -q tests/test_queue.py -k credential
+... [100%]
+```
+
+Fresh clone acceptance at committed P2 head `9643499`:
+
+```text
+$ uv sync --locked
+Installed 41 packages
 $ uv run pytest -q tests/test_queue.py -k credential
 ... [100%]
 ```

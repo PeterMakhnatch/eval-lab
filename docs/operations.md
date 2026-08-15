@@ -301,9 +301,12 @@ A relative value is resolved against the primary checkout; an absolute value
 may instead select a shared volume. The `ingest --derived-dir` and
 `trajectories --export --output-dir` flags are deliberate one-command overrides and
 remain relative to the invoking checkout. `report family` also reads the shared
-root by default; its `--parquet-dir` is an explicit local override. This setting is storage topology,
-not authentication: model access remains subscription-only through Keychain or
-the agent's auth file, and API-key variables do not belong in this lab's `.env`.
+root by default; its `--parquet-dir` is an explicit local override. Both
+`report family` and `report card` render without writing by default. Publication
+is explicit through `report family --output-dir` or `report card --output`.
+This setting is storage topology, not authentication: model access remains
+subscription-only through Keychain or the agent's auth file, and API-key
+variables do not belong in this lab's `.env`.
 
 To migrate an older worktree-local store, stop dispatch, copy each complete
 `job_id=<uuid>` directory into the configured shared root without overwriting an

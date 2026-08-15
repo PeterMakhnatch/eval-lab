@@ -73,7 +73,13 @@ from evallab.queue import (
     read_spec,
     record_projection_failures,
 )
-from evallab.report import draft_eval_card, render_family_report, write_family_report
+from evallab.report import (
+    build_eval_card,
+    draft_eval_card,
+    family_report,
+    render_family_report,
+    write_family_report,
+)
 from evallab.researchers import ResearcherLoop
 from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
@@ -314,12 +320,20 @@ def parser() -> argparse.ArgumentParser:
         action="append",
         help="Raw Harbor root; repeat as needed (defaults to runs and reviewed evidence)",
     )
-    report_family.add_argument("--output-dir", type=Path, default=Path("derived/reports"))
+    report_family.add_argument(
+        "--output-dir",
+        type=Path,
+        help="write JSON and Markdown reports (default: render without writing)",
+    )
     report_card = report_commands.add_parser(
         "card", help="Draft a provenance-bearing eval card from a completed spec"
     )
     report_card.add_argument("path", type=Path)
-    report_card.add_argument("--output", type=Path)
+    report_card.add_argument(
+        "--output",
+        type=Path,
+        help="write the eval card (default: render without writing)",
+    )
 
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
@@ -643,27 +657,41 @@ def _report_command(args: argparse.Namespace, root: Path) -> int:
             Path("research/evidence/runs"),
             Path("evidence/runs"),
         ]
-        json_path, markdown_path, report = write_family_report(
-            args.task,
-            parquet_root=(
-                _resolve(root, args.parquet_dir)
-                if args.parquet_dir is not None
-                else derived_root_from_environment(root)
-            ),
-            raw_roots=[_resolve(root, path) for path in raw_roots],
-            output_root=_resolve(root, args.output_dir),
+        parquet_root = (
+            _resolve(root, args.parquet_dir)
+            if args.parquet_dir is not None
+            else derived_root_from_environment(root)
         )
+        resolved_raw_roots = [_resolve(root, path) for path in raw_roots]
+        if args.output_dir is None:
+            report = family_report(
+                args.task,
+                parquet_root=parquet_root,
+                raw_roots=resolved_raw_roots,
+            )
+        else:
+            json_path, markdown_path, report = write_family_report(
+                args.task,
+                parquet_root=parquet_root,
+                raw_roots=resolved_raw_roots,
+                output_root=_resolve(root, args.output_dir),
+            )
         print(render_family_report(report))
-        print(f"json: {json_path}")
-        print(f"markdown: {markdown_path}")
+        if args.output_dir is not None:
+            print(f"json: {json_path}")
+            print(f"markdown: {markdown_path}")
         return 0
-    destination = _resolve(root, args.output) if args.output else None
-    path, card = draft_eval_card(
-        _resolve(root, args.path),
-        repo_root=root,
-        output_path=destination,
-    )
-    print(f"eval card: {path}")
+    spec_path = _resolve(root, args.path)
+    if args.output is None:
+        rendered, card = build_eval_card(spec_path, repo_root=root)
+        print(rendered)
+    else:
+        path, card = draft_eval_card(
+            spec_path,
+            repo_root=root,
+            output_path=_resolve(root, args.output),
+        )
+        print(f"eval card: {path}")
     print(f"config digest: {card['spec_digest']}")
     return 0
 

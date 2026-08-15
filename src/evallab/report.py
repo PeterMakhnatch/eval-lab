@@ -407,12 +407,11 @@ def _relative(path: Path, root: Path) -> str:
         return path.resolve().as_posix()
 
 
-def draft_eval_card(
+def build_eval_card(
     spec_path: Path,
     *,
     repo_root: Path,
-    output_path: Path | None = None,
-) -> tuple[Path, JsonObject]:
+) -> tuple[str, JsonObject]:
     spec = load_completed_spec(spec_path)
     job = _completed_job(repo_root, spec)
     evidence = summarize_job_evidence(
@@ -495,7 +494,20 @@ def draft_eval_card(
         rendered = rendered.replace(marker, str(value))
     if "{{" in rendered:
         raise ValueError("eval-card template contains an unresolved marker")
-    destination = output_path or repo_root / "research/cards" / f"{_safe_name(spec.name)}.md"
+    return rendered, card
+
+
+def draft_eval_card(
+    spec_path: Path,
+    *,
+    repo_root: Path,
+    output_path: Path | None = None,
+) -> tuple[Path, JsonObject]:
+    rendered, card = build_eval_card(spec_path, repo_root=repo_root)
+    destination = (
+        output_path
+        or repo_root / "research/cards" / f"{_safe_name(str(card['title']))}.md"
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():
         raise FileExistsError(f"refusing to overwrite eval card: {destination}")

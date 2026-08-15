@@ -1,6 +1,6 @@
-Status: verifying review fixes
-Last: first Tasks review blockers fixed; real no-network controls and portable evidence packet passed
-Next: rerun full/premerge validation, obtain Tasks re-review, then push the review-only PR and wait for exact-head GitHub CI
+Status: ready for Tasks re-review
+Last: first-review fixes, real no-network controls, portable evidence, rebase, 400-test suite, and premerge passed
+Next: obtain Tasks re-review, then push the review-only PR and wait for exact-head GitHub CI
 Blockers: repository contains zero human-registered tasks; exercise will use the documented event-summary registration candidate and state that limitation explicitly
 
 # M007 task-quality workbench handoff
@@ -112,7 +112,7 @@ certification sha256: 20be519d1c30edfd68a88c2104d169544b6f6538e6970749192abac61c
 second packet build: identical hashes
 ```
 
-Three earlier local control cycles were also retained under the ignored
+Earlier local control cycles were also retained under the ignored
 `runs/task-workbench/` evidence root. The first exposed a Harbor/macOS Docker
 backend limitation for `network_mode = "no-network"`; the second exposed that
 the Oracle runtime requires the task image's shell contract (the initial Alpine
@@ -121,7 +121,10 @@ as incomplete evidence rather than agent failures. A later run then correctly
 caught an invalid probe the verifier could not observe: Harbor transfers only
 declared artifacts, so an undeclared extra file alone was accepted. The probe
 was changed to add unexpected content to the declared result as well; the final
-pinned Ubuntu fixture then produced the successful bundle above.
+pinned Ubuntu fixture then produced a public-network bundle. The Tasks review
+correctly refused that bundle as non-portable and insufficiently isolated. The
+final run above uses the injected no-network override, revalidates raw job/stage
+bytes, and retains portable evidence.
 
 Initial setup evidence:
 
@@ -135,26 +138,27 @@ Local verification evidence:
 
 ```text
 uv run pytest tests/test_task_workbench.py -q
-....................... [100%]
-24 passed
+............................ [100%]
+28 passed
 
 uv run ruff check .
 All checks passed!
 
 uv run pytest -q
-395 passed
+400 passed
 
 scripts/premerge.sh
 Resolved 43 packages; audited 41 packages
 All checks passed!
-395 passed in 17.50s
+400 passed in 17.95s
 doctor/smoke: PASS (both stores agree)
 ty: 28 diagnostics; premerge green because ratchet is 28 <= 28
 premerge green: Python 3.12
 
 git fetch origin; git rebase origin/main
-origin/main: 00f36ab
-Current branch role/m007-task-workbench is up to date.
+origin/main: aee9b81
+Successfully rebased and updated role/m007-task-workbench.
+validated head before this handoff-only update: c05ba3e
 ```
 
 No M007 file adds an API-key variable, model selector, queue import, registry

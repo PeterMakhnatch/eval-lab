@@ -27,6 +27,7 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.paths import derived_root_from_environment
+from evallab.registry import TaskRegistry, compute_task_digests
 from evallab.results import load_job
 from evallab.runner import (
     CONTROL_AGENTS,
@@ -94,8 +95,16 @@ def load_policy(path: Path) -> StandingApprovalsPolicy:
 
 
 class PolicyGate:
-    def __init__(self, policy: StandingApprovalsPolicy) -> None:
+    def __init__(
+        self,
+        policy: StandingApprovalsPolicy,
+        *,
+        repo_root: Path | None = None,
+        registry: TaskRegistry | None = None,
+    ) -> None:
         self.policy = policy
+        self.repo_root = repo_root.resolve() if repo_root else None
+        self.registry = registry
 
     def decide(
         self,
@@ -105,6 +114,76 @@ class PolicyGate:
         consecutive_harness_failures: int = 0,
         human_approved: bool = False,
     ) -> PolicyDecision:
+        if spec.task.startswith("registered/"):
+            reg = self.registry
+            if reg is None and self.repo_root:
+                reg = TaskRegistry.from_repo(self.repo_root)
+            elif reg is None:
+                reg = TaskRegistry.from_repo(Path.cwd())
+            task_id = spec.task.removeprefix("registered/")
+            record = reg.get(task_id)
+            if record is None:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="unregistered_task",
+                    message=f"task {spec.task!r} is not registered in library/registry/",
+                )
+            if record.state != "registered":
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_not_registered",
+                    message=(
+                        f"task {task_id!r} has admission state {record.state!r}; "
+                        "registered state required"
+                    ),
+                )
+            if spec.task_path is not None and spec.task_path != record.task_path:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_path_redirection",
+                    message=(
+                        f"spec task_path {spec.task_path!r} redirects away from "
+                        f"registered path {record.task_path!r}"
+                    ),
+                )
+            if spec.task_version is not None and spec.task_version != record.version:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_version_mismatch",
+                    message=(
+                        f"spec task_version {spec.task_version!r} does not match "
+                        f"registered version {record.version!r}"
+                    ),
+                )
+            root = self.repo_root or Path.cwd()
+            target_path = (root / record.task_path).resolve()
+            if not target_path.is_dir():
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_digest_mismatch",
+                    message=f"registered task path {record.task_path!r} missing on disk",
+                )
+            try:
+                current_digests = compute_task_digests(target_path)
+                if current_digests.package != record.digests.package:
+                    return PolicyDecision(
+                        admitted=False,
+                        reason_code="task_digest_mismatch",
+                        message=f"package digest mismatch for {task_id!r}",
+                    )
+                if current_digests.verifier != record.digests.verifier:
+                    return PolicyDecision(
+                        admitted=False,
+                        reason_code="verifier_digest_mismatch",
+                        message=f"verifier digest mismatch for {task_id!r}",
+                    )
+            except Exception as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_digest_mismatch",
+                    message=f"digest calculation failed for {task_id!r}: {exc}",
+                )
+
         if spec.billable:
             if spec.est_cost_usd > self.policy.per_job_cost_ceiling_usd:
                 return PolicyDecision(
@@ -499,7 +578,7 @@ class Executor:
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
-        self.gate = PolicyGate(policy)
+        self.gate = PolicyGate(policy, repo_root=self.repo_root)
         self._runner = runner or self._run_harbor
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
@@ -657,6 +736,14 @@ class Executor:
         return dispatched
 
     def execute_spec(self, spec: ExperimentSpec) -> Path:
+        if spec.task.startswith("registered/"):
+            reg = TaskRegistry.from_repo(self.repo_root)
+            resolved_record = reg.resolve_spec(spec, self.repo_root)
+            if resolved_record is None:
+                raise ExecutionFailure(
+                    "unregistered_task",
+                    f"task {spec.task!r} is not registered in library/registry/",
+                )
         task = self._safe_repo_path(spec.executable_task_path)
         jobs_dir = self._safe_repo_path(spec.jobs_dir)
         request = RunRequest(

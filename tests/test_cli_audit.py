@@ -36,10 +36,13 @@ TOP_LEVEL_COMMANDS = (
     "trace",
     "fetch",
     "gc",
+    "registry",
 )
 NESTED_COMMANDS = (
     ("schedule", "install"),
     ("canary", "import-terminal-bench"),
+    ("registry", "list"),
+    ("registry", "audit"),
     ("report", "family"),
     ("report", "card"),
     ("analyze", "plan"),

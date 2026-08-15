@@ -22,8 +22,10 @@ fully green gh checks before merge; never touch registered/* or loosen policy/.
 
 ## Session log — 2026-08-15
 
-- 7b333b6 checked out into .worktrees/data-strategy, branch role/data-strategy;
-  `uv sync` clean.
+- 7b333b6 initially checked out into `.worktrees/data-strategy`, branch
+  `role/data-strategy`. In this sandbox `uv sync --locked` panics in macOS
+  SystemConfiguration; the same command succeeds when the required premerge
+  gate runs outside the sandbox.
 - agents/CHECKS.md, scripts/premerge.sh, docs/architecture.md all exist and were
   read; merge gate is satisfiable (ty ratchet 33, premerge = local CI parity).
 - Confirmed targets: docs/research/ does not exist yet; research/analysis/
@@ -177,3 +179,16 @@ row_counts={trajectories: 246, steps: 1746, tool_calls: 1028, observations: 1028
   names, and provenance `zone=01-external` with the exact source revision and
   digest. A second call with a downloader that raises if invoked returned
   `status=noop`, records=246, valid=246, and identical row counts.
+
+## Premerge evidence (2026-08-15)
+
+```
+$ scripts/premerge.sh
+Resolved 43 packages in 3ms
+Audited 41 packages in 6ms
+All checks passed!
+107 passed in 6.66s
+Found 28 diagnostics
+notice: ty is down to 28; lower the baseline from 33
+premerge green: Python 3.12; ty 28 <= 33
+```

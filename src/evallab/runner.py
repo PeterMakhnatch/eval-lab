@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
@@ -732,3 +732,78 @@ def database_url_from_environment(explicit: str | None = None) -> str:
         "DATABASE_URL",
         "postgresql://evallab:local-development-only@localhost:54329/evallab",
     )
+
+
+# ---------------------------------------------------------------------------
+# M003: profile-aware preflight (additive; wiring into the queue is a later
+# integrator change). An auth failure here stops before any trial exists —
+# it can never be recorded as a reward.
+# ---------------------------------------------------------------------------
+
+if TYPE_CHECKING:
+    from evallab.profiles import AgentProfile, PreflightDecision, ProbeFn
+
+
+def profile_for_request(request: RunRequest) -> AgentProfile:
+    """Resolve the immutable profile for a request's agent (+ optional model).
+
+    Raises ValueError when no profile matches or the requested model differs
+    from the profile's pin — change profiles, not pins.
+    """
+    from evallab import profiles as profiles_module
+
+    registry = profiles_module.builtin_profiles()
+    candidates = [p for p in registry.values() if p.adapter == request.agent]
+    if not candidates:
+        raise ValueError(f"no profile declared for agent {request.agent!r}")
+    if request.model is not None:
+        for profile in candidates:
+            if profile.model == request.model:
+                return profile
+        raise ValueError(
+            f"no profile pins model {request.model!r} for agent {request.agent!r}; "
+            "add a profile instead of overriding a pin"
+        )
+    return candidates[0]
+
+
+def preflight_request(
+    request: RunRequest,
+    *,
+    probe: ProbeFn | None = None,
+    home: Path | None = None,
+) -> PreflightDecision:
+    """Fail-closed credential preflight for one request.
+
+    Control agents pass with no credential. Billable profiles require a
+    passing probe; a missing or failing probe blocks dispatch with a reason
+    and no trial is started (auth failure never becomes reward zero).
+    """
+    from evallab import profiles as profiles_module
+
+    profile = profile_for_request(request)
+    profiles_module.validate_model_pin(profile, request.model)
+    if probe is None and profile.auth_mode != "none":
+        env = subscription_environment()
+        probe = profiles_module.default_probe_for(
+            profile,
+            home=home or Path.home(),
+            security_runner=_security_status,
+            keychain_account=env.get(
+                "HARBOR_CLAUDE_KEYCHAIN_ACCOUNT", env.get("USER", "")
+            ),
+        )
+    return profiles_module.preflight(profile, probe)
+
+
+def _security_status(args: list[str]) -> int:
+    """Existence check via /usr/bin/security; output discarded unread."""
+    completed = subprocess.run(
+        ["/usr/bin/security", *args],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=10,
+        env=subscription_environment(),
+    )
+    return completed.returncode

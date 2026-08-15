@@ -156,7 +156,7 @@ def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
     ) == 2
 
 
-def test_orphan_cleanup_removes_only_new_harbor_labeled_task_containers(
+def test_orphan_cleanup_removes_only_new_harbor_tagged_task_containers(
     tmp_path: Path,
 ) -> None:
     task_root = tmp_path / "task"

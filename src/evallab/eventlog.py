@@ -36,7 +36,7 @@ def event_log_paths(path: Path) -> tuple[Path, ...]:
 
 def read_event_log_lines(path: Path) -> tuple[tuple[Path, int, str], ...]:
     """Read one consistent retained event-log snapshot under a shared lock."""
-    if not path.parent.is_dir() or not event_log_paths(path):
+    if not path.parent.is_dir():
         return ()
     lines: list[tuple[Path, int, str]] = []
     with event_log_lock(path, exclusive=False):

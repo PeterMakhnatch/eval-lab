@@ -157,7 +157,8 @@ container's own `pg_dump` in custom format. Python does not read or forward a
 database password: `POSTGRES_USER` and `POSTGRES_DB` expand inside the container.
 The dump and SHA-256 JSON manifest are written atomically to the primary
 checkout's ignored `backups/postgres/` directory so every linked worktree uses
-one backup history. A failed or empty dump records `postgres_backup_failed` and
+one backup history. A process lock prevents overlapping manual and scheduled
+dumps from interleaving their archive/manifest pair. A failed or empty dump records `postgres_backup_failed` and
 quarantines the cycle before dispatch.
 
 Validate a dump without restoring it (set the path to the dated dump first):

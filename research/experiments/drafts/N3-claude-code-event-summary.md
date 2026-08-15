@@ -27,5 +27,11 @@ denominator.
 Policy: `canary` already lists `claude-code`. Spec already written:
 `specs/04-claude-code-canary/event-summary.json`. Not resubmitted here.
 
+**Evidence provenance.** The Codex control is reviewed primary evidence
+in `baselines/codex-canary-20260815.md`. No claude-code trial is retained.
+The credential state is inherited runtime provenance and was not probed by
+PROGRAM-REPAIR; it remains unresolved until a separate authorized workflow
+establishes it.
+
 **Avoided.** Do not expand to three tasks until one claude-code trial
 scores.

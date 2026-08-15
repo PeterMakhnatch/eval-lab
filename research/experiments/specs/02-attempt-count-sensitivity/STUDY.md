@@ -39,3 +39,8 @@ with `verifier_result.rewards.reward=1.0` and `exception_info=null`.
 Harbor-recorded `cost_usd` sums to 0.0793556. k=1 still has no scored
 Codex job on the primary checkout. k=5 remains unrun (`per_job_cost_ceiling`
 plus canary `max_attempts=3`). Do not call this “sensitivity” yet.
+
+**Provenance correction.** The k=3 reward/cost cell was directly reviewed and
+is retained in the digest-bearing baseline. The k=1 non-completion and k=5
+refusal were recorded only in the removed RUNNER worktree/journal; those two
+arms remain inherited and unresolved, not primary evidence.

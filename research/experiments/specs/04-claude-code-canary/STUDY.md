@@ -12,10 +12,11 @@ instruction. Codex cell is Study 01's event-summary spec.
 
 **Policy.** `canary` lists both agents. This spec is admissible.
 
-**Credential.** Headless doctor currently reports `keychain_readable=false`
-(service `harbor-practice-claude-oauth`). Guarded tick and nightly
-quarantine the whole queue when that check fails, so this spec will sit
-in `approved/` and will not dispatch. Stage it anyway.
+**Inherited credential record.** The removed RUNNER worktree reported
+`keychain_readable=false` for service `harbor-practice-claude-oauth` and a
+quarantined queue. PROGRAM-REPAIR did not probe current credential state, so
+availability is unresolved here and the historical queue outcome is not a
+current dispatch claim.
 
 **Cost.** $2.50. Combined with Study 01's three Codex canaries and Study
 02's k=1 arm, admitted estimates total $10.83, under $20.
@@ -28,4 +29,5 @@ auth exception, that is harness/credential, not a capability result.
 
 Codex cell is now the scored 2026-08-15 event-summary job, not the
 2026-08-14 `ValueError` jobs. No claude-code trial exists in primary
-`runs/`. Auth blocker unchanged.
+`runs/`. Credential state is inherited runtime provenance and was not probed by
+PROGRAM-REPAIR; it remains unresolved here.

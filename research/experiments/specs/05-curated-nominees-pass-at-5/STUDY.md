@@ -34,9 +34,10 @@ so the recorded reason code is `out_of_policy` (namespace), not a cost
 ceiling that hides the registration question. The other four nominees are
 the same refusal; they are listed here and not separately queued.
 
-**What CURATOR already measured.** Each nominee has oracle k=3 = 1.0 and
-nop = 0.0 in `~/Developer/helab-curator/runs/`. That is task-validity
-evidence, not a Codex result.
+**Inherited CURATOR statement.** The earlier journal says each nominee had
+oracle k=3 = 1.0 and nop = 0.0 in a removed external worktree. Those raw jobs
+are not retained here, so this is unresolved inherited provenance, not primary
+task-validity evidence and not a Codex result.
 
 **Next spec this implies.** Peter registers a 5-task `registered/*` slice
 (or promotes the nominees into `policy/canary-suite.yaml` with digests)
@@ -49,3 +50,8 @@ RUNNER.
 Still no Codex jobs on curated cards in primary `runs/`. Status remains
 waiting / `out_of_policy`. Do not use 2026-08-15 local html-js-filter
 canary results as a curated-nominee result (different path / pin).
+
+The submitted 3-attempt representative/refusal also lived in the removed
+RUNNER worktree. `PROGRAM.json` now declares the intended scientific k=5 and
+the representative policy-probe count=3 separately; neither is a retained
+execution result.

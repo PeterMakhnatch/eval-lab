@@ -1,6 +1,6 @@
 Status: building
-Last: P1 accepted after three consecutive full oracle smokes, premerge, and one full smoke from a fresh clone.
-Next: Implement the P2 multi-spec credential-scoping regression test with injected credential probes.
+Last: P2 credential-scoped tick passed three consecutive injected-probe runs; fresh-clone proof remains.
+Next: Commit P2, repeat its regression from a fresh clone, then implement the P3 shared derived-root topology.
 Blockers: none
 
 # SOLIDIFY handoff
@@ -60,6 +60,27 @@ PASS catalog job_id=1b3acf8d-e019-4f0c-8ed9-e6dbd8ba3d27
 PASS parquet job_id=1b3acf8d-e019-4f0c-8ed9-e6dbd8ba3d27
 PASS digest path=runs/_smoke/smoke-oracle-anzvjx9e5aqa/digests/2026-08-14.md
 SMOKE PASS both-stores-agree
+```
+
+## P2 — credential-scoped tick
+
+The executor already deferred per spec; the new symmetric regression pins the
+full behavior and the deferral event now carries the affected job name. With
+only Claude authentication, Codex alone remains approved/deferred while
+Claude, oracle, and no-op dispatch. With only Codex authentication, Claude
+alone remains approved/deferred while Codex, oracle, and no-op dispatch. All
+credential probes are injected; the tests touch no real auth store.
+
+```text
+$ uv run ruff check src/evallab/queue.py tests/test_queue.py
+All checks passed!
+$ uv run pytest -q tests/test_queue.py
+............. [100%]
+
+$ uv run pytest -q tests/test_queue.py -k credential
+... [100%]
+$ uv run pytest -q tests/test_queue.py -k credential
+... [100%]
 ```
 
 CI-parity gate after the third run:

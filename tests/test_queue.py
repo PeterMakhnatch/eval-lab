@@ -1,6 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pytest
+
+from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
 from evallab.runner import RunRequest
 from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
@@ -247,6 +250,67 @@ def test_missing_credential_defers_spec_without_moving_it(tmp_path: Path) -> Non
     events = load_events(tmp_path / "queue/events.jsonl")
     deferrals = [e for e in events if e.event == "dispatch_deferred"]
     assert deferrals and deferrals[-1].reason_code == "missing_credential:codex_auth"
+
+
+@pytest.mark.parametrize(
+    ("credentials", "missing_agent", "missing_reason"),
+    [
+        (frozenset({CLAUDE_OAUTH}), "codex", f"missing_credential:{CODEX_AUTH}"),
+        (frozenset({CODEX_AUTH}), "claude-code", f"missing_credential:{CLAUDE_OAUTH}"),
+    ],
+)
+def test_tick_defers_only_the_agent_with_a_missing_credential(
+    tmp_path: Path,
+    credentials: frozenset[str],
+    missing_agent: str,
+    missing_reason: str,
+) -> None:
+    requests: list[RunRequest] = []
+
+    def run(request: RunRequest) -> Path:
+        requests.append(request)
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        return destination
+
+    service = executor(tmp_path, runner=run, credentials=credentials)
+    submissions = [
+        spec("credential-scope-oracle", agent="oracle"),
+        spec("credential-scope-nop", agent="nop"),
+        spec("credential-scope-codex", agent="codex", task="canary/event-summary"),
+        spec(
+            "credential-scope-claude",
+            agent="claude-code",
+            task="canary/event-summary",
+        ),
+    ]
+    decisions = [service.submit(item)[1] for item in submissions]
+
+    assert all(decision.admitted for decision in decisions)
+    assert service.tick() == 3
+
+    expected_dispatched = {
+        item.name for item in submissions if item.agent != missing_agent
+    }
+    assert {request.name for request in requests} == expected_dispatched
+    approved = [item for _, item in service.queue.list_specs("approved")]
+    assert [(item.name, item.agent) for item in approved] == [
+        (
+            "credential-scope-codex"
+            if missing_agent == "codex"
+            else "credential-scope-claude",
+            missing_agent,
+        )
+    ]
+
+    events = load_events(service.queue.events_path)
+    deferrals = [event for event in events if event.event == "dispatch_deferred"]
+    assert [(event.job_name, event.reason_code) for event in deferrals] == [
+        (approved[0].name, missing_reason)
+    ]
+    assert {
+        event.job_name for event in events if event.event == "dispatch_started"
+    } == expected_dispatched
 
 
 def test_spec_without_model_gets_agent_default_and_explicit_model_wins(tmp_path: Path) -> None:

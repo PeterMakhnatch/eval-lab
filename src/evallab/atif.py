@@ -800,7 +800,7 @@ def ingest_and_project(
     never rolls back the searchable job/trial catalog.
     """
     from evallab import database
-    from evallab.facts import ingest_catalog, rebuild_from_raw
+    from evallab.facts import ingest_catalog
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()
@@ -816,6 +816,28 @@ def ingest_and_project(
         derived_root=derived_root,
     )
 
+    tables, failures = project_jobs(ordered_jobs, derived_root)
+    return IngestProjectionResult(
+        cataloged_jobs=cataloged_jobs,
+        tables=tables,
+        failures=failures,
+    )
+
+
+def project_jobs(
+    jobs: list[JobRecord], output_root: Path
+) -> tuple[tuple[ExportedTable, ...], tuple[ProjectionFailure, ...]]:
+    """Project raw jobs without requiring the PostgreSQL catalog.
+
+    This is the deterministic, Docker-free half of the composed ingestion path.
+    The full path remains :func:`ingest_and_project`, which catalogs first and
+    then delegates here. Keeping one projection implementation lets CI exercise
+    real Parquet writes while a local smoke also proves PostgreSQL agreement.
+    """
+    from evallab.facts import rebuild_from_raw
+
+    ordered_jobs = sorted(jobs, key=lambda item: item.id)
+    derived_root = output_root.resolve()
     tables: list[ExportedTable] = []
     failures: list[ProjectionFailure] = []
     for job in ordered_jobs:
@@ -838,11 +860,7 @@ def ingest_and_project(
             )
             continue
         tables.extend(rebuilt.tables)
-    return IngestProjectionResult(
-        cataloged_jobs=cataloged_jobs,
-        tables=tuple(tables),
-        failures=tuple(failures),
-    )
+    return tuple(tables), tuple(failures)
 
 
 def _load_catalog_projection_rows(database_url: str) -> list[tuple[str, str, str | None]]:

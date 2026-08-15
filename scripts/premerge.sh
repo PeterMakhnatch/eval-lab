@@ -17,6 +17,7 @@ export UV_PYTHON="${PYTHON_FLOOR}"
 uv sync --locked
 uv run ruff check .
 uv run pytest
+uv run python -m evallab.smoke --docker-free
 
 mkdir -p "$(dirname "${TY_OUTPUT}")"
 uvx "ty@${TY_VERSION}" check src/ --output-format=concise > "${TY_OUTPUT}" 2>&1 || true

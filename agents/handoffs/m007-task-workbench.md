@@ -1,6 +1,6 @@
-Status: Tasks review approved; awaiting PR CI
-Last: final Tasks review approved exact code head 830c5bd with no blocking findings
-Next: fetch/rebase, run exact-head premerge, push the review-only PR, and wait for GitHub CI; do not merge
+Status: stopped at review
+Last: PR #49 opened; Tasks approved; first pushed exact-head GitHub suite fully green
+Next: human review/merge decision; agent must not merge
 Blockers: repository contains zero human-registered tasks; exercise will use the documented event-summary registration candidate and state that limitation explicitly
 
 # M007 task-quality workbench handoff
@@ -201,4 +201,17 @@ result: APPROVED; no blocking Tasks findings
 scope verified: candidate/stage/task digest, free agent, separate verifier,
                 no-network overlay, portable evidence, wrong-task regression
 review mode: read-only; no state changed
+```
+
+PR and GitHub verification:
+
+```text
+PR: https://github.com/PeterMakhnatch/eval-lab/pull/49
+title: M007: add task-quality workbench
+merge action: none (stopped at review as required)
+lint: pass https://github.com/PeterMakhnatch/eval-lab/actions/runs/31905555156/job/95062631952
+test (3.12): pass https://github.com/PeterMakhnatch/eval-lab/actions/runs/31905555156/job/95062631936
+test (3.14): pass https://github.com/PeterMakhnatch/eval-lab/actions/runs/31905555156/job/95062631968
+profile: pass https://github.com/PeterMakhnatch/eval-lab/actions/runs/31905555195/job/95062632150
+ty: pass https://github.com/PeterMakhnatch/eval-lab/actions/runs/31905555242/job/95062632539
 ```

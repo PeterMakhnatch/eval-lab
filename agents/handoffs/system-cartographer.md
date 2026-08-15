@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: wrote cartography md+html; M006 #47 and M007 #49 labeled pending; opening PR
-Next: leave PR unmerged for integrator review
+Last: opened PR #52 SYSTEM-CARTOGRAPHER: map the evaluation R&D platform (unmerged)
+Next: integrator review only — do not merge from this role
 Blockers: none
 
 Agent/model: Grok 4.6 (xAI), Grok Build TUI / interactive CLI

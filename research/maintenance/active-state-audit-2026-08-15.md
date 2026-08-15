@@ -34,8 +34,10 @@ those records.
 
 ## Disposition table
 
-Ahead/behind is vs `origin/main` (behind, ahead). Dirty is the worktree
-working tree if one exists; branches without a worktree are “n/a”.
+Ahead/behind is vs `origin/main` (behind, ahead), taken from
+`git rev-list --left-right --count origin/main...REF` (tab-separated in the
+analysis log). Dirty is the worktree working tree if one exists; branches
+without a worktree are “n/a”.
 
 | Kind | Name / path | HEAD | Dirty | Behind / ahead | Cherry (+ / −) | PR | Unique paths (count) | Unique bytes already on origin/main? | Class |
 |---|---|---|---|---|---|---|---|---|---|
@@ -49,12 +51,12 @@ working tree if one exists; branches without a worktree are “n/a”.
 | worktree | `.worktrees/observatory` `role/observatory-b3` (remote **gone**) | `d2b51cf` | no | 12 / 1 | +0 / −1 | #28 MERGED (same head) | 4 paths under `research/observations/` + handoff | **yes** (4/4); files also on `origin/main` | safe cleanup candidate after integrator review |
 | worktree | `.worktrees/program` `role/program` (remote **gone**) | `3108f92` | no | 4 / 3 | +3 / −0 | #37 MERGED (same head) | 19 experiment/STATUS/PROGRAM paths | **yes** (19/19); `PROGRAM.json` and `STATUS.md` exist on `origin/main` | safe cleanup candidate after integrator review |
 | worktree | `.worktrees/solidify` `role/solidify-close` (remote **gone**) | `4dbc07b` | no | 5 / 1 | +0 / −1 | #35 MERGED (same head) | `agents/ROLES.md`, `agents/handoffs/solidify.md` | **yes** (2/2) | safe cleanup candidate after integrator review |
-| local branch | `role/data-strategy` (no worktree; `origin/role/data-strategy` **gone**) | `7a830be` | n/a | 91 / 10 | +10 / −0 | #30 MERGED (same head) | 11 docs/tests/schema paths | **yes** (11/11) | safe cleanup candidate after integrator review |
+| local branch | `role/data-strategy` (no worktree; `origin/role/data-strategy` **gone**) | `7a830be` | n/a | 9 / 10 | +10 / −0 | #30 MERGED (same head) | 11 docs/tests/schema paths | **yes** (11/11) | safe cleanup candidate after integrator review |
 | local + remote | `role/data-strategy-close` = `origin/role/data-strategy-close` | `e38d30c` | n/a | 8 / 2 | +2 / −0 | #32 MERGED (same head) | 4 paths | **yes** (4/4) | safe cleanup candidate after integrator review |
 | local branch | `role/observatory` (remote **gone**) | `bfd1cd1` | n/a | 14 / 1 | +0 / −1 | #26 MERGED (same head) | 15 observation records + template/checklist | **yes** (15/15); **Observatory research on main** | safe cleanup candidate after integrator review |
 | local branch | `role/observatory-b2` (remote **gone**) | `280b21c` | n/a | 13 / 1 | +0 / −1 | #27 MERGED (same head) | 11 observation records | **yes** (11/11); **Observatory research on main** | safe cleanup candidate after integrator review |
-| local branch | `role/solidify` (tracks gone `origin/role/solidify-final`) | `54d403a` | n/a | 65 / 53 | +53 / −0 | #34 MERGED (same head) | 46 paths | **yes** (46/46) | safe cleanup candidate after integrator review |
-| remote branch | `origin/role/solidify` | `805d45e` | n/a | 84 / 44 | +44 / −0 | #31 **CLOSED** (same head; not merged) | 44 paths; **15 blobs not on main** | **no** (15 files) | retain for review |
+| local branch | `role/solidify` (tracks gone `origin/role/solidify-final`) | `54d403a` | n/a | 6 / 53 | +53 / −0 | #34 MERGED (same head) | 46 paths | **yes** (46/46) | safe cleanup candidate after integrator review |
+| remote branch | `origin/role/solidify` | `805d45e` | n/a | 8 / 44 | +44 / −0 | #31 **CLOSED** (same head; not merged) | 44 paths; **15 blobs not on main** | **no** (15 files) | retain for review |
 
 No `unresolved` rows. Every leftover local/remote non-`main` branch and every
 worktree from `git worktree list` is in the table.

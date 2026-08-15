@@ -1,5 +1,5 @@
 Status: review-wanted
-Last: audit report committed; spot-checked organization-prompts and observatory-b3
+Last: corrected three behind/ahead cells from tab-separated rev-list log
 Next: integrator reviews PR; no cleanup executed
 Blockers: none
 

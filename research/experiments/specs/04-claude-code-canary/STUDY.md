@@ -23,3 +23,9 @@ in `approved/` and will not dispatch. Stage it anyway.
 **Next spec this implies.** When the keychain item exists, tick this spec
 before designing a 5-task agent comparison. If claude-code fails with an
 auth exception, that is harness/credential, not a capability result.
+
+## 2026-08-15 PROGRAM reconciliation
+
+Codex cell is now the scored 2026-08-15 event-summary job, not the
+2026-08-14 `ValueError` jobs. No claude-code trial exists in primary
+`runs/`. Auth blocker unchanged.

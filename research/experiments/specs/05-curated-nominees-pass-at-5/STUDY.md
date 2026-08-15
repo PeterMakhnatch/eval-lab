@@ -43,3 +43,9 @@ evidence, not a Codex result.
 and either accepts n=3 or raises the per-job ceiling / measures a cheaper
 per-attempt cost. Do not copy frontier-bench trees into this repo from
 RUNNER.
+
+## 2026-08-15 PROGRAM reconciliation
+
+Still no Codex jobs on curated cards in primary `runs/`. Status remains
+waiting / `out_of_policy`. Do not use 2026-08-15 local html-js-filter
+canary results as a curated-nominee result (different path / pin).

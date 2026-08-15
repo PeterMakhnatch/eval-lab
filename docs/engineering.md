@@ -50,6 +50,38 @@ files.
 
 ---
 
+## GREENLINE
+
+Default `uv run pytest` (and therefore CI `quality` plus `scripts/premerge.sh`)
+collects every **repository-owned unit suite**:
+
+- `tests/`
+- `dashboard/tests/`
+- `research/analysis/tests/`
+- `research/calibration/tests/`
+
+`tests/test_ci_coverage.py` fails if a committed `test_*.py` under those
+directories is not collected.
+
+**Not** in the default suite (and must not be silently skipped):
+
+- Harbor task verifiers under `library/tasks/**/tests/`,
+  `library/benchmarks/**/tests/`, and `library/adapters/*/generated/**/tests/`.
+  Those run inside Harbor, not in lab CI.
+- Any future live/container/benchmark integration suite belongs in
+  `tests/live/` or `tests/integration/` and is invoked by an explicit path
+  (for example `uv run pytest tests/live`). Those directories are absent
+  today; do not add them to `testpaths` until they exist and stay
+  Docker/network-free or are documented as opt-in.
+
+The PROGRAM ledger is gated by `tests/test_program_contract.py`, which
+imports `research/experiments/validate_program.py` and rejects malformed
+inputs. Production `load_job` still requires `finished_at` on job
+`result.json`; synthetic fixtures must include that field rather than
+weakening the loader.
+
+---
+
 ## 2. Checks
 
 ### Supported Python versions

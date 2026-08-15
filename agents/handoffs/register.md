@@ -1,7 +1,7 @@
-Status: done
-Last: repaired REGISTER admission trust boundary (contracts, evidence validation, canonical resolution, preflight, audit strictness, acceptance tests)
-Next: ready for review and integrator reconciliation
-Blockers: agents/ROLES.md row conflict with PROGRAM role (recorded for integrator)
+Status: review-wanted
+Last: integrator merged GREENLINE/main, retained PROGRAM+REGISTER rows, and passed the expanded 288-test premerge gate
+Next: push the reconciled PR head, require all exact-head GitHub checks, then merge PR #36
+Blockers: none; prior agents/ROLES.md conflict is resolved
 
 ## Accomplishments
 
@@ -57,3 +57,13 @@ Blockers: agents/ROLES.md row conflict with PROGRAM role (recorded for integrato
   | PROGRAM | `role/program` | `research/experiments/`, `agents/handoffs/program.md` | Reconcile the experiment journal into a truthful ledger and next-experiment agenda | Done: six studies reconciled; 2026-08-15 Codex canaries recorded; three unsubmitted drafts. |
   | REGISTER | `role/register` | `src/evallab/registry.py`, `tests/test_registry.py`, `library/registry/`, `research/registration/`, `docs/task-registry.md`, `agents/handoffs/register.md` | Explicit task admission, canonical registry contract, audit CLI, task inventory | Done: admission trust boundary, evidence verification, canonical resolution, preflight, audit, and acceptance tests green. |
   ```
+
+## Integrator reconciliation — 2026-08-15
+
+- GREENLINE PR #38 was squash-merged first as `b2e2898`, making all repository-owned
+  unit suites part of the default gate.
+- Merged `origin/main` into `role/register` without rebasing or force-pushing.
+- Resolved the sole conflict in `agents/ROLES.md` by retaining both PROGRAM and
+  REGISTER; no source conflict existed.
+- `scripts/premerge.sh` on the combined tree passed: Ruff clean, 288 tests passed,
+  Docker-free composed smoke passed, and ty remained at 28 diagnostics (baseline 28).

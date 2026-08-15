@@ -28,7 +28,8 @@ def test_existing_oracle_and_nop_controls_extract_deterministic_facts() -> None:
     assert facts["oracle"].exception_class is None
     assert facts["oracle"].trajectory_count == 0
     assert facts["oracle"].tool_call_count == 0
-    assert facts["oracle"].artifact_count == 3
+    assert facts["oracle"].artifact_count == 3  # manifest entries, including missing paths
+    assert facts["nop"].artifact_count == 3
     assert facts["oracle"].missing_artifact_count == 1  # empty /logs/artifacts entry
     assert facts["nop"].missing_artifact_count == 2  # empty logs plus absent summary
     assert facts["oracle"].agent_execution_seconds is not None

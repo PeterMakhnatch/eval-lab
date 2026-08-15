@@ -42,7 +42,12 @@ packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
-testpaths = ["tests"]
+testpaths = [
+    "tests",
+    "dashboard/tests",
+    "research/analysis/tests",
+    "research/calibration/tests",
+]
 
 [tool.ruff]
 line-length = 100

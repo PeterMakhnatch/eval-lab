@@ -44,6 +44,8 @@ def _make_job(root: Path, *, with_trajectory: bool = True) -> Path:
             "id": "00000000-0000-0000-0000-000000000001",
             "n_total_trials": 1,
             "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
+            "started_at": "2026-08-14T00:00:00.000000Z",
+            "finished_at": "2026-08-14T00:00:01.000000Z",
         },
     )
     _write_json(trial / "config.json", {"agent": {"name": "stub-agent"}})
@@ -77,6 +79,8 @@ def _make_job(root: Path, *, with_trajectory: bool = True) -> Path:
             },
             "verifier_result": {"rewards": {"reward": 0.0}},
             "exception_info": None,
+            "started_at": "2026-08-14T00:00:00.000000Z",
+            "finished_at": "2026-08-14T00:00:01.000000Z",
         },
     )
     if not with_trajectory:

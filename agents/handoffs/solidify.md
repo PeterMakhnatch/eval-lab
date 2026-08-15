@@ -1,5 +1,5 @@
 Status: building
-Last: CLI audit now pins read-only-by-default family/card reports; premerge passes 186 tests and Docker-free smoke, and the ty ceiling is tightened from 33 to the observed 28. Launchd tick 6/6 remains clean.
+Last: launchd tick 7/7 exited 0 at 23:46:05 EDT with the expected no-work terminal event and zero scheduler stderr; the observed span is now 3h00m19s.
 Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then run exact-head repeated/fresh-clone gates and the reviewed PR workflow.
 Blockers: none.
 
@@ -634,4 +634,20 @@ $ evallab report family event-summary
 This family contains 33 trials across 31 jobs.
 $ pytest -q tests/test_cli_audit.py tests/test_truth.py
 ....................................................                     [100%]
+```
+
+## P5 soak tick 7
+
+```text
+$ date '+%Y-%m-%dT%H:%M:%S%z'
+2026-08-14T23:46:29-0400
+$ launchctl print gui/$(id -u)/com.petermakhnatch.evallab.tick
+runs = 7
+last exit code = 0
+$ wc -l queue/events.jsonl
+7 queue/events.jsonl
+$ tail -1 queue/events.jsonl
+{"occurred_at":"2026-08-15T03:46:05.714413Z","event":"tick_deferred","actor":"scheduled-tick","reason_code":"no_approved_specs",...}
+$ wc -c ~/Library/Logs/evallab/tick.error.log
+0
 ```

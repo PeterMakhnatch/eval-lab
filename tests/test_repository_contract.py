@@ -150,6 +150,13 @@ def test_fleet_status_reads_rotated_event_segments() -> None:
     assert "cat queue/events.jsonl" in script
 
 
+def test_subscription_helpers_never_alias_oauth_to_model_api_key() -> None:
+    for relative in ("scripts/harbor-auth-env.sh", "scripts/auth-status.sh"):
+        helper = (ROOT / relative).read_text()
+        assert "export ANTHROPIC_API_KEY" not in helper
+        assert "${ANTHROPIC_API_KEY" not in helper
+
+
 def test_project_exposes_evallab_cli_and_transition_alias() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
     legacy_cli = "harbor" + "-lab"

@@ -1,7 +1,7 @@
 Status: building
-Last: launchd tick 5/5 exited 0 at 22:45:59 EDT with one correct no-work event; scheduler stderr and active/failure/quarantine queue states remain empty.
-Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then final fetch/rebase/premerge/PR checks and merge.
-Blockers: Rebase onto `7b333b6` conflicts in shared `agents/ROLES.md` with TRUTH's merged row; aborted per workflow and needs an integrator-owned resolution.
+Last: Independent review blockers were repaired, an independent integrator rebased cleanly onto `e844456`, and the combined 185-test suite passed.
+Next: Keep launchd on this worktree through 2026-08-15T00:45:43-0400, audit every scheduled event, then run exact-head repeated/fresh-clone gates and the reviewed PR workflow.
+Blockers: none.
 
 # SOLIDIFY handoff
 
@@ -504,3 +504,69 @@ remains. The overlap is additive, but the shared-file workflow forbids this role
 from resolving another role's conflict. Upstream also adds the `power` and
 `report` CLI commands, so the final CLI inventory must be refreshed from 25 to
 27 top-level commands after an integrator rebases the branch.
+
+## Independent review and remediation
+
+An independent read-only reviewer rejected the first P1-P5 implementation
+despite its green tests. The review found that subscription-routing flags were
+stripped, the timeout bounded the whole Harbor process rather than each active
+trial, failed retry estimates were not durable, free-form 5xx text could retry
+a successful/task failure, backup failure rendered `Quarantined: no`, dump and
+manifest publication required two renames, concurrent ticks lacked one queue
+owner, fleet status ignored rotated logs, and upstream `report family` defaulted
+to worktree-local Parquet. No billable/model/cloud/credential-reading action was
+used by the reviewer.
+
+The branch now closes each finding:
+
+- infrastructure-only doctor health leaves Oracle/no-op runnable with zero
+  model credentials; Executor still defers each unavailable model agent;
+- Codex always receives the non-secret auth-file switch; Claude alone is routed
+  through the Keychain OAuth wrapper; ambient API-key and OAuth values are not
+  forwarded, and the legacy OAuth-to-API-key alias was removed;
+- an executor watchdog tracks active Harbor trial directories independently,
+  names the triggering trial, retains an aggregate startup fail-safe, bounds
+  Docker/tool/Git subprocesses, and keeps cleanup failure secondary;
+- only structured provider-facing trial exceptions on a failed Harbor job can
+  trigger 429/5xx retry; successful jobs and verifier/task log text cannot;
+- every billable attempt writes an estimated-cost reservation before launch;
+  failed reservations survive executor restart and participate in all later
+  policy gates, while catalog cost settles the successful attempt;
+- a nonblocking process/thread tick lock prevents double claims and reports
+  `executor_busy` as a terminal scheduled deferral;
+- PostgreSQL backup publishes one fsynced immutable generation directory by one
+  atomic rename, reuses a verified same-date generation, and renders any backup
+  failure as a quarantine with zero dispatch;
+- event rotation now has cross-process writer/reader coverage and fleet status
+  reads numbered archives before the active log;
+- upstream `report family` reads the shared derived root by default, and the CLI
+  audit now pins 27 top-level commands and 38 help paths.
+
+The separate integrator fetched `origin/main` at
+`e844456714b821ae62cba1048a5ea2132a5f38f2` and rebased all 32 SOLIDIFY commits.
+Its only conflict was the additive role-registry insertion; it preserved TRUTH
+and DATA-STRATEGY verbatim and one SOLIDIFY row. Both schema families and all
+CLI wiring survived. New head after that rebase was
+`cb162eded616c8a250e0ab37878e4f2e73437df7`; the working tree was clean and zero
+commits behind.
+
+Focused remediation evidence on the rebased branch:
+
+```text
+$ pytest -q tests/test_backups.py tests/test_unattended.py tests/test_runner.py tests/test_queue.py tests/test_repository_contract.py
+........................................................................ [ 98%]
+.                                                                        [100%]
+
+$ pytest -q tests/test_cli_audit.py tests/test_truth.py
+...................................................                      [100%]
+
+$ ruff check . && pytest -q
+All checks passed!
+........................................................................ [ 38%]
+........................................................................ [ 77%]
+.........................................                                [100%]
+```
+
+This is remediation evidence, not final acceptance: the exact final head still
+requires three complete premerge runs, three full local smokes, and a fresh
+protocol-compliant clone after the four-hour soak completes.

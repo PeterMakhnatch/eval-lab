@@ -552,10 +552,6 @@ class ResearcherLoop:
 
     def run(self, *, report_date: date | None = None) -> ResearcherPassResult:
         target_date = report_date or date.today()
-        budget_now = self._clock()
-        if budget_now.tzinfo is None:
-            raise ValueError("researcher budget clock must be timezone-aware")
-        budget_day = budget_now.astimezone(UTC).date()
         pass_id = new_ulid()
         pass_dir = self.repo_root / "queue/researchers/passes" / target_date.isoformat() / pass_id
         pass_dir.mkdir(parents=True, exist_ok=False)
@@ -573,7 +569,6 @@ class ResearcherLoop:
             analyst = self._invoke_validated(
                 pass_id=pass_id,
                 role="analyst",
-                day=budget_day,
                 prompt=self._analyst_prompt(bundle),
                 output_model=AnalystOutput,
                 work_dir=pass_dir / "analyst",
@@ -587,7 +582,6 @@ class ResearcherLoop:
             synthesis = self._invoke_validated(
                 pass_id=pass_id,
                 role="synthesizer",
-                day=budget_day,
                 prompt=self._synthesizer_prompt(bundle, analyst),
                 output_model=SynthesisOutput,
                 work_dir=pass_dir / "synthesizer",
@@ -608,7 +602,6 @@ class ResearcherLoop:
             proposal = self._invoke_validated(
                 pass_id=pass_id,
                 role="proposer",
-                day=budget_day,
                 prompt=self._proposer_prompt(synthesis, journal.tail(), registry),
                 output_model=ProposalDraft,
                 work_dir=pass_dir / "proposer",
@@ -696,7 +689,6 @@ class ResearcherLoop:
         *,
         pass_id: str,
         role: ResearchRole,
-        day: date,
         prompt: str,
         output_model: type[T],
         work_dir: Path,
@@ -705,13 +697,17 @@ class ResearcherLoop:
         errors: list[str] = []
         for attempt in (1, 2):
             limits = self.limits[role]
+            budget_now = self._clock()
+            if budget_now.utcoffset() is None:
+                raise ValueError("researcher budget clock must be timezone-aware")
+            attempt_day = budget_now.astimezone(UTC).date()
             invocation_id = self.ledger.reserve(
                 pass_id=pass_id,
                 role=role,
-                day=day,
+                day=attempt_day,
                 limits=limits,
                 policy=self.policy,
-                catalog_spend_usd=self._catalog_spend(day),
+                catalog_spend_usd=self._catalog_spend(attempt_day),
             )
             invocation_prompt = prompt
             if errors:
@@ -737,7 +733,7 @@ class ResearcherLoop:
                     invocation_id=invocation_id,
                     pass_id=pass_id,
                     role=role,
-                    day=day,
+                    day=attempt_day,
                     event="timed_out",
                     reason=_safe_error(str(exc)),
                 )
@@ -747,7 +743,7 @@ class ResearcherLoop:
                     invocation_id=invocation_id,
                     pass_id=pass_id,
                     role=role,
-                    day=day,
+                    day=attempt_day,
                     event="failed",
                     reason=_safe_error(str(exc)),
                 )
@@ -757,7 +753,7 @@ class ResearcherLoop:
                     invocation_id=invocation_id,
                     pass_id=pass_id,
                     role=role,
-                    day=day,
+                    day=attempt_day,
                     event="completed",
                     usage=response.usage,
                 )

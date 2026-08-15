@@ -1,6 +1,6 @@
 Status: building
-Last: final review found the researcher ledger still used a host-local budget day while queue/catalog use UTC. Its injected clock now normalizes to UTC before reservations and combined-ceiling checks, with a 20:30 EDT/00:30 UTC boundary regression.
-Next: Checkpoint the unified researcher policy day, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
+Last: final review found that one fixed UTC day could still span all six bounded attempts in a researcher pass. The loop now resamples immediately before every reservation and pairs completion to that sample; a mutable `-04:00` clock regression crosses UTC midnight between retry attempts.
+Next: Checkpoint per-attempt UTC accounting, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
 Blockers: none.
 
 # SOLIDIFY handoff

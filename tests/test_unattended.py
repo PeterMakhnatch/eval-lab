@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import plistlib
 import subprocess
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -14,10 +14,9 @@ from evallab.paths import DERIVED_ROOT_ENV
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.researchers import (
     CallLedger,
-    EvidenceBundle,
-    ResearcherDeferred,
+    InvocationResponse,
+    InvocationUsage,
     ResearcherLoop,
-    TrialEvidence,
     append_fleet_section,
 )
 from evallab.schemas import (
@@ -432,49 +431,50 @@ def test_fleet_uses_semantic_report_date_across_local_midnight(tmp_path: Path) -
     assert "researcher_pass_deferred: missing_credential:codex" in content
 
 
-def test_researcher_budget_uses_utc_day_at_local_evening_boundary(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    report_date = date(2026, 8, 14)
-    bundle = EvidenceBundle(
-        report_date=report_date,
-        period_date=date(2026, 8, 13),
-        generated_at=datetime(2026, 8, 15, 0, 30, tzinfo=UTC),
-        trials=[
-            TrialEvidence(
-                job_name="boundary-job",
-                task_name="boundary-task",
-                agent_name="codex",
-                reward=0,
-                finished_at="2026-08-15T00:20:00Z",
-                evidence_paths=["runs/boundary-job/result.json"],
-            )
-        ],
-        allowed_evidence_paths=["runs/boundary-job/result.json"],
+def test_researcher_resamples_utc_budget_day_before_each_retry(tmp_path: Path) -> None:
+    local_offset = timezone(-timedelta(hours=4))
+    clock_values = iter(
+        [
+            datetime(2026, 8, 14, 19, 59, tzinfo=local_offset),
+            datetime(2026, 8, 14, 20, 1, tzinfo=local_offset),
+        ]
     )
+    catalog_days: list[date] = []
+    invocation_count = 0
+
+    def invoker(**_kwargs) -> InvocationResponse:
+        nonlocal invocation_count
+        invocation_count += 1
+        return InvocationResponse(
+            output="not-json" if invocation_count == 1 else "{}",
+            usage=InvocationUsage(),
+        )
+
     loop = ResearcherLoop(
         repo_root=tmp_path,
-        invoker=lambda **_kwargs: (_ for _ in ()).throw(
-            AssertionError("invoker should not be reached")
-        ),  # type: ignore[arg-type]
+        invoker=invoker,  # type: ignore[arg-type]
         policy=policy(),
-        evidence_loader=lambda _day, _path: bundle,
-        catalog_spend=lambda _day: 0,
-        clock=lambda: datetime(2026, 8, 15, 0, 30, tzinfo=UTC),
+        catalog_spend=lambda day: catalog_days.append(day) or 0,
+        clock=lambda: next(clock_values),
     )
-    observed_days: list[date] = []
 
-    def capture_budget_day(**kwargs):
-        observed_days.append(kwargs["day"])
-        raise ResearcherDeferred("boundary-observed")
+    result = loop._invoke_validated(
+        pass_id="utc-boundary-pass",
+        role="analyst",
+        prompt="return usage",
+        output_model=InvocationUsage,
+        work_dir=tmp_path / "attempts",
+    )
 
-    monkeypatch.setattr(loop, "_invoke_validated", capture_budget_day)
-
-    result = loop.run(report_date=report_date)
-
-    assert observed_days == [date(2026, 8, 15)]
-    assert result.deferred_reason == "boundary-observed"
+    assert result == InvocationUsage()
+    assert catalog_days == [date(2026, 8, 14), date(2026, 8, 15)]
+    records = loop.ledger.records()
+    assert [(record.event, record.day) for record in records] == [
+        ("started", date(2026, 8, 14)),
+        ("failed", date(2026, 8, 14)),
+        ("started", date(2026, 8, 15)),
+        ("completed", date(2026, 8, 15)),
+    ]
 
 
 def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -> None:

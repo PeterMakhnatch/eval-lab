@@ -460,6 +460,39 @@ def parser() -> argparse.ArgumentParser:
         default=Path("runs"),
         help="Job directory root to scan (default: runs/)",
     )
+
+    registry = commands.add_parser(
+        "registry",
+        help="Inspect and audit explicit registered tasks",
+    )
+    registry_commands = registry.add_subparsers(
+        dest="registry_command",
+        required=True,
+    )
+    registry_list = registry_commands.add_parser(
+        "list",
+        help="List explicit task registry records",
+    )
+    registry_list.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit records as JSON array",
+    )
+    registry_list.add_argument(
+        "--state",
+        choices=["candidate", "registered", "retired"],
+        help="Filter records by admission state",
+    )
+
+    registry_audit = registry_commands.add_parser(
+        "audit",
+        help="Audit task registry records and queue claims",
+    )
+    registry_audit.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit audit report as JSON",
+    )
     return root
 
 
@@ -1204,6 +1237,60 @@ def run_cli(
                     "| " + " | ".join("" if value is None else str(value) for value in row) + " |"
                 )
             return 0
+        if args.command == "registry" and args.registry_command == "list":
+            from evallab.registry import TaskRegistry
+
+            reg = TaskRegistry.from_repo(root)
+            records = reg.list_records(args.state)
+            if args.json:
+                payload = [record.model_dump(mode="json") for record in records]
+                print(json.dumps(payload, indent=2))
+                return 0
+            if not records:
+                filter_msg = f" with state {args.state!r}" if args.state else ""
+                print(f"No task records found in library/registry/{filter_msg}.")
+                return 0
+            print(f"{'TASK ID':<32} {'VERSION':<10} {'STATE':<12} {'ZONE':<18} {'PATH'}")
+            print("-" * 100)
+            for record in records:
+                print(
+                    f"{record.task_id:<32} {record.version:<10} {record.state:<12} "
+                    f"{record.provenance_zone:<18} {record.task_path}"
+                )
+            return 0
+        if args.command == "registry" and args.registry_command == "audit":
+            from evallab.registry import audit_registry
+
+            report = audit_registry(root)
+            if args.json:
+                print(json.dumps(report.to_dict(), indent=2))
+                return 0 if report.passed else 1
+
+            print(f"Task Registry Audit (Total records: {report.total_records})")
+            print(f"  Registered: {report.registered_count}")
+            print(f"  Candidate:  {report.candidate_count}")
+            print(f"  Retired:    {report.retired_count}")
+            print()
+
+            if not report.findings:
+                print("PASS: zero audit findings. Registry and queue claims are valid.")
+                return 0
+
+            error_count = sum(1 for f in report.findings if f.severity == "error")
+            warning_count = sum(1 for f in report.findings if f.severity == "warning")
+            info_count = sum(1 for f in report.findings if f.severity == "info")
+
+            print(f"Findings: {error_count} errors, {warning_count} warnings, {info_count} info")
+            print("-" * 80)
+            for finding in report.findings:
+                icon = (
+                    "FAIL"
+                    if finding.severity == "error"
+                    else ("WARN" if finding.severity == "warning" else "INFO")
+                )
+                print(f"[{icon}] {finding.category} -> {finding.target}")
+                print(f"       {finding.message}")
+            return 0 if report.passed else 1
     except (FileExistsError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

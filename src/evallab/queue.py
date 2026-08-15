@@ -27,6 +27,18 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.paths import derived_root_from_environment
+from evallab.registry import (
+    RegistryError,
+    TaskComponentMissingError,
+    TaskControlEvidenceError,
+    TaskDigestMismatchError,
+    TaskNotRegisteredError,
+    TaskPathRedirectionError,
+    TaskRegistry,
+    TaskStateInvalidError,
+    TaskUsageNotAllowedError,
+    TaskVersionMismatchError,
+)
 from evallab.results import load_job
 from evallab.runner import (
     CONTROL_AGENTS,
@@ -94,8 +106,16 @@ def load_policy(path: Path) -> StandingApprovalsPolicy:
 
 
 class PolicyGate:
-    def __init__(self, policy: StandingApprovalsPolicy) -> None:
+    def __init__(
+        self,
+        policy: StandingApprovalsPolicy,
+        *,
+        repo_root: Path | None = None,
+        registry: TaskRegistry | None = None,
+    ) -> None:
         self.policy = policy
+        self.repo_root = repo_root.resolve() if repo_root else None
+        self.registry = registry
 
     def decide(
         self,
@@ -105,6 +125,76 @@ class PolicyGate:
         consecutive_harness_failures: int = 0,
         human_approved: bool = False,
     ) -> PolicyDecision:
+        if spec.task.startswith("registered/"):
+            reg = self.registry
+            if reg is None and self.repo_root:
+                reg = TaskRegistry.from_repo(self.repo_root)
+            elif reg is None:
+                reg = TaskRegistry.from_repo(Path.cwd())
+
+            root = self.repo_root or Path.cwd()
+            try:
+                reg.resolve_spec(spec, root)
+            except TaskNotRegisteredError as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="unregistered_task",
+                    message=str(exc),
+                )
+            except TaskStateInvalidError as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_not_registered",
+                    message=str(exc),
+                )
+            except TaskPathRedirectionError as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_path_redirection",
+                    message=str(exc),
+                )
+            except TaskVersionMismatchError as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_version_mismatch",
+                    message=str(exc),
+                )
+            except TaskDigestMismatchError as exc:
+                reason = (
+                    "verifier_digest_mismatch"
+                    if "verifier" in str(exc).lower()
+                    else "task_digest_mismatch"
+                )
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code=reason,
+                    message=str(exc),
+                )
+            except TaskControlEvidenceError as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="invalid_control_evidence",
+                    message=str(exc),
+                )
+            except TaskUsageNotAllowedError as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="usage_not_allowed",
+                    message=str(exc),
+                )
+            except TaskComponentMissingError as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="missing_package_component",
+                    message=str(exc),
+                )
+            except RegistryError as exc:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="task_admission_refused",
+                    message=str(exc),
+                )
+
         if spec.billable:
             if spec.est_cost_usd > self.policy.per_job_cost_ceiling_usd:
                 return PolicyDecision(
@@ -499,7 +589,7 @@ class Executor:
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
-        self.gate = PolicyGate(policy)
+        self.gate = PolicyGate(policy, repo_root=self.repo_root)
         self._runner = runner or self._run_harbor
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
@@ -657,10 +747,31 @@ class Executor:
         return dispatched
 
     def execute_spec(self, spec: ExperimentSpec) -> Path:
-        task = self._safe_repo_path(spec.executable_task_path)
+        task_path = self._safe_repo_path(spec.executable_task_path)
+        task_version = spec.task_version
+        verifier_digest = spec.verifier_digest
+        package_digest = None
+        timeout_seconds = spec.timeout_seconds
+        canonical_task_path = spec.executable_task_path
+
+        if spec.task.startswith("registered/"):
+            reg = TaskRegistry.from_repo(self.repo_root)
+            resolved = reg.resolve_spec(spec, self.repo_root)
+            if resolved is None:
+                raise ExecutionFailure(
+                    "unregistered_task",
+                    f"task {spec.task!r} is not registered in library/registry/",
+                )
+            task_path = self._safe_repo_path(resolved.task_path)
+            canonical_task_path = resolved.task_path
+            task_version = resolved.version
+            verifier_digest = resolved.digests.verifier
+            package_digest = resolved.digests.package
+            timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
+
         jobs_dir = self._safe_repo_path(spec.jobs_dir)
         request = RunRequest(
-            task=task,
+            task=task_path,
             agent=spec.agent,
             name=spec.name,
             jobs_dir=jobs_dir,
@@ -670,14 +781,16 @@ class Executor:
             model=spec.model or DEFAULT_AGENT_MODELS.get(spec.agent),
             concurrency=spec.concurrency,
             attempts=spec.attempts,
-            timeout_seconds=spec.timeout_seconds,
+            timeout_seconds=timeout_seconds,
             allow_billable=spec.billable,
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
                 task=spec.task,
-                task_version=spec.task_version,
-                verifier_digest=spec.verifier_digest,
+                task_version=task_version,
+                verifier_digest=verifier_digest,
                 policy_rule=spec.policy_rule,
+                package_digest=package_digest,
+                task_path=canonical_task_path,
             ),
         )
         return self._run_with_transient_retries(spec, request)

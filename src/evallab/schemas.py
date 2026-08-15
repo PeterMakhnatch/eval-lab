@@ -203,6 +203,8 @@ class RunProvenance(ContractModel):
     task_version: str | None = None
     verifier_digest: str | None = None
     policy_rule: str | None = None
+    package_digest: str | None = None
+    task_path: str | None = None
 
 
 class CohortSelector(ContractModel):
@@ -576,4 +578,140 @@ class ProvenanceMetadata(ContractModel):
             raise ValueError(f"zone {self.zone} items are machine-produced and require a transform")
         if self.zone == "04-curated" and not self.parent_digests:
             raise ValueError("zone 04 distillations must cite parent digests")
+        return self
+
+
+class TaskDigests(ContractModel):
+    task_toml: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    instruction: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    environment: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    verifier: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    package: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class TaskLimits(ContractModel):
+    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    max_memory_mb: int | None = Field(default=None, ge=1)
+    max_cpus: float | None = Field(default=None, gt=0)
+
+
+class ControlEvidenceRef(ContractModel):
+    job_name: str = Field(min_length=1)
+    reward: float = Field(ge=0.0, le=1.0)
+    evidence_path: str | None = None
+    evidence_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    observed_at: datetime | None = None
+
+    @field_validator("evidence_path")
+    @classmethod
+    def evidence_path_is_relative(cls, value: str | None) -> str | None:
+        if value is not None and (value.startswith("/") or ".." in value.split("/")):
+            raise ValueError("evidence_path must stay relative to the repository")
+        return value
+
+
+class TaskControlEvidence(ContractModel):
+    oracle: ControlEvidenceRef
+    nop: ControlEvidenceRef
+
+
+TaskAdmissionState = Literal["candidate", "registered", "retired"]
+TaskAllowedUse = Literal[
+    "canary",
+    "measurement",
+    "heldout",
+    "foundry-seed",
+    "training",
+]
+
+
+class TaskRegistryRecord(ContractModel):
+    schema_version: Literal[1] = 1
+    task_id: str = Field(
+        min_length=3,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
+    version: str = Field(min_length=1)
+    task_path: str = Field(min_length=1)
+    digests: TaskDigests
+    source_uri: str = Field(min_length=1)
+    source_ref: str | None = None
+    license: str | None = None
+    provenance_zone: Literal[
+        "01-external",
+        "02-local-evidence",
+        "03-synthetic",
+        "04-curated",
+    ]
+    is_synthetic: bool
+    limits: TaskLimits = Field(default_factory=TaskLimits)
+    control_evidence: TaskControlEvidence
+    state: TaskAdmissionState
+    allowed_uses: list[TaskAllowedUse] = Field(min_length=1)
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+
+    @field_validator("task_path")
+    @classmethod
+    def task_path_is_relative(cls, value: str) -> str:
+        if value.startswith("/") or ".." in value.split("/"):
+            raise ValueError("task_path must stay relative to the repository")
+        return value
+
+    @field_validator("allowed_uses")
+    @classmethod
+    def allowed_uses_unique(cls, values: list[TaskAllowedUse]) -> list[TaskAllowedUse]:
+        if len(values) != len(set(values)):
+            raise ValueError("allowed_uses items must be unique")
+        return values
+
+    @model_validator(mode="after")
+    def validate_state_invariants(self) -> TaskRegistryRecord:
+        if self.state == "registered":
+            if not self.approved_by or not self.approved_by.strip():
+                raise ValueError("registered task records require approved_by")
+            if self.approved_at is None:
+                raise ValueError("registered task records require approved_at")
+            if self.control_evidence.oracle.reward != 1.0:
+                raise ValueError(
+                    "registered task requires oracle reward 1.0 "
+                    f"(got {self.control_evidence.oracle.reward})"
+                )
+            if self.control_evidence.nop.reward != 0.0:
+                raise ValueError(
+                    "registered task requires nop reward 0.0 "
+                    f"(got {self.control_evidence.nop.reward})"
+                )
+            oracle_ref = self.control_evidence.oracle
+            if (
+                not oracle_ref.evidence_path
+                or not oracle_ref.evidence_digest
+                or oracle_ref.observed_at is None
+            ):
+                raise ValueError(
+                    "registered task oracle control requires evidence_path, "
+                    "evidence_digest, and observed_at"
+                )
+            nop_ref = self.control_evidence.nop
+            if (
+                not nop_ref.evidence_path
+                or not nop_ref.evidence_digest
+                or nop_ref.observed_at is None
+            ):
+                raise ValueError(
+                    "registered task nop control requires evidence_path, "
+                    "evidence_digest, and observed_at"
+                )
+            if self.provenance_zone == "01-external":
+                if not self.license or not self.license.strip():
+                    raise ValueError("external registered task requires license")
+                if not self.source_ref or any(
+                    char in self.source_ref.lower()
+                    for char in ("latest", "head", "main", "master")
+                ):
+                    raise ValueError(
+                        "external registered task requires immutable pinned source_ref "
+                        "(commit SHA or release tag)"
+                    )
         return self

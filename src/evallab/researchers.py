@@ -19,8 +19,15 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 from evallab import database
 from evallab.digest import event_belongs_to_report_day
 from evallab.queue import DirectoryQueue, load_events, load_policy, new_ulid
+from evallab.registry import TaskRegistry
 from evallab.runner import database_url_from_environment
-from evallab.schemas import ContractModel, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
+from evallab.schemas import (
+    ContractModel,
+    ExperimentSpec,
+    QueueEvent,
+    StandingApprovalsPolicy,
+    TaskRegistryRecord,
+)
 
 ResearchRole = Literal["analyst", "synthesizer", "proposer"]
 FailureCategory = Literal[
@@ -560,6 +567,9 @@ class ResearcherLoop:
             return self._defer(pass_id, target_date, manifest_path, "stop_file_present")
 
         try:
+            registered_records = self._registered_tasks()
+            task_paths = {k: v.task_path for k, v in registered_records.items()}
+
             bundle_path = pass_dir / "evidence.json"
             bundle = self._evidence_loader(target_date, bundle_path)
             _write_model(bundle_path, bundle)
@@ -593,16 +603,15 @@ class ResearcherLoop:
             _write_model(synthesis_path, synthesis)
 
             journal = DiscoveryJournal(self.repo_root / "digests/DISCOVERIES.md")
-            registry = self._registered_tasks()
 
             def validate_proposal(candidate: ProposalDraft) -> None:
                 journal.validate_thread_reference(candidate)
-                self._validate_proposal(candidate, registry)
+                self._validate_proposal(candidate, task_paths)
 
             proposal = self._invoke_validated(
                 pass_id=pass_id,
                 role="proposer",
-                prompt=self._proposer_prompt(synthesis, journal.tail(), registry),
+                prompt=self._proposer_prompt(synthesis, journal.tail(), task_paths),
                 output_model=ProposalDraft,
                 work_dir=pass_dir / "proposer",
                 validator=validate_proposal,
@@ -610,7 +619,9 @@ class ResearcherLoop:
             proposal_draft_path = pass_dir / "proposal-draft.json"
             _write_model(proposal_draft_path, proposal)
 
-            proposed_spec_path = self._write_proposed_spec(proposal, registry, target_date)
+            proposed_spec_path = self._write_proposed_spec(
+                proposal, registered_records, target_date
+            )
             discovery_id = journal.append(
                 report_date=target_date,
                 claim=synthesis.claim,
@@ -820,32 +831,31 @@ class ResearcherLoop:
                 paths.append(candidate.relative_to(self.repo_root).as_posix())
         return paths
 
-    def _registered_tasks(self) -> dict[str, str]:
-        registry: dict[str, str] = {}
-        for parent in ("library/tasks", "tasks"):
-            root = self.repo_root / parent
-            if not root.is_dir():
-                continue
-            for task_file in sorted(root.glob("*/task.toml")):
-                registry.setdefault(
-                    task_file.parent.name,
-                    task_file.parent.relative_to(self.repo_root).as_posix(),
-                )
-        if not registry:
+    def _registered_tasks(self) -> dict[str, TaskRegistryRecord]:
+        registry_inst = TaskRegistry.from_repo(self.repo_root)
+        registered_records = {
+            record.task_id: record
+            for record in registry_inst.list_records("registered")
+            if "measurement" in record.allowed_uses or "training" in record.allowed_uses
+        }
+        if not registered_records:
             raise ResearcherDeferred("no_registered_tasks")
-        return registry
+        return registered_records
 
     def _write_proposed_spec(
         self,
         draft: ProposalDraft,
-        registry: Mapping[str, str],
+        registry: Mapping[str, TaskRegistryRecord],
         report_date: date,
     ) -> Path:
+        record = registry[draft.registered_task]
         spec = ExperimentSpec(
             name=f"research-{draft.registered_task}-{_proposal_digest(draft)[:10]}",
             hypothesis=draft.hypothesis,
             task=f"registered/{draft.registered_task}",
-            task_path=registry[draft.registered_task],
+            task_path=record.task_path,
+            task_version=record.version,
+            verifier_digest=record.digests.verifier,
             agent=draft.agent,
             model=draft.model,
             attempts=draft.attempts,

@@ -1,0 +1,38 @@
+{
+  "trajectories": [
+    {
+      "name": "5rgjEEt",
+      "expected_failures": 3,
+      "trajectory": {
+        "steps": [
+          {"observation": {"results": [{"content": "Script failed\nOutput: command rejected"}]}},
+          {"observation": {"results": [{"content": "Script completed\nTraceback (most recent call last):\nAssertionError: first local check"}]}},
+          {"observation": {"results": [{"content": "Script completed\nTraceback (most recent call last):\nAssertionError: second local check"}]}},
+          {"observation": {"results": [{"content": "Script completed\nOutput: all assertions passed"}]}}
+        ]
+      }
+    },
+    {
+      "name": "D3GZpFU",
+      "expected_failures": 1,
+      "trajectory": {
+        "steps": [
+          {"observation": {"results": [{"content": "Script failed\nScript error: command rejected"}]}},
+          {"observation": {"results": [{"content": "Script completed\nOutput: final checks passed"}]}}
+        ]
+      }
+    },
+    {
+      "name": "kzGxL7Q",
+      "expected_failures": 3,
+      "trajectory": {
+        "steps": [
+          {"observation": {"results": [{"content": "Script completed\nTraceback (most recent call last):\nAssertionError"}]}},
+          {"observation": {"results": [{"content": "Script completed\nTraceback (most recent call last):\nAssertionError"}]}},
+          {"observation": {"results": [{"content": "Script failed\nScript error: cleanup rejected"}]}},
+          {"observation": {"results": [{"content": "Script completed\nOutput: sanitizer checks passed"}]}}
+        ]
+      }
+    }
+  ]
+}

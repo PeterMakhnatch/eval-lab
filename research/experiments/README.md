@@ -14,6 +14,13 @@ and are not committed.
 | `baselines/` | Free oracle/nop matrices (`evallab matrix` only) |
 | `local-controls.json` | Original event-summary oracle/nop matrix (kept; tests load it) |
 
+Validate the current ledger and its known-bad regression fixtures with:
+
+```bash
+uv run python research/experiments/validate_program.py
+uv run pytest -q research/experiments/tests/test_validate_program.py
+```
+
 Standing policy that admits work, copied from `policy/standing-approvals.yaml`
 and not stretched:
 

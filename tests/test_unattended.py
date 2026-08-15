@@ -214,6 +214,71 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     assert "Quarantined: no" in content
 
 
+def test_nightly_researcher_defers_while_running_job_is_unresolved(
+    tmp_path: Path,
+) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    researcher_calls: list[date] = []
+    service = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        runner=lambda request: (_ for _ in ()).throw(
+            AssertionError(f"new work dispatched: {request.name}")
+        ),
+        ingester=lambda _path: None,
+        spent_today=lambda: 0,
+        consecutive_harness_failures=lambda: 0,
+    )
+    approved, _ = service.submit(
+        ExperimentSpec(
+            name="partial-before-nightly",
+            hypothesis="detached Harbor work blocks the researcher",
+            task="library/tasks/event-summary",
+            agent="oracle",
+            submitted_by="scheduler-test",
+        )
+    )
+    queued = queue.load(approved)
+    queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, "finished_at": null}\n'
+    )
+    report_date = date(2026, 8, 15)
+
+    result = NightlyCycle(
+        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
+        executor=service,
+        renderer=DigestRenderer(
+            repo_root=tmp_path,
+            queue=queue,
+            policy=policy(),
+            trial_loader=lambda _day: [],
+        ),
+        committer=lambda _path: False,
+        researcher_pass=lambda day: researcher_calls.append(day) or 1,
+    ).run(report_date=report_date)
+
+    assert result.dispatched == 0
+    assert result.researcher_invocations == 0
+    assert researcher_calls == []
+    deferrals = [
+        event
+        for event in load_events(queue.events_path)
+        if event.event == "researcher_pass_deferred"
+    ]
+    assert [(event.reason_code, event.report_date) for event in deferrals] == [
+        ("running_specs_unresolved", report_date.isoformat())
+    ]
+
+
 @pytest.mark.parametrize(
     ("failure", "reason"),
     [

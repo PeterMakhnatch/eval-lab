@@ -675,6 +675,31 @@ def test_reconciliation_never_settles_partial_harbor_job(tmp_path: Path) -> None
     assert not service.queue.list_specs("done")
 
 
+def test_unresolved_running_job_blocks_all_new_dispatch(tmp_path: Path) -> None:
+    requests: list[RunRequest] = []
+    service = executor(tmp_path, runner=lambda request: requests.append(request))
+    partial, _ = service.submit(spec("partial-prior-control"))
+    queued = service.queue.load(partial)
+    service.queue.transition(
+        partial,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, "finished_at": null}\n'
+    )
+    approved, _ = service.submit(spec("must-wait-control", agent="nop"))
+
+    assert service.tick() == 0
+
+    assert requests == []
+    assert approved.is_file()
+    assert service.last_tick_reason == "running_specs_unresolved"
+
+
 def test_reconciliation_fails_closed_on_terminal_transient_job(
     tmp_path: Path,
 ) -> None:

@@ -135,7 +135,11 @@ partial job in `running/` and does not ingest or settle it. If the executor dies
 after a terminal transient provider failure, or between archived retry phases,
 the next tick moves the spec to `failed/` with a transient reason and preserves
 all attempt evidence for explicit operator resubmission; it never calls the
-provider implicitly during recovery.
+provider implicitly during recovery. While any unresolved running spec remains,
+the executor defers every approved spec with `running_specs_unresolved`; this
+prevents detached work from overlapping new provider calls or escaping the
+cost ceiling after a UTC day boundary. Nightly applies the same barrier to the
+out-of-queue researcher pass and records a semantic-date deferral event.
 
 Nightly digest publication also has a fixed timeout on every Git command, uses
 no terminal input, and fails the nightly process instead of waiting for a

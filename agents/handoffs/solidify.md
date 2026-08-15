@@ -1,6 +1,6 @@
 Status: building
-Last: exact-head review found four further unattended-runtime gaps. Partial Harbor jobs now stay running, interrupted transient phases fail closed with evidence preserved, policy spend uses one UTC day across events/catalog, and digest Git commands are bounded/noninteractive. The narrowed Harbor fallback is also repaired; Ruff and all 206 tests pass.
-Next: Checkpoint the recovery/accounting repair, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
+Last: exact-head review found that a safely unresolved partial job still allowed other approved work and the nightly researcher to run. Unresolved `running/` specs now block both paths with `running_specs_unresolved`, preventing overlap with detached/billable Harbor work; Ruff and all 208 tests pass.
+Next: Checkpoint the dispatch barrier, obtain exact-head reviewer approval, then restart all repeated/fresh-clone/CI gates before merge.
 Blockers: none.
 
 # SOLIDIFY handoff

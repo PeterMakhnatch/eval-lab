@@ -361,6 +361,13 @@ class NightlyCycle:
                             actor="nightly",
                             reason="stop_file_present",
                         )
+                    elif self.executor.last_tick_reason is not None:
+                        record_researcher_deferral(
+                            self.executor.queue,
+                            report_date=target_date,
+                            actor="nightly",
+                            reason=self.executor.last_tick_reason,
+                        )
                     elif not report.checks.codex_auth_present:
                         record_researcher_deferral(
                             self.executor.queue,

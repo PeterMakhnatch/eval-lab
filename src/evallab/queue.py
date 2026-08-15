@@ -541,6 +541,13 @@ class Executor:
         self.reconcile_running()
         if self.queue.stop_path.exists():
             return 0
+        if self.queue.list_specs("running"):
+            # A prior executor may have died while Harbor's detached process
+            # was still running and billing. Until that evidence becomes
+            # terminal (or an operator resolves it), starting any other work
+            # could bypass both the single-owner and daily-cost guarantees.
+            self.last_tick_reason = "running_specs_unresolved"
+            return 0
         dispatched = 0
         credentials = self._credential_probe()
         for path, spec in self.queue.list_specs("approved"):

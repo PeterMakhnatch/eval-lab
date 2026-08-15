@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import fcntl
 import fnmatch
 import json
 import os
 import secrets
 import shutil
 import subprocess
-import threading
 import time
 from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime
@@ -24,7 +22,7 @@ from evallab.credentials import (
     available_credentials,
     missing_credential_for,
 )
-from evallab.eventlog import event_log_paths
+from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.paths import derived_root_from_environment
 from evallab.results import load_job
 from evallab.runner import (
@@ -60,7 +58,6 @@ QUEUE_STATES: tuple[QueueState, ...] = (
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_EVENT_BACKUPS = 7
-_EVENT_THREAD_LOCK = threading.Lock()
 
 
 def new_ulid(*, timestamp_ms: int | None = None, randomness: int | None = None) -> str:
@@ -317,9 +314,7 @@ class DirectoryQueue:
 
     def append_event(self, event: QueueEvent) -> None:
         payload = (event.model_dump_json(exclude_none=True) + "\n").encode()
-        lock_path = self.root / ".events.lock"
-        with _EVENT_THREAD_LOCK, lock_path.open("a+b") as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        with event_log_lock(self.events_path, exclusive=True):
             if (
                 self.events_path.is_file()
                 and self.events_path.stat().st_size > 0
@@ -876,16 +871,15 @@ def _safe_component(value: str) -> str:
 
 def load_events(path: Path) -> list[QueueEvent]:
     events: list[QueueEvent] = []
-    for segment in event_log_paths(path):
-        for line_number, line in enumerate(segment.read_text().splitlines(), start=1):
-            if not line.strip():
-                continue
-            try:
-                events.append(QueueEvent.model_validate_json(line))
-            except ValidationError as exc:
-                raise ValueError(
-                    f"Invalid queue event at {segment}:{line_number}: {exc}"
-                ) from exc
+    for segment, line_number, line in read_event_log_lines(path):
+        if not line.strip():
+            continue
+        try:
+            events.append(QueueEvent.model_validate_json(line))
+        except ValidationError as exc:
+            raise ValueError(
+                f"Invalid queue event at {segment}:{line_number}: {exc}"
+            ) from exc
     return events
 
 

@@ -1,11 +1,14 @@
 Status: review-wanted
-Last: batch-2 10 records on role/observatory-b2; self-audit MATCH
-Next: PR OBSERVATORY: second 10 trial records
-Blockers: 23/25 labels unreadable (harbor-practice)
+Last: batch-3 last 3 oracle trials; backlog 0 on current runs/
+Next: PR OBSERVATORY: remaining 3 draft records
+Blockers: none on backlog; 23 labels still harbor-practice
 
-records produced: 22
+records produced: 25
 current agreement score: 100% (8/8 fields on 2 in-repo labeled trials)
-backlog remaining: 3 completed trials
+backlog remaining: 0
+
+SELF-AUDIT this batch: re-read SGF4qq9 and BbbWLYW result.json reward 1.0 / agent oracle MATCH committed records.
+
 
 ## Calibration
 

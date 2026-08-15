@@ -1,7 +1,7 @@
 Status: building
-Last: P1 + P2 committed (literature survey; external-dataset catalog + fetch spec)
-Next: P3 — docs/data-architecture.md 4-zone model + ProvenanceMetadata in schemas.py with tests
-Blockers: none
+Last: P3 + P4 implemented and locally validated (4-zone provenance; 10 DuckDB intelligence queries)
+Next: P5 synthetic-task design, then public ATIF fetch prototype + live sample verification
+Blockers: `uv sync --locked` panics in macOS SystemConfiguration; existing locked .venv imports all required dependencies
 
 # DATA-STRATEGY handoff
 
@@ -54,3 +54,17 @@ fully green gh checks before merge; never touch registered/* or loosen policy/.
   seam spec: commit-SHA pins only, anonymous-only (no HF_TOKEN — subscriptions
   rule), material_digest + license + audit reuse, external Parquet isolated
   under derived/parquet/external/.
+
+## P3/P4 evidence (2026-08-15)
+
+- `ProvenanceMetadata` and nine deterministic contract tests cover all four
+  zones, digest validation, transform versioning, lineage, and extra-field
+  refusal; `pytest -q tests/test_provenance.py` → `9 passed`.
+- `docs/data-architecture.md` defines storage boundaries, admission gates,
+  allowed transitions, query/publication rules, and rebuild invariants.
+- `docs/research/trajectory-intelligence.md` defines Loop Index, Tool
+  Efficiency Ratio, Context Bloat Velocity, and four explicitly provisional
+  failure buckets.
+- Ten named DuckDB statements appended to `research/analysis/queries.sql`;
+  `pytest -q tests/test_trajectory_queries.py tests/test_provenance.py` →
+  `10 passed`; Ruff and `git diff --check` pass.

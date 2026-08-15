@@ -9,15 +9,13 @@ loop. It does not add another orchestrator, database, or autonomous approver.
 ## Dispatch order
 
 ```text
+MERGED
+├── M002 operational slice                 PR #42
+└── M003 subscription profiles             PR #43
+
 NOW
-├── M002 operational slice                 review at PR #42; rebase on M001
-└── M003 subscription profiles             active; Claude
-
-AFTER M002 MERGES
-└── M005 run + analysis explorer            start beside M003
-
-AFTER M003 MERGES
-└── M006 post-trial analysis worker         start beside M005
+├── M005 run + analysis explorer           review at PR #44
+└── M006 post-trial analysis worker        released; dependencies merged
 
 AFTER EITHER M005 OR M006 MERGES
 └── M007 task-quality workbench             use the opened slot

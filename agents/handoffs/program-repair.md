@@ -1,6 +1,6 @@
-Status: building
-Last: Corrected the record; validator, 17 negative tests, full pytest, Ruff, and premerge are green.
-Next: Repeat acceptance in a clean in-repo worktree, push, and open the non-self-merged PR.
+Status: review-wanted
+Last: Exact commit 4a01431 passed locked clean-worktree acceptance after three local rounds and premerge.
+Next: Open PROGRAM-REPAIR PR and leave it unmerged for an independent reviewer.
 Blockers: none
 
 # PROGRAM-REPAIR handoff
@@ -71,3 +71,27 @@ premerge green: Python 3.12; ty 28 <= 28
 
 The premerge smoke is the repository's isolated deterministic oracle fixture. No model, billable,
 cloud, or scientific benchmark study was launched by this mission.
+
+### Clean in-repository worktree
+
+Created a detached in-repo worktree at exact commit
+`4a0143167bdd560e3cc8779893e684b44d45e091`, two commits plus this evidence record atop current
+`origin/main` `078dd7b`. The worktree began and ended git-clean and was removed after:
+
+```text
+$ uv sync --locked
+Using CPython 3.12.11
+Installed 41 packages
+
+$ .venv/bin/python research/experiments/validate_program.py
+PROGRAM.json OK
+
+$ .venv/bin/pytest -q research/experiments/tests/test_validate_program.py
+.................                                                        [100%]
+
+$ .venv/bin/pytest
+215 passed in 16.05s
+
+$ .venv/bin/ruff check .
+All checks passed!
+```

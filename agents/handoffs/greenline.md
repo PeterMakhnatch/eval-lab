@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: opened PR #38; premerge x3 + clean-worktree green; 263 passed
-Next: wait for GitHub checks on #38; do not self-merge while REGISTER #36 is open
+Last: PR #38 checks are all green; REGISTER #36 remains open, so no self-merge
+Next: await review/merge by another actor; delete role worktree after merge
 Blockers: REGISTER PR #36 is open; do not self-merge GREENLINE #38
 
 Worktree already existed at start. Rebased/used `.worktrees/greenline` on
@@ -71,5 +71,10 @@ Worktree then removed. Did not delete the pre-existing
 
 PR: https://github.com/PeterMakhnatch/eval-lab/pull/38
 REGISTER PR #36 (`role/register`) is open. GREENLINE will not self-merge.
+
+After `git fetch origin` and `git rebase origin/main` reported the branch up
+to date, `gh pr checks 38` reported `lint`, `profile`, `test (3.12)`,
+`test (3.14)`, and `ty` all `pass` for the PR head. `gh pr list --state open`
+confirmed that only GREENLINE #38 and REGISTER #36 remain open.
 
 Scratch: `/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/grok-goal-9d250547c72f/implementer/`

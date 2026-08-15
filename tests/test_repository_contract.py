@@ -14,6 +14,11 @@ IGNORED_PARTS = {
     ".venv",
     ".worktrees",
     "__pycache__",
+    "backups",
+    "derived",
+    "exports",
+    "logs",
+    "queue",
     "runs",
 }
 SECRET_PATTERNS = [
@@ -30,12 +35,22 @@ def repository_files() -> list[Path]:
     return [
         path
         for path in ROOT.rglob("*")
-        if path.is_file() and not any(part in IGNORED_PARTS for part in path.parts)
+        if path.is_file()
+        and not any(
+            part in IGNORED_PARTS for part in path.relative_to(ROOT).parts
+        )
     ]
 
 
 def contains_high_confidence_secret(data: bytes) -> bool:
     return any(pattern.search(data) for pattern in SECRET_PATTERNS)
+
+
+def test_repository_inventory_includes_source_inside_linked_worktrees() -> None:
+    relative_paths = {path.relative_to(ROOT) for path in repository_files()}
+
+    assert Path("src/evallab/cli.py") in relative_paths
+    assert Path("tests/test_repository_contract.py") in relative_paths
 
 
 def test_task_has_complete_harbor_contract() -> None:

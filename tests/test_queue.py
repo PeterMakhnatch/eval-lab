@@ -1,9 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
+from evallab import eventlog
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
 from evallab.runner import RunRequest, TransientHarnessFailure, TrialTimeoutFailure
@@ -108,6 +110,27 @@ def test_event_log_concurrent_writes_remain_valid_json(tmp_path: Path) -> None:
     events = load_events(queue.events_path)
     assert len(events) == 100
     assert {event.event_id for event in events} == {f"event-{index}" for index in range(100)}
+
+
+def test_event_reader_checks_for_first_append_under_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    first = _event(1)
+
+    @contextmanager
+    def first_writer_finishes_before_reader(_path: Path, *, exclusive: bool):
+        assert exclusive is False
+        queue.events_path.write_text(first.model_dump_json() + "\n")
+        yield
+
+    monkeypatch.setattr(eventlog, "event_log_lock", first_writer_finishes_before_reader)
+
+    lines = eventlog.read_event_log_lines(queue.events_path)
+
+    assert [(line_number, line) for _, line_number, line in lines] == [
+        (1, first.model_dump_json())
+    ]
 
 
 def test_two_agents_submit_concurrently_without_interference(tmp_path: Path) -> None:

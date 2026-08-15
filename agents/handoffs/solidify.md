@@ -1,6 +1,6 @@
-Status: building
-Last: the first post-soak premerge exposed and fixed a real cross-midnight digest-attribution bug; the deterministic backup-quarantine regression and all unattended/canary/pipeline tests now pass.
-Next: Commit the midnight fix, restart the exact-head three-pass premerge/full-smoke count, then run the fresh-clone and reviewed PR workflow.
+Status: review-wanted
+Last: corrected head 5ae301d passed premerge x3, full live smoke x3, and a fresh-clone premerge/full smoke; shared invariant is catalog=43 projected=43 with zero exceptions/missing/extra.
+Next: Revalidate this evidence-only handoff commit, push the PR, obtain independent review and green GitHub checks, then squash-merge and reinstall schedules from primary main.
 Blockers: none.
 
 # SOLIDIFY handoff
@@ -750,4 +750,47 @@ $ pytest -q tests/test_unattended.py::test_nightly_backup_failure_quarantines_be
 ..                                                                       [100%]
 $ pytest -q tests/test_unattended.py tests/test_canary.py tests/test_pipeline.py
 ...........................                                              [100%]
+```
+
+## Corrected-head acceptance
+
+After the midnight fix, the complete premerge gate passed three consecutive
+times on `5ae301d27e86c35d2d0ea3bb13560b7c6e8224c8`. Each run included the
+Docker-free composed smoke and the tightened type ratchet. Three distinct full
+Oracle runs then passed the real Harbor/Docker/PostgreSQL/shared-Parquet path.
+
+```text
+premerge pass 1: 186 passed; SMOKE PASS both-stores-agree; ty 28 <= 28
+premerge pass 2: 186 passed; SMOKE PASS both-stores-agree; ty 28 <= 28
+premerge pass 3: 186 passed; SMOKE PASS both-stores-agree; ty 28 <= 28
+
+full smoke 1: smoke-oracle-12s812a3awm9 1d7afc6e-1862-4799-95b3-8f87f86fe1be PASS
+full smoke 2: smoke-oracle-9qb2gx5zyqk0 02b74d8a-4eec-42ed-a755-abd7f0d09ce2 PASS
+full smoke 3: smoke-oracle-kfnbsykcg79k d42efe27-d2ca-4a00-95fc-536249ccacd3 PASS
+```
+
+A new clone at `.worktrees/solidify-fresh-clone` checked out the same head,
+created a new Python 3.12 environment from `uv.lock`, and passed the complete
+premerge gate. Its full smoke explicitly targeted the primary checkout's
+shared derived root. The cataloged raw job was preserved under this worktree's
+`runs/_smoke/` before the disposable clone was removed.
+
+```text
+$ git rev-parse HEAD
+5ae301d27e86c35d2d0ea3bb13560b7c6e8224c8
+$ uv sync --locked
+Installed 41 packages
+$ scripts/premerge.sh
+All checks passed!
+186 passed in 14.54s
+SMOKE PASS both-stores-agree
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 28
+$ EVALLAB_DERIVED_ROOT=.../eval-lab/derived/parquet make smoke
+PASS submit->tick job=smoke-oracle-4e6c8477xrrt trials=1
+PASS catalog job_id=c1244aeb-2963-49b6-b742-6673e2c57a02
+PASS parquet job_id=c1244aeb-2963-49b6-b742-6673e2c57a02
+SMOKE PASS both-stores-agree
+$ evallab doctor
+ok    catalog-parquet catalog=43 projected=43 exceptions=0 missing=0 extra=0
 ```

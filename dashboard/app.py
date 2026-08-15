@@ -10,6 +10,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from dashboard.projection import load_operator_snapshot
 from dashboard.queries import (
     ReadOnlyPostgres,
     atif_activity,
@@ -22,6 +23,7 @@ from dashboard.queries import (
     spend_history,
 )
 from evallab.paths import derived_root_from_environment
+from evallab.status import SECTION_KEYS, StatusSnapshot
 
 REPO_ROOT = Path(
     os.environ.get("EVALLAB_DASHBOARD_ROOT", Path(__file__).resolve().parents[1])
@@ -33,7 +35,19 @@ DATABASE_URL = os.environ.get(
 
 
 @st.cache_data(ttl=30, show_spinner=False)
-def load_snapshot(repo_root_value: str, database_url: str, report_day: date) -> dict[str, Any]:
+def load_operator_status(repo_root_value: str, database_url: str) -> dict[str, object]:
+    try:
+        snapshot = load_operator_snapshot(Path(repo_root_value), postgres_url=database_url)
+        return {"snapshot": snapshot, "error": None}
+    except Exception as exc:  # Cold/missing stores stay readable.
+        return {"snapshot": None, "error": f"{type(exc).__name__}: {exc}"}
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_research_snapshot(
+    repo_root_value: str, database_url: str, report_day: date
+) -> dict[str, Any]:
+    """Preserve the established research panes beside the operator projection."""
     root = Path(repo_root_value)
     source = ReadOnlyPostgres(database_url)
     errors: dict[str, str] = {}
@@ -41,7 +55,7 @@ def load_snapshot(repo_root_value: str, database_url: str, report_day: date) -> 
     def load(label: str, function: Callable[[], Any], fallback: Any) -> Any:
         try:
             return function()
-        except Exception as exc:  # Each pane remains visible when one source is unavailable.
+        except Exception as exc:  # One unavailable source must not hide other panes.
             errors[label] = f"{type(exc).__name__}: {exc}"
             return fallback
 
@@ -70,6 +84,30 @@ def load_snapshot(repo_root_value: str, database_url: str, report_day: date) -> 
         ),
         "errors": errors,
     }
+
+
+def _render_status_section(name: str, snapshot: StatusSnapshot) -> None:
+    section = getattr(snapshot, name)
+    st.caption(f"availability: {section.availability}")
+    if not section.items:
+        st.info("No items in this section.")
+        return
+    rows = [
+        {
+            "availability": item.availability,
+            "label": item.label,
+            "detail": item.detail or "",
+            "kind": item.kind or "",
+            "experiment": item.experiment_id or "",
+            "job": item.job_id or "",
+            "trial": item.trial_id or "",
+            "analysis": item.analysis_id or "",
+            "exception": item.exception_class or "",
+            "scored as model failure": item.scored_as_model_failure,
+        }
+        for item in section.items
+    ]
+    st.dataframe(rows, width="stretch", hide_index=True)
 
 
 def _percent(value: Any) -> str:
@@ -114,28 +152,46 @@ def _calibration_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 st.set_page_config(page_title="Eval Lab", page_icon="🔬", layout="wide")
 started = time.perf_counter()
-snapshot = load_snapshot(str(REPO_ROOT), DATABASE_URL, date.today())
+operator_payload = load_operator_status(str(REPO_ROOT), DATABASE_URL)
+research = load_research_snapshot(str(REPO_ROOT), DATABASE_URL, date.today())
 
 st.title("Eval Lab research overview")
 st.caption(
-    "Read-only view of the catalog, ATIF-derived Parquet, queue state, and research records. "
-    "Approvals remain in the evallab CLI."
+    "Read-only operator status plus catalog, ATIF-derived Parquet, queue, and "
+    "research records. Approvals remain in the evallab CLI."
 )
 
-if snapshot["errors"]:
-    with st.expander("Unavailable sources", expanded=True):
-        for pane, error in snapshot["errors"].items():
+st.header("Operator status")
+if operator_payload["error"]:
+    st.warning(operator_payload["error"])
+elif operator_payload["snapshot"] is None:
+    st.warning("Status snapshot unavailable.")
+else:
+    operator = operator_payload["snapshot"]
+    assert isinstance(operator, StatusSnapshot)
+    st.caption(f"generated_at {operator.generated_at.isoformat()}")
+    for tab, name in zip(st.tabs(SECTION_KEYS), SECTION_KEYS, strict=True):
+        with tab:
+            _render_status_section(name, operator)
+
+if research["errors"]:
+    with st.expander("Unavailable research sources", expanded=True):
+        for pane, error in research["errors"].items():
             st.warning(f"{pane}: {error}")
 
 st.header("Leaderboard by cohort")
-st.caption("Pass@1 uses the cohort analyzer's Wilson 95% interval; exceptions are excluded from n.")
-if snapshot["leaderboard"]:
-    st.dataframe(_leaderboard_rows(snapshot["leaderboard"]), width="stretch", hide_index=True)
+st.caption(
+    "Pass@1 uses the cohort analyzer's Wilson 95% interval; exceptions are excluded from n."
+)
+if research["leaderboard"]:
+    st.dataframe(
+        _leaderboard_rows(research["leaderboard"]), width="stretch", hide_index=True
+    )
 else:
     st.info("No catalog trials are available.")
 
 st.header("Canary trend vs 7-day baseline")
-canaries = snapshot["canaries"]
+canaries = research["canaries"]
 if canaries:
     chart_rows = []
     for row in canaries:
@@ -160,8 +216,8 @@ else:
     st.info("No canary observations are indexed yet.")
 
 st.header("Spend vs daily ceiling")
-spend = snapshot["spend"]
-ceiling = float(snapshot["ceiling"])
+spend = research["spend"]
+ceiling = float(research["ceiling"])
 today_spend = float(spend[-1]["spend_usd"]) if spend else 0.0
 left, middle, right = st.columns(3)
 left.metric("Today", f"${today_spend:.2f}")
@@ -172,7 +228,7 @@ if spend:
     st.bar_chart(pd.DataFrame(spend), x="date", y="spend_usd")
 
 st.header("Queue funnel")
-queue = snapshot["queue"]
+queue = research["queue"]
 if queue:
     st.bar_chart(pd.DataFrame(queue), x="state", y="count")
     st.dataframe(queue, width="stretch", hide_index=True)
@@ -180,13 +236,15 @@ else:
     st.info("No queue state is available.")
 
 st.header("Calibration history")
-if snapshot["calibrations"]:
-    st.dataframe(_calibration_rows(snapshot["calibrations"]), width="stretch", hide_index=True)
+if research["calibrations"]:
+    st.dataframe(
+        _calibration_rows(research["calibrations"]), width="stretch", hide_index=True
+    )
 else:
     st.info("No measured calibration records are available.")
 
 st.header("ATIF-derived activity")
-atif = snapshot["atif"]
+atif = research["atif"]
 if atif.get("summary"):
     summary = atif["summary"]
     columns = st.columns(5)
@@ -203,8 +261,8 @@ else:
     st.info("No ATIF-derived Parquet is available.")
 
 st.header("DISCOVERIES")
-if snapshot["discoveries"]:
-    for entry in snapshot["discoveries"]:
+if research["discoveries"]:
+    for entry in research["discoveries"]:
         st.subheader(entry["discovery_id"])
         st.caption(f"Status: {entry['status']}")
         st.write(entry["claim"] or "No claim text found.")

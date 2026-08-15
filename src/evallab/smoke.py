@@ -14,6 +14,7 @@ from evallab.atif import (
 )
 from evallab.automation import HeadlessDoctor
 from evallab.digest import DigestRenderer, DigestTrial
+from evallab.facts import AnalyzerCallResult, run_trial_analysis
 from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, Executor, load_policy, new_ulid
 from evallab.results import JobRecord, load_job
@@ -23,7 +24,9 @@ from evallab.schemas import (
     ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
+    TrialAnalysisSidecar,
 )
+from evallab.status import StatusSnapshot, build_status_snapshot
 
 FIXTURE_JOB = Path("research/evidence/runs/event-summary-oracle-evidence")
 SMOKE_TASK = "library/tasks/event-summary"
@@ -38,6 +41,10 @@ class SmokeResult:
     digest_path: Path
     digest_text: str
     invariant: ProjectionInvariant
+    analysis_path: Path | None = None
+    analysis_validation: str | None = None
+    scratch_dir: Path | None = None
+    status: StatusSnapshot | None = None
 
 
 def _docker_free_report(report_date: date) -> HeadlessDoctorReport:
@@ -89,6 +96,45 @@ def _digest_trials(job: JobRecord, report_date: date):
 
 def _empty_drift(_day: date) -> list[CanaryDriftObservation]:
     return []
+
+
+def _stub_analyzer(repo_root: Path):
+    stub = repo_root / "research/analysis/stub-oracle-analysis.json"
+
+    def analyzer(_prompt: str, _schema: dict[str, object]) -> AnalyzerCallResult:
+        return AnalyzerCallResult(
+            raw_output=stub.read_text(),
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+        )
+
+    return analyzer
+
+
+def _attach_stub_analysis(
+    root: Path, job: JobRecord, destination: Path
+) -> tuple[Path, TrialAnalysisSidecar]:
+    prompt = root / "research/analysis/stage5-prompt.md"
+    rubric = root / "research/analysis/stage5-rubric.json"
+    stub = root / "research/analysis/stub-oracle-analysis.json"
+    missing = [path.name for path in (prompt, rubric, stub) if not path.is_file()]
+    if missing:
+        raise RuntimeError("smoke missing committed stage-5 inputs: " + ",".join(missing))
+    if not job.trials:
+        raise RuntimeError("smoke oracle produced no trials")
+    return run_trial_analysis(
+        job,
+        job.trials[0],
+        analyzer=_stub_analyzer(root),
+        repo_root=root,
+        destination_root=destination,
+        prompt_path=prompt,
+        rubric_path=rubric,
+        agent="stub",
+        agent_version="1",
+        model="saved-response",
+    )
 
 
 def _assert_oracle_job(job: JobRecord) -> None:
@@ -226,6 +272,20 @@ def run_smoke(
     if job.name not in digest_text or "Dispatches in this nightly cycle: 1" not in digest_text:
         raise RuntimeError("smoke digest does not contain the completed control")
 
+    analysis_path: Path | None = None
+    analysis_validation: str | None = None
+    snapshot: StatusSnapshot | None = None
+    if docker_free:
+        analysis_path, sidecar = _attach_stub_analysis(root, job, scratch / "analyses")
+        analysis_validation = sidecar.validation_status
+        snapshot = build_status_snapshot(
+            scratch,
+            postgres_probe=lambda: False,
+            phoenix_probe=lambda: False,
+        )
+        if snapshot.Analysis.availability == "unavailable":
+            raise RuntimeError("smoke status snapshot is missing the stage-5 sidecar")
+
     return SmokeResult(
         mode="docker-free" if docker_free else "full",
         job_name=job.name,
@@ -234,12 +294,19 @@ def run_smoke(
         digest_path=digest_path,
         digest_text=digest_text,
         invariant=invariant,
+        analysis_path=analysis_path,
+        analysis_validation=analysis_validation,
+        scratch_dir=scratch,
+        status=snapshot,
     )
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Prove doctor + free oracle + queue + catalog + Parquet + digest"
+        description=(
+            "Prove doctor + free oracle + queue + catalog + Parquet + "
+            "stub stage-5 sidecar + digest + status"
+        )
     )
     parser.add_argument(
         "--docker-free",
@@ -258,6 +325,17 @@ def main(argv: list[str] | None = None) -> int:
     print(f"PASS catalog job_id={result.job_id}")
     print(f"PASS parquet job_id={result.job_id}")
     print(f"PASS digest path={result.digest_path.relative_to(root)}")
+    if result.analysis_path is not None:
+        print(
+            f"PASS analysis sidecar={result.analysis_path.relative_to(root)} "
+            f"validation={result.analysis_validation}"
+        )
+    if result.status is not None:
+        print(
+            "PASS status snapshot sections="
+            + ",".join(result.status.section_map())
+            + f" analysis={result.status.Analysis.availability}"
+        )
     print("SMOKE PASS both-stores-agree")
     return 0
 

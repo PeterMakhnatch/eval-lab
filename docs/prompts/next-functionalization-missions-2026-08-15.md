@@ -7,8 +7,8 @@ after merge.
 
 ## Observed starting state
 
-- M006 is complete on its worker branch as PR #47, but is not merged. Its CI is green
-  and the integrator still owes semantic review.
+- M006 produced PR #47 and CI is green, but the integrator's semantic review found four
+  acceptance-level defects. M006-R below is required before merge.
 - M007 is active and verifying. It has found that the repository has no human-registered
   tasks; `event-summary` is only a candidate and currently fails static admission.
 - M006 deliberately ships fail-closed: its default worker has no live adapter and its
@@ -21,7 +21,7 @@ after merge.
 
 ```text
 NOW
-├── integrator reviews/merges M006 (#47)
+├── M006-R repairs PR #47                    safe beside M007
 └── M007 finishes, opens PR, then integrator reviews/merges it
 
 AFTER BOTH MERGE
@@ -42,7 +42,8 @@ LATER, WHEN FEATURE BRANCHES ARE QUIET
 ```
 
 Never exceed two active build PRs. M009 is an integrator acceptance exercise, not a
-third build branch. M010 and M011 can run in parallel. M012 should not overlap another
+third build branch. M006-R and M007 are the two current slots. M010 and M011 can run in
+parallel after integration. M012 should not overlap another
 dashboard mission. M013 starts only after M010 proves the qualification and invocation
 boundary. M014 waits until feature work is quiet because its test/CI lease is broad.
 
@@ -59,6 +60,41 @@ Subscription calls still require the existing queue and Peter's authorization. F
 Oracle/Nop controls only, concurrency <=2. Preserve raw jobs and promoted evidence bytes.
 Run focused tests, full pytest, Ruff, scripts/premerge.sh, rebase origin/main, push, open the
 named PR, and stop at review. The integrator owns conflicts and merge.
+```
+
+## M006-R — repair the guarded analysis worker
+
+Assign now, preferably to the original M006 agent. It can run beside M007 because their
+leases remain disjoint. Confirm the prior M006 session has stopped before reusing its tree.
+
+```text
+/goal Repair PR #47 until the shipped nightly path really stages completed trials after successful ingest, every frozen input is reverified, process crashes cannot strand leases, and completed sidecars reach the catalog without weakening the closed calibration gate.
+
+Resume only the inactive ~/Developer/eval-lab/.worktrees/m006-analysis-worker worktree on
+role/m006-analysis-worker; do not create a competing writer or new PR. Read AGENTS.md,
+agents/{WORKFLOW,OWNERS,CHECKS}.md, the M006 prompt/handoff, and the integrator review on
+PR #47. Preserve the existing M006 lease and record exact agent/model if the repair agent
+differs. Do not edit policy/profiles/dashboard/tasks/raw evidence or add a live adapter.
+
+Fix four blockers. (1) Wire default_worker(...).stage(default_job_roots(...)) into the real
+nightly CLI composition only after completed_job_ingester succeeds. A staging failure must
+produce a durable quarantine/error event, not be silently suppressed; prove the real CLI/
+NightlyCycle composition, not only an injected unit seam. (2) Before admission, recompute
+and compare result, trajectory, task, verifier, prompt, rubric, and profile identity. Missing
+or changed evidence/prompt/rubric must fail closed with a precise reason before any adapter
+call. If Harbor locks are the source of task/verifier digest truth, validate the current lock
+bytes/fields needed to prove those frozen values. (3) Replace the ownerless permanent lease
+marker with crash-recoverable ownership/age semantics. Prove concurrent live workers never
+double-call, a dead owner before invocation is reclaimable, and a crash during/after a call
+adopts durable output without a second call. Do not reclaim a demonstrably live lease.
+(4) Give default_worker an idempotent facts.ingest_analysis_sidecar indexer using the normal
+database URL; catalog failure leaves the sidecar adoptable and retryable.
+
+Keep the default adapter absent and calibrated_judges_only false: the measured 0.762987
+record does not qualify. Add focused regression tests for all four fixes, run the worker
+cycle x3, full pytest, Ruff, scripts/premerge.sh, rebase current origin/main, push the same
+branch, and update the existing PR/handoff with commands and evidence. Stop at review;
+integrator re-reviews and merges. PR remains `M006: add guarded post-trial analysis worker`.
 ```
 
 ## M009 — integrator operational live flight
@@ -251,7 +287,8 @@ tests flaky, or add retries that hide failures. PR `M014: harden deterministic C
 
 ## What Peter should assign next
 
-Do not queue M010–M014 yet. Let M007 finish and let the integrator review/merge #47 and the
-M007 PR. Then run M009. If M009 passes, assign **M010 and M011 together**. When either slot
+Assign **M006-R now**, beside the already-running M007. Then let the integrator re-review
+and merge #47 plus the M007 PR. Do not queue M010–M014 yet. Run M009 next. If M009 passes,
+assign **M010 and M011 together**. When either slot
 opens, assign M012. M013 is the first actual 24/7-enabling build, but only after M010 makes
 the execution gate real. M014 is valuable maintenance, not the critical path.

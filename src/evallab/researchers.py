@@ -567,6 +567,9 @@ class ResearcherLoop:
             return self._defer(pass_id, target_date, manifest_path, "stop_file_present")
 
         try:
+            registered_records = self._registered_tasks()
+            task_paths = {k: v.task_path for k, v in registered_records.items()}
+
             bundle_path = pass_dir / "evidence.json"
             bundle = self._evidence_loader(target_date, bundle_path)
             _write_model(bundle_path, bundle)
@@ -600,8 +603,6 @@ class ResearcherLoop:
             _write_model(synthesis_path, synthesis)
 
             journal = DiscoveryJournal(self.repo_root / "digests/DISCOVERIES.md")
-            registered_records = self._registered_tasks()
-            task_paths = {k: v.task_path for k, v in registered_records.items()}
 
             def validate_proposal(candidate: ProposalDraft) -> None:
                 journal.validate_thread_reference(candidate)

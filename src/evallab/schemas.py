@@ -203,6 +203,8 @@ class RunProvenance(ContractModel):
     task_version: str | None = None
     verifier_digest: str | None = None
     policy_rule: str | None = None
+    package_digest: str | None = None
+    task_path: str | None = None
 
 
 class CohortSelector(ContractModel):
@@ -597,7 +599,15 @@ class ControlEvidenceRef(ContractModel):
     job_name: str = Field(min_length=1)
     reward: float = Field(ge=0.0, le=1.0)
     evidence_path: str | None = None
+    evidence_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
     observed_at: datetime | None = None
+
+    @field_validator("evidence_path")
+    @classmethod
+    def evidence_path_is_relative(cls, value: str | None) -> str | None:
+        if value is not None and (value.startswith("/") or ".." in value.split("/")):
+            raise ValueError("evidence_path must stay relative to the repository")
+        return value
 
 
 class TaskControlEvidence(ContractModel):
@@ -673,4 +683,35 @@ class TaskRegistryRecord(ContractModel):
                     "registered task requires nop reward 0.0 "
                     f"(got {self.control_evidence.nop.reward})"
                 )
+            oracle_ref = self.control_evidence.oracle
+            if (
+                not oracle_ref.evidence_path
+                or not oracle_ref.evidence_digest
+                or oracle_ref.observed_at is None
+            ):
+                raise ValueError(
+                    "registered task oracle control requires evidence_path, "
+                    "evidence_digest, and observed_at"
+                )
+            nop_ref = self.control_evidence.nop
+            if (
+                not nop_ref.evidence_path
+                or not nop_ref.evidence_digest
+                or nop_ref.observed_at is None
+            ):
+                raise ValueError(
+                    "registered task nop control requires evidence_path, "
+                    "evidence_digest, and observed_at"
+                )
+            if self.provenance_zone == "01-external":
+                if not self.license or not self.license.strip():
+                    raise ValueError("external registered task requires license")
+                if not self.source_ref or any(
+                    char in self.source_ref.lower()
+                    for char in ("latest", "head", "main", "master")
+                ):
+                    raise ValueError(
+                        "external registered task requires immutable pinned source_ref "
+                        "(commit SHA or release tag)"
+                    )
         return self

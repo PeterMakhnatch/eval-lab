@@ -21,16 +21,28 @@ how task integrity is audited.
    `task.toml`, instructions, environment, verifier, and full package directory. Any byte
    modification on disk invalidates admission and halts dispatch.
 
-3. **No Redirection**:
-   An experiment spec claiming `registered/<task_id>` cannot redirect execution to an
-   arbitrary `task_path` or alternative version.
+3. **Promoted Control Evidence**:
+   Every registered task must cite durable, promoted Oracle (exact reward = 1.0) and Nop
+   (exact reward = 0.0) evidence files by repository-relative path, cryptographic SHA-256
+   digest, and UTC observation timestamp. Invented job names or unpromoted runs fail closed.
 
-4. **Human-Gated Registration**:
+4. **Canonical Resolution**:
+   Experiment specs claiming `registered/<task_id>` are resolved into canonical
+   `task_path`, `task_version`, `verifier_digest`, `package_digest`, and limits. Omitted
+   `task_path` automatically resolves to the canonical registry path. Redirection away from
+   the canonical path raises `TaskPathRedirectionError`.
+
+5. **Allowed Uses Enforcement**:
+   Tasks declare permitted uses (`measurement`, `training`, `canary`, `heldout`, `foundry-seed`).
+   Training-only tasks cannot be executed for measurement. The researcher loop preflights
+   the explicit registry before invoking any LLM agent.
+
+6. **Human-Gated Registration**:
    Promoting a task from `candidate` to `registered` requires human approval
-   (`approved_by` and `approved_at`) plus verified control evidence (Oracle reward = 1.0,
-   Nop reward = 0.0). Peter Makhnatch owns all registration decisions.
+   (`approved_by` and `approved_at`) plus verified control evidence. Peter Makhnatch owns all
+   registration decisions.
 
-5. **Independent Canary Policy**:
+7. **Independent Canary Policy**:
    Canaries operate under `policy/canary-suite.yaml` to ensure repository health and
    prevent chicken-and-egg bootstrap cycles. Canaries do not require registry admission.
 
@@ -66,16 +78,18 @@ conforming to `evallab.schemas.TaskRegistryRecord`:
   },
   "control_evidence": {
     "oracle": {
-      "job_name": "event-summary-oracle-control",
+      "job_name": "event-summary-oracle-evidence",
       "reward": 1.0,
-      "evidence_path": "research/evidence/runs/event-summary-oracle/result.json",
-      "observed_at": "2026-08-14T12:00:00Z"
+      "evidence_path": "research/evidence/runs/event-summary-oracle-evidence/result.json",
+      "evidence_digest": "sha256:94008ac5b3559dbade582a0ad3373a5f56957438f5621ce72fe77e94ec28229e",
+      "observed_at": "2026-08-13T20:33:44.112624Z"
     },
     "nop": {
-      "job_name": "event-summary-nop-control",
+      "job_name": "event-summary-nop-evidence",
       "reward": 0.0,
-      "evidence_path": "research/evidence/runs/event-summary-nop/result.json",
-      "observed_at": "2026-08-14T12:05:00Z"
+      "evidence_path": "research/evidence/runs/event-summary-nop-evidence/result.json",
+      "evidence_digest": "sha256:bf7787daa7360fed39fd975f2adb03025a6d157d8fd41fb222e1d55f34dfb1a8",
+      "observed_at": "2026-08-13T20:33:54.832213Z"
     }
   },
   "state": "registered",
@@ -92,12 +106,14 @@ conforming to `evallab.schemas.TaskRegistryRecord`:
 | `schema_version` | `1` | Schema version | Must be `1` |
 | `task_id` | `str` | Stable task slug | 3–80 lowercase alphanumeric characters / hyphens |
 | `version` | `str` | Task version string | Non-empty |
-| `task_path` | `str` | Repo-relative path | Must exist, must not escape repo |
+| `task_path` | `str` | Repo-relative path | Must exist, must not escape repo, must have task.toml, instructions, environment, verifier |
 | `digests` | `TaskDigests` | Package & component SHA-256 | Must match on-disk file bytes |
+| `source_ref` | `str \| None` | Upstream commit/ref | Pinned immutable SHA or release tag if `provenance_zone == "01-external"` (no floating branches) |
+| `license` | `str \| None` | Declared license | Required if `provenance_zone == "01-external"` |
 | `provenance_zone` | `Literal` | Provenance zone (`01-external` ... `04-curated`) | Defined per docs/data-architecture.md |
 | `is_synthetic` | `bool` | Whether generated or adapted | Boolean flag |
 | `limits` | `TaskLimits` | Execution constraints | `timeout_seconds` between 1 and 21600 |
-| `control_evidence` | `TaskControlEvidence` | Oracle and Nop verification runs | Oracle reward must be 1.0, Nop reward 0.0 for registered state |
+| `control_evidence` | `TaskControlEvidence` | Oracle and Nop verification runs | Oracle reward must be exactly 1.0, Nop reward exactly 0.0, evidence files must exist, match digests, and parse cleanly |
 | `state` | `Literal` | `candidate`, `registered`, or `retired` | Distinct states |
 | `allowed_uses` | `list[Literal]` | `canary`, `measurement`, `heldout`, `foundry-seed`, `training` | Unique items, min length 1 |
 | `approved_by` | `str \| None` | Approver identity | Required if `state == "registered"` |
@@ -105,50 +121,7 @@ conforming to `evallab.schemas.TaskRegistryRecord`:
 
 ---
 
-## 3. Task Admission Lifecycle
-
-```text
- ┌───────────────────────────────────────────────────────────┐
- │                   1. TASK PACKAGE AUTHORING               │
- │ • Write task.toml, environment/, tests/, solution/        │
- │ • Placed in library/tasks/, benchmarks/, or adapters/     │
- └─────────────────────────────┬─────────────────────────────┘
-                               │
-                               ▼
- ┌───────────────────────────────────────────────────────────┐
- │                   2. CANDIDATE REGISTRATION               │
- │ • Generate Candidate JSON record in library/registry/     │
- │ • state: "candidate"                                      │
- │ • Compute package & component digests                     │
- └─────────────────────────────┬─────────────────────────────┘
-                               │
-                               ▼
- ┌───────────────────────────────────────────────────────────┐
- │                   3. CONTROL CERTIFICATION                │
- │ • Execute Oracle control -> must score reward = 1.0       │
- │ • Execute Nop control    -> must score reward = 0.0       │
- │ • Record evidence paths and job names                     │
- └─────────────────────────────┬─────────────────────────────┘
-                               │
-                               ▼
- ┌───────────────────────────────────────────────────────────┐
- │                   4. HUMAN REVIEW & APPROVAL              │
- │ • Peter reviews review packet & candidate record          │
- │ • approved_by: "Peter Makhnatch", approved_at: <now>      │
- │ • state promoted to: "registered"                         │
- └─────────────────────────────┬─────────────────────────────┘
-                               │
-                               ▼
- ┌───────────────────────────────────────────────────────────┐
- │                   5. ADMISSION FOR RESEARCH               │
- │ • ResearcherLoop proposes follow-ups against task         │
- │ • PolicyGate & Executor admit registered/* specs          │
- └───────────────────────────────────────────────────────────┘
-```
-
----
-
-## 4. CLI Interface
+## 3. CLI Interface
 
 ### List Tasks
 ```bash
@@ -173,7 +146,9 @@ uv run evallab registry audit --json
 
 The audit verifies:
 1. Every registered record exists on disk with matching file bytes and verifiers.
-2. Control evidence is valid (Oracle=1.0, Nop=0.0).
-3. No queue proposals claim unregistered or candidate tasks (`false_registered_claim`).
-4. No specs attempt `task_path` redirection.
-5. Curated cards that are pointer-only documentation are identified.
+2. Control evidence exists, matches SHA-256 digest, and proves exact Oracle=1.0 and Nop=0.0.
+3. External records have declared licenses and pinned revisions.
+4. No queue proposals claim unregistered or candidate tasks (`false_registered_claim`).
+5. No queue proposals attempt `task_path` redirection or version/verifier mismatches.
+6. Malformed JSON in queue specs or registry files is reported as error findings without swallowing parse errors.
+7. Curated cards that are pointer-only documentation are identified.

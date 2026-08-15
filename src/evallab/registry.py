@@ -66,7 +66,19 @@ class TaskPathRedirectionError(RegistryError):
 
 
 class TaskVersionMismatchError(RegistryError):
-    """Raised when an experiment spec task_version does not match the registered record version."""
+    """Raised when a spec task_version does not match the registered record version."""
+
+
+class TaskControlEvidenceError(RegistryError):
+    """Raised when control evidence files are missing, unparseable, tampered, or invalid."""
+
+
+class TaskUsageNotAllowedError(RegistryError):
+    """Raised when a task is used for a purpose not permitted in allowed_uses."""
+
+
+class TaskComponentMissingError(RegistryError):
+    """Raised when a registered task package is missing a required component."""
 
 
 def _should_ignore_file(path: Path) -> bool:
@@ -96,36 +108,34 @@ def compute_subpath_digest(path: Path) -> str:
     return "sha256:" + hashlib.sha256(b"").hexdigest()
 
 
-def compute_task_digests(task_path: Path) -> TaskDigests:
-    """Compute deterministic component and package digests for a task package directory."""
-    if not task_path.is_dir():
-        raise ValueError(f"task directory does not exist: {task_path}")
+def compute_task_digests(task_dir: Path) -> TaskDigests:
+    """Compute cryptographic digests for a task package and its sub-components."""
+    task_dir = task_dir.resolve()
+    if not task_dir.is_dir():
+        raise ValueError(f"task directory not found: {task_dir}")
 
-    task_toml_file = task_path / "task.toml"
-    if not task_toml_file.is_file():
-        raise ValueError(f"task package missing task.toml: {task_path}")
-    task_toml_digest = compute_subpath_digest(task_toml_file)
+    task_toml = task_dir / "task.toml"
+    if not task_toml.is_file():
+        raise ValueError(f"task.toml missing in {task_dir}")
 
-    instruction_file = task_path / "instruction.md"
-    if instruction_file.is_file():
-        instruction_digest = compute_subpath_digest(instruction_file)
-    else:
-        instruction_digest = task_toml_digest
+    task_toml_digest = compute_subpath_digest(task_toml)
 
-    environment_dir = task_path / "environment"
-    if environment_dir.exists():
-        environment_digest = compute_subpath_digest(environment_dir)
-    elif (task_path / "Dockerfile").is_file():
-        environment_digest = compute_subpath_digest(task_path / "Dockerfile")
-    else:
-        environment_digest = "sha256:" + hashlib.sha256(b"").hexdigest()
+    instruction_path = task_dir / "instruction.md"
+    if not instruction_path.exists():
+        instruction_path = task_dir / "instructions.md"
+    instruction_digest = compute_subpath_digest(instruction_path)
 
-    verifier_dir = task_path / "tests"
-    if not verifier_dir.exists():
-        verifier_dir = task_path / "verifier"
-    verifier_digest = compute_subpath_digest(verifier_dir)
+    env_path = task_dir / "environment"
+    if not env_path.exists():
+        env_path = task_dir / "Dockerfile"
+    environment_digest = compute_subpath_digest(env_path)
 
-    package_digest = task_directory_digest(task_path)
+    verifier_path = task_dir / "tests"
+    if not verifier_path.exists():
+        verifier_path = task_dir / "verifier"
+    verifier_digest = compute_subpath_digest(verifier_path)
+
+    package_digest = task_directory_digest(task_dir)
 
     return TaskDigests(
         task_toml=task_toml_digest,
@@ -134,6 +144,169 @@ def compute_task_digests(task_path: Path) -> TaskDigests:
         verifier=verifier_digest,
         package=package_digest,
     )
+
+
+def _verify_control_result(
+    data: dict[str, Any],
+    *,
+    expected_agent: str,
+    expected_reward: float,
+    task_id: str,
+) -> None:
+    """Validate that parsed evidence JSON contains the expected agent and exact reward."""
+    # Format 1: Harbor JobResult with stats.evals
+    stats = data.get("stats")
+    if isinstance(stats, dict) and "evals" in stats:
+        evals = stats.get("evals", {})
+        matching_eval = None
+        for key, eval_data in evals.items():
+            if key.startswith(f"{expected_agent}__") or key == expected_agent:
+                matching_eval = eval_data
+                break
+        if matching_eval is None:
+            raise TaskControlEvidenceError(
+                f"control evidence missing eval entry for agent {expected_agent!r} "
+                f"(found keys: {list(evals.keys())})"
+            )
+        metrics = matching_eval.get("metrics", [])
+        if not metrics or not isinstance(metrics, list):
+            raise TaskControlEvidenceError(
+                f"control evidence has empty metrics for agent {expected_agent!r}"
+            )
+        observed_reward = metrics[0].get("reward")
+        if observed_reward != expected_reward:
+            raise TaskControlEvidenceError(
+                f"control evidence reward mismatch for {expected_agent!r}: "
+                f"expected {expected_reward}, got {observed_reward}"
+            )
+        return
+
+    # Format 2: Harbor TrialResult (id, task_name, config.agent, primary_reward / reward)
+    config = data.get("config", {})
+    agent_info = config.get("agent", {}) if isinstance(config, dict) else {}
+    agent_name = (
+        agent_info.get("name")
+        if isinstance(agent_info, dict)
+        else data.get("agent_name", data.get("agent"))
+    )
+
+    if agent_name != expected_agent:
+        raise TaskControlEvidenceError(
+            f"control evidence agent mismatch: expected {expected_agent!r}, got {agent_name!r}"
+        )
+
+    observed_reward = data.get("primary_reward", data.get("reward"))
+    if observed_reward != expected_reward:
+        raise TaskControlEvidenceError(
+            f"control evidence reward mismatch for {expected_agent!r}: "
+            f"expected {expected_reward}, got {observed_reward}"
+        )
+
+
+def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
+    """Verify that promoted oracle and nop control evidence files exist, match digests, and
+    prove exact 1.0/0.0 rewards.
+    """
+    if record.state != "registered":
+        return
+
+    # 1. Oracle evidence
+    oracle_ref = record.control_evidence.oracle
+    if not oracle_ref.evidence_path or not oracle_ref.evidence_digest:
+        raise TaskControlEvidenceError(
+            f"registered task {record.task_id!r} oracle evidence missing path or digest"
+        )
+    oracle_path = (root / oracle_ref.evidence_path).resolve()
+    if not oracle_path.is_file():
+        raise TaskControlEvidenceError(
+            f"oracle control evidence file missing on disk: {oracle_ref.evidence_path}"
+        )
+    current_oracle_digest = f"sha256:{hashlib.sha256(oracle_path.read_bytes()).hexdigest()}"
+    if current_oracle_digest != oracle_ref.evidence_digest:
+        raise TaskControlEvidenceError(
+            f"oracle control evidence digest mismatch for {record.task_id!r}: "
+            f"expected {oracle_ref.evidence_digest}, got {current_oracle_digest}"
+        )
+    try:
+        oracle_data = json.loads(oracle_path.read_text())
+    except Exception as exc:
+        raise TaskControlEvidenceError(
+            f"failed to parse oracle control evidence JSON: {exc}"
+        ) from exc
+    _verify_control_result(
+        oracle_data,
+        expected_agent="oracle",
+        expected_reward=1.0,
+        task_id=record.task_id,
+    )
+
+    # 2. Nop evidence
+    nop_ref = record.control_evidence.nop
+    if not nop_ref.evidence_path or not nop_ref.evidence_digest:
+        raise TaskControlEvidenceError(
+            f"registered task {record.task_id!r} nop evidence missing path or digest"
+        )
+    nop_path = (root / nop_ref.evidence_path).resolve()
+    if not nop_path.is_file():
+        raise TaskControlEvidenceError(
+            f"nop control evidence file missing on disk: {nop_ref.evidence_path}"
+        )
+    current_nop_digest = f"sha256:{hashlib.sha256(nop_path.read_bytes()).hexdigest()}"
+    if current_nop_digest != nop_ref.evidence_digest:
+        raise TaskControlEvidenceError(
+            f"nop control evidence digest mismatch for {record.task_id!r}: "
+            f"expected {nop_ref.evidence_digest}, got {current_nop_digest}"
+        )
+    try:
+        nop_data = json.loads(nop_path.read_text())
+    except Exception as exc:
+        raise TaskControlEvidenceError(
+            f"failed to parse nop control evidence JSON: {exc}"
+        ) from exc
+    _verify_control_result(
+        nop_data,
+        expected_agent="nop",
+        expected_reward=0.0,
+        task_id=record.task_id,
+    )
+
+
+def verify_package_completeness(root: Path, record: TaskRegistryRecord) -> None:
+    """Verify that a task package contains runnable task.toml, instruction, environment,
+    and separate verifier.
+    """
+    target_path = (root / record.task_path).resolve()
+    if not target_path.is_dir():
+        raise TaskComponentMissingError(
+            f"task package directory missing on disk: {record.task_path}"
+        )
+
+    if not (target_path / "task.toml").is_file():
+        raise TaskComponentMissingError(
+            f"task.toml missing in package directory: {record.task_path}"
+        )
+
+    has_instruction = (
+        (target_path / "instruction.md").is_file()
+        or (target_path / "instructions.md").is_file()
+    )
+    if not has_instruction:
+        raise TaskComponentMissingError(
+            f"instruction.md missing in package directory: {record.task_path}"
+        )
+
+    has_env = (target_path / "environment").exists() or (target_path / "Dockerfile").is_file()
+    if not has_env:
+        raise TaskComponentMissingError(
+            f"environment/Dockerfile missing in package directory: {record.task_path}"
+        )
+
+    has_verifier = (target_path / "tests").exists() or (target_path / "verifier").exists()
+    if not has_verifier:
+        raise TaskComponentMissingError(
+            "separate verifier (tests/ or verifier/) missing in package "
+            f"directory: {record.task_path}"
+        )
 
 
 class TaskRegistry:
@@ -203,7 +376,15 @@ class TaskRegistry:
                 "registered state required for registered/* execution"
             )
 
-        if spec.task_path is not None and spec.task_path != record.task_path:
+        if "measurement" not in record.allowed_uses:
+            raise TaskUsageNotAllowedError(
+                f"task {task_id!r} allows uses {record.allowed_uses!r}; "
+                "measurement is not permitted"
+            )
+
+        if spec.task_path is None or not spec.task_path.strip():
+            spec.task_path = record.task_path
+        elif spec.task_path != record.task_path:
             raise TaskPathRedirectionError(
                 f"spec task_path {spec.task_path!r} redirects away from "
                 f"registered task_path {record.task_path!r}"
@@ -216,10 +397,7 @@ class TaskRegistry:
             )
 
         target_path = (repo_root / record.task_path).resolve()
-        if not target_path.is_dir():
-            raise TaskDigestMismatchError(
-                f"registered task directory does not exist on disk: {record.task_path}"
-            )
+        verify_package_completeness(repo_root, record)
 
         current_digests = compute_task_digests(target_path)
         if current_digests.verifier != record.digests.verifier:
@@ -248,6 +426,14 @@ class TaskRegistry:
                 f"(expected {record.digests.package}, got {current_digests.package})"
             )
 
+        if spec.verifier_digest is not None and spec.verifier_digest != record.digests.verifier:
+            raise TaskDigestMismatchError(
+                f"spec verifier_digest {spec.verifier_digest!r} does not match "
+                f"registered verifier {record.digests.verifier!r}"
+            )
+
+        verify_control_evidence(repo_root, record)
+
         return record
 
 
@@ -269,7 +455,7 @@ class RegistryAuditReport:
 
     @property
     def passed(self) -> bool:
-        return not any(finding.severity == "error" for finding in self.findings)
+        return not any(f.severity == "error" for f in self.findings)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -280,33 +466,60 @@ class RegistryAuditReport:
             "passed": self.passed,
             "findings": [
                 {
-                    "severity": finding.severity,
-                    "category": finding.category,
-                    "target": finding.target,
-                    "message": finding.message,
+                    "severity": f.severity,
+                    "category": f.category,
+                    "target": f.target,
+                    "message": f.message,
                 }
-                for finding in self.findings
+                for f in self.findings
             ],
         }
 
 
-def audit_registry(
-    repo_root: Path,
-    registry: TaskRegistry | None = None,
-) -> RegistryAuditReport:
-    """Perform a comprehensive read-only audit of task registration and claims."""
-    root = repo_root.resolve()
-    reg = registry or TaskRegistry.from_repo(root)
+def audit_registry(root: Path) -> RegistryAuditReport:
+    """Audit explicit task registry records, package digests, control evidence, and queue claims."""
+    root = root.resolve()
+    registry_dir = root / "library/registry"
     findings: list[AuditFinding] = []
+
+    records: dict[str, TaskRegistryRecord] = {}
+    if registry_dir.is_dir():
+        for record_file in sorted(registry_dir.glob("*.json")):
+            try:
+                raw = json.loads(record_file.read_text())
+                record = TaskRegistryRecord.model_validate(raw)
+                if record.task_id in records:
+                    findings.append(
+                        AuditFinding(
+                            severity="error",
+                            category="duplicate_task_id",
+                            target=record.task_id,
+                            message=f"duplicate task id in registry: {record.task_id}",
+                        )
+                    )
+                else:
+                    records[record.task_id] = record
+            except Exception as exc:
+                findings.append(
+                    AuditFinding(
+                        severity="error",
+                        category="malformed_registry_record",
+                        target=record_file.name,
+                        message=f"invalid registry record JSON or schema: {exc}",
+                    )
+                )
+
+    reg = TaskRegistry(root=registry_dir, records=records)
 
     registered_records = reg.list_records("registered")
     candidate_records = reg.list_records("candidate")
     retired_records = reg.list_records("retired")
 
-    # 1. Audit Registry Records on disk
     seen_paths: dict[str, str] = {}
+
+    # 1. Audit explicit registry records
     for record in reg.list_records():
-        # Duplicate task path checks
+        # Duplicate path check
         if record.task_path in seen_paths:
             findings.append(
                 AuditFinding(
@@ -322,7 +535,7 @@ def audit_registry(
         else:
             seen_paths[record.task_path] = record.task_id
 
-        # Existence of package directory
+        # Existence and completeness of package directory
         target_path = root / record.task_path
         if not target_path.is_dir():
             findings.append(
@@ -330,23 +543,24 @@ def audit_registry(
                     severity="error",
                     category="missing_task_directory",
                     target=record.task_id,
-                    message=f"task directory {record.task_path!r} does not exist",
+                    message=f"task directory does not exist on disk: {record.task_path}",
                 )
             )
             continue
 
-        if not (target_path / "task.toml").is_file():
+        try:
+            verify_package_completeness(root, record)
+        except TaskComponentMissingError as exc:
             findings.append(
                 AuditFinding(
                     severity="error",
-                    category="missing_task_toml",
+                    category="missing_package_component",
                     target=record.task_id,
-                    message=f"task directory {record.task_path!r} is missing task.toml",
+                    message=str(exc),
                 )
             )
-            continue
 
-        # Digest verification
+        # Digest verification on disk
         try:
             current_digests = compute_task_digests(target_path)
             if current_digests.package != record.digests.package:
@@ -385,28 +599,15 @@ def audit_registry(
 
         # Control evidence checks
         if record.state == "registered":
-            if record.control_evidence.oracle.reward != 1.0:
+            try:
+                verify_control_evidence(root, record)
+            except TaskControlEvidenceError as exc:
                 findings.append(
                     AuditFinding(
                         severity="error",
                         category="invalid_control_evidence",
                         target=record.task_id,
-                        message=(
-                            "registered task oracle reward must be 1.0 "
-                            f"(got {record.control_evidence.oracle.reward})"
-                        ),
-                    )
-                )
-            if record.control_evidence.nop.reward != 0.0:
-                findings.append(
-                    AuditFinding(
-                        severity="error",
-                        category="invalid_control_evidence",
-                        target=record.task_id,
-                        message=(
-                            "registered task nop reward must be 0.0 "
-                            f"(got {record.control_evidence.nop.reward})"
-                        ),
+                        message=str(exc),
                     )
                 )
             if not record.approved_by or not record.approved_at:
@@ -419,22 +620,30 @@ def audit_registry(
                     )
                 )
 
-        # Floating ref check
-        if (
-            record.source_ref is not None
-            and record.provenance_zone == "01-external"
-            and any(char in record.source_ref for char in ("latest", "head", "main", "master"))
-        ):
-            findings.append(
-                AuditFinding(
-                    severity="warning",
-                    category="floating_ref",
-                    target=record.task_id,
-                    message=f"external source_ref appears unpinned: {record.source_ref!r}",
+        # External record checks
+        if record.provenance_zone == "01-external":
+            if not record.license:
+                findings.append(
+                    AuditFinding(
+                        severity="error",
+                        category="missing_license",
+                        target=record.task_id,
+                        message="external record requires declared license",
+                    )
                 )
-            )
+            if record.source_ref is not None and any(
+                char in record.source_ref for char in ("latest", "head", "main", "master")
+            ):
+                findings.append(
+                    AuditFinding(
+                        severity="warning",
+                        category="floating_ref",
+                        target=record.task_id,
+                        message=f"external source_ref appears unpinned: {record.source_ref!r}",
+                    )
+                )
 
-    # 2. Audit Queue state for false registered/* claims
+    # 2. Audit Queue state for false registered/* claims and malformed specs
     queue_root = root / "queue"
     if queue_root.is_dir():
         for state in ("proposed", "pending", "approved", "waiting", "running"):
@@ -444,50 +653,85 @@ def audit_registry(
             for spec_file in sorted(state_dir.glob("*.json")):
                 try:
                     raw_spec = json.loads(spec_file.read_text())
-                    task_claim = raw_spec.get("task", "")
-                    if isinstance(task_claim, str) and task_claim.startswith("registered/"):
-                        task_id = task_claim.removeprefix("registered/")
-                        record = reg.get(task_id)
-                        if record is None:
-                            findings.append(
-                                AuditFinding(
-                                    severity="error",
-                                    category="false_registered_claim",
-                                    target=f"{state}/{spec_file.name}",
-                                    message=(
-                                        f"spec {raw_spec.get('name', spec_file.stem)!r} claims "
-                                        f"unregistered task {task_claim!r}"
-                                    ),
-                                )
-                            )
-                        elif record.state != "registered":
-                            findings.append(
-                                AuditFinding(
-                                    severity="error",
-                                    category="false_registered_claim",
-                                    target=f"{state}/{spec_file.name}",
-                                    message=(
-                                        f"spec {raw_spec.get('name', spec_file.stem)!r} claims "
-                                        f"task {task_claim!r} which is in {record.state!r} state"
-                                    ),
-                                )
-                            )
-                        else:
-                            spec_task_path = raw_spec.get("task_path")
-                            if spec_task_path and spec_task_path != record.task_path:
-                                findings.append(
-                                    AuditFinding(
-                                        severity="error",
-                                        category="task_path_redirection",
-                                        target=f"{state}/{spec_file.name}",
-                                        message=(
-                                            f"spec redirects task_path to {spec_task_path!r}, "
-                                            f"expected {record.task_path!r}"
-                                        ),
-                                    )
-                                )
-                except Exception:
+                except Exception as exc:
+                    findings.append(
+                        AuditFinding(
+                            severity="error",
+                            category="malformed_queue_spec",
+                            target=f"{state}/{spec_file.name}",
+                            message=f"failed to parse JSON in queue spec: {exc}",
+                        )
+                    )
                     continue
+
+                task_claim = raw_spec.get("task", "")
+                if isinstance(task_claim, str) and task_claim.startswith("registered/"):
+                    task_id = task_claim.removeprefix("registered/")
+                    record = reg.get(task_id)
+                    if record is None:
+                        findings.append(
+                            AuditFinding(
+                                severity="error",
+                                category="false_registered_claim",
+                                target=f"{state}/{spec_file.name}",
+                                message=(
+                                    f"spec {raw_spec.get('name', spec_file.stem)!r} claims "
+                                    f"unregistered task {task_claim!r}"
+                                ),
+                            )
+                        )
+                    elif record.state != "registered":
+                        findings.append(
+                            AuditFinding(
+                                severity="error",
+                                category="false_registered_claim",
+                                target=f"{state}/{spec_file.name}",
+                                message=(
+                                    f"spec {raw_spec.get('name', spec_file.stem)!r} claims "
+                                    f"task {task_claim!r} which is in {record.state!r} state"
+                                ),
+                            )
+                        )
+                    else:
+                        spec_task_path = raw_spec.get("task_path")
+                        if spec_task_path and spec_task_path != record.task_path:
+                            findings.append(
+                                AuditFinding(
+                                    severity="error",
+                                    category="task_path_redirection",
+                                    target=f"{state}/{spec_file.name}",
+                                    message=(
+                                        f"spec redirects task_path to {spec_task_path!r}, "
+                                        f"expected {record.task_path!r}"
+                                    ),
+                                )
+                            )
+                        spec_version = raw_spec.get("task_version")
+                        if spec_version and spec_version != record.version:
+                            findings.append(
+                                AuditFinding(
+                                    severity="error",
+                                    category="task_version_mismatch",
+                                    target=f"{state}/{spec_file.name}",
+                                    message=(
+                                        f"spec task_version {spec_version!r} does not "
+                                        f"match registered version {record.version!r}"
+                                    ),
+                                )
+                            )
+                        spec_verifier = raw_spec.get("verifier_digest")
+                        if spec_verifier and spec_verifier != record.digests.verifier:
+                            findings.append(
+                                AuditFinding(
+                                    severity="error",
+                                    category="verifier_digest_mismatch",
+                                    target=f"{state}/{spec_file.name}",
+                                    message=(
+                                        f"spec verifier_digest {spec_verifier!r} does not "
+                                        f"match registered verifier {record.digests.verifier!r}"
+                                    ),
+                                )
+                            )
 
     # 3. Audit Curated Cards that are non-runnable pointers only
     curated_dir = root / "library/curated"
@@ -536,6 +780,18 @@ class TaskInventoryItem:
     is_canary: bool
     registration_state: TaskAdmissionState | None
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "path": self.path,
+            "category": self.category,
+            "has_task_toml": self.has_task_toml,
+            "has_environment": self.has_environment,
+            "has_verifier": self.has_verifier,
+            "is_canary": self.is_canary,
+            "registration_state": self.registration_state,
+        }
+
 
 @dataclass(frozen=True)
 class TaskInventory:
@@ -557,52 +813,38 @@ class TaskInventory:
             "canary_tasks": self.canary_tasks,
             "registered_tasks": self.registered_tasks,
             "candidate_tasks": self.candidate_tasks,
-            "items": [
-                {
-                    "task_id": item.task_id,
-                    "path": item.path,
-                    "category": item.category,
-                    "has_task_toml": item.has_task_toml,
-                    "has_environment": item.has_environment,
-                    "has_verifier": item.has_verifier,
-                    "is_canary": item.is_canary,
-                    "registration_state": item.registration_state,
-                }
-                for item in self.items
-            ],
+            "items": [item.to_dict() for item in self.items],
         }
 
 
-def inventory_tasks(repo_root: Path) -> TaskInventory:
-    """Mechanically inventory all task surfaces across the repository."""
-    root = repo_root.resolve()
+def inventory_tasks(root: Path) -> TaskInventory:
+    """Mechanically inventory all task surfaces across library/ and policy/."""
+    root = root.resolve()
     reg = TaskRegistry.from_repo(root)
     items: list[TaskInventoryItem] = []
 
-    # Canaries from policy
+    # Canary tasks
     canary_paths: set[str] = set()
-    canary_suite_file = root / "policy/canary-suite.yaml"
-    if canary_suite_file.is_file():
-        import yaml
-
+    canary_policy = root / "policy/canary-suite.yaml"
+    if canary_policy.is_file():
         try:
-            canary_data = yaml.safe_load(canary_suite_file.read_text()) or {}
-            for member in canary_data.get("members", []):
-                if "task_path" in member:
-                    canary_paths.add(member["task_path"])
+            import yaml
+
+            raw_suite = yaml.safe_load(canary_policy.read_text())
+            for member in raw_suite.get("canaries", []):
+                canary_paths.add(member.get("task_path", ""))
         except Exception:
             pass
 
-    # 1. Scan task.toml packages
+    # 1. Scan library/ for all task.toml packages
     library_dir = root / "library"
     if library_dir.is_dir():
-        for task_file in sorted(library_dir.rglob("task.toml")):
-            task_dir = task_file.parent
+        for task_toml in sorted(library_dir.rglob("task.toml")):
+            task_dir = task_toml.parent
             rel_path = task_dir.relative_to(root).as_posix()
             task_id = task_dir.name
 
-            # Determine category
-            if "template" in rel_path:
+            if "task-template" in rel_path:
                 category = "template"
             elif rel_path.startswith("library/tasks/"):
                 category = "runnable_task"

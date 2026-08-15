@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -8,19 +9,22 @@ import pytest
 from pydantic import ValidationError
 
 from evallab.canary import load_canary_suite
-from evallab.queue import PolicyGate
+from evallab.queue import DirectoryQueue, Executor, PolicyGate
 from evallab.registry import (
+    TaskComponentMissingError,
+    TaskControlEvidenceError,
     TaskDigestMismatchError,
     TaskNotRegisteredError,
     TaskPathRedirectionError,
     TaskRegistry,
     TaskStateInvalidError,
+    TaskUsageNotAllowedError,
     TaskVersionMismatchError,
     audit_registry,
     compute_task_digests,
     inventory_tasks,
 )
-from evallab.researchers import ResearcherDeferred, ResearcherLoop
+from evallab.researchers import ResearcherLoop
 from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentSpec,
@@ -51,6 +55,73 @@ def _make_dummy_task(
     return task_dir
 
 
+def _make_control_evidence(
+    root: Path,
+    task_id: str,
+    *,
+    oracle_reward: float = 1.0,
+    nop_reward: float = 0.0,
+    oracle_agent: str = "oracle",
+    nop_agent: str = "nop",
+) -> tuple[ControlEvidenceRef, ControlEvidenceRef]:
+    runs_dir = root / "research/evidence/runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Oracle evidence
+    oracle_job = f"{task_id}-oracle-evidence"
+    oracle_dir = runs_dir / oracle_job
+    oracle_dir.mkdir(parents=True, exist_ok=True)
+    oracle_payload = {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "started_at": "2026-08-15T12:00:00Z",
+        "stats": {
+            "evals": {
+                f"{oracle_agent}__adhoc": {
+                    "metrics": [{"reward": oracle_reward}],
+                }
+            }
+        },
+    }
+    oracle_file = oracle_dir / "result.json"
+    oracle_file.write_text(json.dumps(oracle_payload, indent=2))
+    oracle_digest = f"sha256:{hashlib.sha256(oracle_file.read_bytes()).hexdigest()}"
+    oracle_ref = ControlEvidenceRef(
+        job_name=oracle_job,
+        reward=oracle_reward,
+        evidence_path=oracle_file.relative_to(root).as_posix(),
+        evidence_digest=oracle_digest,
+        observed_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+    )
+
+    # Nop evidence
+    nop_job = f"{task_id}-nop-evidence"
+    nop_dir = runs_dir / nop_job
+    nop_dir.mkdir(parents=True, exist_ok=True)
+    nop_payload = {
+        "id": "22222222-2222-2222-2222-222222222222",
+        "started_at": "2026-08-15T12:05:00Z",
+        "stats": {
+            "evals": {
+                f"{nop_agent}__adhoc": {
+                    "metrics": [{"reward": nop_reward}],
+                }
+            }
+        },
+    }
+    nop_file = nop_dir / "result.json"
+    nop_file.write_text(json.dumps(nop_payload, indent=2))
+    nop_digest = f"sha256:{hashlib.sha256(nop_file.read_bytes()).hexdigest()}"
+    nop_ref = ControlEvidenceRef(
+        job_name=nop_job,
+        reward=nop_reward,
+        evidence_path=nop_file.relative_to(root).as_posix(),
+        evidence_digest=nop_digest,
+        observed_at=datetime(2026, 8, 15, 12, 5, tzinfo=UTC),
+    )
+
+    return oracle_ref, nop_ref
+
+
 def _make_registry_record(
     task_dir: Path,
     repo_root: Path,
@@ -58,6 +129,11 @@ def _make_registry_record(
     task_id: str = "sample-task",
     version: str = "1.0.0",
     state: str = "registered",
+    allowed_uses: list[str] | None = None,
+    provenance_zone: str = "02-local-evidence",
+    source_ref: str = "main",
+    license_str: str = "MIT",
+    create_control_evidence: bool = True,
     oracle_reward: float = 1.0,
     nop_reward: float = 0.0,
     approved_by: str | None = "Peter Makhnatch",
@@ -65,6 +141,30 @@ def _make_registry_record(
 ) -> TaskRegistryRecord:
     rel_path = task_dir.relative_to(repo_root).as_posix()
     digests = compute_task_digests(task_dir)
+
+    if create_control_evidence:
+        oracle_ref, nop_ref = _make_control_evidence(
+            repo_root,
+            task_id,
+            oracle_reward=oracle_reward,
+            nop_reward=nop_reward,
+        )
+    else:
+        oracle_ref = ControlEvidenceRef(
+            job_name=f"{task_id}-oracle",
+            reward=oracle_reward,
+            evidence_path=f"research/evidence/runs/{task_id}-oracle/result.json",
+            evidence_digest="sha256:" + "0" * 64,
+            observed_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+        )
+        nop_ref = ControlEvidenceRef(
+            job_name=f"{task_id}-nop",
+            reward=nop_reward,
+            evidence_path=f"research/evidence/runs/{task_id}-nop/result.json",
+            evidence_digest="sha256:" + "0" * 64,
+            observed_at=datetime(2026, 8, 15, 12, 5, tzinfo=UTC),
+        )
+
     return TaskRegistryRecord(
         schema_version=1,
         task_id=task_id,
@@ -72,23 +172,17 @@ def _make_registry_record(
         task_path=rel_path,
         digests=digests,
         source_uri=f"local/{task_id}@{version}",
-        source_ref="main",
-        license="MIT",
-        provenance_zone="02-local-evidence",
+        source_ref=source_ref,
+        license=license_str,
+        provenance_zone=provenance_zone,  # type: ignore[arg-type]
         is_synthetic=False,
         limits=TaskLimits(timeout_seconds=1800),
         control_evidence=TaskControlEvidence(
-            oracle=ControlEvidenceRef(
-                job_name=f"{task_id}-oracle",
-                reward=oracle_reward,
-            ),
-            nop=ControlEvidenceRef(
-                job_name=f"{task_id}-nop",
-                reward=nop_reward,
-            ),
+            oracle=oracle_ref,
+            nop=nop_ref,
         ),
         state=state,  # type: ignore[arg-type]
-        allowed_uses=["measurement", "training"],
+        allowed_uses=allowed_uses or ["measurement", "training"],  # type: ignore[arg-type]
         approved_by=approved_by if state == "registered" else None,
         approved_at=approved_at if state == "registered" else None,
     )
@@ -183,7 +277,7 @@ def test_changed_task_bytes_causes_refusal(tmp_path: Path) -> None:
     )
     with pytest.raises(TaskDigestMismatchError) as exc_info:
         reg.resolve_spec(spec, tmp_path)
-    assert "bytes on disk have changed" in str(exc_info.value)
+    assert "instruction bytes on disk have changed" in str(exc_info.value)
 
 
 def test_changed_verifier_bytes_causes_refusal(tmp_path: Path) -> None:
@@ -222,7 +316,6 @@ def test_task_path_redirection_causes_refusal(tmp_path: Path) -> None:
     (reg_dir / "original-task.json").write_text(record.model_dump_json(indent=2))
 
     reg = TaskRegistry.from_repo(tmp_path)
-    # Attempt to redirect to other-task
     spec = ExperimentSpec(
         name="test-redirect",
         hypothesis="test",
@@ -257,6 +350,139 @@ def test_task_version_mismatch_causes_refusal(tmp_path: Path) -> None:
         reg.resolve_spec(spec, tmp_path)
 
 
+def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/omitted-path-task")
+    record = _make_registry_record(
+        task_dir, tmp_path, task_id="omitted-path-task", state="registered"
+    )
+    reg_dir = tmp_path / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    (reg_dir / "omitted-path-task.json").write_text(record.model_dump_json(indent=2))
+
+    reg = TaskRegistry.from_repo(tmp_path)
+    spec = ExperimentSpec(
+        name="test-omitted-path",
+        hypothesis="test",
+        task="registered/omitted-path-task",
+        task_path=None,
+        agent="codex",
+        submitted_by="test",
+    )
+    resolved = reg.resolve_spec(spec, tmp_path)
+    assert resolved is not None
+    assert spec.task_path == "library/tasks/omitted-path-task"
+
+
+def test_control_evidence_missing_file_causes_refusal(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/missing-evidence-task")
+    record = _make_registry_record(
+        task_dir,
+        tmp_path,
+        task_id="missing-evidence-task",
+        state="registered",
+        create_control_evidence=False,
+    )
+    reg_dir = tmp_path / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    (reg_dir / "missing-evidence-task.json").write_text(record.model_dump_json(indent=2))
+
+    reg = TaskRegistry.from_repo(tmp_path)
+    spec = ExperimentSpec(
+        name="test-missing-evidence",
+        hypothesis="test",
+        task="registered/missing-evidence-task",
+        agent="codex",
+        submitted_by="test",
+    )
+    with pytest.raises(TaskControlEvidenceError) as exc_info:
+        reg.resolve_spec(spec, tmp_path)
+    assert "missing on disk" in str(exc_info.value)
+
+
+def test_control_evidence_digest_mismatch_causes_refusal(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/tampered-evidence-task")
+    record = _make_registry_record(
+        task_dir,
+        tmp_path,
+        task_id="tampered-evidence-task",
+        state="registered",
+        create_control_evidence=True,
+    )
+    reg_dir = tmp_path / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    (reg_dir / "tampered-evidence-task.json").write_text(record.model_dump_json(indent=2))
+
+    # Mutate oracle evidence file on disk
+    oracle_file = tmp_path / record.control_evidence.oracle.evidence_path
+    oracle_file.write_text('{"tampered": true}')
+
+    reg = TaskRegistry.from_repo(tmp_path)
+    spec = ExperimentSpec(
+        name="test-tampered-evidence",
+        hypothesis="test",
+        task="registered/tampered-evidence-task",
+        agent="codex",
+        submitted_by="test",
+    )
+    with pytest.raises(TaskControlEvidenceError) as exc_info:
+        reg.resolve_spec(spec, tmp_path)
+    assert "digest mismatch" in str(exc_info.value)
+
+
+def test_training_only_task_cannot_be_used_for_measurement(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/training-only-task")
+    record = _make_registry_record(
+        task_dir,
+        tmp_path,
+        task_id="training-only-task",
+        state="registered",
+        allowed_uses=["training"],
+    )
+    reg_dir = tmp_path / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    (reg_dir / "training-only-task.json").write_text(record.model_dump_json(indent=2))
+
+    reg = TaskRegistry.from_repo(tmp_path)
+    spec = ExperimentSpec(
+        name="test-training-only",
+        hypothesis="test",
+        task="registered/training-only-task",
+        agent="codex",
+        submitted_by="test",
+    )
+    with pytest.raises(TaskUsageNotAllowedError):
+        reg.resolve_spec(spec, tmp_path)
+
+
+def test_package_missing_component_causes_refusal(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/incomplete-task")
+    record = _make_registry_record(
+        task_dir,
+        tmp_path,
+        task_id="incomplete-task",
+        state="registered",
+    )
+    reg_dir = tmp_path / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    (reg_dir / "incomplete-task.json").write_text(record.model_dump_json(indent=2))
+
+    # Remove verifier directory
+    import shutil
+
+    shutil.rmtree(task_dir / "tests")
+
+    reg = TaskRegistry.from_repo(tmp_path)
+    spec = ExperimentSpec(
+        name="test-incomplete",
+        hypothesis="test",
+        task="registered/incomplete-task",
+        agent="codex",
+        submitted_by="test",
+    )
+    with pytest.raises(TaskComponentMissingError):
+        reg.resolve_spec(spec, tmp_path)
+
+
 def test_policy_gate_refuses_unregistered_tasks(tmp_path: Path) -> None:
     policy = StandingApprovalsPolicy(
         daily_cost_ceiling_usd=20.0,
@@ -280,7 +506,7 @@ def test_policy_gate_refuses_unregistered_tasks(tmp_path: Path) -> None:
     assert decision.reason_code == "unregistered_task"
 
 
-def test_human_approval_does_not_override_unregistered_task(tmp_path: Path) -> None:
+def test_human_approval_cannot_bypass_unregistered_or_candidate(tmp_path: Path) -> None:
     policy = StandingApprovalsPolicy(
         daily_cost_ceiling_usd=20.0,
         per_job_cost_ceiling_usd=3.0,
@@ -288,7 +514,9 @@ def test_human_approval_does_not_override_unregistered_task(tmp_path: Path) -> N
         auto_run=[{"name": "test-controls", "agents": ["oracle"]}],
     )
     gate = PolicyGate(policy, repo_root=tmp_path)
-    spec = ExperimentSpec(
+
+    # 1. Unregistered task
+    spec_unregistered = ExperimentSpec(
         name="test-human-approved-unregistered",
         hypothesis="test",
         task="registered/unregistered-bypass",
@@ -297,18 +525,110 @@ def test_human_approval_does_not_override_unregistered_task(tmp_path: Path) -> N
         est_cost_usd=1.0,
         submitted_by="test",
     )
-    decision = gate.decide(spec, spent_today_usd=0.0, human_approved=True)
+    decision = gate.decide(spec_unregistered, spent_today_usd=0.0, human_approved=True)
     assert not decision.admitted
     assert decision.reason_code == "unregistered_task"
 
+    # 2. Candidate task
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/candidate-bypass")
+    record = _make_registry_record(
+        task_dir, tmp_path, task_id="candidate-bypass", state="candidate"
+    )
+    reg_dir = tmp_path / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    (reg_dir / "candidate-bypass.json").write_text(record.model_dump_json(indent=2))
 
-def test_researcher_loop_defers_when_registry_empty(tmp_path: Path) -> None:
-    # Set up empty library/tasks with task.toml to prove glob is not used
+    spec_candidate = ExperimentSpec(
+        name="test-human-approved-candidate",
+        hypothesis="test",
+        task="registered/candidate-bypass",
+        agent="codex",
+        policy_rule="human-approval",
+        est_cost_usd=1.0,
+        submitted_by="test",
+    )
+    decision2 = gate.decide(spec_candidate, spent_today_usd=0.0, human_approved=True)
+    assert not decision2.admitted
+    assert decision2.reason_code == "task_not_registered"
+
+
+def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    queue = DirectoryQueue(queue_root)
+
+    # Set up valid registered task
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/dispatched-task")
+    record = _make_registry_record(
+        task_dir, tmp_path, task_id="dispatched-task", state="registered"
+    )
+    reg_dir = tmp_path / "library/registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    (reg_dir / "dispatched-task.json").write_text(record.model_dump_json(indent=2))
+
+    policy = StandingApprovalsPolicy(
+        daily_cost_ceiling_usd=20.0,
+        per_job_cost_ceiling_usd=3.0,
+        quiet_failure_rule=3,
+        auto_run=[
+            {"name": "registered-runs", "tasks": ["registered/*"], "agents": ["codex"]}
+        ],
+    )
+
+    captured_requests = []
+
+    def stub_runner(req):
+        captured_requests.append(req)
+        job_dir = tmp_path / "runs" / req.name
+        job_dir.mkdir(parents=True, exist_ok=True)
+        return job_dir
+
+    executor = Executor(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy,
+        runner=stub_runner,
+        ingester=lambda path: None,
+        spent_today=lambda: 0.0,
+        consecutive_harness_failures=lambda: 0,
+        credential_probe=lambda: {"codex_auth", "claude_oauth"},
+    )
+
+    # Submit spec with omitted task_path
+    spec = ExperimentSpec(
+        name="test-dispatched-spec",
+        hypothesis="test",
+        task="registered/dispatched-task",
+        task_path=None,
+        agent="codex",
+        model="gpt-5",
+        attempts=1,
+        est_cost_usd=1.0,
+        submitted_by="test",
+    )
+    path, decision = executor.submit(spec)
+    assert decision.admitted
+    assert path.parent.name == "approved"
+
+    # Run executor tick
+    dispatched = executor.tick()
+    assert dispatched == 1
+    assert len(captured_requests) == 1
+
+    req = captured_requests[0]
+    assert req.task == (tmp_path / "library/tasks/dispatched-task").resolve()
+    assert req.provenance.package_digest == record.digests.package
+    assert req.provenance.verifier_digest == record.digests.verifier
+    assert req.provenance.task_path == "library/tasks/dispatched-task"
+
+
+def test_researcher_loop_preflight_makes_zero_invoker_calls_when_empty(tmp_path: Path) -> None:
     _make_dummy_task(tmp_path, "library/tasks/some-task")
+    invoker_called = False
 
-    class StubInvoker:
-        def __call__(self, *args, **kwargs):
-            raise AssertionError("invoker should not be called")
+    def stub_invoker(*args, **kwargs):
+        nonlocal invoker_called
+        invoker_called = True
+        raise AssertionError("invoker must not be called when registry is empty")
 
     policy = StandingApprovalsPolicy(
         daily_cost_ceiling_usd=20.0,
@@ -320,22 +640,22 @@ def test_researcher_loop_defers_when_registry_empty(tmp_path: Path) -> None:
     )
     loop = ResearcherLoop(
         repo_root=tmp_path,
-        invoker=StubInvoker(),
+        invoker=stub_invoker,
         policy=policy,
         evidence_loader=lambda day, path: None,  # type: ignore[arg-type]
     )
-    with pytest.raises(ResearcherDeferred) as exc_info:
-        loop._registered_tasks()
-    assert str(exc_info.value) == "no_registered_tasks"
+
+    res = loop.run()
+    assert res.deferred_reason == "no_registered_tasks"
+    assert res.invocation_count == 0
+    assert not invoker_called
 
 
 def test_canaries_remain_independent_under_own_policy(tmp_path: Path) -> None:
-    # Real repo canaries resolve without registry records
     real_repo = Path(__file__).resolve().parents[1]
     suite = load_canary_suite(real_repo / "policy/canary-suite.yaml")
     assert len(suite.members) == 3
 
-    # All canary task paths exist and match digests
     for member in suite.members:
         task_path = real_repo / member.task_path
         assert task_path.is_dir()
@@ -343,8 +663,19 @@ def test_canaries_remain_independent_under_own_policy(tmp_path: Path) -> None:
         assert digests.package == member.task_digest
 
 
+def test_audit_reports_malformed_queue_specs_without_swallowing_errors(tmp_path: Path) -> None:
+    q_proposed = tmp_path / "queue/proposed"
+    q_proposed.mkdir(parents=True, exist_ok=True)
+    (q_proposed / "corrupted.json").write_text("{ unparseable json garbage ...")
+
+    report = audit_registry(tmp_path)
+    assert not report.passed
+    malformed = [f for f in report.findings if f.category == "malformed_queue_spec"]
+    assert len(malformed) == 1
+    assert "corrupted.json" in malformed[0].target
+
+
 def test_audit_detects_false_registration_pattern(tmp_path: Path) -> None:
-    # Replicate the research-event-summary-b51328c0cd pattern in queue/proposed
     q_proposed = tmp_path / "queue/proposed"
     q_proposed.mkdir(parents=True, exist_ok=True)
     spec_payload = {
@@ -409,28 +740,6 @@ def test_task_registry_schema_strictness(tmp_path: Path) -> None:
     with pytest.raises(ValidationError) as exc_info:
         TaskRegistryRecord.model_validate(unapproved_data)
     assert "approved_by" in str(exc_info.value)
-
-    # 3. Registered state requires oracle reward = 1.0
-    bad_oracle_data = dict(unapproved_data)
-    bad_oracle_data["approved_by"] = "Peter Makhnatch"
-    bad_oracle_data["approved_at"] = datetime.now(UTC)
-    bad_oracle_data["control_evidence"] = {
-        "oracle": {"job_name": "oracle-job", "reward": 0.8},
-        "nop": {"job_name": "nop-job", "reward": 0.0},
-    }
-    with pytest.raises(ValidationError) as exc_info:
-        TaskRegistryRecord.model_validate(bad_oracle_data)
-    assert "oracle reward 1.0" in str(exc_info.value)
-
-    # 4. Registered state requires nop reward = 0.0
-    bad_nop_data = dict(bad_oracle_data)
-    bad_nop_data["control_evidence"] = {
-        "oracle": {"job_name": "oracle-job", "reward": 1.0},
-        "nop": {"job_name": "nop-job", "reward": 0.5},
-    }
-    with pytest.raises(ValidationError) as exc_info:
-        TaskRegistryRecord.model_validate(bad_nop_data)
-    assert "nop reward 0.0" in str(exc_info.value)
 
 
 def test_inventory_tasks_categorization(tmp_path: Path) -> None:

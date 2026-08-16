@@ -173,6 +173,46 @@ status. ATIF citations require a resolvable step ID; cited tool-call IDs must
 exist at that step. Schema output gets one validation retry. A human review is
 appended as `reviews/<uuid>.json`; it never edits the model output.
 
+### Committed saved responses
+
+Two hand-authored saved responses are tracked here. Neither is a model output;
+both exist so the stage-5 path can be exercised without a model call. Each
+produces `agent: stub`, `model: saved-response`, `cost_usd: 0.0` in the sidecar
+provenance, and its findings are **not** reviewed research ground truth.
+
+| File | Source trial | Cites |
+|---|---|---|
+| `stub-oracle-analysis.json` | `event-summary-oracle-evidence/event-summary__FZg7pvq` | `verifier/reward.json` only — that control has no ATIF trajectory |
+| `stub-codex-html-js-filter-analysis.json` | `canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__5rgjEEt` | five ATIF citations into real Codex agent behaviour plus `verifier/ctrf.redacted.json` |
+
+`stub-codex-html-js-filter-analysis.json`
+(`sha256:c7d00390f0a5b08a6dc8b1c1b33873e07ed0b2d6a81bc66fded3046722a3dbca`) was
+written by the TrajectoryProof mission on 2026-08-16 to prove that citations into
+a real trajectory resolve end to end. Its `step_id` and `tool_call_id` values were
+read from the promoted ATIF
+(`sha256:f112fc244724a9b9ac6e1d7658bceff259670a14564f1f5c948d1cfd2d3075a2`).
+Citation `[4]` deliberately targets step 1, a system-source step whose text is
+redacted under promotion rule R1; it resolves on every surface and yields no
+readable text, which is the point. Full measurement, per-hop verdicts, and the
+exit status of every command are in
+`docs/checkpoints/2026-08-16-trajectory-hop-proof.md`.
+
+Reproduce its sidecar (fresh `analysis_id` and `created_at`; every other field is
+a function of the committed bytes):
+
+```bash
+uv run evallab analyze stub \
+  research/evidence/runs/canary-terminal-bench-html-js-filter-codex-20260815/terminal-bench-html-js-filter__5rgjEEt \
+  --response research/analysis/stub-codex-html-js-filter-analysis.json \
+  --output-dir derived/analyses
+```
+
+From a linked worktree, pass `--derived-dir` / `--output-dir` explicitly to
+`evallab ingest` and `evallab trajectories --export`. Their default Parquet root
+is the **primary** checkout (`paths.py`, `shared_checkout_root`) so worktrees
+share one derived store with the shared catalog; a worktree writer that omits the
+flag writes outside its own tree.
+
 Harbor 0.21.0's `harbor analyze` assembles a useful read-only copy for its
 evaluator, but then writes `analysis.json` back into the analyzed source trial.
 That conflicts with this lab's immutable evidence contract. The lab therefore

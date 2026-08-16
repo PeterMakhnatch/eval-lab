@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import shlex
 import shutil
 from pathlib import Path
@@ -11,6 +13,8 @@ from evallab.explorer import (
     _resolve_citation,
     _status_root_for_jobs_root,
     build_index,
+    citation_state,
+    content_summary,
     jail,
     next_actions_for_queue,
     next_actions_for_task,
@@ -186,6 +190,331 @@ def test_review_beside_a_sidecar_is_not_parsed_as_one(tmp_path: Path):
     assert citation.resolution.value == "resolved"
     assert not [note for note in idx.notes if "unreadable" in note]
     assert not [note for note in idx.notes if str(review.review_id) in note]
+
+
+# ---- withheld vs missing vs readable evidence --------------------------------
+
+PROMOTED_RUNS = Path(__file__).parents[1] / "research" / "evidence" / "runs"
+
+
+def marker(text: str) -> str:
+    """The exact marker `scripts/promote_codex_bundle.py::_marker` writes."""
+    raw = text.encode("utf-8")
+    return f"<<evallab-redacted: {len(raw)} bytes, sha256:{hashlib.sha256(raw).hexdigest()}>>"
+
+
+def write_trial(trial_dir: Path, *, steps: list[dict], trial_id: str = "t-1") -> None:
+    trial_dir.mkdir(parents=True, exist_ok=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "id": trial_id,
+                "task_name": "lab/demo",
+                "agent_info": {"name": "codex"},
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
+    (trial_dir / "agent").mkdir(exist_ok=True)
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps({"steps": steps}))
+
+
+def redacted_and_verbatim_trial(jobs: Path) -> Path:
+    """One trial holding a withheld step, a readable step, and an absent one."""
+    prompt = "SYSTEM PROMPT " * 40
+    trial = jobs / "job-mixed" / "t1"
+    write_trial(
+        trial,
+        steps=[
+            {"step_id": 1, "source": "system", "message": marker(prompt)},
+            {
+                "step_id": 2,
+                "source": "agent",
+                "message": "I will sanitize the HTML in place.",
+                "tool_calls": [
+                    {"tool_call_id": "c1", "function_name": "exec", "arguments": {"cmd": "ls"}}
+                ],
+                "observation": {"results": [{"source_call_id": "c1", "content": "ok"}]},
+            },
+            {"step_id": 3, "source": "agent"},  # no message field at all
+        ],
+    )
+    return trial
+
+
+def test_withheld_step_never_renders_like_a_verbatim_one(tmp_path: Path):
+    """The defect: a promoted prompt step and a real agent step looked identical.
+
+    Only the step envelope (`step_id`, `source`, counts) was ever rendered, so
+    `{'step_id': 1, 'source': 'system', 'n_tool_calls': 0}` said the same thing
+    whether the text was present or removed by `promote_codex_bundle.py`.
+    """
+    redacted_and_verbatim_trial(tmp_path / "jobs")
+    trajectory = build_index([tmp_path / "jobs"]).trials["job-mixed/t1"].trajectory
+    assert isinstance(trajectory, TrajectoryView)
+    hidden, readable, absent = trajectory.steps
+
+    # three distinct states, distinguishable without opening a file
+    assert (hidden.message.provenance, readable.message.provenance, absent.message.provenance) == (
+        "withheld",
+        "observed",
+        "unavailable",
+    )
+    assert hidden.message != readable.message
+    # the withheld state keeps the audit trail that is already in the marker
+    prompt = "SYSTEM PROMPT " * 40
+    (audit,) = hidden.message.value["markers"]
+    assert audit["bytes"] == len(prompt.encode("utf-8"))
+    assert audit["digest"] == f"sha256:{hashlib.sha256(prompt.encode()).hexdigest()}"
+    assert hidden.message.value["readable_chars"] == 0
+    assert readable.message.value["readable_chars"] == len("I will sanitize the HTML in place.")
+    # and the trial states it up front rather than only per step
+    assert trajectory.redaction.provenance == "withheld"
+    assert trajectory.redaction.value["steps_withheld"] == 1
+    assert trajectory.redaction.value["withheld_bytes"] == len(prompt.encode("utf-8"))
+
+
+def test_citation_into_a_withheld_step_is_marked_withheld(tmp_path: Path):
+    """A citation may resolve perfectly and still point at nothing readable."""
+    trial_dir = redacted_and_verbatim_trial(tmp_path / "jobs")
+    trial = build_index([tmp_path / "jobs"]).trials["job-mixed/t1"]
+
+    into_prompt = _resolve_citation(
+        {"path": "agent/trajectory.json", "step_id": 1, "supports": "the instructions"}, trial
+    )
+    into_agent = _resolve_citation(
+        {"path": "agent/trajectory.json", "step_id": 2, "supports": "what the agent did"}, trial
+    )
+    into_call = _resolve_citation(
+        {
+            "path": "agent/trajectory.json",
+            "step_id": 2,
+            "tool_call_id": "c1",
+            "supports": "the command it ran",
+        },
+        trial,
+    )
+
+    # both resolve — resolution alone can never separate them
+    assert into_prompt.resolution.value == into_agent.resolution.value == "resolved"
+    # content does
+    assert into_prompt.content.provenance == "withheld"
+    assert into_agent.content.provenance == "observed"
+    assert into_call.content.provenance == "observed"
+    assert into_prompt.content.value["withheld_bytes"] == 560
+    assert into_prompt.content.value["markers"][0]["digest"].startswith("sha256:")
+    assert trial_dir.exists()
+
+
+def test_unresolvable_citation_content_is_absent_not_withheld(tmp_path: Path):
+    """`missing` and `withheld` are different claims and must not collapse."""
+    redacted_and_verbatim_trial(tmp_path / "jobs")
+    trial = build_index([tmp_path / "jobs"]).trials["job-mixed/t1"]
+    gone = _resolve_citation(
+        {"path": "agent/nothing-here.json", "supports": "a file that never existed"}, trial
+    )
+    assert gone.resolution.provenance == "unavailable"
+    assert gone.content.provenance == "unavailable"
+    assert "withheld" not in (gone.content.reason or "")
+
+
+def test_promoted_codex_evidence_reports_its_withheld_bytes_and_digest():
+    """Measured against the committed bundle, not a fixture (PR #58, rule R1)."""
+    trial_dir = (
+        PROMOTED_RUNS
+        / "canary-terminal-bench-html-js-filter-codex-20260815"
+        / "terminal-bench-html-js-filter__5rgjEEt"
+    )
+    assert trial_dir.is_dir(), "promoted evidence is immutable; it must still be here"
+    trajectory = build_index([PROMOTED_RUNS]).trials[
+        f"{trial_dir.parent.name}/{trial_dir.name}"
+    ].trajectory
+    assert isinstance(trajectory, TrajectoryView)
+    step_one, step_six = trajectory.steps[0], trajectory.steps[5]
+
+    assert step_one.message.provenance == "withheld"
+    assert step_one.message.value["withheld_bytes"] == 4876
+    assert step_one.message.value["markers"][0]["digest"] == (
+        "sha256:6866d85ebcbbc2331083e0522d413dc0d18ffde525370a1feada271f40f7d858"
+    )
+    assert step_one.message.value["readable_chars"] == 0
+    assert step_six.message.provenance == "observed"
+    assert step_six.message.value["readable_chars"] == 283
+    # the observations promotion kept verbatim are visible, not counted as zero
+    assert step_six.n_observations == 1
+    assert trajectory.redaction.value["sources"] == ("system", "user")
+
+
+def promoted_trial():
+    job = "canary-terminal-bench-html-js-filter-codex-20260815"
+    return build_index([PROMOTED_RUNS]).trials[f"{job}/terminal-bench-html-js-filter__5rgjEEt"]
+
+
+def test_redacted_artifact_states_how_little_of_it_survived():
+    """`verifier/test-stdout.redacted.txt` is 107 bytes of a 77,080-byte original.
+
+    The artifacts table used to show only the promoted size, which reads as a
+    complete 107-byte verifier log rather than as almost all of it removed.
+    Reported from `PROMOTION.json`, which records both sizes and the parent
+    digest, so nothing is inferred from file names.
+    """
+    artifacts = {a.relative_path: a for a in promoted_trial().artifacts}
+    stdout = artifacts["verifier/test-stdout.redacted.txt"]
+
+    assert stdout.size_bytes == 107
+    assert stdout.content.provenance == "withheld"
+    assert stdout.content.value["withheld_bytes"] == 77080 - 107
+    assert stdout.content.value["markers"][0]["bytes"] == 77080
+    assert stdout.content.value["rule"] == "R3"
+    # a file promotion kept whole is not labelled withheld
+    assert artifacts["verifier/reward.txt"].content.provenance == "observed"
+
+
+def test_files_promotion_removed_entirely_are_still_reported():
+    """Rule R2 drops the raw rollout, so no artifact list can ever show it."""
+    omitted = promoted_trial().omitted_files
+
+    assert omitted.provenance == "withheld"
+    assert omitted.value["withheld_bytes"] == 194005
+    (record,) = omitted.value["markers"]
+    assert record["path"].startswith("agent/sessions/")
+    assert record["rule"] == "R2"
+    assert record["digest"].startswith("sha256:")
+
+
+def test_live_run_artifacts_are_not_labelled_redacted(tmp_path: Path):
+    """Only promotion redacts. A run directory has no manifest and no claim."""
+    trial = tmp_path / "jobs" / "job-live" / "t1"
+    write_trial(trial, steps=[{"step_id": 1, "source": "agent", "message": "hi"}])
+    (trial / "artifacts").mkdir()
+    (trial / "artifacts" / "out.txt").write_text("everything is here")
+
+    (artifact,) = [
+        a
+        for a in build_index([tmp_path / "jobs"]).trials["job-live/t1"].artifacts
+        if a.name == "out.txt"
+    ]
+    assert artifact.content.provenance == "derived"
+    assert "nothing here was redacted" in (artifact.content.reason or "")
+    assert build_index([tmp_path / "jobs"]).trials["job-live/t1"].omitted_files.value == ()
+
+
+def test_rendered_summaries_of_the_three_states_are_all_different(tmp_path: Path):
+    """What a surface actually shows must differ, not only the internal label.
+
+    `dashboard/explorer.py` renders `content_summary` verbatim. Streamlit is
+    deliberately not a project dependency, so the sentence is asserted here —
+    the page is a thin map from these strings to a glyph.
+    """
+    redacted_and_verbatim_trial(tmp_path / "jobs")
+    trajectory = build_index([tmp_path / "jobs"]).trials["job-mixed/t1"].trajectory
+    assert isinstance(trajectory, TrajectoryView)
+    hidden, readable, absent = (content_summary(s.message) for s in trajectory.steps)
+
+    assert len({hidden, readable, absent}) == 3
+    assert hidden.startswith("withheld 560 bytes (sha256:")
+    assert "chars readable" not in hidden  # nothing readable at all here
+    assert readable == "readable · 34 chars"
+    assert absent.startswith("unavailable:")
+
+
+def test_citation_states_separate_withheld_from_readable_and_missing(tmp_path: Path):
+    redacted_and_verbatim_trial(tmp_path / "jobs")
+    trial = build_index([tmp_path / "jobs"]).trials["job-mixed/t1"]
+
+    def state(**citation):
+        resolved = _resolve_citation({"path": "agent/trajectory.json", **citation}, trial)
+        return citation_state(resolved)
+
+    assert state(step_id=1) == "withheld"
+    assert state(step_id=2) == "readable"
+    assert state(step_id=2, tool_call_id="c1") == "readable"
+    assert state(step_id=99) == "unresolved"
+    assert citation_state(_resolve_citation({"path": "agent/gone.json"}, trial)) == "unresolved"
+
+
+def test_partly_withheld_file_citation_reports_what_is_left(tmp_path: Path):
+    """Promotion also redacts oversize verifier strings in place (rule R3a)."""
+    trial_dir = redacted_and_verbatim_trial(tmp_path / "jobs")
+    (trial_dir / "verifier").mkdir()
+    body = "PASS 3 of 3\n"
+    (trial_dir / "verifier" / "ctrf.redacted.json").write_text(body + marker("x" * 9000))
+    trial = build_index([tmp_path / "jobs"]).trials["job-mixed/t1"]
+
+    cited = _resolve_citation(
+        {"path": "verifier/ctrf.redacted.json", "supports": "the verifier output"}, trial
+    )
+
+    assert cited.resolution.value == "resolved"
+    assert citation_state(cited) == "withheld"
+    assert cited.content.value["withheld_bytes"] == 9000
+    assert cited.content.value["readable_chars"] == len(body)
+    assert "chars readable" in content_summary(cited.content)
+
+
+# ---- F-04: a nested jobs_dir is named, never silently dropped ----------------
+
+
+def test_nested_jobs_dir_run_is_named_with_its_location_not_dropped(tmp_path: Path):
+    """F-04, proven by A/B: the same job, flat and nested.
+
+    `ExperimentSpec.jobs_dir` is free-form (`schemas.py:27`) while every reader
+    of these directories — the executor at `runner.py:601` and Harbor's own
+    viewer at `harbor/viewer/scanner.py:50,86` — addresses a job as
+    `<jobs-root>/<job>/<trial>`. The explorer used to render the intermediate
+    directory as a job with no trials and say nothing about the real run.
+    """
+    flat, nested = tmp_path / "flat", tmp_path / "nested"
+    shutil.copytree(JOBS / "job-pass", flat / "job-pass")
+    shutil.copytree(JOBS / "job-pass", nested / "nightly" / "2026-08-16" / "job-pass")
+
+    control = build_index([flat])
+    subject = build_index([nested])
+
+    assert list(control.trials) == ["job-pass/t1"]  # the A side still works
+    # no phantom job stands in for the run that is out of reach
+    assert [job.job_name for job in subject.jobs] == []
+    # and the reader is told exactly what exists, where, and what to do
+    (located,) = [n for n in subject.notes if "nightly/" in n]
+    assert "nightly/2026-08-16/job-pass (1 trial)" in located
+    assert "nightly/2026-08-16" in located.split("add a jobs root at")[1]
+    # the remedy the note names is the one that works
+    assert list(build_index([nested / "nightly" / "2026-08-16"]).trials) == ["job-pass/t1"]
+
+
+def test_job_roll_up_result_is_never_counted_as_a_trial(tmp_path: Path):
+    """The phantom job came from reading a job's own `result.json` as a trial."""
+    jobs = tmp_path / "jobs"
+    shutil.copytree(JOBS / "job-pass", jobs / "nightly" / "job-pass")
+
+    idx = build_index([jobs])
+
+    assert "nightly/job-pass" not in idx.trials
+    assert [job.job_name for job in idx.jobs] == []
+
+
+def test_directory_with_no_trials_is_reported_rather_than_rendered(tmp_path: Path):
+    jobs = tmp_path / "jobs"
+    (jobs / "empty-job").mkdir(parents=True)
+    idx = build_index([jobs])
+    assert idx.jobs == ()
+    assert any("empty-job/ holds no trial result" in note for note in idx.notes)
+
+
+def test_analysis_whose_source_trial_is_not_indexed_says_why(tmp_path: Path):
+    """The F-04 symptom the human actually saw: `unlinked` with no reason."""
+    analyses = tmp_path / "analyses"
+    shutil.copytree(ANALYSES / "valid", analyses / "valid")
+
+    idx = build_index([tmp_path / "no-jobs-here"], analyses)
+
+    (analysis,) = idx.analyses
+    assert analysis.trial_key is None
+    assert analysis.link.provenance == "unavailable"
+    assert "was not found among the 0 trials discovered" in (analysis.link.reason or "")
+    assert any("is not under any configured jobs root" in note for note in idx.notes)
+    # every citation says there is nothing to read, rather than resolving
+    assert all(c.content.provenance == "unavailable" for c in analysis.citations)
 
 
 # ---- duplicates, cold start, degradation ------------------------------------

@@ -114,6 +114,23 @@ def _percent(value: Any) -> str:
     return "—" if value is None else f"{float(value):.1%}"
 
 
+def _pass_at_1_basis(row: dict[str, Any]) -> str:
+    """Say why pass@1 is `—` so it cannot be read as "no data yet".
+
+    `—` on a row means the cohort ran trials and none of them produced a score.
+    That is a different fact from an empty leaderboard, and the statistic itself
+    is unchanged: an unscorable cohort has no pass@1 and no interval.
+    """
+    if row["scorable"]:
+        return f"{row['n']} of {row['n_total']} trials scored"
+    parts = []
+    if row["exceptions"]:
+        parts.append(f"{row['exceptions']} raised an exception")
+    if row["unscored_no_reward"]:
+        parts.append(f"{row['unscored_no_reward']} recorded no reward")
+    return f"unscorable — {row['n_total']} trials, " + " and ".join(parts)
+
+
 def _leaderboard_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
@@ -125,7 +142,12 @@ def _leaderboard_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "exceptions": row["exceptions"],
             "passes": row["passes"],
             "pass@1": _percent(row["pass_rate"]),
-            "95% CI": f"{_percent(row['ci_95_low'])} – {_percent(row['ci_95_high'])}",
+            "95% CI": (
+                f"{_percent(row['ci_95_low'])} – {_percent(row['ci_95_high'])}"
+                if row["scorable"]
+                else "not defined"
+            ),
+            "pass@1 basis": _pass_at_1_basis(row),
         }
         for row in rows
     ]
@@ -181,14 +203,17 @@ if research["errors"]:
 
 st.header("Leaderboard by cohort")
 st.caption(
-    "Pass@1 uses the cohort analyzer's Wilson 95% interval; exceptions are excluded from n."
+    "Pass@1 uses the cohort analyzer's Wilson 95% interval; exceptions are excluded from n. "
+    "A `—` in pass@1 never means 'no data yet': it means this cohort ran trials and none of "
+    "them produced a score. `pass@1 basis` says which. No trials at all shows as an empty "
+    "table below instead."
 )
 if research["leaderboard"]:
     st.dataframe(
         _leaderboard_rows(research["leaderboard"]), width="stretch", hide_index=True
     )
 else:
-    st.info("No catalog trials are available.")
+    st.info("No catalog trials are indexed yet — no data, as distinct from unscorable data.")
 
 st.header("Canary trend vs 7-day baseline")
 canaries = research["canaries"]

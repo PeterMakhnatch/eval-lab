@@ -78,6 +78,39 @@ def test_leaderboard_has_denominator_exceptions_and_wilson_interval(fixture_rows
     assert rows[0]["ci_95_high"] == pytest.approx(0.9054688)
 
 
+def test_unscorable_cohort_is_distinguishable_from_no_data(fixture_rows):
+    """`pass@1` renders `—` when nothing is scorable, which must not read as
+    "no data yet". The statistic is unchanged; only the basis is now stated.
+    """
+    rows = {
+        "leaderboard": [
+            {
+                "cohort": "c",
+                "trial_id": str(index),
+                "task_name": "lab/demo",
+                "agent_name": "codex",
+                "model_name": "gpt-5.6-terra",
+                "primary_reward": reward,
+                "exception_type": exception,
+            }
+            for index, (reward, exception) in enumerate(
+                [(None, "AgentTimeoutError"), (None, "AgentTimeoutError"), (None, None)]
+            )
+        ]
+    }
+    (row,) = leaderboard(FixtureSource({**fixture_rows, **rows}))
+
+    assert row["pass_rate"] is None  # unchanged: no scorable trial, no statistic
+    assert row["ci_95_low"] is None and row["ci_95_high"] is None
+    assert row["scorable"] is False
+    assert row["n_total"] == 3 and row["n"] == 0
+    assert row["exceptions"] == 2
+    assert row["unscored_no_reward"] == 1
+    # a scorable cohort reports the same fields, positively
+    scorable = leaderboard(FixtureSource(fixture_rows))[0]
+    assert scorable["scorable"] is True and scorable["unscored_no_reward"] == 0
+
+
 def test_canary_query_adds_baseline_confidence_interval(fixture_rows):
     rows = canary_history(FixtureSource(fixture_rows))
     assert rows[0]["baseline_95_low"] == pytest.approx(0.6520018)

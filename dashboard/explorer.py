@@ -5,9 +5,12 @@ Root:    EVALLAB_EXPLORER_ROOT (defaults to the repository root; a fixture
          root such as tests/fixtures/explorer works for a safe demo).
 
 Every field renders with its provenance label (observed / derived / draft /
-unavailable). Infrastructure exceptions render in their own section, never
-alongside reward failures. Next Action shows copyable commands and executes
-nothing. No control in this page mutates any state anywhere.
+withheld / unavailable). Infrastructure exceptions render in their own
+section, never alongside reward failures. Steps and citations render the
+availability of what they point at, so a citation into a prompt that
+promotion redacted can never look like a citation into real agent behaviour.
+Next Action shows copyable commands and executes nothing. No control in this
+page mutates any state anywhere.
 """
 
 from __future__ import annotations
@@ -18,9 +21,13 @@ from pathlib import Path
 import streamlit as st
 
 from evallab.explorer import (
+    CitationResolution,
     ExplorerIndex,
+    Labeled,
     TrajectoryView,
     build_index,
+    citation_state,
+    content_summary,
     next_actions_for_queue,
     next_actions_for_task,
     next_actions_for_trial,
@@ -30,8 +37,31 @@ _BADGE = {
     "observed": "🟢 observed",
     "derived": "🔵 derived",
     "draft": "🟡 draft (unreviewed model output)",
+    "withheld": "🔒 withheld (redacted before promotion)",
     "unavailable": "⚪ unavailable",
 }
+
+# One glyph per state, so a reader never has to read prose to tell readable
+# evidence from evidence that was deliberately removed. The wording itself comes
+# from evallab.explorer, which the test suite can import; this page cannot be
+# imported in CI because Streamlit is not a project dependency.
+_CONTENT_ICON = {
+    "observed": "🟢",
+    "derived": "🔵",
+    "withheld": "🔒",
+    "unavailable": "⚪",
+}
+_CITATION_ICON = {
+    "readable": "✅",
+    "withheld": "🔒",
+    "absent": "⚪",
+    "unresolved": "⛔",
+}
+
+
+def _content_cell(labeled: Labeled) -> str:
+    """One table cell stating which content state applies."""
+    return f"{_CONTENT_ICON.get(labeled.provenance, '▫️')} {content_summary(labeled)}"
 
 
 def _root() -> Path:
@@ -62,10 +92,35 @@ def _labeled(container, name, labeled) -> None:
         container.markdown(f"**{name}**: `{labeled.value}` — {badge}{note}")
 
 
+def _citation_line(citation: CitationResolution) -> tuple[str, str | None]:
+    """A citation renders its resolution *and* what it lets a reader see.
+
+    ⛔ unresolved · 🔒 resolved but the cited text was withheld before promotion
+    · ⚪ resolved but genuinely absent · ✅ resolved and readable. Rendering the
+    middle two like the last one is the defect this page was fixed for; the
+    states themselves come from ``evallab.explorer.citation_state``.
+    """
+    state = citation_state(citation)
+    detail = (
+        f"unresolved: {citation.resolution.reason}"
+        if state == "unresolved"
+        else None if state == "readable" else citation.content.reason
+    )
+    line = (
+        f"{_CITATION_ICON[state]} `{citation.citation_path}`"
+        f" step={citation.step_id} call={citation.tool_call_id}"
+        f" — {citation.supports}"
+        f" · {content_summary(citation.content)}"
+    )
+    return line, detail
+
+
 st.set_page_config(page_title="Eval Lab — Explorer", page_icon="🧭", layout="wide")
 st.title("Run & analysis explorer")
 st.caption(
-    "Read-only. Every value is labeled observed / derived / draft / unavailable. "
+    "Read-only. Every value is labeled observed / derived / draft / withheld / "
+    "unavailable. 🔒 marks evidence that promotion removed on purpose — the byte "
+    "count and sha256 of the original are kept so the claim stays auditable. "
     "Commands are copyable, never executed."
 )
 
@@ -96,6 +151,7 @@ with trials_tab:
         st.subheader("Jobs")
         for job in index.jobs:
             with st.expander(f"📦 {job.job_name}"):
+                st.markdown(f"**Discovered under** `{job.jobs_root}`")
                 _labeled(st, "Tasks", job.task_names)
                 st.markdown("**Trials — observed:** " + ", ".join(job.trial_keys))
                 for note in job.notes:
@@ -131,14 +187,38 @@ with trials_tab:
             trajectory = trial.trajectory
             if isinstance(trajectory, TrajectoryView):
                 _labeled(st, "Steps", trajectory.step_count)
+                if trajectory.redaction.provenance == "withheld":
+                    # Stated before the tables, so nobody reads the trajectory
+                    # believing they are looking at all of it.
+                    st.warning(f"🔒 {trajectory.redaction.reason}")
+                else:
+                    st.caption(f"🔵 {trajectory.redaction.reason}")
                 _labeled(st, "Repeated call signatures", trajectory.repeated_signatures)
                 _labeled(st, "Verification before finishing", trajectory.verify_before_done)
+                if trajectory.steps:
+                    st.caption(
+                        "Step content — 🟢 readable · 🔒 withheld before promotion "
+                        "(bytes and sha256 of the original shown) · ⚪ absent."
+                    )
+                    st.dataframe(
+                        [{"step": s.step_id, "source": s.source,
+                          "message": _content_cell(s.message),
+                          "tool calls": s.n_tool_calls,
+                          "observations": s.n_observations}
+                         for s in trajectory.steps],
+                        hide_index=True, width="stretch",
+                    )
                 if trajectory.tool_calls:
                     st.dataframe(
                         [{"step": c.step_id, "call": c.tool_call_id,
-                          "function": c.function, "exit": c.exit_code}
+                          "function": c.function, "exit": c.exit_code,
+                          "observation": _content_cell(c.observation)}
                          for c in trajectory.tool_calls],
                         hide_index=True, width="stretch",
+                    )
+                    st.caption(
+                        "`exit` is blank unless the observation records "
+                        "`command_exit_code`; no promoted Codex trajectory does."
                     )
             else:
                 _labeled(st, "Trajectory", trajectory)
@@ -146,8 +226,17 @@ with trials_tab:
             if trial.artifacts:
                 st.markdown("**Artifacts** (trial-relative, read-only)")
                 st.dataframe(
-                    [{"name": a.name, "path": a.relative_path, "bytes": a.size_bytes}
+                    [{"name": a.name, "path": a.relative_path, "bytes": a.size_bytes,
+                      "content": _content_cell(a.content)}
                      for a in trial.artifacts],
+                    hide_index=True, width="stretch",
+                )
+            if trial.omitted_files.provenance == "withheld":
+                # These files are in no artifact list because they are not in the
+                # bundle. Saying nothing would understate what was removed.
+                st.warning(f"🔒 {trial.omitted_files.reason}")
+                st.dataframe(
+                    list(trial.omitted_files.value["markers"]),
                     hide_index=True, width="stretch",
                 )
             st.markdown("**Next action**")
@@ -159,7 +248,9 @@ with analyses_tab:
     if not index.analyses:
         st.info("No analysis sidecars found.")
     for analysis in index.analyses:
-        with st.expander(f"🔎 {analysis.analysis_id} → {analysis.trial_key or 'unlinked'}"):
+        header = analysis.trial_key or "SOURCE TRIAL NOT FOUND"
+        with st.expander(f"🔎 {analysis.analysis_id} → {header}"):
+            _labeled(st, "Source trial", analysis.link)
             _labeled(st, "Validation status", analysis.status)
             _labeled(st, "Validity", analysis.validity)
             _labeled(st, "Category", analysis.category)
@@ -167,14 +258,15 @@ with analyses_tab:
             _labeled(st, "Confidence", analysis.confidence)
             _labeled(st, "Alternatives", analysis.alternatives)
             st.markdown("**Evidence citations** (resolved against the source trial)")
+            st.caption(
+                "✅ readable · 🔒 resolved but the cited text was withheld before "
+                "promotion · ⚪ resolved but absent · ⛔ does not resolve."
+            )
             for citation in analysis.citations:
-                ok = citation.resolution.value == "resolved"
-                line = (f"{'✅' if ok else '⛔'} `{citation.citation_path}`"
-                        f" step={citation.step_id} call={citation.tool_call_id}"
-                        f" — {citation.supports}")
+                line, detail = _citation_line(citation)
                 st.markdown(line)
-                if not ok:
-                    st.caption(f"unresolved: {citation.resolution.reason}")
+                if detail:
+                    st.caption(detail)
             _labeled(st, "Provenance", analysis.provenance)
     st.markdown("**Queue next actions**")
     for action in next_actions_for_queue():

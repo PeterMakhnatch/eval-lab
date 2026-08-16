@@ -1,0 +1,31 @@
+schema_version = "1.4"
+artifacts = ["/app/output/result.txt"]
+
+[task]
+name = "local-lab/uppercase-fixture"
+version = "1.0.0"
+description = "Uppercase one pinned input file without changing the source"
+keywords = ["shell", "text", "deterministic", "separate-verifier"]
+
+[[task.authors]]
+name = "Eval Lab"
+email = "eval-lab@example.invalid"
+
+[metadata]
+difficulty = "easy"
+category = "file-processing"
+tags = ["offline", "fixture", "mutation-tested"]
+
+[agent]
+timeout_sec = 30.0
+
+[verifier]
+timeout_sec = 30.0
+environment_mode = "separate"
+
+[environment]
+network_mode = "no-network"
+build_timeout_sec = 120.0
+cpus = 1
+memory_mb = 256
+storage_mb = 512

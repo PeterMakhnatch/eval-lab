@@ -16,11 +16,12 @@ the volume is intentionally not part of a Make target.
 
 ## Standing-policy queue
 
-The committed policy in `policy/standing-approvals.yaml` is the unattended
-executor's authorization boundary. Only Peter changes that file. Agents submit
-a Pydantic-validated experiment spec; the policy gate moves it atomically to
-`approved/` or `waiting/` and records every transition in ignored local
-`queue/events.jsonl`.
+The committed policy in `policy/standing-approvals.yaml` says which **free**
+work the unattended executor may run on its own; billable work is never
+covered by it (see "Paid execution requires a recorded authorisation" below).
+Only Peter changes that file. Agents submit a Pydantic-validated experiment
+spec; the policy gate moves it atomically to `approved/` or `waiting/` and
+records every transition in ignored local `queue/events.jsonl`.
 
 Example control spec:
 
@@ -68,6 +69,64 @@ prior day's budget across midnight.
 
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
 All real-model work must pass through the queue and standing policy.
+
+## Paid execution requires a recorded authorisation
+
+**Nothing billable runs unless Peter authorises that specific spec.** A spec is
+billable when its agent is anything other than `oracle` or `nop`. Paid work in
+this lab is dispatched against Peter's ChatGPT subscription
+(`~/.codex/auth.json`, `src/evallab/runner.py`), so no dollar ceiling in this
+repository measures what it actually consumes; the human decision is the only
+control that does.
+
+Which classes need authorisation:
+
+| Class | Agents | Runs unattended? |
+|---|---|---|
+| `local-controls` | `oracle`, `nop` | yes — no authorisation, no ceremony |
+| everything else | `codex`, `claude-code`, any future paid adapter | no — one recorded authorisation per spec |
+
+How it is enforced, in order:
+
+1. `PolicyGate.decide` refuses a billable spec that carries no authorisation
+   with `paid_run_unauthorized`, **before** any `auto_run` rule is consulted.
+2. `standing_rule_admits` returns `False` for every billable spec, so a
+   standing rule cannot cover paid work even if one names a paid agent. Editing
+   `policy/standing-approvals.yaml` therefore cannot re-open unattended spend.
+3. The authorisation itself is the `human_approved` record in append-only
+   `queue/events.jsonl`, written by `evallab approve` and withdrawn by
+   `evallab reject`. The spec file's own `policy_rule` field is **not** trusted:
+   the automation that submits paid work is what writes that file.
+
+It fails closed. If `queue/events.jsonl` cannot be read, the whole tick stops
+with `authorization_ledger_unreadable` and dispatches nothing, free controls
+included. An authorisation recorded before its spec was submitted is
+`paid_run_authorization_stale`, so reusing a spec id does not inherit consent.
+An authorisation naming another spec is `paid_run_authorization_mismatch`.
+
+### Authorising a paid run
+
+```bash
+uv run evallab submit queue/specs/my-codex-run.json
+#   -> state: waiting, reason paid_run_unauthorized, with both commands printed
+uv run evallab approve <spec-id> --actor peter
+#   -> prints the agent, attempt count, and estimated cost being authorised
+uv run evallab tick
+```
+
+`--actor` is required on `approve`; it is never defaulted, because the recorded
+name is the whole point of the record. To withdraw before dispatch:
+
+```bash
+uv run evallab reject <spec-id> --actor peter --reason "not tonight"
+```
+
+Authorisation does not lift a ceiling, the quiet-failure breaker, the registry
+checks, or the credential requirement — those still refuse an authorised spec.
+
+The nightly canary cycle still stages its paid canaries every night, but they
+land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is
+not quarantined for it. Nothing dispatches until Peter authorises a spec by id.
 
 ## Headless readiness and scheduling
 

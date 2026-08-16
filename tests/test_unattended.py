@@ -832,17 +832,19 @@ def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Pat
             submitted_by="scheduler-test",
         )
     )
-    service.submit(
+    codex_waiting, _ = service.submit(
         ExperimentSpec(
             name="credentialless-codex",
             hypothesis="model work waits for its own credential",
             task="library/tasks/event-summary",
-                agent="codex",
-                model="openai/example",
-                est_cost_usd=1,
+            agent="codex",
+            model="openai/example",
+            est_cost_usd=1,
             submitted_by="scheduler-test",
         )
     )
+    # Paid work reaches approved/ only through a recorded human authorisation.
+    queue.approve(str(queue.load(codex_waiting).spec_id), actor="peter")
     doctor = StaticDoctor(
         health_report(keychain_readable=False, codex_auth_present=False)
     )

@@ -1,3 +1,12 @@
+# Standing approvals: what may run WITHOUT a human in the loop.
+#
+# `auto_run` may only ever list free local controls. A billable agent (anything
+# other than oracle/nop) is refused by `PolicyGate.decide` before any standing
+# rule is consulted, and is admitted only against an authorisation recorded in
+# `queue/events.jsonl` by `uv run evallab approve <spec-id> --actor <you>`.
+# Adding a billable agent below therefore grants nothing; it only misstates
+# what this lab does. See docs/operations.md, "Paid execution requires a
+# recorded authorisation".
 version: 1
 daily_cost_ceiling_usd: 20
 per_job_cost_ceiling_usd: 3
@@ -5,16 +14,8 @@ quiet_failure_rule: 3
 auto_run:
   - name: local-controls
     agents: [oracle, nop]
-  - name: canary
-    tasks: [canary/*]
-    agents: [codex, claude-code]
-    max_attempts: 3
-  - name: researcher-followups
-    tasks: [registered/*]
-    agents: [codex, claude-code]
-    max_attempts: 5
-    requires: [schema_valid, dedup_pass, calibrated_judges_only]
 escalate_to_human:
+  - any_billable_agent
   - new_task_registration
   - cloud_or_remote_environment
   - anything_exceeding_ceilings

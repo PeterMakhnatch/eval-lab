@@ -864,9 +864,13 @@ def dispatch_approved_codex_calibration(
         spec,
         spent_today_usd=executor._catalog_spend(),
         consecutive_harness_failures=executor._consecutive_harness_failures(),
+        authorization=executor.queue.authorization_for(spec),
     )
-    if not decision.admitted or decision.policy_rule != "researcher-followups":
-        raise ValueError(f"approved calibration no longer passes policy: {decision.message}")
+    if not decision.admitted or decision.policy_rule != "human-approval":
+        raise ValueError(
+            "the approved calibration carries no live human authorisation to spend: "
+            f"{decision.message}"
+        )
     readiness = codex_calibration_readiness(repo_root, executor=executor)
     if not readiness.healthy:
         failed = [

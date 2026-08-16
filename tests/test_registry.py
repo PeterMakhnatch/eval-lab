@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from evallab.canary import load_canary_suite
-from evallab.queue import DirectoryQueue, Executor, PolicyGate
+from evallab.queue import DirectoryQueue, Executor, PaidRunAuthorization, PolicyGate
 from evallab.registry import (
     TaskComponentMissingError,
     TaskControlEvidenceError,
@@ -506,6 +506,15 @@ def test_policy_gate_refuses_unregistered_tasks(tmp_path: Path) -> None:
     assert decision.reason_code == "unregistered_task"
 
 
+def _authorization(spec: ExperimentSpec) -> PaidRunAuthorization:
+    """The recorded human authorisation that paid work now requires."""
+    return PaidRunAuthorization(
+        spec_id=str(spec.spec_id),
+        actor="peter",
+        authorized_at=spec.submitted_at or datetime.now(UTC),
+    )
+
+
 def test_human_approval_cannot_bypass_unregistered_or_candidate(tmp_path: Path) -> None:
     policy = StandingApprovalsPolicy(
         daily_cost_ceiling_usd=20.0,
@@ -525,7 +534,11 @@ def test_human_approval_cannot_bypass_unregistered_or_candidate(tmp_path: Path) 
         est_cost_usd=1.0,
         submitted_by="test",
     )
-    decision = gate.decide(spec_unregistered, spent_today_usd=0.0, human_approved=True)
+    decision = gate.decide(
+        spec_unregistered,
+        spent_today_usd=0.0,
+        authorization=_authorization(spec_unregistered),
+    )
     assert not decision.admitted
     assert decision.reason_code == "unregistered_task"
 
@@ -547,7 +560,11 @@ def test_human_approval_cannot_bypass_unregistered_or_candidate(tmp_path: Path) 
         est_cost_usd=1.0,
         submitted_by="test",
     )
-    decision2 = gate.decide(spec_candidate, spent_today_usd=0.0, human_approved=True)
+    decision2 = gate.decide(
+        spec_candidate,
+        spent_today_usd=0.0,
+        authorization=_authorization(spec_candidate),
+    )
     assert not decision2.admitted
     assert decision2.reason_code == "task_not_registered"
 
@@ -605,8 +622,10 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
         est_cost_usd=1.0,
         submitted_by="test",
     )
-    path, decision = executor.submit(spec)
-    assert decision.admitted
+    waiting, decision = executor.submit(spec)
+    # Billable work never auto-runs: it is authorised one spec at a time.
+    assert decision.reason_code == "paid_run_unauthorized"
+    path = queue.approve(str(queue.load(waiting).spec_id), actor="peter")
     assert path.parent.name == "approved"
 
     # Run executor tick

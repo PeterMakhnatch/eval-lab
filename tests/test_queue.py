@@ -10,7 +10,13 @@ import pytest
 import evallab.queue as queue_module
 from evallab import eventlog
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
-from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
+from evallab.queue import (
+    DirectoryQueue,
+    Executor,
+    PaidRunAuthorization,
+    PolicyGate,
+    load_events,
+)
 from evallab.runner import RunRequest, TransientHarnessFailure, TrialTimeoutFailure
 from evallab.schemas import AutoRunRule, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
 
@@ -40,6 +46,7 @@ def spec(
     task: str = "library/tasks/event-summary",
     model: str | None = None,
     est_cost_usd: float = 0,
+    policy_rule: str | None = None,
 ) -> ExperimentSpec:
     return ExperimentSpec(
         name=name,
@@ -50,6 +57,28 @@ def spec(
         model=model,
         submitted_by="test-agent",
         est_cost_usd=est_cost_usd,
+        policy_rule=policy_rule,
+    )
+
+
+def submit_authorized(service: Executor, item: ExperimentSpec) -> Path:
+    """Submit paid work and record the human authorisation it now requires.
+
+    Billable agents never reach `approved/` from a standing rule; every test
+    that needs one dispatched has to go through the same operator step as
+    `uv run evallab approve <spec-id> --actor <you>`.
+    """
+    waiting, _ = service.submit(item)
+    return service.queue.approve(str(service.queue.load(waiting).spec_id), actor="peter")
+
+
+def identified(item: ExperimentSpec) -> tuple[ExperimentSpec, PaidRunAuthorization]:
+    """A queued spec plus the recorded authorisation that covers exactly it."""
+    moment = datetime(2026, 8, 16, tzinfo=UTC)
+    spec_id = f"01TEST{item.name.upper().replace('-', '')[:20]}"
+    queued = item.model_copy(update={"spec_id": spec_id, "submitted_at": moment})
+    return queued, PaidRunAuthorization(
+        spec_id=str(queued.spec_id), actor="peter", authorized_at=moment
     )
 
 
@@ -190,7 +219,7 @@ def test_out_of_policy_spec_waits_with_a_reason(tmp_path: Path) -> None:
     service = executor(tmp_path)
 
     path, decision = service.submit(
-        spec("manual-model-run", agent="other-agent", model="provider/model", est_cost_usd=1)
+        spec("unmatched-control", policy_rule="no-such-standing-rule")
     )
 
     assert path.parent.name == "waiting"
@@ -201,22 +230,21 @@ def test_out_of_policy_spec_waits_with_a_reason(tmp_path: Path) -> None:
 
 
 def test_spec_past_ceiling_is_refused_with_reason_file(tmp_path: Path) -> None:
-    service = executor(tmp_path, spent=19.5)
-
-    path, decision = service.submit(
+    service = executor(tmp_path)
+    submit_authorized(
+        service,
         spec(
-            "canary-over-daily-ceiling",
+            "canary-over-per-job-ceiling",
             task="canary/event-summary",
             agent="codex",
             model="openai/example",
-            est_cost_usd=1,
-        )
+            est_cost_usd=9,
+        ),
     )
 
-    assert path.parent.name == "waiting"
-    assert decision.reason_code == "daily_cost_ceiling"
-    reason = next((tmp_path / "queue/reasons").glob("*.json"))
-    assert "daily_cost_ceiling" in reason.read_text()
+    assert service.tick() == 0
+    reason = sorted((tmp_path / "queue/reasons").glob("*.json"))[-1]
+    assert '"code": "per_job_cost_ceiling"' in reason.read_text()
 
 
 def test_stop_file_halts_dispatch(tmp_path: Path) -> None:
@@ -303,18 +331,21 @@ def test_human_approval_does_not_override_hard_cost_ceiling(tmp_path: Path) -> N
 
 def test_quiet_failure_rule_only_quarantines_billable_specs(tmp_path: Path) -> None:
     gate = PolicyGate(policy())
-    billable = spec(
-        "canary-after-failures",
-        task="canary/event-summary",
-        agent="codex",
-        model="openai/example",
-        est_cost_usd=1,
+    billable, authorization = identified(
+        spec(
+            "canary-after-failures",
+            task="canary/event-summary",
+            agent="codex",
+            model="openai/example",
+            est_cost_usd=1,
+        )
     )
 
     decision = gate.decide(
         billable,
         spent_today_usd=0,
         consecutive_harness_failures=3,
+        authorization=authorization,
     )
     control = gate.decide(
         spec("control-after-failures"),
@@ -355,8 +386,10 @@ def test_missing_credential_defers_spec_without_moving_it(tmp_path: Path) -> Non
         return destination
 
     service = executor(tmp_path, runner=run, credentials=frozenset())
-    _, decision = service.submit(spec("codex-blocked", agent="codex", task="canary/event-summary"))
-    assert decision.admitted
+    approved = submit_authorized(
+        service, spec("codex-blocked", agent="codex", task="canary/event-summary")
+    )
+    assert approved.parent.name == "approved"
     service.submit(spec("oracle-proceeds"))
 
     dispatched = service.tick()
@@ -403,9 +436,12 @@ def test_tick_defers_only_the_agent_with_a_missing_credential(
             task="canary/event-summary",
         ),
     ]
-    decisions = [service.submit(item)[1] for item in submissions]
+    for item in submissions:
+        if item.billable:
+            submit_authorized(service, item)
+        else:
+            assert service.submit(item)[1].admitted
 
-    assert all(decision.admitted for decision in decisions)
     assert service.tick() == 3
 
     expected_dispatched = {
@@ -442,9 +478,12 @@ def test_spec_without_model_gets_agent_default_and_explicit_model_wins(tmp_path:
         return destination
 
     service = executor(tmp_path, runner=run)
-    service.submit(spec("codex-default-model", agent="codex", task="canary/event-summary"))
-    service.submit(
-        spec("codex-pinned-model", agent="codex", task="canary/event-summary", model="pinned-x")
+    submit_authorized(
+        service, spec("codex-default-model", agent="codex", task="canary/event-summary")
+    )
+    submit_authorized(
+        service,
+        spec("codex-pinned-model", agent="codex", task="canary/event-summary", model="pinned-x"),
     )
     service.tick()
 
@@ -546,13 +585,15 @@ def test_billable_transient_retry_reserves_budget_before_another_call(
         raise TransientHarnessFailure("transient_harness:provider_http_429")
 
     service = executor(tmp_path, runner=transient, spent=17)
-    submitted = spec(
-        "budgeted-provider-retry",
-        task="canary/event-summary",
-        agent="codex",
-        est_cost_usd=2,
+    submit_authorized(
+        service,
+        spec(
+            "budgeted-provider-retry",
+            task="canary/event-summary",
+            agent="codex",
+            est_cost_usd=2,
+        ),
     )
-    service.submit(submitted)
 
     assert service.tick() == 1
     assert calls == 1
@@ -575,13 +616,14 @@ def test_failed_attempt_reservations_survive_executor_restart(tmp_path: Path) ->
         raise TransientHarnessFailure("transient_harness:provider_http_503")
 
     first = executor(tmp_path, runner=transient, spent=15)
-    first.submit(
+    submit_authorized(
+        first,
         spec(
             "durable-provider-retry",
             task="canary/event-summary",
             agent="codex",
             est_cost_usd=2,
-        )
+        ),
     )
 
     assert first.tick() == 1
@@ -597,33 +639,38 @@ def test_failed_attempt_reservations_survive_executor_restart(tmp_path: Path) ->
     ]
 
     restarted = executor(tmp_path, runner=lambda request: request.jobs_dir, spent=15)
-    destination, decision = restarted.submit(
+    later = submit_authorized(
+        restarted,
         spec(
             "later-billable-spec",
             task="canary/event-summary",
             agent="codex",
             est_cost_usd=2,
-        )
+        ),
     )
+    later_id = str(restarted.queue.load(later).spec_id)
 
-    assert decision.admitted is False
-    assert decision.reason_code == "daily_cost_ceiling"
-    assert destination.parent.name == "waiting"
+    assert restarted.tick() == 0
+    assert restarted.queue.locate(later_id, ("waiting",)).is_file()
+    assert any(
+        '"code": "daily_cost_ceiling"' in path.read_text()
+        for path in restarted.queue.reasons_dir.glob(f"{later_id}-*.json")
+    )
 
 
 def test_running_reconciliation_settles_the_final_attempt_reservation(
     tmp_path: Path,
 ) -> None:
     service = executor(tmp_path, spent=2)
-    approved, decision = service.submit(
+    approved = submit_authorized(
+        service,
         spec(
             "reconciled-billable-spec",
             task="canary/event-summary",
             agent="codex",
             est_cost_usd=2,
-        )
+        ),
     )
-    assert decision.admitted
     queued = service.queue.load(approved)
     running = service.queue.transition(
         approved,
@@ -709,13 +756,14 @@ def test_reconciliation_fails_closed_on_terminal_transient_job(
             AssertionError(f"transient job was ingested: {path}")
         ),
     )
-    approved, _ = service.submit(
+    approved = submit_authorized(
+        service,
         spec(
             "interrupted-transient-spec",
             task="canary/event-summary",
             agent="codex",
             est_cost_usd=2,
-        )
+        ),
     )
     queued = service.queue.load(approved)
     service.queue.transition(
@@ -744,7 +792,9 @@ def test_reconciliation_fails_closed_on_terminal_transient_job(
     assert service.queue.list_specs("failed")
     assert not service.queue.list_specs("done")
     assert service._reserved_attempt_spend_today() == 2
-    reason = next(service.queue.reasons_dir.glob("*.json")).read_text()
+    # submit_authorized leaves the paid_run_unauthorized refusal behind it;
+    # the reconciliation reason is the newest file, and ULIDs sort by time.
+    reason = sorted(service.queue.reasons_dir.glob("*.json"))[-1].read_text()
     assert "transient_harness:provider_http_5xx" in reason
 
 
@@ -752,13 +802,14 @@ def test_reconciliation_fails_closed_if_retry_archive_has_no_canonical_job(
     tmp_path: Path,
 ) -> None:
     service = executor(tmp_path)
-    approved, _ = service.submit(
+    approved = submit_authorized(
+        service,
         spec(
             "archive-only-transient-spec",
             task="canary/event-summary",
             agent="codex",
             est_cost_usd=2,
-        )
+        ),
     )
     queued = service.queue.load(approved)
     service.queue.transition(
@@ -780,7 +831,9 @@ def test_reconciliation_fails_closed_if_retry_archive_has_no_canonical_job(
     service.reconcile_running()
 
     assert service.queue.list_specs("failed")
-    reason = next(service.queue.reasons_dir.glob("*.json")).read_text()
+    # submit_authorized leaves the paid_run_unauthorized refusal behind it;
+    # the reconciliation reason is the newest file, and ULIDs sort by time.
+    reason = sorted(service.queue.reasons_dir.glob("*.json"))[-1].read_text()
     assert "transient_harness:retry_interrupted" in reason
 
 

@@ -115,7 +115,14 @@ def test_committed_suite_has_three_pinned_verified_members() -> None:
     assert terminal_bench.source_task_name == "html-js-filter"
 
 
-def test_canaries_run_two_consecutive_nights_with_three_attempts(tmp_path: Path) -> None:
+def test_canaries_are_staged_two_consecutive_nights_and_never_self_dispatch(
+    tmp_path: Path,
+) -> None:
+    """Paid canaries are queued for Peter nightly; nothing runs without him.
+
+    Before the authorization gate this asserted six unattended Codex
+    dispatches across two nights — the defect itself.
+    """
     requests: list = []
     ingested: list[Path] = []
     service = make_executor(tmp_path, requests, ingested)
@@ -139,13 +146,29 @@ def test_canaries_run_two_consecutive_nights_with_three_attempts(tmp_path: Path)
     first = cycle.run(report_date=first_date)
     second = cycle.run(report_date=first_date + timedelta(days=1))
 
-    assert first.enqueued == first.dispatched == 3
-    assert second.enqueued == second.dispatched == 3
-    assert len(requests) == len(ingested) == 6
-    assert all(request.attempts == 3 for request in requests)
-    assert {request.agent for request in requests} == {"codex"}
-    assert all(request.provenance.policy_rule == "canary" for request in requests)
-    assert len({request.name for request in requests}) == 6
+    assert first.enqueued == second.enqueued == 3
+    assert first.dispatched == second.dispatched == 0
+    assert not first.quarantined and not second.quarantined
+    assert requests == ingested == []
+    staged = [item for _path, item in service.queue.list_specs("waiting")]
+    assert len(staged) == 6
+    assert {item.agent for item in staged} == {"codex"}
+    assert all(item.attempts == 3 for item in staged)
+    assert len({item.name for item in staged}) == 6
+
+
+def test_authorizing_one_staged_canary_dispatches_exactly_that_one(tmp_path: Path) -> None:
+    requests: list = []
+    ingested: list[Path] = []
+    service = make_executor(tmp_path, requests, ingested)
+    enqueuer = CanaryEnqueuer(repo_root=tmp_path, executor=service, suite=make_suite(tmp_path))
+    enqueuer.enqueue(date(2026, 8, 12))
+    chosen = service.queue.list_specs("waiting")[0][1]
+    service.queue.approve(str(chosen.spec_id), actor="peter")
+
+    assert service.tick() == 1
+    assert [request.name for request in requests] == [chosen.name]
+    assert len(service.queue.list_specs("waiting")) == 2
 
 
 def test_mutated_pinned_task_quarantines_nightly_before_dispatch(tmp_path: Path) -> None:

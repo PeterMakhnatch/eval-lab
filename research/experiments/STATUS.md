@@ -8,9 +8,9 @@ headline.
 
 **Codex canary night 2026-08-15** (scored; 0 trial exceptions):
 
-- event-summary — 3/3 `reward==1.0` — `runs/canary-event-summary-codex-20260815/`
-- transaction-reconciliation — 3/3 `reward==1.0` — `runs/canary-transaction-reconciliation-codex-20260815/`
-- html-js-filter — 0/3 `reward==1.0` (all three `reward==0.0`) — `runs/canary-terminal-bench-html-js-filter-codex-20260815/`
+- event-summary — 3/3 `reward==1.0` — `research/evidence/runs/canary-event-summary-codex-20260815/`
+- transaction-reconciliation — 3/3 `reward==1.0` — `research/evidence/runs/canary-transaction-reconciliation-codex-20260815/`
+- html-js-filter — 0/3 `reward==1.0` (all three `reward==0.0`) — `research/evidence/runs/canary-terminal-bench-html-js-filter-codex-20260815/`
 
 These are three task-family observations. They are not a ranking.
 
@@ -27,9 +27,19 @@ Observation-text command/assertion failure counts are 1 / 3 / 3 for D3GZpFU /
 5rgjEEt / kzGxL7Q. Missing structured exit-code fields are not counted as
 successes.
 
-**Provenance boundary:** the scored 2026-08-15 raw jobs were reviewed directly
-and the retained baseline records their job-result digests and numeric extracts.
-Runtime `runs/` and `queue/` locations are not versioned local references.
+**Provenance boundary:** the scored 2026-08-15 raw jobs were reviewed directly in
+the runtime store and the retained baseline records their job-result digests and
+numeric extracts. All three are now promoted as redacted bundles under
+`research/evidence/runs/`, so `PROGRAM.json` `references.jobs` cites committed
+paths and the night is citable from a fresh clone. The promoted job `result.json`
+digests are the same three already quoted in
+`baselines/codex-canary-20260815.md`. Redaction is not optional: ATIF steps with
+`source` `system` or `user` carried the verbatim Codex vendor system prompt, and
+`agent/sessions/*.jsonl` carried `payload.encrypted_content`, both barred by
+`AGENTS.md`. Rules R1/R2/R3 and per-file parent digests are in each bundle's
+`PROMOTION.json`; `research/evidence/README.md` explains what was dropped.
+Runtime `queue/` locations, the 2026-08-14 waves and the `-r2` re-runs remain
+unpromoted and are still not versioned local references.
 
 ## RUNNING NOW
 
@@ -72,8 +82,8 @@ Human-owned, unresolved:
 Hypothesis is that an explicit `gpt-5.6-sol` Codex run will *complete
 with a scored result instead of the model-less ValueError*. Newer
 evidence already answers that for default-model Codex:
-`runs/canary-event-summary-codex-20260815/*/result.json` shows three
-scored trials, `exception_info=null`, `reward=1.0`,
+`research/evidence/runs/canary-event-summary-codex-20260815/*/result.json`
+shows three scored trials, `exception_info=null`, `reward=1.0`,
 `model_info.name=gpt-5.6-terra`. PROGRAM does not approve, reject,
 delete, or submit this spec. The queue object is runtime-only and is not treated
 as a retained scientific reference.

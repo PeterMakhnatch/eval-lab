@@ -136,6 +136,22 @@ CREATE INDEX IF NOT EXISTS trajectory_documents_trial_idx
 CREATE INDEX IF NOT EXISTS trajectory_documents_status_idx
     ON trajectory_documents (validation_status);
 
+-- `session_id` is the bridge between this catalog and a Phoenix trace:
+-- `harbor-atif2otel` copies it verbatim onto the converted root span as
+-- `session.id`, so a span resolves to experiment -> job -> trial through this
+-- column alone. It is indexed, and deliberately **not** unique.
+--
+-- Uniqueness holds in today's data (23/23 distinct) but not by construction.
+-- ATIF v1.7 embedded subagent trajectories share their parent's `session_id`
+-- and are disambiguated by `trajectory_id` (harbor_atif2otel/ids.py:45-55),
+-- and `evallab.atif._flatten_payloads` writes one row per embedded payload,
+-- so one multi-agent trial legitimately yields several rows with the same
+-- `session_id`. A UNIQUE constraint here would abort that ingest. Callers
+-- must therefore treat the lookup as one-to-many and refuse ambiguity
+-- themselves; `evallab.tracing.resolve_session` does.
+CREATE INDEX IF NOT EXISTS trajectory_documents_session_idx
+    ON trajectory_documents (session_id);
+
 CREATE TABLE IF NOT EXISTS deterministic_trial_facts (
     trial_id uuid PRIMARY KEY REFERENCES trials(id) ON DELETE CASCADE,
     verifier_digest text NOT NULL,

@@ -44,6 +44,10 @@ uv run evallab submit /path/to/spec.json
 uv run evallab tick
 ```
 
+`submit` prints the `spec_id` on its own labelled line. That bare ULID is the
+value `approve`, `reject`, and the catalog's `experiment_id` column all take;
+the `state:` and `path:` lines beside it are context, not identifiers.
+
 Out-of-policy work waits for an explicit decision:
 
 ```bash
@@ -337,6 +341,19 @@ whose raw evidence was intentionally discarded, remove only that exact derived
 catalog row; never drop or recreate the shared database to repair one stale job.
 Once doctor reports equal catalog and projected counts, reinstall the schedule
 and resume dispatch.
+
+Because that store is shared across worktrees, doctor's `catalog-parquet` line
+ends with `db=<host>:<port>/<dbname>` — the database it actually inspected,
+never a credential. Two shells with different `DATABASE_URL` values otherwise
+print the same green line for different catalogs.
+
+Analysis sidecars follow the same "the catalog is derived" rule. `analyze stub`
+and `analyze review` write the durable artifact under
+`derived/analyses/<analysis_id>/` and index it only when given `--index`; both
+state which of the two happened and, when they did not index, print the exact
+`analyze ingest-sidecar` command that does. `analyze review --index` is the
+single command that populates `analysis_reviews`. `analyze ingest-sidecar`
+also indexes every review sitting beside the sidecar and reports how many.
 
 A Parquet failure cannot roll back catalog ingest or turn a completed agent run
 into an execution failure. It appends a

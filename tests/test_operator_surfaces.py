@@ -254,3 +254,35 @@ def test_database_identity_never_returns_a_password() -> None:
     assert database.identity("=== not a connection string") == "unparsable connection string"
 
 
+
+
+# ---- F-09: `submit` prints the id the next command wants --------------------
+
+
+def test_submit_prints_the_bare_spec_id_approve_wants(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    shutil.copytree(ROOT / "policy", tmp_path / "policy")
+    spec = tmp_path / "spec.json"
+    spec.write_text(
+        '{"name": "operator-fixes-control", "hypothesis": "the control runs",'
+        ' "task": "library/tasks/event-summary", "agent": "oracle",'
+        ' "submitted_by": "operator-fixes", "est_cost_usd": 0}'
+    )
+
+    assert run_cli(["submit", str(spec)], workspace=tmp_path) == 0
+
+    out = capsys.readouterr().out
+    spec_id = next(
+        line.split("spec_id: ")[1] for line in out.splitlines() if line.startswith("spec_id: ")
+    )
+    # The printed id is exactly what `approve`, `reject`, and the catalog's
+    # `experiment_id` column consume — no prefix, no extension, no directory.
+    from evallab.queue import DirectoryQueue
+
+    located = DirectoryQueue(tmp_path / "queue").locate(spec_id)
+    assert located.is_file()
+    assert spec_id == located.stem.rsplit("-", 1)[-1]
+    assert "state: " in out
+    assert "path: " in out

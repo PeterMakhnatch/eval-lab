@@ -915,9 +915,22 @@ def run_cli(
             return _status_command(args, root)
         if args.command == "submit":
             spec = read_spec(_resolve(root, args.path))
-            path, decision = Executor.from_repo(root).submit(spec)
-            print(f"{path.parent.name}: {path}")
+            executor = Executor.from_repo(root)
+            path, decision = executor.submit(spec)
+            # `approve`, `reject`, and the catalog's `experiment_id` column all
+            # want the bare ULID. Printing the queue state directory as if it
+            # were a label made the operator copy a word that no command takes
+            # (M009 F-09). Read the id back off the artifact that was written.
+            submitted = executor.queue.load(path)
+            print(f"spec_id: {submitted.spec_id}")
+            print(f"state: {path.parent.name}")
+            print(f"path: {path}")
             print(decision.message)
+            if path.parent.name == "waiting":
+                print(
+                    "next: uv run evallab approve "
+                    f"{shlex.quote(str(submitted.spec_id))} --actor <you>"
+                )
             return 0
         if args.command == "tick":
             executor = Executor.from_repo(root)

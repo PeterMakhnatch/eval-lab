@@ -64,10 +64,20 @@ def catalog_statements(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Any]]
     return statements
 
 
-def _scratch_with_sidecar(tmp_path: Path) -> Path:
-    """A scratch repo holding one durable, valid analysis sidecar."""
+def _scratch_repo(tmp_path: Path) -> Path:
+    """A scratch workspace with one completed job and the committed stage-5 inputs."""
     scratch = tmp_path / "complete"
     shutil.copytree(FIXTURES / "complete", scratch)
+    analysis_inputs = scratch / "research/analysis"
+    analysis_inputs.mkdir(parents=True)
+    for source in (PROMPT, RUBRIC, STUB):
+        shutil.copy2(source, analysis_inputs / source.name)
+    return scratch
+
+
+def _scratch_with_sidecar(tmp_path: Path) -> Path:
+    """A scratch repo holding one durable, valid analysis sidecar."""
+    scratch = _scratch_repo(tmp_path)
     job = load_job(scratch / "jobs/operability-join")
 
     def analyzer(_prompt: str, _schema: dict[str, object]) -> AnalyzerCallResult:
@@ -286,3 +296,90 @@ def test_submit_prints_the_bare_spec_id_approve_wants(
     assert spec_id == located.stem.rsplit("-", 1)[-1]
     assert "state: " in out
     assert "path: " in out
+
+
+# ---- F-12: `analyze stub --index` says what it indexed, and where -----------
+
+
+def test_analyze_stub_index_reports_what_it_indexed(
+    tmp_path: Path, catalog_statements: list[tuple[str, Any]], capsys: pytest.CaptureFixture[str]
+) -> None:
+    scratch = _scratch_repo(tmp_path)
+    response = scratch / "saved-response.json"
+    response.write_text(STUB.read_text())
+
+    assert (
+        run_cli(
+            [
+                "analyze", "stub", "jobs/operability-join/join-trial",
+                "--response", str(response),
+                "--index",
+                "--database-url", CATALOG_URL,
+            ],
+            workspace=scratch,
+        )
+        == 0
+    )
+
+    out = capsys.readouterr().out
+    analysis_id = next(
+        line.split("analysis: ")[1] for line in out.splitlines() if line.startswith("analysis: ")
+    )
+    analysis_id = Path(analysis_id).parent.name
+    assert f"indexed analysis: {analysis_id}" in out
+    assert "catalog: catalog.test:54329/evallab" in out
+
+
+def test_analyze_stub_without_index_says_it_did_not_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    scratch = _scratch_repo(tmp_path)
+    response = scratch / "saved-response.json"
+    response.write_text(STUB.read_text())
+
+    assert (
+        run_cli(
+            [
+                "analyze", "stub", "jobs/operability-join/join-trial",
+                "--response", str(response),
+            ],
+            workspace=scratch,
+        )
+        == 0
+    )
+
+    out = capsys.readouterr().out
+    assert "indexed: no" in out
+    assert "next: uv run evallab analyze ingest-sidecar " in out
+
+
+def test_ingest_sidecar_reports_the_reviews_it_swept_in(
+    tmp_path: Path, catalog_statements: list[tuple[str, Any]], capsys: pytest.CaptureFixture[str]
+) -> None:
+    from evallab.facts import write_analysis_review
+
+    sidecar_path = _scratch_with_sidecar(tmp_path)
+    scratch = sidecar_path.parents[2]
+    write_analysis_review(
+        sidecar_path,
+        disposition="accepted",
+        rationale="the control did no work, as designed",
+        reviewer="operator-fixes",
+    )
+
+    assert (
+        run_cli(
+            [
+                "analyze", "ingest-sidecar", str(sidecar_path),
+                "--database-url", CATALOG_URL,
+            ],
+            workspace=scratch,
+        )
+        == 0
+    )
+
+    out = capsys.readouterr().out
+    assert "indexed reviews: 1" in out
+    assert "catalog: catalog.test:54329/evallab" in out
+    assert len(_inserted(catalog_statements, "analysis_reviews")) == 1

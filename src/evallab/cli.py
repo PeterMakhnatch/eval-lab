@@ -91,7 +91,7 @@ from evallab.runner import (
     request_from_matrix,
     subscription_environment,
 )
-from evallab.schemas import ANALYSIS_SIDECAR_FILENAME
+from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.tracing import (
     TraceError,
@@ -1257,12 +1257,23 @@ def run_cli(
                 agent_version="1",
                 model="saved-response",
             )
+            print(f"analysis: {sidecar_path}")
+            print(f"validation: {sidecar.validation_status}")
+            # `--index` used to be invisible: the output was byte-identical to
+            # the un-indexed form and the only way to confirm the row existed
+            # was to query `analysis_invocations` by hand (M009 F-12).
             if args.index:
                 url = database_url_from_environment(args.database_url)
                 database.initialize(url)
                 ingest_analysis_sidecar(url, sidecar_path, root=root)
-            print(f"analysis: {sidecar_path}")
-            print(f"validation: {sidecar.validation_status}")
+                print(f"indexed analysis: {sidecar.analysis_id}")
+                print(f"catalog: {database.identity(url)}")
+            else:
+                print("indexed: no (the catalog is a derived index, written on request)")
+                print(
+                    "next: uv run evallab analyze ingest-sidecar "
+                    f"{shlex.quote(str(sidecar_path))}"
+                )
             return 0 if sidecar.validation_status == "valid" else 1
         if args.command == "analyze" and args.analyze_command in {
             "worker-plan",
@@ -1295,7 +1306,10 @@ def run_cli(
             url = database_url_from_environment(args.database_url)
             database.initialize(url)
             sidecar = ingest_analysis_sidecar(url, sidecar_path, root=root)
+            reviews = len(list((sidecar_path.parent / ANALYSIS_REVIEWS_DIRNAME).glob("*.json")))
             print(f"indexed analysis: {sidecar.analysis_id}")
+            print(f"indexed reviews: {reviews}")
+            print(f"catalog: {database.identity(url)}")
             return 0
         if args.command == "analyze" and args.analyze_command == "review":
             sidecar_path = _resolve(root, args.path)

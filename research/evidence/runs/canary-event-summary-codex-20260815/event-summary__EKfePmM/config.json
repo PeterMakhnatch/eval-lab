@@ -1,0 +1,12 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary"
+    },
+    "trial_name": "event-summary__EKfePmM",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/runs/canary-event-summary-codex-20260815",
+    "agent": {
+        "name": "codex",
+        "model_name": "gpt-5.6-terra"
+    },
+    "job_id": "cce77192-10b9-4f82-8f29-2e0545844c68"
+}

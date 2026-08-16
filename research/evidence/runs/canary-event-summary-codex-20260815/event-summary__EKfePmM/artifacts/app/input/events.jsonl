@@ -1,0 +1,8 @@
+{"event_id":"evt-001","kind":"cache_hit","duration_ms":7}
+{"event_id":"evt-002","kind":"request","duration_ms":120}
+{"event_id":"evt-003","kind":"request","duration_ms":80}
+{"event_id":"evt-004","kind":"retry","duration_ms":310}
+{"event_id":"evt-005","kind":"request","duration_ms":45}
+{"event_id":"evt-006","kind":"cache_hit","duration_ms":5}
+{"event_id":"evt-007","kind":"error","duration_ms":900}
+{"event_id":"evt-008","kind":"request","duration_ms":150}

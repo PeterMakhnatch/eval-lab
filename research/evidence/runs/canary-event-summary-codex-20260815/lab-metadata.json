@@ -1,0 +1,52 @@
+{
+  "command": [
+    "harbor",
+    "run",
+    "--path",
+    "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary",
+    "--agent",
+    "codex",
+    "--env",
+    "docker",
+    "--job-name",
+    "canary-event-summary-codex-20260815",
+    "--jobs-dir",
+    "/Users/petermakhnatch/Developer/eval-lab/runs",
+    "--n-concurrent",
+    "1",
+    "--n-attempts",
+    "3",
+    "--model",
+    "gpt-5.6-terra"
+  ],
+  "executor_log": ".executor/canary-event-summary-codex-20260815.log",
+  "exit_code": 0,
+  "experiment": {
+    "policy_rule": "canary",
+    "schema_version": 1,
+    "spec_id": "01M021T5SMYY9E4EBCCMNF43A6",
+    "task": "canary/event-summary",
+    "task_version": "1.0.0",
+    "verifier_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d"
+  },
+  "finished_at": "2026-08-15T07:02:42.897792+00:00",
+  "host": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "python": "3.12.11"
+  },
+  "job_timeout_seconds": 5400,
+  "repository": {
+    "commit": "5c66352601948ff8e0e414caa6b14d0706fd2aad",
+    "dirty": true
+  },
+  "schema_version": 1,
+  "started_at": "2026-08-15T06:57:20.801469+00:00",
+  "timed_out": false,
+  "timed_out_trial": null,
+  "tools": {
+    "docker": "Docker version 29.4.1, build 055a478",
+    "harbor": "0.21.0",
+    "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+  },
+  "trial_timeout_seconds": 1800
+}

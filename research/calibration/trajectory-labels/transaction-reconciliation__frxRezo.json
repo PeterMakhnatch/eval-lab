@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "transaction-reconciliation__frxRezo",
+  "source": "research/evidence/runs/canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__frxRezo",
+  "primary_category": "unknown",
+  "summary": "Codex reconciled the ledger discrepancy and scored 1.0 with no exception; the failure taxonomy describes failure mechanisms, so no class applies.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 9,
+      "supports": "ATIF step 9 is the agent's completion message 'Reconciled the discrepancy in `/app/data/ledger.db`.'; result.json verifier_result.rewards.reward is 1.0 and exception_info is null."
+    },
+    {
+      "path": "verifier/reward.txt",
+      "step": null,
+      "supports": "reward.txt records 0 failures and reward 1.0 for this trial."
+    }
+  ],
+  "agent": "codex",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Same convention as the promoted oracle control event-summary__FZg7pvq: a reward-1.0 trial carries unknown because no failure mechanism was observed.",
+  "labelled_by": "PROMOTE-EVIDENCE, 2026-08-16, alongside the bundle promotion in PR #58",
+  "parent_trajectory_sha256": "sha256:97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd"
+}

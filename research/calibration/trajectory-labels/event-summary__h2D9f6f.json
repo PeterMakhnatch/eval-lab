@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "event-summary__h2D9f6f",
+  "source": "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f",
+  "primary_category": "unknown",
+  "summary": "Codex wrote /app/output/summary.json and scored 1.0 with no exception; the failure taxonomy describes failure mechanisms, so no class applies.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 11,
+      "supports": "ATIF step 11 is the agent's completion message 'Created and validated [summary.json](/app/output/summary.json).'; result.json verifier_result.rewards.reward is 1.0 and exception_info is null."
+    },
+    {
+      "path": "verifier/reward.json",
+      "step": null,
+      "supports": "reward.json records reward 1.0 for this trial."
+    }
+  ],
+  "agent": "codex",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Follows the convention already set by event-summary__FZg7pvq, the promoted oracle control, which is also a reward-1.0 trial labelled unknown with the summary 'no failure class applies'.",
+  "labelled_by": "PROMOTE-EVIDENCE, 2026-08-16, alongside the bundle promotion in PR #58",
+  "parent_trajectory_sha256": "sha256:5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175"
+}

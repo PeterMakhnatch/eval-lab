@@ -328,14 +328,19 @@ def test_failure_taxonomy_agreement_uses_only_valid_sidecars(tmp_path: Path) -> 
         reference_root=ROOT,
     )
 
-    assert report["n_labels"] == 25
+    # The label corpus grows whenever evidence is promoted, so the coverage
+    # arithmetic is asserted against the observed label count rather than a
+    # frozen one. Exactly one label must match the one valid sidecar.
+    n_labels = report["n_labels"]
+    assert n_labels == len(list(labels_root.glob("*.json")))
+    assert n_labels > 1
     assert report["n_sidecars"] == 2
     assert report["n_matched_valid"] == 1
     assert report["n_invalid_analyses"] == 1
     assert report["exact_matches"] == 1
     assert report["exact_agreement"] == 1.0
-    assert report["label_coverage"] == 1 / 25
-    assert len(report["labels_without_valid_analysis"]) == 24
+    assert report["label_coverage"] == 1 / n_labels
+    assert len(report["labels_without_valid_analysis"]) == n_labels - 1
     assert report["comparisons"][0]["label_sha256"].startswith("sha256:")
     assert report["comparisons"][0]["sidecar_sha256"].startswith("sha256:")
     assert _tree_digests(labels_root) == before

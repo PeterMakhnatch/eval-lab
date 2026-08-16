@@ -15,15 +15,22 @@ Three redaction rules are applied. ``AGENTS.md`` forbids committing unredacted
 model prompts, and one ``library/tasks/*/tests`` verifier keeps its attack-vector
 corpus outside the repository on purpose.
 
-R1 -- prompt redaction (``agent/trajectory.json``).
+R1 -- prompt redaction (``agent/trajectory.json``, promoted at the same path).
     Every ATIF step whose ``source`` is ``system`` or ``user`` carries verbatim
     prompt text: the Codex vendor system prompt (``<skills_instructions>``,
     ``You are `/root`...``, ``<multi_agent_mode>``, ``<plugins_instructions>``),
     the harness ``<recommended_plugins>`` preamble, and the task instruction.
-    Their ``message`` becomes ``null`` plus ``message_sha256`` and
-    ``message_chars``. ``agent``-source messages, ``tool_calls`` and
-    ``observation`` are the agent's own output and the environment's response,
-    not prompts, and stay verbatim.
+    Their ``message`` becomes ``<<evallab-redacted: N bytes, sha256:...>>`` plus
+    ``message_sha256`` and ``message_chars``. ``agent``-source messages,
+    ``tool_calls`` and ``observation`` are the agent's own output and the
+    environment's response, not prompts, and stay verbatim.
+
+    The promoted document keeps the canonical ``agent/trajectory.json`` path and
+    stays a valid ATIF-v1.7 document, so ``evallab trajectories``, ``trace``,
+    ``facts``, the explorer, the analysis worker and the calibration label audit
+    can all read it. ``atif.py:279-280`` requires ``steps[].message`` to be text
+    or content parts, so the text is replaced, never nulled. The redaction is
+    recorded in-band under ``evallab_redaction``.
 
 R2 -- raw model I/O omission (``agent/sessions/**``).
     Codex rollout JSONL holds the full untruncated request/response stream
@@ -54,9 +61,9 @@ R3 -- verifier-only payload (``<trial>/verifier/*``).
 Every promoted file records the SHA-256 of its unredacted parent in
 ``PROMOTION.json`` next to the SHA-256 of the promoted bytes.
 
-    python research/evidence/promote_codex_bundle.py --source-runs ../../runs \
+    python scripts/promote_codex_bundle.py --source-runs runs \
         --job canary-event-summary-codex-20260815
-    python research/evidence/promote_codex_bundle.py --verify
+    python scripts/promote_codex_bundle.py --verify
 """
 
 from __future__ import annotations
@@ -74,7 +81,7 @@ VERIFIER_JSON_STRING_LIMIT = 1024
 VERIFIER_TEXT_LIMIT = 4096
 PROMPT_SOURCES = frozenset({"system", "user"})
 MANIFEST_NAME = "PROMOTION.json"
-EVIDENCE_RUNS = Path(__file__).resolve().parent / "runs"
+EVIDENCE_RUNS = Path(__file__).resolve().parents[1] / "research" / "evidence" / "runs"
 
 
 def sha256_bytes(payload: bytes) -> str:
@@ -91,21 +98,31 @@ def _marker(text: str) -> str:
 
 
 def redact_trajectory(raw: bytes) -> bytes:
-    """R1: drop prompt text from system/user ATIF steps, keep the rest."""
+    """R1: replace prompt text in system/user ATIF steps with a digest marker.
+
+    The result must stay a valid ATIF-v1.7 document, because every consumer in
+    this repository reads it: ``atif.py:279-280`` requires ``steps[].message`` to
+    be text or content parts, so the text is replaced rather than nulled.
+    """
     document = json.loads(raw)
+    redacted = 0
     for step in document.get("steps", []):
         if step.get("source") not in PROMPT_SOURCES:
             continue
         message = step.get("message")
-        if message is None:
+        if not isinstance(message, str) or not message:
             continue
-        step["message"] = None
+        step["message"] = _marker(message)
         step["message_sha256"] = sha256_bytes(message.encode("utf-8"))
         step["message_chars"] = len(message)
+        redacted += 1
     document["evallab_redaction"] = {
         "rule": "R1",
         "removed": "verbatim message text of every system-source and user-source step",
         "reason": "AGENTS.md forbids committing unredacted model prompts",
+        "steps_redacted": redacted,
+        "recover": "message_sha256 identifies the original text; the unredacted "
+        "parent digest is in PROMOTION.json",
     }
     return json.dumps(document, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
 
@@ -192,7 +209,14 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
 
         if action == "redact-R1":
             body = redact_trajectory(raw)
-            target = relative.with_name("trajectory.redacted.json")
+            # Keep the canonical ATIF path. Every consumer hardcodes
+            # agent/trajectory.json -- atif.py:399, facts.py:750, tracing.py:21,
+            # explorer.py:226, status.py:125, analysis_worker.py:485,
+            # calibration/inventory.py:275 -- so a .redacted suffix would promote
+            # a trajectory that no tool can read, which is the F-05 gap again. The
+            # redaction is recorded in-band instead: evallab_redaction plus
+            # per-step message_sha256 and message_chars.
+            target = relative
             rule, applied = "R1", "redacted"
         elif action == "maybe-redact-R3":
             body, hits = redact_verifier(source, raw)
@@ -229,7 +253,7 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
         "bundle": destination.name,
         "source_job_runtime_path": f"runs/{job_dir.name}",
         "source_job_result_sha256": sha256_file(job_result) if job_result.is_file() else None,
-        "promoted_by": "research/evidence/promote_codex_bundle.py",
+        "promoted_by": "scripts/promote_codex_bundle.py",
         "redaction_rules": {
             "R1": "system/user ATIF step message text removed; sha256 and length kept",
             "R2": "agent/sessions/** raw model I/O omitted; sha256 recorded",

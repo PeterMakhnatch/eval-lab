@@ -3,7 +3,7 @@
   "bundle": "canary-event-summary-codex-20260815",
   "source_job_runtime_path": "runs/canary-event-summary-codex-20260815",
   "source_job_result_sha256": "sha256:d471db9c534aa7d5a12661b7832555778099d0d25604feb92ef837da3695863d",
-  "promoted_by": "research/evidence/promote_codex_bundle.py",
+  "promoted_by": "scripts/promote_codex_bundle.py",
   "redaction_rules": {
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
     "R2": "agent/sessions/** raw model I/O omitted; sha256 recorded",
@@ -14,7 +14,7 @@
     "source_files": 47,
     "promoted_files": 44,
     "omitted_files": 3,
-    "promoted_bytes": 109647,
+    "promoted_bytes": 111703,
     "source_bytes": 307696
   },
   "files": [
@@ -48,13 +48,13 @@
     },
     {
       "source_path": "event-summary__5E3btLv/agent/trajectory.json",
-      "promoted_path": "event-summary__5E3btLv/agent/trajectory.redacted.json",
+      "promoted_path": "event-summary__5E3btLv/agent/trajectory.json",
       "action": "redacted",
       "rule": "R1",
       "source_bytes": 22279,
       "source_sha256": "sha256:fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
-      "promoted_bytes": 12864,
-      "promoted_sha256": "sha256:9532cda16728f94bca38f48fa57ee2c052dab92f39d0a58aa544e0255c4f6c80"
+      "promoted_bytes": 13618,
+      "promoted_sha256": "sha256:a5c716990c5be658002aadd14f290cc3f9f3fbb7e4364be3dc14590ce9e7af0c"
     },
     {
       "source_path": "event-summary__5E3btLv/artifacts/app/input/events.jsonl",
@@ -186,13 +186,13 @@
     },
     {
       "source_path": "event-summary__EKfePmM/agent/trajectory.json",
-      "promoted_path": "event-summary__EKfePmM/agent/trajectory.redacted.json",
+      "promoted_path": "event-summary__EKfePmM/agent/trajectory.json",
       "action": "redacted",
       "rule": "R1",
       "source_bytes": 24376,
       "source_sha256": "sha256:527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
-      "promoted_bytes": 14831,
-      "promoted_sha256": "sha256:74326e30af2090153b17adf18c9720a56743bb67f980367a726ee6a2d290ef26"
+      "promoted_bytes": 15482,
+      "promoted_sha256": "sha256:6885ee51bda2d40d0404bf28521fa7ec949fbad2bddb669938ad3c20738dbf7f"
     },
     {
       "source_path": "event-summary__EKfePmM/artifacts/app/input/events.jsonl",
@@ -324,13 +324,13 @@
     },
     {
       "source_path": "event-summary__h2D9f6f/agent/trajectory.json",
-      "promoted_path": "event-summary__h2D9f6f/agent/trajectory.redacted.json",
+      "promoted_path": "event-summary__h2D9f6f/agent/trajectory.json",
       "action": "redacted",
       "rule": "R1",
       "source_bytes": 25091,
       "source_sha256": "sha256:5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175",
-      "promoted_bytes": 15546,
-      "promoted_sha256": "sha256:a0230e8a06242890d4626f5b69c1457d1021a6e2a36395a6c70d1ea67e519896"
+      "promoted_bytes": 16197,
+      "promoted_sha256": "sha256:c1b3d2aa945cab5ed3195bd1868f52c8b3e7fae50ce7323e96f140694984835d"
     },
     {
       "source_path": "event-summary__h2D9f6f/artifacts/app/input/events.jsonl",

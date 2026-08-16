@@ -3,7 +3,7 @@
   "bundle": "canary-transaction-reconciliation-codex-20260815",
   "source_job_runtime_path": "runs/canary-transaction-reconciliation-codex-20260815",
   "source_job_result_sha256": "sha256:cf134cbb67126fdd1646141102fb03ba9cd7f207cfead5c897dfd00bb5b6a198",
-  "promoted_by": "research/evidence/promote_codex_bundle.py",
+  "promoted_by": "scripts/promote_codex_bundle.py",
   "redaction_rules": {
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
     "R2": "agent/sessions/** raw model I/O omitted; sha256 recorded",
@@ -14,7 +14,7 @@
     "source_files": 38,
     "promoted_files": 35,
     "omitted_files": 3,
-    "promoted_bytes": 103667,
+    "promoted_bytes": 105826,
     "source_bytes": 273211
   },
   "files": [
@@ -88,13 +88,13 @@
     },
     {
       "source_path": "transaction-reconciliation__W5o8QpH/agent/trajectory.json",
-      "promoted_path": "transaction-reconciliation__W5o8QpH/agent/trajectory.redacted.json",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/agent/trajectory.json",
       "action": "redacted",
       "rule": "R1",
       "source_bytes": 21666,
       "source_sha256": "sha256:55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
-      "promoted_bytes": 12292,
-      "promoted_sha256": "sha256:b5ddc10ab71440e6f53a7f4c1cae9044cdcef93026266f9e1deb2ce68a63f887"
+      "promoted_bytes": 13046,
+      "promoted_sha256": "sha256:3a98ed918f239d57f7fb4aef54a39651f9dc0f061d517b846765e3c515dc22fb"
     },
     {
       "source_path": "transaction-reconciliation__W5o8QpH/artifacts/manifest.json",
@@ -196,13 +196,13 @@
     },
     {
       "source_path": "transaction-reconciliation__ba8ovxZ/agent/trajectory.json",
-      "promoted_path": "transaction-reconciliation__ba8ovxZ/agent/trajectory.redacted.json",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/agent/trajectory.json",
       "action": "redacted",
       "rule": "R1",
       "source_bytes": 21774,
       "source_sha256": "sha256:147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
-      "promoted_bytes": 12403,
-      "promoted_sha256": "sha256:afc10de8c92beaacd9442e73e086fbff53645c85141b77727c3fc1a3c57adf84"
+      "promoted_bytes": 13157,
+      "promoted_sha256": "sha256:fd9c832df50cd3d502203861af317d49cc815d24fd2bd8965cd5fa389e2034cb"
     },
     {
       "source_path": "transaction-reconciliation__ba8ovxZ/artifacts/manifest.json",
@@ -304,13 +304,13 @@
     },
     {
       "source_path": "transaction-reconciliation__frxRezo/agent/trajectory.json",
-      "promoted_path": "transaction-reconciliation__frxRezo/agent/trajectory.redacted.json",
+      "promoted_path": "transaction-reconciliation__frxRezo/agent/trajectory.json",
       "action": "redacted",
       "rule": "R1",
       "source_bytes": 21146,
       "source_sha256": "sha256:97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
-      "promoted_bytes": 11626,
-      "promoted_sha256": "sha256:09eff62fe548e82a6db1c52d1015bafa58a749cca9d0eec54e9767635a12be2d"
+      "promoted_bytes": 12277,
+      "promoted_sha256": "sha256:5e6198afcf5442174c60580b3cfa6651032491f7b0f393381340e0405ad68df4"
     },
     {
       "source_path": "transaction-reconciliation__frxRezo/artifacts/manifest.json",

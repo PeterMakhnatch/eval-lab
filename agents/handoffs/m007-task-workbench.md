@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: repaired PR #49 is rebased; exact premerge and all five GitHub checks passed
-Next: integrator semantic review and merge decision; worker must not merge
+Last: repaired the three P1 false-certification paths found at c6c35a4; focused tests and lint green
+Next: integrator re-review and merge decision; the committed candidate-ee3d580b packet is now false and needs an integrator call
 Blockers: none
 
 # M007 task-quality workbench handoff
@@ -261,3 +261,183 @@ test (3.14): pass https://github.com/PeterMakhnatch/eval-lab/actions/runs/319055
 profile: pass https://github.com/PeterMakhnatch/eval-lab/actions/runs/31905555195/job/95062632150
 ty: pass https://github.com/PeterMakhnatch/eval-lab/actions/runs/31905555242/job/95062632539
 ```
+
+## Second repair round: three P1 false-certification paths
+
+An independent exact-head review of `c6c35a4` returned `incorrect`. This round
+repairs only those three findings. The digest/path binding, symlink containment,
+determinism semantics, no-auto-registration, and no-API-key repairs were
+reviewed as correct and were not touched.
+
+### Defect 1 — build-time network denial was not enforced at the build
+
+**Was:** `NETWORK_OVERLAY_CONTENT` set `services.main.network_mode: none`. That
+is a Compose *runtime* key. Harbor 0.21.0 builds the agent image with
+`docker compose ... build` against its bundled `docker-compose-build.yaml`,
+which declares `build.context` and no `build.network`, so nothing constrained
+the build network. `_validate_build_network`'s regex over Dockerfile logical
+lines was the only barrier.
+
+**Now:** the overlay declares both keys:
+
+```yaml
+services:
+  main:
+    build:
+      network: none
+    network_mode: none
+```
+
+**Build-time network denial is ENFORCED, not reported-as-unverified.** Basis,
+read in the installed Harbor 0.21.0 under
+`~/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor`:
+
+- `environments/docker/docker.py:366` — `_docker_compose_paths` appends
+  `extra_docker_compose_paths`, so the workbench overlay is in the path list.
+- `environments/docker/docker.py:623` — every path in that list becomes a `-f`
+  argument.
+- `environments/docker/docker.py:891` — `start()` runs
+  `_run_docker_compose_command(["build"])`, so the overlay is part of the build
+  invocation, not only `up`.
+- Live merge check (`docker compose config`, Compose v5.1.3) of Harbor's
+  `docker-compose-build.yaml` with the new overlay resolves to
+  `build: {context: …, dockerfile: Dockerfile, network: none}` — the mapping
+  merges rather than replacing the context.
+
+Enforcement scope, stated exactly:
+
+- Agent image build: enforced by `build.network=none`.
+- Agent runtime: enforced by `network_mode=none`.
+- Verifier image build: **not** overlay-covered (Harbor discards
+  `extra_docker_compose` for the verifier), so it remains static-scan-only over
+  `tests/`. The packet now says this in
+  `network_policy.verifier_build_network` rather than implying overlay coverage.
+
+Capability label: the overlay's build-network denial is **fixture-proven only**
+end to end — the compose merge is `proven live`, but no Docker build was run,
+since this mission forbids Docker builds. `network_policy.control_enforcement`
+no longer claims more than the code applies.
+
+Related guard added in the same commit: `[environment].docker_image` is now
+refused (`prebuilt_image_unsupported`). Harbor's
+`should_use_prebuilt_docker_image` returns true whenever that key is set, which
+skips the reviewed `environment/Dockerfile` build entirely — the build-network
+claim would be vacuous and the reviewed image would never be the image run.
+
+Proven by: `test_network_overlay_denies_the_build_network_not_only_the_runtime`
+(parses the overlay and asserts `services.main.build.network == "none"`), and
+`test_prebuilt_docker_image_bypassing_the_reviewed_build_is_rejected`.
+
+### Defect 2 — `environment/` file contents were never scanned
+
+**Was:** `_validate_network_and_isolation` content-scanned only `tests/`,
+`verifier/`, and `solution/`. `_validate_build_network` read only
+`environment/Dockerfile` and `tests/Dockerfile`. An `environment/Dockerfile`
+with `COPY setup.sh /tmp/setup.sh` then `RUN sh /tmp/setup.sh` matched no
+pattern, `setup.sh` passed the COPY source checks, and its bytes were never
+read.
+
+**Now:** `_validate_build_context_contents` reads every regular file under
+`environment/` and applies `BUILD_NETWORK_PATTERN`. `environment/Dockerfile` is
+skipped there because `_validate_dockerfile` already scans it with Dockerfile
+line semantics (continuations joined, comments and `FROM` refs exempt). A file
+that cannot be decoded as UTF-8 is refused (`build_context_unreadable`) instead
+of skipped, matching the fail-closed posture of `_docker_copy_sources`.
+
+Proven by: `test_build_context_script_bypassing_the_dockerfile_is_rejected`,
+which uses the new fixture
+`tests/fixtures/task_workbench/cases/build-context-script/` reproducing exactly
+the COPY-then-RUN-script bypass. The test asserts the Dockerfile itself contains
+no `curl` and no `https://`, so the refusal can only come from reading
+`environment/setup.sh`. `test_unscannable_build_context_file_fails_closed`
+covers the undecodable case.
+
+### Defect 3 — a networked verifier environment was accepted
+
+**Was:** `network_mode = "public"` for the verifier produced no diagnostic, and
+an absent `[verifier.environment]` silently inherited `[environment]`.
+
+**Now:** `_effective_verifier_network` resolves the verifier's exposure the way
+Harbor resolves it, verified against the installed source:
+
+- `models/task/verifier_mode.py:60-64` —
+  `resolve_effective_verifier_env_config` uses `task.verifier.environment` when
+  present, otherwise a deep copy of `task.environment`.
+- `models/task/config.py:249-252` — `EnvironmentConfig.network_mode` defaults to
+  `public`, so a `[verifier.environment]` table that omits the key is public and
+  does **not** inherit the other table's value.
+- `trial/network_policy.py:121-131` — `[verifier].network_mode` is a *phase*
+  override applied during `verify()`; the container still starts at the
+  baseline.
+- `trial/trial.py:648-650` — `extra_docker_compose` is emptied for the verifier
+  runtime config, which is why the workbench overlay cannot rescue this.
+
+`verifier_network_not_isolated` is an ERROR when the effective baseline is not
+`no-network`, naming the resolved value and whether it came from
+`[verifier.environment]` or from `[environment] (inherited)`.
+`verifier_phase_network_not_isolated` is an ERROR when an explicit
+`[verifier].network_mode` reopens the network for the verification phase. Both
+codes also appear in the certification `isolation` vector.
+
+`tests/fixtures/task_workbench/valid/task.toml` declared
+`[environment] network_mode = "public"` with no `[verifier.environment]`; it now
+declares `no-network`, so the valid case is genuinely isolated.
+
+Proven by: `test_networked_verifier_environment_is_rejected` (new fixture
+`cases/networked-verifier/`, the exact inherited-public shape),
+`test_verifier_environment_table_does_not_inherit_a_no_network_default`, and
+`test_verifier_phase_override_cannot_reopen_the_network`.
+
+### Committed packet that is now false — integrator decision required
+
+`research/registration/candidates/` is outside this task's lease, so nothing
+there was edited.
+
+- `research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/certification.json`
+  reports `certified: true`, `status: certified_for_review`, and
+  `check_vector.isolation: true` for `tests/fixtures/task_workbench/valid`.
+  Those control runs used a verifier container with full egress (the fixture
+  declared `[environment] network_mode = "public"` with no
+  `[verifier.environment]`), and their agent image was built with an
+  unconstrained build network. Both claims are false; under the repaired code
+  the same candidate would fail static admission. The candidate record also
+  pins `control_enforcement: "docker-compose main network_mode=none"` and the
+  old overlay digest, neither of which the code produces any more.
+- `research/registration/candidates/candidate-b982b6f484cdc89e9e35d8b6/certification.json`
+  is `certified: false` / `needs_changes`, so it asserts no false trust, but its
+  candidate record carries the same stale `control_enforcement` string and
+  overlay digest.
+
+Recommendation for the Integrator: regenerating the `ee3d580b` packet is not
+possible without new control runs, and its retained evidence describes runs that
+no longer satisfy the isolation contract. Withdrawing or superseding the packet
+is the honest option; this worker did not touch it.
+
+`docs/task-workbench.md` (also outside this lease) still describes the overlay
+as forcing only `network_mode: none` and does not mention build-context content
+scanning or the verifier-isolation requirement. It is stale, not wrong about
+anything else. Reported, not edited.
+
+### Verification
+
+```text
+uv run pytest tests/test_task_workbench.py -q
+..........................................                               [100%]
+42 passed
+
+uv run ruff check src/evallab/task_workbench.py tests/test_task_workbench.py
+All checks passed!
+```
+
+Negative control: with `src/evallab/task_workbench.py` reverted to `HEAD` and
+the new tests and fixtures kept, all seven new tests fail
+(`build_context_unreadable` absent, `verifier_network_not_isolated` absent,
+`prebuilt_image_unsupported` absent, `KeyError: 'build'` on the overlay). The
+pre-fix file was restored immediately afterwards.
+
+No Harbor run, Docker build, model call, cloud sandbox, or publication occurred.
+No API-key environment variable was introduced or read. Nothing under `policy/`
+was touched. No path in this diff registers a task or grants promotion powers.
+The full suite, project-wide formatters, and `scripts/premerge.sh` were left to
+the Integrator per this mission's constraints; this repair invalidates the
+previous green CI on PR #49, as expected.

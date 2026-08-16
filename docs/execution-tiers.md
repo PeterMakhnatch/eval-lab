@@ -66,6 +66,25 @@ Oracle/nop controls and verifier runs stay exactly as `AGENTS.md` prescribes:
 through `evallab` wrappers, jobs under `runs/`, ≤2 concurrent. The larger VM
 just means `local-heavy` tasks no longer fail on memory.
 
+## Running a paid agent locally (authorised per spec, since 2026-08-16)
+
+Local Docker execution is free only for `oracle` and `nop`. Any other agent —
+`codex`, `claude-code`, any future paid adapter — spends Peter's ChatGPT
+subscription quota, which no dollar ceiling in this repository measures. Such
+a spec is refused by the policy gate with `paid_run_unauthorized` and parked in
+`queue/waiting/` until a human records an authorisation for that exact spec:
+
+```bash
+uv run evallab submit <spec.json>              # -> waiting, prints why
+uv run evallab approve <spec-id> --actor peter # the recorded authorisation
+uv run evallab tick
+```
+
+`policy/standing-approvals.yaml` cannot grant this. `auto_run` is not consulted
+for a billable spec at all, so listing a paid agent there changes nothing. Full
+semantics, including the fail-closed cases, are in `docs/operations.md`,
+"Paid execution requires a recorded authorisation".
+
 ## Running on Modal (binding rules)
 
 **Any cloud/remote execution is `escalate_to_human` per

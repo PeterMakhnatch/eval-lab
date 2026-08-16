@@ -64,7 +64,19 @@ NONDETERMINISM_PATTERN = re.compile(
     re.IGNORECASE,
 )
 NETWORK_OVERLAY_RELATIVE = "environment/.workbench-network-none.yaml"
-NETWORK_OVERLAY_CONTENT = b"services:\n  main:\n    network_mode: none\n"
+# Harbor 0.21.0 layers every extra compose file into the `docker compose ... build`
+# invocation as well as `up`, so this overlay must deny the build network and the
+# runtime network separately: `build.network` is the Compose *build* key, while
+# `network_mode` only governs the started container. Harbor's own
+# `docker-compose-build.yaml` declares `build.context` and no `build.network`, and
+# Compose merges the two mappings, so `none` reaches the builder.
+NETWORK_OVERLAY_CONTENT = (
+    b"services:\n"
+    b"  main:\n"
+    b"    build:\n"
+    b"      network: none\n"
+    b"    network_mode: none\n"
+)
 
 Severity = Literal["error", "warning", "info"]
 Classification = Literal["task_defect", "harness_defect", "agent_failure", "expected"]
@@ -816,6 +828,50 @@ def _validate_build_network(
             return
 
 
+def _validate_build_context_contents(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
+    """Content-scan the agent build context, not just its Dockerfile.
+
+    `COPY setup.sh /tmp/setup.sh` followed by `RUN sh /tmp/setup.sh` puts every
+    fetch inside a file the Dockerfile never spells out, so scanning Dockerfile
+    lines alone cannot see it. Every regular file under `environment/` is part of
+    the image the agent runs, so every one of them is read. Files that cannot be
+    decoded as UTF-8 are refused rather than skipped, matching the fail-closed
+    posture of `_docker_copy_sources`.
+    """
+    root = task_dir / "environment"
+    if not root.is_dir():
+        return
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        relative = path.relative_to(task_dir).as_posix()
+        if relative == "environment/Dockerfile":
+            # Already scanned by _validate_dockerfile with Dockerfile line semantics
+            # (continuations joined, comments and FROM references exempt).
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            diagnostics.append(
+                _diag(
+                    "build_context_unreadable",
+                    relative,
+                    "every build-context file must be readable UTF-8 text so it can be "
+                    "scanned for build-time network use; ship reviewable inputs instead",
+                )
+            )
+            continue
+        if BUILD_NETWORK_PATTERN.search(text):
+            diagnostics.append(
+                _diag(
+                    "build_network_use",
+                    relative,
+                    "build-context files may not fetch from a network or invoke an online "
+                    "package manager, including from a script the Dockerfile runs",
+                )
+            )
+
+
 def _is_remote_docker_source(source: str) -> bool:
     normalized = source.strip().lower()
     return bool(
@@ -963,6 +1019,39 @@ def _validate_verifier_image(task_dir: Path, diagnostics: list[Diagnostic]) -> N
         )
 
 
+def _effective_verifier_network(config: Mapping[str, Any]) -> tuple[str, str, str]:
+    """Resolve the verifier's effective network modes the way Harbor 0.21.0 does.
+
+    Harbor discards `extra_docker_compose` when it builds the separate verifier
+    runtime config, so the workbench's no-network overlay never reaches the
+    verifier container. Its exposure is therefore whatever `task.toml` declares:
+
+    * baseline (applies from container start) — `[verifier.environment]` when that
+      table exists, otherwise a deep copy of `[environment]`. `EnvironmentConfig`
+      defaults `network_mode` to `public`, so a table that omits the key does not
+      inherit the other table's value.
+    * phase (applies during `verify()`) — the explicit `[verifier].network_mode`
+      override when set, otherwise the baseline.
+
+    Returns `(baseline, phase, baseline_origin)`.
+    """
+    environment = config.get("environment")
+    environment_table = environment if isinstance(environment, Mapping) else {}
+    verifier = config.get("verifier")
+    verifier_table = verifier if isinstance(verifier, Mapping) else {}
+    verifier_environment = verifier_table.get("environment")
+    if isinstance(verifier_environment, Mapping):
+        declared = verifier_environment.get("network_mode")
+        origin = "[verifier.environment]"
+    else:
+        declared = environment_table.get("network_mode")
+        origin = "[environment] (inherited)"
+    baseline = declared if isinstance(declared, str) else "public"
+    override = verifier_table.get("network_mode")
+    phase = override if isinstance(override, str) else baseline
+    return baseline, phase, origin
+
+
 def _validate_network_and_isolation(
     config: Mapping[str, Any], task_dir: Path, diagnostics: list[Diagnostic]
 ) -> None:
@@ -977,6 +1066,20 @@ def _validate_network_and_isolation(
                 "[environment].network_mode must be explicit and supported",
             )
         )
+    # A declared [environment].docker_image makes Harbor skip the build entirely
+    # (should_use_prebuilt_docker_image returns True whenever it is set), so the
+    # reviewed environment/Dockerfile is never built and the overlay's
+    # build.network=none never applies. Refuse rather than certify an image the
+    # workbench did not see built.
+    if environment_table.get("docker_image") is not None:
+        diagnostics.append(
+            _diag(
+                "prebuilt_image_unsupported",
+                "task.toml",
+                "[environment].docker_image bypasses the reviewed environment/Dockerfile "
+                "build and the workbench's build-time network denial",
+            )
+        )
     verifier = config.get("verifier")
     verifier_table = verifier if isinstance(verifier, dict) else {}
     if verifier_table.get("environment_mode") != "separate":
@@ -987,16 +1090,45 @@ def _validate_network_and_isolation(
                 "[verifier].environment_mode must be 'separate'",
             )
         )
-    verifier_network = verifier_table.get("network_mode")
-    verifier_environment = verifier_table.get("environment")
-    if isinstance(verifier_environment, dict):
-        verifier_network = verifier_environment.get("network_mode", verifier_network)
-    if verifier_network not in {None, "no-network", "public", "allowlist"}:
+    declared_modes = [
+        value
+        for value in (
+            verifier_table.get("network_mode"),
+            verifier_table.get("environment", {}).get("network_mode")
+            if isinstance(verifier_table.get("environment"), Mapping)
+            else None,
+        )
+        if value is not None
+    ]
+    if any(value not in {"no-network", "public", "allowlist"} for value in declared_modes):
         diagnostics.append(
             _diag(
                 "verifier_network_invalid",
                 "task.toml",
                 "verifier network_mode is invalid",
+            )
+        )
+    baseline, _phase, origin = _effective_verifier_network(config)
+    if baseline != "no-network":
+        diagnostics.append(
+            _diag(
+                "verifier_network_not_isolated",
+                "task.toml",
+                "the separate verifier environment must declare network_mode='no-network'; "
+                f"the effective baseline is '{baseline}' from {origin}. Harbor drops the "
+                "workbench no-network overlay for the verifier container, so a networked "
+                "verifier can exfiltrate hidden inputs and can make verifier_deterministic "
+                "an artifact of a stable remote response",
+            )
+        )
+    phase_override = verifier_table.get("network_mode")
+    if isinstance(phase_override, str) and phase_override != "no-network":
+        diagnostics.append(
+            _diag(
+                "verifier_phase_network_not_isolated",
+                "task.toml",
+                "[verifier].network_mode reopens the network for the verification phase; "
+                f"the effective phase policy is '{phase_override}' and must be 'no-network'",
             )
         )
     compose_path = task_dir / "environment/docker-compose.yaml"
@@ -1298,6 +1430,7 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     task_name, task_version, keywords = _validate_task_metadata(config, task_dir, diagnostics)
     artifacts = _validate_timeouts_and_artifacts(config, diagnostics)
     base_image = _validate_dockerfile(task_dir, diagnostics)
+    _validate_build_context_contents(task_dir, diagnostics)
     _validate_verifier_image(task_dir, diagnostics)
     _validate_network_and_isolation(config, task_dir, diagnostics)
     _validate_golden_leak(task_dir, diagnostics)
@@ -1343,6 +1476,7 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     }
     candidate_id = "candidate-" + hashlib.sha256(_canonical_bytes(identity)).hexdigest()[:24]
     plan = _build_control_plan(candidate_id, task_id, task_dir, adversarial)
+    verifier_baseline, verifier_phase, _ = _effective_verifier_network(config)
     candidate: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "task_workbench_candidate",
@@ -1365,7 +1499,15 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
                 if isinstance(config.get("verifier"), dict)
                 else None
             ),
-            "control_enforcement": "docker-compose main network_mode=none",
+            "verifier_effective_baseline": verifier_baseline,
+            "verifier_effective_phase": verifier_phase,
+            "agent_build_network": "denied by overlay build.network=none",
+            "agent_runtime_network": "denied by overlay network_mode=none",
+            "verifier_build_network": "static scan of tests/ only; overlay not applied",
+            "verifier_runtime_network": "declared in task.toml; overlay not applied",
+            "control_enforcement": (
+                "docker-compose main build.network=none and network_mode=none"
+            ),
             "control_overlay_digest": _sha256_bytes(NETWORK_OVERLAY_CONTENT),
         },
         "keywords": keywords,
@@ -2571,11 +2713,16 @@ def _certification_record(
                 item.code
                 in {
                     "agent_image_hidden_leak",
+                    "build_context_unreadable",
+                    "build_network_use",
                     "golden_data_leak",
                     "hidden_artifact_exposure",
                     "path_escape",
+                    "prebuilt_image_unsupported",
                     "symlink_unsupported",
                     "verifier_not_isolated",
+                    "verifier_network_not_isolated",
+                    "verifier_phase_network_not_isolated",
                     "control_network_binding_mismatch",
                     "control_network_isolation_missing",
                     "control_stage_tampered",

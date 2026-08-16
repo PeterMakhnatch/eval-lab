@@ -19,12 +19,14 @@ tags = ["offline", "fixture", "mutation-tested"]
 [agent]
 timeout_sec = 30.0
 
+# No [verifier.environment] table, so Harbor runs the separate verifier in a deep
+# copy of [environment] — with full egress — and discards the workbench overlay.
 [verifier]
 timeout_sec = 30.0
 environment_mode = "separate"
 
 [environment]
-network_mode = "no-network"
+network_mode = "public"
 build_timeout_sec = 120.0
 cpus = 1
 memory_mb = 256

@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+import yaml
 
 from evallab.task_workbench import (
     NETWORK_OVERLAY_CONTENT,
@@ -417,6 +418,122 @@ def test_remote_add_and_build_time_network_fetch_are_rejected(tmp_path: Path) ->
     )
     fetch = _inspect(fetch_repo, fetch_task)
     assert "build_network_use" in _codes(fetch)
+
+
+def test_build_context_script_bypassing_the_dockerfile_is_rejected(tmp_path: Path) -> None:
+    """`COPY setup.sh` + `RUN sh /tmp/setup.sh` hides the fetch outside Dockerfile lines."""
+    repo, task = _copy_candidate(tmp_path / "script", "build-context-script")
+    inspection = _inspect(repo, task)
+
+    dockerfile = (task / "environment/Dockerfile").read_text()
+    assert "curl" not in dockerfile and "https://" not in dockerfile
+    assert not inspection.static_passed
+    finding = next(
+        item
+        for item in inspection.diagnostics
+        if item.code == "build_network_use" and item.path == "environment/setup.sh"
+    )
+    assert finding.severity == "error"
+    assert finding.classification == "task_defect"
+
+
+def test_unscannable_build_context_file_fails_closed(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "binary")
+    (task / "environment/toolchain.bin").write_bytes(b"\xff\xfe\x00binary payload")
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    assert any(
+        item.code == "build_context_unreadable" and item.path == "environment/toolchain.bin"
+        for item in inspection.diagnostics
+    )
+
+
+def test_networked_verifier_environment_is_rejected(tmp_path: Path) -> None:
+    """An absent [verifier.environment] inherits [environment], overlay and all."""
+    inherited_repo, inherited_task = _copy_candidate(
+        tmp_path / "inherited", "networked-verifier"
+    )
+    inherited = _inspect(inherited_repo, inherited_task)
+    assert not inherited.static_passed
+    finding = next(
+        item for item in inherited.diagnostics if item.code == "verifier_network_not_isolated"
+    )
+    assert finding.severity == "error"
+    assert "'public'" in finding.message
+    assert "[environment] (inherited)" in finding.message
+    assert (
+        inherited.candidate["network_policy"]["verifier_effective_baseline"] == "public"
+    )
+
+
+def test_verifier_environment_table_does_not_inherit_a_no_network_default(
+    tmp_path: Path,
+) -> None:
+    """Harbor defaults EnvironmentConfig.network_mode to public; an empty table is public."""
+    repo, task = _copy_candidate(tmp_path / "empty-table")
+    config = (task / "task.toml").read_text()
+    (task / "task.toml").write_text(config + '\n[verifier.environment]\ncpus = 1\n')
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    finding = next(
+        item for item in inspection.diagnostics if item.code == "verifier_network_not_isolated"
+    )
+    assert "[verifier.environment]" in finding.message
+    assert inspection.candidate["network_policy"]["verifier_effective_baseline"] == "public"
+
+
+def test_verifier_phase_override_cannot_reopen_the_network(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "phase")
+    config = (task / "task.toml").read_text().replace(
+        '[verifier]\ntimeout_sec = 30.0',
+        '[verifier]\nnetwork_mode = "public"\ntimeout_sec = 30.0',
+    )
+    (task / "task.toml").write_text(config)
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    codes = _codes(inspection)
+    assert "verifier_phase_network_not_isolated" in codes
+    # The baseline is still no-network, so only the phase override is reported.
+    assert "verifier_network_not_isolated" not in codes
+    assert inspection.candidate["network_policy"]["verifier_effective_phase"] == "public"
+
+
+def test_prebuilt_docker_image_bypassing_the_reviewed_build_is_rejected(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path / "prebuilt")
+    config = (task / "task.toml").read_text().replace(
+        '[environment]\n',
+        '[environment]\ndocker_image = "ubuntu@sha256:' + "a" * 64 + '"\n',
+    )
+    (task / "task.toml").write_text(config)
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    assert "prebuilt_image_unsupported" in _codes(inspection)
+
+
+def test_network_overlay_denies_the_build_network_not_only_the_runtime(
+    tmp_path: Path,
+) -> None:
+    """Compose's build network is services.<name>.build.network, not network_mode."""
+    overlay = yaml.safe_load(NETWORK_OVERLAY_CONTENT)
+    main = overlay["services"]["main"]
+
+    assert main["build"]["network"] == "none"
+    assert main["network_mode"] == "none"
+
+    repo, task = _copy_candidate(tmp_path)
+    candidate = _inspect(repo, task).candidate
+    assert candidate["network_policy"]["agent_build_network"] == (
+        "denied by overlay build.network=none"
+    )
+    assert candidate["network_policy"]["control_overlay_digest"] == _digest(
+        NETWORK_OVERLAY_CONTENT
+    )
 
 
 def test_forged_registration_is_rejected_but_real_record_is_only_observed(

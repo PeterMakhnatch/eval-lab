@@ -1,6 +1,6 @@
 Status: review-wanted
 Last: archived 34 spent handoffs 1:1 by git mv, corrected the board, made STRUCTURE.md true, retired the stale CLI claims and the prompt index
-Next: integrator review and merge of PR for role/coord-gc; do not merge from this role
+Next: integrator review and merge of PR #54; do not merge from this role
 Blockers: none
 
 # COORD-GC handoff

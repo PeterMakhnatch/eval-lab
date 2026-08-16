@@ -14,17 +14,19 @@ bot may advise later; it is never merge authority.
 
 `origin/main` is `1471f41` (PR #52, the system cartography report).
 
-- **Two implementation branches are at review, both returned for bounded
-  repair.** M006 is PR #47 on `role/m006-analysis-worker`; M007 is PR #49 on
-  `role/m007-task-workbench`. Each was reviewed at an exact head — `1f4cf6f`
-  and `c6c35a4` — by an independent reviewer, and each was judged `incorrect`.
-  Neither is mergeable as reviewed. Repair work is in flight inside each
-  mission's existing worktree and lease; a repair commit invalidates that
-  branch's previously green CI, which is expected. The integrator requires
-  fresh exact-head CI on the repaired head before merge.
-- **Two Integration/Platform maintenance missions are active:** COORD-GC
-  (coordination-artifact garbage collection and board correction) and
-  PERF-REBASELINE (the miscalibrated `ingest` CI perf budget).
+- **Both feature-implementation branches are at review, and both were returned
+  for bounded repair.** M006 is PR #47 on `role/m006-analysis-worker`; M007 is
+  PR #49 on `role/m007-task-workbench`. Each was reviewed at an exact head —
+  `1f4cf6f` and `c6c35a4` respectively — by an independent reviewer, and each
+  was judged `incorrect`. Neither is mergeable as reviewed. Repair work is in
+  flight inside each mission's existing worktree and lease; a repair commit
+  invalidates that branch's previously green CI, which is expected. The
+  integrator requires fresh exact-head CI on the repaired head before merge.
+- **COORD-GC is active** (Integration): coordination-artifact garbage
+  collection, board correction, structure-map repair, stale-claim retirement.
+- **PERF-REBASELINE is at review** (Platform): PR #53, head `a12ea3c`,
+  re-baselines the miscalibrated `ingest` CI perf budget. Awaiting integrator
+  merge; not merged as of this board update.
 - **The system cartography mission merged** as PR #52 (`1471f41`). Its handoff
   is still in `agents/handoffs/` pending the next Integration sweep.
 
@@ -38,6 +40,13 @@ bot may advise later; it is never merge authority.
 - **M006/M007 merge sequence (blocked on repair):** review the repaired heads,
   require fresh exact-head CI on each, merge, then sunset both worktrees and
   branches and archive both handoffs.
+- **Maintenance merges (ready for the integrator):** PERF-REBASELINE PR #53 and
+  COORD-GC. Both touch disjoint paths from M006/M007 and from each other, so
+  merge order between them is free; merging them before the repaired feature
+  heads means M006/M007 rebase onto a corrected board rather than the reverse.
+- **Next Integration sweep:** archive `system-cartographer.md` (PR #52 merged),
+  and `perf-rebaseline.md` once #53 merges. COORD-GC left the cartographer
+  handoff in place because its keep-list said to; the mission itself is done.
 - **Integrator live flight (blocked on M006):** after M006 merges, start
   services from current main, run a real free control, produce and index a
   saved-response analysis, inspect it in the explorer, and test recovery. Only
@@ -81,7 +90,7 @@ committed brief; their scope is their board row.
 | M006 | Every eligible completed trial gets one provenance-frozen analysis lifecycle, with zero calls outside profile + policy admission | Research, Platform review | external worker; exact agent/model recorded in handoff | `.worktrees/m006-analysis-worker` / `role/m006-analysis-worker` | `src/evallab/analysis_worker.py`, `tests/test_analysis_worker.py`, `tests/fixtures/analysis_worker/`, `docs/analysis-worker.md`, `agents/handoffs/m006-analysis-worker.md`; minimal additive schema/database/automation/queue/CLI wiring | M002, M003 | idempotent/concurrent/crash-safe lifecycle; evidence tamper quarantine; saved-response end-to-end; cycle x3; premerge + **fresh** exact-head CI on the repaired head | #47 | review | integrator |
 | M007 | Candidate task can be inspected, control-tested, mutation-tested, and packaged for review without self-registration or publication | Tasks | external worker; exact agent/model recorded in handoff | `.worktrees/m007-task-workbench` / `role/m007-task-workbench` | `src/evallab/task_workbench.py`, `tests/test_task_workbench.py`, `tests/fixtures/task_workbench/`, `library/synthetic/`, `research/registration/candidates/`, `docs/task-workbench.md`, `agents/handoffs/m007-task-workbench.md` | M005 | deterministic inspect/check/packet; oracle/nop + adversarial discrimination; isolation/provenance; no promotion powers; premerge + **fresh** exact-head CI on the repaired head | #49 | review | integrator |
 | COORD-GC | The coordination layer describes the repository that exists: spent handoffs archived, board factually correct, structure map true, stale CLI claims retired | Integration | free-tier worker; recorded in handoff | `.worktrees/coord-gc` / `role/coord-gc` | `agents/handoffs/`, `agents/archive/`, `agents/missions/ACTIVE.md`, `agents/STRUCTURE.md`, `docs/prompts/README.md`, `docs/checkpoints/2026-08-14.md` | none | `agents/handoffs/` holds only live missions; every archived file reachable from `agents/archive/` with `git log --follow` intact; board matches PR/branch/state facts; `STRUCTURE.md` names `dashboard/` and its `docs/` submap matches `git ls-tree origin/main docs/` | — | active | integrator |
-| PERF-REBASELINE | The `ingest` CI perf budget is calibrated to measured CI reality instead of a laptop capture, so the gate fails on regressions rather than on runner noise | Platform | free-tier worker; recorded in handoff | `.worktrees/perf-rebaseline` / `role/perf-rebaseline` | `scripts/profile/budgets.json`, `scripts/profile/check_budgets.py`, `.github/workflows/perf.yml` | none | budget derived from the recorded `speed-profile-report` medians of successful `ubuntu-latest` perf runs, with the derivation written down; no gate weakening beyond what the measurements justify | — | active | integrator |
+| PERF-REBASELINE | The `ingest` CI perf budget is calibrated to measured CI reality instead of a laptop capture, so the gate fails on regressions rather than on runner noise | Platform | free-tier worker; recorded in handoff | `.worktrees/perf-rebaseline` / `role/perf-rebaseline` | `scripts/profile/budgets.json`, `docs/engineering.md` (one appended dated subsection), `agents/handoffs/perf-rebaseline.md` | none | budget derived from the recorded `speed-profile-report` medians of successful `ubuntu-latest` perf runs, with the derivation written down; harness and workflow changes are an explicit non-goal; no gate weakening beyond what the measurements justify | #53 | review | integrator |
 
 ### Repair assignments (not separate missions)
 

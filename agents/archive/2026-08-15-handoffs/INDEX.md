@@ -94,5 +94,11 @@ where the gap came from; it does not resolve it.
 
 ## Still live in `agents/handoffs/`
 
-`system-cartographer.md`, `coord-gc.md`, and — arriving with PRs #47 and #49 —
-`m006-analysis-worker.md` and `m007-task-workbench.md`.
+`system-cartographer.md` and `coord-gc.md`, plus — arriving with their open PRs
+— `m006-analysis-worker.md` (#47), `m007-task-workbench.md` (#49), and
+`perf-rebaseline.md` (#53).
+
+`system-cartographer.md` is the one knowingly retained exception: its mission
+merged as PR #52 (`1471f41`), so it is spent, but COORD-GC's keep-list named it
+explicitly. It is queued for the next Integration sweep in
+`agents/missions/ACTIVE.md`.

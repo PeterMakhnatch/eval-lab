@@ -1,7 +1,7 @@
 # Guarded post-trial analysis worker
 
 M006 (Research, Platform review). Code: `src/evallab/analysis_worker.py`.
-Tests: `tests/test_analysis_worker.py` (46). Fixtures:
+Tests: `tests/test_analysis_worker.py` (53). Fixtures:
 `tests/fixtures/analysis_worker/`. Composes existing machinery — discovery
 (`results`), stage-5 execution and sidecars (`facts.run_trial_analysis`),
 catalog indexing (`facts.ingest_analysis_sidecar`), profile preflight
@@ -39,6 +39,10 @@ Every eligible completed trial gets exactly one `AnalysisRequest`:
 6. Cost ceilings: per-call vs `per_job_cost_ceiling_usd`, projected daily vs
    `daily_cost_ceiling_usd`
 7. Service health probe
+8. Adapter wired: enforced in `run_one` after every gate above and before
+   `begin_invocation`. The default composition's `_no_adapter` sentinel is
+   detected rather than invoked, so the run defers `adapter_not_wired`
+   without arming the invocation journal and without raising.
 
 Harness exceptions are staged as deferred
 `harness_exception_not_agent_failure` — they are evidence about the harness
@@ -70,8 +74,11 @@ uv run evallab analyze worker-resolve-ambiguous <request-id> \
 # `--action retry` is an explicit acknowledgement that the prior call may have charged.
 ```
 
-`worker-run-one` in the default composition holds **no adapter** — reaching
-execution without an operator-constructed adapter raises before any call.
+`worker-run-one` in the default composition holds **no adapter**. The
+`_no_adapter` sentinel is detected after admission and before
+`begin_invocation`, so the run defers with reason `adapter_not_wired`: the
+sentinel is never invoked, nothing raises, and no invocation marker is armed,
+so the request stays retryable the moment an adapter is wired.
 Nightly (`automation.NightlyCycle`) accepts an optional `analysis_stager`
 that may **discover and stage only**, inside the healthy branch; staging
 freezes identity and cannot call a model by construction. Thrown staging

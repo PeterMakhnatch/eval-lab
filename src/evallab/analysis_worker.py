@@ -778,7 +778,10 @@ class AnalysisWorker:
                 at=self.clock(),
             )
             self.store.append(request_id, "running", f"attempt:{attempt_id}")
-            sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+            # The sidecar/ dirent is the name that proves a paid call produced
+            # a result. _durable_replace fsyncs sidecar/ itself, which does not
+            # persist sidecar/'s own entry in the request directory.
+            _durable_mkdir(sidecar_path.parent)
             written_path, _sidecar = run_trial_analysis(
                 job, trial,
                 analyzer=self.adapter,

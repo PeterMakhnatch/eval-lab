@@ -931,6 +931,69 @@ def test_invocation_journal_dirent_is_durable(monkeypatch, tmp_path):
     assert _ident(request_dir) in seen  # the newly created journal dirent
 
 
+def _record_durability_events(monkeypatch) -> list[tuple[str, tuple[int, int]]]:
+    """Record mkdir and fsync calls in issue order, keyed by (device, inode).
+
+    Dirent durability is an ordering property, not just a set membership one:
+    the fsync that persists a name must happen after the name exists.
+    """
+    events: list[tuple[str, tuple[int, int]]] = []
+    real_fsync = os.fsync
+    real_mkdir = Path.mkdir
+
+    def recording_fsync(fd: int) -> None:
+        stat = os.fstat(fd)
+        events.append(("fsync", (stat.st_dev, stat.st_ino)))
+        real_fsync(fd)
+
+    def recording_mkdir(self: Path, *args, **kwargs) -> None:
+        real_mkdir(self, *args, **kwargs)
+        events.append(("mkdir", _ident(self)))
+
+    monkeypatch.setattr(os, "fsync", recording_fsync)
+    monkeypatch.setattr(Path, "mkdir", recording_mkdir)
+    return events
+
+
+def test_sidecar_directory_dirent_is_durable(monkeypatch, tmp_path):
+    """The name proving a paid result exists must outlive a host crash.
+
+    ``_durable_replace`` fsyncs the sidecar bytes and ``sidecar/`` itself, which
+    persists ``analysis.json`` *within* ``sidecar/`` — not the ``sidecar/`` entry
+    in the request directory. The only request-directory fsync otherwise on this
+    path is the journal's ``O_CREAT`` branch inside ``begin_invocation``, which
+    runs strictly before ``sidecar/`` exists. Lose that dirent after a durably
+    resolved invocation and both recovery guards go quiet —
+    ``unresolved_invocation`` is None and ``sidecar_path.is_file()`` is False —
+    so ``run_one`` re-admits and issues a second billable provider call.
+
+    fixture-proven only: this asserts fsync syscalls by (device, inode); it does
+    not stage a real host crash.
+    """
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    request_dir = worker.store.request_dir(rid)
+    sidecar_dir = worker.store.sidecar_path(rid).parent
+
+    events = _record_durability_events(monkeypatch)
+    assert worker.run_one(rid).state == "completed"
+    assert adapter.calls == 1
+
+    sidecar_dir_id = _ident(sidecar_dir)
+    created = [
+        index for index, (kind, ident) in enumerate(events)
+        if kind == "mkdir" and ident == sidecar_dir_id
+    ]
+    assert created, "run_one must create the per-request sidecar directory"
+    request_dir_id = _ident(request_dir)
+    assert any(
+        kind == "fsync" and ident == request_dir_id
+        for kind, ident in events[created[0] + 1:]
+    ), "the sidecar/ dirent is never fsynced into the request directory"
+
+
 def test_unwired_adapter_defers_without_arming_the_ambiguity_journal(tmp_path):
     """A locally provable misconfiguration is never a possibly-paid call."""
     from evallab import analysis_worker as aw

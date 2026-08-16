@@ -17,6 +17,7 @@ from evallab.explorer import (
     next_actions_for_trial,
     redact_mapping,
 )
+from evallab.facts import write_analysis_review
 from evallab.status import build_status_snapshot
 
 FIXTURES = Path(__file__).parent / "fixtures" / "explorer"
@@ -153,7 +154,38 @@ def test_tool_call_citation_must_belong_to_the_cited_step():
 
 def test_malformed_sidecar_becomes_a_note():
     idx = index()
-    assert any("broken.json" in note for note in idx.notes)
+    assert any("broken/analysis.json" in note for note in idx.notes)
+
+
+def test_review_beside_a_sidecar_is_not_parsed_as_one(tmp_path: Path):
+    """M009 F-03: `analyze review` output must never corrupt the explorer.
+
+    Discovery selects sidecars positively by filename, so the review written
+    next to a sidecar is left alone instead of failing sidecar validation and
+    pinning `unreadable (ValidationError)` to every tab, permanently.
+    """
+    analyses = tmp_path / "analyses"
+    shutil.copytree(ANALYSES / "valid", analyses / "11111111-1111-4111-8111-111111111111")
+    sidecar_path = analyses / "11111111-1111-4111-8111-111111111111" / "analysis.json"
+    review_path, review = write_analysis_review(
+        sidecar_path,
+        disposition="accepted",
+        rationale="reviewed during the M009 flight",
+        reviewer="operator-fixes",
+    )
+    assert review_path.is_file()  # the review really is next to the sidecar
+
+    idx = build_index([JOBS], analyses)
+
+    (analysis,) = idx.analyses
+    assert analysis.analysis_id == "11111111-1111-4111-8111-111111111111"
+    assert analysis.trial_key == "job-fail/t1"
+    assert analysis.status.value == "valid"
+    assert analysis.category.value == "tool_use"
+    (citation,) = analysis.citations
+    assert citation.resolution.value == "resolved"
+    assert not [note for note in idx.notes if "unreadable" in note]
+    assert not [note for note in idx.notes if str(review.review_id) in note]
 
 
 # ---- duplicates, cold start, degradation ------------------------------------
@@ -169,13 +201,26 @@ def test_duplicate_trial_keys_are_skipped_and_noted(tmp_path: Path):
     assert any("duplicate trial key" in n for n in dup_notes)
 
 
+def test_executor_bookkeeping_is_not_listed_as_a_job(tmp_path: Path):
+    """M009 F-08: `.executor` is executor state, not evaluation output."""
+    jobs = tmp_path / "jobs"
+    shutil.copytree(JOBS / "job-pass", jobs / "real-job")
+    (jobs / ".executor" / "leases").mkdir(parents=True)
+    (jobs / ".executor" / "state.json").write_text("{}")
+    (jobs / ".tombstones").mkdir()
+
+    idx = build_index([jobs])
+
+    assert [job.job_name for job in idx.jobs] == ["real-job"]
+    assert all(not name.startswith(".") for name in idx.trials)
+
+
 def test_duplicate_trial_ids_leave_analysis_unlinked(tmp_path: Path):
     jobs = tmp_path / "jobs"
     shutil.copytree(JOBS / "job-pass", jobs / "job-one")
     shutil.copytree(JOBS / "job-pass", jobs / "job-two")
     analyses = tmp_path / "analyses"
-    analyses.mkdir()
-    shutil.copy2(ANALYSES / "badstep.json", analyses / "analysis.json")
+    shutil.copytree(ANALYSES / "badstep", analyses / "badstep")
     idx = build_index([jobs], analyses)
     assert idx.analyses[0].trial_key is None
     assert any("source trial id" in note and "duplicated" in note for note in idx.notes)

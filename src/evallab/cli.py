@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -90,6 +91,7 @@ from evallab.runner import (
     request_from_matrix,
     subscription_environment,
 )
+from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.tracing import (
     TraceError,
@@ -408,6 +410,12 @@ def parser() -> argparse.ArgumentParser:
     analyze_review.add_argument("--rationale", required=True)
     analyze_review.add_argument("--reviewer", required=True)
     analyze_review.add_argument("--superseded-by")
+    analyze_review.add_argument(
+        "--index",
+        action="store_true",
+        help="Also index the review into the catalog (analysis_reviews)",
+    )
+    analyze_review.add_argument("--database-url")
     analyze_agreement = analyze_commands.add_parser(
         "agreement", help="Compare valid analysis categories with fixed labels"
     )
@@ -587,12 +595,17 @@ def _doctor(root: Path) -> int:
     checks = Executor.from_repo(root).local_runtime_checks()
 
     database_url = database_url_from_environment()
+    # The same green `catalog-parquet` line reported catalog=69 and catalog=4
+    # in one M009 session because DATABASE_URL differed between shells. Name
+    # the database on the line itself; `identity` never returns a credential
+    # even when the connection string carries a password (F-11).
+    catalog = f"db={database.identity(database_url)}"
     try:
         detail = database.ping(database_url)
         checks.append(("postgres", True, detail))
     except Exception as exc:  # Doctor should report all checks, not stop at the first.
         checks.append(("postgres", False, f"unavailable: {type(exc).__name__}"))
-        checks.append(("catalog-parquet", False, "catalog unavailable"))
+        checks.append(("catalog-parquet", False, f"catalog unavailable {catalog}"))
     else:
         try:
             invariant = check_projection_invariant(
@@ -601,9 +614,11 @@ def _doctor(root: Path) -> int:
                 root / "queue/events.jsonl",
             )
         except Exception as exc:
-            checks.append(("catalog-parquet", False, f"unavailable: {type(exc).__name__}"))
+            checks.append(
+                ("catalog-parquet", False, f"unavailable: {type(exc).__name__} {catalog}")
+            )
         else:
-            checks.append(("catalog-parquet", invariant.ok, invariant.detail))
+            checks.append(("catalog-parquet", invariant.ok, f"{invariant.detail} {catalog}"))
 
     task_toml = root / "library/tasks/event-summary/task.toml"
     checks.append(("task", task_toml.is_file(), "event-summary"))
@@ -900,9 +915,22 @@ def run_cli(
             return _status_command(args, root)
         if args.command == "submit":
             spec = read_spec(_resolve(root, args.path))
-            path, decision = Executor.from_repo(root).submit(spec)
-            print(f"{path.parent.name}: {path}")
+            executor = Executor.from_repo(root)
+            path, decision = executor.submit(spec)
+            # `approve`, `reject`, and the catalog's `experiment_id` column all
+            # want the bare ULID. Printing the queue state directory as if it
+            # were a label made the operator copy a word that no command takes
+            # (M009 F-09). Read the id back off the artifact that was written.
+            submitted = executor.queue.load(path)
+            print(f"spec_id: {submitted.spec_id}")
+            print(f"state: {path.parent.name}")
+            print(f"path: {path}")
             print(decision.message)
+            if path.parent.name == "waiting":
+                print(
+                    "next: uv run evallab approve "
+                    f"{shlex.quote(str(submitted.spec_id))} --actor <you>"
+                )
             return 0
         if args.command == "tick":
             executor = Executor.from_repo(root)
@@ -1229,12 +1257,23 @@ def run_cli(
                 agent_version="1",
                 model="saved-response",
             )
+            print(f"analysis: {sidecar_path}")
+            print(f"validation: {sidecar.validation_status}")
+            # `--index` used to be invisible: the output was byte-identical to
+            # the un-indexed form and the only way to confirm the row existed
+            # was to query `analysis_invocations` by hand (M009 F-12).
             if args.index:
                 url = database_url_from_environment(args.database_url)
                 database.initialize(url)
                 ingest_analysis_sidecar(url, sidecar_path, root=root)
-            print(f"analysis: {sidecar_path}")
-            print(f"validation: {sidecar.validation_status}")
+                print(f"indexed analysis: {sidecar.analysis_id}")
+                print(f"catalog: {database.identity(url)}")
+            else:
+                print("indexed: no (the catalog is a derived index, written on request)")
+                print(
+                    "next: uv run evallab analyze ingest-sidecar "
+                    f"{shlex.quote(str(sidecar_path))}"
+                )
             return 0 if sidecar.validation_status == "valid" else 1
         if args.command == "analyze" and args.analyze_command in {
             "worker-plan",
@@ -1267,11 +1306,22 @@ def run_cli(
             url = database_url_from_environment(args.database_url)
             database.initialize(url)
             sidecar = ingest_analysis_sidecar(url, sidecar_path, root=root)
+            reviews = len(list((sidecar_path.parent / ANALYSIS_REVIEWS_DIRNAME).glob("*.json")))
             print(f"indexed analysis: {sidecar.analysis_id}")
+            print(f"indexed reviews: {reviews}")
+            print(f"catalog: {database.identity(url)}")
             return 0
         if args.command == "analyze" and args.analyze_command == "review":
+            sidecar_path = _resolve(root, args.path)
+            if not sidecar_path.is_file():
+                raise ValueError(
+                    f"no analysis sidecar at {sidecar_path}; pass the "
+                    f"{ANALYSIS_SIDECAR_FILENAME} path printed by "
+                    "`evallab analyze stub` "
+                    "(derived/analyses/<analysis_id>/analysis.json)"
+                )
             review_path, review = write_analysis_review(
-                _resolve(root, args.path),
+                sidecar_path,
                 disposition=args.disposition,
                 rationale=args.rationale,
                 reviewer=args.reviewer,
@@ -1279,6 +1329,21 @@ def run_cli(
             )
             print(f"review: {review_path}")
             print(f"disposition: {review.disposition}")
+            # The catalog is a derived index, so indexing stays opt-in — but the
+            # operator is told which state they are in, never left to discover
+            # that `analysis_reviews` is empty (M009 F-02).
+            if args.index:
+                url = database_url_from_environment(args.database_url)
+                database.initialize(url)
+                ingest_analysis_sidecar(url, sidecar_path, root=root)
+                print(f"indexed review: {review.review_id} -> analysis_reviews")
+                print(f"catalog: {database.identity(url)}")
+            else:
+                print("indexed: no (the catalog is a derived index, written on request)")
+                print(
+                    "next: uv run evallab analyze ingest-sidecar "
+                    f"{shlex.quote(str(sidecar_path))}"
+                )
             return 0
         if args.command == "analyze" and args.analyze_command == "agreement":
             report_path, report = write_failure_taxonomy_agreement(

@@ -21,6 +21,8 @@ from evallab.atif import ExportedTable, ExportResult, export_trajectories, proje
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
 from evallab.runner import subscription_environment
 from evallab.schemas import (
+    ANALYSIS_REVIEWS_DIRNAME,
+    ANALYSIS_SIDECAR_FILENAME,
     AnalysisProvenance,
     AnalysisReview,
     AnalysisSourceDigests,
@@ -932,7 +934,7 @@ def run_trial_analysis(
         raise RuntimeError("analysis modified the immutable source trial")
     sidecar_dir = destination_root.resolve() / str(analysis_id)
     sidecar_dir.mkdir(parents=True, exist_ok=False)
-    sidecar_path = sidecar_dir / "analysis.json"
+    sidecar_path = sidecar_dir / ANALYSIS_SIDECAR_FILENAME
     sidecar_path.write_text(sidecar.model_dump_json(indent=2) + "\n")
     return sidecar_path, sidecar
 
@@ -956,7 +958,7 @@ def write_analysis_review(
         reviewed_at=reviewed_at or datetime.now(UTC),
         superseded_by=superseded_by,
     )
-    reviews_dir = sidecar_path.parent / "reviews"
+    reviews_dir = sidecar_path.parent / ANALYSIS_REVIEWS_DIRNAME
     reviews_dir.mkdir(exist_ok=True)
     review_path = reviews_dir / f"{review.review_id}.json"
     with review_path.open("x") as handle:
@@ -1164,7 +1166,8 @@ def ingest_analysis_sidecar(
                     citation.supports,
                 ),
             )
-        for review_path in sorted((sidecar_path.parent / "reviews").glob("*.json")):
+        reviews_dir = sidecar_path.parent / ANALYSIS_REVIEWS_DIRNAME
+        for review_path in sorted(reviews_dir.glob("*.json")):
             review = AnalysisReview.model_validate_json(review_path.read_text())
             connection.execute(
                 """
@@ -1219,10 +1222,10 @@ def failure_taxonomy_agreement(
     discovered: dict[Path, None] = {}
     for root in sidecar_roots:
         resolved = root.resolve()
-        if resolved.is_file() and resolved.name == "analysis.json":
+        if resolved.is_file() and resolved.name == ANALYSIS_SIDECAR_FILENAME:
             discovered[resolved] = None
         elif resolved.is_dir():
-            for path in resolved.rglob("analysis.json"):
+            for path in resolved.rglob(ANALYSIS_SIDECAR_FILENAME):
                 discovered[path.resolve()] = None
 
     rows: list[dict[str, Any]] = []

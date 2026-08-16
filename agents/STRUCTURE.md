@@ -55,11 +55,14 @@ eval-lab/
 │   ├── checkpoints/           dated hands-on integrator verification records
 │   ├── research/              Research-lane docs (survey, external datasets,
 │   │                          synthetic tasks, trajectory intelligence)
-│   └── *.html + repository-overview.css    four hand-authored overview renders
-│                              (agent-workflow, eval-rd-roadmap,
-│                              repository-state, system-cartography). Nothing
-│                              generates them; keep-or-archive is an open
-│                              question in agents/missions/ACTIVE.md.
+│   ├── agent-workflow.html        \
+│   ├── eval-rd-roadmap.html       |  four hand-authored overview renders
+│   ├── repository-state.html      |  sharing one stylesheet. Nothing in the
+│   ├── system-cartography.html    |  repository generates them, so they
+│   └── repository-overview.css    /  cannot be rebuilt; keep-or-archive is
+│                              the one open `Needs Peter` item in
+│                              agents/missions/ACTIVE.md. Do not move or delete
+│                              them without that decision.
 │
 ├── library/                   WHAT WE EVALUATE — task supply, version-pinned
 │   ├── curated/               verified third-party tasks with provenance cards

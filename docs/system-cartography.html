@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eval Lab — system cartography 2026-08-15</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a222c;
+    --ink: #e8eef4;
+    --muted: #93a0ad;
+    --line: #2c3845;
+    --live: #3dbe7a;
+    --fix: #d4a017;
+    --pend: #4ea3ff;
+    --block: #e05d5d;
+    --des: #9b8afb;
+    --accent: #7ec8c3;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  a { color: var(--accent); }
+  header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--line);
+    background: #121920;
+    position: sticky; top: 0; z-index: 2;
+  }
+  header h1 { margin: 0 0 .25rem; font-size: 1.25rem; }
+  header p { margin: 0; color: var(--muted); font-size: .9rem; }
+  nav {
+    display: flex; flex-wrap: wrap; gap: .4rem .75rem;
+    padding: .75rem 1.5rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  nav a { text-decoration: none; font-size: .85rem; }
+  main { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1.5rem 4rem; }
+  section { margin: 2rem 0; }
+  h2 { border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+  h3 { color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th, td { border: 1px solid var(--line); padding: .4rem .5rem; vertical-align: top; }
+  th { background: #151c24; text-align: left; }
+  .tag {
+    display: inline-block; padding: .05rem .4rem; border-radius: 999px;
+    font-size: .72rem; font-weight: 600; letter-spacing: .02em;
+  }
+  .live { background: #163523; color: var(--live); }
+  .fix { background: #3a2e0a; color: var(--fix); }
+  .pend { background: #0d2740; color: var(--pend); }
+  .block { background: #3a1515; color: var(--block); }
+  .des { background: #241e40; color: var(--des); }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    margin: .8rem 0;
+  }
+  pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre {
+    background: #12181f; border: 1px solid var(--line);
+    padding: .75rem; overflow-x: auto; font-size: .8rem;
+  }
+  svg { max-width: 100%; height: auto; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+  .note { color: var(--muted); font-size: .88rem; }
+  ol.teach li { margin: .35rem 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Eval Lab system cartography</h1>
+  <p>2026-08-15 · Grok 4.6 (xAI) · tree <code>903abe4</code> ·
+     markdown: <a href="checkpoints/2026-08-15-system-cartography.md">checkpoint</a>
+     · M006/M007 labeled <span class="tag pend">pending in PR</span>, not merged</p>
+</header>
+<nav>
+  <a href="#e2e">End-to-end</a>
+  <a href="#matrix">Capability matrix</a>
+  <a href="#ids">Artifact / IDs</a>
+  <a href="#trust">Trust &amp; approval</a>
+  <a href="#demo">Safe demo</a>
+  <a href="#joins">Missing joins</a>
+  <a href="#train">Training boundary</a>
+  <a href="#missions">Mission graph</a>
+  <a href="#dont">Do not build yet</a>
+  <a href="#teach">20-min teach-back</a>
+</nav>
+<main>
+
+<section id="overview">
+  <h2>What this is</h2>
+  <div class="panel">
+    <p><strong>Observation:</strong> Eval Lab is a local evaluation R&amp;D
+    workbench around Harbor. Harbor executes and verifies. This repo owns
+    specs, the policy queue, immutable jobs, a rebuildable catalog, Parquet
+    facts, and human approval.</p>
+    <p><strong>Inference you should reject:</strong> that it is already a
+    post-training data platform. There is no registered held-out suite, no
+    Zone-04 export product, and no training loop. That is a staged goal
+    (<code>docs/path-forward-2026-08.md</code> S0–S5), not present tense.</p>
+  </div>
+</section>
+
+<section id="e2e">
+  <h2>End-to-end diagram</h2>
+  <p class="note">Planes follow <code>docs/architecture.md</code>. Execution
+  is Harbor; evidence is the job directory; catalog/Parquet are derived.</p>
+  <svg viewBox="0 0 980 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Five planes from definition through approval">
+    <rect width="980" height="420" fill="#12181f"/>
+    <g font-family="ui-monospace,monospace" font-size="12" fill="#e8eef4">
+      <rect x="20" y="20" width="180" height="70" rx="6" fill="#1a222c" stroke="#7ec8c3"/>
+      <text x="30" y="42">1 Definition</text>
+      <text x="30" y="60" fill="#93a0ad">tasks · specs · policy</text>
+      <text x="30" y="76" fill="#93a0ad">registry (empty)</text>
+
+      <rect x="230" y="20" width="180" height="70" rx="6" fill="#1a222c" stroke="#7ec8c3"/>
+      <text x="240" y="42">2 Execution</text>
+      <text x="240" y="60" fill="#93a0ad">evallab queue → Harbor</text>
+      <text x="240" y="76" fill="#93a0ad">Docker · verifier</text>
+
+      <rect x="440" y="20" width="180" height="70" rx="6" fill="#1a222c" stroke="#7ec8c3"/>
+      <text x="450" y="42">3 Evidence</text>
+      <text x="450" y="60" fill="#93a0ad">immutable job dirs</text>
+      <text x="450" y="76" fill="#93a0ad">ATIF · rewards</text>
+
+      <rect x="650" y="20" width="300" height="70" rx="6" fill="#1a222c" stroke="#7ec8c3"/>
+      <text x="660" y="42">4 Catalog / analytics</text>
+      <text x="660" y="60" fill="#93a0ad">Postgres index · Parquet facts</text>
+      <text x="660" y="76" fill="#93a0ad">Phoenix = derived spans only</text>
+
+      <rect x="230" y="140" width="520" height="70" rx="6" fill="#1a222c" stroke="#d4a017"/>
+      <text x="240" y="162">5 Analysis / decision</text>
+      <text x="240" y="180" fill="#93a0ad">stub analyze · compare · PROGRAM.json</text>
+      <text x="240" y="196" fill="#93a0ad">M006 worker pending · human approve · next spec</text>
+
+      <path d="M200 55 H230" stroke="#7ec8c3"/>
+      <path d="M410 55 H440" stroke="#7ec8c3"/>
+      <path d="M620 55 H650" stroke="#7ec8c3"/>
+      <path d="M530 90 V140" stroke="#7ec8c3"/>
+
+      <rect x="20" y="250" width="940" height="140" rx="6" fill="#151c24" stroke="#2c3845"/>
+      <text x="30" y="274">Join (implemented in schema + facts; weak in Phoenix / PROGRAM)</text>
+      <text x="30" y="300" fill="#93a0ad">spec_id → lab-metadata.experiment.spec_id → jobs.id → trials.id</text>
+      <text x="30" y="320" fill="#93a0ad">→ ATIF document_id / source_sha256 / step_id → analysis.source_trial_id</text>
+      <text x="30" y="340" fill="#93a0ad">→ new ExperimentSpec in queue/proposed (no predecessor_analysis_id field)</text>
+      <text x="30" y="368" fill="#e05d5d">registry empty · PROGRAM.jobs [] · trace attrs lack IDs</text>
+    </g>
+  </svg>
+</section>
+
+<section id="matrix">
+  <h2>Capability matrix</h2>
+  <table>
+    <thead>
+      <tr><th>Capability</th><th>Status</th><th>Cite</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>CLI control plane</td><td><span class="tag live">proven live</span></td><td><code>cli.py</code>; <code>evallab --help</code>; <code>tests/test_cli_audit.py</code></td></tr>
+      <tr><td>Oracle/nop through queue</td><td><span class="tag live">proven live</span></td><td><code>queue.py</code>; <code>tests/test_smoke.py</code>; <code>research/evidence/runs/</code></td></tr>
+      <tr><td>Policy ceilings</td><td><span class="tag live">proven live</span></td><td><code>policy/standing-approvals.yaml</code>; <code>tests/test_queue.py</code></td></tr>
+      <tr><td>Canary pin (3 tasks, Codex, k=3)</td><td><span class="tag live">proven live</span></td><td><code>policy/canary-suite.yaml</code>; <code>src/evallab/canary.py</code>; <code>tests/test_canary.py</code></td></tr>
+      <tr><td>Codex canary scores (2026-08-15)</td><td><span class="tag des">designed</span></td><td><code>STATUS.md</code> + baseline extracts; runtime <code>runs/</code> not in Git — unproven as retained evidence</td></tr>
+      <tr><td>Catalog + Parquet unify</td><td><span class="tag fix">fixture-proven only</span></td><td><code>atif.ingest_and_project</code>; <code>tests/test_pipeline.py</code></td></tr>
+      <tr><td>Status + explorer + dashboard</td><td><span class="tag fix">fixture-proven only</span></td><td><code>status.py</code>, <code>explorer.py</code>; matching tests</td></tr>
+      <tr><td>Compare / power / stub analyze</td><td><span class="tag fix">fixture-proven only</span></td><td><code>cohort.py</code>, <code>analyze</code>; <code>tests/test_truth.py</code></td></tr>
+      <tr><td>Registry logic</td><td><span class="tag fix">fixture-proven only</span></td><td><code>registry.py</code>; <code>tests/test_registry.py</code></td></tr>
+      <tr><td>Registry contents</td><td><span class="tag block">blocked</span></td><td><code>library/registry/</code> empty; <code>registry list</code> = 0</td></tr>
+      <tr><td>M006 analysis worker</td><td><span class="tag pend">pending in PR</span></td><td>GitHub #47 head <code>1f4cf6f</code> — not on main</td></tr>
+      <tr><td>M007 task workbench</td><td><span class="tag pend">pending in PR</span></td><td>GitHub #49 head <code>c6c35a4</code> — not on main</td></tr>
+      <tr><td>Phoenix storage</td><td><span class="tag des">designed</span> derived view</td><td><code>docs/observability.md</code>; not canonical</td></tr>
+      <tr><td>FOUNDRY / LADDER / SFT export</td><td><span class="tag des">designed</span></td><td><code>path-forward</code>, <code>data-architecture</code>; unproven in <code>src/</code></td></tr>
+      <tr><td>Oracle/nop as model skill</td><td colspan="2">Not model evidence</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="ids">
+  <h2>Artifact and ID ownership</h2>
+  <table>
+    <thead><tr><th>Hop</th><th>Artifact</th><th>Stable ID</th><th>Truth</th></tr></thead>
+    <tbody>
+      <tr><td>Task</td><td><code>library/tasks/&lt;name&gt;/</code></td><td>task_checksum / package SHA-256</td><td>Git package</td></tr>
+      <tr><td>Experiment</td><td><code>ExperimentSpec</code></td><td><code>spec_id</code> ULID</td><td>Git + queue JSON</td></tr>
+      <tr><td>Job</td><td><code>runs/&lt;job&gt;/result.json</code></td><td>Harbor job UUID</td><td>Job directory</td></tr>
+      <tr><td>Trial</td><td>trial <code>result.json</code></td><td>Harbor trial UUID</td><td>Trial directory</td></tr>
+      <tr><td>Trajectory</td><td>ATIF JSON</td><td>document_id, source_sha256, step_id</td><td>File; Parquet derived</td></tr>
+      <tr><td>Analysis</td><td>sidecar JSON</td><td>analysis id + source_trial_id</td><td>Sidecar file</td></tr>
+      <tr><td>Proposal</td><td>new spec</td><td>new spec_id</td><td><code>queue/proposed/</code></td></tr>
+    </tbody>
+  </table>
+  <p class="note">SQL view in <code>sql/schema.sql</code> already joins experiment → job → trial → trajectory_documents → analysis_invocations.</p>
+</section>
+
+<section id="trust">
+  <h2>Trust and approval boundaries</h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Peter</h3>
+      <p>Policy/spend, task registration, publication, research direction
+      (<code>agents/OWNERS.md</code>).</p>
+    </div>
+    <div class="panel">
+      <h3>Integrator</h3>
+      <p>Merges after exact-head green checks; sole editor of
+      <code>missions/ACTIVE.md</code>. Does not loosen policy.</p>
+    </div>
+    <div class="panel">
+      <h3>Policy file</h3>
+      <p><code>$20/day</code>, <code>$3/job</code>. Auto: local-controls,
+      canary/*, registered/* + three requires. Cloud and over-ceiling wait.</p>
+    </div>
+    <div class="panel">
+      <h3>Evaluated agent</h3>
+      <p>Sees the Harbor env only. Hidden <code>tests/</code> and
+      <code>solution/</code> stay out (<code>AGENTS.md</code>).</p>
+    </div>
+  </div>
+</section>
+
+<section id="demo">
+  <h2>Exact safe demo commands</h2>
+  <pre>uv run evallab --help
+uv run evallab doctor --help
+uv run evallab status --help
+uv run evallab registry list
+uv run evallab registry audit
+uv run evallab analyze --help
+uv run evallab analyze plan --help
+uv run evallab compare --help
+uv run evallab report --help
+uv run evallab trace --help
+uv run evallab trajectories --help
+uv run python -m evallab.smoke --help
+uv run python -m evallab.smoke --docker-free</pre>
+  <p class="note">Do not from a role worktree: <code>docker compose</code>,
+  paid <code>harbor run</code>, or live <code>evallab research</code>.</p>
+</section>
+
+<section id="joins">
+  <h2>Current missing joins</h2>
+  <ol>
+    <li><strong>Registry is empty</strong> — <code>registered/*</code> cannot resolve.</li>
+    <li><strong>PROGRAM.jobs is []</strong> — scored Codex night lives in runtime <code>runs/</code>, not Git.</li>
+    <li><strong>Phoenix spans have no spec/job/trial IDs</strong> — <code>tracing.py</code> has no those attributes.</li>
+    <li><strong>ExperimentSpec has no predecessor_analysis_id</strong>.</li>
+    <li><strong>Oracle/nop often lack ATIF</strong> — trajectory join empty on controls by design.</li>
+    <li><strong>ACTIVE.md vs GitHub</strong> — board says M006/M007 ready; PRs #47/#49 are open.</li>
+  </ol>
+</section>
+
+<section id="train">
+  <h2>Training-data boundary</h2>
+  <div class="panel">
+    <p>Zone-02 local jobs are the only unqualified “we ran” evidence
+    (<code>docs/data-architecture.md</code>). A training product would be
+    <strong>Zone-04</strong>: versioned transform, parent digests, selection
+    contract, oracle-heldout split. That product is <span class="tag des">designed</span>
+    and <strong>absent</strong> from the tree.</p>
+    <p>Keep: Harbor verifiers, immutable ATIF, four zones, human
+    registration, honest compare. Do not promote Hub leaderboards or
+    curated cards into “we trained on this.”</p>
+  </div>
+</section>
+
+<section id="missions">
+  <h2>Mission dependency graph (≤6)</h2>
+  <svg viewBox="0 0 960 220" xmlns="http://www.w3.org/2000/svg" aria-label="Six proposed missions">
+    <rect width="960" height="220" fill="#12181f"/>
+    <g font-family="ui-monospace,monospace" font-size="12" fill="#e8eef4">
+      <rect x="20" y="30" width="160" height="50" rx="6" fill="#1a222c" stroke="#3dbe7a"/>
+      <text x="30" y="60">M-C1 registry candidates</text>
+      <rect x="210" y="30" width="160" height="50" rx="6" fill="#1a222c" stroke="#3dbe7a"/>
+      <text x="220" y="60">M-C2 Harbor pin</text>
+      <rect x="400" y="30" width="160" height="50" rx="6" fill="#1a222c" stroke="#4ea3ff"/>
+      <text x="410" y="60">M-C3 trace join</text>
+      <rect x="20" y="120" width="160" height="50" rx="6" fill="#1a222c" stroke="#3dbe7a"/>
+      <text x="30" y="150">M-C4 SFT dry export</text>
+      <rect x="210" y="120" width="160" height="50" rx="6" fill="#1a222c" stroke="#3dbe7a"/>
+      <text x="220" y="150">M-C5 retain extracts</text>
+      <rect x="400" y="120" width="200" height="50" rx="6" fill="#1a222c" stroke="#e05d5d"/>
+      <text x="410" y="142">M-C6 post-M006 flight</text>
+      <text x="410" y="158" fill="#93a0ad">blocked until #47 merges</text>
+      <path d="M370 55 H400" stroke="#93a0ad"/>
+      <text x="620" y="50" fill="#93a0ad">C1–C5 parallelizable</text>
+      <text x="620" y="70" fill="#93a0ad">C3 nicer after C2</text>
+      <text x="620" y="145" fill="#93a0ad">C6 depends on M006 PR</text>
+    </g>
+  </svg>
+  <p class="note">Full leases, acceptance, and stop conditions:
+  <a href="checkpoints/2026-08-15-system-cartography.md">markdown §9</a>.</p>
+</section>
+
+<section id="dont">
+  <h2>Do not build yet</h2>
+  <ul>
+    <li>LADDER 24/7 generator, FOUNDRY batch factory</li>
+    <li>Kubernetes, ClickHouse, object-store as canonical evidence</li>
+    <li>Training / QLoRA</li>
+    <li>Documentation wiki or Harbor-docs ingest</li>
+    <li>Phoenix as system of record</li>
+    <li>Live researcher-followups while registry is empty</li>
+    <li>EXP-N1 (hidden verifier tests in the agent image)</li>
+    <li>Self-approving analysis or nightly live model calls</li>
+  </ul>
+</section>
+
+<section id="teach">
+  <h2>20-minute teach-back</h2>
+  <ol class="teach">
+    <li><strong>What ran?</strong> Promoted oracle/nop; 2026-08-15 Codex canaries scored in STATUS, not in Git.</li>
+    <li><strong>What is running?</strong> Open PRs #47 M006 and #49 M007. STATUS said queue empty that morning. ACTIVE.md is stale.</li>
+    <li><strong>What comes next?</strong> PROGRAM NEXT; do not submit withdrawn EXP-N1.</li>
+    <li><strong>What tasks exist?</strong> 4 runnable local packages, 19 curated cards, 0 registry records, 3 canary pins.</li>
+    <li><strong>Where is analysis?</strong> Stub sidecar, <code>analyze *</code>, explorer, STATUS briefs. Worker is pending.</li>
+    <li><strong>Who authorizes?</strong> Peter: policy, register, publish, direction. Integrator: merge. Policy file: spend.</li>
+    <li><strong>Training later?</strong> Zone-04 export of our Zone-02 ATIF + rewards, then rented S4. Not shipped.</li>
+  </ol>
+  <p>If someone says “Eval Lab is a post-training platform,” correct them.</p>
+</section>
+
+<p class="note">Source-cited narrative:
+<a href="checkpoints/2026-08-15-system-cartography.md">2026-08-15-system-cartography.md</a>.
+Opens via <code>file://</code>; no network fetch.</p>
+</main>
+</body>
+</html>

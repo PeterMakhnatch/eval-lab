@@ -44,7 +44,22 @@ DEFAULT_SCRATCH_URL = (
 DEFAULT_ADMIN_URL = (
     "postgresql://evallab:local-development-only@127.0.0.1:54329/evallab"
 )
-DEFAULT_CORPUS = ("research/evidence/runs",)
+# The profiled corpus is PINNED to an explicit set of Harbor job directories.
+#
+# It is deliberately NOT the directory `research/evidence/runs`. Profiling a
+# directory measures the volume of whatever is committed under it, so every
+# evidence promotion silently re-scoped this gate and moved all six budgets for
+# reasons that have nothing to do with code speed. Naming the job directories
+# means growing the evidence corpus cannot change the measurement unless
+# someone deliberately edits this tuple and re-baselines `budgets.json`.
+#
+# `scripts/profile/budgets.json` carries the expected shape of this corpus and
+# `check_budgets.py` fails loudly if a report was produced against a different
+# one. Use `--corpus` for ad-hoc profiling against anything else.
+DEFAULT_CORPUS = (
+    "research/evidence/runs/event-summary-nop-evidence",
+    "research/evidence/runs/event-summary-oracle-evidence",
+)
 
 
 @dataclass(frozen=True)
@@ -105,6 +120,36 @@ def assert_not_shared_catalog(url: str) -> None:
         )
     if "/evallab?" in normalized:
         raise ValueError("refusing to profile against the shared evallab catalog")
+
+
+def resolve_corpus_roots(entries: list[str]) -> list[Path]:
+    """Turn repo-relative corpus entries into paths, refusing ones that vanished.
+
+    A pinned entry that no longer exists must fail loudly. Silently profiling a
+    smaller corpus is exactly the failure mode this pin exists to prevent.
+    """
+    roots: list[Path] = []
+    missing: list[str] = []
+    for entry in entries:
+        root = REPO_ROOT / entry
+        if not root.exists():
+            missing.append(entry)
+        roots.append(root)
+    if missing:
+        raise ValueError(
+            f"pinned corpus entries do not exist: {missing}. The profiled corpus "
+            "is pinned in harness.py DEFAULT_CORPUS; if a job directory moved, "
+            "update the pin and re-baseline scripts/profile/budgets.json."
+        )
+    return roots
+
+
+def relative_to_repo(path: Path) -> str:
+    """Repo-relative string when possible, so reports compare across machines."""
+    try:
+        return str(path.resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
 
 
 def corpus_stats(roots: list[Path]) -> tuple[list[Path], int, int]:
@@ -430,7 +475,7 @@ def run_profile(
         corpus_jobs=len(job_dirs),
         corpus_result_json=result_json,
         corpus_bytes=corpus_bytes,
-        corpus_roots=[str(path) for path in corpus_roots],
+        corpus_roots=[relative_to_repo(path) for path in corpus_roots],
         database_url_kind=db_kind,
         harbor_dispatch="stubbed",
         warmup=warmup,
@@ -490,7 +535,11 @@ def main(argv: list[str] | None = None) -> int:
         "--corpus",
         action="append",
         default=[],
-        help="Repo-relative job root (repeatable). Default: research/evidence/runs",
+        help=(
+            "Repo-relative job root or job directory (repeatable) for ad-hoc "
+            "profiling. Omit it to profile the pinned default corpus: "
+            + ", ".join(DEFAULT_CORPUS)
+        ),
     )
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--reps", type=int, default=5)
@@ -505,7 +554,7 @@ def main(argv: list[str] | None = None) -> int:
         default=REPO_ROOT / "runs" / "_speed",
     )
     args = parser.parse_args(argv)
-    roots = [REPO_ROOT / item for item in (args.corpus or list(DEFAULT_CORPUS))]
+    roots = resolve_corpus_roots(list(args.corpus) or list(DEFAULT_CORPUS))
     report = run_profile(
         corpus_roots=roots,
         warmup=args.warmup,

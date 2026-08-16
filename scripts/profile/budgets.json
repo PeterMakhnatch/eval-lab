@@ -1,5 +1,14 @@
 {
   "tolerance_pct": 50,
+  "corpus": {
+    "roots": [
+      "research/evidence/runs/event-summary-nop-evidence",
+      "research/evidence/runs/event-summary-oracle-evidence"
+    ],
+    "jobs": 2,
+    "result_json": 4,
+    "notes": "The PINNED corpus these budgets were measured on, enforced by check_budgets.assert_corpus_shape and mirrored by harness.DEFAULT_CORPUS. It names two job directories, not the directory research/evidence/runs, because three of the six profiled paths ('ingest', 'projection', 'facts') take the loaded job list and so scale with however much evidence happens to be committed. Promoting evidence must not move this gate. A report whose corpus_roots/corpus_jobs/corpus_result_json differ from this block is not measuring what these budgets describe and MUST NOT be cited as a re-baseline sample. Changing the pin means re-baselining and updating this block in the same commit."
+  },
   "paths": {
     "ingest": 115.0,
     "projection": 25.0,
@@ -8,5 +17,5 @@
     "queue-tick-100": 150.0,
     "fleet-status": 5000.0
   },
-  "notes": "CI-local ceilings in milliseconds of median after warmup+5 reps on the committed 2-job evidence corpus. tolerance_pct=50; ceiling = budget * 1.5. PROVENANCE IS MIXED. CI-runner-anchored: 'ingest' was re-baselined 2026-08-15 from the ingest medians of the last 14 successful perf runs on ubuntu-latest with the postgres service container (n=14, 51.4-96.1 ms, median 72.3 ms), plus one 125.2 ms runner-variance spike on a commit that passed on rerun; 115.0 is ~1.2x the observed successful max and its 172.5 ms ceiling is ~1.38x that spike. Laptop-anchored (NOT re-measured on CI): 'projection', 'facts', 'digest', and 'queue-tick-100' are still about 3x the 2026-08-14 SPEED capture on an Apple Silicon laptop with a local PostgreSQL, so their true CI headroom is unknown; 'fleet-status' is git/gh-bound rather than machine-class-anchored. Any future re-baseline must cite CI artifact samples, not a single laptop timing. An improvement below 50% of a budget should re-baseline."
+  "notes": "CI-local ceilings in milliseconds of median after warmup+5 reps on the committed 2-job evidence corpus. tolerance_pct=50; ceiling = budget * 1.5. PROVENANCE IS MIXED. CI-runner-anchored: 'ingest' was re-baselined 2026-08-15 from the ingest medians of the last 14 successful perf runs on ubuntu-latest with the postgres service container (n=14, 51.4-96.1 ms, median 72.3 ms), plus one 125.2 ms runner-variance spike on a commit that passed on rerun; 115.0 is ~1.2x the observed successful max and its 172.5 ms ceiling is ~1.38x that spike. Laptop-anchored (NOT re-measured on CI): 'projection', 'facts', 'digest', and 'queue-tick-100' are still about 3x the 2026-08-14 SPEED capture on an Apple Silicon laptop with a local PostgreSQL, so their true CI headroom is unknown; 'fleet-status' is git/gh-bound rather than machine-class-anchored. Any future re-baseline must cite CI artifact samples, not a single laptop timing. An improvement below 50% of a budget should re-baseline. CORPUS PIN (2026-08-16): the profiled default is now the two job directories named in 'corpus' above rather than the directory research/evidence/runs. No budget value and no tolerance changed: the pinned set is exactly the 2-job corpus every number above was already measured on, so pinning preserves their meaning instead of resetting it. Confirmed by three local runs on 2026-08-16 (macOS-26.5-arm64, Python 3.12.11, scratch Postgres evallab_speed_prof, median of 5 reps after 1 warmup each): ingest 28.638/30.390/31.198, projection 2.811/2.884/3.187, facts 3.861/3.905/4.048, digest 0.876/0.927/0.964, queue-tick-100 74.679/74.837/78.202, fleet-status 2234.392/2240.928/2250.273 ms - every median inside its ceiling."
 }

@@ -284,6 +284,12 @@ to a scratch database named `evallab_speed_prof` (or
 command in `.github/workflows/perf.yml` and fails when a median exceeds the
 committed budget by more than `tolerance_pct`.
 
+Its corpus is **pinned** (2026-08-16): `harness.DEFAULT_CORPUS` names the two
+`event-summary` control job directories rather than the directory
+`research/evidence/runs`, so promoting evidence cannot move the gate. See
+"Corpus pin" below. `--corpus` still points the harness anywhere for ad-hoc
+profiling.
+
 Synthetic specs need `hypothesis`, `name` matching `^[a-z0-9][a-z0-9-]+$`, and
 `policy_rule="human-approval"` to sit in `approved/` without a live gate.
 
@@ -385,6 +391,82 @@ laptop-anchored.
 **Rule.** Any future re-baseline of a perf budget must cite CI artifact
 samples — run count, spread, and median from `speed-profile-report` — not a
 single laptop timing.
+
+### Corpus pin: the gate measures code, not the size of the evidence set (2026-08-16)
+
+The harness profiled the *directory* `research/evidence/runs`, so the six
+budgets were enforced against however much evidence happened to be committed.
+**Three of the six paths are corpus-coupled** — `_time_ingest`,
+`_time_projection`, and `_time_facts` all take the loaded `list[JobRecord]`.
+(`digest` takes only a repo root, `queue-tick-100` a synthetic `tick_n`, and
+`fleet-status` is git/`gh`-bound.) A promotion from 2 jobs to 5 pushed
+`projection` and `facts` past their 37.5 ms ceiling on unchanged code and
+turned the gate red for a reason that has nothing to do with performance.
+
+`harness.DEFAULT_CORPUS` now names the two control job directories
+(`research/evidence/runs/event-summary-nop-evidence` and
+`.../event-summary-oracle-evidence`) instead of their parent.
+`results.discover_job_dirs` returns a named job directory verbatim, so the
+profiled set cannot grow by discovery. `--corpus` still overrides it for
+ad-hoc profiling.
+
+**No budget and no tolerance changed.** The pinned set *is* the 2-job corpus
+every committed number was measured on, so pinning preserves the meaning of
+those budgets instead of resetting them; a re-baseline here would have been a
+loosening with nothing behind it. Three local runs on 2026-08-16
+(macOS-26.5-arm64, Python 3.12.11, scratch Postgres `evallab_speed_prof`,
+median of 5 reps after 1 warmup each) confirm every median sits inside its
+ceiling: `ingest` 28.6/30.4/31.2 (ceiling 172.5), `projection` 2.8/2.9/3.2 and
+`facts` 3.9/3.9/4.0 (37.5), `digest` 0.88/0.93/0.96 (22.5), `queue-tick-100`
+74.7/74.8/78.2 (225), `fleet-status` 2234/2241/2250 ms (7500). This is a local
+sample, not CI artifact evidence; it justifies *not* moving a budget, which is
+the only claim it can support.
+
+Pinning also makes the 2026-08-15 `ingest` re-baseline meaningful in
+retrospect: those 14 CI samples were drawn on the 2-job corpus, and that corpus
+is now the one the budget is enforced against.
+
+Two mechanisms keep the coupling out. `scripts/profile/budgets.json` carries a
+`corpus` block (`roots`, `jobs`, `result_json`) and
+`check_budgets.assert_corpus_shape` fails any report that does not match it, so
+a *data* change is caught at the gate. `tests/test_profile_harness.py` fails if
+the default resolves to `research/evidence/runs` or to anything that is not a
+job directory, so a *code* change is caught in the suite.
+
+**Rule (extends the 2026-08-15 rule).** A perf re-baseline may only cite
+samples from runs whose reported `corpus_roots` and `corpus_jobs` match the
+pinned shape declared in `budgets.json`. A sample measured on a different
+corpus is not a weaker sample; it is a measurement of something else. This
+matters for any pending work that will need a re-baseline — the pin must land
+before the samples are drawn, or the new number is calibrated against a corpus
+that is not the enforced one.
+
+### Anti-pattern: freezing the composition of a growing corpus (2026-08-16)
+
+Three separate checks failed on the same day for the same reason, in three
+different mechanisms:
+
+| Check | What it froze |
+|---|---|
+| `scripts/profile/budgets.json` via the harness default | six perf budgets calibrated on "whatever is under `research/evidence/runs`" |
+| `research/analysis/tests/test_facts.py:25` | `set(facts) == {"oracle", "nop"}` — the evidence set is exactly these two |
+| `research/analysis/tests/test_analysis.py:331` | `report["n_labels"] == 25` |
+
+Each was correct when written and each turned red on a change that added
+intended, reviewed content. The cost is worse than the red build: it pressures
+the author of the *growth* to edit the *check*, which is how a gate gets
+quietly re-scoped to make a PR pass.
+
+**The pattern.** A gate or test that hardcodes the size or membership of a
+corpus the project intends to grow.
+
+**The rule.** Assert invariants and relationships, not census counts. Prefer
+"every label resolves to a known task", "the oracle control outscores the nop
+control", "the profiled corpus is exactly the declared pinned set" over
+"there are 25 labels" or "there are 2 evidence jobs". When a fixed count really
+is the contract — as it is for a perf corpus, where the number *must* not move
+— pin it explicitly in committed data, name it as a pin, and make the mismatch
+message say that the number changing invalidates the measurement.
 
 ---
 

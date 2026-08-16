@@ -23,6 +23,16 @@ def load_budgets(path: Path) -> dict:
     missing = [name for name in REQUIRED_PATHS if name not in payload["paths"]]
     if missing:
         raise ValueError(f"budgets missing paths: {missing}")
+    corpus = payload.get("corpus")
+    if not isinstance(corpus, dict):
+        raise ValueError(
+            f"budgets file {path} declares no 'corpus' block. Budgets are only "
+            "meaningful against the corpus they were measured on; declare "
+            "roots/jobs/result_json for the pinned corpus."
+        )
+    for key in ("roots", "jobs", "result_json"):
+        if key not in corpus:
+            raise ValueError(f"budgets corpus block missing {key!r}: {path}")
     return payload
 
 
@@ -51,6 +61,36 @@ def evaluate(report: dict, budgets: dict) -> list[str]:
     return failures
 
 
+def assert_corpus_shape(report: dict, budgets: dict) -> list[str]:
+    """Fail when a report was measured against a corpus the budgets do not describe.
+
+    A perf number only means something relative to the corpus it was measured
+    on. If the profiled corpus changes, every budget silently changes meaning
+    and the run is not a usable re-baseline sample either. Say both.
+    """
+    expected = budgets["corpus"]
+    actual_roots = list(report.get("corpus_roots", []))
+    expected_roots = list(expected["roots"])
+    mismatches: list[str] = []
+    if actual_roots != expected_roots:
+        mismatches.append(f"corpus_roots {actual_roots} != declared {expected_roots}")
+    for key, field in (("jobs", "corpus_jobs"), ("result_json", "corpus_result_json")):
+        actual = report.get(field)
+        if actual != expected[key]:
+            mismatches.append(f"{field} {actual} != declared {expected[key]}")
+    if not mismatches:
+        return []
+    return [
+        "profiled corpus does not match the shape the budgets were measured on: "
+        + "; ".join(mismatches)
+        + ". The six budgets describe the pinned corpus only, so this report "
+        "neither passes nor fails them meaningfully, and it MUST NOT be cited "
+        "as a re-baseline sample. Either profile the pinned default (drop "
+        "--corpus), or, if the pin changed deliberately, re-baseline and update "
+        "the 'corpus' block in budgets.json in the same commit."
+    ]
+
+
 def maybe_rebaseline_notice(report: dict, budgets: dict) -> list[str]:
     notices: list[str] = []
     by_path = {item["path"]: item for item in report["paths"]}
@@ -75,6 +115,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     report = load_report(args.report)
     budgets = load_budgets(args.budgets)
+    corpus_problems = assert_corpus_shape(report, budgets)
+    if corpus_problems:
+        print("perf corpus mismatch:")
+        for item in corpus_problems:
+            print(f"  {item}")
+        return 1
     failures = evaluate(report, budgets)
     for notice in maybe_rebaseline_notice(report, budgets):
         print(f"notice: {notice}")

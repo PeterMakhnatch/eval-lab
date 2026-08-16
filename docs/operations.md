@@ -230,6 +230,18 @@ attribution, cost, exception taxonomy, queue depth, waiting rationales, evidence
 growth, and quarantine state. PostgreSQL remains rebuildable from raw jobs; the
 digest is a human-facing derived report.
 
+The trial tables list evaluation runs. The lab's own self-tests do not belong
+there: on 2026-08-16 they were 49 of the digest's 264 lines. The rule is the
+attribution those runs already carry — `evallab smoke` names every job it
+creates `smoke-<agent>-<token>` and writes it under `runs/_smoke/`, so a job
+name beginning `smoke-` is a self-test and nothing else is. Self-tests are
+summarised, never dropped: one bullet per task and agent giving the trial count
+and observed reward range, and a self-test that raised an exception stays a full
+row in the table because a broken harness is signal. Every other run, including
+every `oracle` and `nop` control used as evidence, is always listed. Spend and
+the exception taxonomy still count self-test trials, so the filter changes what
+is readable and not what is reported.
+
 Nightly also validates and enqueues the pinned suite in
 [`canaries.md`](canaries.md) before draining the queue. A changed task digest or
 floating source ref quarantines the cycle before dispatch. Digest excursions
@@ -346,6 +358,24 @@ Because that store is shared across worktrees, doctor's `catalog-parquet` line
 ends with `db=<host>:<port>/<dbname>` — the database it actually inspected,
 never a credential. Two shells with different `DATABASE_URL` values otherwise
 print the same green line for different catalogs.
+
+Sharing is kept, but it is never silent (F-13). When a command run inside a
+linked worktree inherits another checkout's derived root, `evallab` writes one
+line to stderr naming the owner before doing anything with it:
+
+```
+evallab: derived root /Users/you/Developer/eval-lab/derived/parquet belongs to
+/Users/you/Developer/eval-lab, not to this checkout
+/Users/you/Developer/eval-lab/.worktrees/role, set EVALLAB_DERIVED_ROOT to an
+absolute path to choose another.
+```
+
+The notice appears once per invoking tree and resolved root, so an interactive
+command says it and the nightly loop does not repeat it. It is emitted only for
+a resolution nobody named: a `--derived-dir` argument and an absolute
+`EVALLAB_DERIVED_ROOT` are deliberate choices and stay quiet. Before this,
+`evallab status` inside a worktree reported the primary checkout's
+`derived/parquet` with nothing to distinguish it from the worktree's own.
 
 Analysis sidecars follow the same "the catalog is derived" rule. `analyze stub`
 and `analyze review` write the durable artifact under

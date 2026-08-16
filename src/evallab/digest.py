@@ -44,6 +44,22 @@ TrialLoader = Callable[[date], list[DigestTrial]]
 DriftLoader = Callable[[date], list[CanaryDriftObservation]]
 
 
+SELF_TEST_JOB_PREFIX = "smoke-"
+"""Reserved job-name prefix marking a run as one of the lab's own self-tests.
+
+`evallab smoke` names every job it creates `smoke-<agent>-<token>` and writes it
+into the reserved scratch directory `runs/_smoke/` (`src/evallab/smoke.py`). The
+prefix is an attribution the runs already carry, not a guess about content: no
+run the lab reports as evidence is named this way, so an `oracle` or `nop`
+control run can never be classified as noise by this rule.
+"""
+
+
+def is_lab_self_test(trial: DigestTrial) -> bool:
+    """True for a run the lab generated to test itself rather than a model."""
+    return trial.job_name.startswith(SELF_TEST_JOB_PREFIX)
+
+
 def event_belongs_to_report_day(event: QueueEvent, day: date) -> bool:
     """Prefer a nightly event's semantic report date over its wall-clock date."""
     if event.report_date is not None:
@@ -320,24 +336,49 @@ class DigestRenderer:
         *,
         empty: str,
     ) -> None:
-        if not trials:
+        # A self-test that raised is real signal about the harness, so it stays
+        # a row. Only clean self-tests collapse into the summary below.
+        reported = [
+            trial for trial in trials if trial.exception_type or not is_lab_self_test(trial)
+        ]
+        summarised = [
+            trial
+            for trial in trials
+            if not trial.exception_type and is_lab_self_test(trial)
+        ]
+        if not reported and not summarised:
             if empty:
                 lines.append(empty)
             return
-        lines.extend(
-            [
-                "| job | task | agent | reward | exception | policy |",
-                "|---|---|---|---:|---|---|",
-            ]
-        )
-        for trial in trials:
-            reward = "" if trial.reward is None else f"{trial.reward:g}"
-            lines.append(
-                f"| {_cell(trial.job_name)} | {_cell(trial.task_name)} | "
-                f"{_cell(trial.agent_name)} | {reward} | "
-                f"{_cell(trial.exception_type or '')} | "
-                f"{_cell(policy_by_job.get(trial.job_name, 'unattributed'))} |"
+        if reported:
+            lines.extend(
+                [
+                    "| job | task | agent | reward | exception | policy |",
+                    "|---|---|---|---:|---|---|",
+                ]
             )
+            for trial in reported:
+                reward = "" if trial.reward is None else f"{trial.reward:g}"
+                lines.append(
+                    f"| {_cell(trial.job_name)} | {_cell(trial.task_name)} | "
+                    f"{_cell(trial.agent_name)} | {reward} | "
+                    f"{_cell(trial.exception_type or '')} | "
+                    f"{_cell(policy_by_job.get(trial.job_name, 'unattributed'))} |"
+                )
+        elif empty:
+            lines.append(empty)
+        if summarised:
+            if reported or empty:
+                lines.append("")
+            lines.append(
+                f"Lab self-tests (job name starting `{SELF_TEST_JOB_PREFIX}`, produced by "
+                "`evallab smoke`) are summarised here instead of listed. Any self-test that "
+                "raised is a row in the table above, and every other run — including every "
+                "`oracle` and `nop` control — is always listed. Spend and the exception "
+                "taxonomy below count these trials."
+            )
+            lines.append("")
+            lines.extend(_self_test_summary(summarised))
 
     @staticmethod
     def _failed_checks(
@@ -427,6 +468,33 @@ def _directory_bytes(root: Path) -> int:
     if not root.is_dir():
         return 0
     return sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
+
+
+def _self_test_summary(trials: list[DigestTrial]) -> list[str]:
+    """One bullet per (task, agent) cohort, so a self-test is counted, not lost."""
+    cohorts: dict[tuple[str, str], list[DigestTrial]] = {}
+    for trial in trials:
+        cohorts.setdefault((trial.task_name, trial.agent_name), []).append(trial)
+    summary = []
+    for (task_name, agent_name), cohort in sorted(cohorts.items()):
+        rewards = [trial.reward for trial in cohort if trial.reward is not None]
+        if not rewards:
+            observed = "no recorded reward"
+        elif min(rewards) == max(rewards):
+            observed = f"reward {min(rewards):g}"
+        else:
+            observed = f"reward {min(rewards):g}–{max(rewards):g}"
+        missing = len(cohort) - len(rewards)
+        unscored = f", {missing} without a reward" if missing else ""
+        plural = "" if len(cohort) == 1 else "s"
+        # A summary that names none of its members cannot be followed back to a
+        # run directory, so the cohort's most recent job stays quotable.
+        latest = max(cohort, key=lambda trial: (trial.finished_at, trial.job_name))
+        summary.append(
+            f"- {len(cohort)} self-test trial{plural} — {task_name} / {agent_name}, "
+            f"{observed}{unscored}, 0 exceptions (latest: {latest.job_name})"
+        )
+    return summary
 
 
 def _cell(value: str) -> str:

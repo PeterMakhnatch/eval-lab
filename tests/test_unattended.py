@@ -644,6 +644,73 @@ def test_digest_separates_transient_provider_capacity_from_other_failures(
     assert "transient_harness=1" in text
 
 
+def _trial(job_name: str, **overrides: object) -> DigestTrial:
+    fields: dict[str, object] = {
+        "job_name": job_name,
+        "task_name": "local-lab/event-summary",
+        "agent_name": "oracle",
+        "model_name": None,
+        "reward": 1.0,
+        "exception_type": None,
+        "cost_usd": 0.0,
+        "finished_at": "2026-08-13T12:00:00Z",
+    }
+    fields.update(overrides)
+    return DigestTrial(**fields)  # type: ignore[arg-type]
+
+
+def test_digest_summarises_smoke_noise_and_never_hides_a_real_control(
+    tmp_path: Path,
+) -> None:
+    """Exactly one of these two oracle runs is a lab self-test; only it leaves the table."""
+    trials = [
+        _trial("smoke-oracle-036m0fqpzzz0"),
+        _trial("event-summary-oracle-evidence"),
+    ]
+    renderer = DigestRenderer(
+        repo_root=tmp_path,
+        queue=DirectoryQueue(tmp_path / "queue"),
+        policy=policy(),
+        trial_loader=lambda day: trials if day == date(2026, 8, 13) else [],
+        drift_loader=lambda _day: [],
+    )
+
+    text = renderer.write(report_date=date(2026, 8, 14)).read_text()
+    rows = [line for line in text.splitlines() if line.startswith("| ")]
+
+    assert any("event-summary-oracle-evidence" in row for row in rows)
+    assert not any("smoke-oracle-036m0fqpzzz0" in row for row in rows)
+    assert (
+        "- 1 self-test trial — local-lab/event-summary / oracle, reward 1, 0 exceptions "
+        "(latest: smoke-oracle-036m0fqpzzz0)"
+    ) in text
+
+
+def test_digest_keeps_a_failed_smoke_run_visible(tmp_path: Path) -> None:
+    trials = [
+        _trial("smoke-oracle-036m0fqpzzz0"),
+        _trial(
+            "smoke-oracle-06jyeb02basb",
+            reward=None,
+            exception_type="EnvironmentError",
+        ),
+    ]
+    renderer = DigestRenderer(
+        repo_root=tmp_path,
+        queue=DirectoryQueue(tmp_path / "queue"),
+        policy=policy(),
+        trial_loader=lambda day: trials if day == date(2026, 8, 13) else [],
+        drift_loader=lambda _day: [],
+    )
+
+    text = renderer.write(report_date=date(2026, 8, 14)).read_text()
+    rows = [line for line in text.splitlines() if line.startswith("| ")]
+
+    assert any("smoke-oracle-06jyeb02basb" in row for row in rows)
+    assert not any("smoke-oracle-036m0fqpzzz0" in row for row in rows)
+    assert "harness_failure=1" in text
+
+
 def test_commit_digest_commits_only_the_digest(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)

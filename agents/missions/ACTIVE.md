@@ -47,6 +47,20 @@ bot may advise later; it is never merge authority.
 - **Next Integration sweep:** archive `system-cartographer.md` (PR #52 merged),
   and `perf-rebaseline.md` once #53 merges. COORD-GC left the cartographer
   handoff in place because its keep-list said to; the mission itself is done.
+- **Mission candidate — the `ingest` perf metric measures the wrong thing
+  (Platform, unassigned).** Carried onto the board so it does not disappear
+  with an archived handoff. PERF-REBASELINE reports that the `ingest` metric
+  times `initialize()` inside the measured region — a full `sql/schema.sql` DDL
+  replay plus a second fresh connection — so the number is not ingest logic and
+  carries most of the variance. Re-baselining the budget treated the symptom;
+  this is the cause. Two constraints for whoever takes it: fixing the measured
+  region requires a second re-baseline (the number drops sharply and the new
+  ceiling becomes far too loose, which would start tripping the
+  below-50%-of-budget re-baseline notice), and it makes the pre-fix and
+  post-fix `ingest` series non-comparable — say so wherever the series is read.
+  Reported by the PERF-REBASELINE worker; recorded here by COORD-GC, which does
+  not own `scripts/` or `docs/engineering.md` and therefore did not write it
+  into either.
 - **Integrator live flight (blocked on M006):** after M006 merges, start
   services from current main, run a real free control, produce and index a
   saved-response analysis, inspect it in the explorer, and test recovery. Only
@@ -79,11 +93,19 @@ bot may advise later; it is never merge authority.
 
 ## Missions
 
-Full copy-paste prompts and sequencing for the M-numbered missions are in
-`docs/prompts/functionalization-missions-2026-08-15.md` — that file is the
-authoritative mission-prompt generation. COORD-GC and PERF-REBASELINE were
-dispatched directly by the integrator without an M number and without a
-committed brief; their scope is their board row.
+This board is authoritative; a prompt set records what was dispatched on its
+date. Two generations are live and neither supersedes the other wholesale:
+
+- `docs/prompts/functionalization-missions-2026-08-15.md` specifies **M005,
+  M006, M007** — the missions actually in flight.
+- `docs/prompts/next-functionalization-missions-2026-08-15.md` (later, merged
+  as PR #48) holds the **M006-R repair prompt** and the unstarted **M009–M014**
+  forward plan.
+
+Use the first for the missions at review and the second for the repair and for
+what comes after. `docs/prompts/README.md` indexes both. COORD-GC and
+PERF-REBASELINE were dispatched directly by the integrator without an M number
+and without a committed brief; their scope is their board row.
 
 | ID | Outcome | Lane | Agent/model | Worktree / branch | Exclusive paths (lease) | Deps | Acceptance | PR | State | Merge owner |
 |---|---|---|---|---|---|---|---|---|---|---|

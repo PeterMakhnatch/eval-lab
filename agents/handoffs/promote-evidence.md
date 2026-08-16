@@ -508,11 +508,29 @@ report's `corpus_jobs`/`corpus_result_json` against an expected shape so a futur
 corpus change fails loudly with "corpus changed, re-baseline required" rather than
 silently re-scoping all six budgets.
 
-**One fact that widens the blocker:** `ingest` stayed green on this branch only
-because that budget's new 172.5 ms ceiling happened to absorb the corpus growth.
-`PerfRebaseline` says it scales with job count too, so that is luck, not design.
-Two of the six budgets are corpus-coupled, not one, and a larger future promotion
-would turn `ingest` red as well. Pinning the corpus makes both moot.
+**One fact that widens the blocker, and a correction to my own first count.**
+`ingest` stayed green on this branch only because that budget's new 172.5 ms
+ceiling happened to absorb the corpus growth; `PerfRebaseline` reports it scales
+with job count too, so that is luck, not design. I first wrote that two of the six
+budgets are corpus-coupled. **That was wrong: it is three of six.** Verified
+independently on this branch from the timer signatures in
+`scripts/profile/harness.py` — `_time_ingest` (168), `_time_projection` (204) and
+`_time_facts` (213) all take `jobs: list[JobRecord]`, while `_time_digest` (222)
+takes only `repo_root`, `_time_queue_tick` (251) is synthetic on `tick_n`, and
+`_time_fleet_status` (295) is git/`gh`-bound. So **half the gate is a function of
+committed evidence volume**, and only the fixed DDL and connection cost inside
+`ingest` hid it at this corpus size. A larger promotion than mine would have turned
+`ingest` red as well. Pinning the corpus makes all three moot and is the reason it
+beats re-baselining rather than merely being tidier.
+
+**Sequencing constraint for whoever holds the Platform lease**, from
+`PerfRebaseline` and worth honouring: the "only one re-baseline" property holds
+only if the corpus pin lands **before** PR #54's `initialize()`-outside-the-timed-
+region samples are collected. Samples drawn while the corpus is unpinned, or after
+#58 merges at 5 jobs, would be calibrated on a corpus that is not the enforced one
+— the same defect class over again — and would force a second re-baseline. Their
+proposed `check_budgets.py` corpus-shape assertion is what makes that auditable
+rather than a matter of trust.
 
 ## Capability labels
 

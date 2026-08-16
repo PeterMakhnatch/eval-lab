@@ -54,11 +54,48 @@ explicit in `task.toml`; runtime scripts and Docker build instructions
 containing network fetch/install commands fail static admission. There is no
 reviewed immutable offline-package mechanism in v1, so package-manager commands
 inside Dockerfiles fail closed even when their package arguments are pinned.
-For every control, the workbench also injects a fixed Docker Compose overlay
-that forces Harbor's `main` service to
-`network_mode: none`. The overlay is named in the frozen command, included in
-the staged-task digest, and revalidated after the run. Text scanning is defense
-in depth, not the network safety boundary.
+Scanning the agent Dockerfile alone is not enough, because `COPY setup.sh` plus
+`RUN sh /tmp/setup.sh` hides every fetch in a file no Dockerfile line names, so
+the contents of *every* regular file under `environment/` are read and scanned.
+A file there that is not decodable UTF-8 is refused rather than skipped.
+
+### What denies the network, and where
+
+Isolation is not uniform across the four phases, and the packet records them
+separately rather than as one overlay claim. For every control the workbench
+injects a fixed Docker Compose overlay on Harbor's `main` service setting both
+`build: {network: none}` and `network_mode: none`. The overlay is named in the
+frozen command, included in the staged-task digest, and revalidated after the
+run. It reaches the agent phases only:
+
+| Phase | Denied by | Boundary |
+| --- | --- | --- |
+| Agent build | overlay `build.network: none` | container runtime |
+| Agent runtime | overlay `network_mode: none` | container runtime |
+| Verifier build | static text scan of `tests/` | **text scan only** |
+| Verifier runtime | `task.toml` declaration, checked statically | **text scan only** |
+
+For the two agent phases, text scanning is defense in depth and the container
+runtime is the safety boundary. For the two verifier phases it is the *only*
+boundary, and the distinction is load-bearing:
+
+- Harbor 0.21.0 discards `extra_docker_compose` when it builds the separate
+  verifier runtime config, so the overlay never reaches the verifier container.
+  Nothing at runtime stops a verifier from reaching the network. The workbench
+  therefore requires `task.toml` to declare it: the effective baseline (from
+  `[verifier.environment].network_mode`, or `[environment].network_mode` when
+  that table is absent) and any `[verifier].network_mode` phase override must
+  both be `no-network`. An absent `[verifier.environment]` does not inherit
+  silently — the resolution Harbor actually performs is reproduced and checked.
+- The verifier build is covered only by a build-network text scan of
+  `tests/Dockerfile` plus a runtime-network text scan of the other files under
+  `tests/`. There is no `build.network: none` on the verifier image build and no
+  equivalent of the `environment/` fail-closed rule: a file under `tests/` that
+  cannot be decoded as UTF-8 is skipped silently, not refused.
+
+A declared `[environment].docker_image` is refused outright, because it makes
+Harbor skip the reviewed `environment/Dockerfile` build entirely, so the
+overlay's build-time denial would never apply to the image the agent runs.
 
 ## Commands
 
@@ -154,6 +191,27 @@ separate verifier isolation, hidden/golden data exposure, pinned images and
 dependencies, runtime network use, nondeterministic verifier constructs,
 reward output, adversarial coverage, and forged registration claims.
 
+Four refusals exist specifically to stop the packet from claiming isolation it
+cannot back:
+
+- `prebuilt_image_unsupported` — `[environment].docker_image` is declared, so
+  Harbor skips the reviewed `environment/Dockerfile` build and the overlay's
+  build-time network denial never applies to the image the agent runs;
+- `build_context_unreadable` — a file under `environment/` is not decodable
+  UTF-8, so it cannot be scanned for build-time network use; it is refused
+  rather than skipped;
+- `verifier_network_not_isolated` — the verifier's effective *baseline* network
+  is not `no-network`. Because Harbor drops the overlay for the verifier, a
+  networked verifier can exfiltrate hidden inputs, and it can make
+  `verifier_deterministic` an artifact of a stable remote response rather than
+  of a deterministic verifier;
+- `verifier_phase_network_not_isolated` — `[verifier].network_mode` reopens the
+  network for the verification phase itself.
+
+The first two are enforced for the agent image. The last two are static
+declaration checks, not runtime denial; see
+[What denies the network, and where](#what-denies-the-network-and-where).
+
 The control assessment requires:
 
 - three Oracle rewards exactly equal to `1` with identical digests of the
@@ -193,3 +251,20 @@ digest-pinned agent and verifier images. The committed example packet under
 `research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/`
 records its real local Harbor controls. It is test evidence, not a registered or
 published task.
+
+That packet's certification is **withdrawn**. It was written when the overlay
+set only `network_mode` and when the fixture declared
+`[environment].network_mode = "public"`, so the agent image was built with an
+unconstrained build network and the verifier container ran with full egress
+while the packet asserted `check_vector.isolation: true`. Re-running the current
+static inspection over the exact certified bytes fails admission with
+`verifier_network_not_isolated`. The retained `control_bundle` and `evidence/`
+records are kept unaltered as the factual record of what was run; they are no
+longer accepted as certification evidence. Re-certification would require fresh
+control runs under the current code, which have not been performed. See the
+`withdrawal` object in that packet's `certification.json`.
+
+This schema has no withdrawal disposition — `certified` is derived as
+`status == "certified_for_review"`, and the four statuses above are the whole
+vocabulary. A withdrawn packet is therefore recorded with the status the current
+code computes for it, plus an explicit `withdrawal` object.

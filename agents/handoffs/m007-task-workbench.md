@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: repaired the three P1 false-certification paths found at c6c35a4; focused tests and lint green
-Next: integrator re-review and merge decision; the committed candidate-ee3d580b packet is now false and needs an integrator call
+Last: withdrew the false candidate-ee3d580b certification, refreshed the stale candidate-b982b6f4 record, and corrected docs/task-workbench.md to the repaired enforcement scope; no Python changed, ruff green
+Next: integrator re-review and merge decision on PR #49
 Blockers: none
 
 # M007 task-quality workbench handoff
@@ -84,10 +84,15 @@ Bad-fixture exercise:
 ```text
 target: tests/fixtures/task_workbench/cases/unpinned-dependency
 candidate: candidate-b982b6f484cdc89e9e35d8b6
-result: needs_changes (21 retained task-defect diagnostics; no controls)
-candidate sha256: bb338ae9e282d09af31e31b8efe1c1714dd4c09407ca6a0afda8b3a44d60a8b1
-certification sha256: 01484a8852ebb5b8407cd0cc747e4784b3f80d5fb4050cf3081175e434257c23
+result: needs_changes (23 retained task-defect diagnostics; no controls)
+candidate sha256: 91d215459356f98c42b1b05304f68a12c911ab09e27fc77187928fe6d7271051
+certification sha256: 2ed2cc2a4ee3e6b781b3706b688643af1976dc5dd3ee6bd6505a8a1513cf5056
 second packet build: identical hashes and expected exit 1
+note: refreshed at 2a6aec0 by re-running the repaired inspector over unchanged
+  fixture bytes. Was 21 diagnostics / candidate bb338ae9 / certification
+  01484a88 before the repair; the repaired code additionally detects
+  build_network_use (environment/Dockerfile) and verifier_network_not_isolated
+  (task.toml) in this deliberately bad fixture.
 ```
 
 Real free-control evidence:
@@ -388,35 +393,168 @@ Proven by: `test_networked_verifier_environment_is_rejected` (new fixture
 `test_verifier_environment_table_does_not_inherit_a_no_network_default`, and
 `test_verifier_phase_override_cannot_reopen_the_network`.
 
-### Committed packet that is now false — integrator decision required
+### Packet withdrawal and documentation correction (extended lease at 2a6aec0)
 
-`research/registration/candidates/` is outside this task's lease, so nothing
-there was edited.
+The Integrator granted an extended lease for exactly
+`research/registration/candidates/` and `docs/task-workbench.md`, which the
+repair invalidated but the previous mission could not touch. No `src/`,
+`tests/`, `policy/`, or `library/` file was changed in this round; zero Python
+changed and `uv run ruff check .` passes (confirmed, not assumed).
 
-- `research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/certification.json`
-  reports `certified: true`, `status: certified_for_review`, and
-  `check_vector.isolation: true` for `tests/fixtures/task_workbench/valid`.
-  Those control runs used a verifier container with full egress (the fixture
-  declared `[environment] network_mode = "public"` with no
-  `[verifier.environment]`), and their agent image was built with an
-  unconstrained build network. Both claims are false; under the repaired code
-  the same candidate would fail static admission. The candidate record also
-  pins `control_enforcement: "docker-compose main network_mode=none"` and the
-  old overlay digest, neither of which the code produces any more.
-- `research/registration/candidates/candidate-b982b6f484cdc89e9e35d8b6/certification.json`
-  is `certified: false` / `needs_changes`, so it asserts no false trust, but its
-  candidate record carries the same stale `control_enforcement` string and
-  overlay digest.
+#### The false packet is withdrawn
 
-Recommendation for the Integrator: regenerating the `ee3d580b` packet is not
-possible without new control runs, and its retained evidence describes runs that
-no longer satisfy the isolation contract. Withdrawing or superseding the packet
-is the honest option; this worker did not touch it.
+`candidate-ee3d580b186b15e6e55a1ab9/certification.json` asserted
+`certified: true`, `status: certified_for_review`, and
+`check_vector.isolation: true`. It now reads `certified: false`,
+`status: needs_changes`, every `check_vector` entry `false`, and carries an
+explicit `withdrawal` object.
 
-`docs/task-workbench.md` (also outside this lease) still describes the overlay
-as forcing only `network_mode: none` and does not mention build-context content
-scanning or the verifier-isolation requirement. It is stale, not wrong about
-anything else. Reported, not edited.
+**The schema has no withdrawal state.** `Disposition` is the closed literal
+`{needs_changes, controls_pending, harness_blocked, certified_for_review}` and
+`CheckReport.passed` is defined as `disposition == "certified_for_review"`, so
+`certified` and `status` are not independently settable in any honest way. Two
+mechanisms were rejected: inventing `status: "withdrawn"` would put a value
+outside the `Literal` into a data file with no code support, and deleting the
+packet would destroy the evidence of the false claim. The chosen mechanism is
+the least-surprising one that cannot be misread as live:
+
+- `status` and `certified` are set to the values the repaired code *actually
+  computes for these bytes*. Verified, not assumed: the exact certified bytes
+  were recovered from `285b834^` (`task.toml` sha256 `31d7d7e9…`, byte-identical
+  to the digest frozen in the candidate record) and re-inspected under the
+  repaired code. Result: `static_passed: False` with exactly one error,
+  `verifier_network_not_isolated`, which `check_candidate` maps to
+  `needs_changes`. The whole `check_vector` goes false because every entry is
+  gated on `verified_controls`, which requires `static_passed`.
+- The `withdrawal` object records the date, the two exposures (verifier egress
+  from an inherited `[environment] network_mode = "public"` that Harbor never
+  covers with the overlay, and an unconstrained build network from an overlay
+  that set only the Compose runtime key), the head where the contract changed
+  (`2a6aec0`, fix commit `285b834`), the superseded status and check vector, and
+  that re-certification requires fresh control runs. **No control runs, Harbor
+  runs, or Docker builds were performed.**
+- `control_bundle`, `control_plan`, and all seven `evidence/` files are retained
+  byte-unchanged. They remain accurate about what was run; they are simply no
+  longer accepted as certification evidence.
+- `certification_id` is deliberately **not** recomputed. It is retained as the
+  historical identity of the withdrawn certification; minting a fresh
+  content-addressed id for a withdrawal would read as a new certification event.
+  The record says so explicitly. Nothing in the code re-validates
+  `certification_id`, so this breaks no invariant.
+- `human_action_required` now states the packet is withdrawn and grants nothing,
+  instead of inviting a reviewer to review it.
+
+`candidate-ee3d580b…/candidate.json` was **not** edited. Its
+`control_enforcement: "docker-compose main network_mode=none"` and old overlay
+digest are accurate historical facts about control runs that really executed
+under that overlay; rewriting them to the new string would assert that those
+runs had build-network denial, which is exactly the kind of unbacked claim this
+withdrawal exists to remove. Its `candidate_record_digest` seal was verified
+self-consistent and is left intact.
+
+#### Stale sibling: refreshed, deliberately
+
+`candidate-b982b6f484cdc89e9e35d8b6/` **was** refreshed, by re-running the
+repaired inspector over unchanged fixture bytes and writing the code's own
+output — not by hand-patching strings. The opposite call from `ee3d580b`, on a
+difference that is observable in the data:
+
+1. Its `control_bundle` is `null`. **No control run ever executed**, so
+   `control_enforcement` and `control_overlay_digest` cannot be historical facts
+   about a past run. They are the workbench's forward-looking description of the
+   enforcement it *would* apply — a claim about the current contract, and the
+   contract changed. That is the distinguishing test between the two packets.
+2. The underlying fixture bytes are unchanged since the packet was written; the
+   only branch change to `cases/unpinned-dependency/` came from the original
+   feature commit `5e60d54`, not from the repair. Re-inspection is therefore
+   over identical inputs — a refresh, not a new run.
+3. The refresh is not cosmetic. The repaired code detects two additional real
+   defects the committed packet omitted: `build_network_use`
+   (`environment/Dockerfile`) and `verifier_network_not_isolated` (`task.toml`),
+   21 diagnostics to 23. Leaving it would leave a packet that under-reports.
+4. Because the record is regenerated rather than edited, `candidate.json` stays
+   digest-sealed and `certification.json`'s `candidate_record_digest` and
+   `certification_id` stay self-consistent and independently reproducible by
+   re-running the inspector.
+
+Verified afterwards across both packets: no `certified: true`, no `check_vector`
+entry true, both `candidate_record_digest` seals valid, and both certifications
+referencing their candidate's current digest.
+
+#### Documentation
+
+`docs/task-workbench.md` no longer describes the overlay as forcing only
+`network_mode: none`. It now separates the four phases with a table and states
+the boundary for each: agent build and agent runtime denied by the overlay at
+the container runtime; verifier build and verifier runtime covered **only by a
+static text scan**, because Harbor discards `extra_docker_compose` for the
+verifier config. The honest limitations are stated rather than smoothed over:
+the verifier build has no `build.network: none` and no fail-closed rule, so a
+non-UTF-8 file under `tests/` is skipped silently, unlike under `environment/`.
+The four new refusals (`prebuilt_image_unsupported`, `build_context_unreadable`,
+`verifier_network_not_isolated`, `verifier_phase_network_not_isolated`) are
+documented, and the reference-fixture section records the withdrawal and the
+schema's lack of a withdrawal state.
+
+#### Branch file list (`git diff --name-only origin/main...HEAD`)
+
+```text
+agents/handoffs/m007-task-workbench.md
+docs/task-workbench.md
+research/registration/candidates/candidate-b982b6f484cdc89e9e35d8b6/candidate.json
+research/registration/candidates/candidate-b982b6f484cdc89e9e35d8b6/certification.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/candidate.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/certification.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/evidence/adversarial-empty-output.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/evidence/adversarial-extra-artifact.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/evidence/adversarial-wrong-value.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/evidence/nop-1.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/evidence/oracle-1.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/evidence/oracle-2.json
+research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/evidence/oracle-3.json
+src/evallab/task_workbench.py
+tests/fixtures/task_workbench/cases/build-context-script/environment/Dockerfile
+tests/fixtures/task_workbench/cases/build-context-script/environment/setup.sh
+tests/fixtures/task_workbench/cases/false-negative-verifier/controls.json
+tests/fixtures/task_workbench/cases/forged-registration/task.toml
+tests/fixtures/task_workbench/cases/golden-symlink/case.json
+tests/fixtures/task_workbench/cases/hidden-leak/instruction.md
+tests/fixtures/task_workbench/cases/interrupted-controls/controls.json
+tests/fixtures/task_workbench/cases/json-copy-leak/environment/Dockerfile
+tests/fixtures/task_workbench/cases/missing-files/case.json
+tests/fixtures/task_workbench/cases/network-use/tests/test.sh
+tests/fixtures/task_workbench/cases/networked-verifier/task.toml
+tests/fixtures/task_workbench/cases/nondeterminism/controls.json
+tests/fixtures/task_workbench/cases/path-escape/case.json
+tests/fixtures/task_workbench/cases/permissive-verifier/controls.json
+tests/fixtures/task_workbench/cases/unpinned-dependency/environment/Dockerfile
+tests/fixtures/task_workbench/valid/environment/Dockerfile
+tests/fixtures/task_workbench/valid/environment/input.txt
+tests/fixtures/task_workbench/valid/instruction.md
+tests/fixtures/task_workbench/valid/solution/solve.sh
+tests/fixtures/task_workbench/valid/task.toml
+tests/fixtures/task_workbench/valid/tests/Dockerfile
+tests/fixtures/task_workbench/valid/tests/golden.txt
+tests/fixtures/task_workbench/valid/tests/test.sh
+tests/fixtures/task_workbench/valid/tests/verify.sh
+tests/fixtures/task_workbench/valid/workbench/adversarial/empty-output.sh
+tests/fixtures/task_workbench/valid/workbench/adversarial/extra-artifact.sh
+tests/fixtures/task_workbench/valid/workbench/adversarial/wrong-value.sh
+tests/test_task_workbench.py
+```
+
+42 files. `src/` and `tests/` appear only because of the earlier repair commit
+`285b834`, which is under independent review; this round changed neither. The
+list is byte-identical before and after this round's commit — verified, because
+every file this round touched was already in it.
+
+#### Unrelated pre-existing state, reported not fixed
+
+`research/registration/candidates/` contains two **empty** local directories,
+`candidate-13091041b42634c8c70c5912/` and `candidate-1c7115a30f231b99119da9dd/`,
+both dated 2026-08-15 15:21, before this round. Git does not track empty
+directories, so they are invisible to `git status` and are not part of any
+commit. They look like scratch from an interrupted packet write. Left alone.
 
 ### Verification
 
@@ -441,3 +579,49 @@ was touched. No path in this diff registers a task or grants promotion powers.
 The full suite, project-wide formatters, and `scripts/premerge.sh` were left to
 the Integrator per this mission's constraints; this repair invalidates the
 previous green CI on PR #49, as expected.
+
+### Verification — withdrawal round (2a6aec0)
+
+```text
+uv run ruff check .
+All checks passed!
+
+git status --porcelain   # before commit, this round
+ M docs/task-workbench.md
+ M research/registration/candidates/candidate-b982b6f484cdc89e9e35d8b6/candidate.json
+ M research/registration/candidates/candidate-b982b6f484cdc89e9e35d8b6/certification.json
+ M research/registration/candidates/candidate-ee3d580b186b15e6e55a1ab9/certification.json
+(zero .py files; agents/handoffs/m007-task-workbench.md added after)
+```
+
+Ground truth for the withdrawal, re-derived rather than assumed:
+
+```text
+# exact certified bytes recovered from 285b834^
+task.toml sha256 31d7d7e9917b4702bbc92af69d69818b0beae9c022a2ce5e994ec8fdbfb3cff0
+  == digests.task_toml frozen in candidate-ee3d580b's candidate.json
+
+# repaired inspect_candidate over those exact bytes
+static_passed: False
+[error] verifier_network_not_isolated (task.toml)
+  "the effective baseline is 'public' from [environment] (inherited)"
+-> check_candidate maps any static error to needs_changes; passed == False
+
+# post-edit sweep over research/registration/candidates/
+candidate-b982b6f4: certified=False status=needs_changes check_vector all false
+                    seal valid; cert digest matches candidate.json
+candidate-ee3d580b: certified=False status=needs_changes check_vector all false
+                    withdrawal object present
+                    seal valid; cert digest matches candidate.json
+ALL CLEAN: True
+```
+
+This round changed no Python, so the repair round's pytest result stands
+unchanged and the suite was not re-run. No Harbor run, Docker build, container
+build, model call, cloud sandbox, deploy, or publication occurred. No API-key
+environment variable was introduced or read. Nothing under `policy/`,
+`library/`, `src/`, or `tests/` was touched this round; `library/registry/`
+still holds zero records and nothing here registers a task. The full suite,
+project-wide formatters, and `scripts/premerge.sh` were left to the Integrator.
+Stopping at `review-wanted`: not merged, and no new PR opened — #49 already
+exists.

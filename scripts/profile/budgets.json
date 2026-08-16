@@ -1,12 +1,12 @@
 {
   "tolerance_pct": 50,
   "paths": {
-    "ingest": 80.0,
+    "ingest": 115.0,
     "projection": 25.0,
     "facts": 25.0,
     "digest": 15.0,
     "queue-tick-100": 150.0,
     "fleet-status": 5000.0
   },
-  "notes": "CI-local ceilings in milliseconds of median after warmup+5 reps. About 3x the 2026-08-14 SPEED laptop capture on the committed 2-job evidence corpus, except fleet-status which is git/gh-bound. tolerance_pct=50. An improvement below 50% of a budget should re-baseline."
+  "notes": "CI-local ceilings in milliseconds of median after warmup+5 reps on the committed 2-job evidence corpus. tolerance_pct=50; ceiling = budget * 1.5. PROVENANCE IS MIXED. CI-runner-anchored: 'ingest' was re-baselined 2026-08-15 from the ingest medians of the last 14 successful perf runs on ubuntu-latest with the postgres service container (n=14, 51.4-96.1 ms, median 72.3 ms), plus one 125.2 ms runner-variance spike on a commit that passed on rerun; 115.0 is ~1.2x the observed successful max and its 172.5 ms ceiling is ~1.38x that spike. Laptop-anchored (NOT re-measured on CI): 'projection', 'facts', 'digest', and 'queue-tick-100' are still about 3x the 2026-08-14 SPEED capture on an Apple Silicon laptop with a local PostgreSQL, so their true CI headroom is unknown; 'fleet-status' is git/gh-bound rather than machine-class-anchored. Any future re-baseline must cite CI artifact samples, not a single laptop timing. An improvement below 50% of a budget should re-baseline."
 }

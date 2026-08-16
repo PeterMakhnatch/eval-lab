@@ -1,6 +1,6 @@
 Status: review-wanted
 Last: re-baselined the `ingest` perf budget to 115.0 ms from 14 CI artifact samples, rewrote the budgets provenance note, and recorded the distribution in `docs/engineering.md`
-Next: integrator reviews PR, waits for exact-head green on `perf`/`quality`/`typecheck`, then merges
+Next: integrator reviews PR #53, waits for exact-head green on `perf`/`quality`/`typecheck`, then merges
 Blockers: none
 
 ## Scope

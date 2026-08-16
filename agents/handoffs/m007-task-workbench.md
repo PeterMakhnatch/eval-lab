@@ -1070,7 +1070,9 @@ uv run pytest tests/test_task_workbench.py
     the 1 skip is the live Harbor comparison; the static pin runs
 
 negative control: new tests vs src/evallab/task_workbench.py reverted to 1713830
-  37 failed, 62 passed
+  37 failed, 62 passed  (run at 99 collected tests; the 3
+  test_lookalike_filenames_are_not_refused params were added after it and are
+  false-refusal guards that pass in both directions, so they carry no signal here)
   every failure is a new test:
     test_task_authored_compose_under_tests_escapes_nothing
     test_compose_filenames_are_refused_in_every_build_context (8 of 9 params)
@@ -1080,7 +1082,7 @@ negative control: new tests vs src/evallab/task_workbench.py reverted to 1713830
   the params that pass under 1713830 are honest non-detectors, not weak tests:
     ...[environment/docker-compose.yaml] — already refused by the old exact-path
       check; it is the one case that was never broken
-    test_lookalike_filenames_are_not_refused, test_offline_build_commands_are_not_refused,
+    test_offline_build_commands_are_not_refused,
       test_reference_fixture_has_no_interpreted_build_context_configuration
       (false-refusal guards: they must pass both before and after)
     test_verifier_network_resolution_is_pinned_statically — pins the mirror,

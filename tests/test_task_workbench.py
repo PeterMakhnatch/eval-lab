@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import tomllib
@@ -12,6 +13,7 @@ import pytest
 import yaml
 
 from evallab.task_workbench import (
+    BUILD_NETWORK_PATTERN,
     NETWORK_OVERLAY_CONTENT,
     NETWORK_OVERLAY_RELATIVE,
     NETWORK_SCRIPT_PATTERN,
@@ -618,6 +620,224 @@ def test_unscannable_verifier_build_context_file_fails_closed(tmp_path: Path) ->
     )
 
 
+def test_task_authored_compose_under_tests_escapes_nothing(tmp_path: Path) -> None:
+    """The two-line file that turned a compliant `no-network` task into full egress.
+
+    Harbor builds and runs the separate verifier environment with
+    `environment_dir = tests/` (`Trial._verifier_env_build_context`), and
+    `DockerEnvironment._environment_docker_compose_path` is
+    `environment_dir / "docker-compose.yaml"`, layered into
+    `_docker_compose_paths` for `build` and `up` alike. A service there that
+    declares its own `network_mode` is excluded from
+    `_egress_controlled_service_names`, so it never joins the egress-control
+    sidecar namespace that implements `no-network`.
+
+    Every assertion before the refusal exists to show the refusal can only come
+    from the new filename allowlist: the `task.toml` is inside the supported
+    surface, the mirror resolves `no-network` for both baseline and phase, and
+    neither content pattern matches the YAML read as text.
+    """
+    repo, task = _copy_candidate(tmp_path / "verifier-compose", "verifier-compose-escape")
+    compose = task / "tests/docker-compose.yaml"
+    text = compose.read_text()
+
+    assert yaml.safe_load(text)["services"]["main"]["network_mode"] == "bridge"
+    assert not NETWORK_SCRIPT_PATTERN.search(text)
+    assert not BUILD_NETWORK_PATTERN.search(text)
+    config = tomllib.loads((task / "task.toml").read_text())
+    assert _effective_verifier_network(config)[:2] == ("no-network", "no-network")
+
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    finding = next(
+        item
+        for item in inspection.diagnostics
+        if item.code == "custom_compose_unsupported"
+    )
+    assert finding.path == "tests/docker-compose.yaml"
+    assert finding.severity == "error"
+    assert "separate verifier image" in finding.message
+    assert _codes(inspection) == {"custom_compose_unsupported"}
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "environment/docker-compose.yaml",
+        "environment/docker-compose.yml",
+        "environment/compose.yaml",
+        "environment/docker-compose.override.yaml",
+        "tests/docker-compose.yaml",
+        "tests/docker-compose.yml",
+        "tests/compose.yml",
+        "tests/docker-compose.override.yml",
+        "tests/fixtures/docker-compose.yaml",
+    ],
+)
+def test_compose_filenames_are_refused_in_every_build_context(
+    tmp_path: Path, relative: str
+) -> None:
+    """One refusal covers the whole Compose namespace, in both build contexts.
+
+    Harbor 0.21.0 reads only `<environment dir>/docker-compose.yaml`, but which
+    directory becomes an environment directory is Harbor's choice: the previous
+    round refused the `environment/` spelling by exact path and left the `tests/`
+    one, which Harbor hands the separate verifier, entirely unexamined.
+    """
+    repo, task = _copy_candidate(tmp_path / relative.replace("/", "-").replace(".", "-"))
+    destination = task / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("services:\n  main:\n    network_mode: bridge\n")
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    assert _codes(inspection) == {"custom_compose_unsupported"}
+    assert [item.path for item in inspection.diagnostics] == [relative]
+
+
+@pytest.mark.parametrize(
+    ("relative", "code"),
+    [
+        ("environment/.env", "compose_env_file_unsupported"),
+        ("tests/.env", "compose_env_file_unsupported"),
+        ("tests/.env.local", "compose_env_file_unsupported"),
+        ("environment/.dockerignore", "build_context_ignore_unsupported"),
+        ("tests/.dockerignore", "build_context_ignore_unsupported"),
+    ],
+)
+def test_other_interpreted_build_context_files_are_refused(
+    tmp_path: Path, relative: str, code: str
+) -> None:
+    """`.env` and `.dockerignore` are read as configuration, so they are refused.
+
+    Harbor invokes `docker compose --project-directory <environment dir>` and
+    never passes `--env-file`, so Compose reads that directory's `.env` and
+    interpolates it into every Compose document including its own. Docker's
+    builder reads `.dockerignore` to drop paths from the context, so the files
+    the workbench scanned would not be the files in the image.
+    """
+    repo, task = _copy_candidate(tmp_path / relative.replace("/", "-").replace(".", "-"))
+    (task / relative).write_text("PLACEHOLDER=1\n")
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    assert _codes(inspection) == {code}
+    assert [item.path for item in inspection.diagnostics] == [relative]
+
+
+def test_reference_fixture_has_no_interpreted_build_context_configuration(
+    tmp_path: Path,
+) -> None:
+    """The filename allowlist must not refuse the task the workbench certifies."""
+    repo, task = _copy_candidate(tmp_path / "filenames")
+    inspection = _inspect(repo, task)
+
+    assert inspection.static_passed
+    assert not {
+        "custom_compose_unsupported",
+        "compose_env_file_unsupported",
+        "build_context_ignore_unsupported",
+    } & _codes(inspection)
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        # `compose` must be a whole word: `\b` fails between `compose` and `r`.
+        "tests/composer.json",
+        # Compose reads `.env`, never `.envrc`.
+        "environment/.envrc",
+        # Harbor resolves exact names; nothing reads a differently-prefixed file.
+        "tests/service-compose.yaml",
+    ],
+)
+def test_lookalike_filenames_are_not_refused(tmp_path: Path, relative: str) -> None:
+    """The allowlist covers the namespace Harbor resolves, not everything near it."""
+    repo, task = _copy_candidate(tmp_path / relative.replace("/", "-").replace(".", "-"))
+    (task / relative).write_text("{}\n")
+    inspection = _inspect(repo, task)
+
+    assert inspection.static_passed, _codes(inspection)
+
+
+def test_verifier_build_uv_sync_is_rejected(tmp_path: Path) -> None:
+    """`RUN uv sync` is this repository's own idiom and used to pass unnoticed."""
+    repo, task = _copy_candidate(tmp_path / "verifier-uv-sync", "verifier-uv-sync")
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    assert _codes(inspection) == {"build_network_use"}
+    assert [item.path for item in inspection.diagnostics] == ["tests/Dockerfile"]
+
+
+# One plain spelling per package-manager family the build-time scan now names.
+# These are not obfuscations: each is the documented way to install dependencies
+# in that ecosystem, and the separate verifier image has no other boundary.
+_BUILD_INSTALL_IDIOMS = [
+    "uv sync --frozen",
+    "uv add ruff",
+    "uv lock",
+    "npm i left-pad",
+    "pnpm i",
+    "npx cowsay hello",
+    "poetry install --no-root",
+    "pipenv install",
+    "bundle install",
+    "composer install",
+    "conda install -y numpy",
+    "micromamba install -y numpy",
+    "brew install jq",
+    "pacman -Syu --noconfirm",
+    "dotnet restore",
+    "dotnet add package Newtonsoft.Json",
+    "mvn install -DskipTests",
+    "./gradlew build",
+    "gradle build",
+    "pip download requests",
+    "cargo fetch",
+    "go mod download",
+]
+
+
+@pytest.mark.parametrize("command", _BUILD_INSTALL_IDIOMS)
+def test_plain_install_idioms_are_rejected_in_the_verifier_build(
+    tmp_path: Path, command: str
+) -> None:
+    """Each idiom is refused through a real inspection, not a bare regex probe."""
+    repo, task = _copy_candidate(tmp_path / re.sub(r"[^a-z0-9]+", "-", command.lower()))
+    dockerfile = task / "tests/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text() + f"RUN {command}\n")
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    assert "build_network_use" in _codes(inspection)
+    assert any(
+        item.code == "build_network_use" and item.path == "tests/Dockerfile"
+        for item in inspection.diagnostics
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "npm init -y",
+        "cargo build --offline",
+        "python -m compileall /tests",
+        "chmod +x /tests/test.sh",
+        "mkdir -p /app/output",
+    ],
+)
+def test_offline_build_commands_are_not_refused(tmp_path: Path, command: str) -> None:
+    """The build pattern is still a denylist, so its false-refusal edge matters."""
+    repo, task = _copy_candidate(tmp_path / re.sub(r"[^a-z0-9]+", "-", command.lower()))
+    dockerfile = task / "tests/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text() + f"RUN {command}\n")
+    inspection = _inspect(repo, task)
+
+    assert inspection.static_passed, _codes(inspection)
+
+
 @pytest.mark.parametrize(
     ("addition", "location"),
     [
@@ -665,7 +885,69 @@ def test_reference_fixture_stays_inside_the_supported_configuration_surface(
     assert "unsupported_task_configuration" not in _codes(inspection)
 
 
-def test_verifier_network_resolution_matches_harbor(tmp_path: Path) -> None:
+def _verifier_network_documents() -> list[tuple[str, str, str, str]]:
+    """`(label, task.toml, expected baseline, expected phase)` for the mirror.
+
+    The expected pairs are written out as literals rather than derived, so the
+    mirror's own behaviour is pinned with nothing installed. Harbor is a
+    standalone CLI tool and not a dependency of this package, so a pin that only
+    runs when a `harbor` binary is on PATH does not run in CI at all — which is
+    precisely where a regression would land unnoticed.
+    """
+    valid = (VALID / "task.toml").read_text()
+    return [
+        ("compliant fixture", valid, "no-network", "no-network"),
+        # A [verifier.environment] table that omits network_mode does not inherit
+        # [environment]; EnvironmentConfig defaults it to public.
+        (
+            "[verifier.environment] without network_mode does not inherit",
+            valid + "\n[verifier.environment]\ncpus = 1\n",
+            "public",
+            "public",
+        ),
+        (
+            "[verifier.environment] overrides a public [environment]",
+            valid.replace('network_mode = "no-network"', 'network_mode = "public"')
+            + '\n[verifier.environment]\nnetwork_mode = "no-network"\n',
+            "no-network",
+            "no-network",
+        ),
+        (
+            "[verifier].network_mode reopens the verification phase only",
+            valid.replace(
+                "[verifier]\ntimeout_sec", '[verifier]\nnetwork_mode = "public"\ntimeout_sec'
+            ),
+            "no-network",
+            "public",
+        ),
+    ]
+
+
+def test_verifier_network_resolution_is_pinned_statically() -> None:
+    """Pin the mirror with no Harbor present, so CI actually executes the pin.
+
+    This asserts the four `(baseline, phase)` pairs the mirror must produce and
+    nothing else. It cannot detect drift in Harbor — only
+    `test_verifier_network_resolution_matches_harbor` can — but it does detect
+    drift in `_effective_verifier_network`, and it does so unconditionally.
+    """
+    for label, document, baseline, phase in _verifier_network_documents():
+        assert _effective_verifier_network(tomllib.loads(document))[:2] == (
+            baseline,
+            phase,
+        ), label
+
+    # The step fixture is refused by the configuration allowlist rather than
+    # mirrored, and this is why: the mirror reads its compliant task-level tables
+    # while Harbor resolves the step's verifier to full egress.
+    step_case = (CASES / "step-verifier-network" / "task.toml").read_text()
+    assert _effective_verifier_network(tomllib.loads(step_case))[:2] == (
+        "no-network",
+        "no-network",
+    )
+
+
+def test_verifier_network_resolution_matches_harbor() -> None:
     """Pin the mirror against the resolver it mirrors, so the two cannot drift.
 
     Harbor ships as a standalone CLI rather than a library this package imports,
@@ -673,35 +955,22 @@ def test_verifier_network_resolution_matches_harbor(tmp_path: Path) -> None:
     it. This test runs the real
     `resolve_effective_verifier_env_config` / `resolve_baseline` /
     `resolve_verifier_phase_policy` inside the installed Harbor's own
-    interpreter and fails if the reproduction stops agreeing.
+    interpreter and fails if the reproduction stops agreeing. It skips without
+    Harbor; `test_verifier_network_resolution_is_pinned_statically` is the part
+    that always runs.
     """
-    valid = (VALID / "task.toml").read_text()
+    cases = _verifier_network_documents()
     step_case = (CASES / "step-verifier-network" / "task.toml").read_text()
-    documents = [
-        valid,
-        # A [verifier.environment] table that omits network_mode does not inherit
-        # [environment]; EnvironmentConfig defaults it to public.
-        valid + "\n[verifier.environment]\ncpus = 1\n",
-        valid.replace('network_mode = "no-network"', 'network_mode = "public"')
-        + '\n[verifier.environment]\nnetwork_mode = "no-network"\n',
-        valid.replace(
-            "[verifier]\ntimeout_sec", '[verifier]\nnetwork_mode = "public"\ntimeout_sec'
-        ),
-    ]
-    resolved = _harbor_resolution([*documents, step_case])
+    resolved = _harbor_resolution([document for _, document, _, _ in cases] + [step_case])
 
-    for document, harbor in zip(documents, resolved[: len(documents)], strict=True):
-        baseline, phase, _ = _effective_verifier_network(tomllib.loads(document))
-        assert harbor == [[baseline, phase]], document
+    for (label, _document, baseline, phase), harbor in zip(
+        cases, resolved[: len(cases)], strict=True
+    ):
+        assert harbor == [[baseline, phase]], label
 
-    # The step fixture is refused rather than mirrored, and this is why: Harbor
-    # resolves its single step's verifier to full egress even though every
-    # task-level table is compliant.
+    # Harbor resolves the step fixture's verifier to full egress even though
+    # every task-level table is compliant, which is why [[steps]] is refused.
     assert resolved[-1] == [["public", "public"]]
-    assert _effective_verifier_network(tomllib.loads(step_case))[:2] == (
-        "no-network",
-        "no-network",
-    )
 
 
 def test_prebuilt_docker_image_bypassing_the_reviewed_build_is_rejected(

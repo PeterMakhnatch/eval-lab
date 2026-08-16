@@ -99,14 +99,32 @@ NETWORK_SCRIPT_PATTERN = re.compile(
     r"\burllib\.|\brequests\.|\bhttpx\.|\baiohttp\.)",
     re.IGNORECASE,
 )
+# The separate verifier image has no container-level boundary at all: Harbor
+# rebuilds the verifier runtime config with `extra_docker_compose: []`
+# (harbor/trial/trial.py:648-650), so the workbench's `build.network=none`
+# overlay never reaches that build. This pattern is therefore the whole boundary,
+# and every spelling it misses is a task that fetches during the verifier build
+# and still certifies. The spellings below are the plain, documented ones for
+# each ecosystem's package manager; obfuscation defeats any text scan, so the
+# claim is only that an unobfuscated fetch is named. `uv sync` leads because it
+# is the idiom this repository itself uses. Maven and Gradle are matched on the
+# tool name alone because every default goal resolves from a remote repository.
 BUILD_NETWORK_PATTERN = re.compile(
     r"(?:https?://|ftp://|git://|ssh://|git@|\bcurl\b|\bwget\b|"
     r"\b(?:git|hg|svn)\s+(?:clone|fetch|pull|checkout)\b|"
     r"\bapt(?:-get)?\s+(?:update|install|upgrade|dist-upgrade)\b|"
     r"\b(?:apk|dnf|yum|microdnf|zypper)\s+(?:add|install|update|upgrade)\b|"
-    r"\bpip(?:3)?\s+install\b|\buv\s+(?:pip\s+)?install\b|\buvx\b|"
-    r"\b(?:npm|pnpm|yarn)\s+(?:install|add|ci|dlx)\b|"
-    r"\b(?:gem|cargo)\s+install\b|\bgo\s+(?:get|install)\b|"
+    r"\bpacman\s+(?:-[A-Za-z]*S|--sync)|"
+    r"\b(?:brew|conda|mamba|micromamba)\s+(?:install|create|add|update|env)\b|"
+    r"\bpip(?:3)?\s+(?:install|download|wheel)\b|"
+    r"\buv\s+(?:pip\s+)?(?:install|sync|add|lock)\b|\buvx\b|"
+    r"\b(?:poetry|pipenv|bundle|composer)\s+(?:install|add|update|require|lock|sync)\b|"
+    r"\b(?:npm|pnpm)\s+(?:install|i|ci|add|update|up)\b|\bnpx\b|"
+    r"\byarn\s+(?:install|add|ci|dlx|up|upgrade)\b|"
+    r"\bgem\s+(?:install|update)\b|\bcargo\s+(?:install|add|fetch|update)\b|"
+    r"\bgo\s+(?:get|install|mod\s+(?:download|tidy))\b|"
+    r"\bdotnet\s+(?:restore|add|tool|build|publish|test)\b|"
+    r"\b(?:mvn|mvnw|gradlew?)\b|"
     r"\bInvoke-(?:WebRequest|RestMethod)\b)",
     re.IGNORECASE,
 )
@@ -954,14 +972,96 @@ _BUILD_CONTEXTS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _validate_build_context_contents(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
-    """Content-scan every build context, not just its Dockerfile.
+# --- The build-context filenames this workbench version claims to understand --
+# A build context holds two kinds of file: inert payload that only matters
+# because a Dockerfile instruction copies it, and *configuration* that Harbor,
+# the Compose CLI, or the Docker builder reads by name. The payload is covered by
+# the content scan below. The configuration namespace is closed and small, and
+# `Dockerfile` is the only member of it this version models, so it is the entire
+# allowlist.
+#
+# Reading Harbor 0.21.0, an environment directory contributes exactly these
+# names:
+#   * `Dockerfile` — `environments/definition.py:7` (`DOCKERFILE_NAME`), used by
+#     `has_agent_environment_definition`, `should_use_prebuilt_docker_image`, and
+#     `DockerEnvironment._dockerfile_path` (docker.py:309).
+#   * `docker-compose.yaml` — `environments/definition.py:8`
+#     (`COMPOSE_FILE_NAME`) and `DockerEnvironment._environment_docker_compose_path`
+#     (docker.py:311-313), layered into `_docker_compose_paths` (docker.py:363-364)
+#     for `docker compose build` as well as `up`, and parsed again by
+#     `_egress_controlled_service_names` (docker.py:381-420).
+#   * `.env` — Harbor invokes `docker compose --project-directory <environment
+#     dir>` (docker.py:620-621) and never passes `--env-file`, so Compose reads
+#     the project directory's `.env` and interpolates it into every `-f`
+#     document, Harbor's own included.
+# Docker's builder adds `.dockerignore`, which decides which of the files the
+# workbench scanned actually reach the image.
+#
+# The refusal is written as a pattern over that namespace rather than as a list
+# of forbidden paths, because a list of forbidden paths is exactly what the
+# earlier rounds walked around: `environment/docker-compose.yaml` was refused by
+# exact path, while the identical two lines under `tests/` — the directory
+# `Trial._verifier_env_build_context` (trial.py:694-702) hands the separate
+# verifier as its environment directory — reached that build and that `up`
+# unexamined. `_egress_controlled_service_names` excludes any service declaring
+# its own `network_mode` or `networks` from the egress-control rewrite that
+# implements `no-network`, so `services: {main: {network_mode: bridge}}` there
+# turned a compliant `task.toml` into a verifier with full egress.
+#
+# Only a context root is consumed by Harbor 0.21.0, but a nested match is
+# refused too: which directory becomes an environment directory is Harbor's
+# choice, not the workbench's, and the cost of a false refusal is renaming a
+# fixture while the cost of a miss is a false certification.
+_COMPOSE_CONFIG_NAME = re.compile(r"^(?:docker-)?compose\b.*\.(?:ya?ml|json)$", re.IGNORECASE)
+_COMPOSE_ENV_CONFIG_NAME = re.compile(r"^\.env(?:\..+)?$", re.IGNORECASE)
+_BUILDER_CONFIG_NAMES = frozenset({".dockerignore"})
 
-    `COPY setup.sh /tmp/setup.sh` followed by `RUN sh /tmp/setup.sh` puts every
-    fetch inside a file the Dockerfile never spells out, so scanning Dockerfile
-    lines alone cannot see it. Every regular file in a build context is part of
-    the image built from it, so every one of them is read with the build-time
-    pattern.
+
+def _unmodelled_build_config(name: str) -> tuple[str, str] | None:
+    """Classify a build-context filename read as configuration but not modelled."""
+    if _COMPOSE_CONFIG_NAME.match(name):
+        return (
+            "custom_compose_unsupported",
+            "Harbor layers a Compose file from an environment directory into both "
+            "`docker compose build` and `docker compose up`, and excludes any service "
+            "that declares its own network_mode or networks from the egress control "
+            "that implements no-network; v1 cannot prove network isolation for "
+            "task-authored Compose services",
+        )
+    if _COMPOSE_ENV_CONFIG_NAME.match(name):
+        return (
+            "compose_env_file_unsupported",
+            "Harbor runs `docker compose --project-directory` on this directory, so "
+            "Compose reads this file and interpolates it into every Compose document "
+            "including its own; v1 does not model task-supplied Compose variables",
+        )
+    if name in _BUILDER_CONFIG_NAMES:
+        return (
+            "build_context_ignore_unsupported",
+            "Docker's builder reads this file to drop paths from the build context, so "
+            "the files the workbench scanned would not be the files in the image; v1 "
+            "certifies a context exactly as it stands",
+        )
+    return None
+
+
+def _validate_build_context_contents(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
+    """Refuse unmodelled configuration files, then content-scan the payload.
+
+    Two separate jobs on one traversal.
+
+    First, the filename allowlist. `Dockerfile` is the only name in a build
+    context that Harbor, Compose, or the Docker builder reads as configuration
+    *and* that this version models; `_unmodelled_build_config` refuses the rest
+    of that namespace by name, in every context, so a file Harbor would consume
+    can no longer be silently ignored because it sits in a directory an earlier
+    round did not think to name.
+
+    Second, the content scan. `COPY setup.sh /tmp/setup.sh` followed by
+    `RUN sh /tmp/setup.sh` puts every fetch inside a file the Dockerfile never
+    spells out, so scanning Dockerfile lines alone cannot see it. Every regular
+    file in a build context is part of the image built from it, so every one of
+    them is read with the build-time pattern.
 
     The verifier context is the stricter of the two. Harbor constructs the
     separate verifier environment with `extra_docker_compose: []`, so the
@@ -984,6 +1084,15 @@ def _validate_build_context_contents(task_dir: Path, diagnostics: list[Diagnosti
             if relative == dockerfile:
                 # Already scanned with Dockerfile line semantics (continuations
                 # joined, comments and FROM references exempt).
+                continue
+            unmodelled = _unmodelled_build_config(path.name)
+            if unmodelled is not None:
+                code, detail = unmodelled
+                diagnostics.append(
+                    _diag(code, relative, f"{detail}; refused in the build context for {image}")
+                )
+                # The refusal already names the file; a content finding on the
+                # same path would only add noise to a report that is over.
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
@@ -1283,15 +1392,10 @@ def _validate_network_and_isolation(
                 f"the effective phase policy is '{phase_override}' and must be 'no-network'",
             )
         )
-    compose_path = task_dir / "environment/docker-compose.yaml"
-    if compose_path.exists():
-        diagnostics.append(
-            _diag(
-                "custom_compose_unsupported",
-                "environment/docker-compose.yaml",
-                "v1 cannot prove network isolation for task-authored Compose services",
-            )
-        )
+    # Task-authored Compose files are refused by `_validate_build_context_contents`
+    # for every build context, not by exact path here: the same file under
+    # `tests/` reaches the separate verifier's build and `up`, and refusing only
+    # `environment/docker-compose.yaml` left that open.
 
     for root_name in ("tests", "verifier", "solution"):
         root = task_dir / root_name

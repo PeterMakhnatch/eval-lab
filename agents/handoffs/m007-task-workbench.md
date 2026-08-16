@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: withdrew the false candidate-ee3d580b certification, refreshed the stale candidate-b982b6f4 record, and corrected docs/task-workbench.md to the repaired enforcement scope; no Python changed, ruff green
-Next: integrator re-review and merge decision on PR #49
+Last: fourth repair round — applied the allowlist discipline outside `task.toml`: a per-context filename allowlist that refuses task-authored Compose, `.env`, and `.dockerignore` in `environment/` and `tests/` (closing the `tests/docker-compose.yaml` escape past Harbor's egress control), ~20 plain install idioms added to the build-time scan, and the Harbor drift pin split so a static pin runs with no Harbor installed; 102 tests pass, ruff green
+Next: integrator re-review and merge decision on PR #49; `.github/workflows/ci.yml` recommendation in the fourth-round section is theirs to take or leave
 Blockers: none
 
 # M007 task-quality workbench handoff
@@ -850,3 +850,262 @@ touched; `library/registry/` still holds zero records and nothing here registers
 a task. Full suite, project-wide formatters, and `scripts/premerge.sh` left to
 the Integrator. Stopping at `review-wanted`: not merged, not rebased onto
 `origin/main`, and no new PR opened — #49 already exists.
+
+## Fourth repair round: the allowlist outside `task.toml`
+
+The third review confirmed the `task.toml` allowlist holds, then showed the
+class had only been confined to `task.toml`. Three defects, all fixed here.
+
+### P0 — a task-authored Compose file under `tests/` escaped every check
+
+`_validate_network_and_isolation` refused `environment/docker-compose.yaml` **by
+exact path**. Harbor builds and runs the separate verifier environment with
+`environment_dir = tests/` (`Trial._verifier_env_build_context`, trial.py:694-702,
+passed at trial.py:657), and `DockerEnvironment._environment_docker_compose_path`
+is `environment_dir / "docker-compose.yaml"` (docker.py:311-313), layered into
+`_docker_compose_paths` (docker.py:363-364) for `docker compose build` and `up`
+alike. `_egress_controlled_service_names` (docker.py:381-420) then *excludes* any
+service declaring its own `network_mode` or `networks` from the sidecar-namespace
+rewrite that implements `no-network` — the docstring at docker.py:346-347 states
+that task-authored networking on any service, `main` included, is respected.
+
+So a fully allowlist-compliant `task.toml` plus two lines in
+`tests/docker-compose.yaml` ran the verifier with full egress and the workbench
+emitted nothing: no unknown `task.toml` key, `_effective_verifier_network`
+returning baseline `no-network`, and the YAML read as text matching neither
+content pattern.
+
+**Every filename Harbor consumes from an environment directory** (read from
+Harbor 0.21.0 source, not inferred):
+
+| Filename | Consumed by | Now |
+| --- | --- | --- |
+| `Dockerfile` | `environments/definition.py:7` `DOCKERFILE_NAME`; `has_agent_environment_definition`, `should_use_prebuilt_docker_image`, `should_upload_environment_dir`, `DockerEnvironment._dockerfile_path` (docker.py:309), and the same property on `skypilot`/`novita`/`langsmith`/`apple_container` | **modelled** (allowlisted) |
+| `docker-compose.yaml` | `environments/definition.py:8` `COMPOSE_FILE_NAME`; `_environment_docker_compose_path` (docker.py:311-313) → `_docker_compose_paths` (docker.py:363-364) → `build` (docker.py:891 via 623) and `up`; reparsed by `_egress_controlled_service_names` (docker.py:392); also `novita.py:721,949`, `langsmith.py:160,261,782`, `trial.py:956` | **refused** |
+| `.env` | the Compose CLI, because Harbor passes `--project-directory <environment dir>` (docker.py:620-621) and never `--env-file` (grepped: no `env-file` anywhere in Harbor), so Compose reads the project directory's `.env` and interpolates it into every `-f` document including Harbor's own `docker-compose-build.yaml` (`${CONTEXT_DIR}`) and `docker-compose-egress-control.yaml` (`${EGRESS_CONTROL_INITIAL_NETWORK_MODE}`) | **refused** |
+| `.dockerignore` | Docker's builder, for the context Harbor passes as `context_dir` (docker.py:243) | **refused** |
+
+That is the complete set. `docker-compose.override.yaml`, `compose.yaml`, and
+`compose.yml` are **not** consumed by Harbor 0.21.0 — Compose's default file
+discovery and override auto-loading are both bypassed by the explicit `-f` list —
+and are refused anyway, on allowlist grounds.
+
+**What is now refused**, by `_unmodelled_build_config` in
+`_validate_build_context_contents`, in `environment/` *and* `tests/`, at every
+depth:
+
+- `_COMPOSE_CONFIG_NAME` = `^(?:docker-)?compose\b.*\.(?:ya?ml|json)$` →
+  `custom_compose_unsupported` (reused). Covers `docker-compose.yaml|yml`,
+  `compose.yaml|yml`, every `.override.` variant, and `.json` compose documents
+  (Harbor writes its own overrides as `docker-compose-*.json`, so Compose accepts
+  the extension). `\b` makes `composer.json` **not** match — tested.
+- `_COMPOSE_ENV_CONFIG_NAME` = `^\.env(?:\..+)?$` →
+  `compose_env_file_unsupported`. `.envrc` does not match — tested.
+- `.dockerignore` → `build_context_ignore_unsupported`. Refused not because it
+  can add egress (it cannot) but because it makes the files the workbench
+  scanned differ from the files in the image, which is a claim the packet makes.
+
+Only a context *root* is consumed by Harbor 0.21.0, so refusing at every depth is
+deliberately wider than the exploit: which directory becomes an environment
+directory is Harbor's choice (`_verifier_env_build_context` already picks between
+`tests/` and `steps/<n>/tests`), and the cost of a false refusal is renaming a
+fixture while the cost of a miss is a false green.
+
+The old exact-path check is **gone**, not left beside the new one — a comment at
+its former site points to the general check. `environment/docker-compose.yaml` is
+the one case that already failed at `1713830`, which is why it is the one
+parametrised case that does not appear in the negative control below.
+
+### P1 — `BUILD_NETWORK_PATTERN` missed plain package installs
+
+This pattern plus the filename allowlist are the *entire* boundary on the
+separate verifier image: `extra_docker_compose` is forced to `[]` for the verifier
+(trial.py:648-650), so no `build.network=none` overlay reaches that build.
+
+**Added** (each proven through a real `inspect_candidate`, not a regex probe):
+`uv sync`, `uv add`, `uv lock`; `pip download`, `pip wheel`; `npm i`, `pnpm i`,
+`npm/pnpm update|up|add`; `npx`; `poetry install|add|update|lock|sync`; `pipenv`;
+`bundle`; `composer`; `conda`/`mamba`/`micromamba install|create|add|update|env`;
+`brew install|tap|update`; `pacman -S*`/`--sync`; `dotnet
+restore|add|tool|build|publish|test`; `mvn`/`mvnw`/`gradle`/`gradlew` on the tool
+name alone; `cargo add|fetch|update`; `go mod download|tidy`; `gem update`;
+`yarn up|upgrade`. `RUN uv sync` leads because it is this repository's own idiom.
+
+**Deliberately left out**, with reasons:
+
+- `apt-get download`, `apk fetch` and similar: already matched by the existing
+  `apt`/`apk` alternations on their common verbs; adding rarer verbs buys little.
+- `nix-env`, `guix`, `opam`, `stack`, `cabal`, `sbt`, `leiningen`, `swift package`,
+  `pub get`, `hex`/`mix deps.get`, `vcpkg`, `conan`: real package managers, but
+  each addition is another denylist entry, and the recommendation below is that
+  enumerating them is the losing move. Named here so the gap is on the record.
+- Bare `yarn` and bare `cargo`/`go`/`pip`: rejected as too false-positive-prone
+  for a word-boundary text scan over arbitrary context files.
+- `curl`-equivalents in other languages (`Net::HTTP`, `http.Get`, `fetch(`):
+  runtime constructs; the build scan is about build commands, and obfuscation
+  defeats them anyway.
+- `mvn`/`gradle` are the one place I matched on the *tool* rather than a verb,
+  because every default Maven/Gradle goal resolves from a remote repository
+  unless `-o`/`--offline` is passed. A genuinely offline Gradle build is refused;
+  that is the intended direction of error.
+
+False-refusal edge is tested explicitly: `npm init -y`, `cargo build --offline`,
+`python -m compileall`, `chmod`, and `mkdir` all still pass.
+
+### P1 — the Harbor drift pin never executed in CI
+
+`test_verifier_network_resolution_matches_harbor` ran a probe inside Harbor's own
+interpreter and `pytest.skip`ped without a `harbor` binary. Harbor is not a
+dependency of this package, so in CI it skipped unconditionally.
+
+Split in two, sharing `_verifier_network_documents()`:
+
+- `test_verifier_network_resolution_is_pinned_statically` — **runs everywhere, no
+  Harbor, no subprocess.** Asserts the four `(baseline, phase)` pairs as
+  literals: `("no-network","no-network")` for the compliant fixture,
+  `("public","public")` for a `[verifier.environment]` that omits `network_mode`
+  (no inheritance), `("no-network","no-network")` for a `no-network` verifier
+  table over a `public` environment, `("no-network","public")` for a
+  `[verifier].network_mode` phase override; plus the step fixture resolving to
+  `("no-network","no-network")` in the mirror, which is exactly why `[[steps]]` is
+  refused rather than mirrored.
+- `test_verifier_network_resolution_matches_harbor` — unchanged in substance, now
+  an *additional* check that skips without the binary and asserts Harbor returns
+  `[["public","public"]]` for the step fixture.
+
+Verified by running the file with a PATH containing no `harbor`:
+`1 passed, 1 skipped` for `-k verifier_network_resolution`, and `98 passed,
+1 skipped` for the whole file. No environment variable was invented: `.github/`
+holds only `EVAL_LAB_PROFILE_DATABASE_URL` and `TY_BASELINE`, neither of which
+means "CI". **Recommendation for the Integrator** (`.github/` is outside this
+lease): if a hard failure on missing Harbor is wanted, gate it on GitHub's own
+`CI` variable, or install Harbor as a `uv tool` step in `ci.yml` so the live
+comparison runs there too. Not doing either leaves the static pin as the CI
+guard, which is the defect this round was asked to fix.
+
+### Recommendation: should build-content checking become a `RUN` allowlist?
+
+**Recommend it as a follow-up mission; reject it for v1.** Not implemented this
+round, as instructed.
+
+The lesson of this PR does apply — the content pattern is the last denylist left
+in the isolation story, and this round added roughly twenty entries to it, which
+is the same treadmill the `task.toml` surface was on. So the direction is right.
+
+Why it is not a v1 change:
+
+1. **The refused set is closed; the permitted set is not.** `task.toml` is a
+   finite schema, so enumerating what v1 models was tractable and *complete*. A
+   `RUN` line is an arbitrary shell command: an allowlist would have to model
+   shell grammar (pipes, `&&`, `$(...)`, `sh -c`, heredocs, `xargs`) before it
+   could decide anything. `_docker_copy_sources` already fails closed on
+   unresolvable `COPY` syntax; the equivalent for `RUN` fails closed on almost
+   every real Dockerfile.
+2. **The false-refusal rate would be near total.** A plausible v1 allowlist
+   (`mkdir`, `chmod`, `cp`, `mv`, `ln`, `echo`, `printf`, `tar`, `sed`, `python -m
+   compileall`, `useradd`, `test`) refuses the first legitimate task that runs a
+   project script, a compiler, or `sh -c`. The current fixture would pass; almost
+   nothing else would. "Refusal is the preferred v1 outcome" is about tasks the
+   workbench cannot *reason* about, not about refusing everything.
+3. **The high-value version is different work.** The honest fix for the verifier
+   image is not a better text scan at all — it is *observing* the build with the
+   network denied, the way the agent build already is. Harbor forces
+   `extra_docker_compose: []` for the verifier, so that needs either a Harbor
+   change or a workbench-side pre-build of `tests/` under `--network=none`. That
+   is a container-level boundary replacing a text scan, which is worth a mission;
+   a `RUN` allowlist is a worse version of the same goal.
+
+Concrete follow-up shape, in preference order: (a) build the verifier image under
+`docker build --network=none` inside the control run and bind the resulting image
+digest into the packet — turns "text scan only" into a real boundary; (b) failing
+that, an allowlist of *executables* (not command forms) invoked at the head of
+each `RUN` word, with unresolvable shell refused — closed, but still needs shell
+parsing; (c) status quo plus a documented statement that the verifier build is
+not a sandbox. This PR ships (c) and says so in `docs/task-workbench.md`.
+
+### Does any reachable path still certify a networked verifier or build?
+
+**No, I cannot rule it out exhaustively, and I am not claiming closure.** The
+class of *unexamined configuration surface* is now closed in both places it
+existed — `task.toml` (third round) and build-context filenames (this round) —
+but two residual paths are real and neither is a denylist gap I can fix by adding
+entries:
+
+1. **A digest-pinned base image can carry the fetch.** `tests/Dockerfile` must
+   pin `FROM` by `@sha256`, and that is all the workbench knows about it. A base
+   image containing `/usr/local/bin/setup` that curls, invoked as
+   `RUN /usr/local/bin/setup`, matches no pattern and is refused by nothing. The
+   image's *contents* are never inspected. This is the strongest remaining path
+   and it defeats any text scan by construction, not by obfuscation.
+2. **Obfuscation inside the context.** base64, string concatenation, a vendored
+   HTTP client invoked under an innocuous name, a UTF-8-decodable script that
+   assembles a URL at build time. Documented before, unchanged.
+
+What *is* now true and verified from Harbor's source: with no task-authored
+Compose file in `tests/` (refused) and a `no-network` declaration (checked
+against a statically pinned mirror), the verifier **container** does get
+container-level enforcement — `_egress_controlled_service_names` returns
+`[main]` when there are no task compose paths (docker.py:387-388), so `main`
+joins the egress sidecar namespace, and if egress control cannot be enabled at
+all, `capabilities.disable_internet` is `False` and Harbor's
+`validate_network_policy_support` raises rather than running with egress. The
+verifier **build** has no such backstop. That asymmetry is now stated in
+`docs/task-workbench.md` rather than flattened into one "text scan only" claim.
+
+`research/registration/candidates/` was **not** touched, and this was checked
+rather than assumed: neither record's frozen `task_path`
+(`tests/fixtures/task_workbench/valid`, `cases/unpinned-dependency`) contains any
+file matching the three new filename patterns, and neither contains any of the
+added install idioms, so the repaired inspector computes exactly what is already
+recorded. `WORKBENCH_VERSION` stayed at `m007-v1.1` for the same identity-digest
+reason as the previous round.
+
+### Verification
+
+```text
+uv run pytest tests/test_task_workbench.py
+  before this round: 54 passed
+  after  this round: 102 passed   (48 new)
+  with no `harbor` on PATH:       98 passed, 1 skipped
+    the 1 skip is the live Harbor comparison; the static pin runs
+
+negative control: new tests vs src/evallab/task_workbench.py reverted to 1713830
+  37 failed, 62 passed
+  every failure is a new test:
+    test_task_authored_compose_under_tests_escapes_nothing
+    test_compose_filenames_are_refused_in_every_build_context (8 of 9 params)
+    test_other_interpreted_build_context_files_are_refused (5 params)
+    test_verifier_build_uv_sync_is_rejected
+    test_plain_install_idioms_are_rejected_in_the_verifier_build (22 of 22 params)
+  the params that pass under 1713830 are honest non-detectors, not weak tests:
+    ...[environment/docker-compose.yaml] — already refused by the old exact-path
+      check; it is the one case that was never broken
+    test_lookalike_filenames_are_not_refused, test_offline_build_commands_are_not_refused,
+      test_reference_fixture_has_no_interpreted_build_context_configuration
+      (false-refusal guards: they must pass both before and after)
+    test_verifier_network_resolution_is_pinned_statically — pins the mirror,
+      which this round did not change; its defect was that it never RAN in CI,
+      and the proof of that fix is the PATH-cleared run above, not a revert
+  fixed file restored immediately; full suite re-run green afterwards
+
+uv run ruff check src/evallab/task_workbench.py tests/test_task_workbench.py
+  All checks passed!
+
+smoke test (real CLI, not a test file):
+  python -m evallab.task_workbench check over a copy of the valid fixture plus
+  tests/docker-compose.yaml → disposition "needs_changes", one diagnostic,
+  code custom_compose_unsupported, path tests/docker-compose.yaml, message
+  naming "the separate verifier image"
+  same fixture with that file removed → disposition "controls_pending",
+  diagnostics []
+```
+
+New fixtures: `cases/verifier-compose-escape/tests/docker-compose.yaml` (the
+two-line adversarial escape) and `cases/verifier-uv-sync/tests/Dockerfile`
+(`RUN uv sync --frozen`).
+
+No Harbor run, Docker build, model call, cloud sandbox, deploy, or publication
+occurred. No API-key environment variable was introduced or read. Nothing under
+`policy/`, `library/`, or `.github/` was touched. Full suite, project-wide
+formatters, and `scripts/premerge.sh` left to the Integrator. Stopping at
+`review-wanted`: not merged, not rebased onto `origin/main`, no new PR.

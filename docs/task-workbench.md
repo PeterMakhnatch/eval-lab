@@ -44,9 +44,7 @@ Both shell-form and JSON-array Docker `COPY`/`ADD` instructions are parsed.
 Dynamic, wildcard, variable, escaping, or otherwise unresolved sources fail
 closed. Remote `ADD` is forbidden. Candidate symlinks are forbidden rather
 than followed, including links from the agent-visible build context into
-`tests/`, `solution/`, `verifier/`, or `workbench/`. V1 also rejects
-task-authored Docker Compose files because it cannot prove isolation for
-arbitrary sidecar networking.
+`tests/`, `solution/`, `verifier/`, or `workbench/`.
 
 Source identity must include a non-floating source reference and a declared
 license. Base and verifier images must be digest-pinned. Network policy must be
@@ -54,10 +52,44 @@ explicit in `task.toml`; runtime scripts and Docker build instructions
 containing network fetch/install commands fail static admission. There is no
 reviewed immutable offline-package mechanism in v1, so package-manager commands
 inside Dockerfiles fail closed even when their package arguments are pinned.
-Scanning the agent Dockerfile alone is not enough, because `COPY setup.sh` plus
+Scanning a Dockerfile alone is not enough, because `COPY setup.sh` plus
 `RUN sh /tmp/setup.sh` hides every fetch in a file no Dockerfile line names, so
-the contents of *every* regular file under `environment/` are read and scanned.
-A file there that is not decodable UTF-8 is refused rather than skipped.
+the contents of *every* regular file under `environment/` and under `tests/` are
+read and scanned. A file in either that is not decodable UTF-8 is refused rather
+than skipped.
+
+### The build-context filenames v1 understands
+
+A build context holds inert payload, which only matters because a Dockerfile
+instruction copies it, and *configuration*, which Harbor, the Compose CLI, or the
+Docker builder reads by name. Payload is covered by the content scan below.
+Configuration is a closed namespace, and `Dockerfile` is the only member of it v1
+models, so it is the whole allowlist. Reading Harbor 0.21.0, an environment
+directory contributes exactly:
+
+| Filename | Consumed by | v1 |
+| --- | --- | --- |
+| `Dockerfile` | `environments/definition.py` (`DOCKERFILE_NAME`), `DockerEnvironment._dockerfile_path` | modelled |
+| `docker-compose.yaml` | `COMPOSE_FILE_NAME`, `_environment_docker_compose_path`, layered into `_docker_compose_paths` for `build` and `up`, reparsed by `_egress_controlled_service_names` | refused |
+| `.env` | the Compose CLI, because Harbor passes `--project-directory <environment dir>` and never `--env-file` | refused |
+| `.dockerignore` | Docker's builder, to drop paths from the context | refused |
+
+The refusal is a pattern over that namespace — every `compose`/`docker-compose`
+`.yaml`/`.yml`/`.json` spelling including `.override` variants, every `.env*`
+spelling, and `.dockerignore` — applied in **both** build contexts and at every
+depth, not a list of forbidden paths. A list of forbidden paths is what the
+earlier rounds walked around: `environment/docker-compose.yaml` was refused by
+exact path, while the identical two lines under `tests/` — the directory
+`Trial._verifier_env_build_context` hands the separate verifier as its
+environment directory — reached that image build and that `docker compose up`
+unexamined. Because `_egress_controlled_service_names` excludes any service
+declaring its own `network_mode` or `networks` from the egress-control rewrite
+that implements `no-network`, `services: {main: {network_mode: bridge}}` there
+turned a fully compliant `task.toml` into a verifier with full egress while the
+workbench emitted nothing. Only a context root is consumed by Harbor 0.21.0, but
+nested matches are refused too: which directory becomes an environment directory
+is Harbor's choice, and the cost of a false refusal is renaming a fixture while
+the cost of a miss is a false certification.
 
 ### What denies the network, and where
 
@@ -72,8 +104,8 @@ run. It reaches the agent phases only:
 | --- | --- | --- |
 | Agent build | overlay `build.network: none` | container runtime |
 | Agent runtime | overlay `network_mode: none` | container runtime |
-| Verifier build | static text scan of `tests/` | **text scan only** |
-| Verifier runtime | `task.toml` declaration, checked statically | **text scan only** |
+| Verifier build | filename allowlist plus static text scan of `tests/` | **static checks only** |
+| Verifier runtime | filename allowlist plus `task.toml` declaration, checked statically | **static checks only** |
 
 For the two agent phases, text scanning is defense in depth and the container
 runtime is the safety boundary. For the two verifier phases it is the *only*
@@ -89,20 +121,32 @@ boundary, and the distinction is load-bearing:
   silently — the resolution Harbor actually performs is reproduced and checked.
   Harbor is installed as a standalone CLI, not as a library this package can
   import, so that resolution is a reproduction rather than a call to
-  `resolve_effective_verifier_env_config`. It is pinned:
-  `test_verifier_network_resolution_matches_harbor` runs Harbor's own resolver
-  in Harbor's own interpreter and fails if the two stop agreeing.
-- The verifier image build is covered by a static content scan of `tests/`, not
-  by container-level enforcement. There is no `build.network: none` on that
-  build, so the scan is the entire boundary. It applies the build-time network
-  pattern — remote URL schemes, VCS fetches, and the online package managers
-  (`apt`, `apk`, `dnf`/`yum`/`microdnf`/`zypper`, `pip`, `uv`, `npm`/`pnpm`/
-  `yarn`, `gem`, `cargo`, `go`, `Invoke-WebRequest`) — to `tests/Dockerfile` and
-  to every other file in the context, because `COPY . /tests` plus
-  `RUN sh /tests/bootstrap.sh` hides the fetch in a file no Dockerfile line
-  names. A file under `tests/` that cannot be decoded as UTF-8 is refused, not
-  skipped. A text scan can still be defeated by an obfuscated fetch; it is a
-  review aid, not a sandbox.
+  `resolve_effective_verifier_env_config`. It is pinned twice:
+  `test_verifier_network_resolution_is_pinned_statically` asserts the four
+  expected `(baseline, phase)` pairs as literals and therefore runs everywhere,
+  including CI, where no `harbor` binary exists; and
+  `test_verifier_network_resolution_matches_harbor` additionally runs Harbor's own
+  resolver in Harbor's own interpreter when the binary is present, and fails if
+  the two stop agreeing. The declaration is only enforceable because a
+  task-authored `tests/docker-compose.yaml` is refused: a service there declaring
+  its own `network_mode` is excluded from Harbor's egress-control rewrite, so
+  `no-network` would be declared and not applied.
+- The verifier image build is covered by the filename allowlist above plus a
+  static content scan of `tests/`, not by container-level enforcement. There is no
+  `build.network: none` on that build, so those two checks are the entire
+  boundary. The scan applies the build-time network pattern — remote URL schemes,
+  VCS fetches, and the plain install idioms of every ecosystem's package manager
+  (`apt`, `apk`, `dnf`/`yum`/`microdnf`/`zypper`, `pacman`, `brew`,
+  `conda`/`mamba`, `pip`, `uv` including `uv sync`/`uv add`/`uv lock`, `poetry`,
+  `pipenv`, `bundle`, `composer`, `npm`/`pnpm`/`yarn` including `npm i`, `npx`,
+  `uvx`, `gem`, `cargo`, `go`, `dotnet`, and any `mvn`/`gradle` invocation since
+  every default goal resolves remotely) — to `tests/Dockerfile` and to every other
+  file in the context, because `COPY . /tests` plus `RUN sh /tests/bootstrap.sh`
+  hides the fetch in a file no Dockerfile line names. A file under `tests/` that
+  cannot be decoded as UTF-8 is refused, not skipped. This part is still a
+  denylist and inherits a denylist's weakness: an obfuscated fetch, or a package
+  manager nobody enumerated, defeats it. It is a review aid, not a sandbox. The
+  filename allowlist beside it is closed; the content pattern is not.
 
 A declared `[environment].docker_image` is refused outright, because it makes
 Harbor skip the reviewed `environment/Dockerfile` build entirely, so the
@@ -244,7 +288,7 @@ separate verifier isolation, hidden/golden data exposure, pinned images and
 dependencies, runtime network use, nondeterministic verifier constructs,
 reward output, adversarial coverage, and forged registration claims.
 
-Five refusals exist specifically to stop the packet from claiming isolation it
+Eight refusals exist specifically to stop the packet from claiming isolation it
 cannot back:
 
 - `unsupported_task_configuration` — the task uses a `task.toml` construct this
@@ -257,6 +301,18 @@ cannot back:
 - `build_context_unreadable` — a file under `environment/` or `tests/` is not
   decodable UTF-8, so it cannot be scanned for build-time network use; it is
   refused rather than skipped;
+- `custom_compose_unsupported` — a build context contains a Compose file. Harbor
+  layers an environment directory's Compose file into `docker compose build` and
+  `up` alike, and excludes any service declaring its own `network_mode` or
+  `networks` from the egress control that implements `no-network`, so v1 cannot
+  prove isolation for task-authored Compose services; refused in `environment/`
+  and in `tests/`, which is what Harbor hands the separate verifier;
+- `compose_env_file_unsupported` — a build context contains `.env`. Harbor runs
+  `docker compose --project-directory` on that directory and never passes
+  `--env-file`, so Compose interpolates the file into every Compose document,
+  Harbor's own included;
+- `build_context_ignore_unsupported` — a build context contains `.dockerignore`,
+  so the files the workbench scanned are not the files that reach the image;
 - `verifier_network_not_isolated` — the verifier's effective *baseline* network
   is not `no-network`. Because Harbor drops the overlay for the verifier, a
   networked verifier can exfiltrate hidden inputs, and it can make
@@ -265,12 +321,13 @@ cannot back:
 - `verifier_phase_network_not_isolated` — `[verifier].network_mode` reopens the
   network for the verification phase itself.
 
-`build_network_use` and `build_context_unreadable` are enforced for both images,
-but only the agent image also has container-level denial behind them. The two
-`verifier_*_not_isolated` refusals are static declaration checks, not runtime
-denial, and `unsupported_task_configuration` is a limitation of the workbench
-rather than a finding about the task; see
-[What denies the network, and where](#what-denies-the-network-and-where).
+`build_network_use`, `build_context_unreadable`, and the three filename refusals
+are enforced for both images, but only the agent image also has container-level
+denial behind them. The two `verifier_*_not_isolated` refusals are static
+declaration checks, not runtime denial, and `unsupported_task_configuration` is a
+limitation of the workbench rather than a finding about the task; see
+[What denies the network, and where](#what-denies-the-network-and-where) and
+[The build-context filenames v1 understands](#the-build-context-filenames-v1-understands).
 
 The control assessment requires:
 

@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "bundle": "canary-transaction-reconciliation-codex-20260815",
+  "source_job_runtime_path": "runs/canary-transaction-reconciliation-codex-20260815",
+  "source_job_result_sha256": "sha256:cf134cbb67126fdd1646141102fb03ba9cd7f207cfead5c897dfd00bb5b6a198",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/** raw model I/O omitted; sha256 recorded",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body"
+  },
+  "totals": {
+    "source_files": 38,
+    "promoted_files": 35,
+    "omitted_files": 3,
+    "promoted_bytes": 105826,
+    "source_bytes": 273211
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 446,
+      "source_sha256": "sha256:ef631ed430219971dffc9accb3e4cf5f2fbb958db12a24069d1b4bd28a01aff9",
+      "promoted_bytes": 446,
+      "promoted_sha256": "sha256:ef631ed430219971dffc9accb3e4cf5f2fbb958db12a24069d1b4bd28a01aff9"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": "job.log",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 8100,
+      "source_sha256": "sha256:3eef15633f95cc9338df83e1d18f18c16d2bb1a41a45abb6d3dd85a3923102f1",
+      "promoted_bytes": 8100,
+      "promoted_sha256": "sha256:3eef15633f95cc9338df83e1d18f18c16d2bb1a41a45abb6d3dd85a3923102f1"
+    },
+    {
+      "source_path": "lab-metadata.json",
+      "promoted_path": "lab-metadata.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1413,
+      "source_sha256": "sha256:c6e432454049cfad8d678ad19c04059b83ee4eafc488f3efe7e508319ec0e75d",
+      "promoted_bytes": 1413,
+      "promoted_sha256": "sha256:c6e432454049cfad8d678ad19c04059b83ee4eafc488f3efe7e508319ec0e75d"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4644,
+      "source_sha256": "sha256:219ed02eaa94518357e8ef676710965642cfbb6d167e904af33ef80555ebe7c6",
+      "promoted_bytes": 4644,
+      "promoted_sha256": "sha256:219ed02eaa94518357e8ef676710965642cfbb6d167e904af33ef80555ebe7c6"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1320,
+      "source_sha256": "sha256:cf134cbb67126fdd1646141102fb03ba9cd7f207cfead5c897dfd00bb5b6a198",
+      "promoted_bytes": 1320,
+      "promoted_sha256": "sha256:cf134cbb67126fdd1646141102fb03ba9cd7f207cfead5c897dfd00bb5b6a198"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/agent/codex.txt",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/agent/codex.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 5821,
+      "source_sha256": "sha256:e084e414712f07fef2d839c25f8f9a768bd884c7ed8f3918f8677361c5bcdd67",
+      "promoted_bytes": 5821,
+      "promoted_sha256": "sha256:e084e414712f07fef2d839c25f8f9a768bd884c7ed8f3918f8677361c5bcdd67"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/agent/sessions/2026/08/15/rollout-2026-08-15T06-30-53-01a0041d-bf76-7c72-ae21-bcefb6081e8a.jsonl",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 47038,
+      "source_sha256": "sha256:4f7d7449f0ae97f83e00784601b94b0b9985b9fbd0510604bd32ef5466a5d643"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/agent/trajectory.json",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 21666,
+      "source_sha256": "sha256:55a9c91e8c173671d3a38bc3d9cdb2a6ce3cbc28bc153213cbd320add1a2538a",
+      "promoted_bytes": 13046,
+      "promoted_sha256": "sha256:3a98ed918f239d57f7fb4aef54a39651f9dc0f061d517b846765e3c515dc22fb"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/artifacts/manifest.json",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 159,
+      "source_sha256": "sha256:c1db653f487fb773c4f9247162ab3314e7f0584a486914b9874c4b3d6949e42d",
+      "promoted_bytes": 159,
+      "promoted_sha256": "sha256:c1db653f487fb773c4f9247162ab3314e7f0584a486914b9874c4b3d6949e42d"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/config.json",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 435,
+      "source_sha256": "sha256:4049a64b18fa098c7cbee627e54a5d417829221421533babf2fcdf37bc1f6f1d",
+      "promoted_bytes": 435,
+      "promoted_sha256": "sha256:4049a64b18fa098c7cbee627e54a5d417829221421533babf2fcdf37bc1f6f1d"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/lock.json",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1018,
+      "source_sha256": "sha256:6f88b355a5bb1bd87ce62480b87ac4fe44c148cf44970dbfef5dfdf0f0a47782",
+      "promoted_bytes": 1018,
+      "promoted_sha256": "sha256:6f88b355a5bb1bd87ce62480b87ac4fe44c148cf44970dbfef5dfdf0f0a47782"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/result.json",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4002,
+      "source_sha256": "sha256:0a8b81204d4abb73a6b075916f5a451a581a4b02dc30b7131f43d47f79250b5c",
+      "promoted_bytes": 4002,
+      "promoted_sha256": "sha256:0a8b81204d4abb73a6b075916f5a451a581a4b02dc30b7131f43d47f79250b5c"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/trial.log",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/trial.log",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2700,
+      "source_sha256": "sha256:33ae500b0f048a71757612836a98fd9508f81818e713387852973200b5f5a8e5",
+      "promoted_bytes": 2700,
+      "promoted_sha256": "sha256:33ae500b0f048a71757612836a98fd9508f81818e713387852973200b5f5a8e5"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/verifier/ctrf.json",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/verifier/ctrf.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1516,
+      "source_sha256": "sha256:aacb7c503bdf2aeb9ff9172595e6867801b7cfa0cfb2b99635a518f8f4e0f8b2",
+      "promoted_bytes": 1516,
+      "promoted_sha256": "sha256:aacb7c503bdf2aeb9ff9172595e6867801b7cfa0cfb2b99635a518f8f4e0f8b2"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/verifier/reward.txt",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2,
+      "source_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "promoted_bytes": 2,
+      "promoted_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/verifier/test-stdout.txt",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1552,
+      "source_sha256": "sha256:1219808f2ef866b3f1be587edd8637a053000d00abb54760a9a9404bbc77be17",
+      "promoted_bytes": 1552,
+      "promoted_sha256": "sha256:1219808f2ef866b3f1be587edd8637a053000d00abb54760a9a9404bbc77be17"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/agent/codex.txt",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/agent/codex.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 5955,
+      "source_sha256": "sha256:51b8fb5f0dd310b57357d509ba041758a1ea278f4cfb4f12ca57d411dd02b29b",
+      "promoted_bytes": 5955,
+      "promoted_sha256": "sha256:51b8fb5f0dd310b57357d509ba041758a1ea278f4cfb4f12ca57d411dd02b29b"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/agent/sessions/2026/08/15/rollout-2026-08-15T06-32-07-01a0041e-dfbf-7ac2-9185-ad59bf142e40.jsonl",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 47211,
+      "source_sha256": "sha256:6e22058a22f0b3f1c2395351767691f40a608c5e8b4492d81539245484faf2d2"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/agent/trajectory.json",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 21774,
+      "source_sha256": "sha256:147e768cd3168f6764ed5f9e8623db300a797acbebe8c14bcdb2283e4913f5df",
+      "promoted_bytes": 13157,
+      "promoted_sha256": "sha256:fd9c832df50cd3d502203861af317d49cc815d24fd2bd8965cd5fa389e2034cb"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/artifacts/manifest.json",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 159,
+      "source_sha256": "sha256:c1db653f487fb773c4f9247162ab3314e7f0584a486914b9874c4b3d6949e42d",
+      "promoted_bytes": 159,
+      "promoted_sha256": "sha256:c1db653f487fb773c4f9247162ab3314e7f0584a486914b9874c4b3d6949e42d"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/config.json",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 435,
+      "source_sha256": "sha256:cb18511e3739f49451641829916dbbbb6b25cd4f883a17450ca969e91d00233f",
+      "promoted_bytes": 435,
+      "promoted_sha256": "sha256:cb18511e3739f49451641829916dbbbb6b25cd4f883a17450ca969e91d00233f"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/lock.json",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1018,
+      "source_sha256": "sha256:6f88b355a5bb1bd87ce62480b87ac4fe44c148cf44970dbfef5dfdf0f0a47782",
+      "promoted_bytes": 1018,
+      "promoted_sha256": "sha256:6f88b355a5bb1bd87ce62480b87ac4fe44c148cf44970dbfef5dfdf0f0a47782"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/result.json",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3991,
+      "source_sha256": "sha256:693c95070a8ab598a7c3ca63c9008a6b9fff1d1dcbb4895b20637b5fe129c67a",
+      "promoted_bytes": 3991,
+      "promoted_sha256": "sha256:693c95070a8ab598a7c3ca63c9008a6b9fff1d1dcbb4895b20637b5fe129c67a"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/trial.log",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/trial.log",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2700,
+      "source_sha256": "sha256:948ac5a877e8be21f719e66194b322447938af243836a31064d296cef94c9c25",
+      "promoted_bytes": 2700,
+      "promoted_sha256": "sha256:948ac5a877e8be21f719e66194b322447938af243836a31064d296cef94c9c25"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/verifier/ctrf.json",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/verifier/ctrf.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1514,
+      "source_sha256": "sha256:38262f561501d728063de63068a8213c16dcd94ecd2358b4de31c31cd798550c",
+      "promoted_bytes": 1514,
+      "promoted_sha256": "sha256:38262f561501d728063de63068a8213c16dcd94ecd2358b4de31c31cd798550c"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/verifier/reward.txt",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2,
+      "source_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "promoted_bytes": 2,
+      "promoted_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/verifier/test-stdout.txt",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1552,
+      "source_sha256": "sha256:22ea12890607da09e36ddb6da3e46378532a1130d66938b5168b2190cfe98aae",
+      "promoted_bytes": 1552,
+      "promoted_sha256": "sha256:22ea12890607da09e36ddb6da3e46378532a1130d66938b5168b2190cfe98aae"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/agent/codex.txt",
+      "promoted_path": "transaction-reconciliation__frxRezo/agent/codex.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 5523,
+      "source_sha256": "sha256:be8cee300d4d343826fb26ecef579d62c387d1075359bf21477ec5725fb4be5e",
+      "promoted_bytes": 5523,
+      "promoted_sha256": "sha256:be8cee300d4d343826fb26ecef579d62c387d1075359bf21477ec5725fb4be5e"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/agent/sessions/2026/08/15/rollout-2026-08-15T06-33-24-01a00420-0d94-7d50-8e01-4b8a0d023804.jsonl",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "source_bytes": 47030,
+      "source_sha256": "sha256:3d4e0b56d310dc7262757d7b38c9de41cb319da5378fe371165b871e1b31570f"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/agent/trajectory.json",
+      "promoted_path": "transaction-reconciliation__frxRezo/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 21146,
+      "source_sha256": "sha256:97178d2f7cf7878776317031eb044f7103d6ffe29df04aca33813fe2fa6abbcd",
+      "promoted_bytes": 12277,
+      "promoted_sha256": "sha256:5e6198afcf5442174c60580b3cfa6651032491f7b0f393381340e0405ad68df4"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/artifacts/manifest.json",
+      "promoted_path": "transaction-reconciliation__frxRezo/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 159,
+      "source_sha256": "sha256:c1db653f487fb773c4f9247162ab3314e7f0584a486914b9874c4b3d6949e42d",
+      "promoted_bytes": 159,
+      "promoted_sha256": "sha256:c1db653f487fb773c4f9247162ab3314e7f0584a486914b9874c4b3d6949e42d"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/config.json",
+      "promoted_path": "transaction-reconciliation__frxRezo/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 435,
+      "source_sha256": "sha256:dc8927b223a1fc27d86cc0e1da70043a7e0fb69e55513d8c507e7a01a52e9ef2",
+      "promoted_bytes": 435,
+      "promoted_sha256": "sha256:dc8927b223a1fc27d86cc0e1da70043a7e0fb69e55513d8c507e7a01a52e9ef2"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/lock.json",
+      "promoted_path": "transaction-reconciliation__frxRezo/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1018,
+      "source_sha256": "sha256:6f88b355a5bb1bd87ce62480b87ac4fe44c148cf44970dbfef5dfdf0f0a47782",
+      "promoted_bytes": 1018,
+      "promoted_sha256": "sha256:6f88b355a5bb1bd87ce62480b87ac4fe44c148cf44970dbfef5dfdf0f0a47782"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/result.json",
+      "promoted_path": "transaction-reconciliation__frxRezo/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3990,
+      "source_sha256": "sha256:c64ab71ecb37769382330e0c49f115ea681b047235184f4ff3fe1a78b1bd3330",
+      "promoted_bytes": 3990,
+      "promoted_sha256": "sha256:c64ab71ecb37769382330e0c49f115ea681b047235184f4ff3fe1a78b1bd3330"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/trial.log",
+      "promoted_path": "transaction-reconciliation__frxRezo/trial.log",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2700,
+      "source_sha256": "sha256:43893845b28fc6b005d5017602ee44c2befcb12b429a60518f7b853c69e1b310",
+      "promoted_bytes": 2700,
+      "promoted_sha256": "sha256:43893845b28fc6b005d5017602ee44c2befcb12b429a60518f7b853c69e1b310"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/verifier/ctrf.json",
+      "promoted_path": "transaction-reconciliation__frxRezo/verifier/ctrf.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1513,
+      "source_sha256": "sha256:cf002e72a1fc82cd42502d9b51219ea3a46d7839b070acc0056aa270bdc4b0c8",
+      "promoted_bytes": 1513,
+      "promoted_sha256": "sha256:cf002e72a1fc82cd42502d9b51219ea3a46d7839b070acc0056aa270bdc4b0c8"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/verifier/reward.txt",
+      "promoted_path": "transaction-reconciliation__frxRezo/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2,
+      "source_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "promoted_bytes": 2,
+      "promoted_sha256": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/verifier/test-stdout.txt",
+      "promoted_path": "transaction-reconciliation__frxRezo/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1552,
+      "source_sha256": "sha256:ce9c816604db17719e5b83c0dea007757d6f136df4d5a98a1562f5b4978aef95",
+      "promoted_bytes": 1552,
+      "promoted_sha256": "sha256:ce9c816604db17719e5b83c0dea007757d6f136df4d5a98a1562f5b4978aef95"
+    }
+  ]
+}

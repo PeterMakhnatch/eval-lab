@@ -16,13 +16,15 @@ ROOT = Path(__file__).resolve().parents[3]
 def test_existing_oracle_and_nop_controls_extract_deterministic_facts() -> None:
     jobs = load_jobs([ROOT / "evidence/runs", ROOT / "research/evidence/runs"])
 
-    facts = {
-        fact.agent_name: fact
-        for job in jobs
-        for fact in extract_job_facts(job).trials
-    }
+    trials = [fact for job in jobs for fact in extract_job_facts(job).trials]
+    facts = {fact.agent_name: fact for fact in trials}
 
-    assert set(facts) == {"oracle", "nop"}
+    # The promoted evidence corpus grows: real agent bundles are the intended
+    # direction of travel, so assert the controls are present and unique rather
+    # than that nothing else exists.
+    assert {"oracle", "nop"} <= set(facts)
+    assert [fact.agent_name for fact in trials].count("oracle") == 1
+    assert [fact.agent_name for fact in trials].count("nop") == 1
     assert facts["oracle"].primary_reward == 1.0
     assert facts["nop"].primary_reward == 0.0
     assert facts["oracle"].exception_class is None

@@ -1,0 +1,129 @@
+Skipping image OS validation for hb__7c2c301c0da58501087fb947c81409bf: docker inspect returned 1
+Running command: apt-get update && apt-get install -y curl bash nodejs npm ripgrep
+Command outputs captured
+Running command: set -euo pipefail; if ldd --version 2>&1 | grep -qi musl || [ -f /etc/alpine-release ]; then  npm install -g @openai/codex@latest; else  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash &&  export NVM_DIR="$HOME/.nvm" &&  \. "$NVM_DIR/nvm.sh" || true &&  command -v nvm &>/dev/null || { echo 'Error: NVM failed to load' >&2; exit 1; } &&  nvm install 22 && nvm alias default 22 && npm -v &&  npm install -g @openai/codex@latest; fi && codex --version
+Command outputs captured
+Running command: for bin in node codex; do  BIN_PATH="$(which "$bin" 2>/dev/null || true)";  if [ -n "$BIN_PATH" ] && [ "$BIN_PATH" != "/usr/local/bin/$bin" ]; then    ln -sf "$BIN_PATH" "/usr/local/bin/$bin";  fi; done
+Command outputs captured
+Running command: mkdir -p "$CODEX_HOME" /tmp/codex-secrets /logs/agent
+Command outputs captured
+Codex auth: using auth.json from /Users/petermakhnatch/.codex/auth.json
+Running command: ln -sf /tmp/codex-secrets/auth.json "$CODEX_HOME/auth.json"
+
+Command outputs captured
+Running command: if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --model gpt-5.6-terra --json --enable unified_exec -c model_reasoning_effort=high -- '# Event stream summary
+
+Read the newline-delimited JSON records in `/app/input/events.jsonl` and create
+`/app/output/summary.json`.
+
+The output must be one JSON object with exactly these fields:
+
+- `schema_version`: integer `1`
+- `total_events`: number of input records
+- `counts`: object mapping each event `kind` to its count, with keys in
+  alphabetical order
+- `total_duration_ms`: sum of every `duration_ms`
+- `p95_duration_ms`: nearest-rank 95th percentile of `duration_ms`; sort the
+  durations ascending and select rank `ceil(0.95 * n)`, using one-based ranks
+
+Write valid UTF-8 JSON with a trailing newline. Do not modify or replace the
+input file. Do not create additional files under `/app/output`.
+' 2>&1 </dev/null | tee /logs/agent/codex.txt
+Command outputs captured
+Running command: mkdir -p /logs/agent
+if [ -d "$CODEX_HOME/sessions" ]; then
+  rm -rf /logs/agent/sessions
+  cp -R "$CODEX_HOME/sessions" /logs/agent/sessions
+fi
+Command outputs captured
+Running command: rm -rf /tmp/codex-secrets "$CODEX_HOME"
+Command outputs captured
+Wrote Codex trajectory to /Users/petermakhnatch/Developer/eval-lab/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f/agent/trajectory.json
+Collecting main service artifacts
+Skipping image OS validation for hb__138b589569b50f62adfd94320328d180: docker inspect returned 1
+Skipping image OS validation for hb__7c2c301c0da58501087fb947c81409bf: docker inspect returned 1
+Running command: apt-get update && apt-get install -y curl bash nodejs npm ripgrep
+Command outputs captured
+Running command: set -euo pipefail; if ldd --version 2>&1 | grep -qi musl || [ -f /etc/alpine-release ]; then  npm install -g @openai/codex@latest; else  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash &&  export NVM_DIR="$HOME/.nvm" &&  \. "$NVM_DIR/nvm.sh" || true &&  command -v nvm &>/dev/null || { echo 'Error: NVM failed to load' >&2; exit 1; } &&  nvm install 22 && nvm alias default 22 && npm -v &&  npm install -g @openai/codex@latest; fi && codex --version
+Command outputs captured
+Running command: for bin in node codex; do  BIN_PATH="$(which "$bin" 2>/dev/null || true)";  if [ -n "$BIN_PATH" ] && [ "$BIN_PATH" != "/usr/local/bin/$bin" ]; then    ln -sf "$BIN_PATH" "/usr/local/bin/$bin";  fi; done
+Command outputs captured
+Running command: mkdir -p "$CODEX_HOME" /tmp/codex-secrets /logs/agent
+Command outputs captured
+Codex auth: using auth.json from /Users/petermakhnatch/.codex/auth.json
+Running command: ln -sf /tmp/codex-secrets/auth.json "$CODEX_HOME/auth.json"
+
+Command outputs captured
+Running command: if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --model gpt-5.6-terra --json --enable unified_exec -c model_reasoning_effort=high -- '# Event stream summary
+
+Read the newline-delimited JSON records in `/app/input/events.jsonl` and create
+`/app/output/summary.json`.
+
+The output must be one JSON object with exactly these fields:
+
+- `schema_version`: integer `1`
+- `total_events`: number of input records
+- `counts`: object mapping each event `kind` to its count, with keys in
+  alphabetical order
+- `total_duration_ms`: sum of every `duration_ms`
+- `p95_duration_ms`: nearest-rank 95th percentile of `duration_ms`; sort the
+  durations ascending and select rank `ceil(0.95 * n)`, using one-based ranks
+
+Write valid UTF-8 JSON with a trailing newline. Do not modify or replace the
+input file. Do not create additional files under `/app/output`.
+' 2>&1 </dev/null | tee /logs/agent/codex.txt
+Command outputs captured
+Running command: mkdir -p /logs/agent
+if [ -d "$CODEX_HOME/sessions" ]; then
+  rm -rf /logs/agent/sessions
+  cp -R "$CODEX_HOME/sessions" /logs/agent/sessions
+fi
+Command outputs captured
+Running command: rm -rf /tmp/codex-secrets "$CODEX_HOME"
+Command outputs captured
+Wrote Codex trajectory to /Users/petermakhnatch/Developer/eval-lab/runs/canary-event-summary-codex-20260815/event-summary__EKfePmM/agent/trajectory.json
+Collecting main service artifacts
+Skipping image OS validation for hb__138b589569b50f62adfd94320328d180: docker inspect returned 1
+Skipping image OS validation for hb__7c2c301c0da58501087fb947c81409bf: docker inspect returned 1
+Running command: apt-get update && apt-get install -y curl bash nodejs npm ripgrep
+Command outputs captured
+Running command: set -euo pipefail; if ldd --version 2>&1 | grep -qi musl || [ -f /etc/alpine-release ]; then  npm install -g @openai/codex@latest; else  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash &&  export NVM_DIR="$HOME/.nvm" &&  \. "$NVM_DIR/nvm.sh" || true &&  command -v nvm &>/dev/null || { echo 'Error: NVM failed to load' >&2; exit 1; } &&  nvm install 22 && nvm alias default 22 && npm -v &&  npm install -g @openai/codex@latest; fi && codex --version
+Command outputs captured
+Running command: for bin in node codex; do  BIN_PATH="$(which "$bin" 2>/dev/null || true)";  if [ -n "$BIN_PATH" ] && [ "$BIN_PATH" != "/usr/local/bin/$bin" ]; then    ln -sf "$BIN_PATH" "/usr/local/bin/$bin";  fi; done
+Command outputs captured
+Running command: mkdir -p "$CODEX_HOME" /tmp/codex-secrets /logs/agent
+Command outputs captured
+Codex auth: using auth.json from /Users/petermakhnatch/.codex/auth.json
+Running command: ln -sf /tmp/codex-secrets/auth.json "$CODEX_HOME/auth.json"
+
+Command outputs captured
+Running command: if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --model gpt-5.6-terra --json --enable unified_exec -c model_reasoning_effort=high -- '# Event stream summary
+
+Read the newline-delimited JSON records in `/app/input/events.jsonl` and create
+`/app/output/summary.json`.
+
+The output must be one JSON object with exactly these fields:
+
+- `schema_version`: integer `1`
+- `total_events`: number of input records
+- `counts`: object mapping each event `kind` to its count, with keys in
+  alphabetical order
+- `total_duration_ms`: sum of every `duration_ms`
+- `p95_duration_ms`: nearest-rank 95th percentile of `duration_ms`; sort the
+  durations ascending and select rank `ceil(0.95 * n)`, using one-based ranks
+
+Write valid UTF-8 JSON with a trailing newline. Do not modify or replace the
+input file. Do not create additional files under `/app/output`.
+' 2>&1 </dev/null | tee /logs/agent/codex.txt
+Command outputs captured
+Running command: mkdir -p /logs/agent
+if [ -d "$CODEX_HOME/sessions" ]; then
+  rm -rf /logs/agent/sessions
+  cp -R "$CODEX_HOME/sessions" /logs/agent/sessions
+fi
+Command outputs captured
+Running command: rm -rf /tmp/codex-secrets "$CODEX_HOME"
+Command outputs captured
+Wrote Codex trajectory to /Users/petermakhnatch/Developer/eval-lab/runs/canary-event-summary-codex-20260815/event-summary__5E3btLv/agent/trajectory.json
+Collecting main service artifacts
+Skipping image OS validation for hb__138b589569b50f62adfd94320328d180: docker inspect returned 1

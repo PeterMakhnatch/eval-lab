@@ -1,0 +1,115 @@
+{
+    "id": "3ec2768a-b6ca-4f1e-bb50-cfa8b7a34b60",
+    "task_name": "petermakhnatch/transaction-reconciliation",
+    "trial_name": "transaction-reconciliation__frxRezo",
+    "trial_uri": "file:///Users/petermakhnatch/Developer/eval-lab/runs/canary-transaction-reconciliation-codex-20260815/transaction-reconciliation__frxRezo",
+    "task_id": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation"
+    },
+    "source": null,
+    "task_checksum": "9f5160fc4fb16e712e3a3a3a6c8af006f062994633dc310c9c8c56e183d4b508",
+    "config": {
+        "task": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "transaction-reconciliation__frxRezo",
+        "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/runs/canary-transaction-reconciliation-codex-20260815",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "codex",
+            "import_path": null,
+            "model_name": "gpt-5.6-terra",
+            "n_concurrent": null,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "438e7657-3fee-44b3-893a-ddf7584e36cc",
+        "source_trial": null
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.147.0",
+        "model_info": {
+            "name": "gpt-5.6-terra",
+            "provider": "openai"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 56717,
+        "n_cache_tokens": 51200,
+        "n_output_tokens": 562,
+        "cost_usd": 0.028018,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "verifier_environment_mode": "shared",
+    "exception_info": null,
+    "started_at": "2026-08-15T06:32:31.999547Z",
+    "finished_at": "2026-08-15T06:33:49.741134Z",
+    "environment_setup": {
+        "started_at": "2026-08-15T06:32:32.003542Z",
+        "finished_at": "2026-08-15T06:32:36.679646Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-08-15T06:32:36.679713Z",
+        "finished_at": "2026-08-15T06:33:23.218156Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-08-15T06:33:23.218978Z",
+        "finished_at": "2026-08-15T06:33:42.254691Z"
+    },
+    "verifier": {
+        "started_at": "2026-08-15T06:33:43.465307Z",
+        "finished_at": "2026-08-15T06:33:46.963470Z"
+    },
+    "step_results": null
+}

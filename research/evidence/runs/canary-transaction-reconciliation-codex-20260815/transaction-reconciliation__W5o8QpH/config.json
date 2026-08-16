@@ -1,0 +1,12 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/transaction-reconciliation"
+    },
+    "trial_name": "transaction-reconciliation__W5o8QpH",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/runs/canary-transaction-reconciliation-codex-20260815",
+    "agent": {
+        "name": "codex",
+        "model_name": "gpt-5.6-terra"
+    },
+    "job_id": "438e7657-3fee-44b3-893a-ddf7584e36cc"
+}

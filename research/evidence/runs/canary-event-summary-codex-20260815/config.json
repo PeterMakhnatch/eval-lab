@@ -1,0 +1,17 @@
+{
+    "job_name": "canary-event-summary-codex-20260815",
+    "jobs_dir": "/Users/petermakhnatch/Developer/eval-lab/runs",
+    "n_attempts": 3,
+    "n_concurrent_trials": 1,
+    "agents": [
+        {
+            "name": "codex",
+            "model_name": "gpt-5.6-terra"
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/library/tasks/event-summary"
+        }
+    ]
+}

@@ -347,6 +347,45 @@ CI ratchet: `scripts/profile/budgets.json` + `.github/workflows/perf.yml`.
 An injected `digest=500` slowdown against a 5 ms budget fails with
 `digest: median 653.170 ms exceeds budget 5.000 ms + 10%`.
 
+### `ingest` re-baselined against CI evidence (2026-08-15)
+
+The `profile` check failed on a docs-only PR (#52) with `ingest: median
+125.239 ms exceeds budget 80.000 ms + 50% (ceiling 120.000 ms)`; a rerun of
+the identical commit passed. The budgets above were calibrated at ~3x an
+Apple Silicon laptop capture with a local PostgreSQL, but they are enforced on
+`ubuntu-latest` against a PostgreSQL service container. Of the paths whose cost
+scales with machine class, `ingest` had the least headroom against the §5
+laptop capture (80.0 / 30.47 = 2.6x, versus 7.2x–18.8x for projection, facts,
+and digest), so it broke first. It is also the path most exposed to the
+substitution: `_time_ingest` re-runs the whole `sql/schema.sql` DDL through
+`initialize()` and opens two fresh connections per repetition, so it is
+dominated by connection setup and server-side catalog work.
+
+CI-measured `ingest` distribution, from the `speed-profile-report` artifact of
+the last 14 **successful** perf runs on `ubuntu-latest`:
+
+| n | min | median | mean | stdev | max |
+|---:|---:|---:|---:|---:|---:|
+| 14 | 51.4 ms | 72.3 ms | 75.9 ms | 13.1 ms | 96.1 ms |
+
+Samples: 51.4, 66.9, 67.2, 67.4, 67.9, 68.9, 72.0, 72.5, 72.6, 85.2, 88.5,
+91.3, 95.1, 96.1 ms. One further run measured **125.2 ms** and failed the old
+120.0 ms ceiling; the rerun of that same commit passed, so it is runner
+variance, not a regression.
+
+**New budget: `ingest` = 115.0 ms**, `tolerance_pct` unchanged at 50, so the
+ceiling is **172.5 ms**. That is ~1.2x the observed successful max (96.1 ms),
+1.79x that max at the ceiling, and 1.38x the 125.2 ms variance spike — a
+repeat of the worst observed runner event now passes. The gate still fails any
+median above 2.39x the current CI median, so a ~2.4x regression is caught and
+a 2x one (~145 ms) is not; that is the deliberate price of making the check
+trustworthy. The other five budgets were **not** widened and remain
+laptop-anchored.
+
+**Rule.** Any future re-baseline of a perf budget must cite CI artifact
+samples — run count, spread, and median from `speed-profile-report` — not a
+single laptop timing.
+
 ---
 
 ## 6. Open items

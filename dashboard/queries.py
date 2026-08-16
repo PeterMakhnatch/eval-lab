@@ -156,6 +156,12 @@ def leaderboard(source: QuerySource, *, pass_threshold: float = 1.0) -> list[dic
         ]
         passes = sum(value >= pass_threshold for value in scored)
         interval = wilson_interval(passes, len(scored))
+        exceptions = sum(row["exception_type"] is not None for row in rows)
+        # A cohort with trials but nothing scorable is not the same state as a
+        # cohort with no trials, and the renderer must be able to say which.
+        no_reward = sum(
+            row["exception_type"] is None and row["primary_reward"] is None for row in rows
+        )
         summaries.append(
             {
                 "cohort": cohort,
@@ -164,7 +170,9 @@ def leaderboard(source: QuerySource, *, pass_threshold: float = 1.0) -> list[dic
                 "model": model_name,
                 "n_total": len(rows),
                 "n": len(scored),
-                "exceptions": sum(row["exception_type"] is not None for row in rows),
+                "exceptions": exceptions,
+                "unscored_no_reward": no_reward,
+                "scorable": bool(scored),
                 "passes": passes,
                 "pass_rate": passes / len(scored) if scored else None,
                 "ci_95_low": interval[0] if interval else None,

@@ -749,6 +749,10 @@ def _duration(seconds: float | None) -> str:
     return f"{minutes}m{secs:02d}s" if minutes else f"{secs}s"
 
 
+def _instant(moment: datetime | None) -> str:
+    return moment.isoformat() if moment is not None else label("unavailable")
+
+
 def _totals_line(name: str, totals: ConsumptionTotals) -> str:
     tokens = (
         f"{totals.uncached_input_tokens:>9,} uncached in  "
@@ -780,9 +784,8 @@ def _headroom_lines(headroom: Headroom, resolution: float | None) -> list[str]:
         f"{headroom.plan_type or label('unavailable')}",
         f"  window                               {headroom.window_minutes} minutes "
         f"({_duration((headroom.window_minutes or 0) * 60)})",
-        f"  resets_at                            "
-        f"{headroom.resets_at.isoformat() if headroom.resets_at else label('unavailable')}",
-        f"  observed_at                          {headroom.observed_at.isoformat()}",
+        f"  resets_at                            {_instant(headroom.resets_at)}",
+        f"  observed_at                          {_instant(headroom.observed_at)}",
         f"  staleness                            {_duration(headroom.staleness_seconds)}",
         f"  credits_balance                      "
         f"{headroom.credits_balance or label('unavailable')}",

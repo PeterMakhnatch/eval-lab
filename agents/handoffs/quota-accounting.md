@@ -148,6 +148,13 @@ Two operational facts nothing else in the lab surfaces:
 5. **`agent_setup` spends about an hour per trial installing the Codex CLI from
    npm inside each container.** A real operational defect, unowned, not
    partially addressed here.
+6. **`agents/CHECKS.md` states the ty ratchet is 33; `.github/workflows/
+   typecheck.yml` sets `TY_BASELINE: 28`.** The verification contract is stale
+   for a gate it declares. Found because the first push went red at 29: this
+   module added exactly one diagnostic, now fixed, and `src/` is back at 28
+   which is the baseline. Neither file is in this lease, so this is recorded
+   rather than corrected — but CHECKS.md is the document agents are told to
+   trust, and it currently understates the gate by five diagnostics.
 
 ## Boundary respected on the host session files
 

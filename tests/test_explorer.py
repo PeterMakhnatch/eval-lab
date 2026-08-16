@@ -201,6 +201,20 @@ def test_duplicate_trial_keys_are_skipped_and_noted(tmp_path: Path):
     assert any("duplicate trial key" in n for n in dup_notes)
 
 
+def test_executor_bookkeeping_is_not_listed_as_a_job(tmp_path: Path):
+    """M009 F-08: `.executor` is executor state, not evaluation output."""
+    jobs = tmp_path / "jobs"
+    shutil.copytree(JOBS / "job-pass", jobs / "real-job")
+    (jobs / ".executor" / "leases").mkdir(parents=True)
+    (jobs / ".executor" / "state.json").write_text("{}")
+    (jobs / ".tombstones").mkdir()
+
+    idx = build_index([jobs])
+
+    assert [job.job_name for job in idx.jobs] == ["real-job"]
+    assert all(not name.startswith(".") for name in idx.trials)
+
+
 def test_duplicate_trial_ids_leave_analysis_unlinked(tmp_path: Path):
     jobs = tmp_path / "jobs"
     shutil.copytree(JOBS / "job-pass", jobs / "job-one")

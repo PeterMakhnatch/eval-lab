@@ -430,6 +430,16 @@ def _is_trial_dir(path: Path) -> bool:
     return path.is_dir() and (path / "result.json").is_file()
 
 
+def _is_job_dir(path: Path) -> bool:
+    """A job directory is Harbor output; a dot-prefixed one is bookkeeping.
+
+    The executor keeps its own state under ``<jobs_root>/.executor``, and the
+    queue keeps lock files alongside it. Rendering those as evaluation output
+    invited an operator to open a job that never ran (M009 F-08).
+    """
+    return path.is_dir() and not path.name.startswith(".")
+
+
 # ---------------------------------------------------------------------------
 # Analyses
 # ---------------------------------------------------------------------------
@@ -576,7 +586,7 @@ def build_index(
         if not root.is_dir():
             notes.append(f"jobs root unavailable: {root}")
             continue
-        for job_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+        for job_dir in sorted(p for p in root.iterdir() if _is_job_dir(p)):
             job_notes: list[str] = []
             trial_keys: list[str] = []
             task_names: set[str] = set()

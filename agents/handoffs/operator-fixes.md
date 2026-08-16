@@ -1,5 +1,5 @@
 Status: review-wanted
-Last: fixed six misleading-output defects from the M009 flight (F-03, F-02, F-11, F-09, F-08, F-12), one commit each, every fix covered by a test verified to fail without it, and proved F-02/F-03/F-08/F-11/F-12 live against the running Postgres and the primary checkout's real runs/
+Last: made the F-09 submit test hermetic after it went red on CI — the cause was `Executor.submit`'s live-catalog cost probe, not the missing task package, proven by isolating both variables — then ran the full suite twice, normally and with DATABASE_URL pointed at a closed port: 539 passed each time
 Next: integrator review and merge decision on the PR at its current head; do not merge from this role
 Blockers: none
 
@@ -211,6 +211,31 @@ the assertion is that the printed value is *consumable*, not merely present.
 Negative control, output reverted to `f"{path.parent.name}: {path}"`:
 `StopIteration` — there is no `spec_id:` line to parse. Fixed: passes.
 
+**This test was not hermetic on its first push and red CI on both Python
+versions (`assert 2 == 0`); fixed in the last commit on this branch.** The
+cause was *not* the missing task package, which was the first hypothesis.
+Proven by isolating each variable:
+
+| workspace holds | `DATABASE_URL` reachable | result |
+|---|---|---|
+| `policy/` only, no task package | yes | **exit 0** — the gate never touches the task path for a non-`registered/` task |
+| `policy/` + the task package | no | **exit 2**, `error: cannot enforce cost policy because the catalog is unavailable` |
+
+`Executor.submit` calls `_effective_spend_today()` and
+`_consecutive_harness_failures()`, which reach `database.daily_cost_usd` and
+`database.consecutive_harness_failures` (`queue.py:1128-1145`); both re-raise as
+`RuntimeError` when the catalog is unreachable, and `run_cli` maps that to exit
+2. It passed locally only because Postgres is running here. `.github/workflows`
+provides a `postgres` service to `perf.yml` and to nothing else, so the quality
+job has no database — correctly, since no other test needs one.
+
+The fix stubs exactly those two probes to a clean, admitting state, and also
+copies the task package into the workspace so the fixture is self-describing
+even though it is not load-bearing today. Production code was not touched:
+F-09's behaviour is unchanged and its negative control still holds. Verified by
+running the file, and then the whole suite, with `DATABASE_URL` pointed at
+`127.0.0.1:1`.
+
 **Does the operator now know what to do next?** Yes, and for a parked spec the
 next command is printed with the id already substituted.
 
@@ -280,8 +305,8 @@ distinction is stated, and the un-indexed branch prints the command.
 
 ## Verification
 
-Scoped, never the full suite, never a project-wide formatter, never
-`scripts/premerge.sh`:
+Scoped first, then the full suite once at the end. No project-wide formatter,
+never `scripts/premerge.sh`.
 
 ```
 uv run pytest tests/test_analysis_worker.py tests/test_canary.py \
@@ -293,11 +318,19 @@ uv run pytest tests/test_analysis_worker.py tests/test_canary.py \
   tests/test_unattended.py                                    -> 311 passed
 uv run pytest tests/test_smoke.py tests/test_gc.py tests/test_results.py \
   tests/test_paths.py                                         -> 14 passed
-uv run ruff check src/evallab tests/                          -> All checks passed
+uv run ruff check src/evallab tests/ dashboard/               -> All checks passed
+
+uv run pytest                                                 -> 539 passed
+DATABASE_URL=postgresql://evallab:x@127.0.0.1:1/evallab \
+  uv run pytest                                               -> 539 passed
 ```
 
-That set is every test file importing a module this branch changed (`cli`,
-`database`, `explorer`, `facts`, `schemas`, `status`), plus the adjacent four.
+The scoped set is every test file importing a module this branch changed
+(`cli`, `database`, `explorer`, `facts`, `schemas`, `status`), plus the adjacent
+four. The full suite was then run twice: once normally, and once with
+`DATABASE_URL` pointed at a closed port, which is the condition that broke the
+first CI run. Both are green, so nothing on this branch depends on a reachable
+catalog.
 
 ## Deliberately not done
 

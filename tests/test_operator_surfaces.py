@@ -272,8 +272,21 @@ def test_database_identity_never_returns_a_password() -> None:
 def test_submit_prints_the_bare_spec_id_approve_wants(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    from evallab.queue import DirectoryQueue
+    from evallab.queue import database as queue_database
+
     monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    # `Executor.submit` refuses to admit anything it cannot cost-check, so it
+    # probes the catalog for today's spend and the recent harness-failure run.
+    # Neither is what this test is about, and a runner without Postgres would
+    # otherwise see `cannot enforce cost policy because the catalog is
+    # unavailable` and exit 2. Pin both to a clean, admitting state.
+    monkeypatch.setattr(queue_database, "daily_cost_usd", lambda url, day: 0.0)
+    monkeypatch.setattr(queue_database, "consecutive_harness_failures", lambda url: 0)
     shutil.copytree(ROOT / "policy", tmp_path / "policy")
+    shutil.copytree(
+        ROOT / "library/tasks/event-summary", tmp_path / "library/tasks/event-summary"
+    )
     spec = tmp_path / "spec.json"
     spec.write_text(
         '{"name": "operator-fixes-control", "hypothesis": "the control runs",'
@@ -289,8 +302,6 @@ def test_submit_prints_the_bare_spec_id_approve_wants(
     )
     # The printed id is exactly what `approve`, `reject`, and the catalog's
     # `experiment_id` column consume — no prefix, no extension, no directory.
-    from evallab.queue import DirectoryQueue
-
     located = DirectoryQueue(tmp_path / "queue").locate(spec_id)
     assert located.is_file()
     assert spec_id == located.stem.rsplit("-", 1)[-1]

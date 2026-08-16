@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 
 from evallab.results import JobRecord, duration_seconds
@@ -267,6 +268,25 @@ def ping(database_url: str) -> str:
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         row = connection.execute("SELECT version()").fetchone()
     return str(row[0]) if row else "unknown"
+
+
+def identity(database_url: str) -> str:
+    """Return ``host:port/dbname`` for a connection string, never a credential.
+
+    An operator reading a green catalog line has no way to tell which database
+    produced it; the same check reported two different counts in one M009
+    session because `DATABASE_URL` differed (F-11). Only host, port, and
+    database name are read out of the parsed connection info, so a password
+    embedded in the URL cannot reach an operator surface or a log.
+    """
+    try:
+        info = conninfo_to_dict(database_url)
+    except psycopg.Error:
+        return "unparsable connection string"
+    host = str(info.get("host") or "localhost")
+    port = str(info.get("port") or 5432)
+    dbname = str(info.get("dbname") or "")
+    return f"{host}:{port}/{dbname}" if dbname else f"{host}:{port}"
 
 
 def daily_cost_usd(database_url: str, day: date) -> float:

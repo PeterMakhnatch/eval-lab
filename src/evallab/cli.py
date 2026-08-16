@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -90,6 +91,7 @@ from evallab.runner import (
     request_from_matrix,
     subscription_environment,
 )
+from evallab.schemas import ANALYSIS_SIDECAR_FILENAME
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.tracing import (
     TraceError,
@@ -408,6 +410,12 @@ def parser() -> argparse.ArgumentParser:
     analyze_review.add_argument("--rationale", required=True)
     analyze_review.add_argument("--reviewer", required=True)
     analyze_review.add_argument("--superseded-by")
+    analyze_review.add_argument(
+        "--index",
+        action="store_true",
+        help="Also index the review into the catalog (analysis_reviews)",
+    )
+    analyze_review.add_argument("--database-url")
     analyze_agreement = analyze_commands.add_parser(
         "agreement", help="Compare valid analysis categories with fixed labels"
     )
@@ -1270,8 +1278,16 @@ def run_cli(
             print(f"indexed analysis: {sidecar.analysis_id}")
             return 0
         if args.command == "analyze" and args.analyze_command == "review":
+            sidecar_path = _resolve(root, args.path)
+            if not sidecar_path.is_file():
+                raise ValueError(
+                    f"no analysis sidecar at {sidecar_path}; pass the "
+                    f"{ANALYSIS_SIDECAR_FILENAME} path printed by "
+                    "`evallab analyze stub` "
+                    "(derived/analyses/<analysis_id>/analysis.json)"
+                )
             review_path, review = write_analysis_review(
-                _resolve(root, args.path),
+                sidecar_path,
                 disposition=args.disposition,
                 rationale=args.rationale,
                 reviewer=args.reviewer,
@@ -1279,6 +1295,21 @@ def run_cli(
             )
             print(f"review: {review_path}")
             print(f"disposition: {review.disposition}")
+            # The catalog is a derived index, so indexing stays opt-in — but the
+            # operator is told which state they are in, never left to discover
+            # that `analysis_reviews` is empty (M009 F-02).
+            if args.index:
+                url = database_url_from_environment(args.database_url)
+                database.initialize(url)
+                ingest_analysis_sidecar(url, sidecar_path, root=root)
+                print(f"indexed review: {review.review_id} -> analysis_reviews")
+                print(f"catalog: {database.identity(url)}")
+            else:
+                print("indexed: no (the catalog is a derived index, written on request)")
+                print(
+                    "next: uv run evallab analyze ingest-sidecar "
+                    f"{shlex.quote(str(sidecar_path))}"
+                )
             return 0
         if args.command == "analyze" and args.analyze_command == "agreement":
             report_path, report = write_failure_taxonomy_agreement(

@@ -11,6 +11,7 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -53,6 +54,7 @@ from evallab.runner import (
     transient_provider_exception,
 )
 from evallab.schemas import (
+    AutoRunRule,
     ExperimentSpec,
     PolicyDecision,
     QueueEvent,
@@ -105,6 +107,59 @@ def load_policy(path: Path) -> StandingApprovalsPolicy:
         raise ValueError(f"Invalid standing-approvals policy: {exc}") from exc
 
 
+@dataclass(frozen=True)
+class PaidRunAuthorization:
+    """One recorded human decision to let a specific queued spec spend money.
+
+    The record lives in `queue/events.jsonl`, not in the spec file. A spec's
+    own `policy_rule` field cannot be the proof of authorisation, because the
+    automation that submits paid work is what writes that file; the event log
+    is append-only, locked, and retained, so it is the only place consent can
+    be shown to have come from outside the machine.
+    """
+
+    spec_id: str
+    actor: str
+    authorized_at: datetime
+
+
+def authorization_required_message(spec: ExperimentSpec) -> str:
+    """The refusal an operator reads — in `submit` output and in queue/reasons/."""
+    spec_id = spec.spec_id or "<spec-id>"
+    return (
+        f"{spec.agent} is a billable agent. Paid execution here draws on Peter's "
+        "ChatGPT subscription, so it never runs unattended: this spec waits until "
+        "a named human authorises it.\n"
+        f"  authorise: uv run evallab approve {spec_id} --actor <you>\n"
+        f'  refuse:    uv run evallab reject {spec_id} --actor <you> --reason "<why>"\n'
+        "  then run:  uv run evallab tick\n"
+        "The free oracle and nop controls are unaffected and still run unattended."
+    )
+
+
+def standing_rule_admits(rule: AutoRunRule, spec: ExperimentSpec) -> bool:
+    """Whether one standing-approvals rule covers this spec.
+
+    Standing approval is a statement about a *class* of work, written once into
+    `policy/standing-approvals.yaml`. It can never cover a billable agent:
+    paid work is authorised one spec at a time by a human. Enforcing that here
+    rather than only in the policy file is the point — no edit to the policy
+    file, and no agent added to any `auto_run` entry, can re-open unattended
+    spend.
+    """
+    if spec.billable:
+        return False
+    if spec.policy_rule and spec.policy_rule != rule.name:
+        return False
+    if spec.agent not in rule.agents:
+        return False
+    if rule.tasks and not any(fnmatch.fnmatchcase(spec.task, pattern) for pattern in rule.tasks):
+        return False
+    if rule.max_attempts is not None and spec.attempts > rule.max_attempts:
+        return False
+    return set(rule.requires).issubset(spec.requires)
+
+
 class PolicyGate:
     def __init__(
         self,
@@ -123,7 +178,7 @@ class PolicyGate:
         *,
         spent_today_usd: float,
         consecutive_harness_failures: int = 0,
-        human_approved: bool = False,
+        authorization: PaidRunAuthorization | None = None,
     ) -> PolicyDecision:
         if spec.task.startswith("registered/"):
             reg = self.registry
@@ -195,7 +250,49 @@ class PolicyGate:
                     message=str(exc),
                 )
 
+        if authorization is not None and authorization.spec_id != spec.spec_id:
+            return PolicyDecision(
+                admitted=False,
+                reason_code="paid_run_authorization_mismatch",
+                message=(
+                    f"the recorded authorisation names spec {authorization.spec_id}, "
+                    f"not {spec.spec_id or '<unidentified>'}; every spec is "
+                    "authorised by its own id"
+                ),
+            )
+
         if spec.billable:
+            # Paid execution is authorised one spec at a time by a named human.
+            # No standing rule is consulted below this point for billable work,
+            # so an unattended cycle cannot reach Harbor with a paid agent.
+            if authorization is None:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="paid_run_unauthorized",
+                    message=authorization_required_message(spec),
+                )
+            if spec.submitted_at is None:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="paid_run_authorization_mismatch",
+                    message=(
+                        "this spec records no submission time, so the authorisation "
+                        "cannot be shown to cover it; resubmit it with "
+                        "`uv run evallab submit` and authorise the id that prints"
+                    ),
+                )
+            if authorization.authorized_at < spec.submitted_at:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="paid_run_authorization_stale",
+                    message=(
+                        f"the authorisation {authorization.actor} recorded at "
+                        f"{authorization.authorized_at.isoformat()} predates this spec "
+                        f"(submitted {spec.submitted_at.isoformat()}); a spec id is a "
+                        "name, not a reusable token. Authorise the current spec: "
+                        f"uv run evallab approve {spec.spec_id} --actor <you>"
+                    ),
+                )
             if spec.est_cost_usd > self.policy.per_job_cost_ceiling_usd:
                 return PolicyDecision(
                     admitted=False,
@@ -224,11 +321,14 @@ class PolicyGate:
                     ),
                 )
 
-        if human_approved:
+        if authorization is not None:
             return PolicyDecision(
                 admitted=True,
                 policy_rule="human-approval",
-                message="admitted by an explicit human queue approval",
+                message=(
+                    f"admitted by {authorization.actor}'s authorisation recorded at "
+                    f"{authorization.authorized_at.isoformat()}"
+                ),
             )
 
         if spec.environment != "docker":
@@ -239,23 +339,12 @@ class PolicyGate:
             )
 
         for rule in self.policy.auto_run:
-            if spec.policy_rule and spec.policy_rule != rule.name:
-                continue
-            if spec.agent not in rule.agents:
-                continue
-            if rule.tasks and not any(
-                fnmatch.fnmatchcase(spec.task, pattern) for pattern in rule.tasks
-            ):
-                continue
-            if rule.max_attempts is not None and spec.attempts > rule.max_attempts:
-                continue
-            if not set(rule.requires).issubset(spec.requires):
-                continue
-            return PolicyDecision(
-                admitted=True,
-                policy_rule=rule.name,
-                message=f"admitted by standing policy rule {rule.name}",
-            )
+            if standing_rule_admits(rule, spec):
+                return PolicyDecision(
+                    admitted=True,
+                    policy_rule=rule.name,
+                    message=f"admitted by standing policy rule {rule.name}",
+                )
 
         return PolicyDecision(
             admitted=False,
@@ -463,6 +552,30 @@ class DirectoryQueue:
                 )
         self.events_path.replace(self.events_path.with_name(f"{self.events_path.name}.1"))
 
+    def authorizations(self) -> dict[str, PaidRunAuthorization]:
+        """Live human authorisations, read from the append-only event log.
+
+        `approve` writes the grant, `reject` withdraws it. Raises rather than
+        returning a partial view if the log cannot be read: an authorisation
+        that cannot be proven does not exist.
+        """
+        granted: dict[str, PaidRunAuthorization] = {}
+        for event in load_events(self.events_path):
+            if event.event == "human_approved":
+                granted[event.spec_id] = PaidRunAuthorization(
+                    spec_id=event.spec_id,
+                    actor=event.actor,
+                    authorized_at=event.occurred_at,
+                )
+            elif event.event == "human_rejected":
+                granted.pop(event.spec_id, None)
+        return granted
+
+    def authorization_for(self, spec: ExperimentSpec) -> PaidRunAuthorization | None:
+        if spec.spec_id is None:
+            return None
+        return self.authorizations().get(spec.spec_id)
+
     def approve(self, spec_id: str, *, actor: str) -> Path:
         source = self.locate(spec_id, ("proposed", "pending", "waiting"))
         spec = self.load(source).model_copy(update={"policy_rule": "human-approval"})
@@ -638,6 +751,14 @@ class Executor:
             # could bypass both the single-owner and daily-cost guarantees.
             self.last_tick_reason = "running_specs_unresolved"
             return 0
+        try:
+            authorizations = self.queue.authorizations()
+        except (OSError, ValueError):
+            # Fail closed. Authorisation is proven only from the event log; if
+            # the log cannot be read, nothing in this queue can be shown to be
+            # authorised, so the whole tick stops rather than guessing.
+            self.last_tick_reason = "authorization_ledger_unreadable"
+            return 0
         dispatched = 0
         credentials = self._credential_probe()
         for path, spec in self.queue.list_specs("approved"):
@@ -660,12 +781,11 @@ class Executor:
                     )
                 )
                 continue
-            human_approved = spec.policy_rule == "human-approval"
             decision = self.gate.decide(
                 spec,
                 spent_today_usd=self._effective_spend_today(),
                 consecutive_harness_failures=self._consecutive_harness_failures(),
-                human_approved=human_approved,
+                authorization=authorizations.get(str(spec.spec_id)),
             )
             if not decision.admitted:
                 waiting = self.queue.transition(
@@ -843,11 +963,15 @@ class Executor:
     def _retry_within_policy(self, spec: ExperimentSpec) -> bool:
         if not spec.billable:
             return True
+        try:
+            authorization = self.queue.authorization_for(spec)
+        except (OSError, ValueError):
+            authorization = None
         decision = self.gate.decide(
             spec,
             spent_today_usd=self._effective_spend_today(),
             consecutive_harness_failures=self._consecutive_harness_failures(),
-            human_approved=spec.policy_rule == "human-approval",
+            authorization=authorization,
         )
         if decision.admitted:
             return True

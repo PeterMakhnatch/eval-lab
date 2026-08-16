@@ -85,7 +85,17 @@ class CanaryEnqueuer:
                         verifier_digest=member.task_digest,
                     )
                 )
-                if not decision.admitted or destination.parent.name != "approved":
+                # A paid canary is staged for Peter, never dispatched
+                # unattended: `paid_run_unauthorized` is the designed outcome,
+                # not an enqueue failure. Any other refusal still means the
+                # configured suite has drifted out of policy.
+                staged_for_authorization = (
+                    decision.reason_code == "paid_run_unauthorized"
+                    and destination.parent.name == "waiting"
+                )
+                if not staged_for_authorization and (
+                    not decision.admitted or destination.parent.name != "approved"
+                ):
                     raise RuntimeError(
                         f"standing policy refused configured canary {job_name}: "
                         f"{decision.reason_code or 'unknown'}"

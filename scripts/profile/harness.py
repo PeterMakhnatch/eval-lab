@@ -316,7 +316,7 @@ def _time_queue_tick(
             task="tasks/event-summary",
             agent="oracle",
             submitted_by="speed-profile",
-            policy_rule="human-approval",
+            policy_rule="local-controls",
             jobs_dir="runs",
         )
         filename = f"oracle-{spec.name}.json"

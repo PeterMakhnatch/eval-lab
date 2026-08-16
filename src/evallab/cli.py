@@ -173,9 +173,16 @@ def parser() -> argparse.ArgumentParser:
 
     commands.add_parser("tick", help="Reconcile and drain the approved experiment queue")
 
-    approve = commands.add_parser("approve", help="Approve one waiting experiment")
+    approve = commands.add_parser(
+        "approve",
+        help="Authorize one queued experiment; required before any billable agent runs",
+    )
     approve.add_argument("spec_id")
-    approve.add_argument("--actor", default="peter")
+    approve.add_argument(
+        "--actor",
+        required=True,
+        help="who is authorizing; recorded in queue/events.jsonl and never defaulted",
+    )
 
     reject = commands.add_parser("reject", help="Reject one queued experiment")
     reject.add_argument("spec_id")
@@ -926,7 +933,9 @@ def run_cli(
             print(f"state: {path.parent.name}")
             print(f"path: {path}")
             print(decision.message)
-            if path.parent.name == "waiting":
+            # A paid-authorization refusal already spells out both commands with
+            # this spec's real id; repeating one of them here reads as noise.
+            if path.parent.name == "waiting" and "evallab approve" not in decision.message:
                 print(
                     "next: uv run evallab approve "
                     f"{shlex.quote(str(submitted.spec_id))} --actor <you>"
@@ -956,8 +965,19 @@ def run_cli(
         if args.command == "calibrate":
             return _calibrate_command(args, root)
         if args.command == "approve":
-            path = DirectoryQueue(root / "queue").approve(args.spec_id, actor=args.actor)
-            print(f"approved: {path}")
+            queue = DirectoryQueue(root / "queue")
+            path = queue.approve(args.spec_id, actor=args.actor)
+            authorized = queue.load(path)
+            print(f"authorized: {authorized.spec_id}")
+            print(f"actor: {args.actor}")
+            print(f"path: {path}")
+            if authorized.billable:
+                print(
+                    f"spend: {authorized.agent} x {authorized.attempts} attempt(s), "
+                    f"estimated {authorized.est_cost_usd:.2f} USD per job, billed to "
+                    "Peter's ChatGPT subscription"
+                )
+            print("next: uv run evallab tick")
             return 0
         if args.command == "reject":
             path = DirectoryQueue(root / "queue").reject(

@@ -51,23 +51,59 @@ FORBIDDEN_AGENT_IMAGE_PARTS = {"solution", "tests", "verifier", "workbench"}
 # Adding a key here is a deliberate act and must arrive with the check that
 # models it. A value of `None` marks a table Harbor types as free-form and never
 # interprets.
+#
+# M009 F-06: the accepted surface was originally drawn from what the test
+# fixtures declare, so it refused three constructs `library/tasks/event-summary`
+# declares and could not certify a single one of the four in-repo tasks. The
+# keys admitted for that reason are the ones every real occurrence leaves inert
+# — `mcp_servers = []`, `collect = []`, `os = "linux"`, `gpus = 0`, and empty
+# `env` tables — and each is admitted *only* for the value
+# `_MODELLED_CONSTRUCT_VALUES` proves inert. Admitting the key without that
+# value model would be the silent hole again: an inert declaration and a loaded
+# one are the same key.
 _SUPPORTED_ENVIRONMENT_KEYS = frozenset(
-    {"network_mode", "docker_image", "build_timeout_sec", "cpus", "memory_mb", "storage_mb"}
+    {
+        "network_mode",
+        "docker_image",
+        "build_timeout_sec",
+        "cpus",
+        "memory_mb",
+        "storage_mb",
+        # Admitted for one value each; see `_MODELLED_CONSTRUCT_VALUES`.
+        "os",
+        "gpus",
+        "mcp_servers",
+        "env",
+    }
 )
 SUPPORTED_TASK_CONFIG: dict[str, frozenset[str] | None] = {
     "": frozenset(
-        {"schema_version", "artifacts", "task", "metadata", "agent", "verifier", "environment"}
+        {
+            "schema_version",
+            "artifacts",
+            "task",
+            "metadata",
+            "agent",
+            "verifier",
+            "environment",
+            "solution",
+        }
     ),
     "task": frozenset({"name", "version", "description", "keywords", "authors"}),
     "task.authors": frozenset({"name", "email"}),
     "metadata": None,
     "agent": frozenset({"timeout_sec"}),
-    "verifier": frozenset({"timeout_sec", "environment_mode", "network_mode", "environment"}),
+    "verifier": frozenset(
+        {"timeout_sec", "environment_mode", "network_mode", "environment", "collect", "env"}
+    ),
     # docker_image is deliberately absent here: a prebuilt verifier image would
     # bypass the tests/ build-context scan, which is the only boundary the
     # verifier image has.
     "verifier.environment": _SUPPORTED_ENVIRONMENT_KEYS - {"docker_image"},
     "environment": _SUPPORTED_ENVIRONMENT_KEYS,
+    # SolutionConfig carries exactly one field, `env` (Harbor 0.21.0
+    # models/task/config.py:335-336), so naming it closes the table.
+    "solution": frozenset({"env"}),
 }
 # Notes for the constructs most likely to be reached, so the refusal explains
 # itself instead of only naming a path.
@@ -80,16 +116,128 @@ _UNSUPPORTED_CONFIG_NOTES: dict[str, str] = {
         "single verify pass and refuses [[steps]] rather than certify one it cannot resolve"
     ),
     "multi_step_reward_strategy": "v1 models a single verify pass",
-    "environment.mcp_servers": "an MCP server is an unreviewed egress path",
-    "verifier.environment.mcp_servers": "an MCP server is an unreviewed egress path",
     "environment.allow_internet": (
         "the deprecated allow_internet alias is folded into network_mode by a Harbor "
-        "model validator; declare network_mode explicitly instead"
+        "model validator, but only when network_mode is absent from model_fields_set and "
+        "allowed_hosts is None (models/task/config.py:885-892); mirroring that three-way "
+        "interaction would put a second, weaker network resolver beside "
+        "_effective_verifier_network. Declare network_mode explicitly instead"
     ),
-    "verifier.collect": "a collect command runs in a compose service v1 does not model",
     "verifier.environment.docker_image": (
         "a prebuilt verifier image is never built from tests/, so the build-context scan "
         "that is the verifier image's only network boundary would never see it"
+    ),
+}
+
+
+@dataclass(frozen=True)
+class _ModelledValue:
+    """The single value shape v1 reproduces for an admitted key, and why.
+
+    The module's rule is that a key arrives with the check that models it. For
+    the F-06 keys the modelled shape is the inert one: Harbor reads each of them
+    behind an emptiness or default test, so the accepted value is provably
+    equivalent to omitting the key, while any other value reaches a Harbor code
+    path v1 does not reproduce. `accepts` is that equivalence, and `note` records
+    the Harbor behaviour that makes anything else a refusal.
+    """
+
+    accepts: Callable[[Any], bool]
+    note: str
+
+
+def _is_empty_array(value: Any) -> bool:
+    return isinstance(value, list) and not value
+
+
+def _is_empty_table(value: Any) -> bool:
+    return isinstance(value, Mapping) and not value
+
+
+def _is_default_task_os(value: Any) -> bool:
+    # Harbor lowercases but does not strip (EnvironmentConfig.normalize_os), so
+    # the accepted spelling is matched the same way.
+    return isinstance(value, str) and value.lower() == "linux"
+
+
+def _is_zero_gpus(value: Any) -> bool:
+    # `True` is an int in Python and `gpus = true` is not a resource request.
+    return isinstance(value, int) and not isinstance(value, bool) and value == 0
+
+
+_EMPTY_ENV_NOTE = (
+    "v1 models only an empty env table. Harbor resolves every entry against the *host* "
+    "environment at runtime — resolve_env_vars substitutes ${VAR} from os.environ and "
+    "raises when it is unset (utils/env.py:94-130) — so a populated table makes the "
+    "container's environment a function of the workstation, which defeats determinism, "
+    "and is the documented channel for API keys (verifier/verifier.py:166-171 warns about "
+    "exactly that, and trial/trial.py:778-813 scrubs their resolved values out of the job "
+    "directory afterwards). An empty table is provably inert: every consumer reads it "
+    "behind a truthiness test"
+)
+_MODELLED_ENVIRONMENT_VALUES: dict[str, _ModelledValue] = {
+    "os": _ModelledValue(
+        accepts=_is_default_task_os,
+        note=(
+            "v1 models only os = 'linux', which is the TaskOS default and therefore "
+            "identical to omitting the key. os = 'windows' is refused because Harbor "
+            "cannot enforce this workbench's isolation claim there: DockerEnvironment "
+            "raises 'Docker network allowlist and dynamic network policy are only "
+            "supported for Linux containers' whenever egress control is required "
+            "(environments/docker/docker.py:218-222), and egress control is required by "
+            "every network_mode other than public "
+            "(environments/docker/docker.py:265-275). A Windows task also switches the "
+            "file-transfer and exec platform and the artifact convention source, none of "
+            "which v1 reproduces"
+        ),
+    ),
+    "gpus": _ModelledValue(
+        accepts=_is_zero_gpus,
+        note=(
+            "v1 models only gpus = 0, which Harbor folds to the same 0 as omitting the "
+            "key (environments/base.py:367-369). A nonzero request cannot run under the "
+            "local controls the workbench executes at all — DockerEnvironment leaves "
+            "EnvironmentCapabilities.gpus at False, so Harbor raises 'Task requires N "
+            "GPU(s) but docker environment does not support GPU allocation' "
+            "(environments/base.py:745-750) — and the GPU-capable environments it steers "
+            "to are cloud providers whose isolation v1 does not model"
+        ),
+    ),
+    "mcp_servers": _ModelledValue(
+        accepts=_is_empty_array,
+        note=(
+            "v1 models only an empty mcp_servers array. Harbor merges every declared "
+            "server straight into the agent's constructor kwargs with no network-policy "
+            "filter (trial/trial.py:829-837), and MCPServerConfig admits both a remote "
+            "url for the sse and streamable-http transports and a command the stdio "
+            "transport spawns (models/task/config.py:616-636). That is an egress and exec "
+            "path granted beside the network_mode this workbench reasons about, and the "
+            "workbench cannot review the server behind it"
+        ),
+    ),
+    "env": _ModelledValue(accepts=_is_empty_table, note=_EMPTY_ENV_NOTE),
+}
+# Keyed by the dotted spec `_scan_supported_table` computes, so one entry covers
+# a key wherever it is reachable. `[verifier.environment]` reuses
+# `EnvironmentConfig` verbatim, so it inherits the same value models.
+_MODELLED_CONSTRUCT_VALUES: dict[str, _ModelledValue] = {
+    **{f"environment.{key}": model for key, model in _MODELLED_ENVIRONMENT_VALUES.items()},
+    **{
+        f"verifier.environment.{key}": model
+        for key, model in _MODELLED_ENVIRONMENT_VALUES.items()
+    },
+    "verifier.env": _ModelledValue(accepts=_is_empty_table, note=_EMPTY_ENV_NOTE),
+    "solution.env": _ModelledValue(accepts=_is_empty_table, note=_EMPTY_ENV_NOTE),
+    "verifier.collect": _ModelledValue(
+        accepts=_is_empty_array,
+        note=(
+            "v1 models only an empty collect array. Each hook is a shell command Harbor "
+            "runs with service_exec inside a compose service after the agent phase and "
+            "before artifact collection, best-effort, with a nonzero exit only logged "
+            "(trial/trial.py:999-1029). It is therefore an unscanned command executing "
+            "under the agent environment's network policy, in a service the workbench's "
+            "build-context scan never sees"
+        ),
     ),
 }
 NETWORK_SCRIPT_PATTERN = re.compile(
@@ -659,8 +807,8 @@ def _parse_task_toml(path: Path, diagnostics: list[Diagnostic]) -> dict[str, Any
 _MISSING = object()
 
 
-def _unsupported_configuration(location: str) -> Diagnostic:
-    note = _UNSUPPORTED_CONFIG_NOTES.get(location)
+def _unsupported_configuration(location: str, note: str | None = None) -> Diagnostic:
+    note = note or _UNSUPPORTED_CONFIG_NOTES.get(location)
     detail = f"; {note}" if note else ""
     return _diag(
         "unsupported_task_configuration",
@@ -699,6 +847,15 @@ def _scan_supported_table(
         child_location = f"{location}.{key}" if location else key
         if key not in allowed:
             diagnostics.append(_unsupported_configuration(child_location))
+            continue
+        model = _MODELLED_CONSTRUCT_VALUES.get(child_spec)
+        if model is not None:
+            # A key admitted for one value is decided by that value and never
+            # descended into: the accepted shape is empty or scalar by
+            # construction, so there is nothing below it, and descending would
+            # let an unmodelled child pass under an allowlisted parent.
+            if not model.accepts(table[key]):
+                diagnostics.append(_unsupported_configuration(child_location, model.note))
             continue
         _scan_supported_value(table[key], child_spec, child_location, diagnostics)
 

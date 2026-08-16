@@ -8,15 +8,19 @@ import subprocess
 import tomllib
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
 
 from evallab.task_workbench import (
+    _MODELLED_CONSTRUCT_VALUES,
+    _SUPPORTED_ENVIRONMENT_KEYS,
     BUILD_NETWORK_PATTERN,
     NETWORK_OVERLAY_CONTENT,
     NETWORK_OVERLAY_RELATIVE,
     NETWORK_SCRIPT_PATTERN,
+    SUPPORTED_TASK_CONFIG,
     CandidateSource,
     ControlBundle,
     ControlObservation,
@@ -70,19 +74,50 @@ print(json.dumps(results))
 """
 
 
-def _harbor_resolution(documents: list[str]) -> list[list[list[str] | None]]:
+def _harbor_probe(script: str, documents: list[str]) -> object:
+    """Run `script` over `documents` inside Harbor's own interpreter."""
     executable = shutil.which("harbor")
     interpreter = Path(executable).resolve().parent / "python" if executable else None
     if interpreter is None or not interpreter.exists():
         pytest.skip("harbor is not installed; cannot pin the mirror against its resolver")
     completed = subprocess.run(
-        [str(interpreter), "-c", _HARBOR_RESOLUTION_PROBE],
+        [str(interpreter), "-c", script],
         input=json.dumps(documents),
         capture_output=True,
         text=True,
         check=True,
     )
     return json.loads(completed.stdout)
+
+
+def _harbor_resolution(documents: list[str]) -> list[list[list[str] | None]]:
+    return cast("list[list[list[str] | None]]", _harbor_probe(_HARBOR_RESOLUTION_PROBE, documents))
+
+
+# The F-06 widening rests on each admitted value being one Harbor folds away.
+# This probe resolves whole documents through Harbor's own model so that claim is
+# pinned against Harbor 0.21.0 rather than against a reading of it.
+_HARBOR_TASK_CONFIG_PROBE = """
+import json, sys, tomllib
+
+from harbor.models.task.config import TaskConfig
+
+results = []
+for document in json.loads(sys.stdin.read()):
+    config = TaskConfig.model_validate(tomllib.loads(document))
+    results.append(
+        {
+            "dump": config.model_dump(mode="json"),
+            # harbor/environments/base.py:367-369
+            "effective_gpus": config.environment.gpus or 0,
+        }
+    )
+print(json.dumps(results))
+"""
+
+
+def _harbor_task_configs(documents: list[str]) -> list[dict[str, object]]:
+    return cast("list[dict[str, object]]", _harbor_probe(_HARBOR_TASK_CONFIG_PROBE, documents))
 
 
 def _canonical(value: object) -> bytes:
@@ -850,7 +885,9 @@ def test_offline_build_commands_are_not_refused(tmp_path: Path, command: str) ->
          "task.authors[1].affiliation"),
         ('multi_step_reward_strategy = "final"\n', "multi_step_reward_strategy"),
         ('[environment.healthcheck]\ntest = "true"\n', "environment.healthcheck"),
-        ('[solution]\nenv = {}\n', "solution"),
+        # `[solution]` itself is now modelled, so the refusal that proves the
+        # table is closed is an unknown key inside it, not the table's presence.
+        ('[solution]\nseed = 1\n', "solution.seed"),
     ],
 )
 def test_unsupported_task_configuration_names_the_exact_offending_path(
@@ -883,6 +920,266 @@ def test_reference_fixture_stays_inside_the_supported_configuration_surface(
 
     assert inspection.static_passed
     assert "unsupported_task_configuration" not in _codes(inspection)
+
+
+# --- M009 F-06: the surface widened to the real task library ------------------
+
+
+def test_inert_real_library_constructs_certify(tmp_path: Path) -> None:
+    """The shape `library/tasks/` actually declares must certify (M009 F-06).
+
+    Before this, `environment.mcp_servers = []`, `environment.os = "linux"`,
+    `verifier.collect = []`, `gpus = 0`, and the empty `[environment.env]`,
+    `[verifier.env]`, and `[solution.env]` tables were each refused as outside
+    the modelled surface, which gave the workbench zero coverage of the four
+    in-repo tasks. Every one of those declarations is inert in Harbor 0.21.0, so
+    a document carrying all of them must be indistinguishable from one omitting
+    them.
+    """
+    repo, task = _copy_candidate(tmp_path, "inert-surface")
+    inspection = _inspect(repo, task)
+
+    assert inspection.static_passed
+    assert _codes(inspection) == set()
+
+
+def test_inert_declarations_do_not_change_the_frozen_candidate_identity(
+    tmp_path: Path,
+) -> None:
+    """Admitting the keys must not alter what the workbench certifies *about*.
+
+    The inert document and the reference document differ only in declarations
+    Harbor folds to the same effective configuration, so every derived judgement
+    — the resolved network policy above all — must be identical. This is the
+    assertion that would fail if a widened key silently fed the network mirror.
+    """
+    plain_repo, plain_task = _copy_candidate(tmp_path / "plain")
+    inert_repo, inert_task = _copy_candidate(tmp_path / "inert", "inert-surface")
+
+    plain = _inspect(plain_repo, plain_task).candidate
+    inert = _inspect(inert_repo, inert_task).candidate
+
+    assert inert["network_policy"] == plain["network_policy"]
+    # The task bytes differ, so the package digest must differ; the point is that
+    # nothing *derived from* the configuration does.
+    assert inert["digests"]["package"] != plain["digests"]["package"]
+
+
+@pytest.mark.parametrize(
+    ("inject_after", "addition", "location"),
+    [
+        # environment.* — injected into the existing [environment] table, since
+        # TOML forbids declaring the same table twice.
+        ('network_mode = "no-network"', 'os = "windows"\n', "environment.os"),
+        ('network_mode = "no-network"', 'os = "Windows"\n', "environment.os"),
+        ('network_mode = "no-network"', "gpus = 1\n", "environment.gpus"),
+        ('network_mode = "no-network"', "gpus = true\n", "environment.gpus"),
+        (
+            'network_mode = "no-network"',
+            'mcp_servers = [{ name = "docs", url = "https://example.invalid" }]\n',
+            "environment.mcp_servers",
+        ),
+        (
+            'network_mode = "no-network"',
+            'mcp_servers = [{ name = "local", transport = "stdio", command = "/bin/sh" }]\n',
+            "environment.mcp_servers",
+        ),
+        ('network_mode = "no-network"', 'env = { TOKEN = "${TOKEN}" }\n', "environment.env"),
+        ('network_mode = "no-network"', 'env = { SEED = "1" }\n', "environment.env"),
+        # verifier.* and solution.* — appended as their own tables.
+        (None, '[[verifier.collect]]\ncommand = "pg_dump > /tmp/state.sql"\n', "verifier.collect"),
+        (None, '[verifier.env]\nOPENAI_API_KEY = "${OPENAI_API_KEY}"\n', "verifier.env"),
+        (None, '[solution.env]\nSEED = "1"\n', "solution.env"),
+        # The same value models must hold on the verifier side of the surface.
+        (
+            None,
+            '[verifier.environment]\nnetwork_mode = "no-network"\nos = "windows"\n',
+            "verifier.environment.os",
+        ),
+        (
+            None,
+            '[verifier.environment]\nnetwork_mode = "no-network"\n'
+            'mcp_servers = [{ name = "docs", url = "https://example.invalid" }]\n',
+            "verifier.environment.mcp_servers",
+        ),
+        (
+            None,
+            '[verifier.environment]\nnetwork_mode = "no-network"\nenv = { TOKEN = "x" }\n',
+            "verifier.environment.env",
+        ),
+        (
+            None,
+            '[verifier.environment]\nnetwork_mode = "no-network"\ngpus = 2\n',
+            "verifier.environment.gpus",
+        ),
+    ],
+)
+def test_a_widened_key_is_admitted_for_its_inert_value_only(
+    tmp_path: Path, inject_after: str | None, addition: str, location: str
+) -> None:
+    """Each key widened for F-06 still refuses every value v1 cannot reproduce.
+
+    This is the check the module's own rule demands arrive with each admitted
+    key. Without it, widening the allowlist would reopen precisely the silent
+    hole the allowlist exists to close: an inert `mcp_servers = []` and a
+    populated one are the same key.
+    """
+    repo, task = _copy_candidate(
+        tmp_path / re.sub(r"[^a-z0-9]+", "-", f"{location}-{addition}".lower())[:60]
+    )
+    config = (task / "task.toml").read_text()
+    if inject_after is None:
+        document = config + "\n" + addition
+    else:
+        assert config.count(inject_after) == 1
+        document = config.replace(inject_after, inject_after + "\n" + addition.rstrip("\n"))
+    (task / "task.toml").write_text(document)
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    refusals = {
+        item.message.split(" is outside", 1)[0]: item
+        for item in inspection.diagnostics
+        if item.code == "unsupported_task_configuration"
+    }
+    assert location in refusals
+    # A construct v1 declines to model is a limitation of the workbench, so the
+    # task is left uncertifiable rather than blamed.
+    assert refusals[location].classification == "harness_defect"
+    assert refusals[location].severity == "error"
+
+
+def test_admitted_values_are_inert_in_harbor_itself() -> None:
+    """Pin "the admitted value is one Harbor folds away" against Harbor 0.21.0.
+
+    Every refusal note in `_MODELLED_CONSTRUCT_VALUES` cites Harbor source, but
+    the *acceptances* need the same standard: if `os = "linux"` or
+    `mcp_servers = []` changed the resolved configuration, admitting them would
+    be a hole rather than a widening. This resolves the documents through
+    Harbor's own `TaskConfig` and compares.
+    """
+    reference = (VALID / "task.toml").read_text()
+    assert reference.count('network_mode = "no-network"') == 1
+    declared = (
+        reference.replace(
+            'network_mode = "no-network"',
+            'network_mode = "no-network"\nos = "linux"\nmcp_servers = []\nenv = {}',
+        )
+        + "\n[verifier.env]\n\n[solution.env]\n"
+    )
+    plain, inert = _harbor_task_configs([reference, declared])
+
+    # `os`, `mcp_servers`, and the three `env` tables are byte-identical after
+    # resolution: Harbor's defaults are exactly the values the task library
+    # spells out, so the declarations carry no information at all.
+    assert inert["dump"] == plain["dump"]
+
+    # `gpus = 0` is the one admitted value that is *not* field-identical to
+    # omission — Harbor stores `0` where an absent key leaves `None` — so the
+    # equivalence is asserted where it actually holds, at the fold Harbor applies
+    # before using it. Admitting the key on a field-level comparison alone would
+    # have been the unexamined step.
+    with_gpus = reference.replace("cpus = 1", "cpus = 1\ngpus = 0", 1)
+    plain_gpus, zero_gpus = _harbor_task_configs([reference, with_gpus])
+    assert plain_gpus["dump"]["environment"]["gpus"] is None  # type: ignore[index]
+    assert zero_gpus["dump"]["environment"]["gpus"] == 0  # type: ignore[index]
+    assert zero_gpus["effective_gpus"] == plain_gpus["effective_gpus"] == 0
+
+
+def test_every_key_admitted_for_one_value_arrives_with_that_value_model() -> None:
+    """The module's binding rule, made executable.
+
+    `SUPPORTED_TASK_CONFIG` is pinned as a literal so widening it cannot happen
+    without editing this test, and every construct admitted for a single value
+    must have a live `_MODELLED_CONSTRUCT_VALUES` entry. The reverse direction
+    matters more: a value model whose spec no longer exists in the allowlist is
+    a check that silently stopped running, which is how the two earlier review
+    rounds each found a fresh hole.
+    """
+    assert set(_SUPPORTED_ENVIRONMENT_KEYS) == {
+        "network_mode",
+        "docker_image",
+        "build_timeout_sec",
+        "cpus",
+        "memory_mb",
+        "storage_mb",
+        "os",
+        "gpus",
+        "mcp_servers",
+        "env",
+    }
+    assert SUPPORTED_TASK_CONFIG[""] == {
+        "schema_version",
+        "artifacts",
+        "task",
+        "metadata",
+        "agent",
+        "verifier",
+        "environment",
+        "solution",
+    }
+    assert SUPPORTED_TASK_CONFIG["verifier"] == {
+        "timeout_sec",
+        "environment_mode",
+        "network_mode",
+        "environment",
+        "collect",
+        "env",
+    }
+    assert SUPPORTED_TASK_CONFIG["solution"] == {"env"}
+
+    # Every key admitted for exactly one value carries the model that decides it.
+    admitted_for_one_value = {
+        "environment.os",
+        "environment.gpus",
+        "environment.mcp_servers",
+        "environment.env",
+        "verifier.environment.os",
+        "verifier.environment.gpus",
+        "verifier.environment.mcp_servers",
+        "verifier.environment.env",
+        "verifier.collect",
+        "verifier.env",
+        "solution.env",
+    }
+    assert set(_MODELLED_CONSTRUCT_VALUES) == admitted_for_one_value
+
+    # No model is dead: each spec is a key the allowlist actually admits, so a
+    # rename cannot leave the check unreachable.
+    for spec in _MODELLED_CONSTRUCT_VALUES:
+        parent, _, key = spec.rpartition(".")
+        allowed = SUPPORTED_TASK_CONFIG[parent]
+        assert allowed is not None and key in allowed, spec
+
+    # Each note cites the Harbor behaviour that makes the refusal a fact rather
+    # than a preference.
+    for spec, model in _MODELLED_CONSTRUCT_VALUES.items():
+        assert re.search(r"\.py:\d+", model.note), spec
+
+
+def test_deprecated_allow_internet_alias_is_still_refused(tmp_path: Path) -> None:
+    """A network-policy alias v1 does not mirror stays refused after the widening.
+
+    `library/tasks/query-optimize` declares `allow_internet = true` with no
+    `network_mode`, so Harbor's validator sets the policy to `public` behind the
+    workbench's back. Mirroring that would mean a second network resolver beside
+    `_effective_verifier_network`; the task states its policy explicitly instead.
+    """
+    repo, task = _copy_candidate(tmp_path / "allow-internet")
+    config = (task / "task.toml").read_text()
+    (task / "task.toml").write_text(
+        config.replace('network_mode = "no-network"', "allow_internet = false", 1)
+    )
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    refusal = next(
+        item
+        for item in inspection.diagnostics
+        if item.code == "unsupported_task_configuration"
+    )
+    assert refusal.message.startswith("environment.allow_internet is outside")
+    assert "Declare network_mode explicitly instead" in refusal.message
 
 
 def _verifier_network_documents() -> list[tuple[str, str, str, str]]:

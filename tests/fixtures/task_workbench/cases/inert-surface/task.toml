@@ -1,0 +1,71 @@
+# The reference fixture plus every construct M009 F-06 found the workbench
+# refusing on the real task library, each carrying the inert value the real
+# packages actually declare: `library/tasks/event-summary` declares
+# `mcp_servers = []`, `os = "linux"`, and `collect = []`;
+# `library/tasks/transaction-reconciliation` adds the empty `[environment.env]`,
+# `[verifier.env]`, and `[solution.env]` tables; `library/tasks/query-optimize`
+# and `library/tasks/terminal-bench-html-js-filter` add `gpus = 0`. This document
+# must certify: an inert declaration is equivalent to omitting the key, and if it
+# does not certify, the workbench still has zero coverage of the task library.
+#
+# `[verifier.environment]` is present so the same widened keys are exercised on
+# the verifier side of the surface, where `EnvironmentConfig` is reused verbatim.
+# It declares `network_mode` explicitly because Harbor's EnvironmentConfig
+# defaults it to `public` rather than inheriting `[environment]`, and that
+# resolves to the same effective baseline the reference document inherits.
+#
+# Nothing else here is a policy declaration: `[verifier].network_mode` is
+# deliberately absent, because this document must differ from the reference one
+# only in declarations Harbor folds away, which is what
+# `test_inert_declarations_do_not_change_the_frozen_candidate_identity` asserts.
+schema_version = "1.4"
+artifacts = ["/app/output/result.txt"]
+
+[task]
+name = "local-lab/uppercase-fixture"
+version = "1.0.0"
+description = "Uppercase one pinned input file without changing the source"
+keywords = ["shell", "text", "deterministic", "separate-verifier"]
+
+[[task.authors]]
+name = "Eval Lab"
+email = "eval-lab@example.invalid"
+
+[metadata]
+difficulty = "easy"
+category = "file-processing"
+tags = ["offline", "fixture", "mutation-tested"]
+
+[agent]
+timeout_sec = 30.0
+
+[verifier]
+timeout_sec = 30.0
+environment_mode = "separate"
+collect = []
+env = {}
+
+[verifier.environment]
+network_mode = "no-network"
+build_timeout_sec = 120.0
+cpus = 1
+memory_mb = 256
+storage_mb = 512
+os = "linux"
+gpus = 0
+mcp_servers = []
+env = {}
+
+[environment]
+network_mode = "no-network"
+build_timeout_sec = 120.0
+cpus = 1
+memory_mb = 256
+storage_mb = 512
+os = "linux"
+gpus = 0
+mcp_servers = []
+env = {}
+
+[solution]
+env = {}

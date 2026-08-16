@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: archived the five handoffs that merged today 1:1 by git mv into agents/archive/2026-08-15-handoffs/, rewrote agents/missions/ACTIVE.md to current truth, and carried four follow-ups onto the board as Mission candidate rows
-Next: integrator review and merge of the BOARD-REFRESH PR; do not merge from this role
+Last: opened PR #55 after archiving the five handoffs that merged today 1:1 by git mv into agents/archive/2026-08-15-handoffs/, rewriting agents/missions/ACTIVE.md to current truth, and carrying four follow-ups onto the board as Mission candidate rows
+Next: integrator review and merge decision on PR #55 at its current head; do not merge from this role
 Blockers: none
 
 # BOARD-REFRESH handoff

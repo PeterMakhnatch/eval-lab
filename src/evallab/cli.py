@@ -595,12 +595,17 @@ def _doctor(root: Path) -> int:
     checks = Executor.from_repo(root).local_runtime_checks()
 
     database_url = database_url_from_environment()
+    # The same green `catalog-parquet` line reported catalog=69 and catalog=4
+    # in one M009 session because DATABASE_URL differed between shells. Name
+    # the database on the line itself; `identity` never returns a credential
+    # even when the connection string carries a password (F-11).
+    catalog = f"db={database.identity(database_url)}"
     try:
         detail = database.ping(database_url)
         checks.append(("postgres", True, detail))
     except Exception as exc:  # Doctor should report all checks, not stop at the first.
         checks.append(("postgres", False, f"unavailable: {type(exc).__name__}"))
-        checks.append(("catalog-parquet", False, "catalog unavailable"))
+        checks.append(("catalog-parquet", False, f"catalog unavailable {catalog}"))
     else:
         try:
             invariant = check_projection_invariant(
@@ -609,9 +614,11 @@ def _doctor(root: Path) -> int:
                 root / "queue/events.jsonl",
             )
         except Exception as exc:
-            checks.append(("catalog-parquet", False, f"unavailable: {type(exc).__name__}"))
+            checks.append(
+                ("catalog-parquet", False, f"unavailable: {type(exc).__name__} {catalog}")
+            )
         else:
-            checks.append(("catalog-parquet", invariant.ok, invariant.detail))
+            checks.append(("catalog-parquet", invariant.ok, f"{invariant.detail} {catalog}"))
 
     task_toml = root / "library/tasks/event-summary/task.toml"
     checks.append(("task", task_toml.is_file(), "event-summary"))

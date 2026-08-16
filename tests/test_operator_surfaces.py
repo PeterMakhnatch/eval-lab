@@ -179,3 +179,78 @@ def test_analyze_review_on_a_missing_sidecar_says_what_to_pass(
     err = capsys.readouterr().err
     assert "no analysis sidecar at" in err
     assert "derived/analyses/<analysis_id>/analysis.json" in err
+
+
+# ---- F-11: doctor names the database it inspected, never the password -------
+
+
+def test_doctor_names_the_catalog_it_inspected_without_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from evallab.atif import ProjectionInvariant
+
+    task = tmp_path / "library/tasks/event-summary/task.toml"
+    task.parent.mkdir(parents=True)
+    task.write_text("version = 1\n")
+    monkeypatch.setenv("DATABASE_URL", CATALOG_URL)
+    monkeypatch.setattr(
+        cli.Executor,
+        "from_repo",
+        lambda root: type("R", (), {"local_runtime_checks": lambda self: []})(),
+    )
+    monkeypatch.setattr(cli.database, "ping", lambda url: "PostgreSQL 16")
+    monkeypatch.setattr(
+        cli,
+        "check_projection_invariant",
+        lambda url, output, events: ProjectionInvariant(
+            catalog_job_ids=frozenset({"job"}),
+            projected_job_ids=frozenset({"job"}),
+            excepted_job_ids=frozenset(),
+            missing_job_ids=frozenset(),
+            extra_job_ids=frozenset(),
+        ),
+    )
+
+    assert cli._doctor(tmp_path) == 0
+
+    out = capsys.readouterr().out
+    catalog_line = next(line for line in out.splitlines() if "catalog-parquet" in line)
+    assert "catalog=1 projected=1" in catalog_line  # the counts stay first
+    assert "db=catalog.test:54329/evallab" in catalog_line
+    assert "local-development-only" not in out
+    assert "local-development-only" not in capsys.readouterr().err
+
+
+def test_doctor_names_the_catalog_even_when_postgres_is_unreachable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    task = tmp_path / "library/tasks/event-summary/task.toml"
+    task.parent.mkdir(parents=True)
+    task.write_text("version = 1\n")
+    monkeypatch.setenv("DATABASE_URL", CATALOG_URL)
+    monkeypatch.setattr(
+        cli.Executor,
+        "from_repo",
+        lambda root: type("R", (), {"local_runtime_checks": lambda self: []})(),
+    )
+
+    def refuse(url: str) -> str:
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(cli.database, "ping", refuse)
+
+    assert cli._doctor(tmp_path) == 1
+
+    out = capsys.readouterr().out
+    catalog_line = next(line for line in out.splitlines() if "catalog-parquet" in line)
+    assert "db=catalog.test:54329/evallab" in catalog_line
+    assert "local-development-only" not in out
+
+
+def test_database_identity_never_returns_a_password() -> None:
+    assert database.identity(CATALOG_URL) == "catalog.test:54329/evallab"
+    assert database.identity("host=db port=6000 dbname=c password=hunter2") == "db:6000/c"
+    assert "hunter2" not in database.identity("host=db port=6000 dbname=c password=hunter2")
+    assert database.identity("=== not a connection string") == "unparsable connection string"
+
+

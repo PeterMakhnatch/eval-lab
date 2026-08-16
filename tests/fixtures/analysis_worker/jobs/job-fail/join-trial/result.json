@@ -1,0 +1,17 @@
+{
+ "id": "bbbbbbb1-2222-4222-8222-222222222221",
+ "task_name": "local-lab/event-summary",
+ "trial_name": "join-trial",
+ "agent_info": {
+  "name": "oracle",
+  "model_info": null
+ },
+ "verifier_result": {
+  "rewards": {
+   "reward": 0.0
+  }
+ },
+ "exception_info": null,
+ "started_at": "2026-08-14T00:00:00.000000Z",
+ "finished_at": "2026-08-14T00:00:01.000000Z"
+}

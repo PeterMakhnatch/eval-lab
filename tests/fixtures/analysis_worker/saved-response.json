@@ -1,0 +1,19 @@
+{
+ "validity": "valid_agent_attempt",
+ "primary_category": "tool_use",
+ "summary": "build command failed and the agent stopped",
+ "earliest_failure_step_id": 1,
+ "evidence": [
+  {
+   "path": "agent/trajectory.json",
+   "step_id": 1,
+   "tool_call_id": "call_1",
+   "supports": "make exited 1"
+  }
+ ],
+ "alternative_explanations": [
+  "environment missing make"
+ ],
+ "proposed_discriminator": "rerun with make --version",
+ "confidence": "medium"
+}

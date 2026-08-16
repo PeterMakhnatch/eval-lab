@@ -5,7 +5,7 @@ import plistlib
 import shlex
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -41,6 +41,37 @@ ResearcherPass = Callable[[date], int]
 DigestEnricher = Callable[[Path, date], None]
 CompletedJobIngester = Callable[[], IngestProjectionResult]
 DatabaseBackup = Callable[[date], Path]
+
+
+def _analysis_stage_issue_reason(report: object, *, limit: int = 512) -> str | None:
+    """Return one bounded summary for non-throwing stage failures."""
+
+    def counts(name: str) -> dict[str, int]:
+        value = getattr(report, name, {})
+        if not isinstance(value, Mapping):
+            return {}
+        return {
+            str(reason): int(count)
+            for reason, count in value.items()
+            if isinstance(count, int) and count > 0
+        }
+
+    quarantined = counts("quarantined")
+    errors = counts("errors")
+    quarantined_total = sum(quarantined.values())
+    error_total = sum(errors.values())
+    if quarantined_total == 0 and error_total == 0:
+        return None
+    details = [
+        *(f"{reason}={count}" for reason, count in sorted(quarantined.items())),
+        *(f"error:{reason}={count}" for reason, count in sorted(errors.items())),
+    ]
+    reason = (
+        "analysis_stage_reported_issues:"
+        f"quarantined={quarantined_total};errors={error_total};"
+        f"reasons={','.join(details)}"
+    )
+    return reason[:limit]
 
 
 def _quiet_command_succeeds(command: list[str]) -> bool:
@@ -264,6 +295,7 @@ class NightlyCycle:
         digest_enricher: DigestEnricher | None = None,
         completed_job_ingester: CompletedJobIngester | None = None,
         database_backup: DatabaseBackup | None = None,
+        analysis_stager: Callable[[], object] | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
@@ -274,6 +306,10 @@ class NightlyCycle:
         self.digest_enricher = digest_enricher
         self.completed_job_ingester = completed_job_ingester
         self.database_backup = database_backup
+        # M006: nightly may DISCOVER/STAGE analysis requests only. Staging
+        # freezes identity and never calls a model; execution requires the
+        # worker's own admission path in an operator-driven invocation.
+        self.analysis_stager = analysis_stager
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
@@ -306,6 +342,40 @@ class NightlyCycle:
                     actor="nightly",
                     spec_id=f"system-{new_ulid()}",
                 )
+                # M006: stage analysis requests ONLY after successful ingest.
+                # Staging freezes identity and cannot call a model; a failure
+                # is a durable event, never silent suppression.
+                if self.analysis_stager is not None:
+                    try:
+                        stage_result = self.analysis_stager()
+                    except Exception as exc:
+                        self.executor.queue.append_event(
+                            QueueEvent(
+                                event_id=new_ulid(),
+                                spec_id=f"system-{new_ulid()}",
+                                occurred_at=date_time_now(),
+                                event="analysis_stage_failed",
+                                actor="nightly",
+                                reason_code=(
+                                    f"analysis_stage_failed:{type(exc).__name__}"
+                                ),
+                                report_date=target_date.isoformat(),
+                            )
+                        )
+                    else:
+                        issue_reason = _analysis_stage_issue_reason(stage_result)
+                        if issue_reason is not None:
+                            self.executor.queue.append_event(
+                                QueueEvent(
+                                    event_id=new_ulid(),
+                                    spec_id=f"system-{new_ulid()}",
+                                    occurred_at=date_time_now(),
+                                    event="analysis_stage_reported_issues",
+                                    actor="nightly",
+                                    reason_code=issue_reason,
+                                    report_date=target_date.isoformat(),
+                                )
+                            )
         if report.healthy and not quarantined and self.database_backup is not None:
             try:
                 backup_path = self.database_backup(target_date)

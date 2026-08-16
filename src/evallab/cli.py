@@ -364,6 +364,25 @@ def parser() -> argparse.ArgumentParser:
     analyze_plan_parser.add_argument(
         "--output-dir", type=Path, default=Path("derived/analyses")
     )
+    analyze_commands.add_parser(
+        "worker-plan", help="Read-only: what an analysis-worker cycle would do"
+    )
+    analyze_commands.add_parser(
+        "worker-status", help="Read-only: analysis request counts and states"
+    )
+    analyze_worker_run = analyze_commands.add_parser(
+        "worker-run-one", help="Run ONE request through normal admission (never self-approves)"
+    )
+    analyze_worker_run.add_argument("request_id")
+    analyze_worker_resolve = analyze_commands.add_parser(
+        "worker-resolve-ambiguous",
+        help="Explicitly retry or quarantine one possibly-paid ambiguous invocation",
+    )
+    analyze_worker_resolve.add_argument("request_id")
+    analyze_worker_resolve.add_argument(
+        "--action", choices=("retry", "quarantine"), required=True
+    )
+    analyze_worker_resolve.add_argument("--actor", required=True)
     analyze_stub = analyze_commands.add_parser(
         "stub", help="Validate a saved response and write an immutable sidecar"
     )
@@ -1005,6 +1024,7 @@ def run_cli(
                     output_root=derived_root_from_environment(root),
                 ),
                 database_backup=lambda day: create_postgres_backup(root, day),
+                analysis_stager=_nightly_analysis_stager(root),
             ).run(report_date=args.report_date)
             print(f"digest: {result.digest_path}")
             print(
@@ -1216,6 +1236,32 @@ def run_cli(
             print(f"analysis: {sidecar_path}")
             print(f"validation: {sidecar.validation_status}")
             return 0 if sidecar.validation_status == "valid" else 1
+        if args.command == "analyze" and args.analyze_command in {
+            "worker-plan",
+            "worker-status",
+            "worker-run-one",
+            "worker-resolve-ambiguous",
+        }:
+            from evallab.analysis_worker import default_job_roots, default_worker
+
+            worker = default_worker(root)
+            if args.analyze_command == "worker-plan":
+                print(json.dumps(worker.plan(default_job_roots(root)), indent=2))
+                return 0
+            if args.analyze_command == "worker-status":
+                print(json.dumps(worker.status(), indent=2))
+                return 0
+            if args.analyze_command == "worker-resolve-ambiguous":
+                transition = worker.resolve_ambiguous(
+                    args.request_id,
+                    action=args.action,
+                    actor=args.actor,
+                )
+                print(json.dumps({"state": transition.state, "reason": transition.reason}))
+                return 0
+            transition = worker.run_one(args.request_id)
+            print(json.dumps({"state": transition.state, "reason": transition.reason}))
+            return 0 if transition.state == "completed" else 1
         if args.command == "analyze" and args.analyze_command == "ingest-sidecar":
             sidecar_path = _resolve(root, args.path)
             url = database_url_from_environment(args.database_url)
@@ -1332,6 +1378,17 @@ def _nightly_digest_enricher(root: Path, get_loop: Callable[[], ResearcherLoop])
         append_gc_plan_to_digest(path, nightly_gc_plan(root))
 
     return enrich
+
+
+def _nightly_analysis_stager(root: Path) -> Callable[[], object]:
+    """Stage-only completion hook (M006): freezes identity, never calls."""
+
+    def stage() -> object:
+        from evallab.analysis_worker import default_job_roots, default_worker
+
+        return default_worker(root).stage(default_job_roots(root))
+
+    return stage
 
 
 def _digest_renderer(root: Path) -> DigestRenderer:

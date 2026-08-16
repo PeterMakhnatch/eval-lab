@@ -37,9 +37,13 @@ digests are the same three already quoted in
 `source` `system` or `user` carried the verbatim Codex vendor system prompt, and
 `agent/sessions/*.jsonl` carried `payload.encrypted_content`, both barred by
 `AGENTS.md`. Rules R1/R2/R3 and per-file parent digests are in each bundle's
-`PROMOTION.json`; `research/evidence/README.md` explains what was dropped.
-Runtime `queue/` locations, the 2026-08-14 waves and the `-r2` re-runs remain
-unpromoted and are still not versioned local references.
+`PROMOTION.json`; `research/evidence/README.md` explains what was dropped. The
+redaction keeps the documents valid ATIF at `agent/trajectory.json`, so
+`evallab trajectories` reports `valid` for all nine promoted trials. Each now
+carries a failure-taxonomy label under `research/calibration/trajectory-labels/`;
+those nine are **drafts** (`review_status: draft_pending_research_review`) and are
+not reviewed ground truth. Runtime `queue/` locations, the 2026-08-14 waves and
+the `-r2` re-runs remain unpromoted and are still not versioned local references.
 
 ## RUNNING NOW
 

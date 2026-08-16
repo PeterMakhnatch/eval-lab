@@ -1,7 +1,7 @@
 Status: review-wanted
 Last: cleared all four CI findings on PR #58 — fixed R1 so the nine promoted trajectories are valid ATIF at the canonical agent/trajectory.json path (evallab trajectories now reports valid for all nine, 126 steps, 58 tool calls), drafted the nine failure-taxonomy labels so UNLABELED_OR_BAD is 0 with the invariant unchanged, excluded promoted evidence from ruff instead of editing it, made two composition-hardcoded tests corpus-agnostic, and moved the promotion script to scripts/ as the Integrator directed; 527 passed, ruff clean, PROGRAM.json OK
-Next: integrator review of PR #58 at its current head — above all the nine DRAFT labels (implementation on the three reward-0.0 html-js trials needs Research-lane review; unknown is the conservative alternative) and the redaction decision (option b); do not merge from this role
-Blockers: none
+Next: PerfRebaseline decides whether to pin scripts/profile/harness.py's corpus or re-baseline projection/facts (section 6.7) — I will carry whichever patch they specify; then integrator review of PR #58, above all the nine DRAFT labels (implementation on the three reward-0.0 html-js trials needs Research-lane review; unknown is the conservative alternative) and the redaction decision (option b); do not merge from this role
+Blockers: the perf gate is red and I must not fix it — scripts/profile/harness.py:47 profiles all of research/evidence/runs and budgets.json anchors projection/facts to "the committed 2-job evidence corpus", which this promotion takes to 5 jobs / 11 trials; projection 45.169 ms and facts 53.765 ms against a 37.500 ms ceiling, green on origin/main ad67126, and locally 2.9 ms vs 23.1 ms on identical code with only the corpus varying. Owner is PerfRebaseline; Main informed.
 
 # PROMOTE-EVIDENCE handoff
 
@@ -300,7 +300,7 @@ committed ledger   -> OK (no errors)
 Not run, deliberately: `scripts/premerge.sh`, any formatter, any `evallab`
 command that writes, `docker compose`, `evallab tick`.
 
-## 6. Round 2: the four CI findings
+## 6. Round 2: the CI findings
 
 PR #58 failed CI at `fcee3ce..e937de6`. The Integrator directed four fixes on the
 same branch, no second PR. Two of the three test failures were real findings
@@ -437,6 +437,54 @@ grow.
 agree — the evidence bucket should hold evidence, and the mechanism is
 Platform-lane tooling. `scripts/` is an existing root entry, so
 `agents/STRUCTURE.md` still needs no edit.
+
+### 6.7 A fifth finding I did NOT fix: the perf budget freezes the corpus too
+
+After round 2, `lint`, `test (3.12)`, `test (3.14)` and `ty` all pass on PR #58.
+`profile` fails:
+
+```text
+perf budget exceeded:
+  projection: median 45.169 ms exceeds budget 25.000 ms + 50% (ceiling 37.500 ms)
+  facts:      median 53.765 ms exceeds budget 25.000 ms + 50% (ceiling 37.500 ms)
+```
+
+**This is not a code regression.** `perf` is green on `origin/main` `ad67126` and
+red on this branch. `scripts/profile/harness.py:47` sets
+`DEFAULT_CORPUS = ("research/evidence/runs",)` and line 335 does
+`load_jobs(corpus_roots)`, so `projection` and `facts` scale with the committed
+evidence corpus. `scripts/profile/budgets.json` says so itself: the ceilings are
+"CI-local ceilings in milliseconds of median after warmup+5 reps **on the
+committed 2-job evidence corpus**", and it records that `projection` and `facts`
+are laptop-anchored and were never re-measured on CI, "so their true CI headroom
+is unknown". This promotion takes that corpus from 2 jobs / 2 trials to 5 jobs /
+11 trials.
+
+Measured locally, identical code, only the corpus varying:
+
+| corpus | jobs | trials | `export_facts` median |
+| --- | ---: | ---: | ---: |
+| controls only | 2 | 2 | 2.9 ms |
+| with this promotion | 5 | 11 | 23.1 ms |
+
+An 8× increase from corpus size alone. So this is the **same
+composition-freezing anti-pattern as the two tests in 6.5**, living in a perf
+budget instead of an assertion, and it will fail on every future promotion.
+
+**I deliberately did not touch it.** Re-scoping a gate so my own PR goes green is
+the move the Integrator told me not to make, and one CI observation is a weak
+basis beside the 14-run evidence behind the `ingest` re-baseline recorded in
+`budgets.json`. Perf budgets are `PerfRebaseline`'s; I asked them over IRC which
+of the two fixes they want — pin the harness corpus to a fixed set so the gate
+measures code speed rather than committed-evidence volume, or re-baseline
+`projection` and `facts` for the larger corpus — and offered to carry whichever
+patch they specify. My own recommendation is pinning the corpus, because a budget
+that scales with committed evidence penalises the lab for keeping records, which
+is the opposite of what F-05 wants; but that changes what the gate measures and is
+not my call.
+
+Until that is decided, **PR #58 has a real blocker** and holding or splitting the
+promotion is a legitimate outcome.
 
 ## Capability labels
 

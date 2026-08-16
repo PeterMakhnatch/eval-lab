@@ -8,6 +8,7 @@ import subprocess
 import tomllib
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
@@ -73,19 +74,50 @@ print(json.dumps(results))
 """
 
 
-def _harbor_resolution(documents: list[str]) -> list[list[list[str] | None]]:
+def _harbor_probe(script: str, documents: list[str]) -> object:
+    """Run `script` over `documents` inside Harbor's own interpreter."""
     executable = shutil.which("harbor")
     interpreter = Path(executable).resolve().parent / "python" if executable else None
     if interpreter is None or not interpreter.exists():
         pytest.skip("harbor is not installed; cannot pin the mirror against its resolver")
     completed = subprocess.run(
-        [str(interpreter), "-c", _HARBOR_RESOLUTION_PROBE],
+        [str(interpreter), "-c", script],
         input=json.dumps(documents),
         capture_output=True,
         text=True,
         check=True,
     )
     return json.loads(completed.stdout)
+
+
+def _harbor_resolution(documents: list[str]) -> list[list[list[str] | None]]:
+    return cast("list[list[list[str] | None]]", _harbor_probe(_HARBOR_RESOLUTION_PROBE, documents))
+
+
+# The F-06 widening rests on each admitted value being one Harbor folds away.
+# This probe resolves whole documents through Harbor's own model so that claim is
+# pinned against Harbor 0.21.0 rather than against a reading of it.
+_HARBOR_TASK_CONFIG_PROBE = """
+import json, sys, tomllib
+
+from harbor.models.task.config import TaskConfig
+
+results = []
+for document in json.loads(sys.stdin.read()):
+    config = TaskConfig.model_validate(tomllib.loads(document))
+    results.append(
+        {
+            "dump": config.model_dump(mode="json"),
+            # harbor/environments/base.py:367-369
+            "effective_gpus": config.environment.gpus or 0,
+        }
+    )
+print(json.dumps(results))
+"""
+
+
+def _harbor_task_configs(documents: list[str]) -> list[dict[str, object]]:
+    return cast("list[dict[str, object]]", _harbor_probe(_HARBOR_TASK_CONFIG_PROBE, documents))
 
 
 def _canonical(value: object) -> bytes:
@@ -1015,6 +1047,43 @@ def test_a_widened_key_is_admitted_for_its_inert_value_only(
     # task is left uncertifiable rather than blamed.
     assert refusals[location].classification == "harness_defect"
     assert refusals[location].severity == "error"
+
+
+def test_admitted_values_are_inert_in_harbor_itself() -> None:
+    """Pin "the admitted value is one Harbor folds away" against Harbor 0.21.0.
+
+    Every refusal note in `_MODELLED_CONSTRUCT_VALUES` cites Harbor source, but
+    the *acceptances* need the same standard: if `os = "linux"` or
+    `mcp_servers = []` changed the resolved configuration, admitting them would
+    be a hole rather than a widening. This resolves the documents through
+    Harbor's own `TaskConfig` and compares.
+    """
+    reference = (VALID / "task.toml").read_text()
+    assert reference.count('network_mode = "no-network"') == 1
+    declared = (
+        reference.replace(
+            'network_mode = "no-network"',
+            'network_mode = "no-network"\nos = "linux"\nmcp_servers = []\nenv = {}',
+        )
+        + "\n[verifier.env]\n\n[solution.env]\n"
+    )
+    plain, inert = _harbor_task_configs([reference, declared])
+
+    # `os`, `mcp_servers`, and the three `env` tables are byte-identical after
+    # resolution: Harbor's defaults are exactly the values the task library
+    # spells out, so the declarations carry no information at all.
+    assert inert["dump"] == plain["dump"]
+
+    # `gpus = 0` is the one admitted value that is *not* field-identical to
+    # omission — Harbor stores `0` where an absent key leaves `None` — so the
+    # equivalence is asserted where it actually holds, at the fold Harbor applies
+    # before using it. Admitting the key on a field-level comparison alone would
+    # have been the unexamined step.
+    with_gpus = reference.replace("cpus = 1", "cpus = 1\ngpus = 0", 1)
+    plain_gpus, zero_gpus = _harbor_task_configs([reference, with_gpus])
+    assert plain_gpus["dump"]["environment"]["gpus"] is None  # type: ignore[index]
+    assert zero_gpus["dump"]["environment"]["gpus"] == 0  # type: ignore[index]
+    assert zero_gpus["effective_gpus"] == plain_gpus["effective_gpus"] == 0
 
 
 def test_every_key_admitted_for_one_value_arrives_with_that_value_model() -> None:

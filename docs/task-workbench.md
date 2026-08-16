@@ -160,8 +160,9 @@ fails to reproduce is a silent hole: the task reaches Harbor with a policy the
 packet never examined. Two review rounds each found one, so the surface is now
 closed rather than open. `SUPPORTED_TASK_CONFIG` lists exactly what v1 models,
 and anything else is refused with `unsupported_task_configuration`, an error
-naming the offending path (`steps`, `verifier.collect`,
-`task.authors[1].affiliation`).
+naming the offending path (`steps`, `environment.healthcheck`,
+`task.authors[1].affiliation`). A handful of keys are admitted for one value
+only, and the same error names them when they carry any other value.
 
 What v1 accepts: `schema_version`, `artifacts`, `[task]` (`name`, `version`,
 `description`, `keywords`, `[[task.authors]]` with `name`/`email`), the
@@ -172,12 +173,52 @@ and `[environment]`/`[verifier.environment]` limited to `network_mode`,
 `[environment]` only — where it gets its own `prebuilt_image_unsupported`
 refusal.
 
-Everything else is refused, including `[[steps]]` and
-`multi_step_reward_strategy`, `[solution]`, `source`, `verifier.collect`,
-`verifier.env`, `verifier.user`, `agent.network_mode`, `agent.allowed_hosts`,
-`allowed_hosts`, the deprecated `allow_internet`, `mcp_servers`, `healthcheck`,
-`skills_dir`, `workdir`, `env`, `os`, `gpus`, `gpu_types`, `tpu`, and
-`docker_image` under `[verifier.environment]`.
+#### Keys admitted for one value only
+
+Seven further keys are admitted, but each for exactly one value: the inert one.
+M009 finding F-06 showed the surface above had been drawn from what the test
+fixtures declare rather than from what `library/tasks/` declares, so the
+workbench could not certify a single one of the four tasks this repository runs
+— `library/tasks/event-summary` alone tripped three refusals. Every real
+occurrence of these keys in the task library is empty or the schema default,
+which Harbor folds away, so admitting the inert value costs nothing while
+admitting the key outright would reopen the hole the closed surface exists to
+shut: an inert `mcp_servers = []` and a populated one are the same key.
+
+`_MODELLED_CONSTRUCT_VALUES` is that model, one entry per key per side, and each
+entry carries the Harbor 0.21.0 source line behind its refusal.
+
+| Key | Accepted value | Any other value is refused because |
+|---|---|---|
+| `os` (both tables) | `"linux"` | It is the `TaskOS` default. `os = "windows"` makes Harbor raise rather than enforce isolation: `DockerEnvironment` rejects Windows containers whenever egress control is required (`environments/docker/docker.py:218-222`), which is every `network_mode` other than `public` (`:265-275`). It also switches the file-transfer/exec platform and the artifact convention source. |
+| `gpus` (both tables) | `0` | Harbor folds `0` to the same value as omission (`environments/base.py:367-369`). A nonzero request cannot run under the local controls at all — `DockerEnvironment` leaves `EnvironmentCapabilities.gpus` at `False`, so Harbor raises (`environments/base.py:745-750`) — and the GPU-capable providers it steers to are cloud environments v1 does not model. |
+| `mcp_servers` (both tables) | `[]` | Harbor merges every declared server into the agent's constructor kwargs with no network-policy filter (`trial/trial.py:829-837`), and `MCPServerConfig` admits both a remote `url` and a `command` the stdio transport spawns (`models/task/config.py:616-636`). That is an egress and exec path beside the `network_mode` the workbench reasons about. |
+| `env` (`[environment]`, `[verifier.environment]`, `[verifier]`, `[solution]`) | empty table | `resolve_env_vars` substitutes `${VAR}` from the *host* environment at runtime and raises when it is unset (`utils/env.py:94-130`), so a populated table makes the container a function of the workstation and is the documented API-key channel (`verifier/verifier.py:166-171` warns about exactly that; `trial/trial.py:778-813` scrubs the resolved values afterwards). |
+| `verifier.collect` | `[]` | Each hook is a shell command run with `service_exec` inside a compose service after the agent phase, best-effort, a nonzero exit only logged (`trial/trial.py:999-1029`) — an unscanned command under the agent environment's network policy, in a service the build-context scan never sees. |
+
+`[solution]` is admitted as a table because `SolutionConfig` carries exactly one
+field, `env` (`models/task/config.py:335-336`); naming it closes the table.
+
+A key admitted for one value is decided by that value and never descended into,
+so an allowlisted parent cannot shelter an unmodelled child.
+
+Everything else is still refused, including `[[steps]]` and
+`multi_step_reward_strategy`, `source`, `verifier.user`, `agent.network_mode`,
+`agent.allowed_hosts`, `allowed_hosts`, `healthcheck`, `skills_dir`, `workdir`,
+`gpu_types`, `tpu`, and `docker_image` under `[verifier.environment]`.
+
+#### `allow_internet` is still refused, deliberately
+
+The deprecated `[environment].allow_internet` alias remains outside the surface
+even though `library/tasks/query-optimize` declares it. Harbor folds it into
+`network_mode` in a model validator, but only when `network_mode` is absent from
+`model_fields_set` *and* `allowed_hosts` is `None`
+(`models/task/config.py:885-892`). Mirroring that three-way interaction would
+put a second, weaker network resolver beside `_effective_verifier_network`,
+which is exactly the shape of the two holes the earlier review rounds found. A
+task states its policy with an explicit `network_mode` instead. This is the one
+`unsupported_task_configuration` still reachable from the current task library,
+and it is a refusal on the merits rather than an oversight.
 
 `[[steps]]` is the one worth spelling out. Harbor resolves a multi-step task's
 verifier step-first: `resolve_effective_verifier_env_config` returns
@@ -192,7 +233,20 @@ not equipped to reason about it. It is still an error and still blocks
 certification, because a false green is worse than a refusal. The fix is either
 to express the task within the supported surface, or to extend
 `SUPPORTED_TASK_CONFIG` together with the checks that model the new construct —
-never the allowlist alone.
+never the allowlist alone. F-06 is the worked example of the second path, and of
+why the rule is binding: the keys it admitted each arrived with a
+`_MODELLED_CONSTRUCT_VALUES` entry, and
+`test_every_key_admitted_for_one_value_arrives_with_that_value_model` fails if a
+later key is added without one, or if a rename leaves an existing model
+unreachable from the allowlist and therefore silently not running.
+
+Widening the surface does not mean a task certifies. After F-06 the four in-repo
+packages carry no `harness_defect` for a construct the workbench decided to
+model, and they still fail static acceptance on genuine task findings —
+`adversarial_cases_insufficient`, `base_image_unpinned`, `source_ref_unpinned`,
+`verifier_image_unpinned`, `verifier_network_not_isolated` and the rest. Those
+are findings about the tasks, and the workbench is correct to keep reporting
+them.
 
 ## Commands
 
@@ -385,3 +439,10 @@ This schema has no withdrawal disposition — `certified` is derived as
 `status == "certified_for_review"`, and the four statuses above are the whole
 vocabulary. A withdrawn packet is therefore recorded with the status the current
 code computes for it, plus an explicit `withdrawal` object.
+
+`tests/fixtures/task_workbench/cases/inert-surface/task.toml` is the same
+fixture plus every construct F-06 admitted, each carrying the inert value the
+real packages declare. It must certify with zero diagnostics, and its resolved
+network policy must be identical to the reference document's: that pair of
+assertions is what makes "the inert declaration is equivalent to omitting the
+key" a checked claim rather than a comment.

@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: Third repair of 1f4cf6f — four blocking review defects fixed (durable dirents, unwired-adapter deferral, permanent deferrals in run_one, fail-closed defaults pinned) plus the optional lease-replacement record; 52 focused tests and Ruff green
-Next: Integrator re-review of PR #47 at the pushed head of role/m006-analysis-worker (code at edbf8f5, handoff commit on top); the previous green CI is invalidated by this repair and must run again — never self-merge
+Last: Fourth repair of 95d31e4 — the one remaining blocking defect fixed (the sidecar/ dirent is now created with _durable_mkdir, so the name proving a paid result exists is fsynced into the request directory); 53 focused tests and Ruff green; docs/analysis-worker.md refreshed
+Next: Integrator re-review of PR #47 at the pushed head of role/m006-analysis-worker (code at d454bbe, handoff commit on top); the five green checks at 95d31e4 are invalidated by this repair and must run again — never self-merge
 Blockers: none
 
 # M006 handoff — guarded post-trial analysis worker
@@ -323,3 +323,125 @@ on `1f4cf6f`'s history), no merge, no PR opened — #47 stays the only PR. No
 model, paid call, Docker, cloud, policy, profile, or evidence byte touched;
 the calibration gate is still closed and the default adapter is still
 `_no_adapter`.
+
+## Fourth repair round (2026-08-15, independent exact-head re-review of 95d31e4)
+
+**Executing agent/model:** Claude Code subagent, claude-opus-5. Lease this
+round: `src/evallab/analysis_worker.py`, `tests/test_analysis_worker.py`,
+`docs/analysis-worker.md`, this file. Nothing else touched.
+
+The re-review accepted four of the five third-round repairs and found exactly
+one remaining P1: **the durability hole one level above the one already
+fixed.**
+
+**The defect — `AnalysisWorker.run_one`.** The per-request sidecar directory
+was created with `sidecar_path.parent.mkdir(parents=True, exist_ok=True)`, so
+the `sidecar/` dirent inside the request directory was never fsynced.
+`_durable_replace` fsyncs the sidecar bytes and `sidecar/` itself, which
+persists `analysis.json` *within* `sidecar/` — but per `_durable_mkdir`'s own
+docstring, fsyncing a directory does not persist that directory's entry in its
+parent. The only request-directory fsync on this path is the `O_CREAT` branch
+of `_append_invocation_event`, i.e. during `begin_invocation`, strictly before
+`sidecar/` exists.
+
+Reachable failure: a host crash after the durably fsynced
+`resolve_invocation` but before writeback of the request directory. On
+recovery the journal shows the attempt resolved, so `unresolved_invocation`
+returns None and the ambiguity guard stays quiet; and `sidecar_path.is_file()`
+is False because the `sidecar/` dirent was lost, so the adoption guard stays
+quiet too. `run_one` re-admits and issues a **second billable provider call**,
+losing analysis already paid for. The durable ordering was inverted: the
+record asserting the attempt was resolved was fsynced, the name proving a
+result exists was not — and the module docstring already claimed the sidecar
+was covered, so the stated invariant was false.
+
+**The fix, one line.** `run_one` now calls the existing
+`_durable_mkdir(sidecar_path.parent)`, which fsyncs the request directory for
+each level it creates. Nothing else in the module changed.
+
+### Audit of every mkdir reachable from run_one and resolve_ambiguous
+
+Requested by the reviewer before committing; walked exhaustively.
+
+- `analysis_worker.py` has exactly three `mkdir` call sites (`grep '\.mkdir\('`
+  plus `makedirs`): inside `_durable_mkdir` itself, `RequestStore.freeze`
+  (already `_durable_mkdir`), `RequestStore.acquire_lease`, and the `run_one`
+  site now repaired.
+- `RequestStore.acquire_lease` — `self._lease_path(request_id).parent.mkdir(...)`
+  is the *request* directory, plain. **Not a hole, left alone.** On the
+  `run_one` path it is unreachable as a creator: `run_one` opens with
+  `self.store.load(request_id)`, which reads `request_dir/request.json` and
+  raises before the lease if the directory is absent, so `freeze`'s durable
+  `_durable_mkdir` always got there first. `resolve_ambiguous` does not load
+  first, so it *could* create the directory — but only to then find no journal
+  and raise `request has no ambiguous invocation to resolve`, leaving an empty
+  orphan. Losing that dirent loses no proof and cannot cause a second call;
+  the lease file itself is advisory `flock` state that no recovery decision
+  reads, and it is re-created on the next acquisition.
+- `RequestStore.append` (`transitions.jsonl`) creates no directory.
+- `facts.run_trial_analysis`, reachable from `run_one`, does
+  `(destination_root / analysis_id).mkdir(parents=True, exist_ok=False)`. That
+  is a *staging* name under `sidecar/`; `run_one` then `_durable_replace`s the
+  file to the stable `sidecar/analysis.json` and fsyncs `sidecar/`. Recovery
+  reads only the stable path, so the staging dirent is not durability-critical
+  (and `facts.py` is outside this lease).
+- `facts.ingest_analysis_sidecar` (the default indexer, called from
+  `_complete`) writes to Postgres and creates no directory.
+- `admit`, `preflight`, `results.load_jobs`, `unresolved_invocation`,
+  `invocation_events`, `resolve_invocation`, `_release_lease`,
+  `record_lease_replacement`: no directory creation.
+
+**Conclusion: one instance, now fixed. No second instance found.**
+
+### Doc refresh (`docs/analysis-worker.md`)
+
+Three stale claims corrected, all describing behaviour the third round
+changed: the header test count (46 → 53); the ordered admission list gained
+the `adapter_not_wired` gate as item 8, enforced in `run_one` after every
+admission gate and before `begin_invocation`; and the surfaces section no
+longer says the default composition "raises before any call" — the
+`_no_adapter` sentinel is detected, never invoked, and the run defers with
+reason `adapter_not_wired` without arming the journal.
+
+### Fourth repair evidence
+
+The new test was written first and observed failing at `95d31e4`, on the
+ordering assertion specifically (its mkdir precondition passed):
+
+```text
+# at 95d31e4, new test only, before the one-line fix
+uv run pytest tests/test_analysis_worker.py::test_sidecar_directory_dirent_is_durable -q
+FAILED - AssertionError: the sidecar/ dirent is never fsynced into the request directory
+
+# after the fix
+uv run pytest tests/test_analysis_worker.py::test_sidecar_directory_dirent_is_durable -q
+1 passed
+
+uv run pytest tests/test_analysis_worker.py
+53 passed in 1.03s
+
+uv run ruff check src/evallab/analysis_worker.py tests/test_analysis_worker.py
+All checks passed!
+```
+
+`_record_durability_events` extends the third round's inode harness: it records
+`mkdir` and `fsync` as an ordered event log keyed by `(device, inode)`, because
+dirent durability is an ordering property, not set membership. The test drives
+a full `run_one` and asserts a request-directory fsync appears *after* the
+sidecar directory's creation event.
+
+Capability label for this repair: **fixture-proven only** — it asserts fsync
+syscalls by inode and does not stage a real host crash.
+
+Scope: `src/evallab/analysis_worker.py`, `tests/test_analysis_worker.py`,
+`docs/analysis-worker.md`, and this file. `git diff --name-only 95d31e4..HEAD`
+lists exactly those first three; `cli.py` and `automation.py` appear in the
+cumulative `origin/main...HEAD` diff only from earlier rounds' declared
+additive wiring and are untouched here. Per the Integrator's instruction the
+branch was **not** rebased onto the new `origin/main` (`2173268`); no merge, no
+squash, no new PR — #47 stays the only one. The full suite,
+`scripts/premerge.sh`, and CI are the Integrator's to run — **pending in PR**.
+Re-checked and unchanged: `calibrated_judges_only` is still `lambda: False` in
+`default_worker` and the default adapter is still `_no_adapter`. No model,
+paid call, API key, Docker, cloud, Harbor run, policy, profile, or evidence
+byte was invoked or modified.

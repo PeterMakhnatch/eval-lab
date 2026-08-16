@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: Second repair rebased on 903abe4; 46 focused + 418 full tests, Ruff, and premerge green
-Next: Integrator re-review of PR #47 — stop at review, never self-merge
+Last: Third repair of 1f4cf6f — four blocking review defects fixed (durable dirents, unwired-adapter deferral, permanent deferrals in run_one, fail-closed defaults pinned) plus the optional lease-replacement record; 52 focused tests and Ruff green
+Next: Integrator re-review of PR #47 at head edbf8f5; the previous green CI is invalidated by this repair and must run again — never self-merge
 Blockers: none
 
 # M006 handoff — guarded post-trial analysis worker
@@ -203,3 +203,123 @@ premerge green: Python 3.12; ty 28 <= 28
 Rebased without conflicts onto `origin/main` at `903abe4`. No model, Docker,
 cloud, paid call, task, verifier, policy, profile, dashboard, or raw evidence
 was invoked or modified. Existing PR #47 remains the only PR; stop at review.
+
+
+## Third repair round (2026-08-15, independent exact-head review of 1f4cf6f)
+
+Verdict was `incorrect` with four blocking defects and one optional
+hardening. All five are fixed. Each defect was reproduced against `1f4cf6f`
+before the fix — the six new tests were written first and observed failing.
+
+**1. Journal dirent was not durable — `RequestStore._append_invocation_event`
+and `RequestStore.freeze`.** `_append_invocation_event` fsynced the journal
+bytes but never the directory that names them, so `O_CREAT` on
+`invocations.jsonl` left the dirent in the parent's dirty cache. A
+host-level crash could erase the journal, `unresolved_invocation` would
+return None, and the guarded second billable call would be issued. New
+`_fsync_directory` and `_durable_mkdir` helpers fsync the dirent of every
+level a write creates; `_durable_replace` now shares them. `freeze` had no
+fsync at all and now makes `request.json`'s bytes, its dirent, and the new
+request directory durable — the request directory matters as much as the
+journal, because losing it lets a rescan re-mint the same deterministic
+identity with no journal to stop a second call.
+
+**2. Ambiguity journal armed before a locally provable failure —
+`AnalysisWorker.run_one`.** The `_no_adapter` sentinel is now detected before
+`begin_invocation` and defers with reason `adapter_not_wired`; no journal
+entry, so no operator ceremony. Placed *after* admission on purpose: an
+evidence or policy verdict is more informative than a configuration one and
+keeps `policy_requirement_unmet:calibrated_judges_only` observable as the
+CLI's real answer today (see the review note below).
+
+**3. Permanent eligibility deferrals were enforced only in `run_cycle` —
+`AnalysisWorker.run_one` (new module predicate `_is_permanent_deferral`).**
+The rule now lives in one predicate used by `run_one`'s state guard and by
+the `run_cycle` loop; `run_cycle` behaviour is unchanged (it still skips
+without calling `run_one`, so `CycleReport` counts are identical).
+
+**4. The fail-closed default was unpinned — `tests/test_analysis_worker.py::
+test_default_worker_stays_fail_closed_for_live_analysis`.** Asserts
+`default_worker`'s adapter is `_no_adapter`, that the sentinel raises,
+that `calibrated_judges_only()` is False, and — end to end — that a fully
+eligible trial defers on `policy_requirement_unmet:calibrated_judges_only`
+with zero calls and no armed journal. It also asserts an explicitly supplied
+adapter is still honoured, so the test cannot be satisfied by breaking
+injection. The gate and the default are unchanged; only the pin is new.
+
+**5. Optional, taken — `AnalysisWorker._release_lease` and
+`RequestStore.record_lease_replacement`.** Both `finally` blocks now go
+through `_release_lease`, which on a false ownership result appends
+`lease_replaced_during_execution` to the invocation journal. Deliberately
+*not* `transitions.jsonl`: state is the last transition line, so an audit
+note there would overwrite the reason the state machine reads back — it
+would have silently erased the permanence signal fix 3 depends on.
+
+### One review claim needs a correction
+
+The review's stated consequence for defect 2 ("the request is stuck needing
+the operator ceremony") is **not reachable through the CLI at `1f4cf6f`**.
+`policy/standing-approvals.yaml` requires `calibrated_judges_only` on the
+`researcher-followups` rule, and `admit` evaluates policy requirements before
+`run_one` reaches `begin_invocation`, so today every CLI `worker-run-one`
+defers at the closed calibration gate. The defect is real but latent: it
+fires the moment the gate opens — which is this PR's stated future — or for
+any caller that composes `default_worker(root)` against a policy without that
+requirement. Proven both ways below. The fix stands; the severity is
+"latent trap", not "currently misbehaving".
+
+### Third repair evidence
+
+```text
+# reviewed head 1f4cf6f, loaded from git and driven with the gate open
+# (defect 2) and with a counting adapter (defect 3):
+PRE-FIX run_one raised: no analysis adapter is wired; ...
+PRE-FIX journal events: ['invocation_started']
+PRE-FIX unresolved attempt: True
+PRE-FIX next run_one verdict: ambiguous_invocation_requires_operator_resolution
+PRE-FIX harness-exception run_one: completed None adapter calls: 1
+
+# the six new tests against 1f4cf6f source, before the repair
+uv run pytest tests/test_analysis_worker.py -k "durable or unwired or permanent or fail_closed or lease_replacement"
+5 failed, 1 passed        # fail-closed defaults were already correct, just unpinned
+
+# after the repair
+uv run pytest tests/test_analysis_worker.py -q
+52 passed
+uv run ruff check src/evallab/analysis_worker.py tests/test_analysis_worker.py
+All checks passed!
+uvx ty@0.0.71 check src/ --output-format=concise
+Found 28 diagnostics        # ratchet 33
+uv run pytest tests/test_repository_contract.py tests/test_ci_coverage.py \
+    tests/test_program_contract.py tests/test_pipeline.py -q
+30 passed
+```
+
+Live proof through the production entrypoint (`evallab analyze worker-run-one`
+with fixture jobs staged into this worktree's gitignored `runs/`, scratch
+state since removed):
+
+```text
+# harness-exception request — defect 3 path, now permanent in run_one
+{"state": "deferred", "reason": "harness_exception_not_agent_failure"}
+# eligible request — the closed calibration gate, zero journals armed
+{"state": "deferred", "reason": "policy_requirement_unmet:calibrated_judges_only"}
+find derived/analyses/worker/requests -name invocations.jsonl | wc -l  ->  0
+
+# same default_worker object with the gate flipped in-process only
+# (nothing persisted, no provider reachable): defect 2 path
+transition: deferred adapter_not_wired
+invocation events: []   unresolved: None   sidecar: False
+```
+
+Capability labels: defects 1–5 **proven live** for the run_one/CLI paths shown
+above and **fixture-proven only** for the crash-durability property (fsync
+syscalls are asserted by inode; no host crash was staged). Full suite,
+`scripts/premerge.sh`, and CI are the Integrator's to run — **pending in PR**.
+
+Scope: only `src/evallab/analysis_worker.py`,
+`tests/test_analysis_worker.py`, and this file changed. No rebase (branch left
+on `1f4cf6f`'s history), no merge, no PR opened — #47 stays the only PR. No
+model, paid call, Docker, cloud, policy, profile, or evidence byte touched;
+the calibration gate is still closed and the default adapter is still
+`_no_adapter`.

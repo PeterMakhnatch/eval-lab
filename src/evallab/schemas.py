@@ -382,6 +382,19 @@ class AnalysisReview(ContractModel):
         return self
 
 
+#: On-disk contract for one durable analysis, rooted at the destination root
+#: an analysis was written to:
+#:
+#:     <destination_root>/<analysis_id>/analysis.json               the sidecar
+#:     <destination_root>/<analysis_id>/reviews/<review_id>.json    its reviews
+#:
+#: Discovery MUST select sidecars *positively* by ``ANALYSIS_SIDECAR_FILENAME``.
+#: Globbing ``*.json`` under the destination root sweeps in reviews — and any
+#: artifact type added later — and reports them as malformed sidecars.
+ANALYSIS_SIDECAR_FILENAME = "analysis.json"
+ANALYSIS_REVIEWS_DIRNAME = "reviews"
+
+
 class CanaryMember(ContractModel):
     name: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
     task_path: str = Field(min_length=1)

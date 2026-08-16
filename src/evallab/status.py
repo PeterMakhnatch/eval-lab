@@ -16,7 +16,12 @@ from evallab.paths import derived_root_from_environment
 from evallab.queue import QUEUE_STATES
 from evallab.results import discover_job_dirs, load_job
 from evallab.runner import database_url_from_environment
-from evallab.schemas import ExperimentSpec, TrialAnalysisSidecar
+from evallab.schemas import (
+    ANALYSIS_REVIEWS_DIRNAME,
+    ANALYSIS_SIDECAR_FILENAME,
+    ExperimentSpec,
+    TrialAnalysisSidecar,
+)
 
 Availability = Literal["observed", "unavailable", "draft", "review-needed"]
 SECTION_KEYS = ("Recent", "Now", "Next", "Tasks", "Health", "Analysis")
@@ -217,7 +222,7 @@ def _load_analyses(
         root = raw_root.expanduser()
         if not root.exists():
             continue
-        for path in sorted(root.rglob("analysis.json")):
+        for path in sorted(root.rglob(ANALYSIS_SIDECAR_FILENAME)):
             try:
                 sidecar = TrialAnalysisSidecar.model_validate_json(path.read_text())
             except Exception as exc:
@@ -235,7 +240,8 @@ def _load_analyses(
 
 
 def _analysis_item(path: Path, sidecar: TrialAnalysisSidecar) -> StatusItem:
-    reviewed = (path.parent / "reviews").is_dir() and any((path.parent / "reviews").glob("*.json"))
+    reviews = path.parent / ANALYSIS_REVIEWS_DIRNAME
+    reviewed = reviews.is_dir() and any(reviews.glob("*.json"))
     if sidecar.validation_status != "valid":
         availability: Availability = "review-needed"
     elif reviewed:

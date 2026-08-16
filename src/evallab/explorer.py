@@ -34,7 +34,7 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from evallab.registry import TaskRegistry
-from evallab.schemas import TrialAnalysisSidecar
+from evallab.schemas import ANALYSIS_SIDECAR_FILENAME, TrialAnalysisSidecar
 
 Provenance = Literal["observed", "derived", "draft", "unavailable"]
 
@@ -477,6 +477,14 @@ def _resolve_citation(
     )
 
 
+def _analyses_relative(path: Path, analyses_dir: Path) -> str:
+    """Name a sidecar by its analysis directory; every file is ``analysis.json``."""
+    try:
+        return path.relative_to(analyses_dir).as_posix()
+    except ValueError:
+        return path.name
+
+
 def _analysis_views(
     analyses_dir: Path, trials: dict[str, TrialView]
 ) -> tuple[tuple[AnalysisView, ...], tuple[str, ...]]:
@@ -496,11 +504,18 @@ def _analysis_views(
             duplicate_trial_ids.add(key)
         else:
             trials_by_id[key] = trial
-    for path in sorted(analyses_dir.rglob("*.json")):
+    # Positive discovery: a sidecar is the file named ``analysis.json``. Any
+    # other JSON under the destination root — reviews written by
+    # ``evallab analyze review``, and whatever artifact type comes next — is
+    # not a sidecar and must not be parsed as one (M009 F-03).
+    for path in sorted(analyses_dir.rglob(ANALYSIS_SIDECAR_FILENAME)):
         try:
             sidecar = TrialAnalysisSidecar.model_validate_json(path.read_text())
         except (OSError, ValidationError) as exc:
-            notes.append(f"analysis {path.name}: unreadable ({exc.__class__.__name__})")
+            notes.append(
+                f"analysis {_analyses_relative(path, analyses_dir)}: "
+                f"unreadable ({exc.__class__.__name__})"
+            )
             continue
         source_trial_id = str(sidecar.source_trial_id)
         trial = (

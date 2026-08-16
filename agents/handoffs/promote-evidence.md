@@ -1,13 +1,14 @@
 Status: review-wanted
-Last: cleared all four CI findings on PR #58 — fixed R1 so the nine promoted trajectories are valid ATIF at the canonical agent/trajectory.json path (evallab trajectories now reports valid for all nine, 126 steps, 58 tool calls), drafted the nine failure-taxonomy labels so UNLABELED_OR_BAD is 0 with the invariant unchanged, excluded promoted evidence from ruff instead of editing it, made two composition-hardcoded tests corpus-agnostic, and moved the promotion script to scripts/ as the Integrator directed; 527 passed, ruff clean, PROGRAM.json OK
-Next: PerfRebaseline decides whether to pin scripts/profile/harness.py's corpus or re-baseline projection/facts (section 6.7) — I will carry whichever patch they specify; then integrator review of PR #58, above all the nine DRAFT labels (implementation on the three reward-0.0 html-js trials needs Research-lane review; unknown is the conservative alternative) and the redaction decision (option b); do not merge from this role
-Blockers: the perf gate is red and I must not fix it — scripts/profile/harness.py:47 profiles all of research/evidence/runs and budgets.json anchors projection/facts to "the committed 2-job evidence corpus", which this promotion takes to 5 jobs / 11 trials; projection 45.169 ms and facts 53.765 ms against a 37.500 ms ceiling, green on origin/main ad67126, and locally 2.9 ms vs 23.1 ms on identical code with only the corpus varying. Owner is PerfRebaseline; Main informed.
+Last: rebased onto origin/main 2c2de3c after role/perf-corpus-pin merged as PR #59, clearing the perf blocker with no budget loosened — verified locally that the profiler resolves to the two pinned control jobs only and excludes all three promoted canary bundles; 545 passed, ruff clean, PROGRAM.json OK, --verify 117 files 0 failures, evallab trajectories valid for all nine
+Next: integrator review of PR #58 at its current pushed head — above all the nine DRAFT labels (implementation on the three reward-0.0 html-js trials needs Research-lane review, unknown is the conservative alternative; Peter owns acceptance) and the redaction decision (option b); do not merge from this role
+Blockers: none
 
 # PROMOTE-EVIDENCE handoff
 
 Agent/model: Claude Opus 4.5 (Anthropic), Oh My Pi harness, subscription-only.
 Worktree `.worktrees/promote-evidence` on `role/promote-evidence`, branched from
-`origin/main` `ad67126`. No paid model call, no Harbor run, no Docker build, no
+`origin/main`, originally `ad67126` and now rebased onto `2c2de3c`. No paid model
+call, no Harbor run, no Docker build, no
 cloud sandbox, no deploy, no publication, no API-key environment variable. No
 `evallab` command that writes was run. Nothing under `policy/`, `src/`, `tests/`,
 `docs/`, or `library/` touched. The primary checkout `~/Developer/eval-lab` was
@@ -251,7 +252,7 @@ The Integrator required the full suite for round 2, so this is no longer scoped.
 
 ```text
 $ uv run pytest
-527 passed in 21.55s
+545 passed in 20.57s
 
 $ uv run ruff check .
 All checks passed!
@@ -486,9 +487,21 @@ set so promotion cannot move the numbers, with a test that fails if the default
 ever resolves back to `research/evidence/runs`. I am directed **not** to patch the
 budgets myself.
 
-**PR #58 therefore stays `review-wanted` and blocked until `perf-corpus-pin`
-lands**, after which this branch rebases for a clean `profile` run. That gate is
-the only red check; `lint`, `test (3.12)`, `test (3.14)` and `ty` all pass.
+**Blocker cleared.** `role/perf-corpus-pin` merged as PR #59 and `origin/main` is
+`2c2de3c`. This branch is rebased onto it. The fix is the one both
+`PerfRebaseline` and I recommended and it cost nothing: `harness.DEFAULT_CORPUS`
+now names the two control job directories, `budgets.json` gained a `corpus` block
+enforced by `check_budgets.assert_corpus_shape`, and **all six budget values and
+`tolerance_pct` are unchanged** (`ingest` 115.0, `projection` 25.0, `facts` 25.0,
+`digest` 15.0, `queue-tick-100` 150.0, `fleet-status` 5000.0, tolerance 50). No
+gate was loosened to admit this promotion.
+
+Verified locally on the rebased tree rather than assumed: the profiler resolves
+`DEFAULT_CORPUS` to exactly `event-summary-nop-evidence` and
+`event-summary-oracle-evidence`, 2 jobs and 2 trials, with 4 `result.json` files
+matching the `corpus` block, and **none of the three promoted canary bundles is
+included** even though they sit under `research/evidence/runs/`. Promoting
+evidence can no longer move that gate.
 
 `PerfRebaseline` replied after the Integrator's ruling and independently reached
 the same answer — pin the corpus, do not re-baseline — and framed it as the same

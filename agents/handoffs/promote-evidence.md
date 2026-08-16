@@ -105,10 +105,26 @@ policy decision, and no credential was found.
 **Credential scan.** 69 `agent/` files across the eight jobs, six patterns
 (`sk-…`, `gh[pousr]_…`, JWT, `AKIA…`, PEM header, and `api_key|access_token|
 refresh_token|id_token|client_secret|password|bearer` assignments). One hit, and
-it is a **false positive**: `sk-8jilBmlqS6Iq9lGdq5dwlTB0KTu7wAOLvCP8CRnGP00…`
-is a substring of the 2,596-byte `/payload/encrypted_content` value above —
-the preceding characters are `…AneP7` + `sk-`. No real credential exists in the
-corpus. The final promoted tree scans clean on all six patterns.
+it is a **false positive**, confirmed by the repository's own gate. The match
+begins at offset 1,438 inside the 2,596-byte `/payload/encrypted_content` value
+above and runs 1,156 characters; the eight characters preceding it are `eG5AneP7`,
+so `sk-` is spelled by the tail of one base64url run and the head of the next,
+not by a key.
+
+`tests/test_repository_contract.py:27` requires `(?<![A-Za-z0-9_])` before `sk-`
+and does **not** match this content, because the preceding character is `7`. My
+own scan omitted that lookbehind, which is the only reason it fired. Two facts
+follow. The repository gate would not have flagged the rollout file even if R2
+had promoted it, so R2's justification is prompt and reasoning content, not
+credentials. And the literal run is deliberately not reproduced in this file:
+quoting it after a backtick strips the preceding token character, turns it into a
+standalone `sk-` plus 30+ characters, and made
+`test_repository_has_no_high_confidence_secrets` fail on this very handoff —
+which is the gate working, and is why the description replaced the quotation.
+
+No real credential exists in the corpus. The final promoted tree scans clean on
+all six of my patterns and on the repository's four, and the file holding the run
+is omitted under R2 regardless.
 
 **Rules applied** (full text in the script's module docstring, machine-readable
 in each `PROMOTION.json`):

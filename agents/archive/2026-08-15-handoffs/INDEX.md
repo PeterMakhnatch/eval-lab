@@ -1,11 +1,15 @@
 # Archived handoffs (2026-08-15)
 
-Historical record only — do not update. Live status: `agents/handoffs/`.
-Live board: `agents/missions/ACTIVE.md`. Ownership: `agents/OWNERS.md`.
+The archived handoffs in this directory are frozen — never edited, merged, or
+deleted. This index is not frozen: it must stay true when the directory gains
+files, and it gained a second same-date batch (see **Second sweep** below).
+Live status: `agents/handoffs/`. Live board: `agents/missions/ACTIVE.md`.
+Ownership: `agents/OWNERS.md`.
 
 `agents/missions/ACTIVE.md` states the standing policy: *"Finished missions
-move to `agents/archive/` with a date prefix."* That policy had lapsed. This
-directory executes it for the 34 spent handoff files that were still sitting in
+move to `agents/archive/` with a date prefix."* That policy had lapsed. Its
+**first sweep** (COORD-GC, PR #54, `2173268`) executed the policy for the 34
+spent handoff files that were still sitting in
 `agents/handoffs/`, where 21 of them still advertised open, blocked, or
 `review-wanted` work for missions that had already merged — the first thing
 every new agent reads.
@@ -92,13 +96,40 @@ in-repo labeled trials. That is a live gap in calibration ground truth, owned by
 the Research lane, and it survives this archiving. Archiving the handoff records
 where the gap came from; it does not resolve it.
 
+## Second sweep (2026-08-15, BOARD-REFRESH)
+
+Five more handoffs went spent the same day, after the first sweep was written.
+Same date, so they land in this same directory under the same scheme — 1:1
+`git mv`, original filenames, no edits — rather than in a near-duplicate
+directory. Every mission below was verified merged against `git log origin/main`
+and `gh pr list --state merged`; none was assumed spent from a keep-list.
+
+| Handoff | Mission | PR | Head reviewed/merged | Merge commit |
+|---|---|---|---|---|
+| `m006-analysis-worker.md` | M006 guarded post-trial analysis worker | #47 | `3b15e25` | `4d23d7d` |
+| `m007-task-workbench.md` | M007 task-quality workbench | #49 | `4d47054` | `86380b0` |
+| `system-cartographer.md` | System cartography report | #52 | `a408881` | `1471f41` |
+| `perf-rebaseline.md` | `ingest` CI perf budget re-baseline | #53 | `a12ea3c` | `e080dd0` |
+| `coord-gc.md` | Coordination-artifact garbage collection | #54 | `a41266e` | `2173268` |
+
+`system-cartographer.md` was the first sweep's one knowingly retained exception
+— spent since PR #52 (`1471f41`) but named on COORD-GC's keep-list. That
+exception is now closed.
+
+Neither `m006-analysis-worker.md` nor `m007-task-workbench.md` names its own
+final head: M006's header points at `d454bbe` and M007's last round at
+`1713830`, each the last *code* commit, with the merged head being the handoff
+commit on top (`git merge-base --is-ancestor` confirms both). `git log
+origin/main` is the authority for the merged SHAs in the table above.
+
+Two residuals survive this sweep and are recorded as `Mission candidate` rows in
+`agents/missions/ACTIVE.md` so they cannot vanish with an archived file: M007's
+static-text verifier-build scan wanting a container-level observation and its
+live Harbor drift comparison skipping for want of Harbor in CI, and the
+perf-harness `initialize()` measurement region. The `observatory.md`
+calibration-ground-truth residual recorded above is now on the board too.
+
 ## Still live in `agents/handoffs/`
 
-`system-cartographer.md` and `coord-gc.md`, plus — arriving with their open PRs
-— `m006-analysis-worker.md` (#47), `m007-task-workbench.md` (#49), and
-`perf-rebaseline.md` (#53).
-
-`system-cartographer.md` is the one knowingly retained exception: its mission
-merged as PR #52 (`1471f41`), so it is spent, but COORD-GC's keep-list named it
-explicitly. It is queued for the next Integration sweep in
-`agents/missions/ACTIVE.md`.
+`board-refresh.md` only — the mission that wrote this section. No
+implementation mission is live as of this sweep.

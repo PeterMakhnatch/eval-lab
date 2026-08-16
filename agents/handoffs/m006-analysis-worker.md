@@ -1,6 +1,6 @@
 Status: review-wanted
 Last: Third repair of 1f4cf6f — four blocking review defects fixed (durable dirents, unwired-adapter deferral, permanent deferrals in run_one, fail-closed defaults pinned) plus the optional lease-replacement record; 52 focused tests and Ruff green
-Next: Integrator re-review of PR #47 at head edbf8f5; the previous green CI is invalidated by this repair and must run again — never self-merge
+Next: Integrator re-review of PR #47 at the pushed head of role/m006-analysis-worker (code at edbf8f5, handoff commit on top); the previous green CI is invalidated by this repair and must run again — never self-merge
 Blockers: none
 
 # M006 handoff — guarded post-trial analysis worker

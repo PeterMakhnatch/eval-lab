@@ -625,3 +625,228 @@ still holds zero records and nothing here registers a task. The full suite,
 project-wide formatters, and `scripts/premerge.sh` were left to the Integrator.
 Stopping at `review-wanted`: not merged, and no new PR opened — #49 already
 exists.
+
+## Third repair round: closing the false-certification CLASS
+
+Two successive independent reviews each found a *new* path by which a task whose
+verifier or image build reaches the network still earned
+`certified_for_review`. Both findings had the same shape: the workbench
+re-derives Harbor's configuration resolution, and any table or path the mirror
+fails to reproduce silently yields a false `isolation: true`. Enumerating what
+to check cannot terminate, so this round changes the posture rather than adding
+two more checks.
+
+### The structural fix: fail closed on unrecognised configuration
+
+`SUPPORTED_TASK_CONFIG` in `src/evallab/task_workbench.py` is now an explicit,
+exhaustive allowlist of the `task.toml` tables and keys this workbench version
+claims to reason about. `_validate_supported_configuration` walks the parsed
+document and emits `unsupported_task_configuration` for anything outside it,
+naming the exact offending path — `steps`, `verifier.collect`,
+`task.authors[1].affiliation`. Arrays of tables are indexed, and an allowlisted
+scalar key that arrives as a table is refused too (shape the workbench never
+modelled either).
+
+**Classification: `harness_defect`, severity `error`.** Chosen deliberately.
+The existing `Classification` literal already separates "the task is wrong"
+(`task_defect`) from "the tooling is wrong" (`harness_defect`), and this
+diagnostic is the latter: the task is usually valid Harbor, and it is *this
+workbench version* that cannot reason about it. Gating is unaffected —
+`Inspection.static_passed` tests `severity == "error"` only and ignores
+classification — so the refusal still blocks certification. Reporting it as a
+`task_defect` would blame authors for a workbench limitation.
+
+**Complete list of constructs v1 now refuses as unsupported** (everything
+outside the allowlist; Harbor 0.21.0 field names):
+
+- top level: `steps`, `multi_step_reward_strategy`, `solution`, `source`
+- `[agent]`: `network_mode`, `allowed_hosts`, `user`
+- `[verifier]`: `collect`, `env`, `user`
+- `[environment]` and `[verifier.environment]`: `allow_internet` (deprecated),
+  `allowed_hosts`, `env`, `workdir`, `os`, `gpus`, `gpu_types`, `tpu`,
+  `healthcheck`, `mcp_servers`, `skills_dir`
+- `[verifier.environment].docker_image` specifically (a prebuilt verifier image
+  is never built from `tests/`, so the content scan that is the verifier image's
+  only network boundary would never see it; `[environment].docker_image` stays
+  allowlisted because it has its own `prebuilt_image_unsupported` refusal)
+- any unknown key anywhere, at its exact dotted path
+
+Accepted surface: `schema_version`, `artifacts`, `[task]`
+(`name`/`version`/`description`/`keywords`/`[[task.authors]]` with
+`name`/`email`), free-form `[metadata]`, `[agent].timeout_sec`, `[verifier]`
+(`timeout_sec`/`environment_mode`/`network_mode`/`environment`), and
+`[environment]`/`[verifier.environment]` limited to `network_mode`,
+`build_timeout_sec`, `cpus`, `memory_mb`, `storage_mb` (+ `docker_image` on
+`[environment]`).
+
+### Harbor: mirrored, not called — and now pinned
+
+**Route taken: mirror, because calling is not available.** Harbor 0.21.0 is
+installed as a standalone `uv` tool, not as a dependency of this package —
+`src/evallab/runner.py` reaches it through `shutil.which("harbor")` and a
+subprocess, and `import harbor` fails inside the project venv. Adding Harbor as
+a library dependency would mean editing `pyproject.toml`, outside this lease.
+The resolvers themselves *are* public (`resolve_effective_verifier_env_config`,
+`resolve_verifier_phase_policy`), so this is an availability limit, not an
+encapsulation one.
+
+Drift is therefore detected behaviourally.
+`test_verifier_network_resolution_matches_harbor` runs a probe *inside Harbor's
+own interpreter* (`Path(shutil.which("harbor")).resolve().parent / "python"`)
+and compares real Harbor output against `_effective_verifier_network` over four
+documents: the compliant fixture, a `[verifier.environment]` table that omits
+`network_mode`, a `no-network` verifier table over a `public` environment, and a
+`[verifier].network_mode` phase override. Harbor 0.21.0 returns
+`no-network/no-network`, `public/public`, `no-network/no-network`,
+`no-network/public`; the mirror agrees on all four.
+
+Harbor symbols depended on (all Harbor **0.21.0**):
+
+- `harbor.models.task.verifier_mode.resolve_effective_verifier_env_config`
+- `harbor.models.task.verifier_mode.resolve_step_verifier_mode` /
+  `resolve_task_verifier_mode` / `_resolve_mode` (precedence, via the above)
+- `harbor.models.task.config.BaselineNetworkPolicyConfig.resolve_baseline`
+  (defaults `network_mode` to `public`)
+- `harbor.models.task.config.PhaseNetworkPolicyConfig.explicit_phase_policy`
+- `harbor.trial.network_policy.resolve_verifier_phase_policy`
+- `harbor.models.task.config.TaskConfig` (schema; its field sets were
+  introspected to build the allowlist)
+- observed but not mirrored: `harbor.trial.trial.Trial._separate_verifier_env`
+  (`extra_docker_compose: []`) and `_verifier_env_build_context` (`tests/`)
+
+**Caveat, stated plainly:** the drift test `pytest.skip`s when no `harbor`
+binary is on PATH. In an environment without Harbor installed it does not run,
+and drift there would go unnoticed until Harbor is present again.
+
+### Instance 1 — step-level verifier tables: REFUSED, not resolved
+
+**Decision: REFUSE `[[steps]]`.** Rationale: resolving step-first precedence
+correctly would require mirroring per-step tests directories
+(`_verifier_env_build_context` prefers `tests/<step>/`), per-step verifier
+images, per-step artifacts and healthchecks, and `multi_step_reward_strategy` —
+while the workbench's control plan, oracle repetition model, and digest scheme
+are all single-verify-pass. Refusing is honest about what v1 models; resolving
+would create four more mirrors to drift. The diagnostic names `steps` explicitly
+and its message states the step-first precedence so the author knows why.
+
+The danger is empirically confirmed, not assumed. Harbor's own resolver, run on
+`tests/fixtures/task_workbench/cases/step-verifier-network/task.toml`, returns
+`["public", "public"]` for that task's single step while every task-level table
+declares `no-network` — and the pre-existing mirror still reports
+`verifier_effective_baseline: "no-network"` with no diagnostic. The refusal is
+the only thing between that task and a packet;
+`test_step_level_verifier_network_is_refused_as_unsupported` asserts both halves
+(`_codes(inspection) == {"unsupported_task_configuration"}` *and* the mirror's
+blind `no-network` baseline).
+
+### Instance 2 — verifier build context scanned with the wrong pattern
+
+`_validate_build_context_contents` now walks both build contexts via
+`_BUILD_CONTEXTS`: `environment/` (agent image) and `tests/` (separate verifier
+image), each skipping its own already-scanned `Dockerfile`, each applying
+`BUILD_NETWORK_PATTERN`, each fail-closed on non-UTF-8 via
+`build_context_unreadable`. Previously only `tests/Dockerfile` got the build
+pattern; every other file under `tests/` saw only `NETWORK_SCRIPT_PATTERN`.
+
+**`BUILD_NETWORK_PATTERN` was not widened, because it already covers the listed
+package managers** — `apk|dnf|yum|microdnf|zypper (add|install|update|upgrade)`,
+`(gem|cargo) install`, `go (get|install)`, `(git|hg|svn) (clone|fetch|pull|
+checkout)`, `ftp://`, `git://`, `Invoke-(WebRequest|RestMethod)`, and
+`(npm|pnpm|yarn) (install|add|ci|dlx)` are all present. The round-2 finding was
+about which *files* got that pattern, not about the pattern's contents. The
+narrower `NETWORK_SCRIPT_PATTERN` (runtime use) was deliberately left alone: it
+is a different question, and `tests/` files are still scanned by both.
+
+The fixture pins that distinction. `cases/verifier-build-script/` has a
+`tests/Dockerfile` whose lines name no network (`COPY . /tests`,
+`RUN sh /tests/bootstrap.sh`) plus `tests/bootstrap.sh` containing
+`apk add --no-cache jq`. The test asserts
+`not NETWORK_SCRIPT_PATTERN.search(bootstrap)` — so a pass can only come from
+the newly applied build pattern — and that
+`_codes(inspection) == {"build_network_use"}`.
+
+Consequence worth knowing: any file under `tests/` matching the build pattern is
+now an error, including golden fixtures whose *content* happens to contain a URL
+or a package-manager string. That is the fail-closed trade, and it is documented.
+
+### Verification
+
+```text
+uv run pytest tests/test_task_workbench.py
+  before this round (ea73cdd): 42 collected, 42 passed
+  after  this round:           54 collected, 54 passed
+
+negative control: new tests vs src/evallab/task_workbench.py reverted to ea73cdd
+  10 of the 12 new tests FAIL, including all four adversarial/refusal cases:
+    test_step_level_verifier_network_is_refused_as_unsupported
+    test_verifier_build_context_script_fetch_is_rejected
+    test_unscannable_verifier_build_context_file_fails_closed
+    test_unsupported_task_configuration_names_the_exact_offending_path (7 params)
+  the 2 that pass under ea73cdd are honest non-detectors, not weak tests:
+    test_reference_fixture_stays_inside_the_supported_configuration_surface
+      (a no-regression guard: the valid fixture must keep passing, and did)
+    test_verifier_network_resolution_matches_harbor
+      (a Harbor-drift pin; the old mirror also agreed with Harbor on the four
+       step-less cases, which is correct — it was blind to steps, not wrong here)
+  fixed file restored immediately; full suite re-run green afterwards
+
+uv run ruff check src/evallab/task_workbench.py tests/test_task_workbench.py
+  All checks passed!
+```
+
+`research/registration/candidates/` was **not** touched. Verified rather than
+assumed: `inspect_candidate` was run over both records' frozen `task_path`s
+under the ea73cdd inspector and under the repaired one, comparing
+`static_passed`, the full candidate dict, and every diagnostic — the two outputs
+are byte-identical. `cases/unpinned-dependency` has no `task.toml` and no
+`tests/`, so neither new check can fire; `valid/` stays inside the allowlist and
+its `tests/` files match no build pattern. No descriptive field changed, so no
+regeneration was warranted and no `certified: true` claim was restored. The
+`network_policy.verifier_build_network` string
+(`"static scan of tests/ only; overlay not applied"`) was left as-is because it
+remains exactly true — the change was which pattern that scan applies, not
+whether a scan is the boundary.
+
+`WORKBENCH_VERSION` stayed at `m007-v1.1`. It feeds the frozen identity digest,
+so bumping it would change every `candidate_id` and orphan both committed record
+directories — outside this lease. Flagging it for the Integrator as a judgement
+call rather than deciding it silently.
+
+### Does any reachable path still certify a networked verifier or build?
+
+Honest answer: **not exhaustively ruled out, and I am not claiming closure of
+the residual risk — only of the class of blind spot.** What is now true:
+
+- Every `task.toml` construct outside the allowlist is refused, so a *new*
+  Harbor table or key cannot silently change the effective policy; the failure
+  mode of an unmodelled construct is refusal, not certification. This is what
+  closes the class.
+- Both build contexts are scanned with the build pattern and fail closed on
+  undecodable files.
+- The verifier runtime policy is a mirror pinned behaviourally against Harbor.
+
+Residual exposure I can name, all of it *within* modelled constructs:
+
+1. The verifier build and runtime are protected by **static text scanning and a
+   declaration check, not container-level enforcement**. An obfuscated fetch
+   (base64, string concatenation, a compiled binary that is valid UTF-8, a
+   vendored client invoked by a name no pattern matches) defeats
+   `BUILD_NETWORK_PATTERN`. This is inherent to the approach, was already
+   documented, and is unchanged by this round.
+2. The Harbor drift pin is skipped when Harbor is not installed.
+3. The mirror is validated against Harbor **0.21.0** only. A future Harbor that
+   changes resolution for an allowlisted construct would be caught by the drift
+   test where installed; one that adds a *new* construct is caught by the
+   allowlist.
+4. `NETWORK_OVERLAY_CONTENT` targets the `main` service; `custom_compose_unsupported`
+   refuses task-authored Compose, but the overlay's reach across Harbor's own
+   Compose layering was verified by the earlier round, not re-verified here.
+
+No Harbor run, Docker build, container build, model call, cloud sandbox, deploy,
+or publication occurred; the Harbor drift probe only imports Harbor's models in
+its interpreter and resolves configuration in memory. No API-key environment
+variable was introduced or read. Nothing under `policy/` or `library/` was
+touched; `library/registry/` still holds zero records and nothing here registers
+a task. Full suite, project-wide formatters, and `scripts/premerge.sh` left to
+the Integrator. Stopping at `review-wanted`: not merged, not rebased onto
+`origin/main`, and no new PR opened — #49 already exists.

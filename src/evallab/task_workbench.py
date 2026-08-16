@@ -40,6 +40,58 @@ SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 FLOATING_REFS = {"head", "latest", "main", "master", "trunk", "tip"}
 FORBIDDEN_AGENT_IMAGE_PARTS = {"solution", "tests", "verifier", "workbench"}
+
+# --- The task.toml surface this workbench version claims to understand -------
+# The workbench proves network isolation by reproducing Harbor's configuration
+# resolution. Every table or key it fails to reproduce is a silent hole, and two
+# review rounds each found a fresh one that let a task Harbor runs with egress
+# earn `isolation: true`. Enumerating the holes cannot terminate, so the mirror
+# is closed instead of open: this is the exhaustive set of constructs v1 models,
+# and `_validate_supported_configuration` refuses everything else outright.
+# Adding a key here is a deliberate act and must arrive with the check that
+# models it. A value of `None` marks a table Harbor types as free-form and never
+# interprets.
+_SUPPORTED_ENVIRONMENT_KEYS = frozenset(
+    {"network_mode", "docker_image", "build_timeout_sec", "cpus", "memory_mb", "storage_mb"}
+)
+SUPPORTED_TASK_CONFIG: dict[str, frozenset[str] | None] = {
+    "": frozenset(
+        {"schema_version", "artifacts", "task", "metadata", "agent", "verifier", "environment"}
+    ),
+    "task": frozenset({"name", "version", "description", "keywords", "authors"}),
+    "task.authors": frozenset({"name", "email"}),
+    "metadata": None,
+    "agent": frozenset({"timeout_sec"}),
+    "verifier": frozenset({"timeout_sec", "environment_mode", "network_mode", "environment"}),
+    # docker_image is deliberately absent here: a prebuilt verifier image would
+    # bypass the tests/ build-context scan, which is the only boundary the
+    # verifier image has.
+    "verifier.environment": _SUPPORTED_ENVIRONMENT_KEYS - {"docker_image"},
+    "environment": _SUPPORTED_ENVIRONMENT_KEYS,
+}
+# Notes for the constructs most likely to be reached, so the refusal explains
+# itself instead of only naming a path.
+_UNSUPPORTED_CONFIG_NOTES: dict[str, str] = {
+    "steps": (
+        "Harbor resolves a multi-step task's verifier step-first — "
+        "resolve_effective_verifier_env_config returns steps[i].verifier.environment "
+        "before [verifier.environment], and the phase override falls back the same way — "
+        "so compliant task-level tables do not constrain a step's verifier. v1 models a "
+        "single verify pass and refuses [[steps]] rather than certify one it cannot resolve"
+    ),
+    "multi_step_reward_strategy": "v1 models a single verify pass",
+    "environment.mcp_servers": "an MCP server is an unreviewed egress path",
+    "verifier.environment.mcp_servers": "an MCP server is an unreviewed egress path",
+    "environment.allow_internet": (
+        "the deprecated allow_internet alias is folded into network_mode by a Harbor "
+        "model validator; declare network_mode explicitly instead"
+    ),
+    "verifier.collect": "a collect command runs in a compose service v1 does not model",
+    "verifier.environment.docker_image": (
+        "a prebuilt verifier image is never built from tests/, so the build-context scan "
+        "that is the verifier image's only network boundary would never see it"
+    ),
+}
 NETWORK_SCRIPT_PATTERN = re.compile(
     r"(?:https?://|\bcurl\b|\bwget\b|\bapt(?:-get)?\b|\bpip(?:3)?\s+install\b|"
     r"\buvx\b|\bnpm\s+(?:install|ci)\b|\byarn\s+install\b|\bgit\s+clone\b|"
@@ -586,6 +638,71 @@ def _parse_task_toml(path: Path, diagnostics: list[Diagnostic]) -> dict[str, Any
     return parsed
 
 
+_MISSING = object()
+
+
+def _unsupported_configuration(location: str) -> Diagnostic:
+    note = _UNSUPPORTED_CONFIG_NOTES.get(location)
+    detail = f"; {note}" if note else ""
+    return _diag(
+        "unsupported_task_configuration",
+        "task.toml",
+        f"{location} is outside the task.toml surface workbench {WORKBENCH_VERSION} models, "
+        f"so isolation cannot be proven for this task{detail}. This is a limitation of the "
+        "workbench, not necessarily a defect in the task: a construct v1 does not reproduce "
+        "is refused rather than silently certified",
+        classification="harness_defect",
+    )
+
+
+def _validate_supported_configuration(
+    config: Mapping[str, Any], diagnostics: list[Diagnostic]
+) -> None:
+    """Refuse every task.toml construct this workbench version does not model.
+
+    This is the fail-closed counterpart to `_effective_verifier_network`. That
+    function reproduces Harbor's resolution for the constructs in
+    `SUPPORTED_TASK_CONFIG`; anything else reaches Harbor unexamined, and an
+    unexamined construct that changes the effective network policy turns a
+    packet into a false green. Refusing an honest task the workbench cannot
+    reason about is the cheaper error.
+    """
+    _scan_supported_table(config, "", "", diagnostics)
+
+
+def _scan_supported_table(
+    table: Mapping[str, Any], spec: str, location: str, diagnostics: list[Diagnostic]
+) -> None:
+    allowed = SUPPORTED_TASK_CONFIG[spec]
+    if allowed is None:
+        return
+    for key in sorted(table):
+        child_spec = f"{spec}.{key}" if spec else key
+        child_location = f"{location}.{key}" if location else key
+        if key not in allowed:
+            diagnostics.append(_unsupported_configuration(child_location))
+            continue
+        _scan_supported_value(table[key], child_spec, child_location, diagnostics)
+
+
+def _scan_supported_value(
+    value: Any, spec: str, location: str, diagnostics: list[Diagnostic]
+) -> None:
+    """Descend into tables and arrays of tables, naming the exact offending path."""
+    if isinstance(value, Mapping):
+        if SUPPORTED_TASK_CONFIG.get(spec, _MISSING) is _MISSING:
+            # An allowlisted scalar key that arrived as a table is a shape the
+            # workbench never modelled either.
+            diagnostics.append(_unsupported_configuration(location))
+            return
+        _scan_supported_table(value, spec, location, diagnostics)
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            if isinstance(item, Mapping | list):
+                _scan_supported_value(item, spec, f"{location}[{index}]", diagnostics)
+
+
 def _is_pinned_ref(value: str) -> bool:
     normalized = value.strip()
     if not normalized or normalized.lower() in FLOATING_REFS:
@@ -828,48 +945,69 @@ def _validate_build_network(
             return
 
 
+# Both images Harbor builds from the candidate, and the human-readable name each
+# refusal should use. `environment/` builds the agent image; `tests/` is what
+# Harbor's `_verifier_env_build_context` hands the separate verifier image.
+_BUILD_CONTEXTS: tuple[tuple[str, str], ...] = (
+    ("environment", "the agent image"),
+    ("tests", "the separate verifier image"),
+)
+
+
 def _validate_build_context_contents(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
-    """Content-scan the agent build context, not just its Dockerfile.
+    """Content-scan every build context, not just its Dockerfile.
 
     `COPY setup.sh /tmp/setup.sh` followed by `RUN sh /tmp/setup.sh` puts every
     fetch inside a file the Dockerfile never spells out, so scanning Dockerfile
-    lines alone cannot see it. Every regular file under `environment/` is part of
-    the image the agent runs, so every one of them is read. Files that cannot be
-    decoded as UTF-8 are refused rather than skipped, matching the fail-closed
-    posture of `_docker_copy_sources`.
+    lines alone cannot see it. Every regular file in a build context is part of
+    the image built from it, so every one of them is read with the build-time
+    pattern.
+
+    The verifier context is the stricter of the two. Harbor constructs the
+    separate verifier environment with `extra_docker_compose: []`, so the
+    workbench's `build.network=none` overlay never reaches that build and this
+    scan is the only boundary it has. Scanning `tests/` with the runtime pattern
+    alone missed `apk add`, `cargo install`, `go get` and friends.
+
+    Files that cannot be decoded as UTF-8 are refused rather than skipped,
+    matching the fail-closed posture of `_docker_copy_sources`.
     """
-    root = task_dir / "environment"
-    if not root.is_dir():
-        return
-    for path in sorted(root.rglob("*")):
-        if path.is_symlink() or not path.is_file():
+    for context, image in _BUILD_CONTEXTS:
+        root = task_dir / context
+        if not root.is_dir():
             continue
-        relative = path.relative_to(task_dir).as_posix()
-        if relative == "environment/Dockerfile":
-            # Already scanned by _validate_dockerfile with Dockerfile line semantics
-            # (continuations joined, comments and FROM references exempt).
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            diagnostics.append(
-                _diag(
-                    "build_context_unreadable",
-                    relative,
-                    "every build-context file must be readable UTF-8 text so it can be "
-                    "scanned for build-time network use; ship reviewable inputs instead",
+        dockerfile = f"{context}/Dockerfile"
+        for path in sorted(root.rglob("*")):
+            if path.is_symlink() or not path.is_file():
+                continue
+            relative = path.relative_to(task_dir).as_posix()
+            if relative == dockerfile:
+                # Already scanned with Dockerfile line semantics (continuations
+                # joined, comments and FROM references exempt).
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                diagnostics.append(
+                    _diag(
+                        "build_context_unreadable",
+                        relative,
+                        f"every file in the build context for {image} must be readable UTF-8 "
+                        "text so it can be scanned for build-time network use; ship "
+                        "reviewable inputs instead",
+                    )
                 )
-            )
-            continue
-        if BUILD_NETWORK_PATTERN.search(text):
-            diagnostics.append(
-                _diag(
-                    "build_network_use",
-                    relative,
-                    "build-context files may not fetch from a network or invoke an online "
-                    "package manager, including from a script the Dockerfile runs",
+                continue
+            if BUILD_NETWORK_PATTERN.search(text):
+                diagnostics.append(
+                    _diag(
+                        "build_network_use",
+                        relative,
+                        f"files in the build context for {image} may not fetch from a network "
+                        "or invoke an online package manager, including from a script the "
+                        "Dockerfile runs",
+                    )
                 )
-            )
 
 
 def _is_remote_docker_source(source: str) -> bool:
@@ -1032,6 +1170,20 @@ def _effective_verifier_network(config: Mapping[str, Any]) -> tuple[str, str, st
       inherit the other table's value.
     * phase (applies during `verify()`) — the explicit `[verifier].network_mode`
       override when set, otherwise the baseline.
+
+    This is a mirror, not a call: Harbor ships as a standalone CLI tool rather
+    than a library this package imports, so the resolver cannot be reused in
+    process. The mirrored symbols are
+    `harbor.models.task.verifier_mode.resolve_effective_verifier_env_config`,
+    `harbor.models.task.config.BaselineNetworkPolicyConfig.resolve_baseline`, and
+    `harbor.trial.network_policy.resolve_verifier_phase_policy` (Harbor 0.21.0).
+    `test_verifier_network_resolution_matches_harbor` executes those three
+    against the installed Harbor and fails if this mirror drifts from them.
+
+    Both this function and Harbor's resolver take a step argument that this one
+    omits, because `_validate_supported_configuration` refuses `[[steps]]`
+    outright: Harbor resolves step-first, and v1 does not model a multi-step
+    trial. The mirror is only valid for the step-less case it is given.
 
     Returns `(baseline, phase, baseline_origin)`.
     """
@@ -1427,6 +1579,7 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     _validate_source(source, diagnostics)
     _validate_layout(task_dir, diagnostics)
     config = _parse_task_toml(task_dir / "task.toml", diagnostics)
+    _validate_supported_configuration(config, diagnostics)
     task_name, task_version, keywords = _validate_task_metadata(config, task_dir, diagnostics)
     artifacts = _validate_timeouts_and_artifacts(config, diagnostics)
     base_image = _validate_dockerfile(task_dir, diagnostics)

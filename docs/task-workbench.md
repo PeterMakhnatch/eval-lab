@@ -87,15 +87,68 @@ boundary, and the distinction is load-bearing:
   that table is absent) and any `[verifier].network_mode` phase override must
   both be `no-network`. An absent `[verifier.environment]` does not inherit
   silently — the resolution Harbor actually performs is reproduced and checked.
-- The verifier build is covered only by a build-network text scan of
-  `tests/Dockerfile` plus a runtime-network text scan of the other files under
-  `tests/`. There is no `build.network: none` on the verifier image build and no
-  equivalent of the `environment/` fail-closed rule: a file under `tests/` that
-  cannot be decoded as UTF-8 is skipped silently, not refused.
+  Harbor is installed as a standalone CLI, not as a library this package can
+  import, so that resolution is a reproduction rather than a call to
+  `resolve_effective_verifier_env_config`. It is pinned:
+  `test_verifier_network_resolution_matches_harbor` runs Harbor's own resolver
+  in Harbor's own interpreter and fails if the two stop agreeing.
+- The verifier image build is covered by a static content scan of `tests/`, not
+  by container-level enforcement. There is no `build.network: none` on that
+  build, so the scan is the entire boundary. It applies the build-time network
+  pattern — remote URL schemes, VCS fetches, and the online package managers
+  (`apt`, `apk`, `dnf`/`yum`/`microdnf`/`zypper`, `pip`, `uv`, `npm`/`pnpm`/
+  `yarn`, `gem`, `cargo`, `go`, `Invoke-WebRequest`) — to `tests/Dockerfile` and
+  to every other file in the context, because `COPY . /tests` plus
+  `RUN sh /tests/bootstrap.sh` hides the fetch in a file no Dockerfile line
+  names. A file under `tests/` that cannot be decoded as UTF-8 is refused, not
+  skipped. A text scan can still be defeated by an obfuscated fetch; it is a
+  review aid, not a sandbox.
 
 A declared `[environment].docker_image` is refused outright, because it makes
 Harbor skip the reviewed `environment/Dockerfile` build entirely, so the
 overlay's build-time denial would never apply to the image the agent runs.
+
+### The task.toml surface v1 understands
+
+Both verifier claims above rest on the workbench reproducing Harbor's
+configuration resolution in `_effective_verifier_network`. Any table or key it
+fails to reproduce is a silent hole: the task reaches Harbor with a policy the
+packet never examined. Two review rounds each found one, so the surface is now
+closed rather than open. `SUPPORTED_TASK_CONFIG` lists exactly what v1 models,
+and anything else is refused with `unsupported_task_configuration`, an error
+naming the offending path (`steps`, `verifier.collect`,
+`task.authors[1].affiliation`).
+
+What v1 accepts: `schema_version`, `artifacts`, `[task]` (`name`, `version`,
+`description`, `keywords`, `[[task.authors]]` with `name`/`email`), the
+free-form `[metadata]` table, `[agent].timeout_sec`, `[verifier]`
+(`timeout_sec`, `environment_mode`, `network_mode`, `[verifier.environment]`),
+and `[environment]`/`[verifier.environment]` limited to `network_mode`,
+`build_timeout_sec`, `cpus`, `memory_mb`, `storage_mb`, plus `docker_image` on
+`[environment]` only — where it gets its own `prebuilt_image_unsupported`
+refusal.
+
+Everything else is refused, including `[[steps]]` and
+`multi_step_reward_strategy`, `[solution]`, `source`, `verifier.collect`,
+`verifier.env`, `verifier.user`, `agent.network_mode`, `agent.allowed_hosts`,
+`allowed_hosts`, the deprecated `allow_internet`, `mcp_servers`, `healthcheck`,
+`skills_dir`, `workdir`, `env`, `os`, `gpus`, `gpu_types`, `tpu`, and
+`docker_image` under `[verifier.environment]`.
+
+`[[steps]]` is the one worth spelling out. Harbor resolves a multi-step task's
+verifier step-first: `resolve_effective_verifier_env_config` returns
+`steps[i].verifier.environment` before `[verifier.environment]`, and the phase
+override falls back the same way. A task whose task-level tables all declare
+`no-network` can therefore still run a step's verifier with full egress. v1
+models a single verify pass, so it refuses `[[steps]]` instead of resolving it.
+
+`unsupported_task_configuration` is classified `harness_defect`, not
+`task_defect`: it usually means the task is fine and this workbench version is
+not equipped to reason about it. It is still an error and still blocks
+certification, because a false green is worse than a refusal. The fix is either
+to express the task within the supported surface, or to extend
+`SUPPORTED_TASK_CONFIG` together with the checks that model the new construct —
+never the allowlist alone.
 
 ## Commands
 
@@ -191,15 +244,19 @@ separate verifier isolation, hidden/golden data exposure, pinned images and
 dependencies, runtime network use, nondeterministic verifier constructs,
 reward output, adversarial coverage, and forged registration claims.
 
-Four refusals exist specifically to stop the packet from claiming isolation it
+Five refusals exist specifically to stop the packet from claiming isolation it
 cannot back:
 
+- `unsupported_task_configuration` — the task uses a `task.toml` construct this
+  workbench version does not model, so its effective network policy was never
+  examined; see
+  [The task.toml surface v1 understands](#the-tasktoml-surface-v1-understands);
 - `prebuilt_image_unsupported` — `[environment].docker_image` is declared, so
   Harbor skips the reviewed `environment/Dockerfile` build and the overlay's
   build-time network denial never applies to the image the agent runs;
-- `build_context_unreadable` — a file under `environment/` is not decodable
-  UTF-8, so it cannot be scanned for build-time network use; it is refused
-  rather than skipped;
+- `build_context_unreadable` — a file under `environment/` or `tests/` is not
+  decodable UTF-8, so it cannot be scanned for build-time network use; it is
+  refused rather than skipped;
 - `verifier_network_not_isolated` — the verifier's effective *baseline* network
   is not `no-network`. Because Harbor drops the overlay for the verifier, a
   networked verifier can exfiltrate hidden inputs, and it can make
@@ -208,8 +265,11 @@ cannot back:
 - `verifier_phase_network_not_isolated` — `[verifier].network_mode` reopens the
   network for the verification phase itself.
 
-The first two are enforced for the agent image. The last two are static
-declaration checks, not runtime denial; see
+`build_network_use` and `build_context_unreadable` are enforced for both images,
+but only the agent image also has container-level denial behind them. The two
+`verifier_*_not_isolated` refusals are static declaration checks, not runtime
+denial, and `unsupported_task_configuration` is a limitation of the workbench
+rather than a finding about the task; see
 [What denies the network, and where](#what-denies-the-network-and-where).
 
 The control assessment requires:

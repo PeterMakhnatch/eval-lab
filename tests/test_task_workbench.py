@@ -4,6 +4,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import tomllib
 from dataclasses import replace
 from pathlib import Path
 
@@ -13,6 +14,7 @@ import yaml
 from evallab.task_workbench import (
     NETWORK_OVERLAY_CONTENT,
     NETWORK_OVERLAY_RELATIVE,
+    NETWORK_SCRIPT_PATTERN,
     CandidateSource,
     ControlBundle,
     ControlObservation,
@@ -21,6 +23,7 @@ from evallab.task_workbench import (
     PacketConflictError,
     UnsafePathError,
     WorkbenchError,
+    _effective_verifier_network,
     _harbor_task_digest,
     _verifier_output_digest,
     check_candidate,
@@ -36,6 +39,48 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/task_workbench"
 VALID = FIXTURES / "valid"
 CASES = FIXTURES / "cases"
+
+# Harbor is installed as a standalone CLI tool, not as an importable dependency
+# of this package, so the workbench reproduces its verifier-network resolution
+# instead of calling it. This probe runs the real resolver inside Harbor's own
+# interpreter so the reproduction can be pinned against it.
+_HARBOR_RESOLUTION_PROBE = """
+import json, sys, tomllib
+
+from harbor.models.task.config import TaskConfig
+from harbor.models.task.verifier_mode import resolve_effective_verifier_env_config
+from harbor.trial.network_policy import resolve_verifier_phase_policy
+
+results = []
+for document in json.loads(sys.stdin.read()):
+    config = TaskConfig.model_validate(tomllib.loads(document))
+    resolved = []
+    for step in (config.steps or [None]):
+        env = resolve_effective_verifier_env_config(config, step)
+        if env is None:
+            resolved.append(None)
+            continue
+        baseline = env.resolve_baseline()
+        phase = resolve_verifier_phase_policy(config, step, baseline=baseline)
+        resolved.append([baseline.network_mode.value, phase.network_mode.value])
+    results.append(resolved)
+print(json.dumps(results))
+"""
+
+
+def _harbor_resolution(documents: list[str]) -> list[list[list[str] | None]]:
+    executable = shutil.which("harbor")
+    interpreter = Path(executable).resolve().parent / "python" if executable else None
+    if interpreter is None or not interpreter.exists():
+        pytest.skip("harbor is not installed; cannot pin the mirror against its resolver")
+    completed = subprocess.run(
+        [str(interpreter), "-c", _HARBOR_RESOLUTION_PROBE],
+        input=json.dumps(documents),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(completed.stdout)
 
 
 def _canonical(value: object) -> bytes:
@@ -499,6 +544,164 @@ def test_verifier_phase_override_cannot_reopen_the_network(tmp_path: Path) -> No
     # The baseline is still no-network, so only the phase override is reported.
     assert "verifier_network_not_isolated" not in codes
     assert inspection.candidate["network_policy"]["verifier_effective_phase"] == "public"
+
+
+def test_step_level_verifier_network_is_refused_as_unsupported(tmp_path: Path) -> None:
+    """[[steps]] resolves verifier-first in Harbor, so task-level tables prove nothing.
+
+    The fixture's task-level tables are fully compliant. The pre-existing mirror
+    therefore resolves a `no-network` baseline and reports nothing, which is
+    exactly the false green: Harbor would start this step's verifier with full
+    egress. Only the unsupported-configuration refusal catches it, and this test
+    asserts that by pinning both halves.
+    """
+    repo, task = _copy_candidate(tmp_path / "steps", "step-verifier-network")
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    finding = next(
+        item
+        for item in inspection.diagnostics
+        if item.code == "unsupported_task_configuration"
+    )
+    assert finding.severity == "error"
+    # A construct the workbench cannot model is a limitation of the workbench,
+    # not evidence that the task is defective.
+    assert finding.classification == "harness_defect"
+    assert finding.path == "task.toml"
+    assert finding.message.startswith("steps is outside")
+
+    # The refusal is the only thing standing between this task and a packet: the
+    # network mirror still sees a compliant task-level configuration.
+    codes = _codes(inspection)
+    assert codes == {"unsupported_task_configuration"}
+    assert inspection.candidate["network_policy"]["verifier_effective_baseline"] == "no-network"
+
+
+def test_verifier_build_context_script_fetch_is_rejected(tmp_path: Path) -> None:
+    """`COPY . /tests` + `RUN sh bootstrap.sh` hides the fetch outside Dockerfile lines.
+
+    Harbor builds the separate verifier image from `tests/` with
+    `extra_docker_compose` cleared, so no `build.network=none` overlay reaches
+    it and this scan is the only boundary. `apk add` is deliberately chosen: the
+    runtime pattern that already covered `tests/` does not match it, so a pass
+    here can only come from the build pattern now applied to the context.
+    """
+    repo, task = _copy_candidate(tmp_path / "verifier-build", "verifier-build-script")
+    inspection = _inspect(repo, task)
+
+    dockerfile = (task / "tests/Dockerfile").read_text()
+    assert "apk" not in dockerfile and "https://" not in dockerfile
+    assert not NETWORK_SCRIPT_PATTERN.search((task / "tests/bootstrap.sh").read_text())
+
+    assert not inspection.static_passed
+    finding = next(
+        item
+        for item in inspection.diagnostics
+        if item.code == "build_network_use" and item.path == "tests/bootstrap.sh"
+    )
+    assert finding.severity == "error"
+    assert "separate verifier image" in finding.message
+    # Nothing else fires, so the refusal is not incidental to another check.
+    assert _codes(inspection) == {"build_network_use"}
+
+
+def test_unscannable_verifier_build_context_file_fails_closed(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "verifier-binary")
+    (task / "tests/toolchain.bin").write_bytes(b"\xff\xfe\x00binary payload")
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    assert any(
+        item.code == "build_context_unreadable" and item.path == "tests/toolchain.bin"
+        for item in inspection.diagnostics
+    )
+
+
+@pytest.mark.parametrize(
+    ("addition", "location"),
+    [
+        ('[environment.mcp_servers.docs]\nurl = "https://example.invalid"\n',
+         "environment.mcp_servers"),
+        ('[verifier.environment]\nnetwork_mode = "no-network"\ndocker_image = "x@sha256:'
+         + "a" * 64 + '"\n', "verifier.environment.docker_image"),
+        ('[verifier.collect]\ncommand = "true"\n', "verifier.collect"),
+        ('[[task.authors]]\nname = "Other"\naffiliation = "Somewhere"\n',
+         "task.authors[1].affiliation"),
+        ('multi_step_reward_strategy = "final"\n', "multi_step_reward_strategy"),
+        ('[environment.healthcheck]\ntest = "true"\n', "environment.healthcheck"),
+        ('[solution]\nenv = {}\n', "solution"),
+    ],
+)
+def test_unsupported_task_configuration_names_the_exact_offending_path(
+    tmp_path: Path, addition: str, location: str
+) -> None:
+    """Anything outside the modelled surface is refused, by its exact dotted path."""
+    repo, task = _copy_candidate(tmp_path / location.replace(".", "-").replace("[", "-"))
+    config = (task / "task.toml").read_text()
+    # A bare key appended to the end of the document would land in the last
+    # table, so top-level keys go in front of the first table header.
+    document = config + "\n" + addition if addition.startswith("[") else addition + config
+    (task / "task.toml").write_text(document)
+    inspection = _inspect(repo, task)
+
+    assert not inspection.static_passed
+    locations = {
+        item.message.split(" is outside", 1)[0]
+        for item in inspection.diagnostics
+        if item.code == "unsupported_task_configuration"
+    }
+    assert location in locations
+
+
+def test_reference_fixture_stays_inside_the_supported_configuration_surface(
+    tmp_path: Path,
+) -> None:
+    """The allowlist must not refuse the task the workbench is built to certify."""
+    repo, task = _copy_candidate(tmp_path / "surface")
+    inspection = _inspect(repo, task)
+
+    assert inspection.static_passed
+    assert "unsupported_task_configuration" not in _codes(inspection)
+
+
+def test_verifier_network_resolution_matches_harbor(tmp_path: Path) -> None:
+    """Pin the mirror against the resolver it mirrors, so the two cannot drift.
+
+    Harbor ships as a standalone CLI rather than a library this package imports,
+    so `_effective_verifier_network` reproduces its resolution instead of calling
+    it. This test runs the real
+    `resolve_effective_verifier_env_config` / `resolve_baseline` /
+    `resolve_verifier_phase_policy` inside the installed Harbor's own
+    interpreter and fails if the reproduction stops agreeing.
+    """
+    valid = (VALID / "task.toml").read_text()
+    step_case = (CASES / "step-verifier-network" / "task.toml").read_text()
+    documents = [
+        valid,
+        # A [verifier.environment] table that omits network_mode does not inherit
+        # [environment]; EnvironmentConfig defaults it to public.
+        valid + "\n[verifier.environment]\ncpus = 1\n",
+        valid.replace('network_mode = "no-network"', 'network_mode = "public"')
+        + '\n[verifier.environment]\nnetwork_mode = "no-network"\n',
+        valid.replace(
+            "[verifier]\ntimeout_sec", '[verifier]\nnetwork_mode = "public"\ntimeout_sec'
+        ),
+    ]
+    resolved = _harbor_resolution([*documents, step_case])
+
+    for document, harbor in zip(documents, resolved[: len(documents)], strict=True):
+        baseline, phase, _ = _effective_verifier_network(tomllib.loads(document))
+        assert harbor == [[baseline, phase]], document
+
+    # The step fixture is refused rather than mirrored, and this is why: Harbor
+    # resolves its single step's verifier to full egress even though every
+    # task-level table is compliant.
+    assert resolved[-1] == [["public", "public"]]
+    assert _effective_verifier_network(tomllib.loads(step_case))[:2] == (
+        "no-network",
+        "no-network",
+    )
 
 
 def test_prebuilt_docker_image_bypassing_the_reviewed_build_is_rejected(

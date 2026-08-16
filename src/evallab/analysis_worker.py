@@ -25,6 +25,10 @@ Contract highlights, all tested:
 - **Crash safety.** A sidecar on disk without a ``completed`` transition is
   adopted, never re-executed. A durably-started invocation without a sidecar
   is ambiguous and requires explicit operator resolution; it is never replayed.
+- **Durability.** Every name recovery depends on is fsynced together with
+  the directory that holds it — the request directory, ``request.json``, the
+  invocation journal, and the sidecar. A dirent lost to a host-level crash
+  would otherwise erase the proof that a call was already paid for.
 - **Concurrency.** A kernel-backed lease with a unique owner token serializes
   each request; process death releases it and no owner deletes another's lease.
 """
@@ -67,16 +71,38 @@ def _sha256_file(path: Path) -> str | None:
         return None
 
 
+def _fsync_directory(directory: Path) -> None:
+    """Fsync a directory so dirents created inside it survive a host crash."""
+    directory_fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _durable_mkdir(directory: Path) -> None:
+    """Create ``directory``, fsyncing the dirent of every level this adds.
+
+    ``mkdir`` leaves the new directory entries in their parents' dirty cache.
+    A crash can therefore lose a whole request subtree — including the
+    invocation journal that proves a possibly-paid call already happened.
+    """
+    created: list[Path] = []
+    probe = directory
+    while not probe.exists():
+        created.append(probe)
+        probe = probe.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    for path in reversed(created):
+        _fsync_directory(path.parent)
+
+
 def _durable_replace(source: Path, destination: Path) -> None:
     """Fsync file bytes before atomically publishing the stable sidecar path."""
     with source.open("rb") as handle:
         os.fsync(handle.fileno())
     source.replace(destination)
-    directory_fd = os.open(destination.parent, os.O_RDONLY)
-    try:
-        os.fsync(directory_fd)
-    finally:
-        os.close(directory_fd)
+    _fsync_directory(destination.parent)
 
 
 class AnalysisRequest(BaseModel):
@@ -160,13 +186,18 @@ class RequestStore:
     def freeze(self, request: AnalysisRequest) -> bool:
         """Persist a new request; False when the identity already exists."""
         directory = self.request_dir(request.request_id)
-        directory.mkdir(parents=True, exist_ok=True)
+        _durable_mkdir(directory)
         path = directory / "request.json"
         try:
             with open(path, "x") as handle:
                 handle.write(request.model_dump_json(indent=2) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
         except FileExistsError:
             return False
+        # request.json is the root of recovery: lose its dirent and a rescan
+        # mints this same identity again with no journal to stop a second call.
+        _fsync_directory(directory)
         self.append(request.request_id, "pending", None)
         return True
 
@@ -303,14 +334,24 @@ class RequestStore:
     def _append_invocation_event(self, request_id: str, payload: dict[str, Any]) -> None:
         """Durably append before crossing a possibly billable boundary."""
         path = self._invocations_path(request_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        _durable_mkdir(path.parent)
         encoded = (json.dumps(payload, sort_keys=True) + "\n").encode()
-        fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+        try:
+            fd = os.open(path, os.O_APPEND | os.O_WRONLY)
+            created = False
+        except FileNotFoundError:
+            fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+            created = True
         try:
             os.write(fd, encoded)
             os.fsync(fd)
         finally:
             os.close(fd)
+        if created:
+            # O_CREAT durably places the bytes, not the name. Without the
+            # parent fsync a crash leaves no journal, recovery sees no
+            # unresolved attempt, and the guarded call is issued twice.
+            _fsync_directory(path.parent)
 
     def invocation_events(self, request_id: str) -> list[dict[str, Any]]:
         path = self._invocations_path(request_id)
@@ -359,6 +400,29 @@ class RequestStore:
                 "at": at.isoformat(),
                 "resolution": resolution,
                 "actor": actor,
+            },
+        )
+
+    def record_lease_replacement(
+        self,
+        request_id: str,
+        *,
+        owner_token: str,
+        at: datetime,
+    ) -> None:
+        """Note durably that ``flock`` stopped serializing this request.
+
+        Kept in the invocation journal rather than ``transitions.jsonl``:
+        state is the last transition line, so an audit note there would
+        overwrite the reason the state machine reads back.
+        """
+        self._append_invocation_event(
+            request_id,
+            {
+                "event": "lease_replaced_during_execution",
+                "at": at.isoformat(),
+                "owner_token": owner_token,
+                "actor": "analysis-worker",
             },
         )
 
@@ -574,6 +638,29 @@ def admit(
 IndexFn = Callable[[Path], None]
 
 
+_PERMANENT_DEFERRAL_PREFIXES = ("harness_exception", "no_verdict")
+
+
+def _is_permanent_deferral(transition: Transition) -> bool:
+    """True when a deferral is evidence-shaped and no retry can ever help.
+
+    A harness exception or a missing verdict is a property of the recorded
+    trial, not a transient condition: analysing it anyway would spend money
+    and record a harness failure as an agent failure.
+    """
+    return bool(
+        transition.reason
+        and transition.reason.startswith(_PERMANENT_DEFERRAL_PREFIXES)
+    )
+
+
+def _no_adapter(prompt: str, schema: dict[str, Any]):
+    raise RuntimeError(
+        "no analysis adapter is wired; plan/status/stage never call a model, "
+        "and run-one requires an explicitly constructed adapter"
+    )
+
+
 @dataclass
 class AnalysisWorker:
     repo_root: Path
@@ -624,10 +711,14 @@ class AnalysisWorker:
         """Run once, refusing automatic replay of an ambiguous invocation."""
         request = self.store.load(request_id)
         state = self.store.state(request_id)
-        if state == "completed":
+        if state in {"completed", "quarantined"}:
             return self.store.transitions(request_id)[-1]
-        if state in {"quarantined"}:
-            return self.store.transitions(request_id)[-1]
+        if state == "deferred":
+            last = self.store.transitions(request_id)[-1]
+            if _is_permanent_deferral(last):
+                # run_one is the production entrypoint, so permanence is
+                # enforced here too — not only in the run_cycle loop.
+                return last
 
         # Crash-after-call adoption: sidecar exists -> never call again.
         sidecar_path = self.store.sidecar_path(request_id)
@@ -672,6 +763,13 @@ class AnalysisWorker:
             if match is None:
                 self.store.append(request_id, "quarantined", "trial_vanished")
                 return self.store.transitions(request_id)[-1]
+            if self.adapter is _no_adapter:
+                # Provably local: no adapter can reach a provider, so this is
+                # a misconfiguration and not a possibly-paid attempt. Recorded
+                # without arming the invocation journal, and after admission so
+                # a policy or evidence verdict keeps precedence over it.
+                self.store.append(request_id, "deferred", "adapter_not_wired")
+                return self.store.transitions(request_id)[-1]
             self.store.append(request_id, "admitted", None)
             job, trial = match
             attempt_id = self.store.begin_invocation(
@@ -706,7 +804,14 @@ class AnalysisWorker:
             self._complete(request_id, sidecar_path, adopted=False)
             return self.store.transitions(request_id)[-1]
         finally:
-            self.store.release_lease(request_id, lease)
+            self._release_lease(request_id, lease)
+
+    def _release_lease(self, request_id: str, lease: LeaseHandle) -> None:
+        """Release this lease, recording any loss of serialization."""
+        if not self.store.release_lease(request_id, lease):
+            self.store.record_lease_replacement(
+                request_id, owner_token=lease.owner_token, at=self.clock()
+            )
 
     def _complete(self, request_id: str, sidecar_path: Path, *, adopted: bool) -> None:
         sidecar = TrialAnalysisSidecar.model_validate_json(sidecar_path.read_text())
@@ -773,7 +878,7 @@ class AnalysisWorker:
                 )
             return self.store.transitions(request_id)[-1]
         finally:
-            self.store.release_lease(request_id, lease)
+            self._release_lease(request_id, lease)
 
     def run_cycle(self, job_roots: list[Path]) -> CycleReport:
         stage_report = self.stage(job_roots)
@@ -784,12 +889,10 @@ class AnalysisWorker:
             state = self.store.state(request_id)
             if state in {"completed", "quarantined"}:
                 continue
-            if state == "deferred":
-                last = self.store.transitions(request_id)[-1]
-                if last.reason and last.reason.startswith(
-                    ("harness_exception", "no_verdict")
-                ):
-                    continue  # permanent by evidence shape; retry needs new evidence
+            if state == "deferred" and _is_permanent_deferral(
+                self.store.transitions(request_id)[-1]
+            ):
+                continue  # permanent by evidence shape; retry needs new evidence
             had_sidecar = self.store.sidecar_path(request_id).is_file()
             transition = self.run_one(request_id)
             if transition.state == "completed":
@@ -856,13 +959,6 @@ class AnalysisWorker:
 # ---------------------------------------------------------------------------
 # Default composition (CLI + nightly). Read paths only; fail-closed gates.
 # ---------------------------------------------------------------------------
-
-
-def _no_adapter(prompt: str, schema: dict[str, Any]):  # pragma: no cover - guard
-    raise RuntimeError(
-        "no analysis adapter is wired; plan/status/stage never call a model, "
-        "and run-one requires an explicitly constructed adapter"
-    )
 
 
 def default_worker(root: Path, *, adapter: AnalyzerCallable | None = None) -> AnalysisWorker:

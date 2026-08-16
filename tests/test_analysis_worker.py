@@ -5,6 +5,7 @@ policy, probes, clock, health, spend — zero real credentials, DB, or model.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -877,3 +878,181 @@ def test_real_nightly_stager_persists_bounded_returned_quarantine(tmp_path):
         "reasons=evidence_unreadable=1"
     )
     assert len(event.reason_code) <= 512
+
+
+
+# ============================================================================
+# M006 third repair regressions (independent exact-head review of 1f4cf6f)
+# ============================================================================
+
+
+def _record_fsyncs(monkeypatch) -> list[tuple[int, int]]:
+    """Record (device, inode) of every fsynced fd; a dirent needs its parent."""
+    seen: list[tuple[int, int]] = []
+    real_fsync = os.fsync
+
+    def recording(fd: int) -> None:
+        stat = os.fstat(fd)
+        seen.append((stat.st_dev, stat.st_ino))
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", recording)
+    return seen
+
+
+def _ident(path: Path) -> tuple[int, int]:
+    stat = path.stat()
+    return (stat.st_dev, stat.st_ino)
+
+
+def test_frozen_request_dirents_are_durable(monkeypatch, tmp_path):
+    """request.json is the recovery root: bytes AND dirents must be durable."""
+    worker, root = make_worker(tmp_path)
+    seen = _record_fsyncs(monkeypatch)
+    worker.stage([root / "jobs"])
+
+    rid = _pending(worker)[0]
+    request_dir = worker.store.request_dir(rid)
+    assert _ident(request_dir / "request.json") in seen  # the bytes
+    assert _ident(request_dir) in seen  # the request.json dirent
+    assert _ident(request_dir.parent) in seen  # the request directory dirent
+
+
+def test_invocation_journal_dirent_is_durable(monkeypatch, tmp_path):
+    """A journal whose dirent is lost lets a crash re-issue a paid call."""
+    worker, root = make_worker(tmp_path)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    request_dir = worker.store.request_dir(rid)
+
+    seen = _record_fsyncs(monkeypatch)
+    worker.store.begin_invocation(rid, owner_token="owner-a", at=FROZEN)
+    assert _ident(request_dir / "invocations.jsonl") in seen  # the bytes
+    assert _ident(request_dir) in seen  # the newly created journal dirent
+
+
+def test_unwired_adapter_defers_without_arming_the_ambiguity_journal(tmp_path):
+    """A locally provable misconfiguration is never a possibly-paid call."""
+    from evallab import analysis_worker as aw
+
+    worker, root = make_worker(tmp_path, adapter=aw._no_adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+
+    transition = worker.run_one(rid)
+    assert transition.state == "deferred"
+    assert transition.reason == "adapter_not_wired"
+    # No journal entry, so no operator ceremony is required to move on.
+    assert worker.store.invocation_events(rid) == []
+    assert worker.store.unresolved_invocation(rid) is None
+    # And it stays retryable: wiring an adapter is all it takes.
+    adapter = CountingAdapter()
+    worker.adapter = adapter
+    assert worker.run_one(rid).state == "completed"
+    assert adapter.calls == 1
+
+
+def test_run_one_never_reruns_a_permanent_evidence_deferral(tmp_path):
+    """run_one is the only production entrypoint; permanence must hold there."""
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    permanent = [
+        rid for rid in worker.store.all_request_ids()
+        if (worker.store.transitions(rid)[-1].reason or "").startswith(
+            "harness_exception"
+        )
+    ]
+    assert permanent, "fixture must contain a harness-exception trial"
+    rid = permanent[0]
+
+    transition = worker.run_one(rid)
+    assert transition.state == "deferred"
+    assert transition.reason == "harness_exception_not_agent_failure"
+    assert adapter.calls == 0  # a harness failure is never an agent analysis
+    assert not worker.store.sidecar_path(rid).exists()
+    assert worker.store.invocation_events(rid) == []
+
+
+def _fail_closed_root(tmp_path: Path) -> Path:
+    """A repository root shaped exactly like the one the CLI composes from."""
+    root = tmp_path / "repo"
+    (root / "runs").mkdir(parents=True)
+    shutil.copytree(FIXTURES / "jobs" / "job-pass", root / "runs" / "job-pass")
+    (root / "policy").mkdir()
+    (root / "policy/standing-approvals.yaml").write_text(
+        "version: 1\ndaily_cost_ceiling_usd: 20\nper_job_cost_ceiling_usd: 3\n"
+        "quiet_failure_rule: 3\n"
+        "auto_run:\n  - name: local-controls\n    agents: [oracle, nop]\n"
+        "  - name: researcher-followups\n    agents: [codex, claude-code]\n"
+        "    max_attempts: 5\n"
+        "    requires: [schema_valid, dedup_pass, calibrated_judges_only]\n"
+        "escalate_to_human:\n  - new_task_registration\n"
+    )
+    (root / "research/analysis").mkdir(parents=True)
+    shutil.copy(FIXTURES / "stage5-prompt.md", root / "research/analysis/stage5-prompt.md")
+    shutil.copy(
+        FIXTURES / "stage5-rubric.json", root / "research/analysis/stage5-rubric.json"
+    )
+    return root
+
+
+def test_default_worker_stays_fail_closed_for_live_analysis(tmp_path):
+    """The two defaults that keep this PR from enabling unattended live calls.
+
+    Opening the calibration gate or defaulting the adapter to a live one must
+    be a deliberate, reviewed change — not a quiet edit that CI accepts.
+    """
+    from evallab import analysis_worker as aw
+
+    root = _fail_closed_root(tmp_path)
+    worker = aw.default_worker(root)
+
+    assert worker.adapter is aw._no_adapter
+    with pytest.raises(RuntimeError, match="no analysis adapter is wired"):
+        worker.adapter("prompt", {})
+    assert worker.context.requirement_checks["calibrated_judges_only"]() is False
+
+    # The closed gate is enforced, not merely declared: a fully eligible trial
+    # defers on the policy requirement with zero calls and no armed journal.
+    worker.stage([root / "runs"])
+    rid = _pending(worker)[0]
+    transition = worker.run_one(rid)
+    assert transition.state == "deferred"
+    assert transition.reason == "policy_requirement_unmet:calibrated_judges_only"
+    assert worker.store.invocation_events(rid) == []
+    assert not worker.store.sidecar_path(rid).exists()
+
+    # An adapter supplied explicitly by a caller is still honoured.
+    assert aw.default_worker(root, adapter=CountingAdapter()).adapter is not aw._no_adapter
+
+
+def test_lease_replacement_during_execution_is_durably_recorded(monkeypatch, tmp_path):
+    """A false release result means flock stopped serializing the request."""
+    from evallab import analysis_worker as aw
+
+    adapter = CountingAdapter()
+    worker, root = make_worker(tmp_path, adapter=adapter)
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+    replacements: list[object] = []
+
+    def steal_the_lease(job, trial, *, analyzer, **_kwargs):
+        (worker.store.request_dir(rid) / "lease").unlink()
+        replacements.append(worker.store.acquire_lease(rid, owner_token="replacement"))
+        raise RuntimeError("crashed while a replacement owner held the lease")
+
+    monkeypatch.setattr(aw, "run_trial_analysis", steal_the_lease)
+    with pytest.raises(RuntimeError, match="replacement owner"):
+        worker.run_one(rid)
+
+    events = worker.store.invocation_events(rid)
+    assert [e["event"] for e in events] == [
+        "invocation_started",
+        "lease_replaced_during_execution",
+    ]
+    # The note is an audit record only: state stays where the machine left it.
+    assert worker.store.state(rid) == "running"
+    assert worker.store.unresolved_invocation(rid) is not None
+    assert replacements[0] is not None
+    worker.store.release_lease(rid, replacements[0])

@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: promoted the three scored 2026-08-15 Codex canary jobs into research/evidence/runs/ as redacted bundles (666,650 B, 120 files, per-file parent SHA-256 in PROMOTION.json), chose redaction option (b) because ATIF system/user steps carry the verbatim Codex vendor system prompt, and repointed PROGRAM.json references.jobs plus STATUS.md at the committed paths — validator OK
-Next: integrator review of the redaction decision (option b) and the R1/R2/R3 rules before merge; if the reviewer disagrees with promoting agent output text at all, the fallback is dropping `agent/codex.txt` and keeping only `trajectory.redacted.json`
+Last: opened PR #58 promoting the three scored 2026-08-15 Codex canary jobs into research/evidence/runs/ as redacted bundles (666,650 B, 120 files, per-file parent SHA-256 in PROMOTION.json), choosing redaction option (b) because ATIF system/user steps carry the verbatim Codex vendor system prompt, and repointing PROGRAM.json references.jobs plus STATUS.md at the committed paths — validator OK
+Next: integrator review of PR #58 at its current head, above all the redaction decision (option b) and the R1/R2/R3 rules; if the reviewer disagrees with promoting agent output text at all, the fallback is dropping `agent/codex.txt` and keeping only `trajectory.redacted.json`; do not merge from this role
 Blockers: none
 
 # PROMOTE-EVIDENCE handoff

@@ -474,17 +474,45 @@ budget instead of an assertion, and it will fail on every future promotion.
 **I deliberately did not touch it.** Re-scoping a gate so my own PR goes green is
 the move the Integrator told me not to make, and one CI observation is a weak
 basis beside the 14-run evidence behind the `ingest` re-baseline recorded in
-`budgets.json`. Perf budgets are `PerfRebaseline`'s; I asked them over IRC which
-of the two fixes they want — pin the harness corpus to a fixed set so the gate
-measures code speed rather than committed-evidence volume, or re-baseline
-`projection` and `facts` for the larger corpus — and offered to carry whichever
-patch they specify. My own recommendation is pinning the corpus, because a budget
-that scales with committed evidence penalises the lab for keeping records, which
-is the opposite of what F-05 wants; but that changes what the gate measures and is
-not my call.
+`budgets.json`. My recommendation was to pin the corpus, because a budget that
+scales with committed evidence penalises the lab for keeping records, which is the
+opposite of what F-05 wants.
 
-Until that is decided, **PR #58 has a real blocker** and holding or splitting the
-promotion is a legitimate outcome.
+**Resolved by the Integrator, and this supersedes my open question.** I had asked
+`PerfRebaseline` as budget owner; that mission had already finished and its
+worktree is gone, so there was nobody to answer. The Integrator dispatched a
+Platform mission on `role/perf-corpus-pin` to pin the profiled corpus to a fixed
+set so promotion cannot move the numbers, with a test that fails if the default
+ever resolves back to `research/evidence/runs`. I am directed **not** to patch the
+budgets myself.
+
+**PR #58 therefore stays `review-wanted` and blocked until `perf-corpus-pin`
+lands**, after which this branch rebases for a clean `profile` run. That gate is
+the only red check; `lint`, `test (3.12)`, `test (3.14)` and `ty` all pass.
+
+`PerfRebaseline` replied after the Integrator's ruling and independently reached
+the same answer — pin the corpus, do not re-baseline — and framed it as the same
+defect their own mission just fixed, one variable over: their `ingest` bug was a
+budget calibrated on machine class A and enforced on class B, and this is a budget
+calibrated at corpus size 2 and enforced at 5. Both are "the metric's controlled
+variable is not controlled". Their spec, for whoever holds the Platform lease:
+replace `DEFAULT_CORPUS` in `harness.py` with the two named control jobs
+`event-summary-oracle-evidence` and `event-summary-nop-evidence`, pinned **in the
+harness default rather than via `--corpus` in `perf.yml`**, because pinning only in
+the workflow recreates the calibrated-in-one-place/enforced-in-another defect they
+just removed. No `budgets.json` value changes, which is the tell that this is the
+correct fix and not the convenient one: the gate ends up no weaker than today, and
+that file's existing note "on the committed 2-job evidence corpus" becomes true
+again instead of aspirational. They also suggest `check_budgets.py` assert the
+report's `corpus_jobs`/`corpus_result_json` against an expected shape so a future
+corpus change fails loudly with "corpus changed, re-baseline required" rather than
+silently re-scoping all six budgets.
+
+**One fact that widens the blocker:** `ingest` stayed green on this branch only
+because that budget's new 172.5 ms ceiling happened to absorb the corpus growth.
+`PerfRebaseline` says it scales with job count too, so that is luck, not design.
+Two of the six budgets are corpus-coupled, not one, and a larger future promotion
+would turn `ingest` red as well. Pinning the corpus makes both moot.
 
 ## Capability labels
 

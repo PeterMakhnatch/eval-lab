@@ -1,0 +1,4 @@
+Status: complete — ready for review
+Last: E13: rebound all dashboard panes to the unified DuckDB attach surface (`evallab.attach.attach`), replaced direct Parquet globs and direct database drivers with Z2/Z3/Z4 queries, added graceful zone degradation reporting, extended dashboard pytest test suite, created `docs/dashboard.md`, and regenerated repo map and doc index.
+Next: Review and merge PR.
+Blockers: Spend history daily bucket shift finding — old client-side PostgreSQL query applied `current_setting('TIMEZONE')` (local EDT/UTC-4: 2026-08-13=0 trials, 2026-08-14=25 trials, 2026-08-15=58 trials), whereas DuckDB unified attach surface interprets ISO timestamps in UTC (2026-08-13=5 trials, 2026-08-14=42 trials, 2026-08-15=36 trials). Total 7-day trials (92) and spend ($1.84) remain identical.

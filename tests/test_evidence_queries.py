@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 import evallab.paths
@@ -117,35 +119,75 @@ def test_powered_threshold_and_inversion() -> None:
 def test_full_corpus_derived_parquet_coverage(tmp_path, monkeypatch) -> None:
     """Test parquet corpus via seam + both never/measured >0 on tasks."""
     fixture_root = tmp_path / "derived"
-    parquet_dir = fixture_root / "job_id=j1" / "trial_id=t1"
-    parquet_file = parquet_dir / "trial_facts.parquet"
-
-    with duckdb.connect(":memory:") as wcon:
-        wcon.execute(
-            """
-            CREATE OR REPLACE TABLE trial_facts (
-                experiment_id VARCHAR, job_id VARCHAR, trial_id VARCHAR,
-                job_name VARCHAR, trial_name VARCHAR, task_name VARCHAR,
-                task_digest VARCHAR, verifier_digest VARCHAR, environment_digest VARCHAR,
-                agent_config_digest VARCHAR, agent_name VARCHAR, agent_version VARCHAR,
-                model_name VARCHAR, primary_reward DOUBLE,
-                exception_class VARCHAR, exception_phase VARCHAR,
-                duration_seconds DOUBLE, cost_usd DOUBLE
-            );
-            INSERT INTO trial_facts VALUES
-            ('e1','j1','t1','canary','t1','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','gpt',NULL,'ValueError','unknown',10.0,0.1),
-            ('e1','j1','t2','canary','t2','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','gpt',NULL,'NonZeroAgentExitCodeError','unknown',5.0,0.05),
-            ('e1','j1','t3','canary','t3','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','gpt',NULL,'ValueError','unknown',8.0,0.2),
-            ('e1','j1','t4','canary','t4','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','gpt',1.0,NULL,NULL,2.0,0.01),
-            ('e1','j1','t5','canary','t5','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','gpt',1.0,NULL,NULL,3.0,0.02),
-            ('e1','j1','t6','canary','t6','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','gpt',0.0,NULL,NULL,4.0,0.03),
-            ('e2','j2','t7','ctrl','t7','local-lab/event-summary',NULL,NULL,NULL,NULL,'oracle','v1','gpt',NULL,'ValueError','unknown',1.0,0.0),
-            ('e2','j2','t8','ctrl','t8','local-lab/event-summary',NULL,NULL,NULL,NULL,'oracle','v1','gpt',NULL,'NonZeroAgentExitCodeError','unknown',2.0,0.0),
-            ('e2','j2','t9','ctrl','t9','local-lab/event-summary',NULL,NULL,NULL,NULL,'oracle','v1','gpt',1.0,NULL,NULL,1.0,0.0),
-            ('e2','j2','t10','ctrl','t10','local-lab/event-summary',NULL,NULL,NULL,NULL,'oracle','v1','gpt',0.0,NULL,NULL,1.5,0.0);
-            """
+    # 4 rows: 2 jobs × 2 trials. html-js-filter has both measured and never-measured.
+    fixture_trials = (
+        {
+            "job_id": "j1",
+            "trial_id": "t1",
+            "task_name": "terminal-bench/html-js-filter",
+            "primary_reward": None,
+            "exception_class": "ValueError",
+            "exception_phase": "unknown",
+            "agent_version": "v1",
+            "agent_name": "codex",
+            "job_name": "canary",
+        },
+        {
+            "job_id": "j1",
+            "trial_id": "t2",
+            "task_name": "terminal-bench/html-js-filter",
+            "primary_reward": 0.0,
+            "exception_class": None,
+            "exception_phase": None,
+            "agent_version": "v1",
+            "agent_name": "codex",
+            "job_name": "canary",
+        },
+        {
+            "job_id": "j2",
+            "trial_id": "t3",
+            "task_name": "local-lab/event-summary",
+            "primary_reward": 1.0,
+            "exception_class": None,
+            "exception_phase": None,
+            "agent_version": "v1",
+            "agent_name": "oracle",
+            "job_name": "ctrl",
+        },
+        {
+            "job_id": "j2",
+            "trial_id": "t4",
+            "task_name": "local-lab/event-summary",
+            "primary_reward": None,
+            "exception_class": "NonZeroAgentExitCodeError",
+            "exception_phase": "unknown",
+            "agent_version": "v1",
+            "agent_name": "oracle",
+            "job_name": "ctrl",
+        },
+    )
+    for trial in fixture_trials:
+        trial_dir = (
+            fixture_root / f"job_id={trial['job_id']}" / f"trial_id={trial['trial_id']}"
         )
-        wcon.execute(f"COPY trial_facts TO '{parquet_file}' (FORMAT PARQUET)")
+        trial_dir.mkdir(parents=True)
+        tbl = pa.table(
+            {
+                "task_name": pa.array([trial["task_name"]], type=pa.string()),
+                "primary_reward": pa.array([trial["primary_reward"]], type=pa.float64()),
+                "exception_class": pa.array(
+                    [trial["exception_class"]], type=pa.string()
+                ),
+                "exception_phase": pa.array(
+                    [trial["exception_phase"]], type=pa.string()
+                ),
+                "trial_id": pa.array([trial["trial_id"]], type=pa.string()),
+                "agent_version": pa.array([trial["agent_version"]], type=pa.string()),
+                "agent_name": pa.array([trial["agent_name"]], type=pa.string()),
+                "job_name": pa.array([trial["job_name"]], type=pa.string()),
+            }
+        )
+        pq.write_table(tbl, trial_dir / "trial_facts.parquet")
 
     def _fake_derived_root(_repo_root: Path) -> Path:
         return fixture_root
@@ -166,9 +208,17 @@ def test_full_corpus_derived_parquet_coverage(tmp_path, monkeypatch) -> None:
         sql = Path("sql/evidence_queries.sql").read_text()
         con.execute(sql)
 
-        # assert observes every row (10 in fixture)
         total_trials = con.execute("SELECT count(*) FROM trial_evidence").fetchone()[0]
-        assert total_trials == 10, f"Expected 10 fixture trials, got {total_trials}"
+        assert total_trials == 4
+
+        measured_count, never_measured_count = con.execute(
+            "SELECT "
+            "sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END), "
+            "sum(CASE WHEN exception_class IS NOT NULL THEN 1 ELSE 0 END) "
+            "FROM trial_evidence"
+        ).fetchone()
+        assert measured_count == 2
+        assert never_measured_count == 2
 
         summary_rows = con.execute(
             "SELECT task_name, n, never_measured, measured, passes, scored_failures "
@@ -178,6 +228,8 @@ def test_full_corpus_derived_parquet_coverage(tmp_path, monkeypatch) -> None:
 
         assert "terminal-bench/html-js-filter" in summary
         assert "local-lab/event-summary" in summary
+        assert summary["terminal-bench/html-js-filter"] == (2, 1, 1, 0, 1)
+        assert summary["local-lab/event-summary"] == (2, 1, 1, 1, 0)
 
         # coverage: every task must report never_measured >0 and measured >0
         for task_name, (n, never_m, measured, _p, _f) in summary.items():
@@ -185,12 +237,11 @@ def test_full_corpus_derived_parquet_coverage(tmp_path, monkeypatch) -> None:
             assert never_m > 0, f"Task {task_name} must have non-zero never_measured trials"
             assert measured > 0, f"Task {task_name} must have non-zero measured trials"
 
-        # exception taxonomy
         tax_rows = con.execute(
             "SELECT exception_class, exception_phase, n, tasks_affected FROM v_exception_taxonomy"
         ).fetchall()
         total_exceptions = sum(r[2] for r in tax_rows)
-        assert total_exceptions == 5
+        assert total_exceptions == 2
 
 
 @pytest.mark.skipif(

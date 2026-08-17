@@ -31,6 +31,7 @@ an operator can see what is archived.
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
+| `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `living` | `builder, analyst, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -65,6 +66,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
+| `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `living` | `builder, analyst, operator` |

@@ -9,6 +9,7 @@ import duckdb
 import pytest
 
 from evallab.cohort import wilson_interval
+from evallab.contextpack import parse_front_matter
 from evallab.lessons import (
     DEFAULT_POWER_THRESHOLD,
     GENERATED_HEADER,
@@ -21,6 +22,7 @@ from evallab.lessons import (
     populate_duckdb,
     render_lessons_markdown,
 )
+from evallab.lineage import compute_file_digest, resolve_lineage
 
 PYTEST_DIGEST = "sha256:pytest111111111111111111111111111111111111111111111111111111111111"
 GOLDEN_DIGEST = "sha256:golden222222222222222222222222222222222222222222222222222222222222"
@@ -599,3 +601,78 @@ def test_build_lessons_on_repository_root(tmp_path: Path) -> None:
     content = lessons_path.read_text(encoding="utf-8")
     assert GENERATED_HEADER in content
     assert "Statistical Lessons & Aggregation Views" in content
+
+
+def _sample_lessons_fixture_tree(tmp_path: Path) -> Path:
+    root = tmp_path
+    sql_dir = root / "sql"
+    sql_dir.mkdir(parents=True, exist_ok=True)
+    real_sql = Path(__file__).resolve().parents[1] / "sql" / "lessons.sql"
+    (sql_dir / "lessons.sql").write_text(real_sql.read_text(encoding="utf-8"), encoding="utf-8")
+
+    task_dir = root / "library" / "tasks" / "sample-task"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "task.toml").write_text(
+        '[task]\nname = "sample-task"\nversion = "1.0.0"\n', encoding="utf-8"
+    )
+
+    obs_dir = root / "research" / "observations" / "sample-job"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    (obs_dir / "sample_obs.md").write_text(
+        "---\njob: sample-job\ntrial_id: t1\ntask: sample-task\nreward: 1.0\n---\n# Observation\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def test_lessons_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
+    root = _sample_lessons_fixture_tree(tmp_path)
+    result = build_lessons(root)
+    markdown = render_lessons_markdown(result)
+    fm, _body = parse_front_matter(markdown)
+    assert fm is not None
+    assert "inputs" in fm
+    assert isinstance(fm["inputs"], list)
+    assert len(fm["inputs"]) > 0
+    for item in fm["inputs"]:
+        assert isinstance(item, dict)
+        assert "path" in item and isinstance(item["path"], str)
+        assert "digest" in item and isinstance(item["digest"], str)
+        assert item["digest"].startswith("sha256:")
+        assert len(item["digest"]) == 71
+
+
+def test_lessons_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
+    root = _sample_lessons_fixture_tree(tmp_path)
+    target = root / "research" / "lessons.md"
+    fixed_time = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
+    first_path = generate_lessons_file(root, output_path=target, generated_at=fixed_time)
+    first_content = first_path.read_text(encoding="utf-8")
+    second_path = generate_lessons_file(root, output_path=target, generated_at=fixed_time)
+    second_content = second_path.read_text(encoding="utf-8")
+    assert first_content == second_content
+
+
+def test_lessons_recorded_digests_match_actual_file_digests(tmp_path: Path) -> None:
+    root = _sample_lessons_fixture_tree(tmp_path)
+    result = build_lessons(root)
+    markdown = render_lessons_markdown(result)
+    fm, _body = parse_front_matter(markdown)
+    assert fm is not None and "inputs" in fm
+    for item in fm["inputs"]:
+        target_file = root / item["path"]
+        assert target_file.is_file()
+        expected = compute_file_digest(target_file)
+        assert item["digest"] == expected
+
+
+def test_lineage_resolution_on_generated_lessons(tmp_path: Path) -> None:
+    root = _sample_lessons_fixture_tree(tmp_path)
+    target = root / "research" / "lessons.md"
+    generate_lessons_file(root, output_path=target)
+
+    node = resolve_lineage("research/lessons.md", repo_root=root)
+    assert node.status == "resolved"
+    assert len(node.inputs) > 0
+    assert any(child.path == "sql/lessons.sql" for child in node.inputs)
+    assert node.status != "unrecorded"

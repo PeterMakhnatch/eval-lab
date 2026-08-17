@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from evallab.contextpack import DocMetadata, repo_root
+from evallab.contextpack import DocMetadata, parse_front_matter, repo_root
 from evallab.docindex import (
     GENERATED_BY_MARKER,
     check_index,
@@ -13,6 +13,7 @@ from evallab.docindex import (
     render_index,
     write_index,
 )
+from evallab.lineage import compute_file_digest, resolve_lineage
 
 
 def _write_doc(
@@ -186,3 +187,49 @@ def test_render_index_includes_required_marker_and_front_matter() -> None:
     assert "  - builder\n  - analyst\n  - runner\n  - operator\n" in text
     assert GENERATED_BY_MARKER in text
     assert text.endswith("\n")
+
+def test_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
+    docs = _sample_tree(tmp_path)
+    index_text = generate_index(docs_dir=docs, root=tmp_path)
+    fm, _body = parse_front_matter(index_text)
+    assert fm is not None
+    assert "inputs" in fm
+    assert isinstance(fm["inputs"], list)
+    assert len(fm["inputs"]) > 0
+    for item in fm["inputs"]:
+        assert isinstance(item, dict)
+        assert "path" in item and isinstance(item["path"], str)
+        assert "digest" in item and isinstance(item["digest"], str)
+        assert item["digest"].startswith("sha256:")
+        assert len(item["digest"]) == 71
+def test_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
+    docs = _sample_tree(tmp_path)
+    index_path = docs / "INDEX.md"
+    first = write_index(output=index_path, docs_dir=docs, root=tmp_path)
+    second = write_index(output=index_path, docs_dir=docs, root=tmp_path)
+    assert first == second
+    assert index_path.read_text(encoding="utf-8") == first
+
+
+def test_recorded_digests_match_actual_file_digests(tmp_path: Path) -> None:
+    docs = _sample_tree(tmp_path)
+    index_text = generate_index(docs_dir=docs, root=tmp_path)
+    fm, _body = parse_front_matter(index_text)
+    assert fm is not None and "inputs" in fm
+    for item in fm["inputs"]:
+        target_file = tmp_path / item["path"]
+        assert target_file.is_file()
+        expected = compute_file_digest(target_file)
+        assert item["digest"] == expected
+
+
+def test_lineage_resolution_on_generated_index(tmp_path: Path) -> None:
+    docs = _sample_tree(tmp_path)
+    index_path = docs / "INDEX.md"
+    write_index(output=index_path, docs_dir=docs, root=tmp_path)
+
+    node = resolve_lineage("docs/INDEX.md", repo_root=tmp_path)
+    assert node.status == "resolved"
+    assert len(node.inputs) > 0
+    assert any(child.path == "docs/builder-live.md" for child in node.inputs)
+    assert node.status != "unrecorded"

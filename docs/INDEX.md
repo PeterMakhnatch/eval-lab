@@ -5,6 +5,97 @@ audience:
   - analyst
   - runner
   - operator
+inputs:
+  - path: docs/agent-profiles.md
+    digest: sha256:ee08d680acb7186f25d20565aec4eecfe691f3c4015cd85c93f885d853fe4da6
+  - path: docs/analysis-loop.md
+    digest: sha256:a9a2f6a7763621408c6964f4bdeace731375b496f051e4386b53b879cc0e32b5
+  - path: docs/analysis-worker.md
+    digest: sha256:9412a6ddfd7e1c416a94100951507afc58911017fd307f73ec551d97aa3c1b63
+  - path: docs/architecture-review-2026-08-16.md
+    digest: sha256:1850246dfdd7aacb0bfcb14436e120b06c046a857d1245c016bf06975fd47d26
+  - path: docs/architecture.md
+    digest: sha256:1744b4f5bba7567d52cff826ef4f5109afafd7339d261ada50d3f8cecc26c199
+  - path: docs/attach-surface.md
+    digest: sha256:6e654e000adaf18a79a3e88b89c0fbc559a116908c92f3e4c55df79d5bad64dd
+  - path: docs/authoring.md
+    digest: sha256:75cfa759d3ce4e89e7254823eb19d00c9501aad757da23a48e77a36f8408b9e6
+  - path: docs/build-plan.md
+    digest: sha256:4a70d5a356561eab053ffe7e14f6bb5fd8fed0256b9e81edddb500183697bee7
+  - path: docs/canaries.md
+    digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
+  - path: docs/context-packs.md
+    digest: sha256:d142486f19c53ca429631cec773d83654654c52f54c17b5c0051399defeb4a87
+  - path: docs/contracts.md
+    digest: sha256:58a840485cd5d4488fda23572a802fcf40708bea2485f3bc301955656b04b0bc
+  - path: docs/craft.md
+    digest: sha256:fe6db1dd40e6490e188c8c0feb1f799dcd6195615787638b1baddd15801faf00
+  - path: docs/data-architecture.md
+    digest: sha256:7ff42ba0b6616fd40124fb6b0028b8288982398d55157106fc6717d44d3c5036
+  - path: docs/design-additions.md
+    digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
+  - path: docs/engineering.md
+    digest: sha256:46f3e189732d98bdbf2ba4977bf3d51a83858a26faf69b5668c28bf9600f6a1d
+  - path: docs/eval-cards.md
+    digest: sha256:aef880b03991544c4420b0ca85c12e542aa28160149e5ca5c1207e422c359a36
+  - path: docs/execution-tiers.md
+    digest: sha256:0f4648452bd835e3ef7ccc4b381527af79aef39ae3ee5cf4fe0c9437e5fdee41
+  - path: docs/fleet-tracking.md
+    digest: sha256:e94e7733464f4619208794424249a1df4bb5843b1b0e48d6deb7fa0c2754b44b
+  - path: docs/join-spine.md
+    digest: sha256:7fece1309de2ae0464b09876dbb9979ddbdbd4e3f9ebd397ef848d377d36f95b
+  - path: docs/ladder.md
+    digest: sha256:f23f72317e3d2ceba4bb1cda4c8d5e7e475529c284cbd12a56ae8fa72fb552d1
+  - path: docs/lancedb.md
+    digest: sha256:eca76c564cf97717facf8c67bca20af4bd32fc38058a11d3c9c861fcab7acd71
+  - path: docs/lineage.md
+    digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
+  - path: docs/mentor-review-2026-08.md
+    digest: sha256:2da1ad796d23651e71db31b79fd6a49725e2b92d41548fbcf03039bee392d4c0
+  - path: docs/observability.md
+    digest: sha256:ba9ae336b503de1fe2449ed4a77926a614f6bb6dda01dd38677de422948bccca
+  - path: docs/operating-manual.md
+    digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
+  - path: docs/operations.md
+    digest: sha256:df94520ea628e021912ed1037ab143e97015fff87487b257a1de45473542bdf8
+  - path: docs/operator-demo.md
+    digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
+  - path: docs/parallel-work.md
+    digest: sha256:3e2a5e29972db85f7e392296b133f4e5ee4a2d3a5e63c14235d2b4e3ac09d348
+  - path: docs/parquet-compaction.md
+    digest: sha256:2a207fc1fbaf3bfee736820b19add0353cad9414dd5f9fc4e92ac058120845ff
+  - path: docs/path-forward-2026-08.md
+    digest: sha256:7d962f12c5de2135a0ebef6e656dac17938ed75e76f73a4f8d1fd9ea286e8b0e
+  - path: docs/platform-architecture.md
+    digest: sha256:4b952446b2262f9d2c007aab7f9e6ba05b804cf113f67b762d05aaca2ad6ee8a
+  - path: docs/quality.md
+    digest: sha256:1784282f5ff9458d074e1418804c6b21ba68d5c9c57f1955dbe8a6abb107c2a6
+  - path: docs/quota-accounting.md
+    digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
+  - path: docs/repo-map.md
+    digest: sha256:680617ffc08efe4c5b3855bf9f917e2ecf3d128fe4d7c48124a33e0291846858
+  - path: docs/research-questions.md
+    digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
+  - path: docs/research/external-datasets.md
+    digest: sha256:f36f501ccc8d0fc121d12e8904b0f85ef83f51c64253aa282344b42f17fc602b
+  - path: docs/research/literature-survey.md
+    digest: sha256:defe24e8f6d6316425f3fd67aa677c61cf3b41f1c9466ccbf45fe8583f76f9cb
+  - path: docs/research/synthetic-tasks.md
+    digest: sha256:991d90264398946e24fe9370bd6a48f05ab73924976f4ccd9eacc0a44eb840c0
+  - path: docs/research/trajectory-intelligence.md
+    digest: sha256:bb52ffc71923ab06175dbe300d266ba22574796dc14d5a547971b0b4654a3a34
+  - path: docs/run-explorer.md
+    digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
+  - path: docs/scaling.md
+    digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
+  - path: docs/storm-alarms.md
+    digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
+  - path: docs/task-provenance.md
+    digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
+  - path: docs/task-registry.md
+    digest: sha256:fc5cc3ceeca53378e23a249ebca3ce9365eacef65d99ed5b2fb97668010ae030
+  - path: docs/task-workbench.md
+    digest: sha256:472f511912d533fa44786c92c3cd8ea16ce3c9c33e22b37177e1b60f3de8d60b
 ---
 
 <!-- generated-by: docindex v1 -->

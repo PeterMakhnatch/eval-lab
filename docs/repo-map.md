@@ -5,6 +5,103 @@ audience:
   - analyst
   - runner
   - operator
+inputs:
+  - path: src/evallab/__init__.py
+    digest: sha256:9d98deed9bc04ac819430197df9b57d133158eef6058079a09d4ac10f8a348a7
+  - path: src/evallab/analysis_worker.py
+    digest: sha256:4fe9cdec610789655d638c1478e9e28846e2f9c32fb87fbab17245bb899250fe
+  - path: src/evallab/atif.py
+    digest: sha256:2e8cd07327990d0a70d39bbf50e7761e0a59c4bc698a209a1ad5633a3420d524
+  - path: src/evallab/attach.py
+    digest: sha256:8aa3e6a8011e0d5c6c5a8010bbabab8cc15f325400d8f5681c3eaa79a8d7844e
+  - path: src/evallab/authoring.py
+    digest: sha256:072e4b4ca007783c51c816924d733c7930cce3098e17ff3309a0f1fb4801d8f1
+  - path: src/evallab/automation.py
+    digest: sha256:e2e9ef8b7d2e4a12b422ffa813ae43f6b139b53a06d541fcc03202a7831fbf75
+  - path: src/evallab/backups.py
+    digest: sha256:73b91dcf80fb2931df6f53d567b7505c5b1a205d139fa11fc6e4b1d8e6800af9
+  - path: src/evallab/calibrate.py
+    digest: sha256:0805f7023d2bc70f0265a21bd8b712a8a104b9c17ed7d2f3cd6b7954203f8c2b
+  - path: src/evallab/canary.py
+    digest: sha256:c60f3da4b6f9693143ccb6cd31a0164c793743a016133d0f20c6ded5f3310f3f
+  - path: src/evallab/cards.py
+    digest: sha256:bff2f9adb2f7fd3286008265d214cfab8cdc23bdcdb3298dfa6628493ac1b84c
+  - path: src/evallab/cli.py
+    digest: sha256:bfedf7e7c98e11fdd070bda400c5c297b9f5b80b386c830eee7b8bccc9ee58d1
+  - path: src/evallab/cohort.py
+    digest: sha256:2689cb0f212a5f2feac6367fd3bf8cc93ff9600260b2814c8e1f9a67bce13796
+  - path: src/evallab/contextpack.py
+    digest: sha256:57b17ba901639449c0c3ba83f20b19b766c074a54b30c3a447c5edb5802f4e88
+  - path: src/evallab/craft.py
+    digest: sha256:0c8baf5f1aacfa2fb2e6798d5c356cfa80e7142c7f673912b465066bde6c92da
+  - path: src/evallab/credentials.py
+    digest: sha256:8b669cf8ea866ee27cb935468a18c0aae68811e547b5343f292da2f4a01ba5b7
+  - path: src/evallab/database.py
+    digest: sha256:b7350d7d44ac919eeadf0fef0202f78261e76745d4551ab01fa5dd76885fa51b
+  - path: src/evallab/digest.py
+    digest: sha256:6e3b92ec11e1762fa126b3baacac51f85fcc55ded6917dbe901e4ffaa8671aac
+  - path: src/evallab/docindex.py
+    digest: sha256:8f3394ba7f6796eb0159d887d0ec1ed5132cd0b7310b1e8cb8db5141da317f79
+  - path: src/evallab/eventlog.py
+    digest: sha256:2abb54a59cf5c3e04b10b834df497f7a4c863eb6e773d3ba6b7d0cfaf1f2281b
+  - path: src/evallab/explorer.py
+    digest: sha256:f59aa0192e9072d5d4f8c8b02f9d4005dede57463ad8780fec0facabc6c81871
+  - path: src/evallab/facts.py
+    digest: sha256:c6e590897b2bfec8a27ff6ac7be57fac01021f0e88b70381dcfcb17abf2167ef
+  - path: src/evallab/fetch.py
+    digest: sha256:a5b9ad9cd9cfdd34f707f45fd615adcabbe569623d1023b7f38d368a05c869e0
+  - path: src/evallab/gc.py
+    digest: sha256:f6c92c7d9b11214c4a0a6bda5cebe1c1c0eead8bfe4001d27982d967cb553814
+  - path: src/evallab/ladder.py
+    digest: sha256:1a64548f4bde6dcd1c63aaff8b209bf78edc6736b8793bc00ea504e5556e7b44
+  - path: src/evallab/lance.py
+    digest: sha256:8fb9aadc783b4246ee1f8dffe49ddb69bf1678a936a81a433dd1b0a70acd5c2d
+  - path: src/evallab/lessons.py
+    digest: sha256:462326fc3397f8da6ffe2ea7b9111aad1af266c4a52a11763c2dfe227c3f7bc1
+  - path: src/evallab/lineage.py
+    digest: sha256:0d5f0e979edc4b5df7f503d2db9955a65b4c51b88a9d29d1e1eb9adc8b508ce6
+  - path: src/evallab/parquet_compaction.py
+    digest: sha256:e62d2dfcb7e8dbd25a6824eb0420948e383d1bdfbd1b903942981f8fb067b260
+  - path: src/evallab/paths.py
+    digest: sha256:d84da2cdf64dc41587f77c7743041da7726981b96e65cd75f6ac8b57b00568f5
+  - path: src/evallab/preflight.py
+    digest: sha256:7024a3df3e4e486dae7bfc0fb17012e4bfeaea34c8f4980c8cf7edaec2721946
+  - path: src/evallab/profiles.py
+    digest: sha256:59ddec26829ef6290f330f0e983112009c7c04b5bb042a7f0f1178bc659c7583
+  - path: src/evallab/provenance.py
+    digest: sha256:31f6169ede6e0972f9fa9389004e4706516e621622e00bcb22651da895d8f122
+  - path: src/evallab/queue.py
+    digest: sha256:13feda86e2da25e5671ce8a6da64f9e0fcb8030207904d9d03172594d2b7d064
+  - path: src/evallab/quota.py
+    digest: sha256:76c21962bae689a2289daf8960025e017b5b5ed1d594fec59149ab0302d16d49
+  - path: src/evallab/registry.py
+    digest: sha256:8ac0c718ed5c483fd39897d28c222d10ce923000ca2422fd285ee70e5682e36d
+  - path: src/evallab/repomap.py
+    digest: sha256:c9ba4c7a2f481bcff8c0486c29724a6fd2d95028e3541128c921578dd97ad8e5
+  - path: src/evallab/report.py
+    digest: sha256:dc1aeca5edc7bd66ba9abb360899805aceea1105f04142355592eb4adc198c7e
+  - path: src/evallab/researchers.py
+    digest: sha256:1274966d23911f258abbdb0291313c9550362b28e5176a6976551eed22607bde
+  - path: src/evallab/results.py
+    digest: sha256:9fffe6cbf4c7c166fc3325a6cef932e4bcc2e6349afe95106066561a85c28622
+  - path: src/evallab/runner.py
+    digest: sha256:a5daad37d4a5dd9ef4dcd84939bfd05ab6635a485721337747aa4ad9e23b2c77
+  - path: src/evallab/schemas.py
+    digest: sha256:bc5fbf1882227c106df53af16c7101d205e9a12cc966006b200aee17026b4aef
+  - path: src/evallab/smoke.py
+    digest: sha256:0fe1031ed7451d9cd1dd08ae781e1ecad1fcadb5aed93abd75118f81d2e60b3f
+  - path: src/evallab/spine.py
+    digest: sha256:c7a045d23c0ef9fa3e1f9df29cb9fa3357fa684757036ca0139079f5ec36c0ed
+  - path: src/evallab/status.py
+    digest: sha256:ccac0a580d376a19e646b29b6704d30c762d5d0635d409a31328ba2d52ac53ef
+  - path: src/evallab/status_generator.py
+    digest: sha256:c587d4d9980c80205ecf9afa79575e88669a8d02b7d32b600ea4b43129b5b6d8
+  - path: src/evallab/storm.py
+    digest: sha256:468d10fd2afd901cf902d78aab2b451ebc47119a033b77335603b9b842e9d0f5
+  - path: src/evallab/task_workbench.py
+    digest: sha256:829d6e8576440d6cab0ec1b22d3ce95c59200f1913144bd0aaa846f6f573d979
+  - path: src/evallab/tracing.py
+    digest: sha256:a26023ccf1754805ffb76de6ccb83ee568c05e97a941d83b34de197a6e283b93
 ---
 
 <!-- generated-by: repomap v1 -->
@@ -36,7 +133,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `credentials` | 112 | Credential availability probes shared by the doctor and the executor. | — |
 | `database` | 393 | Count recent failures while treating provider capacity as neutral noise. | `doctor`, `analyze ingest-sidecar`, `analyze review`, `db init`, `db list` |
 | `digest` | 726 | True for a run the lab generated to test itself rather than a model. | `digest` |
-| `docindex` | 387 | Documentation index generator and archive sweep (WS-E item 7). | `python -m evallab.docindex generate`, `python -m evallab.docindex check` |
+| `docindex` | 405 | Documentation index generator and archive sweep (WS-E item 7). | `python -m evallab.docindex generate`, `python -m evallab.docindex check` |
 | `eventlog` | 50 | Serialize event-log operations across both threads and processes. | — |
 | `explorer` | 1209 | Read-only run and analysis explorer (M005). | — |
 | `facts` | 1311 | Upsert deterministic document/fact records after the base job ingest. | `analyze plan`, `analyze stub`, `analyze agreement` |
@@ -44,7 +141,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `gc` | 757 | Disk discipline for unpromoted Harbor job directories. | `nightly`, `gc` |
 | `ladder` | 914 | LADDER: Evaluation grid generator (v2 §4). | `python -m evallab.ladder generate` |
 | `lance` | 493 | LANCE: LanceDB vector store for tasks and trials beside DuckDB. | `python -m evallab.lance build`, `python -m evallab.lance search` |
-| `lessons` | 767 | Statistical lesson aggregation views and findings engine (WS-D). | — |
+| `lessons` | 910 | Statistical lesson aggregation views and findings engine (WS-D). | — |
 | `lineage` | 572 | Lineage walker for generated artifacts (E14). | `lineage` |
 | `parquet_compaction` | 751 | Deterministic Parquet compaction engine (WS-E item 4). | `python -m evallab.parquet_compaction compact` |
 | `paths` | 167 | Return the primary checkout for a repository or linked worktree. | `card generate` |
@@ -54,7 +151,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `queue` | 1670 | Return a lexically sortable ULID without adding a runtime ID dependency. | `submit`, `approve`, `reject`, `ingest`, `trajectories`, `tick`, `stop`, `resume` |
 | `quota` | 966 | Subscription-quota accounting for paid agents, measured instead of estimated. | — |
 | `registry` | 930 | Explicit task registry and admission trust boundary for eval-lab. | — |
-| `repomap` | 997 | Generated repository map for `src/evallab/` (WS-F navigation). | `python -m evallab.repomap generate`, `python -m evallab.repomap check` |
+| `repomap` | 1058 | Generated repository map for `src/evallab/` (WS-F navigation). | `python -m evallab.repomap generate`, `python -m evallab.repomap check` |
 | `report` | 517 | Defines `family_report`, `render_family_report`, `write_family_report`, `load_completed_spec`, …. | `report`, `report family`, `report card` |
 | `researchers` | 1452 | Run schema-constrained Codex with read-only, networkless evidence access. | — |
 | `results` | 290 | True for a path inside a dot-prefixed bookkeeping directory. | `run`, `matrix`, `summarize` |

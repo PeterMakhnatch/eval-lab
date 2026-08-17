@@ -22,6 +22,7 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
+| `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
@@ -54,6 +55,7 @@ an operator can see what is archived.
 | `docs/analysis-loop.md` | Evidence-to-experiment analysis loop | `living` | `analyst` |
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
+| `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
@@ -115,6 +117,7 @@ an operator can see what is archived.
 |---|---|---|---|
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
+| `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |

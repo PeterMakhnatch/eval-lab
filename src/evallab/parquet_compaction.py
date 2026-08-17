@@ -557,7 +557,8 @@ def compact(
     database_url: str | None = None,
 ) -> CompactionResult:
     """Main programmatic interface to execute deterministic Parquet compaction."""
-    root = derived_root or derived_root_from_environment()
+    repo = runs_dir.parent if runs_dir else Path.cwd()
+    root = derived_root or derived_root_from_environment(repo)
     plan = plan_compaction(
         root,
         target_date=target_date,
@@ -724,7 +725,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         derived_root = (
             args.derived_dir.resolve()
             if args.derived_dir is not None
-            else derived_root_from_environment()
+            else derived_root_from_environment(Path.cwd())
         )
     except Exception as exc:
         print(f"Error resolving derived root: {exc}", file=sys.stderr)

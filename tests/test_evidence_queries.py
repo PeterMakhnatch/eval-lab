@@ -9,6 +9,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+import evallab.attach
 import evallab.paths
 from evallab.cohort import wilson_interval
 from evallab.lessons import DEFAULT_POWER_THRESHOLD
@@ -45,19 +46,15 @@ def test_exception_vs_scored_failure_split() -> None:
     """Test v_failure_classification separates harness vs scored failures."""
     sql = Path("sql/evidence_queries.sql").read_text()
     with duckdb.connect(":memory:") as con:
-        # Populate fallback with synthetic data covering both directions
+        con.execute(sql)
         con.execute(
             """
-            CREATE TABLE trial_evidence_schema_fallback (
-                experiment_id VARCHAR, job_id VARCHAR, trial_id VARCHAR,
-                job_name VARCHAR, trial_name VARCHAR, task_name VARCHAR,
-                task_digest VARCHAR, verifier_digest VARCHAR, environment_digest VARCHAR,
-                agent_config_digest VARCHAR, agent_name VARCHAR, agent_version VARCHAR,
-                model_name VARCHAR, primary_reward DOUBLE,
-                exception_class VARCHAR, exception_phase VARCHAR,
-                duration_seconds DOUBLE, cost_usd DOUBLE
-            );
-            INSERT INTO trial_evidence_schema_fallback VALUES
+            INSERT INTO trial_facts (
+                experiment_id, job_id, trial_id, job_name, trial_name, task_name,
+                task_digest, verifier_digest, environment_digest, agent_config_digest,
+                agent_name, agent_version, model_name, primary_reward,
+                exception_class, exception_phase, duration_seconds, cost_usd
+            ) VALUES
             ('exp1','j1','t1','job1','trial1','terminal-bench/html-js-filter','d1',
              NULL,NULL,NULL,'codex','v1','gpt',0.0,NULL,NULL,10.0,0.1),
             ('exp1','j1','t2','job1','trial2','terminal-bench/html-js-filter','d1',
@@ -66,7 +63,6 @@ def test_exception_vs_scored_failure_split() -> None:
              NULL,NULL,NULL,'oracle','v1','gpt',1.0,NULL,NULL,2.0,0.01);
             """
         )
-        con.execute(sql)
         rows = con.execute(
             "SELECT failure_type, n FROM v_failure_classification ORDER BY failure_type"
         ).fetchall()
@@ -74,7 +70,6 @@ def test_exception_vs_scored_failure_split() -> None:
         assert result.get("harness_exception") == 1
         assert result.get("scored_failure") == 1
         assert result.get("passed") == 1
-
 
 def test_wilson_interval_matches_cohort() -> None:
     """Test Wilson interval matches cohort.py for known inputs."""
@@ -116,8 +111,10 @@ def test_powered_threshold_and_inversion() -> None:
     assert ci[1] < 0.40
 
 
-def test_full_corpus_derived_parquet_coverage(tmp_path, monkeypatch) -> None:
-    """Test parquet corpus via seam + both never/measured >0 on tasks."""
+def test_full_corpus_derived_parquet_coverage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test parquet corpus via attach surface with fixture + both never/measured >0 on tasks."""
     fixture_root = tmp_path / "derived"
     # 4 rows: 2 jobs × 2 trials. html-js-filter has both measured and never-measured.
     fixture_trials = (
@@ -189,33 +186,21 @@ def test_full_corpus_derived_parquet_coverage(tmp_path, monkeypatch) -> None:
         )
         pq.write_table(tbl, trial_dir / "trial_facts.parquet")
 
-    def _fake_derived_root(_repo_root: Path) -> Path:
-        return fixture_root
-
-    monkeypatch.setattr(
-        "evallab.paths.derived_root_from_environment", _fake_derived_root
-    )
-
-    repo_root = Path.cwd()
-    derived_root = evallab.paths.derived_root_from_environment(repo_root)
-    trial_glob = str(derived_root / "job_id=*/trial_id=*/trial_facts.parquet")
-
-    with duckdb.connect(":memory:") as con:
-        con.execute(
-            f"CREATE TABLE trial_evidence AS "
-            f"SELECT * FROM read_parquet('{trial_glob}', union_by_name=true)"
-        )
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(fixture_root))
+    attach_result = evallab.attach.attach()
+    try:
+        con = attach_result.connection
         sql = Path("sql/evidence_queries.sql").read_text()
         con.execute(sql)
 
-        total_trials = con.execute("SELECT count(*) FROM trial_evidence").fetchone()[0]
+        total_trials = con.execute("SELECT count(*) FROM trial_facts").fetchone()[0]
         assert total_trials == 4
 
         measured_count, never_measured_count = con.execute(
             "SELECT "
             "sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END), "
             "sum(CASE WHEN exception_class IS NOT NULL THEN 1 ELSE 0 END) "
-            "FROM trial_evidence"
+            "FROM trial_facts"
         ).fetchone()
         assert measured_count == 2
         assert never_measured_count == 2
@@ -242,28 +227,23 @@ def test_full_corpus_derived_parquet_coverage(tmp_path, monkeypatch) -> None:
         ).fetchall()
         total_exceptions = sum(r[2] for r in tax_rows)
         assert total_exceptions == 2
-
+    finally:
+        attach_result.connection.close()
 
 @pytest.mark.skipif(
     not real_corpus_present,
     reason=f"real corpus at {derived_for_check} absent in CI (gitignored; use fixture)"
 )
 def test_full_corpus_derived_parquet_coverage_real() -> None:
-    """Test queries observe 92-trial corpus (skipped when absent)."""
-    repo_root = Path.cwd()
-    derived_root = evallab.paths.derived_root_from_environment(repo_root)
-    trial_glob = str(derived_root / "job_id=*/trial_id=*/trial_facts.parquet")
-
-    with duckdb.connect(":memory:") as con:
-        con.execute(
-            f"CREATE TABLE trial_evidence AS "
-            f"SELECT * FROM read_parquet('{trial_glob}', union_by_name=true)"
-        )
+    """Test queries observe 92-trial corpus via unified attach surface (skipped when absent)."""
+    attach_result = evallab.attach.attach()
+    try:
+        con = attach_result.connection
         sql = Path("sql/evidence_queries.sql").read_text()
         con.execute(sql)
 
-        # 1. Total trial count must equal 92 rows in trial_facts.parquet
-        total_trials = con.execute("SELECT count(*) FROM trial_evidence").fetchone()[0]
+        # 1. Total trial count must equal 92 rows in trial_facts
+        total_trials = con.execute("SELECT count(*) FROM trial_facts").fetchone()[0]
         assert total_trials == 92, f"Expected 92 corpus trials, got {total_trials}"
 
         # 2. Task summary counts
@@ -297,25 +277,23 @@ def test_full_corpus_derived_parquet_coverage_real() -> None:
         assert taxonomy["NonZeroAgentExitCodeError"] == ("unknown", 7, 2)
         total_exceptions = sum(r[2] for r in tax_rows)
         assert total_exceptions == 16
-
+    finally:
+        attach_result.connection.close()
 
 def test_promoted_only_subset_fails_coverage_assertions() -> None:
     """Assert that a promoted-bundles-only dataset fails the full-corpus requirements."""
     sql = Path("sql/evidence_queries.sql").read_text()
     with duckdb.connect(":memory:") as con:
+        con.execute(sql)
         # Synthetic promoted-only data (11 trials, 0 exceptions)
         con.execute(
             """
-            CREATE TABLE trial_evidence_schema_fallback (
-                experiment_id VARCHAR, job_id VARCHAR, trial_id VARCHAR,
-                job_name VARCHAR, trial_name VARCHAR, task_name VARCHAR,
-                task_digest VARCHAR, verifier_digest VARCHAR, environment_digest VARCHAR,
-                agent_config_digest VARCHAR, agent_name VARCHAR, agent_version VARCHAR,
-                model_name VARCHAR, primary_reward DOUBLE,
-                exception_class VARCHAR, exception_phase VARCHAR,
-                duration_seconds DOUBLE, cost_usd DOUBLE
-            );
-            INSERT INTO trial_evidence_schema_fallback VALUES
+            INSERT INTO trial_facts (
+                experiment_id, job_id, trial_id, job_name, trial_name, task_name,
+                task_digest, verifier_digest, environment_digest, agent_config_digest,
+                agent_name, agent_version, model_name, primary_reward,
+                exception_class, exception_phase, duration_seconds, cost_usd
+            ) VALUES
             ('e','j1','t1','canary','t1','local-lab/event-summary',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
             ('e','j1','t2','canary','t2','local-lab/event-summary',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
             ('e','j1','t3','canary','t3','local-lab/event-summary',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
@@ -329,8 +307,7 @@ def test_promoted_only_subset_fails_coverage_assertions() -> None:
             ('e','j5','t11','ctrl','t11','local-lab/event-summary',NULL,NULL,NULL,NULL,'nop','v1','m',0.0,NULL,NULL,1.0,0.0);
             """
         )
-        con.execute(sql)
-        total_trials = con.execute("SELECT count(*) FROM trial_evidence").fetchone()[0]
+        total_trials = con.execute("SELECT count(*) FROM trial_facts").fetchone()[0]
         # Promoted subset has only 11 trials instead of 92
         assert total_trials != 92
 

@@ -1,6 +1,6 @@
 -- Evidence queries over the trial corpus (WS-E).
 --
--- Reusable DuckDB views for:
+-- Reusable DuckDB views over the unified attach surface (`trial_facts`):
 --   - outcome by task and agent (n, passes, pass rate, harness vs scored failures)
 --   - task summary (total n, never_measured, measured, passes, scored failures)
 --   - failure classification (harness exceptions vs genuine scored failures)
@@ -8,13 +8,16 @@
 --   - outcome by date bucket (temporal cluster breakdown)
 --
 -- Each view carries n alongside every rate.
--- Run in clean DuckDB with zero pre-created tables (uses schema fallbacks).
+-- Run via `evallab db attach` or in DuckDB with the attach surface.
 --
 -- Usage:
---   duckdb -c ".read sql/evidence_queries.sql" -c "SELECT * FROM v_outcome_by_task_agent"
+--   evallab db attach --query "SELECT * FROM v_outcome_by_task_agent"
+-- Or in DuckDB with attached surface:
+--   .read sql/evidence_queries.sql
+--   SELECT * FROM v_outcome_by_task_agent;
 
--- Schema fallback for trial evidence when no parquet pre-registered
-CREATE TABLE IF NOT EXISTS trial_evidence_schema_fallback (
+-- Schema fallback for trial_facts when no parquet pre-registered / clean DuckDB
+CREATE TABLE IF NOT EXISTS trial_facts (
     experiment_id VARCHAR,
     job_id VARCHAR,
     trial_id VARCHAR,
@@ -35,8 +38,6 @@ CREATE TABLE IF NOT EXISTS trial_evidence_schema_fallback (
     cost_usd DOUBLE
 );
 
-CREATE TABLE IF NOT EXISTS trial_evidence AS SELECT * FROM trial_evidence_schema_fallback;
-
 -- --------------------------------------------------------------------------- --
 -- v_outcome_by_task_agent: n, passes, pass rate, Wilson-ready counts, split failures
 -- --------------------------------------------------------------------------- --
@@ -53,7 +54,7 @@ SELECT
     sum(CASE WHEN coalesce(primary_reward, 0.0) < 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS scored_failures_n,
     sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS k_for_wilson,
     sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END) AS n_for_wilson
-FROM trial_evidence
+FROM trial_facts
 GROUP BY task_name, agent_name
 ORDER BY n DESC, task_name, agent_name;
 
@@ -69,7 +70,7 @@ SELECT
     sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS passes,
     sum(CASE WHEN coalesce(primary_reward, 0.0) < 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS scored_failures,
     round(100.0 * sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END), 0), 2) AS pass_rate_pct
-FROM trial_evidence
+FROM trial_facts
 GROUP BY task_name
 ORDER BY task_name;
 
@@ -89,7 +90,7 @@ WITH classified AS (
             WHEN coalesce(primary_reward, 0.0) < 1.0 THEN 'scored_failure'
             ELSE 'passed'
         END AS failure_type
-    FROM trial_evidence
+    FROM trial_facts
 )
 SELECT
     failure_type,
@@ -109,7 +110,7 @@ SELECT
     coalesce(exception_phase, 'unknown') AS exception_phase,
     count(*) AS n,
     count(DISTINCT task_name) AS tasks_affected
-FROM trial_evidence
+FROM trial_facts
 WHERE exception_class IS NOT NULL
 GROUP BY exception_class, exception_phase
 ORDER BY n DESC, exception_class;
@@ -129,6 +130,6 @@ SELECT
     sum(CASE WHEN exception_class IS NOT NULL THEN 1 ELSE 0 END) AS exceptions_n,
     sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END) AS measured_n,
     sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS passes_n
-FROM trial_evidence
+FROM trial_facts
 GROUP BY date_bucket
 ORDER BY date_bucket;

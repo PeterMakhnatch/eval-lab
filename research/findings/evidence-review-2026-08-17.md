@@ -1,11 +1,11 @@
 # Evidence Review 2026-08-17
 
-Scope: 92 trials from the derived Parquet projection (`derived/parquet/` via `evallab.paths.derived_root_from_environment`), as of commit `331f4ba`, compared against 11 trials in the promoted evidence store (`research/evidence/runs/`).
+Scope: 92 trials from the trial corpus accessed exclusively through the unified attach surface (`evallab db attach` / `evallab.attach.attach()`, Z3 `trial_facts` view), as of commit `3e8cdea`, compared against 11 trials in the promoted evidence store (`research/evidence/runs/`). All figures re-verified through the attach surface without discrepancy.
 
 ## Corpus Scope and Store Discrepancy
 
 The evaluation repository maintains two distinct evidence stores:
-1. **Derived Parquet Projection (`derived/parquet/`)**: 92 trials across 72 jobs spanning 2026-08-14 to 2026-08-16. This projection records the complete experimental record: 76 measured trials and 16 never-measured trials (harness exceptions).
+1. **Derived Parquet Projection (accessed via unified attach surface `trial_facts`)**: 92 trials across 72 jobs spanning 2026-08-14 to 2026-08-16. This projection records the complete experimental record: 76 measured trials and 16 never-measured trials (harness exceptions).
 2. **Promoted Evidence Store (`research/evidence/runs/`)**: 11 trials across 5 curated job bundles (3 canary jobs from 2026-08-15 with 3 trials each, plus 2 control jobs from 2026-08-14 with 1 trial each). Contains 0 harness exceptions.
 
 **Disagreement as a Finding**: The promoted evidence store exhibits survivor bias. By retaining only clean, post-fix runs from 2026-08-15, it completely omits the setup failures (`ValueError`, n=9) and container crashes (`NonZeroAgentExitCodeError`, n=6) from 2026-08-14, the 2026-08-16 canary runs (n=9, including 1 exception), and 49+ oracle smoke jobs. Analyzing only the promoted store creates an artificially restricted sample (n=3 per canary) that mischaracterizes powered failure findings as "underpowered" and hides significant harness fragility.

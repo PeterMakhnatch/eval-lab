@@ -36,6 +36,7 @@ TOP_LEVEL_COMMANDS = (
     "analyze",
     "db",
     "lineage",
+    "card",
     "trace",
     "fetch",
     "gc",
@@ -55,6 +56,7 @@ NESTED_COMMANDS = (
     ("analyze", "agreement"),
     ("db", "init"),
     ("db", "list"),
+    ("card", "generate"),
 )
 HELP_PATHS = tuple((command,) for command in TOP_LEVEL_COMMANDS) + NESTED_COMMANDS
 

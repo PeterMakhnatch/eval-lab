@@ -539,6 +539,31 @@ def parser() -> argparse.ArgumentParser:
         help="override the shared Parquet root (same resolution as library)",
     )
 
+    card = commands.add_parser(
+        "card", help="Generate purpose-bound eval cards from completed evidence"
+    )
+    card_commands = card.add_subparsers(dest="card_command", required=True)
+    card_generate = card_commands.add_parser(
+        "generate", help="Generate an eval card from a spec_id or job_id"
+    )
+    card_generate.add_argument("target", help="Spec ID, spec path, job ID, or job path")
+    card_generate.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="write the eval card (default: render without writing)",
+    )
+    card_generate.add_argument(
+        "--json",
+        action="store_true",
+        help="print structured card JSON summary",
+    )
+    card_generate.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root",
+    )
+
 
 
     trace = commands.add_parser(
@@ -1589,6 +1614,26 @@ def run_cli(
             else:
                 print(render_lineage_tree(result))
             return 0 if result.resolved else 1
+        if args.command == "card" and args.card_command == "generate":
+            from evallab.cards import generate_card
+
+            explicit = getattr(args, "derived_root", None)
+            derived = derived_root_from_environment(root, explicit=explicit)
+            rendered, card_data = generate_card(
+                args.target,
+                repo_root=root,
+                explicit_derived=derived,
+                output_path=args.output,
+            )
+            if args.json:
+                print(json.dumps(card_data, indent=2))
+                return 0
+            if args.output is None:
+                print(rendered)
+            else:
+                print(f"eval card: {args.output}")
+                print(f"config digest: {card_data.get('spec_digest')}")
+            return 0
         if args.command == "registry" and args.registry_command == "list":
             from evallab.registry import TaskRegistry
 

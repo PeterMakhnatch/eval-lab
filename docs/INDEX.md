@@ -30,6 +30,7 @@ an operator can see what is archived.
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
+| `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
@@ -65,6 +66,7 @@ an operator can see what is archived.
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
+| `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
@@ -130,6 +132,7 @@ an operator can see what is archived.
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
+| `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/fleet-tracking.md` | Fleet tracking: how the human keeps up with many agents | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |

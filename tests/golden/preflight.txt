@@ -1,0 +1,51 @@
+evallab preflight — is it safe and sensible to run right now
+generated_at: 2026-08-16T12:00:00+00:00
+repository:   <TMP>
+quota roots:  <TMP>/runs, <TMP>/research/evidence/runs
+
+PER-PROVIDER REMAINING QUOTA (scope: account, NOT the lab; provider-reported)
+
+claude-code
+  remaining allowance      UNKNOWN [unavailable]
+    reason: no paid trial in the scanned job directories recorded a provider quota snapshot, so the remaining allowance is unknown
+    UNKNOWN is not 'plenty left'. This says the allowance could not be measured, not that a run fits inside it. Check the provider yourself before authorising anything billable.
+  paid trials seen         0 [observed]
+  quota snapshots          0 [observed]
+
+codex
+  used_percent             92.0 [observed]
+  remaining_percent        8.0 [observed] (account-wide, whole percentage points)
+  window                   10080 minutes (168h00m)
+  resets_at                2026-08-20T18:32:49+00:00
+  observed_at              2026-08-16T10:00:00+00:00
+  staleness                2h00m old
+  credits_balance          0
+  hard stop                True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  plan_type / limit_id     prolite / codex
+  lab's share of that      [unavailable]
+  quota snapshots          1 [observed]
+  paid trials seen         1 [observed]
+
+  lab refusal ceiling      90.0 percent used (reason code subscription_quota_ceiling)
+    A lab ceiling is a spend decision and is recorded under its own reason code, never as the provider's statement.
+
+QUEUE BY PURPOSE (states: proposed, pending, approved, waiting, running)
+  purpose baseline: 1 spec(s), 1 billable
+    [approved] base-a — task canary/event-summary, agent codex, 1 attempt(s)
+  purpose comparison: 3 spec(s), 3 billable
+    [approved] cmp-alpha — task t/alpha, agent codex, 4 attempt(s)
+    [approved] cmp-bravo — task t/bravo, agent codex, 4 attempt(s)
+    [approved] cmp-charlie — task t/charlie, agent codex, 4 attempt(s)
+  purpose drift: 1 spec(s), 1 billable
+    [waiting] canary-run — task canary/event-summary, agent codex, 1 attempt(s)
+  purpose practice: 1 spec(s), 0 billable
+    [proposed] oracle-control — task library/tasks/event-summary, agent oracle, 1 attempt(s)
+
+POWER WARNINGS (queued comparisons only)
+  3 queued comparison spec(s) across 3 distinct task(s)
+  n_tasks 3, k 4, baseline 0.500
+  WARNING: no per-attempt difference is detectable at n_tasks=3, k=4, baseline=0.500: this comparison cannot reach an interval at its declared attempt count
+  The queue carries no field linking two specs into one comparison, so every queued comparison spec is pooled into a single cohort here. Pooling can only overstate n_tasks, so a warning raised at the pooled n holds for every finer partition of these specs; a clean bill of health at the pooled n does not.
+
+VERDICT: nothing in these readings refuses, but codex has no overflow credits, so exhausting the window is a lockout until it resets, not an extra charge

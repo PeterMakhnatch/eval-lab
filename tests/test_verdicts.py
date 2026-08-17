@@ -1,0 +1,426 @@
+"""Tests for discovery verdict persistence, validation, and views (§2.1, §2.2).
+
+Verdicts are append-only human judgements on discovery findings.
+CI has no PostgreSQL or derived corpus — tests use tmp_path and in-memory DuckDB.
+"""
+
+import json
+import os
+from datetime import UTC, datetime
+from pathlib import Path
+
+import duckdb
+import pytest
+
+from evallab import cli
+from evallab.schemas import Verdict
+from evallab.verdicts import (
+    DEFAULT_DISCOVERIES_PATH,
+    SQL_VERDICTS_PATH,
+    execute_verdicts_views,
+    format_verdict_history_table,
+    format_verdicts_table,
+    get_verdict_history_from_catalog,
+    get_verdict_history_from_duckdb,
+    list_current_verdicts_from_catalog,
+    list_current_verdicts_from_duckdb,
+    record_verdict,
+    resolve_discovery_ids,
+    validate_discovery_id,
+    validate_human_actor,
+    validate_status,
+)
+
+SAMPLE_DISCOVERY_ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+SAMPLE_DISCOVERY_ULID_2 = "01KZZCK33HJM4R8HW3V0Y25DXE"
+SAMPLE_DISCOVERY_HEADER_ID = "D-20260815-KTXJSHGZ"
+
+
+def _create_sample_discoveries_journal(root: Path) -> Path:
+    journal_path = root / DEFAULT_DISCOVERIES_PATH
+    journal_path.parent.mkdir(parents=True, exist_ok=True)
+    journal_path.write_text(
+        f"""# Eval lab discovery journal
+
+## {SAMPLE_DISCOVERY_HEADER_ID} — draft
+
+- Claim: Across this small control-only cohort, verifiers showed expected pattern.
+- Builds on: new thread
+- Evidence:
+  - [queue/researchers/passes/2026-08-15/{SAMPLE_DISCOVERY_ULID_2}/evidence.json](../evidence.json)
+- Proposed spec: [queue/proposed/spec-01KZZCN7X9PA643W1QCKQNNNY5.json](../spec.json)
+
+## {SAMPLE_DISCOVERY_ULID} — draft
+
+- Claim: A verified second finding for test cohorts.
+- Builds on: {SAMPLE_DISCOVERY_HEADER_ID}
+""",
+        encoding="utf-8",
+    )
+    return journal_path
+
+
+def test_standalone_sql_script_with_fallbacks() -> None:
+    """Test that sql/verdicts.sql resolves in clean DuckDB with zero pre-created tables."""
+    sql = SQL_VERDICTS_PATH.read_text(encoding="utf-8")
+    with duckdb.connect(":memory:") as con:
+        con.execute(sql)
+        for view_name in ["v_verdicts_history", "v_current_verdicts"]:
+            rows = con.execute(f"SELECT * FROM {view_name}").fetchall()
+            assert rows == []
+
+
+def test_verdict_roundtrip_duckdb(tmp_path: Path) -> None:
+    """A verdict round-trips: written, then returned with right status and actor."""
+    _create_sample_discoveries_journal(tmp_path)
+
+    with duckdb.connect(":memory:") as con:
+        execute_verdicts_views(con)
+
+        now = datetime.now(UTC)
+        verdict = record_verdict(
+            SAMPLE_DISCOVERY_ULID,
+            "accepted",
+            by="Peter Makhnatch",
+            note="Verified against run evidence",
+            at=now,
+            repo_root=tmp_path,
+            duckdb_conn=con,
+        )
+
+        assert verdict.discovery_id == SAMPLE_DISCOVERY_ULID
+        assert verdict.status == "accepted"
+        assert verdict.by == "Peter Makhnatch"
+        assert verdict.note == "Verified against run evidence"
+
+        current = list_current_verdicts_from_duckdb(con)
+        assert len(current) == 1
+        assert current[0].discovery_id == SAMPLE_DISCOVERY_ULID
+        assert current[0].status == "accepted"
+        assert current[0].by == "Peter Makhnatch"
+        assert current[0].note == "Verified against run evidence"
+        assert current[0].at == now
+
+
+def test_verdict_append_only_history(tmp_path: Path) -> None:
+    """Two verdicts persist; current reports later, history reports both oldest-first."""
+    _create_sample_discoveries_journal(tmp_path)
+
+    with duckdb.connect(":memory:") as con:
+        execute_verdicts_views(con)
+
+        t1 = datetime(2026, 8, 17, 10, 0, 0, tzinfo=UTC)
+        t2 = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
+
+        v1 = record_verdict(
+            SAMPLE_DISCOVERY_ULID,
+            "pending",
+            by="Peter Makhnatch",
+            note="Initial triage",
+            at=t1,
+            repo_root=tmp_path,
+            duckdb_conn=con,
+        )
+
+        record_verdict(
+            SAMPLE_DISCOVERY_ULID,
+            "accepted",
+            by="Peter Makhnatch",
+            note="Promoted after evidence review",
+            at=t2,
+            repo_root=tmp_path,
+            duckdb_conn=con,
+        )
+
+        # Current view returns only the latest verdict (v2)
+        current = list_current_verdicts_from_duckdb(con)
+        assert len(current) == 1
+        assert current[0].status == "accepted"
+        assert current[0].note == "Promoted after evidence review"
+        assert current[0].at == t2
+
+        # History returns all rows oldest-first
+        history = get_verdict_history_from_duckdb(con, SAMPLE_DISCOVERY_ULID)
+        assert len(history) == 2
+        assert history[0].status == "pending"
+        assert history[0].note == "Initial triage"
+        assert history[0].at == t1
+        assert history[1].status == "accepted"
+        assert history[1].note == "Promoted after evidence review"
+        assert history[1].at == t2
+
+        # Invariant: the first row in history is strictly unchanged
+        assert history[0].status == v1.status
+        assert history[0].by == v1.by
+        assert history[0].at == v1.at
+        assert history[0].note == v1.note
+
+
+def test_refuse_empty_or_whitespace_actor() -> None:
+    """An empty or whitespace-only actor is refused."""
+    for bad_actor in ["", "   ", "\t\n"]:
+        with pytest.raises(ValueError, match="Actor \\(--by\\) is required and cannot be empty"):
+            validate_human_actor(bad_actor)
+
+
+def test_refuse_automated_actor() -> None:
+    """An obviously-automated actor name is refused with a clear guidance message."""
+    automated_names = [
+        "autopilot",
+        "autopilot-researcher",
+        "bot",
+        "agent",
+        "harbor",
+        "automated",
+        "ci",
+        "github-actions",
+        "codex",
+        "oracle",
+        "nop",
+        "system",
+        "agent-worker",
+        "bot-auto",
+        "ai-assistant",
+        "automated-pipeline",
+        "harbor-evaluator",
+        "codex-judge",
+    ]
+    for bad_actor in automated_names:
+        with pytest.raises(
+            ValueError, match="Automated actor .* refused: verdicts require human judgment"
+        ):
+            validate_human_actor(bad_actor)
+
+
+def test_refuse_unknown_discovery_id(tmp_path: Path) -> None:
+    """A verdict on an unknown discovery_id is refused, naming what was not found."""
+    _create_sample_discoveries_journal(tmp_path)
+    unknown_id = "01NONEXISTENTDISCOVERY00000"
+
+    with pytest.raises(ValueError, match=f"Discovery '{unknown_id}' not found"):
+        validate_discovery_id(unknown_id, repo_root=tmp_path)
+
+
+def test_refuse_invalid_status() -> None:
+    """A status outside the four §2.1 literals is refused."""
+    for bad_status in ["maybe", "approved", "failed", "unreviewed", ""]:
+        with pytest.raises(ValueError, match="Invalid status .* must be one of:"):
+            validate_status(bad_status)
+
+
+def test_resolve_discovery_ids_parsing(tmp_path: Path) -> None:
+    """Discovery IDs are correctly extracted from headers and embedded citations."""
+    _create_sample_discoveries_journal(tmp_path)
+    ids = resolve_discovery_ids(repo_root=tmp_path)
+
+    assert SAMPLE_DISCOVERY_HEADER_ID in ids
+    assert SAMPLE_DISCOVERY_ULID in ids
+    assert SAMPLE_DISCOVERY_ULID_2 in ids
+    assert "01KZZCN7X9PA643W1QCKQNNNY5" in ids
+
+
+def test_cli_verdict_record_and_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """CLI records a verdict and lists current verdicts."""
+    _create_sample_discoveries_journal(tmp_path)
+
+    code = cli.run_cli(
+        [
+            "verdict",
+            SAMPLE_DISCOVERY_ULID,
+            "accepted",
+            "--by",
+            "Peter Makhnatch",
+            "--note",
+            "Verified via CLI",
+        ],
+        workspace=tmp_path,
+    )
+    assert code == 0
+    out, _ = capsys.readouterr()
+    assert f"Recorded verdict for {SAMPLE_DISCOVERY_ULID}: accepted by Peter Makhnatch" in out
+
+    # CLI list (in test environment without postgres, falls back cleanly)
+    code_list = cli.run_cli(["verdict", "list"], workspace=tmp_path)
+    assert code_list == 0
+
+
+def test_cli_verdict_refusal_unknown_id(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CLI refuses unknown discovery ID and outputs error."""
+    _create_sample_discoveries_journal(tmp_path)
+    unknown_id = "01NONEXISTENTDISCOVERY00000"
+
+    code = cli.run_cli(
+        ["verdict", unknown_id, "accepted", "--by", "Peter Makhnatch"],
+        workspace=tmp_path,
+    )
+    assert code == 2
+    _, err = capsys.readouterr()
+    assert f"Discovery '{unknown_id}' not found" in err
+
+
+def test_cli_verdict_refusal_automated_by(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CLI refuses automated --by actor."""
+    _create_sample_discoveries_journal(tmp_path)
+
+    code = cli.run_cli(
+        ["verdict", SAMPLE_DISCOVERY_ULID, "accepted", "--by", "autopilot"],
+        workspace=tmp_path,
+    )
+    assert code == 2
+    _, err = capsys.readouterr()
+    assert "Automated actor 'autopilot' refused" in err
+
+
+def test_format_verdicts_table() -> None:
+    """Formatting renders headers and rows or empty message."""
+    assert format_verdicts_table([]) == "No verdicts recorded."
+
+    now = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
+    v = [
+        Verdict(
+            discovery_id=SAMPLE_DISCOVERY_ULID,
+            status="accepted",
+            by="Peter Makhnatch",
+            at=now,
+            note="Note here",
+        )
+    ]
+    rendered = format_verdicts_table(v)
+    assert "DISCOVERY ID" in rendered
+    assert "STATUS" in rendered
+    assert SAMPLE_DISCOVERY_ULID in rendered
+    assert "accepted" in rendered
+    assert "Peter Makhnatch" in rendered
+
+
+def test_format_verdict_history_table() -> None:
+    """Formatting history table renders chronological entries."""
+    assert (
+        format_verdict_history_table(SAMPLE_DISCOVERY_ULID, [])
+        == f"No verdict history for {SAMPLE_DISCOVERY_ULID}."
+    )
+
+    t1 = datetime(2026, 8, 17, 10, 0, 0, tzinfo=UTC)
+    t2 = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
+    history = [
+        Verdict(
+            discovery_id=SAMPLE_DISCOVERY_ULID,
+            status="pending",
+            by="Peter Makhnatch",
+            at=t1,
+            note="First",
+        ),
+        Verdict(
+            discovery_id=SAMPLE_DISCOVERY_ULID,
+            status="accepted",
+            by="Peter Makhnatch",
+            at=t2,
+            note="Second",
+        ),
+    ]
+    rendered = format_verdict_history_table(SAMPLE_DISCOVERY_ULID, history)
+    assert f"History for {SAMPLE_DISCOVERY_ULID}:" in rendered
+    assert "pending" in rendered
+    assert "accepted" in rendered
+
+def test_cli_verdict_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """CLI supports --json for machine-readable output."""
+    _create_sample_discoveries_journal(tmp_path)
+
+    code = cli.run_cli(
+        [
+            "verdict",
+            SAMPLE_DISCOVERY_ULID,
+            "needs_evidence",
+            "--by",
+            "Peter Makhnatch",
+            "--note",
+            "Needs more samples",
+            "--json",
+        ],
+        workspace=tmp_path,
+    )
+    assert code == 0
+    out, _ = capsys.readouterr()
+    data = json.loads(out)
+    assert data["discovery_id"] == SAMPLE_DISCOVERY_ULID
+    assert data["status"] == "needs_evidence"
+    assert data["by"] == "Peter Makhnatch"
+    assert data["note"] == "Needs more samples"
+
+
+def test_cli_verdict_history_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """CLI history subcommand handles history inspection."""
+    _create_sample_discoveries_journal(tmp_path)
+
+    # With no discovery ID provided
+    code_missing = cli.run_cli(["verdict", "history"], workspace=tmp_path)
+    assert code_missing == 2
+    _, err = capsys.readouterr()
+    assert "discovery_id is required" in err
+
+    # With discovery ID provided
+    code = cli.run_cli(["verdict", "history", SAMPLE_DISCOVERY_ULID], workspace=tmp_path)
+    assert code == 0
+
+
+def test_cli_verdict_missing_status_or_by(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CLI reports errors when required arguments are missing."""
+    _create_sample_discoveries_journal(tmp_path)
+
+    # Missing status
+    code1 = cli.run_cli(["verdict", SAMPLE_DISCOVERY_ULID], workspace=tmp_path)
+    assert code1 == 2
+    _, err1 = capsys.readouterr()
+    assert "status is required" in err1
+
+    # Missing --by
+    code2 = cli.run_cli(["verdict", SAMPLE_DISCOVERY_ULID, "accepted"], workspace=tmp_path)
+    assert code2 == 2
+    _, err2 = capsys.readouterr()
+    assert "--by <who> is required" in err2
+
+
+def test_cli_verdict_empty_invocation(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Bare verdict invocation displays help."""
+    code = cli.run_cli(["verdict"], workspace=tmp_path)
+    assert code == 0
+    out, _ = capsys.readouterr()
+    assert "usage:" in out
+
+
+@pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="requires live PostgreSQL DATABASE_URL",
+)
+def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
+    """Full PostgreSQL catalog roundtrip when DATABASE_URL is provided."""
+    db_url = os.environ["DATABASE_URL"]
+    _create_sample_discoveries_journal(tmp_path)
+
+    now = datetime.now(UTC)
+    verdict = record_verdict(
+        SAMPLE_DISCOVERY_ULID,
+        "accepted",
+        by="Peter Makhnatch",
+        note="Catalog test",
+        at=now,
+        repo_root=tmp_path,
+        database_url=db_url,
+    )
+    assert verdict.status == "accepted"
+
+    current = list_current_verdicts_from_catalog(database_url=db_url)
+    matching = [v for v in current if v.discovery_id == SAMPLE_DISCOVERY_ULID]
+    assert len(matching) >= 1
+    assert matching[0].status == "accepted"
+
+    history = get_verdict_history_from_catalog(SAMPLE_DISCOVERY_ULID, database_url=db_url)
+    assert len(history) >= 1
+    assert history[-1].status == "accepted"

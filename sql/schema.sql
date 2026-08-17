@@ -386,3 +386,51 @@ LEFT JOIN LATERAL (
     ORDER BY prior.observation_date DESC
     LIMIT 1
 ) previous ON true;
+
+CREATE TABLE IF NOT EXISTS verdicts (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    discovery_id text NOT NULL,
+    status text NOT NULL,
+    "by" text NOT NULL,
+    "at" timestamptz NOT NULL,
+    note text,
+    ingested_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS verdicts_discovery_idx ON verdicts (discovery_id);
+CREATE INDEX IF NOT EXISTS verdicts_at_idx ON verdicts ("at" DESC);
+CREATE INDEX IF NOT EXISTS verdicts_status_idx ON verdicts (status);
+
+CREATE OR REPLACE VIEW v_verdicts_history AS
+SELECT
+    discovery_id,
+    status,
+    "by",
+    "at",
+    note
+FROM verdicts
+ORDER BY discovery_id, "at" ASC;
+
+CREATE OR REPLACE VIEW v_current_verdicts AS
+WITH ranked AS (
+    SELECT
+        discovery_id,
+        status,
+        "by",
+        "at",
+        note,
+        row_number() OVER (
+            PARTITION BY discovery_id
+            ORDER BY "at" DESC
+        ) AS ranking
+    FROM verdicts
+)
+SELECT
+    discovery_id,
+    status,
+    "by",
+    "at",
+    note
+FROM ranked
+WHERE ranking = 1
+ORDER BY "at" DESC, discovery_id;

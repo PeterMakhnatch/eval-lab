@@ -716,6 +716,47 @@ def parser() -> argparse.ArgumentParser:
         default=False,
         help="Report findings without making changes (default behavior)",
     )
+
+    verdict = commands.add_parser(
+        "verdict",
+        help="Record, list, or inspect append-only human verdicts on discoveries",
+    )
+    verdict.add_argument(
+        "action_or_id",
+        nargs="?",
+        help="Discovery ID to verdict/inspect, or 'list'/'history'",
+    )
+    verdict.add_argument(
+        "status_or_id",
+        nargs="?",
+        help="Status ('accepted'|'rejected'|'needs_evidence'|'pending') or ID for history",
+    )
+    verdict.add_argument(
+        "--by",
+        help="Human actor issuing the verdict (mandatory for recording)",
+    )
+    verdict.add_argument(
+        "--note",
+        help="Free-text rationale or evidence pointer",
+    )
+    verdict.add_argument(
+        "--status",
+        help="Filter status for 'verdict list'",
+    )
+    verdict.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit results as JSON",
+    )
+    verdict.add_argument(
+        "--database-url",
+        help="PostgreSQL catalog URL override",
+    )
+    verdict.add_argument(
+        "--derived-root",
+        type=Path,
+        help="Override the shared Parquet root",
+    )
     return root
 
 
@@ -1800,6 +1841,90 @@ def run_cli(
 
             apply = args.apply and not args.dry_run
             return run_tidy(root, apply=apply)
+        if args.command == "verdict":
+            from evallab.verdicts import (
+                format_verdict_history_table,
+                format_verdicts_table,
+                get_verdict_history_from_catalog,
+                list_current_verdicts_from_catalog,
+                record_verdict,
+            )
+
+            action = args.action_or_id
+            if action is None:
+                for act in parser()._actions:
+                    if isinstance(act, argparse._SubParsersAction) and "verdict" in act.choices:
+                        print(act.choices["verdict"].format_help())
+                        return 0
+                return 0
+            db_url = getattr(args, "database_url", None)
+
+            if action == "list":
+                status_filter = args.status or args.status_or_id
+                try:
+                    verdicts = list_current_verdicts_from_catalog(
+                        database_url=db_url, status=status_filter
+                    )
+                except Exception:
+                    if db_url is not None:
+                        raise
+                    verdicts = []
+                if args.json:
+                    print(json.dumps([v.model_dump(mode="json") for v in verdicts], indent=2))
+                else:
+                    print(format_verdicts_table(verdicts))
+                return 0
+
+            if action == "history":
+                target_id = args.status_or_id
+                if not target_id:
+                    print(
+                        "error: discovery_id is required for 'verdict history <discovery_id>'",
+                        file=sys.stderr,
+                    )
+                    return 2
+                try:
+                    history = get_verdict_history_from_catalog(target_id, database_url=db_url)
+                except Exception:
+                    if db_url is not None:
+                        raise
+                    history = []
+                if args.json:
+                    print(json.dumps([v.model_dump(mode="json") for v in history], indent=2))
+                else:
+                    print(format_verdict_history_table(target_id, history))
+                return 0
+
+            discovery_id = action
+            status = args.status_or_id
+            if not status:
+                print(
+                    "error: status is required: evallab verdict <discovery_id> "
+                    "<accepted|rejected|needs_evidence|pending> --by <who>",
+                    file=sys.stderr,
+                )
+                return 2
+            if not args.by:
+                print("error: --by <who> is required for recording a verdict", file=sys.stderr)
+                return 2
+
+            verdict = record_verdict(
+                discovery_id,
+                status,
+                by=args.by,
+                note=args.note,
+                repo_root=root,
+                database_url=db_url,
+            )
+            if args.json:
+                print(json.dumps(verdict.model_dump(mode="json"), indent=2))
+            else:
+                note_suffix = f" (note: {verdict.note})" if verdict.note else ""
+                print(
+                    f"Recorded verdict for {verdict.discovery_id}: {verdict.status} "
+                    f"by {verdict.by}{note_suffix}"
+                )
+            return 0
     except (FileExistsError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

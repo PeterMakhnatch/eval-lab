@@ -15,6 +15,7 @@ from uuid import UUID
 from evallab import __version__, database
 from evallab import queue as queue_module
 from evallab.atif import check_projection_invariant, ingest_and_project
+from evallab.attach import attach, attach_and_query, build_sql_preamble, print_zones
 from evallab.automation import (
     GuardedTick,
     HeadlessDoctor,
@@ -519,6 +520,13 @@ def parser() -> argparse.ArgumentParser:
     db_list = db_commands.add_parser("list", help="List recently ingested trials")
     db_list.add_argument("--database-url")
     db_list.add_argument("--limit", type=int, default=25)
+    db_attach = db_commands.add_parser("attach", help="Attach unified DuckDB surface (Z2+Z3+Z4)")
+    db_attach.add_argument("--zones", action="store_true", help="report zone status (exit non-zero if none attached)")  # noqa: E501
+    db_attach.add_argument("--print-sql", action="store_true", help="emit the attach + view DDL preamble to stdout")  # noqa: E501
+    db_attach.add_argument("--query", metavar="SQL", help="run query against the surface and print rows")  # noqa: E501
+    db_attach.add_argument("--derived-root", type=Path, help="override the shared Parquet root (same resolution as library)")  # noqa: E501
+
+
 
     trace = commands.add_parser(
         "trace",
@@ -1535,6 +1543,29 @@ def run_cli(
                 print(
                     "| " + " | ".join("" if value is None else str(value) for value in row) + " |"
                 )
+            return 0
+        if args.command == "db" and args.db_command == "attach":
+            # thin layer over attach/print_zones/attach_and_query/build_sql_preamble
+            explicit = getattr(args, "derived_root", None)
+            derived = derived_root_from_environment(root, explicit=explicit)
+            result = attach(repo_root=root, explicit_derived=derived)
+            if args.zones:
+                print_zones(result.zones)
+                attached = sum(1 for z in result.zones if z.attached)
+                result.connection.close()
+                return 0 if attached > 0 else 1
+            if args.print_sql:
+                dsn = database_url_from_environment()
+                print(build_sql_preamble(dsn, derived, root))
+                result.connection.close()
+                return 0
+            if args.query:
+                result.connection.close()
+                rows = attach_and_query(args.query, repo_root=root, explicit_derived=derived)
+                for row in rows:
+                    print(row)
+                return 0
+            result.connection.close()
             return 0
         if args.command == "registry" and args.registry_command == "list":
             from evallab.registry import TaskRegistry

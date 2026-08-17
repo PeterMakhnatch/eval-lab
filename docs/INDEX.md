@@ -25,6 +25,7 @@ an operator can see what is archived.
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
+| `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
@@ -55,6 +56,7 @@ an operator can see what is archived.
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
+| `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |

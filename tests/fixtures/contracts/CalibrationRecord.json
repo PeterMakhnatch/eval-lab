@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "CriterionAgreement": {
+      "additionalProperties": false,
+      "description": "Per-criterion agreement score carrying n and rate (T4, not bare float).",
+      "properties": {
+        "agreements": {
+          "description": "number of matching judgments on this criterion",
+          "minimum": 0,
+          "title": "Agreements",
+          "type": "integer"
+        },
+        "rate": {
+          "description": "agreements / total",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Rate",
+          "type": "number"
+        },
+        "total": {
+          "description": "total judgments rendered on this criterion",
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "agreements",
+        "total",
+        "rate"
+      ],
+      "title": "CriterionAgreement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "\u00a72.1 CalibrationRecord: judge calibration result on a corpus.\n\nper_criterion_agreement uses explicit Agreement objects (T4) rather than\nbare floats. All digests validated.",
+  "properties": {
+    "calib_id": {
+      "description": "ULID primary key for this calibration run",
+      "title": "Calib Id",
+      "type": "string"
+    },
+    "corpus_digest": {
+      "description": "sha256: of the corpus of trials judged",
+      "title": "Corpus Digest",
+      "type": "string"
+    },
+    "date": {
+      "description": "calendar date of the calibration batch",
+      "format": "date-time",
+      "title": "Date",
+      "type": "string"
+    },
+    "judge_model": {
+      "description": "model that performed the judging",
+      "minLength": 1,
+      "title": "Judge Model",
+      "type": "string"
+    },
+    "per_criterion_agreement": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CriterionAgreement"
+      },
+      "description": "agreement rate per rubric criterion (with n and rate)",
+      "minProperties": 1,
+      "title": "Per Criterion Agreement",
+      "type": "object"
+    },
+    "rubric_digest": {
+      "description": "sha256: of rubric used for calibration",
+      "title": "Rubric Digest",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "calib_id",
+    "judge_model",
+    "rubric_digest",
+    "corpus_digest",
+    "per_criterion_agreement",
+    "date"
+  ],
+  "title": "CalibrationRecord",
+  "type": "object"
+}

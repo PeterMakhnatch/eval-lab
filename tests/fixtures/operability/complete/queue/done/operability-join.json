@@ -3,6 +3,7 @@
   "spec_id": "exp-operability-join",
   "name": "operability-join",
   "hypothesis": "Completed Harbor evidence joins through analysis.",
+  "purpose": "practice",
   "task": "library/tasks/event-summary",
   "agent": "oracle",
   "submitted_by": "m002",

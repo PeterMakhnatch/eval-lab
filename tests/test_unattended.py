@@ -167,6 +167,7 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
         ExperimentSpec(
             name="nightly-oracle-control",
             hypothesis="control remains healthy",
+            purpose="practice",
             task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
@@ -242,6 +243,7 @@ def test_nightly_researcher_defers_while_running_job_is_unresolved(
         ExperimentSpec(
             name="partial-before-nightly",
             hypothesis="detached Harbor work blocks the researcher",
+            purpose="practice",
             task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
@@ -322,6 +324,7 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
         ExperimentSpec(
             name="backup-gated-control",
             hypothesis="a failed backup prevents nightly dispatch",
+            purpose="practice",
             task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
@@ -509,6 +512,7 @@ def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -
         ExperimentSpec(
             name="tick-outcome-control",
             hypothesis="record a dispatched cycle",
+            purpose="practice",
             task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
@@ -546,6 +550,7 @@ def test_locked_keychain_still_dispatches_credentialless_nightly_control(
         ExperimentSpec(
             name="must-not-dispatch",
             hypothesis="locked model credentials do not block a free control",
+            purpose="practice",
             task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
@@ -587,6 +592,7 @@ def test_digest_uses_queue_when_catalog_is_unavailable(tmp_path: Path) -> None:
         ExperimentSpec(
             name="waiting-proposal",
             hypothesis="wait for human review",
+            purpose="practice",
             task="unregistered/task",
             agent="other",
             submitted_by="agent",
@@ -829,6 +835,7 @@ def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Pat
         ExperimentSpec(
             name="credentialless-control",
             hypothesis="controls remain runnable without model credentials",
+            purpose="practice",
             task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="scheduler-test",
@@ -838,6 +845,7 @@ def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Pat
         ExperimentSpec(
             name="credentialless-codex",
             hypothesis="model work waits for its own credential",
+            purpose="practice",
             task="library/tasks/event-summary",
             agent="codex",
             model="openai/example",

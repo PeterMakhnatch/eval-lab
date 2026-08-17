@@ -3,6 +3,7 @@
   "spec_id": null,
   "name": "judge-checkout-anthropic-20260814",
   "hypothesis": "The harbor-claude-agent judge has measurable criterion agreement on the sealed checkout-pool-exhaustion corpus without access to answer keys.",
+  "purpose": "calibration",
   "task": "registered/judge-calibration/checkout-pool-exhaustion",
   "task_path": "queue/calibration-tasks/judge-checkout-anthropic-20260814",
   "agent": "claude-code",

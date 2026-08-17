@@ -852,6 +852,12 @@ class ResearcherLoop:
         spec = ExperimentSpec(
             name=f"research-{draft.registered_task}-{_proposal_digest(draft)[:10]}",
             hypothesis=draft.hypothesis,
+            # A `ProposalDraft` is structurally a one-variable contrast: it
+            # requires `primary_variable` plus at least one `fixed_variable`
+            # (`researchers.py:150-151`) and cites the findings it builds on, so
+            # what it proposes is always a comparison against prior evidence
+            # rather than a first measurement.
+            purpose="comparison",
             task=f"registered/{draft.registered_task}",
             task_path=record.task_path,
             task_version=record.version,

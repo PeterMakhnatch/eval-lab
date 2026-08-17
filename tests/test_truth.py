@@ -404,6 +404,7 @@ def test_completed_spec_drafts_eval_card_with_digests_intervals_and_threats(
             "schema_version": 1,
             "name": "completed-eval",
             "hypothesis": "The pinned agent can solve this task family.",
+            "purpose": "practice",
             "task": "task-family",
             "agent": "agent-a",
             "model": "model-a",

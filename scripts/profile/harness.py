@@ -332,6 +332,13 @@ def _time_queue_tick(
             spec_id=f"speed-tick-{index:03d}",
             name=f"speed-tick-{index:03d}",
             hypothesis="synthetic approved spec for a 100-wide tick profile",
+            # PROVISIONAL, same gap as `smoke.py`: these are synthetic specs
+            # that exist to be timed, not to measure an agent, and the taxonomy
+            # has no member for that. Free to change here — this loop writes
+            # straight into the `approved` state dir of a throwaway queue under
+            # `scratch`, never calling `submit`, so no admission rule inspects
+            # this value and nothing reaches the real queue or catalog.
+            purpose="practice",
             task="tasks/event-summary",
             agent="oracle",
             submitted_by="speed-profile",

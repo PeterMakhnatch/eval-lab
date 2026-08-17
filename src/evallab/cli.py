@@ -1015,7 +1015,15 @@ def run_cli(
                 # not move; the subscription window does.
                 headroom = _headroom_for(root)
                 print(render_headroom_notice(headroom))
-                blocked = provider_reported_exhaustion(headroom) or lab_threshold_reached(headroom)
+                # The threshold is policy, not code: `refuse_billable_at_used_percent`
+                # in `policy/standing-approvals.yaml`, committed unset. Loaded
+                # inline here, as `_digest_renderer` does at cli.py:1526.
+                ceiling = load_policy(
+                    root / "policy/standing-approvals.yaml"
+                ).refuse_billable_at_used_percent
+                blocked = provider_reported_exhaustion(headroom) or lab_threshold_reached(
+                    headroom, threshold=ceiling
+                )
                 if blocked and not args.despite_quota:
                     print(
                         f"WARNING: dispatch will refuse this spec — {blocked}. "

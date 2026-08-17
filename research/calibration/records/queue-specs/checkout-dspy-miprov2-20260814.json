@@ -3,6 +3,7 @@
   "spec_id": null,
   "name": "judge-checkout-dspy-miprov2-20260814",
   "hypothesis": "MIPROv2 can improve held-out checkout judge agreement over the handwritten rubric at equal-or-lower judge cost without seeing the six held-out controls.",
+  "purpose": "calibration",
   "task": "registered/judge-optimization/checkout-pool-exhaustion",
   "task_path": "queue/calibration-tasks/judge-checkout-dspy-miprov2-20260814",
   "agent": "codex",

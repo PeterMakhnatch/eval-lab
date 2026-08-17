@@ -73,6 +73,10 @@ class CanaryEnqueuer:
                             f"Pinned canary {member.name} remains stable on {agent}; "
                             "any excursion is a harness-drift suspect."
                         ),
+                        # A canary is a regression detector aimed at the lab
+                        # itself: pinned task, pinned digest, repeated on a
+                        # schedule so that any excursion is visible as drift.
+                        purpose="drift",
                         task=f"canary/{member.name}",
                         task_path=member.task_path,
                         agent=agent,

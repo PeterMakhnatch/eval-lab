@@ -2,6 +2,7 @@
   "schema_version": 1,
   "name": "runner-txn-recon-codex-k5",
   "hypothesis": "Five Codex attempts on pinned transaction-reconciliation would give a Wilson interval narrow enough to compare against the k=1 and k=3 arms; this spec is staged to record the cost and policy refusal, not to understate cost.",
+  "purpose": "elicitation",
   "task": "canary/transaction-reconciliation",
   "task_path": "tasks/transaction-reconciliation",
   "agent": "codex",

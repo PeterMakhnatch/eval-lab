@@ -754,6 +754,8 @@ def queued_calibration_spec(
             f"The {backend} judge has measurable criterion agreement on the sealed {family} "
             "corpus without access to answer keys."
         ),
+        # Measures a judge against a sealed corpus with answer keys withheld.
+        purpose="calibration",
         task=f"registered/judge-calibration/{family}",
         task_path=task_relative.as_posix(),
         agent=agent,

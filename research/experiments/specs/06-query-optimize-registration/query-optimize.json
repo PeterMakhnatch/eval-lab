@@ -2,6 +2,7 @@
   "schema_version": 1,
   "name": "runner-query-optimize-codex-k3",
   "hypothesis": "Codex pass@3 on lab-authored query-optimize is a harder-family baseline than the three pinned canaries. Submitted on the real path tasks/query-optimize to record the out_of_policy refusal rather than invent a canary/ or registered/ name.",
+  "purpose": "baseline",
   "task": "tasks/query-optimize",
   "task_path": "tasks/query-optimize",
   "agent": "codex",

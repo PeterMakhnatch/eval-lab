@@ -217,6 +217,20 @@ def run_smoke(
         ExperimentSpec(
             name=job_name,
             hypothesis="prove the free composed evaluation path",
+            # PROVISIONAL. This spec verifies the lab's own plumbing — it
+            # asserts admission, one dispatch, the two-store invariant, and its
+            # own appearance in a rendered digest — so it makes no claim about
+            # an agent. The seven purposes in `schemas.ExperimentPurpose` all
+            # name something the lab is trying to learn, and none means
+            # "infrastructure self-verification"; `practice` is the only member
+            # that asserts no measurement, so it is the least-wrong fit rather
+            # than the right one. Escalated to Peter (the taxonomy is his) with
+            # `selftest` named as the value that would fit. Unlike the synthetic
+            # specs in `scripts/profile/harness.py`, this one is submitted
+            # through the real `PolicyGate`, so if a standing rule is ever keyed
+            # on purpose, the value here decides whether the self-test is
+            # admitted at all.
+            purpose="practice",
             task=SMOKE_TASK,
             agent="oracle",
             jobs_dir=(relative_scratch / "jobs").as_posix(),

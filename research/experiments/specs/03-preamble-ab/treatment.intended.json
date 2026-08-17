@@ -2,6 +2,7 @@
   "schema_version": 1,
   "name": "runner-event-summary-codex-preamble-k3",
   "hypothesis": "INTENDED TREATMENT — not submitted. Same cell as Study 01 event-summary except Harbor --extra-instruction-path=research/experiments/preambles/brief-discipline.md. ExperimentSpec cannot carry that field today; submitting this file would run the control again.",
+  "purpose": "elicitation",
   "task": "canary/event-summary",
   "task_path": "tasks/event-summary",
   "agent": "codex",

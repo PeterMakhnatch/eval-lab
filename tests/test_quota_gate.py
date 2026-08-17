@@ -30,6 +30,7 @@ from evallab.queue import (
     Executor,
     PolicyGate,
     lab_threshold_reached,
+    load_policy,
     provider_reported_exhaustion,
     quota_window_expired,
     render_headroom_notice,
@@ -37,6 +38,7 @@ from evallab.queue import (
 from evallab.quota import Headroom
 from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 OBSERVED_AT = datetime(2026, 8, 16, 14, 0, 31, tzinfo=UTC)
 RESETS_AT = datetime(2026, 8, 20, 18, 32, 49, tzinfo=UTC)
 
@@ -44,13 +46,15 @@ RESETS_AT = datetime(2026, 8, 20, 18, 32, 49, tzinfo=UTC)
 LIVE_STALENESS_SECONDS = 5 * 3600 + 18 * 60
 
 
-def policy() -> StandingApprovalsPolicy:
+def policy(refuse_billable_at_used_percent: float | None = None) -> StandingApprovalsPolicy:
+    """The committed shape. The threshold defaults to unset, as it ships."""
     return StandingApprovalsPolicy(
         daily_cost_ceiling_usd=20,
         per_job_cost_ceiling_usd=3,
         quiet_failure_rule=3,
         auto_run=[AutoRunRule(name="local-controls", agents=["oracle", "nop"])],
         escalate_to_human=["any_billable_agent"],
+        refuse_billable_at_used_percent=refuse_billable_at_used_percent,
     )
 
 
@@ -106,6 +110,7 @@ def spec(
     return ExperimentSpec(
         name=name,
         hypothesis="exercise the quota gate",
+        purpose="practice",
         task="canary/event-summary",
         task_path="library/tasks/event-summary",
         agent=agent,
@@ -115,7 +120,13 @@ def spec(
     )
 
 
-def executor(root: Path, requests: list, reading: Headroom) -> Executor:
+def executor(
+    root: Path,
+    requests: list,
+    reading: Headroom,
+    *,
+    refuse_billable_at_used_percent: float | None = None,
+) -> Executor:
     def runner(request):
         destination = request.jobs_dir / request.name
         destination.mkdir(parents=True, exist_ok=True)
@@ -125,7 +136,7 @@ def executor(root: Path, requests: list, reading: Headroom) -> Executor:
     return Executor(
         repo_root=root,
         queue=DirectoryQueue(root / "queue"),
-        policy=policy(),
+        policy=policy(refuse_billable_at_used_percent),
         runner=runner,
         ingester=lambda path: None,
         spent_today=lambda: 0,
@@ -136,10 +147,21 @@ def executor(root: Path, requests: list, reading: Headroom) -> Executor:
     )
 
 
-def authorized_dispatch(root: Path, reading: Headroom, **spec_overrides: object):
+def authorized_dispatch(
+    root: Path,
+    reading: Headroom,
+    *,
+    refuse_billable_at_used_percent: float | None = None,
+    **spec_overrides: object,
+):
     """Submit one billable spec, authorise it, and tick. Returns the executor."""
     requests: list = []
-    service = executor(root, requests, reading)
+    service = executor(
+        root,
+        requests,
+        reading,
+        refuse_billable_at_used_percent=refuse_billable_at_used_percent,
+    )
     path, _ = service.submit(spec(**spec_overrides))  # type: ignore[arg-type]
     spec_id = str(service.queue.load(path).spec_id)
     service.queue.approve(spec_id, actor="peter")
@@ -178,11 +200,30 @@ def test_an_unavailable_reading_never_renders_a_percentage() -> None:
 
 
 def test_an_unavailable_reading_is_not_evidence_of_exhaustion_either() -> None:
-    """It refuses nothing — and it reassures nobody. Both halves matter."""
+    """It refuses nothing — and it reassures nobody. Both halves matter.
+
+    The threshold is passed as *set* here, and deliberately: with it unset the
+    `lab_threshold_reached` assertion would hold no matter what the function did
+    with `availability`. A set threshold makes this a real trap-one probe — the
+    availability guard is the only reason it returns `None`.
+    """
     unknown = headroom(availability="unavailable")
     assert provider_reported_exhaustion(unknown) is None
-    assert lab_threshold_reached(unknown) is None
+    assert lab_threshold_reached(unknown, threshold=90.0) is None
     assert quota_window_expired(unknown) is False
+
+
+def test_a_threshold_ignores_a_percentage_an_unavailable_reading_still_carries() -> None:
+    """The poisoned shape, against the threshold rather than the renderer.
+
+    `headroom(reason="poisoned")` keeps `used_percent` populated while reporting
+    `unavailable`, which is exactly the object that reproduces the original
+    defect if the number is read before the availability. 92 is above the 90
+    threshold, so a function that read `used_percent` first would refuse here.
+    """
+    poisoned = headroom(availability="unavailable", reason="poisoned", used_percent=92.0)
+    assert poisoned.used_percent == 92.0
+    assert lab_threshold_reached(poisoned, threshold=90.0) is None
 
 
 def test_an_unavailable_reading_does_not_silently_permit(tmp_path: Path) -> None:
@@ -269,30 +310,57 @@ def test_no_threshold_is_invented_below_provider_exhaustion(tmp_path: Path) -> N
 
     Whether to stop short of the provider's own limit is a spend decision, and
     this module does not make it.
+
+    The unset state is asserted against the *committed policy file* rather than
+    a module constant, because that file is now where the decision lives — and
+    it is the artifact that would actually change if someone set a threshold.
     """
-    assert queue_module.REFUSE_BILLABLE_AT_USED_PERCENT is None
+    committed = load_policy(REPO_ROOT / "policy" / "standing-approvals.yaml")
+    assert committed.refuse_billable_at_used_percent is None
     for used in (80.0, 92.0, 99.0):
         reading = headroom(used_percent=used)
         assert provider_reported_exhaustion(reading) is None
-        assert lab_threshold_reached(reading) is None
+        assert lab_threshold_reached(reading, threshold=None) is None
     _, _, requests = authorized_dispatch(tmp_path, headroom(used_percent=92.0))
     assert len(requests) == 1
 
 
-def test_a_configured_threshold_refuses_under_its_own_reason_code(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Setting the one constant is the whole mechanism, and it stays distinct.
+def test_a_configured_threshold_refuses_under_its_own_reason_code(tmp_path: Path) -> None:
+    """Setting the one policy key is the whole mechanism, and it stays distinct.
 
     A lab policy must never be recorded in the reasons log as the provider's
-    statement, so it gets its own code.
+    statement, so it gets its own code. Driven by the policy field rather than
+    by monkeypatching a module attribute: the mechanism under test is now a
+    config value that `PolicyGate` reads, so patching code would prove less.
     """
-    monkeypatch.setattr(queue_module, "REFUSE_BILLABLE_AT_USED_PERCENT", 90.0)
-    service, spec_id, requests = authorized_dispatch(tmp_path, headroom(used_percent=92.0))
+    service, spec_id, requests = authorized_dispatch(
+        tmp_path, headroom(used_percent=92.0), refuse_billable_at_used_percent=90.0
+    )
     assert requests == []
-    reason = reasons_for(service.queue, spec_id)[-1]
-    assert reason["code"] == "subscription_quota_ceiling"
-    assert "REFUSE_BILLABLE_AT_USED_PERCENT" in reason["message"]
+    # Selected by code rather than by taking the last file: two reasons written
+    # in the same millisecond sort arbitrarily, because a reason filename's ULID
+    # randomness is its low bits.
+    reasons = reasons_for(service.queue, spec_id)
+    ceilings = [reason for reason in reasons if reason["code"] == "subscription_quota_ceiling"]
+    assert len(ceilings) == 1, [reason["code"] for reason in reasons]
+    message = ceilings[0]["message"]
+    assert "refuse_billable_at_used_percent" in message
+    assert "policy/standing-approvals.yaml" in message
+    # The provider said nothing of the kind, and the record must not imply it.
+    assert "subscription_quota_exhausted" not in [reason["code"] for reason in reasons]
+    assert "the provider reports" not in message
+
+
+def test_leaving_the_threshold_unset_refuses_nothing_at_the_same_percentage(
+    tmp_path: Path,
+) -> None:
+    """The other half of the pair, and the reason the one above proves anything.
+
+    Same 92% reading, same billable spec, threshold absent: it dispatches. So
+    the refusal above is caused by the policy value and nothing else.
+    """
+    _, _, requests = authorized_dispatch(tmp_path, headroom(used_percent=92.0))
+    assert len(requests) == 1
 
 
 # --- staleness: visible, warning, never a refusal ---------------------------

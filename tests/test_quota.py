@@ -27,6 +27,9 @@ from evallab.quota import (
 
 NOW = datetime(2026, 8, 16, 18, 0, 0, tzinfo=UTC)
 
+#: Committed evidence bundles: what a fresh clone has when ``runs/`` does not exist.
+PROMOTED_RUNS = Path(__file__).resolve().parents[1] / "research/evidence/runs"
+
 
 def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,6 +145,43 @@ def token_count_event(
             "rate_limit_reached_type": None,
         }
     return {"timestamp": timestamp, "type": "event_msg", "payload": payload}
+
+
+def add_quota_sidecar(
+    trial: Path,
+    *,
+    timestamps: list[str],
+    used_percent: float | None = 70.0,
+    kind: str = "evallab-rate-limits-sidecar",
+    stem: str = "rollout-2026-08-15T06-30-00-abc",
+) -> Path:
+    """An R4 quota sidecar, shaped exactly as ``promote_codex_bundle.py`` writes it.
+
+    The ``rate_limits`` block is taken from :func:`token_count_event`, so the
+    fixture cannot drift from the rollout shape the promoter whitelists.
+    """
+    limits = token_count_event(timestamp=timestamps[0], used_percent=used_percent)
+    rate_limits = limits["payload"]["rate_limits"]  # type: ignore[index]
+    sidecar = trial / "agent/quota" / f"{stem}.rate-limits.json"
+    write_json(
+        sidecar,
+        {
+            "schema_version": 1,
+            "rule": "R4",
+            "kind": kind,
+            "source_path": f"{trial.name}/agent/sessions/2026/08/15/{stem}.jsonl",
+            "source_bytes": 47_038,
+            "source_sha256": "sha256:4f7d7449f0ae97f83e00784601b94b0b9985b9fbd0510604bd32ef54",
+            "source_omitted_by_rule": "R2",
+            "dropped_field_names": [],
+            "snapshot_count": len(timestamps),
+            "snapshots": [
+                {"timestamp": timestamp, "rate_limits": rate_limits}
+                for timestamp in timestamps
+            ],
+        },
+    )
+    return sidecar
 
 
 # --- consumption ---------------------------------------------------------
@@ -429,6 +469,178 @@ def test_an_empty_report_reports_unavailable_headroom(tmp_path: Path) -> None:
     assert report.consumed.trials == ()
     assert report.headroom.availability == "unavailable"
     assert report.observations == ()
+
+
+# --- the promoted quota sidecar: a fallback, never a second source -------
+
+
+def test_a_promoted_trial_reads_its_quota_sidecar_when_no_rollout_survives(
+    tmp_path: Path,
+) -> None:
+    """Promotion omits the rollout under R2, so the sidecar is the only reading left."""
+    job = make_job(tmp_path)
+    trial = add_trial(job, name="a__1")
+    add_quota_sidecar(trial, timestamps=["2026-08-15T06:30:02Z", "2026-08-15T06:31:02Z"])
+
+    report = load_quota_report([tmp_path], now=NOW)
+    headroom = report.headroom
+
+    assert len(report.observations) == 2
+    assert headroom.availability == "observed"
+    assert headroom.used_percent == 70.0
+    assert headroom.remaining_percent == 30.0
+    assert headroom.observed_at == datetime(2026, 8, 15, 6, 31, 2, tzinfo=UTC)
+    assert headroom.resets_at == datetime(2026, 8, 20, 18, 32, 49, tzinfo=UTC)
+    assert headroom.plan_type == "prolite"
+    assert headroom.hard_stop is True
+    assert report.counter_resolution_percent() == 1.0
+
+
+def test_a_rollout_and_a_sidecar_on_one_trial_count_the_rollout_once(tmp_path: Path) -> None:
+    """The whole subtlety: reading both records would double-count the same readings.
+
+    A live run has the rollout, a promoted bundle has the sidecar, and a tree
+    holding both holds one history twice. The rollout wins and the sidecar is
+    not read at all.
+    """
+    job = make_job(tmp_path)
+    trial = add_trial(job, name="a__1")
+    add_rollout(
+        trial,
+        events=[
+            token_count_event(timestamp="2026-08-15T06:30:02Z", used_percent=70.0),
+            token_count_event(timestamp="2026-08-15T06:31:02Z", used_percent=71.0),
+        ],
+    )
+    add_quota_sidecar(
+        trial,
+        timestamps=["2026-08-15T06:30:02Z", "2026-08-15T06:31:02Z"],
+        used_percent=71.0,
+    )
+
+    report = load_quota_report([tmp_path], now=NOW)
+
+    assert len(report.observations) == 2
+    assert [observation.observed_at for observation in report.observations] == [
+        datetime(2026, 8, 15, 6, 30, 2, tzinfo=UTC),
+        datetime(2026, 8, 15, 6, 31, 2, tzinfo=UTC),
+    ]
+    assert all(observation.source.endswith(".jsonl") for observation in report.observations)
+    assert not any("agent/quota" in observation.source for observation in report.observations)
+    assert "rate-limits.json" not in (report.headroom.source or "")
+
+
+def test_a_sidecar_reading_ages_exactly_as_its_rollout_twin(tmp_path: Path) -> None:
+    """A committed number must not read as a fresh one.
+
+    The sidecar keeps the instant the *trial* recorded, so the same reading is
+    reported with the same staleness whichever record survived -- and ``source``
+    names which kind of record answered.
+    """
+    live_root = tmp_path / "live"
+    promoted_root = tmp_path / "promoted"
+    add_rollout(
+        add_trial(make_job(live_root), name="a__1"),
+        events=[token_count_event(timestamp="2026-08-15T06:30:02Z")],
+    )
+    add_quota_sidecar(
+        add_trial(make_job(promoted_root), name="a__1"),
+        timestamps=["2026-08-15T06:30:02Z"],
+    )
+
+    live = load_quota_report([live_root], now=NOW).headroom
+    promoted = load_quota_report([promoted_root], now=NOW).headroom
+
+    assert promoted.observed_at == live.observed_at
+    assert promoted.staleness_seconds == live.staleness_seconds == 127_798.0
+    assert promoted.staleness_seconds > 86_400.0  # a day-old committed reading, not fresh
+    assert live.source is not None and live.source.endswith(".jsonl")
+    assert promoted.source is not None and promoted.source.endswith(".rate-limits.json")
+    assert promoted.source.startswith("a__1/agent/quota/")
+
+
+def test_a_sidecar_reading_stays_account_scoped_and_unattributable_to_the_lab(
+    tmp_path: Path,
+) -> None:
+    """A sidecar makes a *remaining* reading portable; it says nothing about the lab."""
+    job = make_job(tmp_path)
+    add_quota_sidecar(add_trial(job, name="a__1"), timestamps=["2026-08-15T06:30:02Z"])
+
+    report = load_quota_report([tmp_path], now=NOW)
+
+    assert report.headroom.scope == "account"
+    assert report.observations[0].scope == "account"
+    assert report.headroom.lab_attributable == "unavailable"
+
+
+def test_a_sidecar_only_trial_reports_no_model_turns_rather_than_zero(tmp_path: Path) -> None:
+    """Turns come from the rollout only; the sidecar carries no turn evidence."""
+    job = make_job(tmp_path)
+    add_quota_sidecar(add_trial(job, name="a__1"), timestamps=["2026-08-15T06:30:02Z"])
+
+    report = load_quota_report([tmp_path], now=NOW)
+
+    assert report.observations  # the quota reading survived
+    assert report.consumed.trials[0].model_turns is None  # the turn count did not
+
+
+def test_a_document_not_declaring_the_sidecar_kind_is_ignored(tmp_path: Path) -> None:
+    """``agent/quota/`` is read by declared kind, never by filename pattern."""
+    job = make_job(tmp_path)
+    add_quota_sidecar(
+        add_trial(job, name="a__1"),
+        timestamps=["2026-08-15T06:30:02Z"],
+        kind="some-other-document",
+    )
+
+    report = load_quota_report([tmp_path], now=NOW)
+
+    assert report.observations == ()
+    assert report.headroom.availability == "unavailable"
+
+
+def test_malformed_sidecars_are_skipped_without_failing(tmp_path: Path) -> None:
+    job = make_job(tmp_path)
+    trial = add_trial(job, name="a__1")
+    quota_dir = trial / "agent/quota"
+    quota_dir.mkdir(parents=True, exist_ok=True)
+    (quota_dir / "rollout-broken.rate-limits.json").write_text("not json at all")
+    write_json(
+        quota_dir / "rollout-noentries.rate-limits.json",
+        {"kind": "evallab-rate-limits-sidecar", "snapshots": "not a list"},
+    )
+    write_json(
+        quota_dir / "rollout-badinstant.rate-limits.json",
+        {
+            "kind": "evallab-rate-limits-sidecar",
+            "snapshots": [{"timestamp": "nonsense", "rate_limits": {"limit_id": "codex"}}],
+        },
+    )
+    add_quota_sidecar(trial, timestamps=["2026-08-15T06:30:02Z"], stem="rollout-good")
+
+    report = load_quota_report([tmp_path], now=NOW)
+
+    assert len(report.observations) == 1
+    assert report.headroom.used_percent == 70.0
+
+
+def test_committed_evidence_alone_yields_an_observed_headroom() -> None:
+    """The acceptance case: a fresh clone has no ``runs/`` and must still report.
+
+    Measured against the committed bundles rather than a fixture. The floor is a
+    floor, not the exact count, because a promoted bundle is immutable while more
+    bundles may be admitted later -- so this cannot break when one is.
+    """
+    report = load_quota_report([PROMOTED_RUNS], now=NOW)
+
+    assert len(report.observations) >= 67
+    assert report.headroom.availability == "observed"
+    assert report.headroom.used_percent is not None
+    assert report.headroom.staleness_seconds is not None
+    assert report.counter_resolution_percent() == 1.0
+    assert all(
+        observation.source.endswith(".rate-limits.json") for observation in report.observations
+    )
 
 
 # --- robustness and boundaries ------------------------------------------

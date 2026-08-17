@@ -181,7 +181,7 @@ def attach(
     """
     root = repo_root or Path.cwd()
     dsn = _postgres_dsn()
-    derived = derived_root_from_environment(root, explicit=explicit_derived, environ=environ)
+    derived = derived_root_from_environment(root, explicit=explicit_derived, environ=environ)  # explicit_derived for CLI flag  # noqa: E501
 
     conn = duckdb.connect(":memory:")
     conn.execute("CREATE SCHEMA IF NOT EXISTS z2")

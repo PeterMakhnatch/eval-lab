@@ -5,18 +5,15 @@ CI has no derived/, runs/, or PostgreSQL — tests must pass without them.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-import os
-from evallab.cli import run_cli
-from evallab.paths import DERIVED_ROOT_ENV
-
-
 
 from evallab.attach import attach
+from evallab.cli import run_cli
 
 
 def _write_parquet_tree(root: Path, table: str, rows: list[dict]) -> None:
@@ -101,55 +98,55 @@ def test_cross_zone_join_when_postgres_unavailable_skips(monkeypatch: pytest.Mon
         assert z2.attached is False
     finally:
         result.connection.close()
-def test_cli_zones_reports_z3_with_row_counts(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_zones_reports_z3_with_row_counts(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
     derived = tmp_path / "derived"
     derived.mkdir()
     _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1"}, {"trial_id": "t2"}])
     _write_parquet_tree(derived, "jobs", [{"job_id": "j1"}])
-    for t in ["reward_facts", "artifact_facts", "trajectories", "steps", "tool_calls", "tool_usage", "observations"]:
+    for t in ["reward_facts", "artifact_facts", "trajectories", "steps", "tool_calls", "tool_usage", "observations"]:  # noqa: E501
         _write_parquet_tree(derived, t, [{"trial_id": "t1"}])
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code = run_cli(["db", "attach", "--zones"], workspace=tmp_path)
+    code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
     out, _ = capsys.readouterr()
     assert code == 0
     assert "z3: attached" in out
     assert "9/9 tables" in out
 
 
-def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
     # every zone unavailable -> non-zero
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code = run_cli(["db", "attach", "--zones"], workspace=tmp_path)
+    code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
     assert code == 1
     # partial (z3 present) -> zero
     derived = tmp_path / "derived"
     derived.mkdir()
     _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1"}])
-    code = run_cli(["db", "attach", "--zones"], workspace=tmp_path)
+    code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
     assert code == 0
 
 
-def test_cli_print_sql_byte_identical(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_print_sql_byte_identical(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
     derived = tmp_path / "derived"
     derived.mkdir()
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code1 = run_cli(["db", "attach", "--print-sql"], workspace=tmp_path)
+    code1 = run_cli(["db", "attach", "--derived-root", "derived", "--print-sql"], workspace=tmp_path)  # noqa: E501
     out1, _ = capsys.readouterr()
-    code2 = run_cli(["db", "attach", "--print-sql"], workspace=tmp_path)
+    code2 = run_cli(["db", "attach", "--derived-root", "derived", "--print-sql"], workspace=tmp_path)  # noqa: E501
     out2, _ = capsys.readouterr()
     assert code1 == 0 and code2 == 0
     assert out1 == out2
 
 
-def test_cli_query_returns_fixture_rows(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_query_returns_fixture_rows(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
     derived = tmp_path / "derived"
     derived.mkdir()
     _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1", "reward": 1.0}])
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code = run_cli(["db", "attach", "--query", "select count(*) from trial_facts"], workspace=tmp_path)
+    code = run_cli(["db", "attach", "--derived-root", "derived", "--query", "select count(*) from trial_facts"], workspace=tmp_path)  # noqa: E501
     out, _ = capsys.readouterr()
     assert code == 0
-    assert "(1,)" in out or "[(1,)]" in out
+    assert out.strip() == "(1,)"
 
 
 @pytest.mark.skipif(

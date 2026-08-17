@@ -115,8 +115,10 @@ values exist outside this schema: `library/adapters/quixbugs/run_quixbugs.yaml:1
   External tool, not ours to change.
 - **Committed evidence in a shape the validator would reject:** yes, but not
   bindingly. Five `research/evidence/runs/*/config.json` record `jobs_dir` as an
-  **absolute** path, two of them under a retired `harbor-experiment-lab`
-  checkout. These are Harbor's own `JobConfig` (`job_name`, `jobs_dir`,
+  **absolute** path, two of them under a retired predecessor checkout whose name
+  `tests/test_repository_contract.py:198` forbids repeating outside
+  `research/evidence/runs/` (the paths are in those configs; I did not copy them
+  here). These are Harbor's own `JobConfig` (`job_name`, `jobs_dir`,
   `n_concurrent_trials`, `tasks`) — never parsed by `ExperimentSpec` — and are
   immutable promoted evidence. Not edited. No committed spec or fixture breaks.
 

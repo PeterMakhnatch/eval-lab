@@ -59,7 +59,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:df94520ea628e021912ed1037ab143e97015fff87487b257a1de45473542bdf8
+    digest: sha256:988743dd456944ef5660b1d1a613a3bb3c6ae973ff8ba50ce9e5df8083d879d2
   - path: docs/operator-demo.md
     digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
   - path: docs/parallel-work.md
@@ -75,7 +75,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:55adab3647ba157d956defa374935b2d5e3a0d7ebfd1e837ec633e78a19ca928
+    digest: sha256:fca6027b2cf8dcdc0f9fa179416f8a70b33decd4868d3165d22a18bb95aaadb5
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md

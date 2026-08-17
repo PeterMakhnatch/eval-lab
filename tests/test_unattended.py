@@ -221,7 +221,16 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
     assert "nightly-oracle-control" in content
     assert "local-controls" in content
     assert "Quarantined: no" in content
-
+    assert result.step_by_name("parquet_compaction") is not None
+    assert result.step_by_name("parquet_compaction").status == "ran"
+    assert result.step_by_name("lessons") is not None
+    assert result.step_by_name("lessons").status == "ran"
+    assert result.step_by_name("postgres_backup") is not None
+    assert result.step_by_name("postgres_backup").status == "ran"
+    assert result.step_by_name("dispatch") is not None
+    assert result.step_by_name("dispatch").status == "ran"
+    assert result.step_by_name("digest") is not None
+    assert result.step_by_name("digest").status == "ran"
 
 def test_nightly_researcher_defers_while_running_job_is_unresolved(
     tmp_path: Path,

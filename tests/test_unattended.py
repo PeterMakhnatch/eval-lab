@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import plistlib
 import subprocess
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -21,6 +22,7 @@ from evallab.researchers import (
 )
 from evallab.schemas import (
     AutoRunRule,
+    CanaryDriftObservation,
     ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
@@ -862,3 +864,240 @@ def test_guarded_tick_with_no_credentials_dispatches_only_controls(tmp_path: Pat
         if event.actor == "scheduled-tick"
     ]
     assert terminal[-1].event == "tick_dispatched"
+
+
+def _section_body(text: str, heading: str) -> list[str]:
+    lines = text.splitlines()
+    rest = lines[lines.index(heading) + 1 :]
+    end = next((index for index, line in enumerate(rest) if line.startswith("#")), len(rest))
+    return rest[:end]
+
+
+def _table_rows(text: str, heading: str) -> list[str]:
+    """Data rows of the Markdown table under `heading`, header and rule dropped."""
+    table = [line for line in _section_body(text, heading) if line.startswith("|")]
+    return table[2:]
+
+
+def _renderer(tmp_path: Path, **overrides: object) -> DigestRenderer:
+    arguments: dict[str, object] = {
+        "repo_root": tmp_path,
+        "queue": DirectoryQueue(tmp_path / "queue"),
+        "policy": policy(),
+        "trial_loader": lambda _day: [],
+        "drift_loader": lambda _day: [],
+    }
+    arguments.update(overrides)
+    return DigestRenderer(**arguments)  # type: ignore[arg-type]
+
+
+def _tick(index: int, *, reason: str, report_date: date) -> QueueEvent:
+    return QueueEvent(
+        event_id=f"01M000000000000000000{index:05d}",
+        spec_id="system-scheduled-tick",
+        occurred_at=datetime(2026, 8, 15, 12, index, tzinfo=UTC),
+        event="tick_deferred",
+        actor="scheduled-tick",
+        reason_code=reason,
+        report_date=report_date.isoformat(),
+    )
+
+
+def test_digest_collapses_a_repeat_run_but_never_a_distinct_event(tmp_path: Path) -> None:
+    """The half-hourly heartbeat folds up; the one different tick still speaks."""
+    report_date = date(2026, 8, 16)
+    queue = DirectoryQueue(tmp_path / "queue")
+    reasons = [
+        "no_approved_specs",
+        "no_approved_specs",
+        "no_approved_specs",
+        "executor_busy",
+        "no_approved_specs",
+        "no_approved_specs",
+    ]
+    for index, reason in enumerate(reasons):
+        queue.append_event(_tick(index, reason=reason, report_date=report_date))
+
+    text = _renderer(tmp_path, queue=queue).write(report_date=report_date).read_text()
+
+    assert _table_rows(text, "## Queue events") == [
+        "| 2026-08-15T12:00:00+00:00 – 2026-08-15T12:02:00+00:00 | tick_deferred ×3 "
+        "|  | no_approved_specs |",
+        "| 2026-08-15T12:03:00+00:00 | tick_deferred |  | executor_busy |",
+        "| 2026-08-15T12:04:00+00:00 – 2026-08-15T12:05:00+00:00 | tick_deferred ×2 "
+        "|  | no_approved_specs |",
+    ]
+
+
+def _drift(*, baseline_n: int, baseline_mean: float | None) -> CanaryDriftObservation:
+    return CanaryDriftObservation(
+        task_name="canary/event-summary",
+        task_version="1.0.0",
+        agent_name="codex",
+        reward=1.0,
+        attempt_count=3,
+        exception_count=0,
+        baseline_n=baseline_n,
+        baseline_mean=baseline_mean,
+        baseline_stddev=None if baseline_mean is None else 0.0,
+        task_version_changed=False,
+        is_harness_drift_suspect=False,
+    )
+
+
+def test_canary_drift_names_the_day_of_every_observation(tmp_path: Path) -> None:
+    """One canary observed on two days must not read as one canary contradicting itself."""
+    by_day = {
+        date(2026, 8, 15): _drift(baseline_n=0, baseline_mean=None),
+        date(2026, 8, 16): _drift(baseline_n=3, baseline_mean=1.0),
+    }
+
+    text = (
+        _renderer(tmp_path, drift_loader=lambda day: [by_day[day]])
+        .write(report_date=date(2026, 8, 16))
+        .read_text()
+    )
+
+    rows = _table_rows(text, "## Canary drift")
+    assert len(rows) == 2
+    assert rows[0].startswith("| 2026-08-15 | canary/event-summary |")
+    assert "insufficient history" in rows[0]
+    assert rows[1].startswith("| 2026-08-16 | canary/event-summary |")
+    assert "1.000 ± 0.000" in rows[1]
+
+
+def test_digest_aggregates_repeated_trials_and_keeps_the_reward_spread(
+    tmp_path: Path,
+) -> None:
+    """Three attempts scoring 1/1/0 must never render identically to 1/1/1."""
+    trials = [
+        _trial("canary-mixed", agent_name="codex", reward=1.0),
+        _trial("canary-mixed", agent_name="codex", reward=0.0),
+        _trial("canary-mixed", agent_name="codex", reward=1.0),
+        _trial("canary-clean", agent_name="codex", reward=1.0),
+        _trial("canary-clean", agent_name="codex", reward=1.0),
+        _trial("canary-clean", agent_name="codex", reward=1.0),
+        _trial("canary-raised", agent_name="codex", reward=1.0),
+        _trial("canary-raised", agent_name="codex", reward=1.0),
+        _trial(
+            "canary-raised",
+            agent_name="codex",
+            reward=None,
+            exception_type="NonZeroAgentExitCodeError",
+        ),
+    ]
+
+    text = (
+        _renderer(tmp_path, trial_loader=lambda day: trials if day == date(2026, 8, 15) else [])
+        .write(report_date=date(2026, 8, 16))
+        .read_text()
+    )
+
+    rows = _table_rows(text, "## Completed trials")
+    assert len(rows) == 3
+    assert rows[0].startswith(
+        "| canary-mixed | local-lab/event-summary | codex | 3 | 0, 1, 1 |  |"
+    )
+    assert rows[1].startswith(
+        "| canary-clean | local-lab/event-summary | codex | 3 | 1 ×3 |  |"
+    )
+    assert rows[2].startswith(
+        "| canary-raised | local-lab/event-summary | codex | 3 | 1, 1, +1 unscored "
+        "| NonZeroAgentExitCodeError (1 of 3) |"
+    )
+
+
+def _write_calibration_record(root: Path, *, agreements: int, total: int) -> None:
+    record = {
+        "schema_version": 1,
+        "record_id": f"family-a-20260814-judge-{agreements}-{total}",
+        "family": "checkout-pool-exhaustion",
+        "status": "measured",
+        "judge_backend": "harbor-codex-agent",
+        "judge_model": "gpt-5.6-sol",
+        "rubric_digest": "sha256:" + "a" * 64,
+        "corpus_digest": "sha256:" + "b" * 64,
+        "per_criterion_agreement": {
+            "causal_reasoning.grounded_in_evidence": {
+                "agreements": agreements,
+                "total": total,
+                "rate": agreements / total,
+            }
+        },
+        "mean_agreement": agreements / total,
+        "agreement_floor": 0.9,
+        "meets_floor": agreements / total >= 0.9,
+        "reportable": True,
+        "document_count": total,
+        "evaluated_on": "2026-08-14",
+        "prediction_artifact": "runs/judge-checkout/judgments.json",
+    }
+    destination = root / "research/calibration/records/checkout-pool-exhaustion"
+    destination.mkdir(parents=True, exist_ok=True)
+    (destination / f"{record['record_id']}.json").write_text(json.dumps(record))
+
+
+def test_digest_reports_the_measured_judge_calibration_state(tmp_path: Path) -> None:
+    """The real state — measured and below floor — replaces the brief-09 placeholder."""
+    _write_calibration_record(tmp_path, agreements=15, total=20)
+
+    text = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
+
+    line = next(
+        row for row in _section_body(text, "## Evidence and calibration")
+        if row.startswith("- Judge calibration:")
+    )
+    assert "brief 09" not in text
+    assert "no judge is calibrated" in line
+    assert "0 of 1 measured record(s) reach their agreement floor" in line
+    assert "gpt-5.6-sol, mean agreement 0.750 against a 0.90 floor over 20 documents" in line
+
+
+def test_digest_says_no_judge_is_calibrated_when_a_record_clears_no_floor(
+    tmp_path: Path,
+) -> None:
+    """With no record at all the line still states the fact, and flips when one passes."""
+    empty = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
+    assert (
+        "- Judge calibration: no judge is calibrated — no measured record under "
+        "`research/calibration/records/`." in empty
+    )
+
+    _write_calibration_record(tmp_path, agreements=19, total=20)
+    passing = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
+
+    assert "1 of 1 measured record(s) reach their agreement floor" in passing
+    assert "no judge is calibrated" not in passing
+
+
+def test_fleet_reports_live_handoffs_and_never_a_retired_role(tmp_path: Path) -> None:
+    """Only files that exist, named as files, and never a finished mission as fleet state."""
+    digest_path = tmp_path / "digests/2026-08-16.md"
+    digest_path.parent.mkdir(parents=True)
+    digest_path.write_text("# Digest\n")
+    handoffs = tmp_path / "agents/handoffs"
+    handoffs.mkdir(parents=True)
+    (handoffs / "gate-auth.md").write_text(
+        "Status: building\nLast: wired the gate\nNext: open the PR\nBlockers: none\n"
+    )
+    (handoffs / "mender.md").write_text(
+        "Status: done\nLast: merged\nNext: none\nBlockers: none\n"
+    )
+    (handoffs / "orchestrator-handoff.md").write_text("# Replacement orchestrator\n\nProse.\n")
+
+    append_fleet_section(
+        digest_path,
+        report_date=date(2026, 8, 16),
+        repo_root=tmp_path,
+        policy=policy(),
+        ledger=CallLedger(tmp_path / "queue/researchers/calls.jsonl"),
+        catalog_spend=lambda _day: 0,
+    )
+
+    content = digest_path.read_text()
+    rows = _table_rows(content, "### Missions with a live handoff")
+    assert rows == ["| gate-auth.md | building | wired the gate | open the PR | none |"]
+    assert "- Reported `done`, awaiting archive: 1 (mender.md)." in content
+    assert "- No machine-readable `Status:` header: 1 (orchestrator-handoff.md)." in content
+    assert "| unknown |" not in content
+    assert "### Roles" not in content

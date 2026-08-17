@@ -1161,24 +1161,56 @@ def append_fleet_section(
     handoffs = _handoff_rows(root / "agents/handoffs")
     discoveries = _recent_discoveries(root / "digests/DISCOVERIES.md", report_date)
 
+    live, done, headerless = _classify_handoffs(handoffs)
+
     lines = [
         _FLEET_START,
         "## Fleet",
         "",
-        "### Roles",
+        "### Missions with a live handoff",
         "",
-        "| role | status | last | next | blockers |",
-        "|---|---|---|---|---|",
+        "Every row is a file in `agents/handoffs/`, which `agents/WORKFLOW.md` defines as "
+        "the live set — a finished mission's handoff is archived under `agents/archive/`. "
+        "The status, last, next, and blockers columns are that mission's own four-line "
+        "header, self-reported at its last stopping point; they are not verified against "
+        "branches, pull requests, or CI. The permanent lanes are `agents/OWNERS.md` and "
+        "the mission board is `agents/missions/ACTIVE.md`; this section restates neither.",
+        "",
     ]
-    if handoffs:
-        for role, values in handoffs:
+    if live:
+        lines.extend(
+            [
+                "| mission (handoff file) | status | last | next | blockers |",
+                "|---|---|---|---|---|",
+            ]
+        )
+        for name, values in live:
             lines.append(
-                f"| {_cell(role)} | {_cell(values.get('Status', 'unknown'))} | "
+                f"| {_cell(name)}.md | {_cell(values['Status'])} | "
                 f"{_cell(values.get('Last', ''))} | {_cell(values.get('Next', ''))} | "
                 f"{_cell(values.get('Blockers', ''))} |"
             )
     else:
-        lines.append("| none | unknown |  |  | handoff files unavailable |")
+        lines.append("No mission in `agents/handoffs/` reports an open status.")
+    if done:
+        lines.extend(
+            [
+                "",
+                f"- Reported `done`, awaiting archive: {len(done)} "
+                f"({', '.join(f'{name}.md' for name in done)}). A finished mission is not "
+                "fleet state, so it is counted here rather than listed as running.",
+            ]
+        )
+    if headerless:
+        lines.extend(
+            [
+                "",
+                f"- No machine-readable `Status:` header: {len(headerless)} "
+                f"({', '.join(f'{name}.md' for name in headerless)}). `agents/WORKFLOW.md` "
+                "treats that as unknown — investigate; this section will not invent a "
+                "status for a file that states none.",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -1336,6 +1368,12 @@ def _experiment_config_digest(spec: ExperimentSpec) -> str:
 
 
 def _handoff_rows(path: Path) -> list[tuple[str, dict[str, str]]]:
+    """Each live handoff file with the four-line header it actually states.
+
+    The filename stem is kept verbatim. Upper-casing it produced `ADAPTER` and
+    `CURATOR` rows that read as entries in a role registry; the file is a
+    mission handoff, and the digest must not dress it as anything else.
+    """
     rows = []
     if not path.is_dir():
         return rows
@@ -1345,8 +1383,33 @@ def _handoff_rows(path: Path) -> list[tuple[str, dict[str, str]]]:
             if ":" in line:
                 key, value = line.split(":", 1)
                 values[key.strip()] = value.strip()
-        rows.append((handoff.stem.upper(), values))
+        rows.append((handoff.stem, values))
     return rows
+
+
+def _classify_handoffs(
+    rows: list[tuple[str, dict[str, str]]],
+) -> tuple[list[tuple[str, dict[str, str]]], list[str], list[str]]:
+    """Split handoffs into open missions, finished ones, and headerless files.
+
+    A mission that reports `done` has said it is not running; rendering it in
+    the same table as an open mission is how a digest ends up claiming a fleet
+    that has gone home. A file with no `Status:` gets no status either — the
+    old `unknown` cell asserted a role existed in an unknown state, when the
+    only fact available is that the file states nothing.
+    """
+    live: list[tuple[str, dict[str, str]]] = []
+    done: list[str] = []
+    headerless: list[str] = []
+    for name, values in rows:
+        status = values.get("Status", "").strip()
+        if not status:
+            headerless.append(name)
+        elif status.casefold() == "done":
+            done.append(name)
+        else:
+            live.append((name, values))
+    return live, done, headerless
 
 
 def _recent_discoveries(path: Path, report_date: date) -> list[str]:

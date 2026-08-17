@@ -4,6 +4,9 @@
 > `docs/design-additions.md` (adds **brief 12**) and `docs/parallel-work.md`
 > (adds the machine-readable HANDOFF header). BUILDER: commit this file and
 > `scripts/fleet-status.sh`; `scripts/` is BUILDER-owned from now on.
+>
+> **This is the 2026-08-13 design, not a description of what runs.** For what
+> the digest's Fleet section actually contains, read "As built" at the bottom.
 
 ## Principle
 
@@ -137,3 +140,49 @@ next read the repo:
 2. When you open a PR, prefix the title with your role in caps —
    `CURATOR: add first 8 verified tasks` — so the PR list reads as a fleet
    report by itself.
+
+## As built — the digest Fleet section, 2026-08-16
+
+Of brief 12 only the digest's Fleet block exists. `evallab fleet`,
+`evallab report --daily`, `src/evallab/diagrams.py`, the pinned-issue delivery
+step, and the Streamlit Fleet tab were never built; `scripts/fleet-status.sh`
+remains the ten-second path. The three generated diagrams above are a design,
+not a feature.
+
+The block is written by `append_fleet_section` in `src/evallab/researchers.py`
+and has three parts: missions with a live handoff, a funnel-and-budget bullet
+list, and the day's draft discoveries.
+
+**Its first part is not a role table.** It was one until 2026-08-16, and that
+is exactly why it had to change: it globbed `agents/handoffs/*.md`,
+upper-cased each filename, and printed the result in a `role` column, so
+`adapter.md` became a role named `ADAPTER` reported at status `unknown`. In
+`digests/2026-08-16.md` that produced 24 rows of a registry M001 retired on
+2026-08-15 — three roles at `unknown`, one blocked on a pull request numbered
+1, one blocked on a merge conflict resolved days earlier, and eight rows whose
+own header said `done`.
+
+What it reports now, and the reason for each choice:
+
+- **Rows are handoff files, named as files** (`gate-auth.md`), because that is
+  the only thing the renderer observes. `agents/WORKFLOW.md` defines the live
+  set: a finished mission's handoff is archived under `agents/archive/`.
+- **A mission whose header says `done` is counted, not listed.** It has stated
+  it is not running, so it is awaiting archive, not fleet state.
+- **A file with no `Status:` line is named as such and given no status.** The
+  old `unknown` cell asserted a role existed in an unknown state; the only
+  available fact is that the file states nothing.
+- **The columns are labelled as self-reported.** They are each mission's own
+  four-line header at its last stopping point, not a verified branch, PR, or
+  CI state.
+- **The block does not restate `agents/OWNERS.md` or
+  `agents/missions/ACTIVE.md`.** It names them instead. The four lanes are
+  permanent and would be identical every day; the mission board is
+  human-edited and can be — and on 2026-08-16 was — behind `origin/main`.
+  Copying either into a generated report would let their staleness arrive
+  wearing the authority of a measurement.
+- **It does not call `gh`.** Open pull requests would be a genuinely useful
+  column, but the digest renderer makes no subprocess or network calls, and
+  `agents/CHECKS.md`'s deterministic-test rule forbids tests that depend on a
+  developer's network or credentials. Adding PR state is a real feature with a
+  real cost, not a line in this function.

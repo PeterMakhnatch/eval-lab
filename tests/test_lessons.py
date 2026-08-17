@@ -579,7 +579,7 @@ def test_standalone_sql_script_with_fallbacks() -> None:
             assert rows == []
 
 
-def test_build_lessons_on_repository_root() -> None:
+def test_build_lessons_on_repository_root(tmp_path: Path) -> None:
     """Test full build_lessons execution over repository evidence."""
     repo_root = Path(__file__).resolve().parents[1]
     result = build_lessons(repo_root)
@@ -588,8 +588,13 @@ def test_build_lessons_on_repository_root() -> None:
     assert "v_loop_rate_by_env" in result.lessons_by_view
     assert "v_failure_by_facet" in result.lessons_by_view
 
-    # Verify generate_lessons_file writes research/lessons.md cleanly
-    lessons_path = generate_lessons_file(repo_root)
+    # The writer is exercised against a scratch target, never the committed
+    # `research/lessons.md`: a test that rewrites a tracked generated artifact
+    # leaves every checkout dirty and invites an accidental `git add -A` from
+    # committing test-derived findings over the real corpus.
+    target = tmp_path / "research" / "lessons.md"
+    lessons_path = generate_lessons_file(repo_root, output_path=target)
+    assert lessons_path == target
     assert lessons_path.is_file()
     content = lessons_path.read_text(encoding="utf-8")
     assert GENERATED_HEADER in content

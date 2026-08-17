@@ -1,76 +1,93 @@
 {
- "schema_version": "ATIF-v1.6",
- "session_id": "s2",
+ "schema_version": "ATIF-v1.7",
+ "session_id": "01a00420-0d94-7d50-8e01-000000000002",
+ "agent": {
+  "name": "codex",
+  "version": "0.147.0",
+  "model_name": "gpt-5.6-terra"
+ },
  "steps": [
   {
    "step_id": 1,
+   "timestamp": "2026-08-15T00:00:01Z",
    "source": "agent",
+   "model_name": "gpt-5.6-terra",
    "message": "m",
    "tool_calls": [
     {
      "tool_call_id": "L0",
-     "function": {
-      "name": "run_bash",
-      "arguments": {
-       "cmd": "make build"
-      }
+     "function_name": "run_bash",
+     "arguments": {
+      "cmd": "make build"
      }
     },
     {
      "tool_call_id": "L1",
-     "function": {
-      "name": "run_bash",
-      "arguments": {
-       "cmd": "make build"
-      }
+     "function_name": "run_bash",
+     "arguments": {
+      "cmd": "make build"
      }
     }
    ],
-   "observations": [
-    {
-     "source_call_id": "L0",
-     "command_exit_code": 2
-    },
-    {
-     "source_call_id": "L1",
-     "command_exit_code": 2
-    }
-   ]
+   "observation": {
+    "results": [
+     {
+      "source_call_id": "L0",
+      "content": "make: *** [build] Error 2",
+      "extra": {
+       "exit_code": 2
+      }
+     },
+     {
+      "source_call_id": "L1",
+      "content": "make: *** [build] Error 2",
+      "extra": {
+       "exit_code": 2
+      }
+     }
+    ]
+   }
   },
   {
    "step_id": 2,
+   "timestamp": "2026-08-15T00:00:02Z",
    "source": "agent",
+   "model_name": "gpt-5.6-terra",
    "message": "m",
    "tool_calls": [
     {
      "tool_call_id": "L2",
-     "function": {
-      "name": "run_bash",
-      "arguments": {
-       "cmd": "make build"
-      }
+     "function_name": "run_bash",
+     "arguments": {
+      "cmd": "make build"
      }
     },
     {
      "tool_call_id": "L3",
-     "function": {
-      "name": "run_bash",
-      "arguments": {
-       "cmd": "make build"
-      }
+     "function_name": "run_bash",
+     "arguments": {
+      "cmd": "make build"
      }
     }
    ],
-   "observations": [
-    {
-     "source_call_id": "L2",
-     "command_exit_code": 2
-    },
-    {
-     "source_call_id": "L3",
-     "command_exit_code": 2
-    }
-   ]
+   "observation": {
+    "results": [
+     {
+      "source_call_id": "L2",
+      "content": "make: *** [build] Error 2",
+      "extra": {
+       "exit_code": 2
+      }
+     },
+     {
+      "source_call_id": "L3",
+      "content": "make: *** [build] Error 2",
+      "extra": {
+       "exit_code": 2
+      }
+     }
+    ]
+   }
   }
  ]
 }

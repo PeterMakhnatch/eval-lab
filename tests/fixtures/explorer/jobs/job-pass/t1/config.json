@@ -1,1 +1,1 @@
-{"agent": "codex", "env": {"HOME": "/x", "FAKE_API_KEY": "sk-should-never-render"}}
+{"agent": {"name": "codex", "model_name": "gpt-5.6-terra"}, "trial_name": "t1"}

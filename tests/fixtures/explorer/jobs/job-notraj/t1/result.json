@@ -4,6 +4,7 @@
  "trial_name": "t1",
  "agent_info": {
   "name": "oracle",
+  "version": "1",
   "model_info": null
  },
  "verifier_result": {

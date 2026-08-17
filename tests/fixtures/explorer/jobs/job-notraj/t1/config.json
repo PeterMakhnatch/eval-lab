@@ -1,1 +1,1 @@
-{"agent": "oracle", "env": {"HOME": "/x", "FAKE_API_KEY": "sk-should-never-render"}}
+{"agent": {"name": "oracle"}, "trial_name": "t1"}

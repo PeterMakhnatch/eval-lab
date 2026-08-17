@@ -1,6 +1,6 @@
 Status: review-wanted
-Last: conformed all 7 drifted ATIF fixtures, added `tests/test_fixture_conformance.py`, proved it fails on drift and on a stale refusal declaration; full suite + ruff clean
-Next: integrator merges after GitHub checks are green; three source-level findings below need a Platform lease this mission was forbidden
+Last: PR #71 opened at head `7245cd1`; all five GitHub checks pass (lint, test 3.12, test 3.14, ty, profile)
+Next: integrator merges #71 per `agents/CHECKS.md`; findings F1-F3 need a Platform lease this mission was forbidden
 Blockers: none
 
 # FIXTURE-DRIFT — make fixtures that cannot exist in reality fail the suite

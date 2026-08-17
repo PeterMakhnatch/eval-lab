@@ -156,22 +156,43 @@ Run in `.worktrees/jobsdir-contract`:
   there was no write to guard against. No paid agent executed; no `launchctl`;
   no writes to the primary checkout; no `docker compose`.
 
-GitHub, PR #68, head `5b51e12` — **all five checks pass**: `lint`, `ty`,
-`profile`, `test (3.12)`, `test (3.14)` (run 31984332420). Per `agents/CHECKS.md`
-green is a property of the exact head, so the handoff-only commit that adds these
-lines needs its own confirmation before any merge.
+GitHub, PR #68, head `d0c07c2` — **all five checks pass**: `lint`, `ty`,
+`profile`, `test (3.12)`, `test (3.14)` (run 31984467050). Head `5b51e12` was
+also fully green (run 31984332420). Per `agents/CHECKS.md` green is a property of
+the exact head, so any further commit needs its own confirmation before merge.
 
-**One flake observed, recorded for the perf lane.** The first head `efa9aba`
-failed `test_profile_harness.py::test_injected_slowdown_raises_named_path_median`
-on `test (3.12)` only: `assert 82.315 >= 94.207 + 40.0`. The *baseline* median
-(94.2 ms) exceeded the run carrying an injected 80 ms delay (82.3 ms), so the
-baseline absorbed ~90 ms of runner noise — the assertion cannot fail that way
-from a logic change. Not attributable to this diff: `_time_digest`
-(`scripts/profile/harness.py:267-293`) uses a stub `trial_loader` and never calls
-`discover_job_dirs`, the only function I changed in `results.py`. Confirmed by
-construction — the second commit edited **only this handoff file** and the test
-went fail → pass. It passed 4/4 locally. Reported to `PerfRebaseline` and
-`PerfGateDiag`.
+**One flake observed, and it is a test-contract defect rather than bad luck.**
+The first head `efa9aba` failed
+`test_profile_harness.py::test_injected_slowdown_raises_named_path_median` on
+`test (3.12)` only: `assert 82.315 >= 94.207 + 40.0`. The *baseline* median
+(94.2 ms) exceeded the run carrying an injected 80 ms delay (82.3 ms).
+
+`PerfRebaseline` diagnosed it further and **corrected a fix I had suggested**;
+their analysis is the one to act on. `_inject_delay`
+(`scripts/profile/harness.py:180-183`) does `time.sleep(80/1000)`, so every
+injected rep has an 80 ms floor and the injected side is noise-immune by
+construction. `slow = 82.315` therefore means the real digest work was ~2.3 ms —
+within 2.9% of the theoretical minimum. Only `base` was noisy, absorbing ~92 ms.
+Consequently **every** formulation comparing `slow` against `base` fails on this
+data — additive, relative, even a zero margin — because `base > slow`. My
+suggestion of a relative margin or more reps was wrong and I withdrew it. Their
+fix drops `base` from the assertion: `assert slow >= 0.9 * injected_ms`, which
+holds by construction and still catches an injection that is dropped or misrouted.
+The principled version injects the sleeper as a seam. Either way the current test
+depends on a shared runner's wall clock, which `agents/CHECKS.md`
+("Deterministic-test rule") already forbids.
+
+Not attributable to this diff, structurally: the failing run measured ~2.3 ms of
+actual digest work, so the digest path was *fast* in the run that failed — a
+`results.py` slowdown cannot produce that. Independently, `_time_digest`
+(`harness.py:267-293`) installs a stub `trial_loader` and never calls
+`discover_job_dirs`, the only function I changed there; and the second commit
+edited only this handoff file, after which the test passed. It passed 4/4 locally.
+
+Ownership: `tests/` and `scripts/profile/` are outside my lease and outside
+`PerfRebaseline`'s (mission closed, worktree sunset). Reported to
+`PerfRebaseline`, who routed the spec to `Main` for a single owner. **Not**
+reported to `PerfGateDiag` — I messaged only `PerfRebaseline`.
 
 Capability labels: the schema refusal and the discovery fix are **proven live**
 (exercised directly against the real readers, not fixtures). The Harbor inventory

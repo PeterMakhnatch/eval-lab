@@ -193,12 +193,17 @@ def _first_definition_doc(tree: ast.AST, *, public_only: bool) -> str | None:
 
 def module_purpose(source: str, tree: ast.AST) -> str | None:
     """Derive a one-line purpose from AST-available descriptions."""
-    module_doc = ast.get_docstring(tree)
+    module_doc = (
+        ast.get_docstring(tree)
+        if isinstance(
+            tree, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        )
+        else None
+    )
     if module_doc:
         sentence = first_sentence(module_doc)
         if sentence:
             return sentence
-
     parser_doc = _parser_description(tree)
     if parser_doc:
         return parser_doc
@@ -270,11 +275,12 @@ def _parser_help(call: ast.Call) -> str:
 
 
 def _function_map(tree: ast.AST) -> dict[str, ast.AST]:
+    if not isinstance(tree, ast.Module):
+        return {}
     return {
         node.name: node
         for node in tree.body
-        if isinstance(tree, ast.Module)
-        and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
 
 
@@ -511,8 +517,7 @@ def parse_module_cli(path: Path, module: str) -> list[CommandRecord]:
         and any(
             isinstance(child, ast.Name) and child.id == "__name__" for child in ast.walk(node.test)
         )
-        for node in tree.body
-        if isinstance(tree, ast.Module)
+        for node in (tree.body if isinstance(tree, ast.Module) else [])
     )
     # Presence of ArgumentParser is enough: these modules are invoked via -m.
     parser_prog: str | None = None

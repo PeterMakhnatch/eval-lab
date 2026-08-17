@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 from evallab.contextpack import parse_front_matter, repo_root
 from evallab.repomap import (
     GENERATED_BY_MARKER,
+    _function_map,
     check_map,
     generate_map,
     main,
+    module_purpose,
     write_map,
 )
 
@@ -120,6 +123,40 @@ def test_check_fails_on_module_missing_docstring(tmp_path: Path) -> None:
     assert (
         main(["check", "--src-dir", str(src), "--map", str(map_path)]) == 1
     )
+
+def test_unusual_top_level_constructs_are_mapped_without_crashing(tmp_path: Path) -> None:
+    src = _sample_tree(tmp_path)
+    _write_module(
+        src,
+        "unusual",
+        "1 + 1\n\n"
+        "if True:\n"
+        "    try:\n"
+        "        import sys\n"
+        "    except ImportError:\n"
+        "        pass\n\n"
+        "try:\n"
+        "    x = 42\n"
+        "except Exception:\n"
+        "    x = 0\n",
+    )
+    map_path = tmp_path / "docs" / "repo-map.md"
+    text = generate_map(src_dir=src, root=tmp_path)
+    assert "`unusual`" in text
+    assert "_(missing docstring)_" in text
+    write_map(map_path, src_dir=src, root=tmp_path)
+
+    issues = check_map(src_dir=src, map_path=map_path, root=tmp_path)
+    assert any(
+        issue.path.endswith("unusual.py") and "no docstring" in issue.message
+        for issue in issues
+    )
+
+
+def test_ast_helpers_handle_non_module_nodes() -> None:
+    node = ast.Constant(value=42)
+    assert module_purpose("42", node) is None
+    assert _function_map(node) == {}
 
 
 def test_check_passes_on_real_repository_tree() -> None:

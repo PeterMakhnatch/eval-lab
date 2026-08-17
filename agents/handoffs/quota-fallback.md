@@ -1,6 +1,6 @@
 Status: review-wanted
 Last: `quota._rate_limit_snapshots` now falls back to the promoted R4 quota sidecar when a trial's rollouts yield no snapshot; committed evidence alone reports 67 snapshots / 70.0 `[observed]`
-Next: Integrator merges the PR once GitHub is green; a Sponsor decision on promoting the three `-20260816` jobs is what would raise the committed reading from 70.0 to 92.0
+Next: Integrator merges PR #73 (all five GitHub checks green: lint, ty, profile, test 3.12, test 3.14); a Sponsor decision on promoting the three `-20260816` jobs is what would raise the committed reading from 70.0 to 92.0
 Blockers: none
 
 # QUOTA-FALLBACK — read the promoted rate-limit sidecar when no rollout survives

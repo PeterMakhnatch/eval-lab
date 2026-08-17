@@ -5,16 +5,19 @@ import plistlib
 import shlex
 import shutil
 import subprocess
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+import time
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from evallab import credentials as credentials_module
 from evallab import database
 from evallab.atif import IngestProjectionResult
 from evallab.digest import DigestRenderer, commit_digest
+from evallab.lessons import generate_lessons_file
+from evallab.parquet_compaction import compact
 from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.queue import (
     DirectoryQueue,
@@ -43,6 +46,432 @@ DigestEnricher = Callable[[Path, date], None]
 CompletedJobIngester = Callable[[], IngestProjectionResult]
 DatabaseBackup = Callable[[date], Path]
 StatusUpdater = Callable[[date], Path]
+Compactor = Callable[[date], object]
+LessonsGenerator = Callable[[date], Path]
+
+OnFailPolicy = Literal["abort", "continue"]
+StepStatus = Literal["ran", "skipped", "failed"]
+
+
+@dataclass(frozen=True)
+class StepOutcome:
+    name: str
+    status: StepStatus
+    duration_s: float
+    reason: str | None = None
+    error: str | None = None
+
+
+@dataclass
+class NightlyContext:
+    target_date: date
+    doctor: HeadlessDoctor
+    executor: Executor
+    renderer: DigestRenderer
+    committer: DigestCommitter
+    canary_enqueuer: CanaryEnqueuer | None = None
+    researcher_pass: ResearcherPass | None = None
+    digest_enricher: DigestEnricher | None = None
+    completed_job_ingester: CompletedJobIngester | None = None
+    database_backup: DatabaseBackup | None = None
+    analysis_stager: Callable[[], object] | None = None
+    status_updater: StatusUpdater | None = None
+    compactor: Callable[[date], object] | None = None
+    lessons_generator: Callable[[date], Path] | None = None
+
+    report: HeadlessDoctorReport | None = None
+    quarantined: bool = False
+    aborted: bool = False
+    enqueued: int = 0
+    dispatched: int = 0
+    researcher_invocations: int = 0
+    backup_path: Path | None = None
+    status_path: Path | None = None
+    digest_path: Path | None = None
+    committed: bool = False
+    lessons_path: Path | None = None
+    compaction_result: Any = None
+    step_outcomes: list[StepOutcome] = field(default_factory=list)
+
+
+StepCallable = Callable[[NightlyContext], Any]
+
+
+@dataclass(frozen=True)
+class NightlyStep:
+    name: str
+    fn: StepCallable
+    timeout: float = 60.0
+    on_fail: OnFailPolicy = "abort"
+    description: str = ""
+    idempotent: bool = True
+
+
+def _step_doctor(context: NightlyContext) -> None:
+    report = context.doctor.run()
+    context.report = report
+    if not report.healthy:
+        context.quarantined = True
+        context.aborted = True
+        record_quarantine(
+            context.executor.queue,
+            event="nightly_quarantined",
+            report=report,
+            actor="nightly",
+        )
+
+
+def _step_catalog_ingest(context: NightlyContext) -> None:
+    if context.completed_job_ingester is None:
+        return
+    try:
+        ingest_result = context.completed_job_ingester()
+    except Exception as exc:
+        context.quarantined = True
+        context.aborted = True
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="nightly_quarantined",
+                actor="nightly",
+                reason_code=f"catalog_ingest_failed:{type(exc).__name__}",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+        raise
+    else:
+        record_projection_failures(
+            context.executor.queue,
+            ingest_result,
+            actor="nightly",
+            spec_id=f"system-{new_ulid()}",
+        )
+
+
+def _step_analysis_staging(context: NightlyContext) -> None:
+    if context.analysis_stager is None:
+        return
+    try:
+        stage_result = context.analysis_stager()
+    except Exception as exc:
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="analysis_stage_failed",
+                actor="nightly",
+                reason_code=f"analysis_stage_failed:{type(exc).__name__}",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+        raise
+    else:
+        issue_reason = _analysis_stage_issue_reason(stage_result)
+        if issue_reason is not None:
+            context.executor.queue.append_event(
+                QueueEvent(
+                    event_id=new_ulid(),
+                    spec_id=f"system-{new_ulid()}",
+                    occurred_at=date_time_now(),
+                    event="analysis_stage_reported_issues",
+                    actor="nightly",
+                    reason_code=issue_reason,
+                    report_date=context.target_date.isoformat(),
+                )
+            )
+
+
+def _step_parquet_compaction(context: NightlyContext) -> None:
+    if context.compactor is None:
+        return
+    try:
+        compaction_result = context.compactor(context.target_date)
+        context.compaction_result = compaction_result
+    except Exception as exc:
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="parquet_compaction_failed",
+                actor="nightly",
+                reason_code=f"parquet_compaction_failed:{type(exc).__name__}",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+        raise
+
+
+def _step_postgres_backup(context: NightlyContext) -> None:
+    if context.database_backup is None:
+        return
+    try:
+        context.backup_path = context.database_backup(context.target_date)
+    except Exception as exc:
+        context.quarantined = True
+        context.aborted = True
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="postgres_backup_failed",
+                actor="nightly",
+                reason_code=f"pg_dump_failed:{type(exc).__name__}",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+        raise
+    else:
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="postgres_backup_completed",
+                actor="nightly",
+                reason_code="nightly_pg_dump",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+
+
+def _step_canary_enqueue(context: NightlyContext) -> None:
+    if context.canary_enqueuer is None:
+        return
+    try:
+        context.enqueued = context.canary_enqueuer(context.target_date)
+    except (OSError, RuntimeError, ValueError) as exc:
+        context.quarantined = True
+        context.aborted = True
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="nightly_quarantined",
+                actor="nightly",
+                reason_code=f"canary_enqueue_failed:{type(exc).__name__}",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+        raise
+
+
+def _step_dispatch(context: NightlyContext) -> None:
+    context.dispatched = context.executor.tick()
+
+
+def _step_researcher_pass(context: NightlyContext) -> None:
+    if context.researcher_pass is None:
+        return
+    if context.executor.queue.stop_path.exists():
+        record_researcher_deferral(
+            context.executor.queue,
+            report_date=context.target_date,
+            actor="nightly",
+            reason="stop_file_present",
+        )
+        return
+    if context.executor.last_tick_reason is not None:
+        record_researcher_deferral(
+            context.executor.queue,
+            report_date=context.target_date,
+            actor="nightly",
+            reason=context.executor.last_tick_reason,
+        )
+        return
+    if context.report is not None and not context.report.checks.codex_auth_present:
+        record_researcher_deferral(
+            context.executor.queue,
+            report_date=context.target_date,
+            actor="nightly",
+            reason="missing_credential:codex",
+        )
+        return
+    try:
+        context.researcher_invocations = context.researcher_pass(context.target_date)
+    except (OSError, RuntimeError, ValueError) as exc:
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="researcher_pass_failed",
+                actor="nightly",
+                reason_code=f"researcher_failed:{type(exc).__name__}",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+        raise
+
+
+def _step_lessons(context: NightlyContext) -> None:
+    if context.lessons_generator is None:
+        return
+    try:
+        context.lessons_path = context.lessons_generator(context.target_date)
+    except Exception as exc:
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="lessons_generation_failed",
+                actor="nightly",
+                reason_code=f"lessons_generation_failed:{type(exc).__name__}",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+        raise
+
+
+def _step_digest(context: NightlyContext) -> None:
+    digest_path = context.renderer.write(
+        report_date=context.target_date,
+        health_report=context.report,
+        dispatched=context.dispatched,
+    )
+    if context.digest_enricher is not None:
+        try:
+            context.digest_enricher(digest_path, context.target_date)
+        except (OSError, RuntimeError, ValueError) as exc:
+            context.quarantined = True
+            context.executor.queue.append_event(
+                QueueEvent(
+                    event_id=new_ulid(),
+                    spec_id=f"system-{new_ulid()}",
+                    occurred_at=date_time_now(),
+                    event="digest_enrichment_failed",
+                    actor="nightly",
+                    reason_code=f"fleet_digest_failed:{type(exc).__name__}",
+                    report_date=context.target_date.isoformat(),
+                )
+            )
+            digest_path = context.renderer.write(
+                report_date=context.target_date,
+                health_report=context.report,
+                dispatched=context.dispatched,
+            )
+    context.digest_path = digest_path
+    context.committed = context.committer(digest_path)
+
+
+def _step_status_update(context: NightlyContext) -> None:
+    if context.status_updater is None:
+        return
+    try:
+        context.status_path = context.status_updater(context.target_date)
+    except Exception as exc:
+        context.executor.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=f"system-{new_ulid()}",
+                occurred_at=date_time_now(),
+                event="status_generation_failed",
+                actor="nightly",
+                reason_code=f"status_generation_failed:{type(exc).__name__}",
+                report_date=context.target_date.isoformat(),
+            )
+        )
+        raise
+
+
+DEFAULT_NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
+    NightlyStep(
+        name="doctor",
+        fn=_step_doctor,
+        timeout=60.0,
+        on_fail="abort",
+        description="Run health probes and record quarantine if unhealthy",
+        idempotent=True,
+    ),
+    NightlyStep(
+        name="catalog_ingest",
+        fn=_step_catalog_ingest,
+        timeout=300.0,
+        on_fail="abort",
+        description="Ingest completed jobs into catalog and parquet projections",
+        idempotent=True,
+    ),
+    NightlyStep(
+        name="analysis_staging",
+        fn=_step_analysis_staging,
+        timeout=60.0,
+        on_fail="continue",
+        description="Stage analysis requests for completed jobs",
+        idempotent=True,
+    ),
+    NightlyStep(
+        name="parquet_compaction",
+        fn=_step_parquet_compaction,
+        timeout=300.0,
+        on_fail="continue",
+        description="Compact closed-day granular parquet partitions and prune old files",
+        idempotent=True,
+    ),
+    NightlyStep(
+        name="postgres_backup",
+        fn=_step_postgres_backup,
+        timeout=120.0,
+        on_fail="abort",
+        description="Create PostgreSQL dump backup before dispatch",
+        idempotent=True,
+    ),
+    NightlyStep(
+        name="canary_enqueue",
+        fn=_step_canary_enqueue,
+        timeout=60.0,
+        on_fail="abort",
+        description="Enqueue nightly canary evaluation specs",
+        idempotent=False,
+    ),
+    NightlyStep(
+        name="dispatch",
+        fn=_step_dispatch,
+        timeout=600.0,
+        on_fail="abort",
+        description="Execute approved specs in queue via executor tick",
+        idempotent=False,
+    ),
+    NightlyStep(
+        name="researcher_pass",
+        fn=_step_researcher_pass,
+        timeout=300.0,
+        on_fail="continue",
+        description="Run unattended researcher autopilot iterations",
+        idempotent=False,
+    ),
+    NightlyStep(
+        name="lessons",
+        fn=_step_lessons,
+        timeout=120.0,
+        on_fail="continue",
+        description="Materialize statistical lesson aggregation views and research/lessons.md",
+        idempotent=True,
+    ),
+    NightlyStep(
+        name="digest",
+        fn=_step_digest,
+        timeout=60.0,
+        on_fail="abort",
+        description="Render, enrich, and commit daily markdown digest",
+        idempotent=True,
+    ),
+    NightlyStep(
+        name="status_update",
+        fn=_step_status_update,
+        timeout=30.0,
+        on_fail="continue",
+        description="Generate and update STATUS.md operator surface",
+        idempotent=True,
+    ),
+)
+
+SURFACE_STEP_NAMES: frozenset[str] = frozenset({"digest", "status_update"})
 
 
 def _analysis_stage_issue_reason(report: object, *, limit: int = 512) -> str | None:
@@ -283,9 +712,34 @@ class NightlyResult:
     researcher_invocations: int = 0
     backup_path: Path | None = None
     status_path: Path | None = None
+    lessons_path: Path | None = None
+    steps: tuple[StepOutcome, ...] = ()
+
+    @property
+    def step_outcomes(self) -> dict[str, StepOutcome]:
+        return {outcome.name: outcome for outcome in self.steps}
+
+    def step_by_name(self, name: str) -> StepOutcome | None:
+        return self.step_outcomes.get(name)
+
+    def format_step_report(self) -> str:
+        lines = ["Nightly Step Report:"]
+        for step in self.steps:
+            duration_str = f"{step.duration_s:.3f}s"
+            if step.status == "ran":
+                lines.append(f"  - {step.name}: ran ({duration_str})")
+            elif step.status == "skipped":
+                reason = f" [{step.reason}]" if step.reason else ""
+                lines.append(f"  - {step.name}: skipped{reason} ({duration_str})")
+            else:
+                err = f" [{step.error}]" if step.error else ""
+                lines.append(f"  - {step.name}: failed{err} ({duration_str})")
+        return "\n".join(lines)
 
 
 class NightlyCycle:
+    DEFAULT_STEPS: tuple[NightlyStep, ...] = DEFAULT_NIGHTLY_STEPS
+
     def __init__(
         self,
         *,
@@ -300,6 +754,9 @@ class NightlyCycle:
         database_backup: DatabaseBackup | None = None,
         analysis_stager: Callable[[], object] | None = None,
         status_updater: StatusUpdater | None = None,
+        compactor: Callable[[date], object] | None = None,
+        lessons_generator: Callable[[date], Path] | None = None,
+        steps: Sequence[NightlyStep] | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
@@ -310,227 +767,142 @@ class NightlyCycle:
         self.digest_enricher = digest_enricher
         self.completed_job_ingester = completed_job_ingester
         self.database_backup = database_backup
-        # M006: nightly may DISCOVER/STAGE analysis requests only. Staging
-        # freezes identity and never calls a model; execution requires the
-        # worker's own admission path in an operator-driven invocation.
         self.analysis_stager = analysis_stager
         self.status_updater = (
             status_updater
             if status_updater is not None
             else (lambda day: update_status_file(self.renderer.repo_root, target_date=day))
         )
+        self.compactor = (
+            compactor
+            if compactor is not None
+            else (
+                lambda day: compact(
+                    derived_root=derived_root_from_environment(self.renderer.repo_root),
+                    runs_dir=self.renderer.repo_root / "runs",
+                    clock_today=day,
+                )
+            )
+        )
+        self.lessons_generator = (
+            lessons_generator
+            if lessons_generator is not None
+            else (lambda day: generate_lessons_file(root=self.renderer.repo_root))
+        )
+        self.steps = tuple(steps) if steps is not None else self.DEFAULT_STEPS
+
+    @property
+    def step_names(self) -> tuple[str, ...]:
+        return tuple(step.name for step in self.steps)
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
-        report = self.doctor.run()
-        quarantined = not report.healthy
-        enqueued = 0
-        dispatched = 0
-        researcher_invocations = 0
-        backup_path: Path | None = None
-        if report.healthy and self.completed_job_ingester is not None:
-            try:
-                ingest_result = self.completed_job_ingester()
-            except Exception as exc:
-                quarantined = True
-                self.executor.queue.append_event(
-                    QueueEvent(
-                        event_id=new_ulid(),
-                        spec_id=f"system-{new_ulid()}",
-                        occurred_at=date_time_now(),
-                        event="nightly_quarantined",
-                        actor="nightly",
-                        reason_code=f"catalog_ingest_failed:{type(exc).__name__}",
-                        report_date=target_date.isoformat(),
-                    )
-                )
-            else:
-                record_projection_failures(
-                    self.executor.queue,
-                    ingest_result,
-                    actor="nightly",
-                    spec_id=f"system-{new_ulid()}",
-                )
-                # M006: stage analysis requests ONLY after successful ingest.
-                # Staging freezes identity and cannot call a model; a failure
-                # is a durable event, never silent suppression.
-                if self.analysis_stager is not None:
-                    try:
-                        stage_result = self.analysis_stager()
-                    except Exception as exc:
-                        self.executor.queue.append_event(
-                            QueueEvent(
-                                event_id=new_ulid(),
-                                spec_id=f"system-{new_ulid()}",
-                                occurred_at=date_time_now(),
-                                event="analysis_stage_failed",
-                                actor="nightly",
-                                reason_code=(
-                                    f"analysis_stage_failed:{type(exc).__name__}"
-                                ),
-                                report_date=target_date.isoformat(),
-                            )
-                        )
-                    else:
-                        issue_reason = _analysis_stage_issue_reason(stage_result)
-                        if issue_reason is not None:
-                            self.executor.queue.append_event(
-                                QueueEvent(
-                                    event_id=new_ulid(),
-                                    spec_id=f"system-{new_ulid()}",
-                                    occurred_at=date_time_now(),
-                                    event="analysis_stage_reported_issues",
-                                    actor="nightly",
-                                    reason_code=issue_reason,
-                                    report_date=target_date.isoformat(),
-                                )
-                            )
-        if report.healthy and not quarantined and self.database_backup is not None:
-            try:
-                backup_path = self.database_backup(target_date)
-            except Exception as exc:
-                quarantined = True
-                self.executor.queue.append_event(
-                    QueueEvent(
-                        event_id=new_ulid(),
-                        spec_id=f"system-{new_ulid()}",
-                        occurred_at=date_time_now(),
-                        event="postgres_backup_failed",
-                        actor="nightly",
-                        reason_code=f"pg_dump_failed:{type(exc).__name__}",
-                        report_date=target_date.isoformat(),
-                    )
-                )
-            else:
-                self.executor.queue.append_event(
-                    QueueEvent(
-                        event_id=new_ulid(),
-                        spec_id=f"system-{new_ulid()}",
-                        occurred_at=date_time_now(),
-                        event="postgres_backup_completed",
-                        actor="nightly",
-                        reason_code="nightly_pg_dump",
-                        report_date=target_date.isoformat(),
-                    )
-                )
-        if report.healthy and not quarantined:
-            try:
-                if self.canary_enqueuer is not None:
-                    enqueued = self.canary_enqueuer(target_date)
-            except (OSError, RuntimeError, ValueError) as exc:
-                quarantined = True
-                self.executor.queue.append_event(
-                    QueueEvent(
-                        event_id=new_ulid(),
-                        spec_id=f"system-{new_ulid()}",
-                        occurred_at=date_time_now(),
-                        event="nightly_quarantined",
-                        actor="nightly",
-                        reason_code=f"canary_enqueue_failed:{type(exc).__name__}",
-                        report_date=target_date.isoformat(),
-                    )
-                )
-            else:
-                dispatched = self.executor.tick()
-                if self.researcher_pass is not None:
-                    if self.executor.queue.stop_path.exists():
-                        record_researcher_deferral(
-                            self.executor.queue,
-                            report_date=target_date,
-                            actor="nightly",
-                            reason="stop_file_present",
-                        )
-                    elif self.executor.last_tick_reason is not None:
-                        record_researcher_deferral(
-                            self.executor.queue,
-                            report_date=target_date,
-                            actor="nightly",
-                            reason=self.executor.last_tick_reason,
-                        )
-                    elif not report.checks.codex_auth_present:
-                        record_researcher_deferral(
-                            self.executor.queue,
-                            report_date=target_date,
-                            actor="nightly",
-                            reason="missing_credential:codex",
-                        )
-                    else:
-                        try:
-                            researcher_invocations = self.researcher_pass(target_date)
-                        except (OSError, RuntimeError, ValueError) as exc:
-                            self.executor.queue.append_event(
-                                QueueEvent(
-                                    event_id=new_ulid(),
-                                    spec_id=f"system-{new_ulid()}",
-                                    occurred_at=date_time_now(),
-                                    event="researcher_pass_failed",
-                                    actor="nightly",
-                                    reason_code=f"researcher_failed:{type(exc).__name__}",
-                                    report_date=target_date.isoformat(),
-                                )
-                            )
-        elif not report.healthy:
-            record_quarantine(
-                self.executor.queue,
-                event="nightly_quarantined",
-                report=report,
-                actor="nightly",
-            )
-        digest_path = self.renderer.write(
-            report_date=target_date,
-            health_report=report,
-            dispatched=dispatched,
+        context = NightlyContext(
+            target_date=target_date,
+            doctor=self.doctor,
+            executor=self.executor,
+            renderer=self.renderer,
+            committer=self.committer,
+            canary_enqueuer=self.canary_enqueuer,
+            researcher_pass=self.researcher_pass,
+            digest_enricher=self.digest_enricher,
+            completed_job_ingester=self.completed_job_ingester,
+            database_backup=self.database_backup,
+            analysis_stager=self.analysis_stager,
+            status_updater=self.status_updater,
+            compactor=self.compactor,
+            lessons_generator=self.lessons_generator,
         )
-        if self.digest_enricher is not None:
-            try:
-                self.digest_enricher(digest_path, target_date)
-            except (OSError, RuntimeError, ValueError) as exc:
-                quarantined = True
-                self.executor.queue.append_event(
-                    QueueEvent(
-                        event_id=new_ulid(),
-                        spec_id=f"system-{new_ulid()}",
-                        occurred_at=date_time_now(),
-                        event="digest_enrichment_failed",
-                        actor="nightly",
-                        reason_code=f"fleet_digest_failed:{type(exc).__name__}",
-                        report_date=target_date.isoformat(),
+
+        for step in self.steps:
+            if context.aborted and step.name not in SURFACE_STEP_NAMES:
+                reason = (
+                    "quarantined_by_prior_step"
+                    if context.quarantined
+                    else "aborted_by_prior_step"
+                )
+                context.step_outcomes.append(
+                    StepOutcome(
+                        name=step.name,
+                        status="skipped",
+                        duration_s=0.0,
+                        reason=reason,
                     )
                 )
-                # Discard any partial enrichment and render again after the
-                # quarantine event so the committed human digest cannot claim
-                # health while NightlyResult reports a failure.
-                digest_path = self.renderer.write(
-                    report_date=target_date,
-                    health_report=report,
-                    dispatched=dispatched,
+                continue
+
+            skip_reason: str | None = None
+            if step.name == "catalog_ingest" and context.completed_job_ingester is None:
+                skip_reason = "no_ingester_configured"
+            elif step.name == "analysis_staging" and context.analysis_stager is None:
+                skip_reason = "no_stager_configured"
+            elif step.name == "parquet_compaction" and context.compactor is None:
+                skip_reason = "no_compactor_configured"
+            elif step.name == "postgres_backup" and context.database_backup is None:
+                skip_reason = "no_backup_configured"
+            elif step.name == "canary_enqueue" and context.canary_enqueuer is None:
+                skip_reason = "no_canary_enqueuer_configured"
+            elif step.name == "researcher_pass" and context.researcher_pass is None:
+                skip_reason = "no_researcher_configured"
+            elif step.name == "lessons" and context.lessons_generator is None:
+                skip_reason = "no_lessons_generator_configured"
+            elif step.name == "status_update" and context.status_updater is None:
+                skip_reason = "no_status_updater_configured"
+
+            if skip_reason is not None:
+                context.step_outcomes.append(
+                    StepOutcome(
+                        name=step.name,
+                        status="skipped",
+                        duration_s=0.0,
+                        reason=skip_reason,
+                    )
                 )
-        status_path: Path | None = None
-        if self.status_updater is not None:
+                continue
+
+            start_time = time.perf_counter()
             try:
-                status_path = self.status_updater(target_date)
+                step.fn(context)
+                elapsed = time.perf_counter() - start_time
+                context.step_outcomes.append(
+                    StepOutcome(
+                        name=step.name,
+                        status="ran",
+                        duration_s=elapsed,
+                    )
+                )
             except Exception as exc:
-                self.executor.queue.append_event(
-                    QueueEvent(
-                        event_id=new_ulid(),
-                        spec_id=f"system-{new_ulid()}",
-                        occurred_at=date_time_now(),
-                        event="status_generation_failed",
-                        actor="nightly",
-                        reason_code=f"status_generation_failed:{type(exc).__name__}",
-                        report_date=target_date.isoformat(),
+                elapsed = time.perf_counter() - start_time
+                context.step_outcomes.append(
+                    StepOutcome(
+                        name=step.name,
+                        status="failed",
+                        duration_s=elapsed,
+                        error=f"{type(exc).__name__}: {exc}",
                     )
                 )
+                if step.on_fail == "abort":
+                    context.quarantined = True
+                    context.aborted = True
+
+        digest_path = context.digest_path or self.renderer.write(
+            report_date=target_date,
+            health_report=context.report or self.doctor.run(),
+            dispatched=context.dispatched,
+        )
+
         return NightlyResult(
-            report=report,
-            quarantined=quarantined,
-            enqueued=enqueued,
-            dispatched=dispatched,
+            report=context.report or self.doctor.run(),
+            quarantined=context.quarantined,
+            enqueued=context.enqueued,
+            dispatched=context.dispatched,
             digest_path=digest_path,
-            committed=self.committer(digest_path),
-            researcher_invocations=researcher_invocations,
-            backup_path=backup_path,
-            status_path=status_path,
+            committed=context.committed,
+            researcher_invocations=context.researcher_invocations,
+            backup_path=context.backup_path,
+            status_path=context.status_path,
+            lessons_path=context.lessons_path,
+            steps=tuple(context.step_outcomes),
         )
 
 

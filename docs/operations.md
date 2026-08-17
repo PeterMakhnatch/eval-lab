@@ -343,6 +343,113 @@ controls remain independently eligible. A nonblocking process lock permits only
 one executor to claim queue work; a concurrent tick records `executor_busy`
 instead of double-dispatching or losing its terminal scheduler event.
 
+## Nightly pipeline and step registry
+
+The unattended nightly cycle (`evallab nightly`) executes an ordered pipeline of
+registered steps (`NightlyStep` in `src/evallab/automation.py`). Each step
+declares a stable identifier (`name`), its execution callable, a wall-clock
+`timeout` (seconds), an `on_fail` policy (`abort` versus `continue`), human-readable
+`description`, and whether the step is inherently `idempotent`.
+
+### Registered step sequence
+
+Steps run in the exact order below:
+
+| # | Step Name | Timeout | `on_fail` | Idempotent | Description |
+|---|---|---:|---|:---:|---|
+| 1 | `doctor` | 60s | `abort` | Yes | Run boolean headless health probes and quarantine the cycle if infra is unhealthy |
+| 2 | `catalog_ingest` | 300s | `abort` | Yes | Ingest completed Harbor jobs into PostgreSQL catalog and Parquet projections |
+| 3 | `analysis_staging` | 60s | `continue` | Yes | Stage analysis requests for completed jobs without calling models |
+| 4 | `parquet_compaction` | 300s | `continue` | Yes | Consolidate granular Parquet partitions for closed days into `compact/dt=YYYY-MM-DD/` and prune old files |
+| 5 | `postgres_backup` | 120s | `abort` | Yes | Create an atomic, timestamped `pg_dump` backup before dispatch |
+| 6 | `canary_enqueue` | 60s | `abort` | No | Enqueue version-pinned canary evaluation specs for the day |
+| 7 | `dispatch` | 600s | `abort` | No | Execute approved queue specs via `Executor.tick()` |
+| 8 | `researcher_pass` | 300s | `continue` | No | Run unattended researcher loop iterations if budget and credentials allow |
+| 9 | `lessons` | 120s | `continue` | Yes | Materialize statistical lesson views and regenerate `research/lessons.md` |
+| 10 | `digest` | 60s | `abort` | Yes | Render, enrich with fleet telemetry, and commit the daily Markdown digest |
+| 11 | `status_update` | 30s | `continue` | Yes | Generate and update the `STATUS.md` operator surface |
+
+### `on_fail` policy semantics
+
+- **`abort`**: If the step fails (raises an unhandled exception or encounters a fatal condition),
+  `quarantined` and `aborted` are set to `True`. Subsequent non-surface pipeline steps are skipped with
+  reason `quarantined_by_prior_step` or `aborted_by_prior_step`. Terminal reporting surfaces (`digest`
+  and `status_update`) still run so the quarantine state and failure event are durably rendered in the
+  human daily digest and `STATUS.md`.
+- **`continue`**: If the step fails, its failure is captured in its `StepOutcome` and logged as a
+  queue error event (e.g. `parquet_compaction_failed`, `lessons_generation_failed`). The cycle is
+  **not** quarantined, and subsequent pipeline steps continue executing.
+
+### Idempotence
+
+- **Idempotent steps** (`doctor`, `catalog_ingest`, `analysis_staging`, `parquet_compaction`,
+  `postgres_backup`, `lessons`, `digest`, `status_update`): Running these steps multiple times over
+  unchanged repository evidence produces identical artifacts and deterministic state.
+- **Inherently stateful / non-idempotent steps** (`canary_enqueue`, `dispatch`, `researcher_pass`):
+  These steps advance the queue, execute trials, or consume daily researcher quotas. They mutate queue
+  directories and consume execution allowances.
+
+### How to add or substitute a step
+
+To add a new step or customize the pipeline:
+
+1. **Define a step function** accepting `context: NightlyContext`:
+   ```python
+   def _step_my_custom_task(context: NightlyContext) -> None:
+       # Access context.target_date, context.executor, context.renderer, etc.
+       do_work(context.target_date)
+   ```
+2. **Instantiate a `NightlyStep`**:
+   ```python
+   custom_step = NightlyStep(
+       name="my_custom_task",
+       fn=_step_my_custom_task,
+       timeout=120.0,
+       on_fail="continue",  # or "abort"
+       description="Run custom evaluation task",
+       idempotent=True,
+   )
+   ```
+3. **Pass custom steps or step handlers** to `NightlyCycle`:
+   ```python
+   cycle = NightlyCycle(
+       doctor=doctor,
+       executor=executor,
+       renderer=renderer,
+       steps=[*NightlyCycle.DEFAULT_STEPS[:4], custom_step, *NightlyCycle.DEFAULT_STEPS[4:]],
+   )
+   ```
+4. For testing seams, inject custom callables via `compactor`, `lessons_generator`,
+   `status_updater`, `database_backup`, `completed_job_ingester`, or `canary_enqueuer`.
+
+### Reading the per-step outcome report
+
+`NightlyResult` exposes the outcome of every registered step via `result.steps`
+(`tuple[StepOutcome, ...]`) and `result.step_by_name(name)`:
+
+- `status`: `"ran"`, `"skipped"`, or `"failed"`.
+- `duration_s`: Wall-clock execution time in seconds.
+- `reason`: Explanation when `status == "skipped"` (e.g., `"no_backup_configured"`,
+  `"quarantined_by_prior_step"`).
+- `error`: Error string when `status == "failed"` (e.g., `"RuntimeError: ..."`).
+
+Use `result.format_step_report()` to format the summary:
+
+```text
+Nightly Step Report:
+  - doctor: ran (0.015s)
+  - catalog_ingest: ran (0.432s)
+  - analysis_staging: skipped [no_stager_configured] (0.000s)
+  - parquet_compaction: ran (0.089s)
+  - postgres_backup: ran (0.052s)
+  - canary_enqueue: skipped [no_canary_enqueuer_configured] (0.000s)
+  - dispatch: ran (0.001s)
+  - researcher_pass: skipped [no_researcher_configured] (0.000s)
+  - lessons: ran (0.045s)
+  - digest: ran (0.012s)
+  - status_update: ran (0.008s)
+```
+
 ## Executor resilience boundary
 
 Every queue spec carries `timeout_seconds` (default 1,800; maximum 21,600). The

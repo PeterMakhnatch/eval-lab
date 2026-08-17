@@ -7,7 +7,7 @@ from hypothesis import settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
-from evallab.queue import QUEUE_STATES, DirectoryQueue, PolicyGate
+from evallab.queue import QUEUE_STATES, DirectoryQueue, PolicyGate, load_events
 from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
 
 FREE_AGENTS = {"oracle", "nop"}
@@ -89,7 +89,6 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
         self.billable_approved: set[str] = set()
         self.seen_running: set[str] = set()
         self.submitted_count = 0
-        self.transitions_made: list[tuple[str, str]] = []
         self.next_name = 0
 
     def teardown(self) -> None:
@@ -98,9 +97,6 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
     def _new_name(self) -> str:
         self.next_name += 1
         return f"spec-{self.next_name}"
-
-    def _record_transition(self, from_state: str, to_state: str) -> None:
-        self.transitions_made.append((from_state, to_state))
 
     @rule(agent=st.sampled_from(list(FREE_AGENTS | BILLABLE_AGENTS)))
     def submit(self, agent: str) -> None:
@@ -118,9 +114,8 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
         self.live_specs[spec_id] = state
         self.spec_agents[spec_id] = agent
         self.submitted_count += 1
-        self._record_transition("pending", state)
-    @rule()
-    def approve(self) -> None:
+    @rule(pick=st.integers(min_value=0, max_value=64))
+    def approve(self, pick: int) -> None:
         candidates = [
             sid
             for sid, state in self.live_specs.items()
@@ -129,16 +124,14 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
         ]
         if not candidates:
             return
-        spec_id = candidates[0]
-        old_state = self.live_specs[spec_id]
+        spec_id = sorted(candidates)[pick % len(candidates)]
         new_path = self.queue.approve(spec_id, actor="fuzz-actor")
         new_state = new_path.parent.name
         self.live_specs[spec_id] = new_state
-        self._record_transition(old_state, new_state)
         self.billable_approved.add(spec_id)
 
-    @rule()
-    def reject(self) -> None:
+    @rule(pick=st.integers(min_value=0, max_value=64))
+    def reject(self, pick: int) -> None:
         candidates = [
             sid
             for sid, state in self.live_specs.items()
@@ -146,65 +139,57 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
         ]
         if not candidates:
             return
-        spec_id = candidates[0]
-        old_state = self.live_specs[spec_id]
+        spec_id = sorted(candidates)[pick % len(candidates)]
         new_path = self.queue.reject(spec_id, actor="fuzz-actor", message="property test reject")
         new_state = new_path.parent.name
         self.live_specs[spec_id] = new_state
-        self._record_transition(old_state, new_state)
 
-    @rule()
-    def transition_to_running(self) -> None:
+    @rule(pick=st.integers(min_value=0, max_value=64))
+    def transition_to_running(self, pick: int) -> None:
         candidates = [
             sid for sid, state in self.live_specs.items() if state == "approved"
         ]
         if not candidates:
             return
-        spec_id = candidates[0]
+        spec_id = sorted(candidates)[pick % len(candidates)]
         assert spec_id not in self.seen_running, "double dispatch detected"
-        old_state = self.live_specs[spec_id]
         source = self.queue.locate(spec_id, ("approved",))
         new_path = self.queue.transition(
             source, "running", actor="executor", event="dispatch_started"
         )
         new_state = new_path.parent.name
         self.live_specs[spec_id] = new_state
-        self._record_transition(old_state, new_state)
         self.seen_running.add(spec_id)
 
-    @rule()
-    def complete(self) -> None:
+    @rule(pick=st.integers(min_value=0, max_value=64))
+    def complete(self, pick: int) -> None:
         candidates = [
             sid for sid, state in self.live_specs.items() if state == "running"
         ]
         if not candidates:
             return
-        spec_id = candidates[0]
-        old_state = self.live_specs[spec_id]
+        spec_id = sorted(candidates)[pick % len(candidates)]
         source = self.queue.locate(spec_id, ("running",))
         new_path = self.queue.transition(
             source, "done", actor="executor", event="dispatch_completed"
         )
         new_state = new_path.parent.name
         self.live_specs[spec_id] = new_state
-        self._record_transition(old_state, new_state)
 
-    @rule()
-    def fail(self) -> None:
+    @rule(pick=st.integers(min_value=0, max_value=64))
+    def fail(self, pick: int) -> None:
         candidates = [
             sid for sid, state in self.live_specs.items() if state == "running"
         ]
         if not candidates:
             return
-        spec_id = candidates[0]
-        old_state = self.live_specs[spec_id]
+        spec_id = sorted(candidates)[pick % len(candidates)]
         source = self.queue.locate(spec_id, ("running",))
         new_path = self.queue.transition(
             source, "failed", actor="executor", event="dispatch_failed"
         )
         new_state = new_path.parent.name
         self.live_specs[spec_id] = new_state
-        self._record_transition(old_state, new_state)
 
     @invariant()
     def conservation(self) -> None:
@@ -219,16 +204,48 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
         for sid, state in found.items():
             assert self.live_specs[sid] == state
 
+    def _recorded_transitions(self) -> list[tuple[str, tuple[str | None, str | None]]]:
+        """Transitions as the queue itself recorded them, not as the test believes.
+
+        Reading the event log rather than the test's own bookkeeping is what makes
+        the next two invariants oracles: they can disagree with the model and fail.
+        """
+        path = self.queue.events_path
+        if not path.is_file():
+            return []
+        return [
+            (event.spec_id, (event.from_state, event.to_state))
+            for event in load_events(path)
+            if event.to_state is not None
+        ]
+
     @invariant()
     def legal_transitions_only(self) -> None:
-        for fr, to in self.transitions_made:
-            assert (fr, to) in ALLOWED_TRANSITIONS, f"illegal transition {fr} -> {to}"
+        for spec_id, (source, destination) in self._recorded_transitions():
+            if source is None:
+                # Submission records only a destination; `pending` is the entry state.
+                assert destination == "pending", (
+                    f"spec {spec_id} entered the queue at {destination}, not pending"
+                )
+                continue
+            assert (source, destination) in ALLOWED_TRANSITIONS, (
+                f"spec {spec_id} made an illegal transition {source} -> {destination}"
+            )
 
     @invariant()
     def no_double_dispatch(self) -> None:
-        # enforced at transition_to_running; also verify no running spec reappears
-        running_now = {sid for sid, st in self.live_specs.items() if st == "running"}
-        assert len(running_now) <= 1 or all(s in self.seen_running for s in running_now)
+        """A spec reaches `running` at most once, per the queue's own event log.
+
+        Counting dispatches from `seen_running` could never fail, because that set
+        is populated by the same code path that performs the dispatch. The event log
+        is written by `queue.transition`, so a genuine re-dispatch shows up here.
+        """
+        dispatches: dict[str, int] = {}
+        for spec_id, (_source, destination) in self._recorded_transitions():
+            if destination == "running":
+                dispatches[spec_id] = dispatches.get(spec_id, 0) + 1
+        repeated = {sid: n for sid, n in dispatches.items() if n > 1}
+        assert not repeated, f"specs dispatched more than once: {repeated}"
 
     @invariant()
     def admission_respected(self) -> None:

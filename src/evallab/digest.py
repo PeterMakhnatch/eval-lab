@@ -5,13 +5,14 @@ import subprocess
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from evallab import database
-from evallab.queue import DirectoryQueue, load_events
+from evallab.preflight import PreflightReport, build_preflight_report, digest_section
+from evallab.queue import DirectoryQueue, load_events, provider_reported_exhaustion
 from evallab.runner import (
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     database_url_from_environment,
@@ -43,6 +44,9 @@ TrialLoader = Callable[[date], list[DigestTrial]]
 
 
 DriftLoader = Callable[[date], list[CanaryDriftObservation]]
+
+
+PreflightLoader = Callable[[], PreflightReport]
 
 
 SELF_TEST_JOB_PREFIX = "smoke-"
@@ -77,12 +81,14 @@ class DigestRenderer:
         policy: StandingApprovalsPolicy,
         trial_loader: TrialLoader | None = None,
         drift_loader: DriftLoader | None = None,
+        preflight_loader: PreflightLoader | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
         self.policy = policy
         self._trial_loader = trial_loader or self._load_catalog_trials
         self._drift_loader = drift_loader or self._load_canary_drift
+        self._preflight_loader = preflight_loader or self._load_preflight
 
     def write(
         self,
@@ -155,6 +161,23 @@ class DigestRenderer:
             lines.append("- Catalog readable: no")
         else:
             lines.append("- Catalog readable: yes")
+
+        lines.append("")
+        try:
+            lines.extend(digest_section(self._preflight_loader()))
+        except Exception as exc:
+            # The preflight is a report about other reports; a failure in it must
+            # never cost the nightly its trials, spend, or queue sections. Naming
+            # the failure is the honest degradation — an omitted section would
+            # read as "nothing to warn about".
+            lines.extend(
+                [
+                    "## Preflight",
+                    "",
+                    f"- Unavailable: the preflight could not be built ({type(exc).__name__}: "
+                    f"{exc}). That is not a statement that quota, queue, or power are fine.",
+                ]
+            )
 
         lines.extend(
             [
@@ -256,7 +279,16 @@ class DigestRenderer:
             )
         }
         lines.append("- Depth: " + ", ".join(f"{key}={value}" for key, value in depths.items()))
-        waiting = self.queue.list_specs("waiting")
+        # `list_specs` raises on any spec file this build cannot validate. Once
+        # `ExperimentSpec.purpose` becomes required (WS-E item 1), every spec
+        # queued before that landed is one such file — and a stale queue entry
+        # must not be able to take down the whole nightly digest.
+        try:
+            waiting = self.queue.list_specs("waiting")
+            unreadable = ""
+        except (OSError, ValueError) as exc:
+            waiting = []
+            unreadable = f"{type(exc).__name__}: {exc}"
         if waiting:
             lines.extend(["", "| proposal | experiment | reason |", "|---|---|---|"])
             for _, spec in waiting:
@@ -264,6 +296,8 @@ class DigestRenderer:
                     f"| {_cell(str(spec.spec_id))} | {_cell(spec.name)} | "
                     f"{_cell(self._reason_for(str(spec.spec_id)))} |"
                 )
+        elif unreadable:
+            lines.append(f"- Waiting proposals: unreadable ({_cell(unreadable)})")
         else:
             lines.append("- Waiting proposals: none")
 
@@ -341,6 +375,24 @@ class DigestRenderer:
     @staticmethod
     def _load_canary_drift(day: date) -> list[CanaryDriftObservation]:
         return database.canary_drift_observations(database_url_from_environment(), day)
+
+    def _load_preflight(self) -> PreflightReport:
+        """The default preflight for this checkout, read from disk only.
+
+        The one clock read in the renderer, and the only reason it is here
+        rather than in `preflight.py`: staleness needs a `now`, and every test
+        injects `preflight_loader` to fix it (`agents/CHECKS.md`). Nothing in
+        this path opens a socket, spawns a process, or spends anything —
+        `provider_reported_exhaustion` reads the `Headroom` it is handed.
+        """
+        return build_preflight_report(
+            self.repo_root,
+            now=datetime.now(UTC),
+            refusal=provider_reported_exhaustion,
+            refuse_at_used_percent=getattr(
+                self.policy, "refuse_billable_at_used_percent", None
+            ),
+        )
 
     @staticmethod
     def _events_on(events: list[QueueEvent], day: date) -> list[QueueEvent]:
@@ -431,13 +483,30 @@ class DigestRenderer:
         return []
 
     def _reason_for(self, spec_id: str) -> str:
-        paths = sorted(self.queue.reasons_dir.glob(f"{spec_id}-*.json"), reverse=True)
-        for path in paths:
+        """The most recently *recorded* refusal rationale for this spec.
+
+        Ordered by the `occurred_at` inside each record rather than by filename.
+        `write_reason` names files `{spec_id}-{ULID}.json` (queue.py:808), and a
+        ULID orders lexically only down to its 48-bit millisecond: two reasons
+        written inside the same millisecond sort at random, because the low 80
+        bits are. Since #65 made two reasons per spec ordinary — submit records
+        `paid_run_unauthorized`, a later tick records the real refusal — the
+        digest could print the earlier one as the current state.
+
+        `occurred_at` is microsecond-resolution, so this narrows the tie window
+        rather than closing it; an exact tie falls back to glob order. Making it
+        total would mean ordering from the event log, which is a larger change
+        than this defect earns.
+        """
+        recorded: list[QueueReason] = []
+        for path in sorted(self.queue.reasons_dir.glob(f"{spec_id}-*.json")):
             try:
-                return QueueReason.model_validate_json(path.read_text()).code
+                recorded.append(QueueReason.model_validate_json(path.read_text()))
             except (OSError, ValidationError):
                 continue
-        return "awaiting human review"
+        if not recorded:
+            return "awaiting human review"
+        return max(recorded, key=lambda reason: reason.occurred_at).code
 
     def _prior_run_bytes(self, report_date: date) -> int | None:
         path = self.repo_root / "digests" / f"{report_date.isoformat()}.md"

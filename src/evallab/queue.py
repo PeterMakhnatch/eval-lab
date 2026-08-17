@@ -28,6 +28,7 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.paths import derived_root_from_environment
+from evallab.preflight import preflight_at_tick_start
 from evallab.quota import (
     Headroom,
     default_roots,
@@ -1061,6 +1062,7 @@ class Executor:
 
     def _tick_locked(self) -> int:
         self.reconcile_running()
+        preflight_at_tick_start(self.repo_root)
         if self.queue.stop_path.exists():
             return 0
         if self.queue.list_specs("running"):

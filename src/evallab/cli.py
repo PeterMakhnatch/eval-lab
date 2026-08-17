@@ -13,6 +13,7 @@ from pathlib import Path
 from uuid import UUID
 
 from evallab import __version__, database
+from evallab import queue as queue_module
 from evallab.atif import check_projection_invariant, ingest_and_project
 from evallab.automation import (
     GuardedTick,
@@ -66,6 +67,7 @@ from evallab.gc import (
     run_gc,
 )
 from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
+from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import (
     DirectoryQueue,
     Executor,
@@ -124,6 +126,29 @@ def _headroom_for(root: Path) -> Headroom:
             availability="unavailable",
             reason=f"the quota scan failed ({type(exc).__name__}: {exc})",
         )
+
+
+def _configured_quota_ceiling(root: Path) -> float | None:
+    """The lab's `used_percent` refusal ceiling, wherever it currently lives.
+
+    `queue.REFUSE_BILLABLE_AT_USED_PERCENT` (queue.py:224-240) says its durable
+    home is `policy/standing-approvals.yaml`, and WS-E item 1 moves it there as
+    `StandingApprovalsPolicy.refuse_billable_at_used_percent`. Both are
+    committed unset, so preferring the policy and falling back to the constant
+    is correct in every state of that migration and never under-reports a
+    ceiling that is actually set.
+
+    FOLLOW-UP: delete the `queue_module` fallback once the policy field lands.
+    Recorded in `agents/handoffs/preflight.md`.
+    """
+    configured = getattr(
+        load_policy(root / "policy/standing-approvals.yaml"),
+        "refuse_billable_at_used_percent",
+        None,
+    )
+    if configured is not None:
+        return float(configured)
+    return getattr(queue_module, "REFUSE_BILLABLE_AT_USED_PERCENT", None)
 
 
 LOCAL_ENV_KEYS = {
@@ -186,6 +211,26 @@ def parser() -> argparse.ArgumentParser:
         dest="status_from",
         type=Path,
         help="Repository root or smoke scratch (queue/ + jobs/) to read",
+    )
+
+    preflight = commands.add_parser(
+        "preflight",
+        help="Read-only: remaining quota per provider, the queue by purpose, power warnings",
+    )
+    preflight.add_argument(
+        "--useful-effect",
+        type=float,
+        help=(
+            "Per-attempt difference you would call useful. Unset by default because "
+            "'useful' is a spend judgement, not a lab constant; supply it and a queued "
+            "comparison whose smallest detectable difference exceeds it becomes a warning."
+        ),
+    )
+    preflight.add_argument(
+        "--from",
+        dest="preflight_from",
+        type=Path,
+        help="Repository root to read (default: this checkout)",
     )
 
     submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
@@ -711,6 +756,26 @@ def _matrix_command(args: argparse.Namespace, root: Path) -> int:
     return 1 if mismatch else 0
 
 
+def _preflight_command(args: argparse.Namespace, root: Path) -> int:
+    """Print the preflight and exit non-zero when a provider refuses billable work.
+
+    Costs nothing and blocks on nothing: the report is built from Harbor job
+    directories and `queue/` alone. `provider_reported_exhaustion` is passed in
+    rather than reimplemented so this surface and the dispatch gate can never
+    disagree about what the provider said.
+    """
+    target = _resolve(root, args.preflight_from) if args.preflight_from else root
+    report = build_preflight_report(
+        target,
+        now=datetime.now(UTC),
+        refusal=provider_reported_exhaustion,
+        refuse_at_used_percent=_configured_quota_ceiling(target),
+        useful_effect=args.useful_effect,
+    )
+    print(render_preflight(report))
+    return 1 if report.refusals() else 0
+
+
 def _power_command(args: argparse.Namespace) -> int:
     if args.n_tasks is not None:
         if args.k is None:
@@ -941,6 +1006,8 @@ def run_cli(
             return 0 if report.healthy else 1
         if args.command == "doctor":
             return _doctor(root)
+        if args.command == "preflight":
+            return _preflight_command(args, root)
         if args.command == "power":
             return _power_command(args)
         if args.command == "report":
@@ -971,6 +1038,20 @@ def run_cli(
                 )
             return 0
         if args.command == "tick":
+            # WS-E item 2: the preflight runs at tick start. This is the
+            # operator-facing tick; the library-level `Executor._tick_locked`
+            # takes the same call in one additive line, described in
+            # `agents/handoffs/preflight.md`.
+            print(
+                render_preflight(
+                    build_preflight_report(
+                        root,
+                        now=datetime.now(UTC),
+                        refusal=provider_reported_exhaustion,
+                        refuse_at_used_percent=_configured_quota_ceiling(root),
+                    )
+                )
+            )
             executor = Executor.from_repo(root)
             result = GuardedTick(
                 doctor=HeadlessDoctor(root, executor=executor),

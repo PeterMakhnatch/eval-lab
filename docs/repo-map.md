@@ -197,6 +197,11 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `v_craft_human_anchor` | `sql/craft_views.sql` | `craft` |
 | `v_craft_unresolved` | `sql/craft_views.sql` | `craft` |
 | `v_craft_corpus` | `sql/craft_views.sql` | `craft` |
+| `v_outcome_by_task_agent` | `sql/evidence_queries.sql` | — |
+| `v_task_summary` | `sql/evidence_queries.sql` | — |
+| `v_failure_classification` | `sql/evidence_queries.sql` | — |
+| `v_exception_taxonomy` | `sql/evidence_queries.sql` | — |
+| `v_outcome_by_date_bucket` | `sql/evidence_queries.sql` | — |
 | `v_failure_by_facet` | `sql/lessons.sql` | `lessons` |
 | `v_loop_rate_by_env` | `sql/lessons.sql` | `lessons` |
 | `v_outcome_by_verifier_type` | `sql/lessons.sql` | `lessons` |

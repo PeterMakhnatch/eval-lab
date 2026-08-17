@@ -177,10 +177,29 @@ def measure(fn: Callable[[], None], *, warmup: int, reps: int) -> tuple[float, f
     return statistics.median(samples), min(samples), max(samples)
 
 
-def _inject_delay(inject_ms: dict[str, float], name: str) -> None:
+def _inject_delay(
+    inject_ms: dict[str, float], name: str, sleeper: Callable[[float], None]
+) -> None:
+    """Delay the named path by its configured milliseconds, via an injected sleeper.
+
+    `sleeper` is a seam so tests can assert *which* path was delayed by *how
+    much* without measuring the wall clock. `agents/CHECKS.md` forbids tests
+    that depend on host timing.
+    """
     delay = inject_ms.get(name)
     if delay and delay > 0:
-        time.sleep(delay / 1000.0)
+        sleeper(delay / 1000.0)
+
+
+def delay_fn(
+    inject_ms: dict[str, float], sleeper: Callable[[float], None]
+) -> Callable[[str], None]:
+    """Bind an injection table and a sleeper into the per-path delay callable."""
+
+    def delay(name: str) -> None:
+        _inject_delay(inject_ms, name, sleeper)
+
+    return delay
 
 
 def ensure_scratch_database(url: str, admin_url: str) -> None:
@@ -216,9 +235,9 @@ def _time_ingest(
     root: Path,
     database_url: str | None,
     cpu_only: bool,
-    inject_ms: dict[str, float],
+    delay: Callable[[str], None],
 ) -> None:
-    _inject_delay(inject_ms, "ingest")
+    delay("ingest")
     if cpu_only or database_url is None:
         connection = RecordingConnection()
         for job in jobs:
@@ -235,9 +254,9 @@ def _time_ingest_and_project(
     root: Path,
     database_url: str,
     output: Path,
-    inject_ms: dict[str, float],
+    delay: Callable[[str], None],
 ) -> None:
-    _inject_delay(inject_ms, "ingest+projection")
+    delay("ingest+projection")
     if output.exists():
         for child in output.rglob("*"):
             if child.is_file():
@@ -246,8 +265,8 @@ def _time_ingest_and_project(
     ingest_and_project(database_url, jobs, root=root, output_root=output)
 
 
-def _time_projection(jobs: list[JobRecord], output: Path, inject_ms: dict[str, float]) -> None:
-    _inject_delay(inject_ms, "projection")
+def _time_projection(jobs: list[JobRecord], output: Path, delay: Callable[[str], None]) -> None:
+    delay("projection")
     if output.exists():
         for child in output.rglob("*"):
             if child.is_file():
@@ -255,8 +274,8 @@ def _time_projection(jobs: list[JobRecord], output: Path, inject_ms: dict[str, f
     export_trajectories(jobs, output)
 
 
-def _time_facts(jobs: list[JobRecord], output: Path, inject_ms: dict[str, float]) -> None:
-    _inject_delay(inject_ms, "facts")
+def _time_facts(jobs: list[JobRecord], output: Path, delay: Callable[[str], None]) -> None:
+    delay("facts")
     if output.exists():
         for child in output.rglob("*"):
             if child.is_file():
@@ -264,8 +283,8 @@ def _time_facts(jobs: list[JobRecord], output: Path, inject_ms: dict[str, float]
     export_facts(jobs, output)
 
 
-def _time_digest(repo_root: Path, inject_ms: dict[str, float]) -> None:
-    _inject_delay(inject_ms, "digest")
+def _time_digest(repo_root: Path, delay: Callable[[str], None]) -> None:
+    delay("digest")
     queue = DirectoryQueue(repo_root / "queue")
     policy = load_policy(REPO_ROOT / "policy/standing-approvals.yaml")
 
@@ -294,9 +313,9 @@ def _time_digest(repo_root: Path, inject_ms: dict[str, float]) -> None:
 
 
 def _time_queue_tick(
-    scratch: Path, inject_ms: dict[str, float], *, tick_n: int
+    scratch: Path, delay: Callable[[str], None], *, tick_n: int
 ) -> None:
-    _inject_delay(inject_ms, "queue-tick-100")
+    delay("queue-tick-100")
     queue_root = scratch / "queue-tick"
     if queue_root.exists():
         for child in queue_root.rglob("*"):
@@ -337,8 +356,8 @@ def _time_queue_tick(
         raise RuntimeError(f"expected {tick_n} stub dispatches, got {dispatched}")
 
 
-def _time_fleet_status(inject_ms: dict[str, float]) -> None:
-    _inject_delay(inject_ms, "fleet-status")
+def _time_fleet_status(delay: Callable[[str], None]) -> None:
+    delay("fleet-status")
     stub = Path(__file__).resolve().parent / "gh_stub.sh"
     env = os.environ.copy()
     env["PATH"] = f"{stub.parent}:{env.get('PATH', '')}"
@@ -373,9 +392,12 @@ def run_profile(
     work_dir: Path,
     tick_n: int = 100,
     fleet_fn: Callable[[], None] | None = None,
+    sleeper: Callable[[float], None] | None = None,
 ) -> ProfileReport:
+    """Profile the six paths. `sleeper` is the injection seam; see `_inject_delay`."""
     if warmup < 1 or reps < 5:
         raise ValueError("FORGE §4 requires warmup >= 1 and reps >= 5")
+    delay = delay_fn(inject_ms, time.sleep if sleeper is None else sleeper)
     job_dirs, result_json, corpus_bytes = corpus_stats(corpus_roots)
     jobs = load_jobs(corpus_roots)
     if not jobs:
@@ -417,7 +439,7 @@ def run_profile(
             root=REPO_ROOT,
             database_url=database_url,
             cpu_only=cpu_only,
-            inject_ms=inject_ms,
+            delay=delay,
         ),
         "database.ingest on scratch DB"
         if not cpu_only
@@ -425,27 +447,27 @@ def run_profile(
     )
     add(
         "projection",
-        lambda: _time_projection(jobs, scratch / "parquet-atif", inject_ms),
+        lambda: _time_projection(jobs, scratch / "parquet-atif", delay),
         "evallab.atif.export_trajectories",
     )
     add(
         "facts",
-        lambda: _time_facts(jobs, scratch / "parquet-facts", inject_ms),
+        lambda: _time_facts(jobs, scratch / "parquet-facts", delay),
         "evallab.facts.export_facts",
     )
     add(
         "digest",
-        lambda: _time_digest(digest_root, inject_ms),
+        lambda: _time_digest(digest_root, delay),
         "DigestRenderer.write with catalog seams stubbed",
     )
     add(
         "queue-tick-100",
-        lambda: _time_queue_tick(scratch / "tick-root", inject_ms, tick_n=tick_n),
+        lambda: _time_queue_tick(scratch / "tick-root", delay, tick_n=tick_n),
         f"Executor.tick N={tick_n}; runner/ingester/catalog stubbed",
     )
     add(
         "fleet-status",
-        lambda: (fleet_fn or (lambda: _time_fleet_status(inject_ms)))(),
+        lambda: (fleet_fn or (lambda: _time_fleet_status(delay)))(),
         "scripts/fleet-status.sh with gh stubbed"
         if fleet_fn is None
         else "injected fleet-status callable",
@@ -458,7 +480,7 @@ def run_profile(
                 root=REPO_ROOT,
                 database_url=database_url,
                 output=scratch / "merged-parquet",
-                inject_ms=inject_ms,
+                delay=delay,
             ),
             "atif.ingest_and_project (PIPELINE unified path)",
         )

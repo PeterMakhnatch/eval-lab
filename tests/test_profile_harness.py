@@ -110,35 +110,59 @@ def test_refuses_shared_catalog_url() -> None:
         raise AssertionError("shared catalog URL was accepted")
 
 
-def test_injected_slowdown_raises_named_path_median(tmp_path: Path) -> None:
+def test_inject_delay_sleeps_only_the_named_path_for_its_configured_amount() -> None:
+    """The injection contract, asserted without measuring the wall clock.
+
+    `agents/CHECKS.md` forbids a test that depends on host timing. The previous
+    version of this test compared two measured medians and failed on CI as
+    `assert 82.315 >= 94.207 + 40.0`: the *baseline* absorbed ~92 ms of runner
+    noise while the run carrying a deliberate 80 ms injection measured 82.3 ms,
+    only 2.3 ms above the floor the sleep guarantees. Because the baseline
+    exceeded the injected run outright, no additive or relative margin could
+    have held -- not even a zero margin. So the clock is gone from the
+    assertion: the seam reports which path was delayed, and by how much.
+    """
     harness = _load_harness()
-    baseline = harness.run_profile(
+    slept: list[float] = []
+
+    harness._inject_delay({"digest": 80.0}, "digest", slept.append)
+    assert slept == [0.080], "the named path must sleep its configured milliseconds"
+
+    slept.clear()
+    harness._inject_delay({"digest": 80.0}, "facts", slept.append)
+    assert slept == [], "a path with no injection configured must not sleep"
+
+    for ignored in (0.0, -5.0):
+        slept.clear()
+        harness._inject_delay({"digest": ignored}, "digest", slept.append)
+        assert slept == [], f"an injection of {ignored} ms must not sleep"
+
+
+def test_injection_reaches_each_named_path_in_measurement_order(tmp_path: Path) -> None:
+    """Every timed path must request its own injection, proven through the seam.
+
+    The two amounts differ, so the recorded sequence proves routing rather than
+    merely counting: `facts` is measured before `digest` (`PATH_NAMES` order),
+    and each path is exercised `warmup + reps` times. A path whose injection
+    was dropped, or misrouted to another path, changes this sequence.
+    """
+    harness = _load_harness()
+    slept: list[float] = []
+    report = harness.run_profile(
         corpus_roots=_pinned_roots(harness),
         warmup=1,
         reps=5,
         database_url=None,
         admin_url="postgresql://unused.example/evallab",
         cpu_only=True,
-        inject_ms={},
-        work_dir=tmp_path / "base",
+        inject_ms={"facts": 30.0, "digest": 80.0},
+        work_dir=tmp_path,
         tick_n=5,
         fleet_fn=lambda: None,
+        sleeper=slept.append,
     )
-    slowed = harness.run_profile(
-        corpus_roots=_pinned_roots(harness),
-        warmup=1,
-        reps=5,
-        database_url=None,
-        admin_url="postgresql://unused.example/evallab",
-        cpu_only=True,
-        inject_ms={"digest": 80.0},
-        work_dir=tmp_path / "slow",
-        tick_n=5,
-        fleet_fn=lambda: None,
-    )
-    base = next(item.median_ms for item in baseline.paths if item.path == "digest")
-    slow = next(item.median_ms for item in slowed.paths if item.path == "digest")
-    assert slow >= base + 40.0
+    assert report.path_names() == list(harness.PATH_NAMES)
+    assert slept == [0.030] * 6 + [0.080] * 6
 
 
 def test_check_budgets_fails_when_ceiling_exceeded(tmp_path: Path) -> None:
@@ -175,7 +199,7 @@ def test_check_budgets_fails_when_ceiling_exceeded(tmp_path: Path) -> None:
 
 def test_fleet_status_script_runs_with_gh_stub() -> None:
     harness = _load_harness()
-    harness._time_fleet_status({})
+    harness._time_fleet_status(lambda _name: None)
 
 
 def test_default_corpus_is_pinned_to_job_directories_not_the_evidence_directory() -> None:

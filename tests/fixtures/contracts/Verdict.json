@@ -1,0 +1,61 @@
+{
+  "additionalProperties": false,
+  "description": "\u00a72.1 Verdict: human (or authorized) disposition on a discovery.\n\nstatus restricted to the literal set in \u00a72.1. discovery_id is ULID.",
+  "properties": {
+    "at": {
+      "description": "timestamp of the verdict decision",
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    },
+    "by": {
+      "description": "actor or session that issued the verdict",
+      "minLength": 1,
+      "title": "By",
+      "type": "string"
+    },
+    "discovery_id": {
+      "description": "ULID of the discovery being verdicted (composite key)",
+      "title": "Discovery Id",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "free-text rationale or pointer to evidence",
+      "title": "Note"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "description": "disposition per \u00a72.1",
+      "enum": [
+        "accepted",
+        "rejected",
+        "needs_evidence",
+        "pending"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "discovery_id",
+    "status",
+    "by",
+    "at"
+  ],
+  "title": "Verdict",
+  "type": "object"
+}

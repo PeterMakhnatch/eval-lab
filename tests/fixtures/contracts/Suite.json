@@ -1,0 +1,54 @@
+{
+  "additionalProperties": false,
+  "description": "\u00a72.1 Suite entity: named frozen collection of TaskVersion members.\n\nfrozen_at set makes the instance reject all further mutation (enforced via\n__setattr__ guard + model validator). This is the contract that prevents\npost-freeze drift in parallel epic work.",
+  "properties": {
+    "frozen_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "timestamp at which the suite was frozen; when set the instance is immutable",
+      "title": "Frozen At"
+    },
+    "members": {
+      "description": "TaskVersion references (task_ref@version strings) that constitute the suite",
+      "items": {
+        "type": "string"
+      },
+      "title": "Members",
+      "type": "array"
+    },
+    "name": {
+      "description": "human-readable suite identifier",
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "version": {
+      "description": "suite version; increments on content change",
+      "maxLength": 40,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "version"
+  ],
+  "title": "Suite",
+  "type": "object"
+}

@@ -1,0 +1,166 @@
+{
+  "$defs": {
+    "ConfidenceClaim": {
+      "additionalProperties": false,
+      "description": "Automated claim with explicit uncertainty (T4). Never a bare float.",
+      "properties": {
+        "interval": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "95% interval (low, high) when claim is numeric",
+          "title": "Interval"
+        },
+        "level": {
+          "description": "qualitative confidence label for the claim",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "n": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "sample size backing statistical claim (None if N/A)",
+          "title": "N"
+        },
+        "provenance_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "sha256: of source data or rubric that produced this claim",
+          "title": "Provenance Digest"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "title": "ConfidenceClaim",
+      "type": "object"
+    },
+    "EvidenceCitation": {
+      "additionalProperties": false,
+      "description": "Single evidence pointer inside an AnalysisRecord (path + optional step).",
+      "properties": {
+        "path": {
+          "description": "relative filesystem path to cited artifact",
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "step index within trajectory if citation is step-specific",
+          "title": "Step"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "EvidenceCitation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "\u00a72.1 AnalysisRecord: model-assisted analysis output for one trial.\n\nanalysis_id and trial_id are ULIDs. rubric_digest and all digests are\nvalidated sha256:. confidence carries explicit uncertainty (T4).",
+  "properties": {
+    "analysis_id": {
+      "description": "ULID primary key for this analysis record",
+      "title": "Analysis Id",
+      "type": "string"
+    },
+    "category": {
+      "description": "analysis category (e.g. failure mode, capability)",
+      "minLength": 1,
+      "title": "Category",
+      "type": "string"
+    },
+    "confidence": {
+      "$ref": "#/$defs/ConfidenceClaim",
+      "description": "claim confidence with n/interval/provenance per T4"
+    },
+    "evidence": {
+      "description": "cited evidence locations (path, optional step)",
+      "items": {
+        "$ref": "#/$defs/EvidenceCitation"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "model": {
+      "description": "judge model identifier",
+      "minLength": 1,
+      "title": "Model",
+      "type": "string"
+    },
+    "rubric_digest": {
+      "description": "sha256: of the rubric applied",
+      "title": "Rubric Digest",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "trial_id": {
+      "description": "ULID of the source trial (join spine)",
+      "title": "Trial Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "analysis_id",
+    "trial_id",
+    "rubric_digest",
+    "model",
+    "category",
+    "confidence"
+  ],
+  "title": "AnalysisRecord",
+  "type": "object"
+}

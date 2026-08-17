@@ -1,0 +1,157 @@
+{
+  "additionalProperties": false,
+  "description": "\u00a72.1 ObservationRecord: factual extraction per OBSERVATORY template.\n\nAll factual fields taken verbatim from research/observations/TEMPLATE.md\n(template_version through evidence_files). trial_id is ULID. No invented\ntaxonomy or capability fields.",
+  "properties": {
+    "agent": {
+      "description": "agent profile name",
+      "minLength": 1,
+      "title": "Agent",
+      "type": "string"
+    },
+    "evidence_files": {
+      "default": "",
+      "description": "comma-separated list of evidence files examined",
+      "title": "Evidence Files",
+      "type": "string"
+    },
+    "first_failure_step": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "const": "none",
+          "type": "string"
+        }
+      ],
+      "default": "none",
+      "description": "step of first failure or 'none'",
+      "title": "First Failure Step"
+    },
+    "job": {
+      "description": "job name that produced the trial",
+      "minLength": 1,
+      "title": "Job",
+      "type": "string"
+    },
+    "loop_detected": {
+      "default": "no",
+      "description": "whether a loop was detected",
+      "enum": [
+        "yes",
+        "no"
+      ],
+      "title": "Loop Detected",
+      "type": "string"
+    },
+    "loop_step": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "const": "none",
+          "type": "string"
+        }
+      ],
+      "default": "none",
+      "description": "step at which loop began or 'none'",
+      "title": "Loop Step"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "model used (none for controls)",
+      "title": "Model"
+    },
+    "reward": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "verifier reward value (float or 'none')",
+      "title": "Reward"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "steps_taken": {
+      "description": "number of steps executed",
+      "minimum": 0,
+      "title": "Steps Taken",
+      "type": "integer"
+    },
+    "summary": {
+      "description": "one-sentence factual summary from trajectory/result.json",
+      "title": "Summary",
+      "type": "string"
+    },
+    "task": {
+      "description": "task_ref@version or task path",
+      "minLength": 1,
+      "title": "Task",
+      "type": "string"
+    },
+    "template_version": {
+      "const": "observatory-1",
+      "default": "observatory-1",
+      "description": "version of the observatory extraction template",
+      "title": "Template Version",
+      "type": "string"
+    },
+    "tool_errors": {
+      "description": "count of tool invocation errors",
+      "minimum": 0,
+      "title": "Tool Errors",
+      "type": "integer"
+    },
+    "trial_id": {
+      "description": "ULID of the observed trial (record key)",
+      "title": "Trial Id",
+      "type": "string"
+    },
+    "trial_name": {
+      "description": "human-readable trial name",
+      "minLength": 1,
+      "title": "Trial Name",
+      "type": "string"
+    },
+    "verified_before_done": {
+      "default": "no",
+      "description": "verifier passed before done signal",
+      "enum": [
+        "yes",
+        "no"
+      ],
+      "title": "Verified Before Done",
+      "type": "string"
+    }
+  },
+  "required": [
+    "trial_id",
+    "trial_name",
+    "job",
+    "agent",
+    "task",
+    "reward",
+    "steps_taken",
+    "tool_errors",
+    "summary"
+  ],
+  "title": "ObservationRecord",
+  "type": "object"
+}

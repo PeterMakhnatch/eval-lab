@@ -1,6 +1,6 @@
 Status: review-wanted
 Last: constrained `jobs_dir` on both declarations, excluded bookkeeping dirs from `discover_job_dirs`, 685 tests + ruff clean, PR opened
-Next: Integrator review and merge; two residual defects listed below need owners
+Next: Integrator review and merge; three residual defects listed below need owners
 Blockers: none
 
 # SCHEMA: constrain jobs_dir to the layout every reader assumes

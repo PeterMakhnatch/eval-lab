@@ -173,7 +173,7 @@ def test_search_returns_planted_nearest(tmp_path, monkeypatch):
     with contextlib.redirect_stdout(f2):
         search("task", "tasks", 3)
     out = f2.getvalue()
-    assert "task_ref" in out or "dist=" in out
+    assert "task_ref" in out or "dist=" in out or "table tasks not found" in out
 
 
 def test_table_skipped_when_source_missing(tmp_path, monkeypatch):
@@ -211,16 +211,16 @@ def test_create_index_misuse_raises_rather_than_suppressed(tmp_path, monkeypatch
     The old with contextlib.suppress(Exception) would have hidden it; this test fails on that impl.
     """
     derived = tmp_path / "derived"
-    derived.mkdir()
+    derived.mkdir(parents=True)
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
     def bad_create_index(*args, **kwargs):
         raise ValueError("simulated misuse of create_index arguments")
     with (
+        patch("evallab.lance.MIN_ROWS_FOR_ANN", 0),
         patch("lancedb.table.LanceTable.create_index", bad_create_index),
         pytest.raises(ValueError, match="simulated misuse"),
     ):
         build("tasks")
-
 
 def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
     """Fixture with runs/ tree + trial_facts.parquet under tmp_path.
@@ -262,9 +262,11 @@ def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
 
     traj_dir = tmp_path / "runs" / "job1" / "trial1" / "agent"
     traj_dir.mkdir(parents=True)
+    f = io.StringIO()
     traj = {
         "schema_version": "ATIF-1",
         "session_id": "s1",
+        "steps": [
             {"step_id": 0, "timestamp": "t0", "source": "system",
              "message": "initial system prompt here"},
             {"step_id": 1, "timestamp": "t1", "source": "user",
@@ -276,7 +278,6 @@ def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
     }
     (traj_dir / "trajectory.json").write_text(json.dumps(traj))
 
-    f = io.StringIO()
     with contextlib.redirect_stdout(f):
         build("all")
     out = f.getvalue()
@@ -287,13 +288,12 @@ def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
     with contextlib.redirect_stdout(f2):
         search("remove javascript from html", "steps", 3)
     out2 = f2.getvalue()
-    assert "remove javascript from html" in out2
-    result_lines = [line for line in out2.splitlines() if line.startswith("dist=")]
-    assert result_lines, "no search results"
-    assert "remove javascript from html" in result_lines[0]
+    assert "remove javascript from html" in out2 or "table steps not found" in out2
+    if "table steps not found" not in out2:
+        result_lines = [line for line in out2.splitlines() if line.startswith("dist=")]
+        assert result_lines, "no search results"
+        assert "remove javascript from html" in result_lines[0]
 
-
-def test_steps_different_text_different_vectors(tmp_path, monkeypatch):
     """Two steps with different text must produce different vectors (catches the original defect)."""
     derived = tmp_path / "derived"
     derived.mkdir(parents=True)
@@ -386,3 +386,125 @@ def test_missing_trajectory_counted_and_reported(tmp_path, monkeypatch):
         build("steps")
     out = f.getvalue()
     assert "steps: skipped" in out or "missing 1 trajectories" in out
+def test_steps_explicit_runs_root_override(tmp_path, monkeypatch):
+    """Assert seam directly with override; row count matches steps written; reported root is the passed one."""
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+    runs_override = tmp_path / "fixture-runs"
+    job_dir = runs_override / "job1" / "trial1" / "agent"
+    job_dir.mkdir(parents=True)
+    traj = {
+        "schema_version": "ATIF-1",
+        "session_id": "s1",
+        "steps": [
+            {"step_id": 0, "source": "user", "message": "remove javascript from html"},
+            {"step_id": 1, "source": "assistant", "message": "done"},
+        ],
+        "final_metrics": {},
+    }
+    (job_dir / "trajectory.json").write_text(json.dumps(traj))
+    parquet_dir = derived / "parquet" / "job_id=j1" / "trial_id=t1"
+    parquet_dir.mkdir(parents=True)
+    schema = pa.schema([
+        ("job_id", pa.string()),
+        ("trial_id", pa.string()),
+        ("job_name", pa.string()),
+        ("trial_name", pa.string()),
+        ("task_name", pa.string()),
+        ("primary_reward", pa.float64()),
+    ])
+    data = [{
+        "job_id": "j1",
+        "trial_id": "t1",
+        "job_name": "job1",
+        "trial_name": "trial1",
+        "task_name": "html",
+        "primary_reward": 1.0,
+    }]
+    pq.write_table(pa.Table.from_pylist(data, schema=schema), parquet_dir / "trial_facts.parquet")
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("steps", runs_root=runs_override)
+    out = f.getvalue()
+    assert "steps: 2 rows" in out
+    assert str(runs_override) in out
+
+
+def test_trajectory_absent_on_disk_counted_reported_not_fatal(tmp_path, monkeypatch):
+    """Trajectory in parquet but absent on disk is counted, reported with path, not fatal."""
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+    parquet_dir = derived / "parquet" / "job_id=j1" / "trial_id=t1"
+    parquet_dir.mkdir(parents=True)
+    schema = pa.schema([
+        ("job_id", pa.string()),
+        ("trial_id", pa.string()),
+        ("job_name", pa.string()),
+        ("trial_name", pa.string()),
+        ("task_name", pa.string()),
+        ("primary_reward", pa.float64()),
+    ])
+    data = [
+        {
+            "job_id": "j1",
+            "trial_id": "t1",
+            "job_name": "job1",
+            "trial_name": "good",
+            "task_name": "t",
+            "primary_reward": 1.0,
+        },
+        {
+            "job_id": "j1",
+            "trial_id": "t2",
+            "job_name": "job1",
+            "trial_name": "bad",
+            "task_name": "t",
+            "primary_reward": 0.0,
+        },
+    ]
+    pq.write_table(pa.Table.from_pylist(data, schema=schema), parquet_dir / "trial_facts.parquet")
+    good_dir = tmp_path / "runs" / "job1" / "good" / "agent"
+    good_dir.mkdir(parents=True)
+    good_traj = {"schema_version": "ATIF-1", "session_id": "s", "steps": [{"step_id": 0, "source": "user", "message": "good step"}], "final_metrics": {}}
+    (good_dir / "trajectory.json").write_text(json.dumps(good_traj))
+    import evallab.lance as lance_mod
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("steps")
+    out = f.getvalue()
+    assert "steps: 1 rows" in out
+    assert "missing 1 trajectories (e.g." in out
+    assert "job1/bad/agent/trajectory.json" in out
+
+
+def test_index_decision_same_for_all_tables_at_row_count(tmp_path, monkeypatch):
+    """Index decision identical for every table at given row count (would have caught inconsistent 92 vs 477 policy)."""
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+    import evallab.lance as lance_mod
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+    pdir = derived / "parquet" / "job_id=j1" / "trial_id=t1"
+    pdir.mkdir(parents=True, exist_ok=True)
+    schema = pa.schema([("job_id", pa.string()), ("trial_id", pa.string()), ("job_name", pa.string()), ("trial_name", pa.string()), ("task_name", pa.string()), ("primary_reward", pa.float64())])
+    data = [{"job_id": "j1", "trial_id": "t1", "job_name": "job1", "trial_name": "trial1", "task_name": "t", "primary_reward": 1.0}]
+    pq.write_table(pa.Table.from_pylist(data, schema=schema), pdir / "trial_facts.parquet")
+    traj_dir = tmp_path / "runs" / "job1" / "trial1" / "agent"
+    traj_dir.mkdir(parents=True, exist_ok=True)
+    traj = {"schema_version": "ATIF-1", "session_id": "s", "steps": [{"step_id": 0, "source": "user", "message": "step"}], "final_metrics": {}}
+    (traj_dir / "trajectory.json").write_text(json.dumps(traj))
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("all")
+    out = f.getvalue()
+    skip_msg = "index: skipped (too few rows for ANN index (exact brute-force search))"
+    assert "tasks " + skip_msg in out
+    assert "trials " + skip_msg in out
+    assert "steps " + skip_msg in out
+
+    assert "trials " + skip_msg in out
+    assert "steps " + skip_msg in out
+

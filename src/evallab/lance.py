@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import tomllib
 from collections.abc import Sequence
@@ -28,7 +29,15 @@ from evallab.craft import (
     library_source,
     repository_root,
 )
-from evallab.paths import derived_root_from_environment
+from evallab.paths import derived_root_from_environment, shared_checkout_root
+
+
+MIN_ROWS_FOR_ANN = 1000
+"""Minimum rows to attempt ANN index.
+Below this, exact brute-force search is used (correct and fast at current corpus sizes;
+avoids LanceDB "dataset too small" and empty-cluster warnings). Applied uniformly to
+tasks, trials, steps so policy is consistent.
+"""
 
 
 class Embedder(Protocol):
@@ -51,20 +60,13 @@ class HashingEmbedder:
 
     dim: int = 256
 
-    def _stable_hash(self, token: str) -> int:
-        h = hashlib.md5(token.encode("utf-8")).digest()
-        return int.from_bytes(h[:4], "little") % self.dim
-
-    def _tokenize(self, text: str) -> list[str]:
-        return re.findall(r"\w+", text.lower())
-
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
         for text in texts:
             v = [0.0] * self.dim
-            for tok in self._tokenize(text):
-                idx = self._stable_hash(tok)
-                v[idx] += 1.0
+            for tok in re.findall(r"\w+", text.lower()):
+                h = int(hashlib.md5(tok.encode()).hexdigest(), 16) % self.dim
+                v[h] += 1
             norm = math.sqrt(sum(x * x for x in v)) or 1.0
             vectors.append([x / norm for x in v])
         return vectors
@@ -89,6 +91,35 @@ def _load_trajectory_steps(path: Path) -> list[dict] | None:
         return None
     steps = payload.get("steps")
     return [item for item in steps if isinstance(item, dict)] if isinstance(steps, list) else []
+
+
+def _resolve_runs_roots(runs_root: Path | None = None) -> list[Path]:
+    """Return ordered list of candidate runs roots to search for trajectories.
+    Prefers explicit override (CLI or EVALLAB_RUNS_ROOT), else shared primary
+    checkout's runs/ + research/evidence/runs/ (for promoted bundles).
+    Per-root counts reported; exact missing path kept in skip reasons.
+    """
+    if runs_root is None:
+        env = os.environ.get("EVALLAB_RUNS_ROOT")
+        if env:
+            runs_root = Path(env)
+    if runs_root is not None:
+        return [Path(runs_root).resolve()]
+    repo = repository_root()
+    primary = shared_checkout_root(repo)
+    cands = [
+        primary / "runs",
+        primary / "research/evidence/runs",
+        primary / "evidence/runs",
+    ]
+    seen: set[Path] = set()
+    roots: list[Path] = []
+    for c in cands:
+        rc = c.resolve()
+        if rc not in seen:
+            seen.add(rc)
+            roots.append(c)
+    return roots
 
 
 def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
@@ -128,21 +159,23 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
     db = lancedb.connect(str(root))
     tbl = db.create_table("tasks", data=data, mode="overwrite")
     index_reason: str | None = None
-    try:
-        tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
-        # cosine because the embedder L2-normalises all vectors to unit length;
-        # cosine distance on unit vectors is the appropriate metric for angular similarity
-    except RuntimeError as e:
-        if "Not enough rows to train" in str(e):
-            index_reason = "too few rows for ANN index (exact brute-force search)"
-        else:
+    n_rows = len(data)
+    if n_rows < MIN_ROWS_FOR_ANN:
+        index_reason = "too few rows for ANN index (exact brute-force search)"
+    else:
+        try:
+            tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
+        except RuntimeError as e:
+            if "Not enough rows to train" in str(e):
+                index_reason = "too few rows for ANN index (exact brute-force search)"
+            else:
+                raise
+        except Exception:
             raise
-    except Exception:
-        raise
-    return len(data), None, index_reason
+    return n_rows, None, index_reason
 
 
-def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
+def _build_trials(embedder: Embedder, root: Path, runs_root: Path | None = None) -> tuple[int, str | None, str | None]:
     derived = derived_root_from_environment(repository_root())
     parquet_root = derived
     if not parquet_root.is_dir():
@@ -150,11 +183,11 @@ def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str 
     parquets = list(parquet_root.rglob("trial_facts.parquet"))
     if not parquets:
         return 0, f"no trial_facts.parquet files ({parquet_root})", None
-    repo = repository_root()
-    runs_root = repo / "runs"
+    runs_roots = _resolve_runs_roots(runs_root)
     rows: list[dict] = []
     texts: list[str] = []
     skipped: list[str] = []
+    root_counts: dict[str, int] = {}
     arrow_tables: list[pa.Table] = []
     for p in parquets:
         try:
@@ -175,10 +208,18 @@ def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str 
         reward = row.get("primary_reward")
         exc = str(row.get("exception_class") or "")
         exc_phase = str(row.get("exception_phase") or "")
-        traj_path = runs_root / job_name / trial_name / "agent" / "trajectory.json"
-        steps = _load_trajectory_steps(traj_path) or []
+        steps = []
+        for rroot in runs_roots:
+            traj_path = rroot / job_name / trial_name / "agent" / "trajectory.json"
+            s = _load_trajectory_steps(traj_path) or []
+            if s:
+                root_key = str(rroot)
+                root_counts[root_key] = root_counts.get(root_key, 0) + 1
+                steps = s
+                break
         if not steps:
-            skipped.append(str(traj_path))
+            primary_traj = (runs_roots[0] / job_name / trial_name / "agent" / "trajectory.json") if runs_roots else Path("unknown")
+            skipped.append(str(primary_traj))
             text = f"{task_name} {agent_version} {exc} {exc_phase}".strip() or "empty"
         else:
             MAX_CHARS = 2048
@@ -218,25 +259,34 @@ def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str 
         if skipped:
             reason = f"missing {len(skipped)} trajectories (e.g. {skipped[0]})"
         return 0, reason, None
+    if root_counts:
+        counts_str = "; ".join(f"{k}: {v}" for k, v in sorted(root_counts.items()))
+        print(f"trials per-root trajectories: {counts_str}")
+    if skipped:
+        print(f"missing {len(skipped)} trajectories (e.g. {skipped[0]})")
     vectors = embedder.embed(texts)
     for i, v in enumerate(vectors):
         rows[i]["vector"] = v
     db = lancedb.connect(str(root))
     tbl = db.create_table("trials", data=rows, mode="overwrite")
     index_reason: str | None = None
-    try:
-        tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
-    except RuntimeError as e:
-        if "Not enough rows to train" in str(e):
-            index_reason = "too few rows for ANN index (exact brute-force search)"
-        else:
+    n_rows = len(rows)
+    if n_rows < MIN_ROWS_FOR_ANN:
+        index_reason = "too few rows for ANN index (exact brute-force search)"
+    else:
+        try:
+            tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
+        except RuntimeError as e:
+            if "Not enough rows to train" in str(e):
+                index_reason = "too few rows for ANN index (exact brute-force search)"
+            else:
+                raise
+        except Exception:
             raise
-    except Exception:
-        raise
-    return len(rows), None, index_reason
+    return n_rows, None, index_reason
 
 
-def _build_steps(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
+def _build_steps(embedder: Embedder, root: Path, runs_root: Path | None = None) -> tuple[int, str | None, str | None]:
     derived = derived_root_from_environment(repository_root())
     parquet_root = derived
     if not parquet_root.is_dir():
@@ -244,11 +294,11 @@ def _build_steps(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
     parquets = list(parquet_root.rglob("trial_facts.parquet"))
     if not parquets:
         return 0, f"no trial_facts.parquet files ({parquet_root})", None
-    repo = repository_root()
-    runs_root = repo / "runs"
+    runs_roots = _resolve_runs_roots(runs_root)
     rows: list[dict] = []
     texts: list[str] = []
     skipped: list[str] = []
+    root_counts: dict[str, int] = {}
     arrow_tables: list[pa.Table] = []
     for p in parquets:
         try:
@@ -266,10 +316,18 @@ def _build_steps(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
         trial_name = str(row.get("trial_name", ""))
         task_name = str(row.get("task_name") or "")
         reward = row.get("primary_reward")
-        traj_path = runs_root / job_name / trial_name / "agent" / "trajectory.json"
-        steps = _load_trajectory_steps(traj_path) or []
+        steps = []
+        for rroot in runs_roots:
+            traj_path = rroot / job_name / trial_name / "agent" / "trajectory.json"
+            s = _load_trajectory_steps(traj_path) or []
+            if s:
+                root_key = str(rroot)
+                root_counts[root_key] = root_counts.get(root_key, 0) + len(s)
+                steps = s
+                break
         if not steps:
-            skipped.append(str(traj_path))
+            primary_traj = (runs_roots[0] / job_name / trial_name / "agent" / "trajectory.json") if runs_roots else Path("unknown")
+            skipped.append(str(primary_traj))
             continue
         for step in steps:
             step_id = step.get("step_id")
@@ -296,25 +354,34 @@ def _build_steps(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
         if skipped:
             reason = f"missing {len(skipped)} trajectories (e.g. {skipped[0]})"
         return 0, reason, None
+    if root_counts:
+        counts_str = "; ".join(f"{k}: {v}" for k, v in sorted(root_counts.items()))
+        print(f"steps per-root trajectories: {counts_str}")
+    if skipped:
+        print(f"missing {len(skipped)} trajectories (e.g. {skipped[0]})")
     vectors = embedder.embed(texts)
     for i, v in enumerate(vectors):
         rows[i]["vector"] = v
     db = lancedb.connect(str(root))
     tbl = db.create_table("steps", data=rows, mode="overwrite")
     index_reason: str | None = None
-    try:
-        tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
-    except RuntimeError as e:
-        if "Not enough rows to train" in str(e):
-            index_reason = "too few rows for ANN index (exact brute-force search)"
-        else:
+    n_rows = len(rows)
+    if n_rows < MIN_ROWS_FOR_ANN:
+        index_reason = "too few rows for ANN index (exact brute-force search)"
+    else:
+        try:
+            tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
+        except RuntimeError as e:
+            if "Not enough rows to train" in str(e):
+                index_reason = "too few rows for ANN index (exact brute-force search)"
+            else:
+                raise
+        except Exception:
             raise
-    except Exception:
-        raise
-    return len(rows), None, index_reason
+    return n_rows, None, index_reason
 
 
-def build(table: str = "all") -> None:
+def build(table: str = "all", runs_root: Path | None = None) -> None:
     embedder: Embedder = HashingEmbedder()
     root = _lance_root()
     if table in ("tasks", "all"):
@@ -328,7 +395,7 @@ def build(table: str = "all") -> None:
             else:
                 print("tasks index: created")
     if table in ("trials", "all"):
-        n, reason, idx_reason = _build_trials(embedder, root)
+        n, reason, idx_reason = _build_trials(embedder, root, runs_root)
         if reason:
             print(f"trials: skipped ({reason})")
         else:
@@ -338,7 +405,7 @@ def build(table: str = "all") -> None:
             else:
                 print("trials index: created")
     if table in ("steps", "all"):
-        n, reason, idx_reason = _build_steps(embedder, root)
+        n, reason, idx_reason = _build_steps(embedder, root, runs_root)
         if reason:
             print(f"steps: skipped ({reason})")
         else:
@@ -370,13 +437,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     bp = sub.add_parser("build", help="build or refresh tables")
     bp.add_argument("--table", choices=["tasks", "trials", "steps", "all"], default="all")
+    bp.add_argument("--runs-root", type=Path, default=None, help="explicit override for runs root (also EVALLAB_RUNS_ROOT env); enables worktree support and custom locations")
     sp = sub.add_parser("search", help="nearest neighbour search")
     sp.add_argument("query")
     sp.add_argument("--table", default="tasks")
     sp.add_argument("--k", type=int, default=5)
     args = parser.parse_args(argv)
     if args.cmd == "build":
-        build(args.table)
+        build(args.table, getattr(args, "runs_root", None))
     elif args.cmd == "search":
         search(args.query, args.table, args.k)
     return 0

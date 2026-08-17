@@ -39,11 +39,14 @@ jobs:
       EVAL_LAB_PROFILE_DATABASE_URL: postgresql://evallab:profile-only@127.0.0.1:5432/evallab_speed_prof
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-        with:
-          enable-cache: true
-          python-version: "3.12"
-          version: "0.9.24"
+      - name: Install uv 0.9.24 from PyPI
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install Python 3.12
+        run: |
+          uv python install 3.12
+          echo "UV_PYTHON=3.12" >> $GITHUB_ENV
       - run: uv sync --locked
       - name: profile harness
         run: |

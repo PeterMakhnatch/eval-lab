@@ -6,6 +6,7 @@ import ast
 from pathlib import Path
 
 from evallab.contextpack import parse_front_matter, repo_root
+from evallab.lineage import compute_file_digest, resolve_lineage
 from evallab.repomap import (
     GENERATED_BY_MARKER,
     _function_map,
@@ -188,3 +189,51 @@ def test_operator_skills_exist_with_name_and_description() -> None:
         assert front_matter.get("name") == name
         description = front_matter.get("description")
         assert isinstance(description, str) and description.strip()
+
+def test_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
+    src = _sample_tree(tmp_path)
+    map_text = generate_map(src_dir=src, root=tmp_path)
+    fm, _body = parse_front_matter(map_text)
+    assert fm is not None
+    assert "inputs" in fm
+    assert isinstance(fm["inputs"], list)
+    assert len(fm["inputs"]) > 0
+    for item in fm["inputs"]:
+        assert isinstance(item, dict)
+        assert "path" in item and isinstance(item["path"], str)
+        assert "digest" in item and isinstance(item["digest"], str)
+        assert item["digest"].startswith("sha256:")
+        assert len(item["digest"]) == 71
+
+
+def test_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
+    src = _sample_tree(tmp_path)
+    map_path = tmp_path / "docs" / "repo-map.md"
+    map_path.parent.mkdir(parents=True, exist_ok=True)
+    first = write_map(output=map_path, src_dir=src, root=tmp_path)
+    second = write_map(output=map_path, src_dir=src, root=tmp_path)
+    assert first == second
+    assert map_path.read_text(encoding="utf-8") == first
+def test_recorded_digests_match_actual_file_digests(tmp_path: Path) -> None:
+    src = _sample_tree(tmp_path)
+    map_text = generate_map(src_dir=src, root=tmp_path)
+    fm, _body = parse_front_matter(map_text)
+    assert fm is not None and "inputs" in fm
+    for item in fm["inputs"]:
+        target_file = tmp_path / item["path"]
+        assert target_file.is_file()
+        expected = compute_file_digest(target_file)
+        assert item["digest"] == expected
+
+
+def test_lineage_resolution_on_generated_map(tmp_path: Path) -> None:
+    src = _sample_tree(tmp_path)
+    map_path = tmp_path / "docs" / "repo-map.md"
+    map_path.parent.mkdir(parents=True, exist_ok=True)
+    write_map(output=map_path, src_dir=src, root=tmp_path)
+
+    node = resolve_lineage("docs/repo-map.md", repo_root=tmp_path)
+    assert node.status == "resolved"
+    assert len(node.inputs) > 0
+    assert any(child.path == "src/evallab/cli.py" for child in node.inputs)
+    assert node.status != "unrecorded"

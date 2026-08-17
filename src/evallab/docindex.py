@@ -129,17 +129,28 @@ def render_index(docs: Sequence[DocMetadata]) -> str:
         "  - analyst",
         "  - runner",
         "  - operator",
-        "---",
-        "",
-        GENERATED_BY_MARKER,
-        "",
-        f"# {INDEX_TITLE}",
-        "",
-        "Front-matter driven index of `docs/`. Grouped by audience, then by",
-        "status. Historical documents are repeated in the Archive section so",
-        "an operator can see what is archived.",
-        "",
     ]
+    if ordered:
+        lines.append("inputs:")
+        for doc in ordered:
+            lines.append(f"  - path: {doc.path}")
+            lines.append(f"    digest: {doc.content_digest}")
+    else:
+        lines.append("inputs: []")
+    lines.extend(
+        [
+            "---",
+            "",
+            GENERATED_BY_MARKER,
+            "",
+            f"# {INDEX_TITLE}",
+            "",
+            "Front-matter driven index of `docs/`. Grouped by audience, then by",
+            "status. Historical documents are repeated in the Archive section so",
+            "an operator can see what is archived.",
+            "",
+        ]
+    )
 
     for audience in AUDIENCE_ORDER:
         lines.append(f"## {audience}")
@@ -271,6 +282,13 @@ def collect_check_issues(
                 CheckIssue(
                     index_rel,
                     f"audience must cover all four roles; missing {missing_roles}",
+                )
+            )
+        if "inputs" not in index_fm or not isinstance(index_fm["inputs"], list):
+            issues.append(
+                CheckIssue(
+                    index_rel,
+                    "inputs field in front-matter must be a list",
                 )
             )
 

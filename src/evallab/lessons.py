@@ -11,6 +11,7 @@ Generates `research/lessons.md` with header `generated-by: lessons v1`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Sequence
@@ -25,6 +26,7 @@ import pyarrow as pa
 from evallab.cohort import wilson_interval
 from evallab.craft import CRAFT_SCHEMA, CraftRecord, TaskSource, scan
 from evallab.facts import TRIAL_FACT_SCHEMA
+from evallab.lineage import compute_file_digest
 
 GENERATED_HEADER = "generated-by: lessons v1"
 DEFAULT_POWER_THRESHOLD = 5
@@ -93,7 +95,122 @@ class LessonsResult:
     underpowered_lessons: int
     lessons_by_view: dict[str, list[LessonRow]]
     records_summary: dict[str, int]
+    inputs: tuple[dict[str, str], ...] = ()
 
+def _relative_path(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def collect_lessons_inputs(
+    root: Path,
+    sql_path: Path | None = None,
+    *,
+    trial_parquet_partition_limit: int = 100,
+) -> list[dict[str, str]]:
+    """Collect all upstream input files aggregated by the lessons generator."""
+    resolved_sql = sql_path if sql_path is not None else root / SQL_LESSONS_PATH
+    inputs: list[dict[str, str]] = []
+
+    # 1. SQL view file
+    if resolved_sql.is_file():
+        inputs.append(
+            {
+                "path": _relative_path(resolved_sql, root),
+                "digest": compute_file_digest(resolved_sql),
+            }
+        )
+
+    # 2. Craft sources
+    craft_parquet = root / "derived/parquet/craft/craft.parquet"
+    if craft_parquet.is_file():
+        inputs.append(
+            {
+                "path": _relative_path(craft_parquet, root),
+                "digest": compute_file_digest(craft_parquet),
+            }
+        )
+    else:
+        task_dirs: list[Path] = []
+        lib_tasks = root / "library/tasks"
+        if lib_tasks.is_dir():
+            for p in sorted(lib_tasks.iterdir()):
+                if p.is_dir() and (p / "task.toml").is_file():
+                    task_dirs.append(p / "task.toml")
+        demos = root / "research/explorations/harbor-021/demos/tasks"
+        if demos.is_dir():
+            for p in sorted(demos.iterdir()):
+                if p.is_dir() and (p / "task.toml").is_file():
+                    task_dirs.append(p / "task.toml")
+        for tf in task_dirs:
+            inputs.append(
+                {
+                    "path": _relative_path(tf, root),
+                    "digest": compute_file_digest(tf),
+                }
+            )
+
+    # 3. Observation records
+    obs_dir = root / "research/observations"
+    if obs_dir.is_dir():
+        for md_path in sorted(obs_dir.rglob("*.md")):
+            if md_path.name in {"CHECKLIST.md", "TEMPLATE.md"}:
+                continue
+            if md_path.is_file():
+                inputs.append(
+                    {
+                        "path": _relative_path(md_path, root),
+                        "digest": compute_file_digest(md_path),
+                    }
+                )
+
+    # 4. Analysis sidecars
+    candidate_dirs = [
+        root / "derived/analysis",
+        root / "research/analysis",
+        root / "tests/fixtures/explorer/analyses",
+        root / "research/explorations/harbor-021/captures/analyze",
+    ]
+    for cdir in candidate_dirs:
+        if not cdir.is_dir():
+            continue
+        for path in sorted(cdir.rglob("analysis.json")):
+            if path.is_file():
+                inputs.append(
+                    {
+                        "path": _relative_path(path, root),
+                        "digest": compute_file_digest(path),
+                    }
+                )
+
+    # 5. Trial facts parquet partitions (if present)
+    trial_parquet_files = sorted(root.glob("derived/parquet/**/trial_facts.parquet"))
+    if trial_parquet_files:
+        if len(trial_parquet_files) <= trial_parquet_partition_limit:
+            for pf in trial_parquet_files:
+                if pf.is_file():
+                    inputs.append(
+                        {
+                            "path": _relative_path(pf, root),
+                            "digest": compute_file_digest(pf),
+                        }
+                    )
+        else:
+            # Composite digest over sorted member digests for large collections
+            h = hashlib.sha256()
+            for pf in trial_parquet_files:
+                h.update(compute_file_digest(pf).encode("utf-8"))
+            inputs.append(
+                {
+                    "path": "derived/parquet/**/trial_facts.parquet",
+                    "digest": f"sha256:{h.hexdigest()}",
+                }
+            )
+
+    inputs.sort(key=lambda x: x["path"])
+    return inputs
 
 # --------------------------------------------------------------------------- #
 # Data Loaders
@@ -545,6 +662,7 @@ def build_lessons(
     *,
     power_threshold: int = DEFAULT_POWER_THRESHOLD,
     sql_path: Path | None = None,
+    generated_at: datetime | None = None,
 ) -> LessonsResult:
     """Build and evaluate statistical lesson aggregation views across repo data."""
     craft_records = load_craft_records(root)
@@ -576,16 +694,17 @@ def build_lessons(
         "observation_records": len(observations),
     }
 
+    inputs = collect_lessons_inputs(root, sql_path=sql_path)
     return LessonsResult(
-        generated_at=datetime.now(UTC),
+        generated_at=generated_at if generated_at is not None else datetime.now(UTC),
         power_threshold=power_threshold,
         total_lessons=len(all_lessons),
         powered_lessons=powered,
         underpowered_lessons=underpowered,
         lessons_by_view=lessons_by_view,
         records_summary=records_summary,
+        inputs=tuple(inputs),
     )
-
 
 # --------------------------------------------------------------------------- #
 # Markdown Report Generation
@@ -603,38 +722,56 @@ def render_lessons_markdown(result: LessonsResult) -> str:
     """Render structured markdown report matching research/lessons.md specification."""
     rec_sum = result.records_summary
     lines: list[str] = [
-        f"<!-- {GENERATED_HEADER} -->",
-        "# Statistical Lessons & Aggregation Views",
-        "",
-        f"- **Generated at:** {result.generated_at.strftime('%Y-%m-%d %H:%M:%SZ')}",
-        (
-            f"- **Statistical Gating:** Power threshold $n \\ge {result.power_threshold}$, "
-            "Wilson 95% confidence interval"
-        ),
-        (
-            f"- **Corpus Summary:** {rec_sum.get('craft_records', 0)} craft tasks, "
-            f"{rec_sum.get('trial_facts', 0)} trials, "
-            f"{rec_sum.get('observation_records', 0)} observation records, "
-            f"{rec_sum.get('analysis_sidecars', 0)} analysis sidecars"
-        ),
-        (
-            f"- **Findings Gate:** {result.powered_lessons} statistically powered finding(s), "
-            f"{result.underpowered_lessons} observation row(s) gated with `insufficient n`"
-        ),
-        "",
         "---",
-        "",
-        "## 1. Outcome by Verifier Type (`v_outcome_by_verifier_type`)",
-        "",
-        (
-            "Cross-tabulation of task verifier architecture against trial pass rates, "
-            "exceptions, duration, and cost."
-        ),
-        "",
-        "| Source Repo | Verifier Type | n | Passed | Pass Rate | Wilson 95% CI | Exceptions | "
-        "Exception Rate | Status | Finding |",
-        "|---|---|---:|---:|---:|---|---:|---:|---|---|",
+        "status: living",
+        "audience:",
+        "  - builder",
+        "  - analyst",
     ]
+    if result.inputs:
+        lines.append("inputs:")
+        for inp in result.inputs:
+            lines.append(f"  - path: {inp['path']}")
+            lines.append(f"    digest: {inp['digest']}")
+    else:
+        lines.append("inputs: []")
+    lines.extend(
+        [
+            "---",
+            "",
+            f"<!-- {GENERATED_HEADER} -->",
+            "# Statistical Lessons & Aggregation Views",
+            "",
+            f"- **Generated at:** {result.generated_at.strftime('%Y-%m-%d %H:%M:%SZ')}",
+            (
+                f"- **Statistical Gating:** Power threshold $n \\ge {result.power_threshold}$, "
+                "Wilson 95% confidence interval"
+            ),
+            (
+                f"- **Corpus Summary:** {rec_sum.get('craft_records', 0)} craft tasks, "
+                f"{rec_sum.get('trial_facts', 0)} trials, "
+                f"{rec_sum.get('observation_records', 0)} observation records, "
+                f"{rec_sum.get('analysis_sidecars', 0)} analysis sidecars"
+            ),
+            (
+                f"- **Findings Gate:** {result.powered_lessons} statistically powered finding(s), "
+                f"{result.underpowered_lessons} observation row(s) gated with `insufficient n`"
+            ),
+            "",
+            "---",
+            "",
+            "## 1. Outcome by Verifier Type (`v_outcome_by_verifier_type`)",
+            "",
+            (
+                "Cross-tabulation of task verifier architecture against trial pass rates, "
+                "exceptions, duration, and cost."
+            ),
+            "",
+            "| Source Repo | Verifier Type | n | Passed | Pass Rate | Wilson 95% CI | Exceptions | "
+            "Exception Rate | Status | Finding |",
+            "|---|---|---:|---:|---:|---|---:|---:|---|---|",
+        ]
+    )
 
     verifier_lessons = result.lessons_by_view.get("v_outcome_by_verifier_type", [])
     if verifier_lessons:
@@ -757,10 +894,16 @@ def generate_lessons_file(
     *,
     power_threshold: int = DEFAULT_POWER_THRESHOLD,
     sql_path: Path | None = None,
+    generated_at: datetime | None = None,
 ) -> Path:
     """Generate research/lessons.md from repository evidence."""
     target = output_path if output_path is not None else root / "research/lessons.md"
-    result = build_lessons(root, power_threshold=power_threshold, sql_path=sql_path)
+    result = build_lessons(
+        root,
+        power_threshold=power_threshold,
+        sql_path=sql_path,
+        generated_at=generated_at,
+    )
     markdown = render_lessons_markdown(result)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(markdown, encoding="utf-8")

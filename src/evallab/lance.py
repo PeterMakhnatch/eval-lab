@@ -6,7 +6,6 @@ Default embedder is deterministic lexical (hashing) only; no semantics.
 from __future__ import annotations
 
 import argparse
-import contextlib
 import hashlib
 import math
 import re
@@ -76,12 +75,12 @@ def _lance_root() -> Path:
     return root
 
 
-def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None]:
+def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
     repo = repository_root()
     source = library_source(repo)
     task_dirs = discover_tasks(source.root)
     if not task_dirs:
-        return 0, "no library tasks discovered"
+        return 0, "no library tasks discovered", None
     task_refs: list[str] = []
     instructions: list[str] = []
     for td in task_dirs:
@@ -104,7 +103,7 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None]:
         except Exception:
             continue
     if not instructions:
-        return 0, "no tasks with instruction.md"
+        return 0, "no tasks with instruction.md", None
     vectors = embedder.embed(instructions)
     data = [
         {"task_ref": tr, "instruction": instr, "vector": vec}
@@ -114,19 +113,29 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None]:
     if "tasks" in db.table_names():
         db.drop_table("tasks")
     tbl = db.create_table("tasks", data=data, mode="create")
-    with contextlib.suppress(Exception):
-        tbl.create_index("vector")
-    return len(data), None
+    index_reason: str | None = None
+    try:
+        tbl.create_index(vector_column_name="vector", metric="cosine")
+        # cosine because the embedder L2-normalises all vectors to unit length;
+        # cosine distance on unit vectors is the appropriate metric for angular similarity
+    except RuntimeError as e:
+        if "Not enough rows to train" in str(e):
+            index_reason = "too few rows for ANN index (exact brute-force search)"
+        else:
+            raise
+    except Exception:
+        raise
+    return len(data), None, index_reason
 
 
-def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None]:
+def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
     derived = derived_root_from_environment(repository_root())
     parquet_root = derived / "parquet"
     if not parquet_root.is_dir():
-        return 0, "no derived/parquet directory"
+        return 0, "no derived/parquet directory", None
     parquets = list(parquet_root.rglob("trial_facts.parquet"))
     if not parquets:
-        return 0, "no trial_facts.parquet files"
+        return 0, "no trial_facts.parquet files", None
     rows: list[dict] = []
     texts: list[str] = []
     for p in parquets:
@@ -156,7 +165,7 @@ def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None]:
         except Exception:
             continue
     if not texts:
-        return 0, "no parsable trial rows"
+        return 0, "no parsable trial rows", None
     vectors = embedder.embed(texts)
     for i, v in enumerate(vectors):
         rows[i]["vector"] = v
@@ -164,26 +173,44 @@ def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None]:
     if "trials" in db.table_names():
         db.drop_table("trials")
     tbl = db.create_table("trials", data=rows, mode="create")
-    with contextlib.suppress(Exception):
-        tbl.create_index("vector")
-    return len(rows), None
+    index_reason: str | None = None
+    try:
+        tbl.create_index(vector_column_name="vector", metric="cosine")
+        # cosine because the embedder L2-normalises all vectors to unit length;
+        # cosine distance on unit vectors is the appropriate metric for angular similarity
+    except RuntimeError as e:
+        if "Not enough rows to train" in str(e):
+            index_reason = "too few rows for ANN index (exact brute-force search)"
+        else:
+            raise
+    except Exception:
+        raise
+    return len(rows), None, index_reason
 
 
 def build(table: str = "all") -> None:
     embedder: Embedder = HashingEmbedder()
     root = _lance_root()
     if table in ("tasks", "all"):
-        n, reason = _build_tasks(embedder, root)
+        n, reason, idx_reason = _build_tasks(embedder, root)
         if reason:
             print(f"tasks: skipped ({reason})")
         else:
             print(f"tasks: {n} rows")
+            if idx_reason:
+                print(f"tasks index: skipped ({idx_reason})")
+            else:
+                print("tasks index: created")
     if table in ("trials", "all"):
-        n, reason = _build_trials(embedder, root)
+        n, reason, idx_reason = _build_trials(embedder, root)
         if reason:
             print(f"trials: skipped ({reason})")
         else:
             print(f"trials: {n} rows")
+            if idx_reason:
+                print(f"trials index: skipped ({idx_reason})")
+            else:
+                print("trials index: created")
 
 
 def search(query: str, table: str = "tasks", k: int = 5) -> None:

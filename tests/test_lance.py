@@ -5,9 +5,11 @@ import io
 import json
 import subprocess
 import sys
+from unittest.mock import patch
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from evallab.lance import HashingEmbedder, build, search
 
@@ -131,3 +133,39 @@ def test_table_skipped_when_source_missing(tmp_path, monkeypatch):
         build("trials")
     out = f.getvalue()
     assert "trials: skipped" in out
+
+def test_build_reports_index_status_per_table(tmp_path, monkeypatch):
+    """After build, output must show either index created or a skip reason for each table.
+    This would have passed silently under blanket suppress(Exception).
+    """
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("all")
+    out = f.getvalue()
+    # tasks always built here (synthetic library? but in practice reports status)
+    assert "tasks index: skipped" in out or "tasks index: created" in out
+    # trials skipped entirely, but when built would report too; here just check no crash
+    assert (
+        "trials: skipped" in out
+        or "trials index: skipped" in out
+        or "trials index: created" in out
+    )
+
+
+def test_create_index_misuse_raises_rather_than_suppressed(tmp_path, monkeypatch):
+    """A genuine error from create_index (not the small-row case) must propagate.
+    The old with contextlib.suppress(Exception) would have hidden it; this test fails on that impl.
+    """
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+    def bad_create_index(*args, **kwargs):
+        raise ValueError("simulated misuse of create_index arguments")
+    with (
+        patch("lancedb.table.LanceTable.create_index", bad_create_index),
+        pytest.raises(ValueError, match="simulated misuse"),
+    ):
+        build("tasks")

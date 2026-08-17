@@ -64,3 +64,10 @@ Idempotent: re-running produces identical row counts, no duplicates.
 Skips cleanly (with reason) when source data absent (no library tasks, no derived/parquet).
 
 Run after changes to library/tasks or after new evidence promotion.
+
+## Vector index
+
+`create_index` uses `vector_column_name="vector", metric="cosine"`.
+Cosine is the correct metric because the embedder L2-normalises every vector to unit length; cosine distance then exactly captures angular similarity (equivalent to dot product on the unit sphere).
+
+When a table has <256 rows LanceDB raises on index creation ("Not enough rows to train PQ"); this is caught specifically and reported as "index: skipped (too few rows for ANN index (exact brute-force search))". Search then falls back to exact brute-force scan over the table, which is the right behaviour at the current corpus size. The skip reason is printed by `build` so the user always knows whether ANN or exact search applies.

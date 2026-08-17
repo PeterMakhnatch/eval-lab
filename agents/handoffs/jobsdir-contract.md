@@ -156,6 +156,23 @@ Run in `.worktrees/jobsdir-contract`:
   there was no write to guard against. No paid agent executed; no `launchctl`;
   no writes to the primary checkout; no `docker compose`.
 
+GitHub, PR #68, head `5b51e12` — **all five checks pass**: `lint`, `ty`,
+`profile`, `test (3.12)`, `test (3.14)` (run 31984332420). Per `agents/CHECKS.md`
+green is a property of the exact head, so the handoff-only commit that adds these
+lines needs its own confirmation before any merge.
+
+**One flake observed, recorded for the perf lane.** The first head `efa9aba`
+failed `test_profile_harness.py::test_injected_slowdown_raises_named_path_median`
+on `test (3.12)` only: `assert 82.315 >= 94.207 + 40.0`. The *baseline* median
+(94.2 ms) exceeded the run carrying an injected 80 ms delay (82.3 ms), so the
+baseline absorbed ~90 ms of runner noise — the assertion cannot fail that way
+from a logic change. Not attributable to this diff: `_time_digest`
+(`scripts/profile/harness.py:267-293`) uses a stub `trial_loader` and never calls
+`discover_job_dirs`, the only function I changed in `results.py`. Confirmed by
+construction — the second commit edited **only this handoff file** and the test
+went fail → pass. It passed 4/4 locally. Reported to `PerfRebaseline` and
+`PerfGateDiag`.
+
 Capability labels: the schema refusal and the discovery fix are **proven live**
 (exercised directly against the real readers, not fixtures). The Harbor inventory
 is **source-verified, not executed** — no Harbor command was run.

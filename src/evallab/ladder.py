@@ -154,7 +154,7 @@ class LadderGridSpec(ContractModel):
     tasks: list[str | TaskSpec] = Field(min_length=1)
     agents: list[str | AgentSpec] = Field(min_length=1)
     preambles: list[str] = Field(default_factory=lambda: ["none"])
-    attempts: list[int] | int = Field(default_factory=lambda: [1])
+    attempts: list[int] = Field(default_factory=lambda: [1])
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
@@ -204,7 +204,7 @@ class LadderGridSpec(ContractModel):
                 normalized.append(item)
         return normalized
 
-    @field_validator("attempts")
+    @field_validator("attempts", mode="before")
     @classmethod
     def normalize_attempts(cls, value: list[int] | int) -> list[int]:
         if isinstance(value, int):

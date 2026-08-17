@@ -36,3 +36,12 @@ settings(max_examples=150, stateful_step_count=25, deadline=None)
 
 This bound keeps the entire file under ~60 seconds in CI even on slower runners.
 
+## Machine-local corpus data
+
+`derived/`, `runs/`, `queue/`, and the external Harbor corpora are machine-local and absent in CI.
+
+A test needing corpus-shaped data builds a fixture at the real layout and injects it.
+
+A test that genuinely requires the real corpus must `skipif` with a reason naming the missing path.
+
+A test that passes only on the author's machine is a test that does not exist.

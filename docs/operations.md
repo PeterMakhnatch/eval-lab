@@ -629,3 +629,15 @@ Only small representative runs belong in `research/evidence/runs/`:
 For large evidence, leave the job in ignored `runs/`, ingest its metadata, and
 write a small report with digests and a durable artifact URI once object storage
 is configured.
+## CI: pinned uv via PyPI, not marketplace action
+
+The three quality workflows (`ci.yml`, `perf.yml`, `typecheck.yml`) install `uv==0.9.24` with `python3 -m pip install --user uv==0.9.24` followed by `uv python install <ver>` and `UV_PYTHON` export. This replaces the former `astral-sh/setup-uv` step.
+
+Rationale (preserves the two invariants that existed before the outage):
+
+- Exact version pin: `uv==0.9.24` is passed verbatim to pip; no "latest" or floating installer.
+- Supply-chain posture: PyPI (already trusted by `uv sync --locked` and the repo's own lockfile) rather than a new codeload.github.com dependency. No new trust root, no unpinned `curl | sh`, no additional marketplace action.
+
+`uv` lands in `$HOME/.local/bin` (added to `$GITHUB_PATH`) and `uv python install` provisions the exact matrix interpreters (3.12, 3.14) so downstream `uv sync`/`uv run` continue to honour `UV_PYTHON` exactly as before. No cache step was added; correctness over convenience. No other job steps or commands were altered.
+
+This change was made because a single throttled codeload path made every job unrunnable even when the rest of the pipeline was healthy. The PyPI path is a different CDN and has never exhibited the same 429/502/503 cascade in our runs. The PR that introduced it will itself run the modified workflows; a green result on that PR is the verification that the jobs remain executable.

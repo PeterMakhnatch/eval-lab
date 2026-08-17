@@ -20,11 +20,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-        with:
-          enable-cache: true
-          python-version: "3.12"
-          version: "0.9.24"
+      - name: Install uv 0.9.24 from PyPI
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install Python 3.12
+        run: |
+          uv python install 3.12
+          echo "UV_PYTHON=3.12" >> $GITHUB_ENV
       - run: uv sync --locked
       - run: uv run ruff check .
       - name: Documentation front-matter and index freshness
@@ -39,11 +42,14 @@ jobs:
         python-version: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-        with:
-          enable-cache: true
-          python-version: ${{ matrix.python-version }}
-          version: "0.9.24"
+      - name: Install uv 0.9.24 from PyPI
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install Python ${{ matrix.python-version }}
+        run: |
+          uv python install ${{ matrix.python-version }}
+          echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
       - run: uv sync --locked
       - run: uv run pytest
       - if: matrix.python-version == '3.12'

@@ -67,8 +67,10 @@ def _check_edge(
     child_fk: str,
     parent_pk: str,
     sample_limit: int = 5,
-) -> tuple[int, list[str]]:
-    """Return (orphan_count, sample_ids) for child rows missing parent."""
+) -> tuple[int | None, list[str]]:
+    """Return (orphan_count, sample_ids) for child rows missing parent.
+    Returns (None, samples) if count query yields no row (unmeasured edge).
+    """
     q = f"""
         SELECT c.{child_fk} AS orphan_id
         FROM {child} c
@@ -82,13 +84,17 @@ def _check_edge(
         LEFT JOIN {parent} p ON c.{child_fk} = p.{parent_pk}
         WHERE p.{parent_pk} IS NULL
     """
-    orphan_count = conn.execute(count_q).fetchone()[0]
+    row = conn.execute(count_q).fetchone()
+    if row is None:
+        samples = [str(r[0]) for r in rows]
+        return None, samples
+    orphan_count = row[0]
     samples = [str(r[0]) for r in rows]
     return orphan_count, samples
-
-
 def check_spine(conn: duckdb.DuckDBPyConnection | None = None) -> dict[str, Any]:
-    """Run all spine edge checks. Return report dict with counts/samples."""
+    """Run all spine edge checks. Return report dict with counts/samples.
+    Edges with count=None are marked unmeasured; CLI must exit non-zero.
+    """
     if conn is None:
         conn = _get_conn()
         _load_fallbacks(conn)
@@ -99,27 +105,38 @@ def check_spine(conn: duckdb.DuckDBPyConnection | None = None) -> dict[str, Any]
         ("analysis_invocations", "trials", "source_trial_id", "id", "analysis → trial"),
         ("observation_records", "trials", "trial_id", "id", "observation → trial"),
     ]
-    report: dict[str, Any] = {"edges": {}, "total_orphans": 0}
+    report: dict[str, Any] = {"edges": {}, "total_orphans": 0, "unmeasured_edges": 0}
     for child, parent, fk, pk, label in edges:
         count, samples = _check_edge(conn, child, parent, fk, pk)
-        report["edges"][label] = {"orphans": count, "samples": samples}
-        report["total_orphans"] += count
+        if count is None:
+            report["edges"][label] = {"orphans": None, "samples": samples, "status": "unmeasured"}
+            report["unmeasured_edges"] += 1
+        else:
+            report["edges"][label] = {"orphans": count, "samples": samples}
+            report["total_orphans"] += count
     return report
 
 
 def print_report(report: dict[str, Any]) -> None:
-    """Emit actionable report: counts + samples, never bare boolean."""
+    """Emit actionable report: counts + samples, never bare boolean.
+    Distinguishes measured-zero from unmeasured (None count).
+    """
     print("Join spine check (E05)")
     for label, data in report["edges"].items():
-        n = data["orphans"]
-        if n == 0:
+        n = data.get("orphans")
+        if n is None:
+            print(f"  {label}: unmeasured (count query returned no row)")
+        elif n == 0:
             print(f"  {label}: 0 orphans")
         else:
             samples = ", ".join(data["samples"][:3])
             print(f"  {label}: {n} orphans, e.g. {samples}")
     total = report["total_orphans"]
+    unmeas = report.get("unmeasured_edges", 0)
     print(f"Total orphans across spine: {total}")
-    if total > 0:
+    if unmeas > 0:
+        print(f"Unmeasured edges: {unmeas}")
+    if total > 0 or unmeas > 0:
         print("Spine broken: downstream numbers describe wrong population.")
 
 
@@ -143,8 +160,9 @@ def main(argv: list[str] | None = None) -> int:
             _ = derived_root_from_environment(Path.cwd())
     report = check_spine(conn)
     print_report(report)
-    return 1 if report["total_orphans"] > 0 else 0
-
+    if report.get("unmeasured_edges", 0) > 0 or report["total_orphans"] > 0:
+        return 1
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

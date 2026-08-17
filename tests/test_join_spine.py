@@ -104,3 +104,31 @@ def test_real_local_corpus_no_orphans() -> None:
     """Optional: run against real corpus if present; record findings in handoff if orphans."""
     # Would populate from derived_root or db; skipped here.
     pass
+def test_unmeasured_count_yields_none_marks_edge_unmeasured_and_nonzero_exit() -> None:
+    """When count yields no row: marks unmeasured + nonzero exit (crashes old [0])."""
+    from evallab.spine import _check_edge, _load_fallbacks  # type: ignore[attr-defined]
+
+    class FakeResult:
+        def fetchone(self):
+            return None
+        def fetchall(self):
+            return []
+
+    class FakeConn:
+        def __init__(self):
+            self._real = duckdb.connect(":memory:")
+            _load_fallbacks(self._real)
+            _populate_healthy(self._real)
+        def execute(self, q):
+            if "SELECT count(*)" in q:
+                return FakeResult()
+            return self._real.execute(q)
+
+    fake_conn = FakeConn()
+    count, samples = _check_edge(fake_conn, "trials", "jobs", "job_id", "id")
+    assert count is None
+    report = check_spine(fake_conn)
+    assert report["edges"]["trial → job"]["orphans"] is None
+    assert report.get("unmeasured_edges", 0) > 0
+    assert report["total_orphans"] == 0
+    # CLI exit 1 on unmeasured

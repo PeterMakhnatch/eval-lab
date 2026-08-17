@@ -36,6 +36,7 @@ TOP_LEVEL_COMMANDS = (
     "analyze",
     "db",
     "lineage",
+    "analyst",
     "card",
     "ladder",
     "trace",
@@ -59,6 +60,9 @@ NESTED_COMMANDS = (
     ("analyze", "agreement"),
     ("db", "init"),
     ("db", "list"),
+    ("analyst", "run"),
+    ("analyst", "list"),
+    ("analyst", "show"),
     ("card", "generate"),
     ("ladder", "generate"),
 )

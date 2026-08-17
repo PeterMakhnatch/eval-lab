@@ -7,7 +7,7 @@ audience:
 
 # Platform Contracts (E00)
 
-This module (`src/evallab/contracts.py`) defines the five §2.1 entities that had no prior model. They are the frozen interface spine that all later epics bind to (T2).
+All pydantic v2 contract models live in `src/evallab/schemas.py` per platform-architecture v2 §2.1. The five §2.1 entities below are the frozen interface spine that all later epics bind to (T2).
 
 ## Entities implemented here
 
@@ -46,7 +46,7 @@ A test (`tests/test_contracts.py:test_golden_schemas_match_live`) asserts byte-f
 uv run python -c '
 import json
 from pathlib import Path
-from evallab.contracts import Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict
+from evallab.schemas import Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict
 fixtures = Path("tests/fixtures/contracts")
 for Model in [Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict]:
     schema = Model.model_json_schema()
@@ -73,7 +73,7 @@ A validator that never rejects is not a validator; these tests cover the contrac
 ## Usage
 
 ```python
-from evallab.contracts import Suite, AnalysisRecord, ...
+from evallab.schemas import Suite, AnalysisRecord, ...
 ```
 
 All models inherit `ContractModel` (extra="forbid", strict). schema_version: Literal[1] on every record.

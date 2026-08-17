@@ -5,7 +5,6 @@ CI has no PostgreSQL or derived corpus — tests use tmp_path and in-memory Duck
 """
 
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -264,34 +263,52 @@ def test_resolve_discovery_ids_parsing(tmp_path: Path) -> None:
     assert "01KZZCN7X9PA643W1QCKQNNNY5" in ids
 
 
-def test_cli_verdict_record_and_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_verdict_record_and_list(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """CLI records a verdict and lists current verdicts, proving the round trip."""
     _create_sample_discoveries_journal(tmp_path)
 
-    code = cli.run_cli(
-        [
-            "verdict",
-            SAMPLE_DISCOVERY_HEADER_ID,
-            "accepted",
-            "--by",
-            "Peter Makhnatch",
-            "--note",
-            "Verified via CLI",
-        ],
-        workspace=tmp_path,
-    )
-    assert code == 0
-    out, _ = capsys.readouterr()
-    assert f"Recorded verdict for {SAMPLE_DISCOVERY_HEADER_ID}: accepted by Peter Makhnatch" in out
+    with duckdb.connect(":memory:") as con:
+        execute_verdicts_views(con)
+        orig_record = record_verdict
+        monkeypatch.setattr(
+            "evallab.verdicts.record_verdict",
+            lambda *args, **kwargs: orig_record(*args, duckdb_conn=con, **kwargs),
+        )
+        monkeypatch.setattr(
+            "evallab.verdicts.list_current_verdicts_from_catalog",
+            lambda database_url=None, status=None: list_current_verdicts_from_duckdb(
+                con, status=status
+            ),
+        )
 
-    # CLI list returns the recorded verdict
-    code_list = cli.run_cli(["verdict", "list"], workspace=tmp_path)
-    assert code_list == 0
-    out_list, _ = capsys.readouterr()
-    assert SAMPLE_DISCOVERY_HEADER_ID in out_list
-    assert "accepted" in out_list
-    assert "Peter Makhnatch" in out_list
+        code = cli.run_cli(
+            [
+                "verdict",
+                SAMPLE_DISCOVERY_HEADER_ID,
+                "accepted",
+                "--by",
+                "Peter Makhnatch",
+                "--note",
+                "Verified via CLI",
+            ],
+            workspace=tmp_path,
+        )
+        assert code == 0
+        out, _ = capsys.readouterr()
+        assert (
+            f"Recorded verdict for {SAMPLE_DISCOVERY_HEADER_ID}: accepted by Peter Makhnatch"
+            in out
+        )
 
+        # CLI list returns the recorded verdict
+        code_list = cli.run_cli(["verdict", "list"], workspace=tmp_path)
+        assert code_list == 0
+        out_list, _ = capsys.readouterr()
+        assert SAMPLE_DISCOVERY_HEADER_ID in out_list
+        assert "accepted" in out_list
+        assert "Peter Makhnatch" in out_list
 def test_cli_verdict_refusal_unknown_id(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -375,46 +392,72 @@ def test_format_verdict_history_table() -> None:
     assert "pending" in rendered
     assert "accepted" in rendered
 
-def test_cli_verdict_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_verdict_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """CLI supports --json for machine-readable output."""
     _create_sample_discoveries_journal(tmp_path)
 
-    code = cli.run_cli(
-        [
-            "verdict",
-            SAMPLE_DISCOVERY_HEADER_ID,
-            "needs_evidence",
-            "--by",
-            "Peter Makhnatch",
-            "--note",
-            "Needs more samples",
-            "--json",
-        ],
-        workspace=tmp_path,
-    )
-    assert code == 0
-    out, _ = capsys.readouterr()
-    data = json.loads(out)
-    assert data["discovery_id"] == SAMPLE_DISCOVERY_HEADER_ID
-    assert data["status"] == "needs_evidence"
-    assert data["by"] == "Peter Makhnatch"
-    assert data["note"] == "Needs more samples"
+    with duckdb.connect(":memory:") as con:
+        execute_verdicts_views(con)
+        orig_record = record_verdict
+        monkeypatch.setattr(
+            "evallab.verdicts.record_verdict",
+            lambda *args, **kwargs: orig_record(*args, duckdb_conn=con, **kwargs),
+        )
 
+        code = cli.run_cli(
+            [
+                "verdict",
+                SAMPLE_DISCOVERY_HEADER_ID,
+                "needs_evidence",
+                "--by",
+                "Peter Makhnatch",
+                "--note",
+                "Needs more samples",
+                "--json",
+            ],
+            workspace=tmp_path,
+        )
+        assert code == 0
+        out, _ = capsys.readouterr()
+        data = json.loads(out)
+        assert data["discovery_id"] == SAMPLE_DISCOVERY_HEADER_ID
+        assert data["status"] == "needs_evidence"
+        assert data["by"] == "Peter Makhnatch"
+        assert data["note"] == "Needs more samples"
 
-def test_cli_verdict_history_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_verdict_history_command(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """CLI history subcommand handles history inspection."""
     _create_sample_discoveries_journal(tmp_path)
 
-    # With no discovery ID provided
-    code_missing = cli.run_cli(["verdict", "history"], workspace=tmp_path)
-    assert code_missing == 2
-    _, err = capsys.readouterr()
-    assert "discovery_id is required" in err
+    with duckdb.connect(":memory:") as con:
+        execute_verdicts_views(con)
+        orig_record = record_verdict
+        monkeypatch.setattr(
+            "evallab.verdicts.record_verdict",
+            lambda *args, **kwargs: orig_record(*args, duckdb_conn=con, **kwargs),
+        )
+        monkeypatch.setattr(
+            "evallab.verdicts.get_verdict_history_from_catalog",
+            lambda discovery_id, database_url=None: get_verdict_history_from_duckdb(
+                con, discovery_id
+            ),
+        )
 
-    # With discovery ID provided
-    code = cli.run_cli(["verdict", "history", SAMPLE_DISCOVERY_HEADER_ID], workspace=tmp_path)
-    assert code == 0
+        # With no discovery ID provided
+        code_missing = cli.run_cli(["verdict", "history"], workspace=tmp_path)
+        assert code_missing == 2
+        _, err = capsys.readouterr()
+        assert "discovery_id is required" in err
 
+        # With discovery ID provided
+        code = cli.run_cli(
+            ["verdict", "history", SAMPLE_DISCOVERY_HEADER_ID], workspace=tmp_path
+        )
+        assert code == 0
 
 def test_cli_verdict_missing_status_or_by(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -491,13 +534,28 @@ def test_genuinely_empty_table_prints_friendly_message() -> None:
         )
 
 
+def _catalog_reachable(dsn: str | None = None) -> bool:
+    try:
+        import psycopg
+
+        url = database_url_from_environment(dsn)
+        with psycopg.connect(url, connect_timeout=1) as conn:
+            conn.execute("SELECT 1")
+        return True
+    except Exception:
+        return False
+
+
+_DSN_FOR_TEST = database_url_from_environment()
+
+
 @pytest.mark.skipif(
-    not os.getenv("DATABASE_URL"),
-    reason=f"requires live PostgreSQL {database_url_from_environment()}",
+    not _catalog_reachable(),
+    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
 )
 def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
-    """Full PostgreSQL catalog roundtrip when DATABASE_URL is provided."""
-    db_url = os.environ["DATABASE_URL"]
+    """Full PostgreSQL catalog roundtrip when DATABASE_URL is reachable."""
+    db_url = _DSN_FOR_TEST
     _create_sample_discoveries_journal(tmp_path)
 
     now = datetime.now(UTC)

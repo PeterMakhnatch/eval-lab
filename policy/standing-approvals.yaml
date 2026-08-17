@@ -12,14 +12,24 @@
 # move when a paid trial runs: paid agents authenticate from a personal
 # subscription, so the constraint that actually binds is a rate-limit window
 # (docs/quota-accounting.md). Billable dispatch is additionally refused when
-# the provider itself reports that window exhausted. There is deliberately no
-# percentage threshold below the provider's own limit — that is a spend
-# decision for Peter, and the one place it would go is
-# `REFUSE_BILLABLE_AT_USED_PERCENT` in `src/evallab/queue.py`, left unset.
+# the provider itself reports that window exhausted.
+#
+# `refuse_billable_at_used_percent` is the lab's OWN threshold, below the
+# provider's limit, and it is deliberately unset. Setting it is a spend
+# decision — it trades the risk of a lockout against the certainty of work that
+# will not happen — so it is Peter's alone. To set it, put a number between 0
+# and 100 on that line below: billable dispatch then refuses at or above that
+# account-wide `used_percent` under reason code `subscription_quota_ceiling`,
+# kept distinct from the provider's own `subscription_quota_exhausted` so
+# `queue/reasons/` never records a lab policy as the provider's statement.
+# `0` is refused at load rather than accepted, because it reads as "off" while
+# meaning "refuse all paid work". Leave it `null` to keep today's behaviour,
+# where only the provider's own exhaustion refuses.
 version: 1
 daily_cost_ceiling_usd: 20
 per_job_cost_ceiling_usd: 3
 quiet_failure_rule: 3
+refuse_billable_at_used_percent: null
 auto_run:
   - name: local-controls
     agents: [oracle, nop]

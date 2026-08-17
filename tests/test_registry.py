@@ -204,6 +204,7 @@ def test_task_toml_existence_does_not_imply_registration(tmp_path: Path) -> None
     spec = ExperimentSpec(
         name="test-unregistered",
         hypothesis="test",
+        purpose="practice",
         task="registered/unregistered-task",
         agent="codex",
         submitted_by="test",
@@ -226,6 +227,7 @@ def test_candidate_record_cannot_back_registered_work(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-candidate",
         hypothesis="test",
+        purpose="practice",
         task="registered/candidate-task",
         agent="codex",
         submitted_by="test",
@@ -245,6 +247,7 @@ def test_valid_registered_fixture_resolves_deterministically(tmp_path: Path) -> 
     spec = ExperimentSpec(
         name="test-valid",
         hypothesis="test",
+        purpose="practice",
         task="registered/valid-task",
         task_path="library/tasks/valid-task",
         task_version="1.0.0",
@@ -271,6 +274,7 @@ def test_changed_task_bytes_causes_refusal(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-tampered",
         hypothesis="test",
+        purpose="practice",
         task="registered/tampered-task",
         agent="codex",
         submitted_by="test",
@@ -296,6 +300,7 @@ def test_changed_verifier_bytes_causes_refusal(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-tampered-verifier",
         hypothesis="test",
+        purpose="practice",
         task="registered/tampered-verifier",
         agent="codex",
         submitted_by="test",
@@ -319,6 +324,7 @@ def test_task_path_redirection_causes_refusal(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-redirect",
         hypothesis="test",
+        purpose="practice",
         task="registered/original-task",
         task_path="library/tasks/other-task",
         agent="codex",
@@ -341,6 +347,7 @@ def test_task_version_mismatch_causes_refusal(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-version-mismatch",
         hypothesis="test",
+        purpose="practice",
         task="registered/versioned-task",
         task_version="2.0.0",
         agent="codex",
@@ -363,6 +370,7 @@ def test_omitted_task_path_resolves_canonical_path(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-omitted-path",
         hypothesis="test",
+        purpose="practice",
         task="registered/omitted-path-task",
         task_path=None,
         agent="codex",
@@ -390,6 +398,7 @@ def test_control_evidence_missing_file_causes_refusal(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-missing-evidence",
         hypothesis="test",
+        purpose="practice",
         task="registered/missing-evidence-task",
         agent="codex",
         submitted_by="test",
@@ -420,6 +429,7 @@ def test_control_evidence_digest_mismatch_causes_refusal(tmp_path: Path) -> None
     spec = ExperimentSpec(
         name="test-tampered-evidence",
         hypothesis="test",
+        purpose="practice",
         task="registered/tampered-evidence-task",
         agent="codex",
         submitted_by="test",
@@ -446,6 +456,7 @@ def test_training_only_task_cannot_be_used_for_measurement(tmp_path: Path) -> No
     spec = ExperimentSpec(
         name="test-training-only",
         hypothesis="test",
+        purpose="practice",
         task="registered/training-only-task",
         agent="codex",
         submitted_by="test",
@@ -475,6 +486,7 @@ def test_package_missing_component_causes_refusal(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-incomplete",
         hypothesis="test",
+        purpose="practice",
         task="registered/incomplete-task",
         agent="codex",
         submitted_by="test",
@@ -496,6 +508,7 @@ def test_policy_gate_refuses_unregistered_tasks(tmp_path: Path) -> None:
     spec = ExperimentSpec(
         name="test-policy-refusal",
         hypothesis="test",
+        purpose="practice",
         task="registered/non-existent",
         agent="codex",
         est_cost_usd=1.0,
@@ -528,6 +541,7 @@ def test_human_approval_cannot_bypass_unregistered_or_candidate(tmp_path: Path) 
     spec_unregistered = ExperimentSpec(
         name="test-human-approved-unregistered",
         hypothesis="test",
+        purpose="practice",
         task="registered/unregistered-bypass",
         agent="codex",
         policy_rule="human-approval",
@@ -554,6 +568,7 @@ def test_human_approval_cannot_bypass_unregistered_or_candidate(tmp_path: Path) 
     spec_candidate = ExperimentSpec(
         name="test-human-approved-candidate",
         hypothesis="test",
+        purpose="practice",
         task="registered/candidate-bypass",
         agent="codex",
         policy_rule="human-approval",
@@ -614,6 +629,7 @@ def test_executor_tick_end_to_end_dispatch_and_provenance(tmp_path: Path) -> Non
     spec = ExperimentSpec(
         name="test-dispatched-spec",
         hypothesis="test",
+        purpose="practice",
         task="registered/dispatched-task",
         task_path=None,
         agent="codex",
@@ -702,6 +718,7 @@ def test_audit_detects_false_registration_pattern(tmp_path: Path) -> None:
         "spec_id": "01M023RP03KGSHB4WZ29WE9DGR",
         "name": "research-event-summary-b51328c0cd",
         "hypothesis": "Test hypothesis",
+        "purpose": "practice",
         "task": "registered/event-summary",
         "task_path": "library/tasks/event-summary",
         "agent": "codex",

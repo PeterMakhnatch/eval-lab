@@ -146,6 +146,7 @@ def test_queue_projection_failure_is_not_execution_failure(tmp_path: Path) -> No
         ExperimentSpec(
             name="oracle-control",
             hypothesis="projection failures are harness events",
+            purpose="practice",
             task="library/tasks/event-summary",
             agent="oracle",
             submitted_by="test",

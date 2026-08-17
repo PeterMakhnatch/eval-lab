@@ -80,6 +80,7 @@ def spec(
     return ExperimentSpec(
         name=name,
         hypothesis="exercise the paid-authorization gate",
+        purpose="practice",
         task=task,
         task_path="library/tasks/event-summary" if task.startswith("canary/") else None,
         agent=agent,

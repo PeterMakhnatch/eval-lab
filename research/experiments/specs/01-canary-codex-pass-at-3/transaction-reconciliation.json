@@ -2,6 +2,7 @@
   "schema_version": 1,
   "name": "runner-canary-txn-recon-codex-k3",
   "hypothesis": "With agent=codex, attempts=3, docker, and the pinned transaction-reconciliation task held fixed, Codex pass@3 is a measurable canary baseline; n=3 is below the lab comparison bar and is not a ranking.",
+  "purpose": "baseline",
   "task": "canary/transaction-reconciliation",
   "task_path": "tasks/transaction-reconciliation",
   "agent": "codex",

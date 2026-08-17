@@ -2,6 +2,7 @@
   "schema_version": 1,
   "name": "runner-canary-event-summary-claude-k3",
   "hypothesis": "With the pinned event-summary task, attempts=3, and docker held fixed, claude-code pass@3 is measurable against the Study 01 Codex cell; n=3 is not a ranking. Staged while the Claude keychain item is absent.",
+  "purpose": "comparison",
   "task": "canary/event-summary",
   "task_path": "tasks/event-summary",
   "agent": "claude-code",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
-from typing import Literal
+from typing import Literal, get_args
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -75,11 +75,37 @@ def validated_jobs_dir(value: str) -> str:
     )
 
 
+#: Why a spec exists. Required on every ``ExperimentSpec``, because until now
+#: nothing recorded *intent*: the queue could be listed but never grouped,
+#: budgeted, or reasoned about by what the lab was trying to learn
+#: (``docs/architecture-review-2026-08-16.md`` §4, "every spec declares WHY";
+#: ``docs/build-plan.md`` WS-E item 1, which fixes this exact value set).
+#:
+#: The taxonomy is Peter's. Do not add a member to make a call site fit — an
+#: ill-fitting call site is a finding to report, because a purpose is read as
+#: research intent by ``evallab preflight`` and by purpose-scoped budgeting,
+#: and a value invented to silence a constructor quietly corrupts both.
+ExperimentPurpose = Literal[
+    "baseline",
+    "comparison",
+    "elicitation",
+    "drift",
+    "calibration",
+    "craft",
+    "practice",
+]
+
+#: The allowed values as data, derived from the type so a refusal can name them
+#: and the two can never drift. ``queue.purposeless_spec_message`` prints these.
+EXPERIMENT_PURPOSES: tuple[ExperimentPurpose, ...] = get_args(ExperimentPurpose)
+
+
 class ExperimentSpec(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str | None = None
     name: str = Field(min_length=3, max_length=80, pattern=r"^[a-z0-9][a-z0-9-]+$")
     hypothesis: str = Field(min_length=1)
+    purpose: ExperimentPurpose
     task: str = Field(min_length=1)
     task_path: str | None = None
     agent: str = Field(min_length=1)
@@ -148,6 +174,24 @@ class ExperimentMatrix(ContractModel):
     timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
     runs: list[MatrixRun] = Field(min_length=1)
 
+    # `purpose` is deliberately NOT declared here, and the asymmetry is the
+    # considered decision, not an oversight — do not "fix" it by symmetry.
+    #
+    # The rule above (`jobs_dir` declared twice) exists because both contracts
+    # *use* the field: each resolves a filesystem path. `purpose` is used by
+    # exactly one dispatch path. It exists so the queue can be grouped,
+    # budgeted, and refused by intent, and a matrix never enters the queue:
+    # `cli._matrix_command` calls `Executor.execute_direct`
+    # (`cli.py:687-699`), which consults no `PolicyGate`, writes no queue state,
+    # and appends nothing to `queue/events.jsonl`. A purpose declared here would
+    # be read by nothing.
+    #
+    # It also could not be budgeted against: `execute_direct` refuses any agent
+    # outside `CONTROL_AGENTS` (`queue.py:1405-1409`), so a matrix is
+    # structurally incapable of spending regardless of `MatrixRun.allow_billable`.
+    # Requiring the field here would invalidate all five committed matrices to
+    # record a value no reader consults.
+
     # A matrix is not built from ``ExperimentSpec`` — ``runner.request_from_matrix``
     # expands it straight into ``RunRequest`` objects (``runner.py:710-716``), and
     # ``runner.load_matrix`` validates it from its own file. So ``jobs_dir`` is
@@ -177,6 +221,25 @@ class StandingApprovalsPolicy(ContractModel):
     quiet_failure_rule: int = Field(ge=1)
     auto_run: list[AutoRunRule] = Field(min_length=1)
     escalate_to_human: list[str] = Field(default_factory=list)
+
+    #: The lab's own refusal threshold on the account-wide `used_percent`,
+    #: committed **unset**. This is the one place a number goes, and it is
+    #: Peter's to set: refusing above some percentage trades the risk of a
+    #: lockout against the certainty of work that will not happen.
+    #:
+    #: Set it to a float and billable dispatch refuses at or above it under
+    #: reason code `subscription_quota_ceiling`, kept deliberately distinct from
+    #: the provider's own `subscription_quota_exhausted` so `queue/reasons/`
+    #: never records a lab policy as the provider's statement
+    #: (`docs/quota-accounting.md`; PR #70).
+    #:
+    #: `None` is the unset state and must stay loadable: this model forbids
+    #: extras, and the committed YAML omits the key, so a non-optional field
+    #: here would make `load_policy` raise for every command that reads policy.
+    #: `gt=0` refuses `0` rather than accepting it, because `0` reads as "off"
+    #: while meaning "refuse at or above 0%" — that is, refuse all paid work
+    #: silently. A load error naming the field is the honest response.
+    refuse_billable_at_used_percent: float | None = Field(default=None, gt=0, le=100)
 
 
 QueueState = Literal[

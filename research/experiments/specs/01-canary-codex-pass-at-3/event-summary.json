@@ -2,6 +2,7 @@
   "schema_version": 1,
   "name": "runner-canary-event-summary-codex-k3",
   "hypothesis": "With agent=codex, attempts=3, docker, and the pinned event-summary task held fixed, Codex pass@3 is a measurable canary baseline; n=3 is below the lab comparison bar and is not a ranking.",
+  "purpose": "baseline",
   "task": "canary/event-summary",
   "task_path": "tasks/event-summary",
   "agent": "codex",

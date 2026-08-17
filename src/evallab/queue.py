@@ -60,6 +60,7 @@ from evallab.runner import (
     transient_provider_exception,
 )
 from evallab.schemas import (
+    EXPERIMENT_PURPOSES,
     AutoRunRule,
     ExperimentSpec,
     PolicyDecision,
@@ -152,6 +153,41 @@ def authorization_required_message(spec: ExperimentSpec) -> str:
     )
 
 
+def purposeless_spec_message(spec: ExperimentSpec) -> str:
+    """The refusal for a spec that does not say why it exists.
+
+    `ExperimentSpec.purpose` is required, so validation is the first and
+    strongest rejection: a purposeless spec cannot be submitted at all. This
+    message backs the *dispatch-time* refusal asked for by `docs/build-plan.md`
+    WS-E item 1, which is not redundant with validation. Readers that
+    deliberately tolerate an unparseable spec are growing — `status.py`
+    reports one as an error string rather than raising, and the digest does the
+    same — so a spec can be *read* without ever being validated. This keeps
+    "tolerant enough to display" from becoming "tolerant enough to run", and
+    also catches a `model_construct` bypass.
+
+    Names the allowed values, because the operator's next action is to pick one.
+    """
+    declared = getattr(spec, "purpose", None)
+    allowed = " | ".join(EXPERIMENT_PURPOSES)
+    subject = spec.spec_id or spec.name
+    heading = (
+        f"spec {subject} declares no purpose"
+        if declared is None
+        else (
+            f"spec {subject} declares purpose {declared!r}, which is not a purpose "
+            "this lab recognises"
+        )
+    )
+    return (
+        f"{heading}. Every experiment spec must declare its intent so work can be "
+        "grouped, budgeted, and reviewed by intent rather than merely listed.\n"
+        f"  allowed values: {allowed}\n"
+        '  fix: set "purpose" in the spec file to one of the values above, then '
+        "resubmit with `uv run evallab submit <spec.json>`"
+    )
+
+
 def standing_rule_admits(rule: AutoRunRule, spec: ExperimentSpec) -> bool:
     """Whether one standing-approvals rule covers this spec.
 
@@ -221,23 +257,16 @@ QUOTA_STALENESS_NOTE = (
     "you, not this gate, are the one judging whether it is still true."
 )
 
-#: A lab-set refusal threshold on the account-wide `used_percent`, deliberately
-#: left unset.
+#: The lab's refusal threshold on the account-wide `used_percent` now lives in
+#: `policy/standing-approvals.yaml` as `refuse_billable_at_used_percent`, read
+#: through `StandingApprovalsPolicy` and passed to `lab_threshold_reached`.
 #:
-#: Refusing above some percentage is a *spend decision*: it trades the risk of a
-#: lockout against the certainty of work that will not happen. That trade is
-#: Peter's, so nothing here invents a number. **This is the single place a
-#: number goes.** Set it to a float and billable dispatch refuses at or above it
-#: with `subscription_quota_ceiling` — a reason code kept distinct from the
-#: provider's own `subscription_quota_exhausted` so the reasons log never
-#: attributes a lab policy to the provider.
-#:
-#: Its durable home is `policy/standing-approvals.yaml`. Putting it there needs
-#: a field on `StandingApprovalsPolicy`, which is `extra="forbid"`: an unknown
-#: YAML key is a load error, not a silent no-op, so the key cannot be added
-#: ahead of the field. `src/evallab/schemas.py` is leased to another mission
-#: this round, so the constant is the honest interim home.
-REFUSE_BILLABLE_AT_USED_PERCENT: float | None = None
+#: It was an interim module constant here (PR #70) only because the schema field
+#: it needed could not be added in that PR: `StandingApprovalsPolicy` forbids
+#: extras, so the YAML key is a load error until the field exists, and
+#: `schemas.py` was leased elsewhere that round. Both now landed together, so
+#: setting a threshold is a config edit rather than a code edit — which was the
+#: point, since the number is a spend decision belonging to Peter.
 
 
 def _reader_clock(headroom: Headroom) -> datetime | None:
@@ -288,15 +317,22 @@ def provider_reported_exhaustion(headroom: Headroom) -> str | None:
     return None
 
 
-def lab_threshold_reached(headroom: Headroom) -> str | None:
+def lab_threshold_reached(headroom: Headroom, *, threshold: float | None) -> str | None:
     """Whether a Sponsor-set `used_percent` threshold has been reached.
 
-    Returns `None` while :data:`REFUSE_BILLABLE_AT_USED_PERCENT` is unset, which
-    is its committed state. Kept separate from
-    :func:`provider_reported_exhaustion` so a lab policy is never recorded as
-    the provider's statement.
+    `threshold` is `StandingApprovalsPolicy.refuse_billable_at_used_percent`,
+    committed unset, so this returns `None` in the shipped configuration. It is
+    passed in rather than read here: the value is policy, and a function that
+    loaded it itself would put a filesystem read inside a pure predicate
+    (`agents/CHECKS.md`, deterministic-test rule).
+
+    Keyword-only on purpose. A positional float would let a future caller pass
+    the wrong number silently, and it makes every call site greppable.
+
+    Kept separate from :func:`provider_reported_exhaustion` so a lab policy is
+    never recorded as the provider's statement. Trap one is honoured here too:
+    `availability` is checked before `used_percent` is read.
     """
-    threshold = REFUSE_BILLABLE_AT_USED_PERCENT
     if threshold is None or headroom.availability != "observed":
         return None
     if quota_window_expired(headroom) or headroom.used_percent is None:
@@ -306,7 +342,7 @@ def lab_threshold_reached(headroom: Headroom) -> str | None:
     return (
         f"used_percent {headroom.used_percent} is at or above the lab's "
         f"configured refusal threshold {threshold} "
-        "(REFUSE_BILLABLE_AT_USED_PERCENT in src/evallab/queue.py)"
+        "(refuse_billable_at_used_percent in policy/standing-approvals.yaml)"
     )
 
 
@@ -418,6 +454,18 @@ class PolicyGate:
         consecutive_harness_failures: int = 0,
         authorization: PaidRunAuthorization | None = None,
     ) -> PolicyDecision:
+        # First, because a spec that does not say why it exists is not a
+        # question this gate can answer — and because this costs no filesystem
+        # read, unlike the registry resolution below. A purposeless *billable*
+        # spec is still refused, just named by its more proximate defect; no
+        # spec is admitted here that was admitted before.
+        if getattr(spec, "purpose", None) not in EXPERIMENT_PURPOSES:
+            return PolicyDecision(
+                admitted=False,
+                reason_code="purposeless_spec",
+                message=purposeless_spec_message(spec),
+            )
+
         if spec.task.startswith("registered/"):
             reg = self.registry
             if reg is None and self.repo_root:
@@ -558,7 +606,9 @@ class PolicyGate:
                         "--despite-quota"
                     ),
                 )
-            threshold_reached = lab_threshold_reached(headroom)
+            threshold_reached = lab_threshold_reached(
+                headroom, threshold=self.policy.refuse_billable_at_used_percent
+            )
             if threshold_reached is not None and not authorization.quota_override:
                 return PolicyDecision(
                     admitted=False,
@@ -610,7 +660,10 @@ class PolicyGate:
                 notes.append(render_headroom_notice(admitted_headroom))
                 if authorization.quota_override and (
                     provider_reported_exhaustion(admitted_headroom)
-                    or lab_threshold_reached(admitted_headroom)
+                    or lab_threshold_reached(
+                        admitted_headroom,
+                        threshold=self.policy.refuse_billable_at_used_percent,
+                    )
                 ):
                     notes.append(
                         f"{authorization.actor} authorised this DESPITE the recorded "

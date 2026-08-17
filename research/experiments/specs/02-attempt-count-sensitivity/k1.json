@@ -2,6 +2,7 @@
   "schema_version": 1,
   "name": "runner-txn-recon-codex-k1",
   "hypothesis": "A single Codex attempt on pinned transaction-reconciliation is a noisy Bernoulli draw, not a pass-rate estimate; it exists only as the n=1 pole of an attempt-count comparison.",
+  "purpose": "elicitation",
   "task": "canary/transaction-reconciliation",
   "task_path": "tasks/transaction-reconciliation",
   "agent": "codex",

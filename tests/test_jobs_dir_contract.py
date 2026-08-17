@@ -31,6 +31,7 @@ def spec(**overrides):
     payload = {
         "name": "layout-contract",
         "hypothesis": "jobs land where the readers look",
+        "purpose": "practice",
         "task": "library/tasks/event-summary",
         "agent": "oracle",
         "submitted_by": "test",

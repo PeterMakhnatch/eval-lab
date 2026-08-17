@@ -290,6 +290,7 @@ def test_submit_prints_the_bare_spec_id_approve_wants(
     spec = tmp_path / "spec.json"
     spec.write_text(
         '{"name": "operator-fixes-control", "hypothesis": "the control runs",'
+        ' "purpose": "practice",'
         ' "task": "library/tasks/event-summary", "agent": "oracle",'
         ' "submitted_by": "operator-fixes", "est_cost_usd": 0}'
     )

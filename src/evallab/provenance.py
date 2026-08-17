@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import tomllib
+from collections import defaultdict
 from enum import StrEnum
 from pathlib import Path
 
@@ -25,6 +26,7 @@ class Origin(StrEnum):
 
     HARBOR_NATIVE = "harbor-native"
     LOCAL_LAB = "local-lab"
+    HARBOR_DERIVED = "harbor-derived"
     PROPOSED = "proposed"
     UNKNOWN = "unknown"
 
@@ -50,6 +52,19 @@ class TaskOrigin(ContractModel):
 
 def _proposed_root(repo_root: Path) -> Path:
     return (repo_root / "library/tasks/_proposed").resolve()
+
+
+def _extract_task_ref(task_dir: Path, source_root: Path) -> str:
+    """Return declared name from task.toml or fallback to relative path."""
+    manifest_path = task_dir / "task.toml"
+    try:
+        manifest = tomllib.loads(manifest_path.read_bytes().decode("utf-8"))
+        declared = manifest.get("task", {}).get("name")
+        if isinstance(declared, str) and declared:
+            return declared
+    except Exception:
+        pass
+    return task_dir.relative_to(source_root).as_posix()
 
 
 def _classify_from_root(
@@ -87,78 +102,105 @@ def classify_task(
     tb3_explicit: Path | None = None,
     environ: dict[str, str] | None = None,
 ) -> TaskOrigin:
-    """Classify a single task_ref by scanning known roots. Returns unknown on no match."""
+    """Classify a single task_ref by scanning known roots.
+    Detects multi-corpus collisions as harbor-derived.
+    """
     repo_root = repository_root()
-
-    # TB3 harbor-native
     tb3_path = tb3_root(tb3_explicit, environ)
+
+    matches: list[tuple[Origin, Path, Path, str | None, str]] = []
+
+    # check TB3
     if tb3_path.is_dir():
         for task_dir in discover_tasks(tb3_path):
-            manifest = task_dir / "task.toml"
-            try:
-                doc = tomllib.loads(manifest.read_bytes().decode("utf-8"))
-                name = doc.get("task", {}).get("name")
-                rel = task_dir.relative_to(tb3_path).as_posix()
-                if (isinstance(name, str) and name == task_ref) or rel == task_ref:
-                    return _classify_from_root(
-                        task_dir, tb3_path, Origin.HARBOR_NATIVE, "terminal-bench-3", "tb3_root"
+            if _extract_task_ref(task_dir, tb3_path) == task_ref:
+                matches.append(
+                    (
+                        Origin.HARBOR_NATIVE,
+                        tb3_path,
+                        task_dir,
+                        "terminal-bench-3",
+                        "tb3_root",
                     )
-            except Exception:
-                rel = task_dir.relative_to(tb3_path).as_posix()
-                if rel == task_ref:
-                    return _classify_from_root(
-                        task_dir, tb3_path, Origin.HARBOR_NATIVE, "terminal-bench-3", "tb3_root"
-                    )
+                )
+                break
 
-    # local-lab
+    # check local-lab
     lib_root = (repo_root / "library/tasks").resolve()
     if lib_root.is_dir():
         for task_dir in discover_tasks(lib_root):
-            manifest = task_dir / "task.toml"
-            try:
-                doc = tomllib.loads(manifest.read_bytes().decode("utf-8"))
-                name = doc.get("task", {}).get("name")
-                rel = task_dir.relative_to(lib_root).as_posix()
-                if (isinstance(name, str) and name == task_ref) or rel == task_ref:
-                    return _classify_from_root(
-                        task_dir, lib_root, Origin.LOCAL_LAB, None, "library/tasks"
-                    )
-            except Exception:
-                rel = task_dir.relative_to(lib_root).as_posix()
-                if rel == task_ref:
-                    return _classify_from_root(
-                        task_dir, lib_root, Origin.LOCAL_LAB, None, "library/tasks"
-                    )
+            if _extract_task_ref(task_dir, lib_root) == task_ref:
+                matches.append(
+                    (Origin.LOCAL_LAB, lib_root, task_dir, None, "library/tasks")
+                )
+                break
 
-    # proposed
+    # check proposed
     prop_root = _proposed_root(repo_root)
     if prop_root.is_dir():
         for task_dir in discover_tasks(prop_root):
-            manifest = task_dir / "task.toml"
-            try:
-                doc = tomllib.loads(manifest.read_bytes().decode("utf-8"))
-                name = doc.get("task", {}).get("name")
-                rel = task_dir.relative_to(prop_root).as_posix()
-                if (isinstance(name, str) and name == task_ref) or rel == task_ref:
-                    return _classify_from_root(
-                        task_dir, prop_root, Origin.PROPOSED, None, "library/tasks/_proposed"
+            if _extract_task_ref(task_dir, prop_root) == task_ref:
+                matches.append(
+                    (
+                        Origin.PROPOSED,
+                        prop_root,
+                        task_dir,
+                        None,
+                        "library/tasks/_proposed",
                     )
-            except Exception:
-                rel = task_dir.relative_to(prop_root).as_posix()
-                if rel == task_ref:
-                    return _classify_from_root(
-                        task_dir, prop_root, Origin.PROPOSED, None, "library/tasks/_proposed"
-                    )
+                )
+                break
 
-    # unknown
-    return TaskOrigin(
-        task_ref=task_ref,
-        origin=Origin.UNKNOWN,
-        family=None,
-        corpus_root="unavailable",
-        evidence=f"no matching task_ref in any known corpus root for {task_ref}",
-        confidence=Confidence.UNKNOWN,
-    )
+    if not matches:
+        return TaskOrigin(
+            task_ref=task_ref,
+            origin=Origin.UNKNOWN,
+            family=None,
+            corpus_root="unavailable",
+            evidence=f"no matching task_ref in any known corpus root for {task_ref}",
+            confidence=Confidence.UNKNOWN,
+        )
+
+    if len(matches) > 1:
+        harbor_matches = [m for m in matches if m[0] == Origin.HARBOR_NATIVE]
+        if harbor_matches:
+            h = harbor_matches[0]
+            path_strs = [m[2].as_posix() for m in matches]
+            evidence = "multi-corpus resolution: " + "; ".join(path_strs)
+            # strengthen inference by comparing instruction.md to upstream
+            try:
+                h_dir = h[2]
+                h_inst_p = h_dir / "instruction.md"
+                if h_inst_p.exists():
+                    h_bytes = h_inst_p.read_bytes()
+                    for m in matches:
+                        if m[0] != Origin.HARBOR_NATIVE:
+                            o_dir = m[2]
+                            o_inst_p = o_dir / "instruction.md"
+                            if o_inst_p.exists():
+                                o_bytes = o_inst_p.read_bytes()
+                                status = "identical" if o_bytes == h_bytes else "divergent"
+                                evidence += (
+                                    f"; instruction.md {status} ({o_dir.as_posix()})"
+                                )
+            except Exception:
+                pass
+            base = _classify_from_root(h[2], h[1], Origin.HARBOR_NATIVE, h[3], h[4])
+            return TaskOrigin(
+                task_ref=base.task_ref,
+                origin=Origin.HARBOR_DERIVED,
+                family=base.family,
+                corpus_root=base.corpus_root,
+                evidence=evidence,
+                confidence=Confidence.INFERRED,
+            )
+        # non-harbor collision, take first
+        m = matches[0]
+        return _classify_from_root(m[2], m[1], m[0], m[3], m[4])
+
+    # single unambiguous
+    m = matches[0]
+    return _classify_from_root(m[2], m[1], m[0], m[3], m[4])
 
 
 def discover_all(
@@ -166,38 +208,82 @@ def discover_all(
     tb3_explicit: Path | None = None,
     environ: dict[str, str] | None = None,
 ) -> list[TaskOrigin]:
-    """Discover and classify every task from existing roots. Absent root -> no tasks from it."""
+    """Discover and classify every task from existing roots.
+    Collisions resolved to harbor-derived. Absent root -> no tasks from it.
+    """
     repo_root = repository_root()
-    records: list[TaskOrigin] = []
-
-    # harbor-native TB3
     tb3_path = tb3_root(tb3_explicit, environ)
+
+    seen: dict[str, list[tuple[Origin, Path, Path, str | None, str]]] = defaultdict(
+        list
+    )
+
+    # TB3
     if tb3_path.is_dir():
         for task_dir in discover_tasks(tb3_path):
-            rec = _classify_from_root(
-                task_dir, tb3_path, Origin.HARBOR_NATIVE, "terminal-bench-3", "tb3_root"
+            eff = _extract_task_ref(task_dir, tb3_path)
+            seen[eff].append(
+                (Origin.HARBOR_NATIVE, tb3_path, task_dir, "terminal-bench-3", "tb3_root")
             )
-            records.append(rec)
 
     # local-lab
     lib_root = (repo_root / "library/tasks").resolve()
     if lib_root.is_dir():
         for task_dir in discover_tasks(lib_root):
-            rec = _classify_from_root(
-                task_dir, lib_root, Origin.LOCAL_LAB, None, "library/tasks"
+            eff = _extract_task_ref(task_dir, lib_root)
+            seen[eff].append(
+                (Origin.LOCAL_LAB, lib_root, task_dir, None, "library/tasks")
             )
-            records.append(rec)
 
     # proposed
     prop_root = _proposed_root(repo_root)
     if prop_root.is_dir():
         for task_dir in discover_tasks(prop_root):
-            rec = _classify_from_root(
-                task_dir, prop_root, Origin.PROPOSED, None, "library/tasks/_proposed"
+            eff = _extract_task_ref(task_dir, prop_root)
+            seen[eff].append(
+                (Origin.PROPOSED, prop_root, task_dir, None, "library/tasks/_proposed")
+            )
+
+    records: list[TaskOrigin] = []
+    for _eff_name, locs in seen.items():
+        if len(locs) > 1 and any(loc[0] == Origin.HARBOR_NATIVE for loc in locs):
+            h_locs = [loc for loc in locs if loc[0] == Origin.HARBOR_NATIVE]
+            h = h_locs[0]
+            path_strs = [loc[2].as_posix() for loc in locs]
+            evidence = "multi-corpus resolution: " + "; ".join(path_strs)
+            try:
+                h_dir = h[2]
+                h_inst_p = h_dir / "instruction.md"
+                if h_inst_p.exists():
+                    h_bytes = h_inst_p.read_bytes()
+                    for loc in locs:
+                        if loc[0] != Origin.HARBOR_NATIVE:
+                            o_dir = loc[2]
+                            o_inst_p = o_dir / "instruction.md"
+                            if o_inst_p.exists():
+                                o_bytes = o_inst_p.read_bytes()
+                                status = "identical" if o_bytes == h_bytes else "divergent"
+                                evidence += (
+                                    f"; instruction.md {status} ({o_dir.as_posix()})"
+                                )
+            except Exception:
+                pass
+            base = _classify_from_root(h[2], h[1], Origin.HARBOR_NATIVE, h[3], h[4])
+            rec = TaskOrigin(
+                task_ref=base.task_ref,
+                origin=Origin.HARBOR_DERIVED,
+                family=base.family,
+                corpus_root=base.corpus_root,
+                evidence=evidence,
+                confidence=Confidence.INFERRED,
             )
             records.append(rec)
+        else:
+            for loc in locs:
+                o, r, d, f, p = loc
+                rec = _classify_from_root(d, r, o, f, p)
+                records.append(rec)
 
-    # sort deterministic: by origin, then task_ref
     records.sort(key=lambda r: (r.origin.value, r.task_ref))
     return records
 
@@ -245,6 +331,63 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "report":
+        # always report status of every configured corpus root
+        tb3_path = tb3_root(args.tb3_root, environ)
+        repo_root = repository_root()
+        lib_root = (repo_root / "library/tasks").resolve()
+        prop_root = _proposed_root(repo_root)
+
+        status_lines: list[str] = []
+        root_header = "corpus\tstatus\tpath\ttask_count\treason"
+        status_lines.append(root_header)
+
+        # tb3
+        if tb3_path.is_dir():
+            try:
+                tb3_count = sum(1 for _ in discover_tasks(tb3_path))
+            except Exception:
+                tb3_count = 0
+            status_lines.append(
+                f"tb3_root\tfound\t{tb3_path.as_posix()}\t{tb3_count}\t"
+            )
+        else:
+            reason = "path does not exist" if not tb3_path.exists() else "not a directory"
+            status_lines.append(
+                f"tb3_root\tunavailable\t{tb3_path.as_posix()}\t0\t{reason}"
+            )
+
+        # local-lab
+        if lib_root.is_dir():
+            try:
+                lib_count = sum(1 for _ in discover_tasks(lib_root))
+            except Exception:
+                lib_count = 0
+            status_lines.append(
+                f"local-lab\tfound\t{lib_root.as_posix()}\t{lib_count}\t"
+            )
+        else:
+            reason = "path does not exist" if not lib_root.exists() else "not a directory"
+            status_lines.append(
+                f"local-lab\tunavailable\t{lib_root.as_posix()}\t0\t{reason}"
+            )
+
+        # proposed
+        if prop_root.is_dir():
+            try:
+                prop_count = sum(1 for _ in discover_tasks(prop_root))
+            except Exception:
+                prop_count = 0
+            status_lines.append(
+                f"proposed\tfound\t{prop_root.as_posix()}\t{prop_count}\t"
+            )
+        else:
+            reason = "path does not exist" if not prop_root.exists() else "not a directory"
+            status_lines.append(
+                f"proposed\tunavailable\t{prop_root.as_posix()}\t0\t{reason}"
+            )
+
+        print("\n".join(status_lines) + "\n")
+
         recs = discover_all(tb3_explicit=args.tb3_root, environ=environ)
         print(render_report(recs), end="")
         return 0

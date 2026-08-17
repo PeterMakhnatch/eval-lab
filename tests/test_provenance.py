@@ -1,5 +1,6 @@
 """Tests for provenance classification. Every test fails on a plausible bug."""
 
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -41,6 +42,7 @@ def test_local_lab_classified_from_fixture():
         # synthetic test verifies structure does not crash on missing proposed
         assert True
 
+
 def test_proposed_classified_when_dir_exists():
     with tempfile.TemporaryDirectory() as tmp:
         repo = Path(tmp)
@@ -76,3 +78,67 @@ def test_missing_external_corpus_reported_absent_not_crash():
     # local may exist in real repo but test checks no crash and unknown not invented
     assert isinstance(recs, list)
     # if any harbor would have family but here absent root yields zero from it
+
+
+def test_harbor_derived_on_multi_corpus_name_collision():
+    rec = classify_task("terminal-bench/html-js-filter")
+    assert rec.origin == Origin.HARBOR_DERIVED
+    assert rec.family == "terminal-bench-3"
+    assert rec.confidence == Confidence.INFERRED
+    assert "multi-corpus resolution" in rec.evidence
+    assert "/html-js-filter" in rec.evidence  # local path component
+
+
+def test_unambiguous_harbor_native_stays_certain():
+    rec = classify_task("terminal-bench/cumulative-layout-shift")
+    assert rec.origin == Origin.HARBOR_NATIVE
+    assert rec.confidence == Confidence.CERTAIN
+
+
+def test_unambiguous_local_lab_stays_certain():
+    rec = classify_task("local-lab/event-summary")
+    assert rec.origin == Origin.LOCAL_LAB
+    assert rec.confidence == Confidence.CERTAIN
+
+
+def test_report_names_configured_but_missing_corpus_root_as_unavailable_with_reason():
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "evallab.provenance",
+        "report",
+        "--tb3-root",
+        "/tmp/definitely-not-here",
+    ]
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+    )
+    out = result.stdout
+    assert result.returncode == 0
+    assert "tb3_root\tunavailable" in out
+    assert "definitely-not-here" in out
+    assert "path does not exist" in out
+    assert "local-lab\tfound" in out
+    assert "proposed\tunavailable" in out
+
+
+def test_report_output_byte_identical_across_runs_even_with_root_status():
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "evallab.provenance",
+        "report",
+        "--tb3-root",
+        "/tmp/definitely-not-here",
+    ]
+    result1 = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+    )
+    result2 = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
+    )
+    assert result1.stdout == result2.stdout

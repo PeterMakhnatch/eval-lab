@@ -1,0 +1,604 @@
+"""Contracts and tests for deterministic Parquet compaction engine (WS-E item 4).
+
+Tests cover:
+- Date resolution hierarchy (steps.parquet timestamp -> result.json -> mtime).
+- End-to-end compaction across all 9 Parquet tables.
+- Zero row loss and exact Arrow schema preservation.
+- Idempotent re-runs and deduplication by primary key.
+- Granular partition retention (retaining trailing 7 days, pruning > 7 days).
+- Command-line interface and JSON/human output.
+- DuckDB Hive partitioning query compatibility over compact/dt=*.
+- Robust error handling and validation failure rollbacks.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Sequence
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pytest
+
+from evallab.parquet_compaction import (
+    COMPACT_DIRNAME,
+    PROJECTED_TABLE_NAMES,
+    TABLE_SCHEMAS,
+    CompactionValidationError,
+    compact,
+    count_table_rows,
+    deduplicate_and_sort,
+    discover_compacted_row_counts,
+    discover_uncompacted_jobs,
+    main,
+    parse_iso_date,
+    plan_compaction,
+    resolve_job_date,
+    write_compact_table,
+)
+
+
+def _make_table_row(table_name: str, job_id: str, trial_id: str, index: int = 1) -> dict[str, Any]:
+    """Generate a valid dummy row matching TABLE_SCHEMAS[table_name]."""
+    if table_name == "jobs":
+        return {
+            "job_id": job_id,
+            "job_name": f"job-{job_id}",
+            "trial_count": 1,
+        }
+    if table_name == "trajectories":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "source_path": f"/path/to/doc-{index}.json",
+            "source_sha256": "sha256:abc123",
+            "embedded_path": None,
+            "schema_version": "ATIF-v1.7",
+            "session_id": f"sess-{job_id}",
+            "trajectory_id": f"traj-{index}",
+            "validation_status": "valid",
+            "validator": "internal-atif-v1",
+            "validation_error": None,
+            "agent_name": "oracle",
+            "agent_version": "1.0.0",
+            "model_name": "default",
+            "continued_trajectory_ref": None,
+            "step_count": 5,
+            "llm_call_count": 5,
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "cached_tokens": 0,
+            "cost_usd": 0.01,
+        }
+    if table_name == "steps":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "source_path": f"/path/to/doc-{index}.json",
+            "source_sha256": "sha256:abc123",
+            "step_id": index,
+            "source": "agent",
+            "timestamp": "2026-08-10T14:30:00Z",
+            "model_name": "default",
+            "is_copied_context": False,
+            "llm_call_count": 1,
+            "prompt_tokens": 20,
+            "completion_tokens": 10,
+            "cached_tokens": 0,
+            "cost_usd": 0.002,
+            "tool_call_count": 1,
+            "observation_count": 1,
+        }
+    if table_name == "tool_calls":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "source_path": f"/path/to/doc-{index}.json",
+            "source_sha256": "sha256:abc123",
+            "step_id": index,
+            "tool_call_id": f"call-{index}",
+            "function_name": "bash",
+            "arguments_sha256": "sha256:callargs",
+        }
+    if table_name == "observations":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "source_path": f"/path/to/doc-{index}.json",
+            "source_sha256": "sha256:abc123",
+            "step_id": index,
+            "observation_index": 0,
+            "source_call_id": f"call-{index}",
+            "content_size_bytes": 42,
+            "content_sha256": "sha256:obscontent",
+            "subagent_ref_count": 0,
+            "subagent_refs_sha256": None,
+            "command_exit_code": 0,
+        }
+    if table_name == "trial_facts":
+        return {
+            "experiment_id": "exp-001",
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "job_name": f"job-{job_id}",
+            "trial_name": f"trial-{trial_id}",
+            "task_name": "local-lab/sample",
+            "task_digest": "sha256:task",
+            "verifier_digest": "sha256:verifier",
+            "environment_digest": "sha256:env",
+            "agent_config_digest": "sha256:config",
+            "agent_name": "oracle",
+            "agent_version": "1.0.0",
+            "model_name": "default",
+            "primary_reward": 1.0,
+            "exception_class": None,
+            "exception_phase": None,
+            "duration_seconds": 12.5,
+            "environment_setup_seconds": 1.0,
+            "agent_setup_seconds": 0.5,
+            "agent_execution_seconds": 10.0,
+            "verifier_seconds": 1.0,
+            "input_tokens": 100,
+            "cache_tokens": 0,
+            "output_tokens": 50,
+            "cost_usd": 0.01,
+            "trajectory_count": 1,
+            "invalid_trajectory_count": 0,
+            "step_count": 5,
+            "llm_call_count": 5,
+            "tool_call_count": 1,
+            "command_failure_count": 0,
+            "repeated_failed_command_count": 0,
+            "artifact_count": 1,
+            "missing_artifact_count": 0,
+            "artifact_set_digest": "sha256:artifacts",
+        }
+    if table_name == "reward_facts":
+        return {
+            "experiment_id": "exp-001",
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "reward_name": "reward",
+            "reward_value": 1.0,
+        }
+    if table_name == "artifact_facts":
+        return {
+            "experiment_id": "exp-001",
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "source": "/workspace/result.txt",
+            "destination": "result.txt",
+            "status": "present",
+            "exists_on_disk": True,
+            "size_bytes": 120,
+            "sha256": "sha256:art123",
+        }
+    if table_name == "tool_usage":
+        return {
+            "experiment_id": "exp-001",
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "function_name": "bash",
+            "call_count": 1,
+        }
+    raise ValueError(f"Unknown table name: {table_name}")
+
+
+def create_uncompacted_job(
+    derived_root: Path,
+    *,
+    job_id: str,
+    trial_ids: Sequence[str],
+    timestamp: str | None = "2026-08-10T14:30:00Z",
+) -> Path:
+    """Create a fully populated uncompacted job partition under derived_root."""
+    job_dir = derived_root / f"job_id={job_id}"
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write jobs.parquet
+    job_rows = [{"job_id": job_id, "job_name": f"job-{job_id}", "trial_count": len(trial_ids)}]
+    job_table = pa.Table.from_pylist(job_rows, schema=TABLE_SCHEMAS["jobs"])
+    pq.write_table(job_table, job_dir / "jobs.parquet")
+
+    # Write trial partitions
+    for trial_id in trial_ids:
+        trial_dir = job_dir / f"trial_id={trial_id}"
+        trial_dir.mkdir(parents=True, exist_ok=True)
+
+        for table_name in PROJECTED_TABLE_NAMES:
+            if table_name == "jobs":
+                continue
+            rows = [_make_table_row(table_name, job_id, trial_id, index=1)]
+            if table_name == "steps" and timestamp is not None:
+                rows[0]["timestamp"] = timestamp
+            elif table_name == "steps" and timestamp is None:
+                rows[0]["timestamp"] = None
+            table = pa.Table.from_pylist(rows, schema=TABLE_SCHEMAS[table_name])
+            pq.write_table(table, trial_dir / f"{table_name}.parquet")
+
+    return job_dir
+
+
+# --------------------------------------------------------------------------- #
+# Unit Tests: Date Resolution & Parsing
+# --------------------------------------------------------------------------- #
+
+
+def test_parse_iso_date() -> None:
+    assert parse_iso_date("2026-08-15T12:00:00Z") == date(2026, 8, 15)
+    assert parse_iso_date("2026-08-15T12:00:00+00:00") == date(2026, 8, 15)
+    assert parse_iso_date("2026-08-15") == date(2026, 8, 15)
+    assert parse_iso_date(None) is None
+    assert parse_iso_date("not-a-date") is None
+
+
+def test_resolve_job_date_from_steps(tmp_path: Path) -> None:
+    job_dir = create_uncompacted_job(
+        tmp_path,
+        job_id="job-1",
+        trial_ids=["trial-1"],
+        timestamp="2026-08-12T09:15:00Z",
+    )
+    resolved = resolve_job_date(job_dir)
+    assert resolved == date(2026, 8, 12)
+
+
+def test_resolve_job_date_from_runs_dir(tmp_path: Path) -> None:
+    # steps without timestamp
+    job_dir = create_uncompacted_job(
+        tmp_path / "derived",
+        job_id="job-2",
+        trial_ids=["trial-2"],
+        timestamp=None,
+    )
+    runs_dir = tmp_path / "runs"
+    runs_dir.mkdir(parents=True)
+    job_run_dir = runs_dir / "canary-job-2"
+    job_run_dir.mkdir()
+    (job_run_dir / "result.json").write_text(
+        json.dumps({
+            "id": "job-2",
+            "started_at": "2026-08-11T10:00:00Z",
+            "finished_at": "2026-08-11T10:05:00Z",
+        })
+    )
+
+    resolved = resolve_job_date(job_dir, runs_dir=runs_dir)
+    assert resolved == date(2026, 8, 11)
+
+
+# --------------------------------------------------------------------------- #
+# Unit Tests: Deduplication, Sorting & Writing
+# --------------------------------------------------------------------------- #
+
+
+def test_deduplicate_and_sort_jobs() -> None:
+    schema = TABLE_SCHEMAS["jobs"]
+    rows = [
+        {"job_id": "job-b", "job_name": "b", "trial_count": 1},
+        {"job_id": "job-a", "job_name": "a", "trial_count": 2},
+        {"job_id": "job-a", "job_name": "a-dup", "trial_count": 2},
+    ]
+    table = pa.Table.from_pylist(rows, schema=schema)
+    deduped = deduplicate_and_sort(table, "jobs")
+    assert deduped.num_rows == 2
+    assert deduped.column("job_id").to_pylist() == ["job-a", "job-b"]
+    assert deduped.schema.equals(schema)
+
+
+def test_write_compact_table_validation(tmp_path: Path) -> None:
+    schema = TABLE_SCHEMAS["jobs"]
+    rows = [{"job_id": "j1", "job_name": "n1", "trial_count": 1}]
+    table = pa.Table.from_pylist(rows, schema=schema)
+    target = tmp_path / "jobs.parquet"
+    written_count = write_compact_table(table, target, "jobs")
+    assert written_count == 1
+    assert target.is_file()
+
+    read_back = pq.read_table(target)
+    assert read_back.schema.equals(schema)
+    assert read_back.num_rows == 1
+
+
+def test_write_compact_table_schema_error(tmp_path: Path) -> None:
+    # Intentionally invalid schema for "jobs" (missing columns)
+    bad_schema = pa.schema([pa.field("wrong_col", pa.string())])
+    bad_table = pa.Table.from_pylist([{"wrong_col": "val"}], schema=bad_schema)
+    target = tmp_path / "jobs.parquet"
+
+    with pytest.raises(CompactionValidationError, match="Schema integrity mismatch"):
+        write_compact_table(bad_table, target, "jobs")
+
+    assert not target.exists()
+
+
+# --------------------------------------------------------------------------- #
+# Integration Tests: Planning & Discovery
+# --------------------------------------------------------------------------- #
+
+
+def test_plan_compaction_and_discovery(tmp_path: Path) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-1",
+        trial_ids=["t1", "t2"],
+        timestamp="2026-08-05T10:00:00Z",
+    )
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-2",
+        trial_ids=["t3"],
+        timestamp="2026-08-15T10:00:00Z",
+    )
+
+    uncompacted = discover_uncompacted_jobs(derived_root)
+    assert len(uncompacted) == 2
+    assert {u.job_id for u in uncompacted} == {"job-1", "job-2"}
+
+    today = date(2026, 8, 16)
+    plan = plan_compaction(derived_root, clock_today=today, retention_days=7)
+    assert len(plan.days) == 2
+
+    day_05 = next(d for d in plan.days if d.dt == "2026-08-05")
+    assert day_05.is_closed is True
+    assert day_05.is_prunable is True  # > 7 days old
+    assert day_05.uncompacted_row_counts["jobs"] == 1
+    assert day_05.uncompacted_row_counts["trial_facts"] == 2
+
+    day_15 = next(d for d in plan.days if d.dt == "2026-08-15")
+    assert day_15.is_closed is True
+    assert day_15.is_prunable is False  # <= 7 days old
+
+    # Check discover_compacted_row_counts before compaction
+    pre_counts = discover_compacted_row_counts(derived_root, "2026-08-05")
+    assert pre_counts["jobs"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# Integration Tests: End-to-End Compaction
+# --------------------------------------------------------------------------- #
+
+
+def test_compaction_end_to_end(tmp_path: Path) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    # Create 2 jobs for 2026-08-08 (older than 7 days relative to 2026-08-16)
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-old-1",
+        trial_ids=["t1", "t2"],
+        timestamp="2026-08-08T12:00:00Z",
+    )
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-old-2",
+        trial_ids=["t3"],
+        timestamp="2026-08-08T14:00:00Z",
+    )
+    # Create 1 job for 2026-08-14 (recent, within 7 days relative to 2026-08-16)
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-recent-1",
+        trial_ids=["t4"],
+        timestamp="2026-08-14T10:00:00Z",
+    )
+
+    today = date(2026, 8, 16)
+    result = compact(derived_root, clock_today=today, retention_days=7)
+
+    assert result.ok
+    assert len(result.compacted_days) == 2
+
+    # Check 2026-08-08
+    day_08 = next(d for d in result.compacted_days if d.dt == "2026-08-08")
+    assert day_08.table_row_counts["jobs"] == 2
+    assert day_08.table_row_counts["trial_facts"] == 3  # 2 + 1 trials
+    assert day_08.table_row_counts["steps"] == 3
+    assert set(day_08.pruned_job_ids) == {"job-old-1", "job-old-2"}
+    assert day_08.retained_job_ids == ()
+
+    # Verify old granular partitions were pruned
+    assert not (derived_root / "job_id=job-old-1").exists()
+    assert not (derived_root / "job_id=job-old-2").exists()
+
+    # Check 2026-08-14
+    day_14 = next(d for d in result.compacted_days if d.dt == "2026-08-14")
+    assert day_14.table_row_counts["jobs"] == 1
+    assert day_14.table_row_counts["trial_facts"] == 1
+    assert day_14.pruned_job_ids == ()
+    assert set(day_14.retained_job_ids) == {"job-recent-1"}
+
+    # Verify recent granular partitions were retained
+    assert (derived_root / "job_id=job-recent-1").is_dir()
+
+    # Verify compacted parquet files exist and have exact schemas
+    for dt_str in ["2026-08-08", "2026-08-14"]:
+        day_dir = derived_root / COMPACT_DIRNAME / f"dt={dt_str}"
+        assert day_dir.is_dir()
+        for table_name in PROJECTED_TABLE_NAMES:
+            file_path = day_dir / f"{table_name}.parquet"
+            assert file_path.is_file()
+            t = pq.read_table(file_path)
+            assert t.schema.equals(TABLE_SCHEMAS[table_name])
+
+
+def test_idempotent_rerun(tmp_path: Path) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-1",
+        trial_ids=["t1", "t2"],
+        timestamp="2026-08-14T10:00:00Z",
+    )
+
+    today = date(2026, 8, 16)
+    # First run (retains granular partition because dt is within 7 days)
+    res1 = compact(derived_root, clock_today=today, retention_days=7)
+    assert res1.ok
+    assert res1.total_compacted_rows["jobs"] == 1
+    assert res1.total_compacted_rows["trial_facts"] == 2
+
+    # Second run over same retained data
+    res2 = compact(derived_root, clock_today=today, retention_days=7)
+    assert res2.ok
+    assert res2.total_compacted_rows["jobs"] == 1
+    assert res2.total_compacted_rows["trial_facts"] == 2
+
+    # Verify files on disk match expected counts exactly
+    compact_dir = derived_root / COMPACT_DIRNAME / "dt=2026-08-14"
+    assert count_table_rows(compact_dir / "jobs.parquet") == 1
+    assert count_table_rows(compact_dir / "trial_facts.parquet") == 2
+
+
+def test_target_date_filtering(tmp_path: Path) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-1",
+        trial_ids=["t1"],
+        timestamp="2026-08-13T10:00:00Z",
+    )
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-2",
+        trial_ids=["t2"],
+        timestamp="2026-08-14T10:00:00Z",
+    )
+
+    # Compact only 2026-08-13
+    res = compact(derived_root, target_date="2026-08-13")
+    assert res.ok
+    assert len(res.compacted_days) == 1
+    assert res.compacted_days[0].dt == "2026-08-13"
+
+    assert (derived_root / COMPACT_DIRNAME / "dt=2026-08-13").is_dir()
+    assert not (derived_root / COMPACT_DIRNAME / "dt=2026-08-14").exists()
+
+
+def test_dry_run_leaves_disk_untouched(tmp_path: Path) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-old",
+        trial_ids=["t1"],
+        timestamp="2026-08-01T10:00:00Z",
+    )
+
+    today = date(2026, 8, 16)
+    res = compact(derived_root, clock_today=today, retention_days=7, dry_run=True)
+    assert res.ok
+    assert len(res.compacted_days) == 1
+    assert res.compacted_days[0].dt == "2026-08-01"
+
+    # Compact dir not created, uncompacted job not pruned
+    assert not (derived_root / COMPACT_DIRNAME).exists()
+    assert (derived_root / "job_id=job-old").is_dir()
+
+
+def test_no_prune_flag_retains_old_jobs(tmp_path: Path) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-old",
+        trial_ids=["t1"],
+        timestamp="2026-08-01T10:00:00Z",
+    )
+
+    today = date(2026, 8, 16)
+    res = compact(derived_root, clock_today=today, retention_days=7, prune=False)
+    assert res.ok
+    assert (derived_root / COMPACT_DIRNAME / "dt=2026-08-01").is_dir()
+    assert (derived_root / "job_id=job-old").is_dir()
+    assert res.retained_jobs == ("job-old",)
+    assert res.pruned_jobs == ()
+
+
+# --------------------------------------------------------------------------- #
+# Integration Tests: DuckDB Hive Partitioning Queries
+# --------------------------------------------------------------------------- #
+
+
+def test_duckdb_hive_partitioning_query(tmp_path: Path) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-1",
+        trial_ids=["t1", "t2"],
+        timestamp="2026-08-10T10:00:00Z",
+    )
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-2",
+        trial_ids=["t3"],
+        timestamp="2026-08-11T10:00:00Z",
+    )
+
+    compact(derived_root, clock_today=date(2026, 8, 16), retention_days=7)
+
+    con = duckdb.connect()
+    glob_pattern = (derived_root / COMPACT_DIRNAME / "dt=*" / "trial_facts.parquet").as_posix()
+    query = (
+        f"SELECT dt, count(*) as cnt "
+        f"FROM read_parquet('{glob_pattern}', hive_partitioning = true) "
+        f"GROUP BY dt ORDER BY dt"
+    )
+    result = con.execute(query).fetchall()
+
+    assert [(str(r[0]), r[1]) for r in result] == [("2026-08-10", 2), ("2026-08-11", 1)]
+
+
+# --------------------------------------------------------------------------- #
+# CLI Tests
+# --------------------------------------------------------------------------- #
+
+
+def test_cli_compact_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-cli-1",
+        trial_ids=["t1"],
+        timestamp="2026-08-12T10:00:00Z",
+    )
+
+    exit_code = main([
+        "compact",
+        "--derived-dir",
+        str(derived_root),
+        "--json",
+    ])
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["ok"] is True
+    assert len(payload["compacted_days"]) == 1
+    assert payload["compacted_days"][0]["dt"] == "2026-08-12"
+
+
+def test_cli_compact_human_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    derived_root = tmp_path / "derived" / "parquet"
+    create_uncompacted_job(
+        derived_root,
+        job_id="job-cli-2",
+        trial_ids=["t1"],
+        timestamp="2026-08-12T10:00:00Z",
+    )
+
+    exit_code = main([
+        "compact",
+        "--derived-dir",
+        str(derived_root),
+    ])
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "parquet compaction" in captured.out
+    assert "dt=2026-08-12" in captured.out
+    assert "total compacted rows" in captured.out

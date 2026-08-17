@@ -13,30 +13,37 @@ specified in `docs/platform-architecture.md` (T7, §2.6, §8).
 `evallab tidy` sweeps the repository and linked worktrees for working tree debt,
 untracked strays, stale worktrees, unindexed documentation, and retention violations.
 
-`--dry-run` is the default. The command reports findings with byte counts and reasons,
-exiting non-zero if any findings exist so that CI or automated health checks can gate
-on workspace cleanliness. Deletions occur only when `--apply` is explicitly passed.
+`--dry-run` is the default. The command reports findings with byte counts and reasons.
+Under `--dry-run`, the exit code is non-zero (1) exactly when at least one item is
+actionable (eligible for deletion under `--apply`), and zero (0) when the working tree
+is clean or every finding is preserved/report-only. Deletions occur only when `--apply`
+is explicitly passed.
 
 ## Five Sweeps
 
 ### 1. Stale Worktrees
 Inspects `.worktrees/*` in the repository for linked worktrees whose branch is fully
 merged into `origin/main` (or `main`) or whose branch no longer exists in Git refs.
-- **Safety invariant:** Never removes or touches a worktree with uncommitted changes.
-  Dirty worktrees are always reported as `dirty — skipped` with the count of uncommitted
-  files, protecting in-progress missions.
+- **Exclusion of current invocation:** The worktree running `evallab tidy` is excluded
+  entirely from candidates and never reported as stale.
+- **Active worktrees separation:** Worktrees with uncommitted changes or active unmerged
+  branches are reported under a separate `Active worktrees (not swept)` section with the
+  count of uncommitted files or branch status, protecting in-progress missions. The stale
+  count includes only genuinely sweepable worktrees.
 - **Action under `--apply`:** Removes clean worktrees whose branch has merged or vanished,
   pruning the worktree registration in Git.
 
 ### 2. Merged Local Branches
 Inspects local branches matching `role/*` to see if their commits are fully contained
 in `origin/main`.
+- **Active worktree protection:** Branches currently checked out in an active worktree
+  or backing uncommitted work are preserved and classified separately, never labelled as
+  "merged" on ancestry containment alone nor presented under a heading that invites deletion.
 - **Safety invariant:** Never deletes a branch with an open GitHub pull request. If the
   `gh` CLI is not installed, not authenticated, or returns an error, the sweep skips the
-  branch and preserves it rather than guessing. Never deletes a branch currently checked out
-  in an active worktree.
+  branch and preserves it rather than guessing.
 - **Action under `--apply`:** Deletes clean local `role/*` branches that are merged and
-  confirmed to have no open PR.
+  confirmed to have no open PR and no active worktree.
 
 ### 3. Unindexed Documentation
 Inspects documentation files under `docs/` using `evallab.docindex` to identify markdown

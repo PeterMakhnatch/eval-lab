@@ -411,3 +411,139 @@ def test_cli_tidy_invocations(tidy_fixture_repo: Path, capsys: pytest.CaptureFix
     assert code_apply == 0
     captured_apply = capsys.readouterr()
     assert "Applied Actions" in captured_apply.out
+
+
+def test_current_worktree_never_appears_as_stale_or_finding(tmp_path: Path) -> None:
+    """Assert the current invoking worktree is excluded entirely and never reported."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    worktrees_dir = root / ".worktrees"
+    worktrees_dir.mkdir()
+    current_wt = worktrees_dir / "my-current-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/current-task", str(current_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+    report = collect_tidy_report(root, current_worktree=current_wt)
+    assert "my-current-wt" not in [w.path.name for w in report.worktrees]
+
+    text = format_tidy_report(report, root)
+    assert "my-current-wt" not in text
+    assert "## 1. Stale worktrees (0 items, 0 B)" in text
+
+
+def test_dirty_worktree_reported_in_active_not_swept_and_stale_count_excludes_it(
+    tmp_path: Path,
+) -> None:
+    """Assert a dirty worktree is reported under active/not-swept section."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    worktrees_dir = root / ".worktrees"
+    worktrees_dir.mkdir()
+    dirty_wt = worktrees_dir / "live-worktree"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/live-task", str(dirty_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (dirty_wt / "wip.py").write_text("print('in progress')\n", encoding="utf-8")
+
+    report = collect_tidy_report(root)
+    stale_wts = [w for w in report.worktrees if w.actionable]
+    active_wts = [w for w in report.worktrees if not w.actionable]
+
+    assert len(stale_wts) == 0
+    assert len(active_wts) == 1
+    assert active_wts[0].path.name == "live-worktree"
+    assert active_wts[0].status == "dirty"
+
+    text = format_tidy_report(report, root)
+    assert "## 1. Stale worktrees (0 items, 0 B)" in text
+    assert "## Active worktrees (not swept) (1 items" in text
+    assert "live-worktree" in text
+    assert "dirty — skipped (1 uncommitted file)" in text
+
+
+def test_branch_with_dirty_worktree_not_labelled_merged(tmp_path: Path) -> None:
+    """Assert a branch with no commits of its own and dirty worktree is not labelled merged."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    worktrees_dir = root / ".worktrees"
+    worktrees_dir.mkdir()
+    fresh_wt = worktrees_dir / "fresh-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/fresh-task", str(fresh_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    (fresh_wt / "uncommitted.txt").write_text("live work\n", encoding="utf-8")
+
+    report = collect_tidy_report(root)
+    b_map = {b.branch: b for b in report.branches}
+    assert "role/fresh-task" in b_map
+    branch_finding = b_map["role/fresh-task"]
+    assert branch_finding.status == "active_worktree"
+    assert branch_finding.actionable is False
+    assert "no commits of its own" in branch_finding.reason
+    assert "merged into" not in branch_finding.reason
+
+    text = format_tidy_report(report, root)
+    assert "## 2. Merged local branches (0 items)" in text
+    # Assert role/fresh-task does not appear in the Merged local branches section
+    merged_section = text.split("## 2. Merged local branches")[1].split("## 3.")[0]
+    assert "role/fresh-task" not in merged_section
+
+
+def test_exit_code_agreement_fixtures(tmp_path: Path) -> None:
+    """Assert exit is non-zero when actionable items exist, and 0 when all are preserved."""
+    # Fixture 1: Preserved-only findings (dirty worktree, draft stray, orphan doc)
+    preserved_repo = tmp_path / "preserved_repo"
+    preserved_repo.mkdir()
+    init_git_repo(preserved_repo)
+
+    # Dirty worktree
+    wt_dir = preserved_repo / ".worktrees/active-wt"
+    wt_dir.parent.mkdir()
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/active-task", str(wt_dir), "main"],
+        cwd=preserved_repo,
+        check=True,
+        capture_output=True,
+    )
+    (wt_dir / "draft.txt").write_text("in progress\n", encoding="utf-8")
+
+    # Draft file (unrecognized stray)
+    (preserved_repo / "my_draft_feature.py").write_text("def draft(): pass\n", encoding="utf-8")
+
+    # Unindexed doc (report only)
+    docs_dir = preserved_repo / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "orphan.md").write_text("# Orphan\n", encoding="utf-8")
+
+    rep_preserved = collect_tidy_report(preserved_repo)
+    assert rep_preserved.total_findings_count > 0
+    assert rep_preserved.actionable_count == 0
+
+    # Dry-run exit must be 0
+    exit_preserved = run_tidy(preserved_repo, apply=False)
+    assert exit_preserved == 0
+
+    # Fixture 2: Actionable items exist (junk stray file added)
+    (preserved_repo / "scratch.tmp").write_text("junk\n", encoding="utf-8")
+    rep_actionable = collect_tidy_report(preserved_repo)
+    assert rep_actionable.actionable_count == 1
+
+    # Dry-run exit must now be 1
+    exit_actionable = run_tidy(preserved_repo, apply=False)
+    assert exit_actionable == 1

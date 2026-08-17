@@ -41,49 +41,20 @@ NEVER_TOUCH_PREFIXES: tuple[str, ...] = (
     "agents/briefs",
 )
 
-RECOGNIZED_JUNK_EXTENSIONS: frozenset[str] = frozenset(
-    {
-        ".tmp",
-        ".temp",
-        ".bak",
-        ".backup",
-        ".swp",
-        ".swo",
-        ".orig",
-        ".rej",
-        ".old",
-        ".log",
-        ".pyc",
-        ".pyo",
-        ".pyd",
-    }
-)
+RECOGNIZED_JUNK_EXTENSIONS: frozenset[str] = frozenset({
+    ".tmp", ".temp", ".bak", ".backup", ".swp", ".swo", ".orig", ".rej",
+    ".old", ".log", ".pyc", ".pyo", ".pyd",
+})
 
-RECOGNIZED_JUNK_FILENAMES: frozenset[str] = frozenset(
-    {
-        ".DS_Store",
-        "Thumbs.db",
-        "dump.rdb",
-        "core",
-    }
-)
+RECOGNIZED_JUNK_FILENAMES: frozenset[str] = frozenset({
+    ".DS_Store", "Thumbs.db", "dump.rdb", "core",
+})
 
-RECOGNIZED_JUNK_DIR_PARTS: frozenset[str] = frozenset(
-    {
-        "__pycache__",
-        ".pytest_cache",
-        ".coverage",
-        ".mypy_cache",
-        ".ruff_cache",
-    }
-)
+RECOGNIZED_JUNK_DIR_PARTS: frozenset[str] = frozenset({
+    "__pycache__", ".pytest_cache", ".coverage", ".mypy_cache", ".ruff_cache",
+})
 
-RECOGNIZED_JUNK_PREFIXES: tuple[str, ...] = (
-    "tmp_",
-    "temp_",
-    "scratch_",
-    "test_output_",
-)
+RECOGNIZED_JUNK_PREFIXES: tuple[str, ...] = ("tmp_", "temp_", "scratch_", "test_output_")
 
 RECOGNIZED_JUNK_STEMS: frozenset[str] = frozenset({"scratch", "temp", "tmp"})
 
@@ -167,7 +138,7 @@ def _rel_path_str(path: Path, root: Path) -> str:
 class WorktreeFinding:
     path: Path
     branch: str
-    status: Literal["clean_merged", "clean_vanished", "dirty", "current"]
+    status: Literal["clean_merged", "clean_vanished", "dirty", "current", "active_clean"]
     file_count: int
     size_bytes: int
     reason: str
@@ -298,17 +269,6 @@ def sweep_worktrees(
 
         # 1. Is this the current invoking worktree?
         if wt_path.resolve() == active_wt:
-            findings.append(
-                WorktreeFinding(
-                    path=wt_path,
-                    branch="current",
-                    status="current",
-                    file_count=0,
-                    size_bytes=size,
-                    reason="active worktree (current invocation)",
-                    actionable=False,
-                )
-            )
             continue
 
         # 2. Check git status in the worktree
@@ -383,13 +343,8 @@ def sweep_worktrees(
                 commit_sha = head_res.stdout.strip()
                 check_merged = subprocess.run(
                     [
-                        "git",
-                        "-C",
-                        str(primary),
-                        "merge-base",
-                        "--is-ancestor",
-                        commit_sha,
-                        target_main,
+                        "git", "-C", str(primary),
+                        "merge-base", "--is-ancestor", commit_sha, target_main,
                     ],
                     capture_output=True,
                     text=True,
@@ -437,7 +392,18 @@ def sweep_worktrees(
                     actionable=True,
                 )
             )
-
+        else:
+            findings.append(
+                WorktreeFinding(
+                    path=wt_path,
+                    branch=branch,
+                    status="active_clean",
+                    file_count=0,
+                    size_bytes=size,
+                    reason=f"active branch {branch} (not merged into {target_main})",
+                    actionable=False,
+                )
+            )
     return sorted(findings, key=lambda f: f.path.as_posix())
 
 
@@ -451,15 +417,8 @@ def default_gh_pr_checker(branch: str, root: Path) -> tuple[bool, int | None, st
 
     res = subprocess.run(
         [
-            "gh",
-            "pr",
-            "list",
-            "--head",
-            branch,
-            "--state",
-            "open",
-            "--json",
-            "number,url",
+            "gh", "pr", "list", "--head", branch,
+            "--state", "open", "--json", "number,url",
         ],
         cwd=root,
         capture_output=True,
@@ -492,12 +451,8 @@ def sweep_branches(
     # List local branches under refs/heads/role/
     res = subprocess.run(
         [
-            "git",
-            "-C",
-            str(primary),
-            "for-each-ref",
-            "--format=%(refname:short)",
-            "refs/heads/role/",
+            "git", "-C", str(primary), "for-each-ref",
+            "--format=%(refname:short)", "refs/heads/role/",
         ],
         capture_output=True,
         text=True,
@@ -515,27 +470,21 @@ def sweep_branches(
         text=True,
         check=False,
     )
-    active_branches: set[str] = set()
+    worktree_branches: dict[str, Path] = {}
     if wt_res.returncode == 0:
+        current_wt_path: Path | None = None
         for line in wt_res.stdout.splitlines():
-            if line.startswith("branch refs/heads/"):
-                active_branches.add(line.removeprefix("branch refs/heads/").strip())
-
+            if line.startswith("worktree "):
+                current_wt_path = Path(line.removeprefix("worktree ").strip())
+            elif line.startswith("branch refs/heads/") and current_wt_path is not None:
+                b_name = line.removeprefix("branch refs/heads/").strip()
+                worktree_branches[b_name] = current_wt_path
     checker = gh_checker or default_gh_pr_checker
     findings: list[BranchFinding] = []
 
     for branch in sorted(branch_names):
-        # Check if merged into target
         merged_res = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(primary),
-                "merge-base",
-                "--is-ancestor",
-                branch,
-                target_main,
-            ],
+            ["git", "-C", str(primary), "merge-base", "--is-ancestor", branch, target_main],
             capture_output=True,
             text=True,
             check=False,
@@ -545,17 +494,60 @@ def sweep_branches(
             continue
 
         # If checked out in a worktree:
-        if branch in active_branches:
+        # Check if branch tip equals target_main (no commits of its own)
+        b_res = subprocess.run(
+            ["git", "-C", str(primary), "rev-parse", f"refs/heads/{branch}"],
+            capture_output=True, text=True, check=False,
+        )
+        t_res = subprocess.run(
+            ["git", "-C", str(primary), "rev-parse", target_main],
+            capture_output=True, text=True, check=False,
+        )
+        branch_sha = b_res.stdout.strip() if b_res.returncode == 0 else ""
+        target_sha = t_res.stdout.strip() if t_res.returncode == 0 else ""
+        no_commits_of_own = bool(branch_sha and branch_sha == target_sha)
+
+        # If checked out in a worktree:
+        if branch in worktree_branches:
+            wt_path = worktree_branches[branch]
+            wt_rel = _rel_path_str(wt_path, primary)
+            wt_status = subprocess.run(
+                ["git", "-C", str(wt_path), "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            wt_dirty = False
+            if wt_status.returncode == 0:
+                wt_dirty = len([line for line in wt_status.stdout.splitlines() if line.strip()]) > 0
+
+            if wt_dirty:
+                reason = (
+                    f"contained in {target_main} (no commits of its own); "
+                    f"checked out in active dirty worktree `{wt_rel}` (preserved)"
+                    if no_commits_of_own
+                    else f"checked out in active dirty worktree `{wt_rel}` (preserved)"
+                )
+            elif no_commits_of_own:
+                reason = (
+                    f"contained in {target_main} (no commits of its own); "
+                    f"checked out in active worktree `{wt_rel}` (preserved)"
+                )
+            else:
+                reason = (
+                    f"merged into {target_main}; "
+                    f"checked out in active worktree `{wt_rel}` (preserved)"
+                )
+
             findings.append(
                 BranchFinding(
                     branch=branch,
                     status="active_worktree",
-                    reason=f"merged into {target_main}; checked out in active worktree (preserved)",
+                    reason=reason,
                     actionable=False,
                 )
             )
             continue
-
         # Check PR status via gh
         gh_available, open_pr, err_msg = checker(branch, primary)
         if not gh_available:
@@ -845,17 +837,13 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
             # Remove worktree safely
             res = subprocess.run(
                 ["git", "-C", str(primary), "worktree", "remove", "--force", str(wt.path)],
-                capture_output=True,
-                text=True,
-                check=False,
+                capture_output=True, text=True, check=False,
             )
             if res.returncode != 0 and wt.path.exists():
                 shutil.rmtree(wt.path, ignore_errors=True)
                 subprocess.run(
                     ["git", "-C", str(primary), "worktree", "prune"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
+                    capture_output=True, text=True, check=False,
                 )
             report.deleted_worktrees.append(rel)
 
@@ -864,9 +852,7 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
         if branch.actionable:
             res = subprocess.run(
                 ["git", "-C", str(primary), "branch", "-D", branch.branch],
-                capture_output=True,
-                text=True,
-                check=False,
+                capture_output=True, text=True, check=False,
             )
             if res.returncode == 0:
                 report.deleted_branches.append(branch.branch)
@@ -892,13 +878,16 @@ def format_tidy_report(report: TidyReport, root: Path) -> str:
     lines.append("# evallab tidy report")
     lines.append("")
 
-    # 1. Stale worktrees
-    wt_bytes = sum(w.size_bytes for w in report.worktrees)
-    lines.append(f"## 1. Stale worktrees ({len(report.worktrees)} items, {format_bytes(wt_bytes)})")
-    if not report.worktrees:
+    # 1. Stale worktrees (only actionable sweepable worktrees)
+    stale_worktrees = [w for w in report.worktrees if w.actionable]
+    active_worktrees = [w for w in report.worktrees if not w.actionable]
+
+    wt_bytes = sum(w.size_bytes for w in stale_worktrees)
+    lines.append(f"## 1. Stale worktrees ({len(stale_worktrees)} items, {format_bytes(wt_bytes)})")
+    if not stale_worktrees:
         lines.append("  (clean — no stale worktrees found)")
     else:
-        for wt in report.worktrees:
+        for wt in stale_worktrees:
             rel = _rel_path_str(wt.path, primary)
             action_tag = " [eligible for removal]" if wt.actionable else ""
             lines.append(
@@ -906,16 +895,30 @@ def format_tidy_report(report: TidyReport, root: Path) -> str:
             )
     lines.append("")
 
-    # 2. Merged local branches
-    lines.append(f"## 2. Merged local branches ({len(report.branches)} items)")
-    if not report.branches:
+    # Active worktrees (not swept)
+    if active_worktrees:
+        active_bytes = sum(w.size_bytes for w in active_worktrees)
+        lines.append(
+            f"## Active worktrees (not swept) "
+            f"({len(active_worktrees)} items, {format_bytes(active_bytes)})"
+        )
+        for wt in active_worktrees:
+            rel = _rel_path_str(wt.path, primary)
+            lines.append(
+                f"- `{rel}` ({wt.branch}, {format_bytes(wt.size_bytes)}) — {wt.reason}"
+            )
+        lines.append("")
+
+    # 2. Merged local branches (excluding branches checked out in active worktrees)
+    merged_branches = [b for b in report.branches if b.status != "active_worktree"]
+    lines.append(f"## 2. Merged local branches ({len(merged_branches)} items)")
+    if not merged_branches:
         lines.append("  (clean — no merged local role/* branches found)")
     else:
-        for b in report.branches:
+        for b in merged_branches:
             action_tag = " [eligible for deletion]" if b.actionable else ""
             lines.append(f"- `{b.branch}` — {b.reason}{action_tag}")
     lines.append("")
-
     # 3. Unindexed docs
     doc_bytes = sum(d.size_bytes for d in report.docs)
     lines.append(f"## 3. Unindexed docs ({len(report.docs)} items, {format_bytes(doc_bytes)})")
@@ -977,10 +980,8 @@ def format_tidy_report(report: TidyReport, root: Path) -> str:
             lines.append(f"- Removed {len(report.deleted_strays)} stray junk files:")
             for st in sorted(report.deleted_strays):
                 lines.append(f"    - `{st}`")
-        if (
-            not report.deleted_worktrees
-            and not report.deleted_branches
-            and not report.deleted_strays
+        if not (
+            report.deleted_worktrees or report.deleted_branches or report.deleted_strays
         ):
             lines.append("- No actionable items were eligible for deletion.")
         lines.append("")
@@ -1020,7 +1021,6 @@ def run_tidy(
     text = format_tidy_report(report, root)
     print(text)
 
-    if not apply and report.total_findings_count > 0:
+    if not apply and report.actionable_count > 0:
         return 1
-
     return 0

@@ -58,6 +58,38 @@ R3 -- verifier-only payload (``<trial>/verifier/*``).
     per-line predicate is safe by construction. The scored facts survive in
     ``verifier/reward.txt``, ``verifier/ctrf.redacted.json`` and ``result.json``.
 
+R4 -- redacted quota sidecar (``<trial>/agent/quota/<rollout>.rate-limits.json``).
+    R2 is right to omit the rollout, but the rollout is also the only place the
+    provider's own quota reading is recorded: each ``token_count`` event carries
+    ``payload.rate_limits`` -- ``used_percent``, ``window_minutes``,
+    ``resets_at``, ``credits``, ``plan_type``. Omitting the file whole therefore
+    discarded the one measured quota signal at the exact moment the evidence
+    became permanent, leaving the lab's quota history only in a gitignored
+    ``runs/`` tree on a single workstation.
+
+    R4 writes, beside each omitted rollout, a sidecar carrying only the event
+    timestamp and an explicit whitelist of ``payload.rate_limits`` scalars --
+    exactly the fields ``src/evallab/quota.py`` reads, and nothing else. Like
+    R3 it is a whitelist rather than a filter: nothing outside
+    ``payload.rate_limits`` is ever read, and an unrecognised key inside it is
+    dropped with only its *name* recorded, so a field the provider adds later
+    cannot leak by default. Message text, prompts, reasoning blobs, session
+    titles and tokens are therefore unreachable by construction, not by
+    pattern-matching. A whitelisted string longer than
+    ``RATE_LIMIT_STRING_LIMIT`` bytes becomes a digest marker, bounding the
+    sidecar's content without inspecting it.
+
+    The sidecar is a derivative, not a promoted copy: it records the SHA-256 and
+    byte count of the omitted parent rollout, so it is auditable against the
+    original exactly as R2's own omission record is, and the operator surfaces
+    label it ``withheld`` -- a few hundred bytes surviving from a ~194 kB
+    rollout -- so no reader mistakes it for the session.
+
+    What the sidecar cannot support is documented next to the format in
+    ``docs/quota-accounting.md``: the reading is account-wide and cannot be
+    decomposed into the lab's share, it is a point-in-time snapshot rather than
+    a series, and it is only as fresh as the trial that recorded it.
+
 Every promoted file records the SHA-256 of its unredacted parent in
 ``PROMOTION.json`` next to the SHA-256 of the promoted bytes.
 
@@ -73,6 +105,7 @@ import hashlib
 import json
 import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -82,6 +115,39 @@ VERIFIER_TEXT_LIMIT = 4096
 PROMPT_SOURCES = frozenset({"system", "user"})
 MANIFEST_NAME = "PROMOTION.json"
 EVIDENCE_RUNS = Path(__file__).resolve().parents[1] / "research" / "evidence" / "runs"
+
+#: R4. Longest whitelisted quota string this repository has ever observed is
+#: ``"prolite"`` (7 bytes). 128 bytes is generous for a plan or limit label and
+#: still bounds the sidecar by construction, so no whitelisted string can carry
+#: a payload even if the provider starts putting prose in one.
+RATE_LIMIT_STRING_LIMIT = 128
+SIDECAR_SCHEMA_VERSION = 1
+SIDECAR_DIRNAME = "quota"
+SIDECAR_SUFFIX = ".rate-limits.json"
+ROLLOUT_PREFIX = "rollout-"
+
+#: R4 whitelist. Exactly the fields ``src/evallab/quota.py`` reads from
+#: ``payload.rate_limits``, with the type each must have. Anything else the
+#: provider sends is dropped and only its name is recorded. ``bool`` is listed
+#: separately from ``int`` on purpose: ``isinstance(True, int)`` is ``True``, so
+#: a numeric field would otherwise silently accept a flag.
+RATE_LIMIT_SCALARS: dict[str, tuple[type, ...]] = {
+    "limit_id": (str,),
+    "limit_name": (str,),
+    "plan_type": (str,),
+    "rate_limit_reached_type": (str,),
+}
+RATE_LIMIT_WINDOWS: dict[str, tuple[type, ...]] = {
+    "used_percent": (int, float),
+    "window_minutes": (int, float),
+    "resets_at": (int, float),
+}
+RATE_LIMIT_CREDITS: dict[str, tuple[type, ...]] = {
+    "has_credits": (bool,),
+    "unlimited": (bool,),
+    "balance": (str, int, float),
+}
+RATE_LIMIT_WINDOW_KEYS = ("primary", "secondary")
 
 
 def sha256_bytes(payload: bytes) -> str:
@@ -164,6 +230,163 @@ def redact_verifier(path: Path, raw: bytes) -> tuple[bytes, int]:
     return f"{body}\n".encode(), 1
 
 
+def _whitelisted_scalar(value: Any, kinds: tuple[type, ...]) -> Any | None:
+    """A value of a declared type, bounded in size, or ``None`` to drop it.
+
+    ``bool`` is rejected for numeric fields because ``isinstance(True, int)`` is
+    ``True``; ``src/evallab/quota.py`` makes the same distinction.
+    """
+    if isinstance(value, bool) and bool not in kinds:
+        return None
+    if not isinstance(value, kinds):
+        return None
+    if isinstance(value, str) and len(value.encode("utf-8")) > RATE_LIMIT_STRING_LIMIT:
+        return _marker(value)
+    return value
+
+
+def _whitelisted_group(
+    payload: Any, fields: dict[str, tuple[type, ...]], prefix: str, dropped: list[str]
+) -> dict[str, Any] | None:
+    """Rebuild one nested quota object from the whitelist, field by field."""
+    if not isinstance(payload, dict):
+        return None
+    group: dict[str, Any] = {}
+    for key, value in payload.items():
+        kinds = fields.get(key)
+        if kinds is None:
+            dropped.append(f"{prefix}.{key}")
+            continue
+        kept = _whitelisted_scalar(value, kinds)
+        if kept is None and value is not None:
+            dropped.append(f"{prefix}.{key}")
+            continue
+        group[key] = kept
+    return group
+
+
+def redact_rate_limits(limits: Any) -> tuple[dict[str, Any], list[str]]:
+    """R4: rebuild ``payload.rate_limits`` from the whitelist, nothing else.
+
+    Returns the safe object and the *names* of the fields dropped. Values are
+    never copied out of an unrecognised field, so a key the provider adds later
+    is reported but cannot leak.
+    """
+    dropped: list[str] = []
+    if not isinstance(limits, dict):
+        return {}, dropped
+    safe: dict[str, Any] = {}
+    for key, value in limits.items():
+        if key in RATE_LIMIT_SCALARS:
+            kept = _whitelisted_scalar(value, RATE_LIMIT_SCALARS[key])
+            if kept is None and value is not None:
+                dropped.append(key)
+                continue
+            safe[key] = kept
+        elif key in RATE_LIMIT_WINDOW_KEYS:
+            safe[key] = _whitelisted_group(value, RATE_LIMIT_WINDOWS, key, dropped)
+        elif key == "credits":
+            safe[key] = _whitelisted_group(value, RATE_LIMIT_CREDITS, key, dropped)
+        else:
+            dropped.append(key)
+    return safe, dropped
+
+
+def _timestamp(value: Any) -> str | None:
+    """An ISO-8601 instant, or ``None``. Never a free-text passthrough.
+
+    The timestamp is the only non-``rate_limits`` value R4 copies, so it is
+    parsed before it is kept: a field carrying anything but an instant is
+    dropped rather than promoted.
+    """
+    if not isinstance(value, str) or len(value) > 64:
+        return None
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return value
+
+
+def rate_limit_snapshots(raw: bytes) -> tuple[list[dict[str, Any]], list[str]]:
+    """Every provider quota snapshot in one rollout, reduced to the whitelist.
+
+    Mirrors ``evallab.quota._rate_limit_snapshots``: a ``token_count`` event
+    whose payload carries ``rate_limits``. Only that subtree and the event
+    timestamp are read; the rest of the line is never touched.
+    """
+    snapshots: list[dict[str, Any]] = []
+    dropped: set[str] = set()
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        if "rate_limits" not in line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, dict) or payload.get("type") != "token_count":
+            continue
+        observed_at = _timestamp(event.get("timestamp"))
+        limits, missed = redact_rate_limits(payload.get("rate_limits"))
+        dropped.update(missed)
+        if observed_at is None or not limits:
+            continue
+        snapshots.append({"timestamp": observed_at, "rate_limits": limits})
+    snapshots.sort(key=lambda item: item["timestamp"])
+    return snapshots, sorted(dropped)
+
+
+def sidecar_path(relative: Path) -> Path:
+    """Where the sidecar for an omitted rollout goes: ``<trial>/agent/quota/``.
+
+    Deliberately *not* under ``agent/sessions/``. That prefix is the structural
+    signal that a path holds raw model I/O, and ``git ls-files`` finding nothing
+    under it in committed evidence must stay a true check.
+    """
+    parts = relative.parts
+    agent = parts.index("agent")
+    stem = relative.name.removesuffix(".jsonl")
+    return Path(*parts[: agent + 1], SIDECAR_DIRNAME, f"{stem}{SIDECAR_SUFFIX}")
+
+
+def rate_limits_sidecar(relative: Path, raw: bytes) -> bytes | None:
+    """R4: the redacted quota sidecar for one omitted rollout, or ``None``.
+
+    ``None`` when the file is not a rollout or records no quota snapshot, so a
+    bundle only grows a sidecar where there is a reading to preserve.
+    """
+    if not relative.name.startswith(ROLLOUT_PREFIX) or relative.suffix != ".jsonl":
+        return None
+    snapshots, dropped = rate_limit_snapshots(raw)
+    if not snapshots:
+        return None
+    document = {
+        "schema_version": SIDECAR_SCHEMA_VERSION,
+        "rule": "R4",
+        "kind": "evallab-rate-limits-sidecar",
+        "source_path": str(relative),
+        "source_bytes": len(raw),
+        "source_sha256": sha256_bytes(raw),
+        "source_omitted_by_rule": "R2",
+        "kept": (
+            "the event timestamp and a whitelist of payload.rate_limits scalars; "
+            "no message, prompt, reasoning, session title or token is read"
+        ),
+        "dropped_field_names": dropped,
+        "snapshot_count": len(snapshots),
+        "limits": (
+            "account-scope, not the lab's share; a point-in-time snapshot, not a "
+            "series; only as fresh as the trial that recorded it. See "
+            "docs/quota-accounting.md."
+        ),
+        "snapshots": snapshots,
+    }
+    return json.dumps(document, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
+
+
 def classify(relative: Path) -> str:
     parts = relative.parts
     if "sessions" in parts and "agent" in parts:
@@ -195,14 +418,41 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
         action = classify(relative)
 
         if action == "omit-R2":
+            omission = {
+                "source_path": str(relative),
+                "promoted_path": None,
+                "action": "omitted",
+                "rule": "R2",
+                "source_bytes": len(raw),
+                "source_sha256": parent_digest,
+            }
+            entries.append(omission)
+            # R4: the rollout goes, but the provider's own quota reading inside
+            # it survives as a whitelisted sidecar carrying this same parent
+            # digest. Recorded as a second entry rather than folded into the
+            # omission record, so `verify` checks the sidecar's own digest and
+            # the explorer can report what it cost -- a few hundred bytes out of
+            # the whole rollout -- instead of presenting it as a promoted file.
+            body = rate_limits_sidecar(relative, raw)
+            if body is None:
+                continue
+            target = sidecar_path(relative)
+            omission["quota_sidecar_path"] = str(target)
+            out = destination / target
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(body)
+            promoted_bytes += len(body)
             entries.append(
                 {
                     "source_path": str(relative),
-                    "promoted_path": None,
-                    "action": "omitted",
-                    "rule": "R2",
+                    "promoted_path": str(target),
+                    "action": "redacted",
+                    "rule": "R4",
+                    "derived_from": str(relative),
                     "source_bytes": len(raw),
                     "source_sha256": parent_digest,
+                    "promoted_bytes": len(body),
+                    "promoted_sha256": sha256_bytes(body),
                 }
             )
             continue
@@ -247,6 +497,9 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
             }
         )
 
+    # A sidecar is derived from a source file already counted, so counting it as
+    # a source file would inflate `source_files` and double-count its bytes.
+    sources = [e for e in entries if "derived_from" not in e]
     job_result = job_dir / "result.json"
     manifest = {
         "schema_version": SCHEMA_VERSION,
@@ -265,13 +518,21 @@ def promote(job_dir: Path, destination: Path, *, force: bool = False) -> dict[st
                 f"verifier/* text files over {VERIFIER_TEXT_LIMIT} bytes promoted "
                 "as a whole-file digest marker with no body"
             ),
+            "R4": (
+                "each omitted rollout leaves a quota sidecar under "
+                f"<trial>/agent/{SIDECAR_DIRNAME}/ holding only the event timestamp "
+                "and a whitelist of payload.rate_limits scalars, with the parent "
+                "rollout's sha256; account-scope point-in-time readings, no message, "
+                "prompt, reasoning, session title or token"
+            ),
         },
         "totals": {
-            "source_files": len(entries),
-            "promoted_files": sum(1 for e in entries if e["promoted_path"]),
-            "omitted_files": sum(1 for e in entries if not e["promoted_path"]),
+            "source_files": len(sources),
+            "promoted_files": sum(1 for e in sources if e["promoted_path"]),
+            "omitted_files": sum(1 for e in sources if not e["promoted_path"]),
+            "quota_sidecars": len(entries) - len(sources),
             "promoted_bytes": promoted_bytes,
-            "source_bytes": sum(e["source_bytes"] for e in entries),
+            "source_bytes": sum(e["source_bytes"] for e in sources),
         },
         "files": entries,
     }
@@ -314,7 +575,12 @@ def verify(evidence_runs: Path) -> int:
         for name in sorted(extra):
             print(f"UNMANIFESTED {bundle.name}/{name}")
             failures += 1
-        print(f"{manifest_path.parent.name}: {len(manifest['files'])} source files recorded")
+        sidecars = sum(1 for e in manifest["files"] if e.get("rule") == "R4")
+        print(
+            f"{manifest_path.parent.name}: "
+            f"{len(manifest['files']) - sidecars} source files recorded"
+            + (f", {sidecars} quota sidecars" if sidecars else "")
+        )
     print(f"verified {checked} promoted files across {len(manifests)} bundles, {failures} failures")
     return 1 if failures else 0
 
@@ -338,12 +604,14 @@ def main(argv: list[str] | None = None) -> int:
     total = 0
     for job in args.job:
         manifest = promote(args.source_runs / job, args.evidence_runs / job, force=args.force)
-        total += manifest["totals"]["promoted_bytes"]
+        totals = manifest["totals"]
+        total += totals["promoted_bytes"]
         print(
-            f"{job}: {manifest['totals']['promoted_files']} promoted "
-            f"({manifest['totals']['promoted_bytes']} B) "
-            f"{manifest['totals']['omitted_files']} omitted "
-            f"from {manifest['totals']['source_bytes']} B source"
+            f"{job}: {totals['promoted_files']} promoted "
+            f"({totals['promoted_bytes']} B) "
+            f"{totals['omitted_files']} omitted "
+            f"({totals['quota_sidecars']} quota sidecar(s) kept) "
+            f"from {totals['source_bytes']} B source"
         )
     print(f"total promoted bytes: {total}")
     return 0

@@ -8,13 +8,15 @@
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
     "R2": "agent/sessions/** raw model I/O omitted; sha256 recorded",
     "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
-    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body"
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
   },
   "totals": {
     "source_files": 38,
     "promoted_files": 35,
     "omitted_files": 3,
-    "promoted_bytes": 105826,
+    "quota_sidecars": 3,
+    "promoted_bytes": 114292,
     "source_bytes": 273211
   },
   "files": [
@@ -84,7 +86,19 @@
       "action": "omitted",
       "rule": "R2",
       "source_bytes": 47038,
-      "source_sha256": "sha256:4f7d7449f0ae97f83e00784601b94b0b9985b9fbd0510604bd32ef5466a5d643"
+      "source_sha256": "sha256:4f7d7449f0ae97f83e00784601b94b0b9985b9fbd0510604bd32ef5466a5d643",
+      "quota_sidecar_path": "transaction-reconciliation__W5o8QpH/agent/quota/rollout-2026-08-15T06-30-53-01a0041d-bf76-7c72-ae21-bcefb6081e8a.rate-limits.json"
+    },
+    {
+      "source_path": "transaction-reconciliation__W5o8QpH/agent/sessions/2026/08/15/rollout-2026-08-15T06-30-53-01a0041d-bf76-7c72-ae21-bcefb6081e8a.jsonl",
+      "promoted_path": "transaction-reconciliation__W5o8QpH/agent/quota/rollout-2026-08-15T06-30-53-01a0041d-bf76-7c72-ae21-bcefb6081e8a.rate-limits.json",
+      "action": "redacted",
+      "rule": "R4",
+      "derived_from": "transaction-reconciliation__W5o8QpH/agent/sessions/2026/08/15/rollout-2026-08-15T06-30-53-01a0041d-bf76-7c72-ae21-bcefb6081e8a.jsonl",
+      "source_bytes": 47038,
+      "source_sha256": "sha256:4f7d7449f0ae97f83e00784601b94b0b9985b9fbd0510604bd32ef5466a5d643",
+      "promoted_bytes": 2822,
+      "promoted_sha256": "sha256:d8c4724800da0b0c0c964853339c391ca6bccf5ba761315146e41034b94685de"
     },
     {
       "source_path": "transaction-reconciliation__W5o8QpH/agent/trajectory.json",
@@ -192,7 +206,19 @@
       "action": "omitted",
       "rule": "R2",
       "source_bytes": 47211,
-      "source_sha256": "sha256:6e22058a22f0b3f1c2395351767691f40a608c5e8b4492d81539245484faf2d2"
+      "source_sha256": "sha256:6e22058a22f0b3f1c2395351767691f40a608c5e8b4492d81539245484faf2d2",
+      "quota_sidecar_path": "transaction-reconciliation__ba8ovxZ/agent/quota/rollout-2026-08-15T06-32-07-01a0041e-dfbf-7ac2-9185-ad59bf142e40.rate-limits.json"
+    },
+    {
+      "source_path": "transaction-reconciliation__ba8ovxZ/agent/sessions/2026/08/15/rollout-2026-08-15T06-32-07-01a0041e-dfbf-7ac2-9185-ad59bf142e40.jsonl",
+      "promoted_path": "transaction-reconciliation__ba8ovxZ/agent/quota/rollout-2026-08-15T06-32-07-01a0041e-dfbf-7ac2-9185-ad59bf142e40.rate-limits.json",
+      "action": "redacted",
+      "rule": "R4",
+      "derived_from": "transaction-reconciliation__ba8ovxZ/agent/sessions/2026/08/15/rollout-2026-08-15T06-32-07-01a0041e-dfbf-7ac2-9185-ad59bf142e40.jsonl",
+      "source_bytes": 47211,
+      "source_sha256": "sha256:6e22058a22f0b3f1c2395351767691f40a608c5e8b4492d81539245484faf2d2",
+      "promoted_bytes": 2822,
+      "promoted_sha256": "sha256:67c5c542cfe72bd2131681572c3da76b683de00f04b82272f3e267cfd1c4baa7"
     },
     {
       "source_path": "transaction-reconciliation__ba8ovxZ/agent/trajectory.json",
@@ -300,7 +326,19 @@
       "action": "omitted",
       "rule": "R2",
       "source_bytes": 47030,
-      "source_sha256": "sha256:3d4e0b56d310dc7262757d7b38c9de41cb319da5378fe371165b871e1b31570f"
+      "source_sha256": "sha256:3d4e0b56d310dc7262757d7b38c9de41cb319da5378fe371165b871e1b31570f",
+      "quota_sidecar_path": "transaction-reconciliation__frxRezo/agent/quota/rollout-2026-08-15T06-33-24-01a00420-0d94-7d50-8e01-4b8a0d023804.rate-limits.json"
+    },
+    {
+      "source_path": "transaction-reconciliation__frxRezo/agent/sessions/2026/08/15/rollout-2026-08-15T06-33-24-01a00420-0d94-7d50-8e01-4b8a0d023804.jsonl",
+      "promoted_path": "transaction-reconciliation__frxRezo/agent/quota/rollout-2026-08-15T06-33-24-01a00420-0d94-7d50-8e01-4b8a0d023804.rate-limits.json",
+      "action": "redacted",
+      "rule": "R4",
+      "derived_from": "transaction-reconciliation__frxRezo/agent/sessions/2026/08/15/rollout-2026-08-15T06-33-24-01a00420-0d94-7d50-8e01-4b8a0d023804.jsonl",
+      "source_bytes": 47030,
+      "source_sha256": "sha256:3d4e0b56d310dc7262757d7b38c9de41cb319da5378fe371165b871e1b31570f",
+      "promoted_bytes": 2822,
+      "promoted_sha256": "sha256:75cd3b7b6e703a5199536140958d857f8f7334285539ca96f610f0cfb836efb8"
     },
     {
       "source_path": "transaction-reconciliation__frxRezo/agent/trajectory.json",

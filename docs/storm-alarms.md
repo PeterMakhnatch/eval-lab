@@ -1,3 +1,9 @@
+---
+status: living
+audience:
+  - operator
+  - runner
+---
 # Storm Alarms & STATUS.md Generator
 
 ## 1. Overview and Motivation

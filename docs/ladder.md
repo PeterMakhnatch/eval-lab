@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - runner
+  - analyst
+  - operator
+---
 # LADDER: Evaluation Grid Generator
 
 `evallab.ladder` generates Cartesian evaluation grids for systematic agent elicitation and comparison (WS-E item 3, `docs/build-plan.md`).

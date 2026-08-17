@@ -8,6 +8,9 @@ import shlex
 import shutil
 from pathlib import Path
 
+import pytest
+
+from evallab.atif import project_trial
 from evallab.explorer import (
     TrajectoryView,
     _resolve_citation,
@@ -22,6 +25,7 @@ from evallab.explorer import (
     redact_mapping,
 )
 from evallab.facts import write_analysis_review
+from evallab.results import load_job
 from evallab.status import build_status_snapshot
 
 FIXTURES = Path(__file__).parent / "fixtures" / "explorer"
@@ -76,7 +80,46 @@ def test_tool_loop_is_detected_as_repeated_signatures():
     assert isinstance(trajectory, TrajectoryView)
     repeats = dict(trajectory.repeated_signatures.value)
     assert repeats.get("run_bash") == 4
-    # exits observed through linked observations
+
+
+def test_the_fixture_records_exit_codes_where_the_validated_shape_puts_them():
+    """The exit codes are in the document, and `atif` reads all four of them.
+
+    `atif._command_exit_code` (`src/evallab/atif.py:446-454`) takes an exit code
+    from `observation.results[].extra.{exit_code,returncode,return_code}` and
+    projects it as the derived column `command_exit_code`. Asserting it here
+    fixes the fact that the data *is* in the fixture, so the explorer's
+    blindness to it in the next test is a defect in the explorer's reader
+    rather than a fixture that forgot to record an exit code.
+    """
+    # .resolve(): project_trial derives source paths relative to trial.path and
+    # raises ValueError for a JobRecord loaded through a relative path.
+    job = load_job((JOBS / "job-fail").resolve())
+    projection = project_trial(job, job.trials[0])
+    assert [t.validation_status for t in projection.trajectories] == ["valid"]
+    assert sorted(
+        (observation.source_call_id, observation.command_exit_code)
+        for observation in projection.observations
+    ) == [("L0", 2), ("L1", 2), ("L2", 2), ("L3", 2)]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "OPEN SOURCE DEFECT, the same class PR #66 fixed and did not finish: "
+        "explorer.py:428 reads `obs.get('command_exit_code')` from the raw observation. "
+        "`command_exit_code` is a derived projection column (atif.py:132, atif.py:744); "
+        "no ATIF document carries it. A raw observation carries extra.exit_code, which is "
+        "what atif.py:446-454 reads and what tests/test_truth.py writes. This assertion "
+        "only ever passed because tests/fixtures/explorer invented the key, so the "
+        "explorer has never shown an exit code for a real trajectory. The fix is a src "
+        "change outside this mission's lease; strict xfail so the suite fails the moment "
+        "explorer.py starts reading the field a real document has."
+    ),
+)
+def test_explorer_shows_the_exit_code_of_a_failing_command():
+    trajectory = index().trials["job-fail/t1"].trajectory
+    assert isinstance(trajectory, TrajectoryView)
     assert all(c.exit_code == 2 for c in trajectory.tool_calls)
 
 
@@ -110,14 +153,35 @@ def test_jail_refuses_escape_absolute_and_hidden_paths(tmp_path: Path):
     assert jail(tmp_path, "solution/solve.py") is None     # hidden oracle dir
 
 
-def test_secret_shaped_config_values_are_redacted():
-    trial = index().trials["job-pass/t1"]
-    rendered = str(trial.config.value)
-    assert "sk-should-never-render" not in rendered
-    assert "[redacted]" in rendered
+def test_secret_shaped_config_values_are_redacted(tmp_path: Path):
+    """Redaction proven against a constructed config, no longer against fiction.
+
+    The committed fixture used to carry `{"env": {"FAKE_API_KEY": ...}}`. Harbor
+    writes no `env` mapping into a trial `config.json` — the real file holds
+    `agent`, `task`, `trial_name`, `trials_dir`, `job_id` and nothing else — so
+    the suite was proving the redactor against a document that cannot exist.
+    The fixture now matches the real shape and the adversarial input is built
+    here, which is where a hypothetical belongs.
+    """
     assert redact_mapping({"MY_TOKEN": "x"})["MY_TOKEN"] == "[redacted]"
     nested = redact_mapping({"providers": [{"PASSWORD": "nested-secret"}]})
     assert "nested-secret" not in str(nested)
+
+    trial = tmp_path / "jobs" / "job-secret" / "t1"
+    write_trial(trial, steps=[{"step_id": 1, "source": "agent", "message": "m"}])
+    (trial / "config.json").write_text(
+        json.dumps({"agent": {"name": "codex"}, "env": {"FAKE_API_KEY": "sk-should-never-render"}})
+    )
+    rendered = str(build_index([tmp_path / "jobs"]).trials["job-secret/t1"].config.value)
+    assert "sk-should-never-render" not in rendered
+    assert "[redacted]" in rendered
+
+
+def test_committed_trial_config_is_the_shape_harbor_writes():
+    """A fixture config must be a document Harbor could have produced."""
+    config = index().trials["job-pass/t1"].config.value
+    assert config["agent"] == {"name": "codex", "model_name": "gpt-5.6-terra"}
+    assert "env" not in config
 
 
 # ---- analyses and citations -------------------------------------------------
@@ -204,19 +268,36 @@ def marker(text: str) -> str:
 
 
 def write_trial(trial_dir: Path, *, steps: list[dict], trial_id: str = "t-1") -> None:
+    """A trial built at run time, with the envelope Harbor really writes.
+
+    Only the envelope is guaranteed real. Callers pass `steps` deliberately,
+    including malformed ones, because these documents exist to drive the
+    explorer's degradation paths — see `tests/test_fixture_conformance.py` for
+    why run-time documents are out of the conformance guard's scope.
+    """
     trial_dir.mkdir(parents=True, exist_ok=True)
     (trial_dir / "result.json").write_text(
         json.dumps(
             {
                 "id": trial_id,
                 "task_name": "lab/demo",
-                "agent_info": {"name": "codex"},
+                "trial_name": trial_dir.name,
+                "agent_info": {"name": "codex", "version": "0.147.0"},
                 "verifier_result": {"rewards": {"reward": 1.0}},
             }
         )
     )
     (trial_dir / "agent").mkdir(exist_ok=True)
-    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps({"steps": steps}))
+    (trial_dir / "agent" / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ATIF-v1.7",
+                "session_id": "01a00420-0d94-7d50-8e01-0000000000ff",
+                "agent": {"name": "codex", "version": "0.147.0"},
+                "steps": steps,
+            }
+        )
+    )
 
 
 def redacted_and_verbatim_trial(jobs: Path) -> Path:

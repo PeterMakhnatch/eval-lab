@@ -4,8 +4,10 @@
  "trial_name": "t1",
  "agent_info": {
   "name": "codex",
+  "version": "0.147.0",
   "model_info": {
-   "name": "gpt-5.6-terra"
+   "name": "gpt-5.6-terra",
+   "provider": "openai"
   }
  },
  "verifier_result": {},

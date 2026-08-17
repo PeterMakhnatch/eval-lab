@@ -1,5 +1,16 @@
 {
-  "schema_version": "ATIF-v1.6",
-  "session_id": "22222222-2222-4222-8222-222222222222",
-  "steps": []
+ "schema_version": "ATIF-v1.6",
+ "session_id": "22222222-2222-4222-8222-222222222222",
+ "agent": {
+  "name": "oracle",
+  "version": "1"
+ },
+ "steps": [
+  {
+   "step_id": 1,
+   "timestamp": "2026-08-14T00:00:01Z",
+   "source": "agent",
+   "message": "produced the declared output"
+  }
+ ]
 }

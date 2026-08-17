@@ -40,6 +40,14 @@ def _pinned_roots(harness) -> list[Path]:
     return harness.resolve_corpus_roots(list(harness.DEFAULT_CORPUS))
 
 
+# A per-path budget no measurement can reach, so tests that assert the checker's
+# *pass* path never depend on how fast the host happened to be. At 10_000 ms the
+# 50% ceiling was 15 s against a locally measured fleet-status median of 2994 ms
+# -- only 5x headroom on a path that spawns git and gh subprocesses. Tests that
+# need a budget to be *exceeded* inject a delay and set that one path low.
+UNREACHABLE_BUDGET_MS = 1_000_000
+
+
 def _budgets_for(report: dict, *, tolerance_pct: float, paths: dict) -> dict:
     """A synthetic budgets payload whose corpus block matches the given report."""
     return {
@@ -184,7 +192,7 @@ def test_check_budgets_fails_when_ceiling_exceeded(tmp_path: Path) -> None:
     payload = harness.report_to_json(report)
     report_path = tmp_path / "report.json"
     report_path.write_text(json.dumps(payload))
-    generous = dict.fromkeys(checker.REQUIRED_PATHS, 10_000)
+    generous = dict.fromkeys(checker.REQUIRED_PATHS, UNREACHABLE_BUDGET_MS)
     tight = tmp_path / "budgets.json"
     tight.write_text(
         json.dumps(_budgets_for(payload, tolerance_pct=10, paths={**generous, "facts": 1}))
@@ -276,7 +284,7 @@ def test_check_budgets_rejects_a_report_measured_on_another_corpus(tmp_path: Pat
         fleet_fn=lambda: None,
     )
     payload = harness.report_to_json(report)
-    generous = dict.fromkeys(checker.REQUIRED_PATHS, 10_000)
+    generous = dict.fromkeys(checker.REQUIRED_PATHS, UNREACHABLE_BUDGET_MS)
     budgets = _budgets_for(payload, tolerance_pct=50, paths=dict(generous))
     assert checker.assert_corpus_shape(payload, budgets) == []
 
@@ -302,7 +310,7 @@ def test_budgets_without_a_corpus_block_are_rejected(tmp_path: Path) -> None:
         json.dumps(
             {
                 "tolerance_pct": 50,
-                "paths": dict.fromkeys(checker.REQUIRED_PATHS, 10_000),
+                "paths": dict.fromkeys(checker.REQUIRED_PATHS, UNREACHABLE_BUDGET_MS),
             }
         )
     )

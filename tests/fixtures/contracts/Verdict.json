@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "\u00a72.1 Verdict: human (or authorized) disposition on a discovery.\n\nstatus restricted to the literal set in \u00a72.1. discovery_id is ULID.",
+  "description": "\u00a72.1 Verdict: human (or authorized) disposition on a discovery.\n\nstatus restricted to the literal set in \u00a72.1. discovery_id follows the\njournal's discovery identifier format (D-YYYYMMDD-SUFFIX).",
   "properties": {
     "at": {
       "description": "timestamp of the verdict decision",
@@ -15,7 +15,8 @@
       "type": "string"
     },
     "discovery_id": {
-      "description": "ULID of the discovery being verdicted (composite key)",
+      "description": "discovery identifier being verdicted (composite key)",
+      "pattern": "^D-[0-9]{8}-[0-9A-Za-z]+$",
       "title": "Discovery Id",
       "type": "string"
     },

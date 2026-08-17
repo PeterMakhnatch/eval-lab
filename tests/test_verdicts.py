@@ -31,10 +31,9 @@ from evallab.verdicts import (
     validate_status,
 )
 
-SAMPLE_DISCOVERY_ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
-SAMPLE_DISCOVERY_ULID_2 = "01KZZCK33HJM4R8HW3V0Y25DXE"
 SAMPLE_DISCOVERY_HEADER_ID = "D-20260815-KTXJSHGZ"
-
+SAMPLE_DISCOVERY_HEADER_ID_2 = "D-20260816-7CQRVDQ6"
+SAMPLE_CITATION_ULID = "01KZZCK33HJM4R8HW3V0Y25DXE"
 
 def _create_sample_discoveries_journal(root: Path) -> Path:
     journal_path = root / DEFAULT_DISCOVERIES_PATH
@@ -47,10 +46,10 @@ def _create_sample_discoveries_journal(root: Path) -> Path:
 - Claim: Across this small control-only cohort, verifiers showed expected pattern.
 - Builds on: new thread
 - Evidence:
-  - [queue/researchers/passes/2026-08-15/{SAMPLE_DISCOVERY_ULID_2}/evidence.json](../evidence.json)
+  - [queue/researchers/passes/2026-08-15/{SAMPLE_CITATION_ULID}/evidence.json](../evidence.json)
 - Proposed spec: [queue/proposed/spec-01KZZCN7X9PA643W1QCKQNNNY5.json](../spec.json)
 
-## {SAMPLE_DISCOVERY_ULID} — draft
+## {SAMPLE_DISCOVERY_HEADER_ID_2} — draft
 
 - Claim: A verified second finding for test cohorts.
 - Builds on: {SAMPLE_DISCOVERY_HEADER_ID}
@@ -79,7 +78,7 @@ def test_verdict_roundtrip_duckdb(tmp_path: Path) -> None:
 
         now = datetime.now(UTC)
         verdict = record_verdict(
-            SAMPLE_DISCOVERY_ULID,
+            SAMPLE_DISCOVERY_HEADER_ID,
             "accepted",
             by="Peter Makhnatch",
             note="Verified against run evidence",
@@ -88,14 +87,14 @@ def test_verdict_roundtrip_duckdb(tmp_path: Path) -> None:
             duckdb_conn=con,
         )
 
-        assert verdict.discovery_id == SAMPLE_DISCOVERY_ULID
+        assert verdict.discovery_id == SAMPLE_DISCOVERY_HEADER_ID
         assert verdict.status == "accepted"
         assert verdict.by == "Peter Makhnatch"
         assert verdict.note == "Verified against run evidence"
 
         current = list_current_verdicts_from_duckdb(con)
         assert len(current) == 1
-        assert current[0].discovery_id == SAMPLE_DISCOVERY_ULID
+        assert current[0].discovery_id == SAMPLE_DISCOVERY_HEADER_ID
         assert current[0].status == "accepted"
         assert current[0].by == "Peter Makhnatch"
         assert current[0].note == "Verified against run evidence"
@@ -113,7 +112,7 @@ def test_verdict_append_only_history(tmp_path: Path) -> None:
         t2 = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
 
         v1 = record_verdict(
-            SAMPLE_DISCOVERY_ULID,
+            SAMPLE_DISCOVERY_HEADER_ID,
             "pending",
             by="Peter Makhnatch",
             note="Initial triage",
@@ -123,7 +122,7 @@ def test_verdict_append_only_history(tmp_path: Path) -> None:
         )
 
         record_verdict(
-            SAMPLE_DISCOVERY_ULID,
+            SAMPLE_DISCOVERY_HEADER_ID,
             "accepted",
             by="Peter Makhnatch",
             note="Promoted after evidence review",
@@ -140,7 +139,7 @@ def test_verdict_append_only_history(tmp_path: Path) -> None:
         assert current[0].at == t2
 
         # History returns all rows oldest-first
-        history = get_verdict_history_from_duckdb(con, SAMPLE_DISCOVERY_ULID)
+        history = get_verdict_history_from_duckdb(con, SAMPLE_DISCOVERY_HEADER_ID)
         assert len(history) == 2
         assert history[0].status == "pending"
         assert history[0].note == "Initial triage"
@@ -195,10 +194,55 @@ def test_refuse_automated_actor() -> None:
 def test_refuse_unknown_discovery_id(tmp_path: Path) -> None:
     """A verdict on an unknown discovery_id is refused, naming what was not found."""
     _create_sample_discoveries_journal(tmp_path)
-    unknown_id = "01NONEXISTENTDISCOVERY00000"
+    unknown_id = "D-20260815-NONEXIST"
 
     with pytest.raises(ValueError, match=f"Discovery '{unknown_id}' not found"):
         validate_discovery_id(unknown_id, repo_root=tmp_path)
+
+
+def test_refuse_malformed_discovery_id(tmp_path: Path) -> None:
+    """Malformed discovery IDs are refused at validation time."""
+    _create_sample_discoveries_journal(tmp_path)
+    for bad_id in [
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "not-a-discovery-id",
+        "D-2026081-SHORT",
+        "20260815-KTXJSHGZ",
+    ]:
+        with pytest.raises(ValueError):
+            record_verdict(
+                bad_id,
+                "accepted",
+                by="Peter Makhnatch",
+                repo_root=tmp_path,
+            )
+
+
+def test_record_verdict_on_real_committed_journal() -> None:
+    """Record a verdict on a real ID from the committed journal (D-20260815-KTXJSHGZ)."""
+    with duckdb.connect(":memory:") as con:
+        execute_verdicts_views(con)
+        now = datetime.now(UTC)
+        verdict = record_verdict(
+            "D-20260815-KTXJSHGZ",
+            "accepted",
+            by="Peter Makhnatch",
+            note="Verified against real committed journal",
+            at=now,
+            duckdb_conn=con,
+        )
+        assert verdict.discovery_id == "D-20260815-KTXJSHGZ"
+        assert verdict.status == "accepted"
+        assert verdict.by == "Peter Makhnatch"
+
+        current = list_current_verdicts_from_duckdb(con)
+        assert len(current) == 1
+        assert current[0].discovery_id == "D-20260815-KTXJSHGZ"
+        assert current[0].status == "accepted"
+
+        history = get_verdict_history_from_duckdb(con, "D-20260815-KTXJSHGZ")
+        assert len(history) == 1
+        assert history[0].discovery_id == "D-20260815-KTXJSHGZ"
 
 
 def test_refuse_invalid_status() -> None:
@@ -214,8 +258,8 @@ def test_resolve_discovery_ids_parsing(tmp_path: Path) -> None:
     ids = resolve_discovery_ids(repo_root=tmp_path)
 
     assert SAMPLE_DISCOVERY_HEADER_ID in ids
-    assert SAMPLE_DISCOVERY_ULID in ids
-    assert SAMPLE_DISCOVERY_ULID_2 in ids
+    assert SAMPLE_DISCOVERY_HEADER_ID_2 in ids
+    assert SAMPLE_CITATION_ULID in ids
     assert "01KZZCN7X9PA643W1QCKQNNNY5" in ids
 
 
@@ -226,7 +270,7 @@ def test_cli_verdict_record_and_list(tmp_path: Path, capsys: pytest.CaptureFixtu
     code = cli.run_cli(
         [
             "verdict",
-            SAMPLE_DISCOVERY_ULID,
+            SAMPLE_DISCOVERY_HEADER_ID,
             "accepted",
             "--by",
             "Peter Makhnatch",
@@ -237,7 +281,7 @@ def test_cli_verdict_record_and_list(tmp_path: Path, capsys: pytest.CaptureFixtu
     )
     assert code == 0
     out, _ = capsys.readouterr()
-    assert f"Recorded verdict for {SAMPLE_DISCOVERY_ULID}: accepted by Peter Makhnatch" in out
+    assert f"Recorded verdict for {SAMPLE_DISCOVERY_HEADER_ID}: accepted by Peter Makhnatch" in out
 
     # CLI list (in test environment without postgres, falls back cleanly)
     code_list = cli.run_cli(["verdict", "list"], workspace=tmp_path)
@@ -249,7 +293,7 @@ def test_cli_verdict_refusal_unknown_id(
 ) -> None:
     """CLI refuses unknown discovery ID and outputs error."""
     _create_sample_discoveries_journal(tmp_path)
-    unknown_id = "01NONEXISTENTDISCOVERY00000"
+    unknown_id = "D-20260815-NONEXIST"
 
     code = cli.run_cli(
         ["verdict", unknown_id, "accepted", "--by", "Peter Makhnatch"],
@@ -267,7 +311,7 @@ def test_cli_verdict_refusal_automated_by(
     _create_sample_discoveries_journal(tmp_path)
 
     code = cli.run_cli(
-        ["verdict", SAMPLE_DISCOVERY_ULID, "accepted", "--by", "autopilot"],
+        ["verdict", SAMPLE_DISCOVERY_HEADER_ID, "accepted", "--by", "autopilot"],
         workspace=tmp_path,
     )
     assert code == 2
@@ -282,7 +326,7 @@ def test_format_verdicts_table() -> None:
     now = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
     v = [
         Verdict(
-            discovery_id=SAMPLE_DISCOVERY_ULID,
+            discovery_id=SAMPLE_DISCOVERY_HEADER_ID,
             status="accepted",
             by="Peter Makhnatch",
             at=now,
@@ -292,7 +336,7 @@ def test_format_verdicts_table() -> None:
     rendered = format_verdicts_table(v)
     assert "DISCOVERY ID" in rendered
     assert "STATUS" in rendered
-    assert SAMPLE_DISCOVERY_ULID in rendered
+    assert SAMPLE_DISCOVERY_HEADER_ID in rendered
     assert "accepted" in rendered
     assert "Peter Makhnatch" in rendered
 
@@ -300,30 +344,30 @@ def test_format_verdicts_table() -> None:
 def test_format_verdict_history_table() -> None:
     """Formatting history table renders chronological entries."""
     assert (
-        format_verdict_history_table(SAMPLE_DISCOVERY_ULID, [])
-        == f"No verdict history for {SAMPLE_DISCOVERY_ULID}."
+        format_verdict_history_table(SAMPLE_DISCOVERY_HEADER_ID, [])
+        == f"No verdict history for {SAMPLE_DISCOVERY_HEADER_ID}."
     )
 
     t1 = datetime(2026, 8, 17, 10, 0, 0, tzinfo=UTC)
     t2 = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
     history = [
         Verdict(
-            discovery_id=SAMPLE_DISCOVERY_ULID,
+            discovery_id=SAMPLE_DISCOVERY_HEADER_ID,
             status="pending",
             by="Peter Makhnatch",
             at=t1,
             note="First",
         ),
         Verdict(
-            discovery_id=SAMPLE_DISCOVERY_ULID,
+            discovery_id=SAMPLE_DISCOVERY_HEADER_ID,
             status="accepted",
             by="Peter Makhnatch",
             at=t2,
             note="Second",
         ),
     ]
-    rendered = format_verdict_history_table(SAMPLE_DISCOVERY_ULID, history)
-    assert f"History for {SAMPLE_DISCOVERY_ULID}:" in rendered
+    rendered = format_verdict_history_table(SAMPLE_DISCOVERY_HEADER_ID, history)
+    assert f"History for {SAMPLE_DISCOVERY_HEADER_ID}:" in rendered
     assert "pending" in rendered
     assert "accepted" in rendered
 
@@ -334,7 +378,7 @@ def test_cli_verdict_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     code = cli.run_cli(
         [
             "verdict",
-            SAMPLE_DISCOVERY_ULID,
+            SAMPLE_DISCOVERY_HEADER_ID,
             "needs_evidence",
             "--by",
             "Peter Makhnatch",
@@ -347,7 +391,7 @@ def test_cli_verdict_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     assert code == 0
     out, _ = capsys.readouterr()
     data = json.loads(out)
-    assert data["discovery_id"] == SAMPLE_DISCOVERY_ULID
+    assert data["discovery_id"] == SAMPLE_DISCOVERY_HEADER_ID
     assert data["status"] == "needs_evidence"
     assert data["by"] == "Peter Makhnatch"
     assert data["note"] == "Needs more samples"
@@ -364,7 +408,7 @@ def test_cli_verdict_history_command(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert "discovery_id is required" in err
 
     # With discovery ID provided
-    code = cli.run_cli(["verdict", "history", SAMPLE_DISCOVERY_ULID], workspace=tmp_path)
+    code = cli.run_cli(["verdict", "history", SAMPLE_DISCOVERY_HEADER_ID], workspace=tmp_path)
     assert code == 0
 
 
@@ -375,13 +419,13 @@ def test_cli_verdict_missing_status_or_by(
     _create_sample_discoveries_journal(tmp_path)
 
     # Missing status
-    code1 = cli.run_cli(["verdict", SAMPLE_DISCOVERY_ULID], workspace=tmp_path)
+    code1 = cli.run_cli(["verdict", SAMPLE_DISCOVERY_HEADER_ID], workspace=tmp_path)
     assert code1 == 2
     _, err1 = capsys.readouterr()
     assert "status is required" in err1
 
     # Missing --by
-    code2 = cli.run_cli(["verdict", SAMPLE_DISCOVERY_ULID, "accepted"], workspace=tmp_path)
+    code2 = cli.run_cli(["verdict", SAMPLE_DISCOVERY_HEADER_ID, "accepted"], workspace=tmp_path)
     assert code2 == 2
     _, err2 = capsys.readouterr()
     assert "--by <who> is required" in err2
@@ -406,7 +450,7 @@ def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
 
     now = datetime.now(UTC)
     verdict = record_verdict(
-        SAMPLE_DISCOVERY_ULID,
+        SAMPLE_DISCOVERY_HEADER_ID,
         "accepted",
         by="Peter Makhnatch",
         note="Catalog test",
@@ -417,10 +461,10 @@ def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
     assert verdict.status == "accepted"
 
     current = list_current_verdicts_from_catalog(database_url=db_url)
-    matching = [v for v in current if v.discovery_id == SAMPLE_DISCOVERY_ULID]
+    matching = [v for v in current if v.discovery_id == SAMPLE_DISCOVERY_HEADER_ID]
     assert len(matching) >= 1
     assert matching[0].status == "accepted"
 
-    history = get_verdict_history_from_catalog(SAMPLE_DISCOVERY_ULID, database_url=db_url)
+    history = get_verdict_history_from_catalog(SAMPLE_DISCOVERY_HEADER_ID, database_url=db_url)
     assert len(history) >= 1
     assert history[-1].status == "accepted"

@@ -67,12 +67,19 @@ The `--by` parameter is mandatory and **must be a human name** (e.g. `--by "Pete
 To prevent typos from creating orphaned decisions, every `discovery_id` must resolve to an existing
 entry in `digests/DISCOVERIES.md`.
 
-- Both header IDs (e.g. `D-20260815-KTXJSHGZ`, `01ARZ3NDEKTSV4RRFFQ69G5FAV`) and referenced ULIDs are valid targets.
+### Identifier Convention and Journal Precedence
+While platform-architecture v2 §2.1 establishes ULIDs as the default identifier format, `Verdict.discovery_id`
+intentionally departs from the ULID convention. The discovery journal format (`digests/DISCOVERIES.md`)
+predates the v2 contract model and uses identifiers formatted as `D-YYYYMMDD-SUFFIX` (e.g. `D-20260815-KTXJSHGZ`).
+The discovery journal is the authoritative source of truth for discovery IDs.
+
+- The field is validated against the journal format pattern `^D-[0-9]{8}-[0-9A-Za-z]+$`.
+- Section headers in `digests/DISCOVERIES.md` define valid discovery IDs.
+- Malformed discovery IDs (including bare ULIDs) are rejected at schema validation time.
 - An unknown `discovery_id` is refused immediately before any database write:
   ```
   Discovery '<discovery_id>' not found in digests/DISCOVERIES.md
   ```
-
 ---
 
 ## 5. Catalog Schema and SQL Views
@@ -145,12 +152,11 @@ CREATE INDEX IF NOT EXISTS verdicts_status_idx ON verdicts (status);
 
 ```bash
 # Record an accepted finding
-uv run evallab verdict 01ARZ3NDEKTSV4RRFFQ69G5FAV accepted --by "Peter Makhnatch" --note "Verified against logs"
+uv run evallab verdict D-20260815-KTXJSHGZ accepted --by "Peter Makhnatch" --note "Verified against logs"
 
 # Re-decide as needs_evidence (appends a new row; prior row preserved)
-uv run evallab verdict 01ARZ3NDEKTSV4RRFFQ69G5FAV needs_evidence --by "Peter Makhnatch" --note "More sample trials needed"
+uv run evallab verdict D-20260815-KTXJSHGZ needs_evidence --by "Peter Makhnatch" --note "More sample trials needed"
 ```
-
 ### List Current Verdicts
 
 ```bash
@@ -168,8 +174,8 @@ uv run evallab verdict list --json
 
 ```bash
 # View all historical decisions for one discovery
-uv run evallab verdict history 01ARZ3NDEKTSV4RRFFQ69G5FAV
+uv run evallab verdict history D-20260815-KTXJSHGZ
 
 # History in JSON format
-uv run evallab verdict history 01ARZ3NDEKTSV4RRFFQ69G5FAV --json
+uv run evallab verdict history D-20260815-KTXJSHGZ --json
 ```

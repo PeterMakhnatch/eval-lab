@@ -69,8 +69,6 @@ AUTOMATED_ACTOR_PREFIXES: tuple[str, ...] = (
     "synth-",
 )
 
-_ULID_RE = re.compile(r"^[0-7][0-9A-HJKMNP-TV-Z]{25}$")
-
 
 def validate_human_actor(by: str) -> str:
     """Validate that the actor string represents a human name and not an automated agent.
@@ -107,8 +105,8 @@ def resolve_discovery_ids(
     """Parse digests/DISCOVERIES.md and return all known discovery IDs.
 
     Extracts:
-      1. Section headers (e.g. '## D-20260815-KTXJSHGZ — draft' or '## 01... — draft')
-      2. Any embedded ULIDs in the text
+      1. Section headers (e.g. '## D-20260815-KTXJSHGZ — draft')
+      2. Any embedded discovery IDs or ULIDs in the text
     """
     if discoveries_path is not None:
         target = discoveries_path

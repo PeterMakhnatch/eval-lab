@@ -539,6 +539,47 @@ def parser() -> argparse.ArgumentParser:
         help="override the shared Parquet root (same resolution as library)",
     )
 
+    analyst = commands.add_parser(
+        "analyst", help="Run, list, and inspect durable trial analyses with reasoning trajectories"
+    )
+    analyst_commands = analyst.add_subparsers(dest="analyst_command", required=True)
+    analyst_run = analyst_commands.add_parser(
+        "run",
+        help="Run analysis on one trial (deterministic stub by default; --model spends tokens)",
+    )
+    analyst_run.add_argument("trial_id", help="Trial identifier, trial name, or path")
+    analyst_run.add_argument(
+        "--model",
+        default=None,
+        help="Explicit model selector (opt-in spend: default is deterministic stub)",
+    )
+    analyst_run.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root",
+    )
+    analyst_run.add_argument(
+        "--runs-root",
+        type=Path,
+        help="override candidate runs root for raw trajectory discovery",
+    )
+    analyst_list = analyst_commands.add_parser(
+        "list", help="List stored analysis conclusions"
+    )
+    analyst_list.add_argument(
+        "--trial",
+        dest="trial_id",
+        default=None,
+        help="filter conclusions by source trial_id",
+    )
+    analyst_show = analyst_commands.add_parser(
+        "show", help="Show an analysis conclusion and its recorded trajectory"
+    )
+    analyst_show.add_argument("analysis_id", help="ULID of the analysis record to show")
+    analyst_show.add_argument(
+        "--json", action="store_true", help="emit raw structured JSON"
+    )
+
     card = commands.add_parser(
         "card", help="Generate purpose-bound eval cards from completed evidence"
     )
@@ -1707,6 +1748,74 @@ def run_cli(
             else:
                 print(render_lineage_tree(result))
             return 0 if result.resolved else 1
+        if args.command == "analyst":
+            from evallab.analyst import list_analyses, run_analysis, show_analysis
+
+            if args.analyst_command == "run":
+                explicit_derived = getattr(args, "derived_root", None)
+                derived = derived_root_from_environment(root, explicit=explicit_derived)
+                record, traj_data, conclusion_file, trajectory_file = run_analysis(
+                    args.trial_id,
+                    model=args.model,
+                    repo_root=root,
+                    derived_root=derived,
+                    runs_root=getattr(args, "runs_root", None),
+                )
+                print(f"analysis_id: {record.analysis_id}")
+                print(f"trial_id: {record.trial_id}")
+                print(f"model: {record.model}")
+                print(f"category: {record.category}")
+                print(f"confidence: {record.confidence.level}")
+                print(f"evidence: {len(record.evidence)} citation(s)")
+                print(f"conclusion: {conclusion_file}")
+                print(f"trajectory: {trajectory_file}")
+                return 0
+            if args.analyst_command == "list":
+                records = list_analyses(root, trial_id=args.trial_id)
+                if not records:
+                    print("No analysis records found.")
+                    return 0
+                print("| analysis_id | trial_id | model | category | confidence | evidence |")
+                print("|---|---|---|---|---|---:|")
+                for r in records:
+                    print(
+                        f"| {r['analysis_id']} | {r['trial_id']} | {r['model']} | "
+                        f"{r['category']} | {r['confidence']} | {r['evidence_count']} |"
+                    )
+                return 0
+            if args.analyst_command == "show":
+                try:
+                    conclusion, trajectory = show_analysis(args.analysis_id, root)
+                except FileNotFoundError as err:
+                    print(f"error: {err}", file=sys.stderr)
+                    return 1
+                if getattr(args, "json", False):
+                    payload = {"conclusion": conclusion, "trajectory": trajectory}
+                    print(json.dumps(payload, indent=2))
+                    return 0
+                print(f"# Analysis {conclusion.get('analysis_id')}")
+                print(f"Trial ID: {conclusion.get('trial_id')}")
+                print(f"Model: {conclusion.get('model')}")
+                print(f"Category: {conclusion.get('category')}")
+                conf = conclusion.get("confidence") or {}
+                conf_level = conf.get("level") if isinstance(conf, dict) else str(conf)
+                print(f"Confidence: {conf_level}")
+                print(f"Summary: {conclusion.get('summary', '')}")
+                print("\n## Cited Evidence:")
+                for ev in conclusion.get("evidence", []):
+                    step_info = f" (step {ev['step']})" if ev.get("step") is not None else ""
+                    print(f"- {ev.get('path')}{step_info}")
+                print("\n## Lineage Inputs:")
+                for inp in conclusion.get("inputs", []):
+                    print(f"- {inp.get('path')} ({inp.get('digest')})")
+                print("\n## Analyst Trajectory Steps:")
+                for step in trajectory.get("steps", []):
+                    sid = step.get("step_id")
+                    src = step.get("source")
+                    ts = step.get("timestamp")
+                    msg = step.get("message")
+                    print(f"[{sid}] {src} ({ts}): {msg}")
+                return 0
         if args.command == "card" and args.card_command == "generate":
             from evallab.cards import generate_card
 

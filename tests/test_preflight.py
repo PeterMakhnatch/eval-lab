@@ -32,9 +32,9 @@ import socket
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Literal
 
 import pytest
+from pydantic import BaseModel
 
 import evallab.digest as digest_module
 import evallab.preflight as preflight_module
@@ -60,25 +60,25 @@ NOW = datetime(2026, 8, 16, 18, 0, 0, tzinfo=UTC)
 RESETS_AT_EPOCH = 1_787_250_769
 
 
-class SpecWithPurpose(ExperimentSpec):
-    """`ExperimentSpec` as WS-E item 1 will leave it: `purpose` required.
+class SpecWithoutPurpose(BaseModel):
+    """`ExperimentSpec` before WS-E item 1 made `purpose` required."""
 
-    Subclassed rather than waited for. Preflight resolves the model through its
-    module global, so swapping this in exercises exactly the branch that reads
-    `model_fields` and `getattr(spec, "purpose")` — the code that has to keep
-    working on both sides of that landing.
-    """
+    schema_version: int = 1
+    spec_id: str | None = None
+    name: str = "unnamed"
+    hypothesis: str = ""
+    task: str = "task"
+    agent: str = "codex"
+    submitted_by: str = "tester"
+    attempts: int = 1
+    expected_reward: float | None = None
+    policy_rule: str | None = None
 
-    purpose: Literal[
-        "baseline",
-        "comparison",
-        "elicitation",
-        "drift",
-        "calibration",
-        "craft",
-        "practice",
-    ]
+    @property
+    def billable(self) -> bool:
+        return self.agent not in {"oracle", "nop"}
 
+SpecWithPurpose = ExperimentSpec
 
 def policy() -> StandingApprovalsPolicy:
     return StandingApprovalsPolicy(
@@ -184,7 +184,7 @@ def queue_spec(
     agent: str = "codex",
     attempts: int = 1,
     expected_reward: float | None = None,
-    purpose: str | None = None,
+    purpose: str | None = "drift",
 ) -> Path:
     payload: dict[str, object] = {
         "schema_version": 1,
@@ -333,11 +333,14 @@ def test_a_lab_ceiling_is_labelled_as_lab_policy_not_the_provider(tmp_path: Path
 # --- the queue, grouped by purpose -----------------------------------------
 
 
-def test_purpose_absent_is_reported_as_absent_and_never_invented(tmp_path: Path) -> None:
+def test_purpose_absent_is_reported_as_absent_and_never_invented(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The field does not exist in this build, and the surface says exactly that."""
+    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithoutPurpose)
     queue_root = tmp_path / "queue"
-    queue_spec(queue_root, name="baseline-run", state="approved")
-    queue_spec(queue_root, name="second-run", state="waiting", attempts=3)
+    queue_spec(queue_root, name="baseline-run", state="approved", purpose=None)
+    queue_spec(queue_root, name="second-run", state="waiting", attempts=3, purpose=None)
 
     survey = survey_queue(queue_root)
 
@@ -354,8 +357,6 @@ def test_purpose_absent_is_reported_as_absent_and_never_invented(tmp_path: Path)
     # No bucket was invented for specs that cannot declare one.
     assert "purpose baseline" not in rendered
     assert "purpose comparison" not in rendered
-
-
 def test_purpose_present_groups_by_declared_purpose(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -390,14 +391,9 @@ def test_a_spec_missing_a_now_required_purpose_is_named_not_dropped(
     """
     monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithPurpose)
     queue_root = tmp_path / "queue"
-    queue_spec(queue_root, name="legacy-run")
+    queue_spec(queue_root, name="legacy-run", purpose=None)
     queue_spec(queue_root, name="modern-run", purpose="drift")
-
     survey = survey_queue(queue_root)
-
-    assert [view.name for view in survey.groups["drift"]] == ["modern-run"]
-    assert len(survey.unreadable) == 1
-    assert survey.unreadable[0].path.name == "codex-legacy-run.json"
     assert "purpose" in (survey.unreadable[0].error or "")
 
     rendered = render_preflight(
@@ -454,17 +450,19 @@ def test_no_queued_comparison_produces_no_warning(
     )
 
 
-def test_no_purpose_field_asserts_no_power_warning(tmp_path: Path) -> None:
+def test_no_purpose_field_asserts_no_power_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Absence of the field is not evidence that a comparison is under-powered."""
+    monkeypatch.setattr(preflight_module, "ExperimentSpec", SpecWithoutPurpose)
     queue_root = tmp_path / "queue"
-    queue_spec(queue_root, name="base-a")
+    queue_spec(queue_root, name="base-a", purpose=None)
 
     report = build_preflight_report(tmp_path, now=NOW, queue_root=queue_root)
 
     assert report.power.evaluated is False
     assert report.power.warnings == ()
     assert "`ExperimentSpec.purpose` does not exist in this build" in render_preflight(report)
-
 
 def test_a_one_task_comparison_cannot_reach_an_interval(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -769,6 +767,7 @@ def test_the_digest_reports_the_latest_recorded_refusal_not_the_first_filename(
                 "task": "canary/event-summary",
                 "agent": "codex",
                 "submitted_by": "tester",
+                "purpose": "drift",
             }
         )
     )

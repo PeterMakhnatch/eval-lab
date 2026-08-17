@@ -40,6 +40,14 @@ def _pinned_roots(harness) -> list[Path]:
     return harness.resolve_corpus_roots(list(harness.DEFAULT_CORPUS))
 
 
+# A per-path budget no measurement can reach, so tests that assert the checker's
+# *pass* path never depend on how fast the host happened to be. At 10_000 ms the
+# 50% ceiling was 15 s against a locally measured fleet-status median of 2994 ms
+# -- only 5x headroom on a path that spawns git and gh subprocesses. Tests that
+# need a budget to be *exceeded* inject a delay and set that one path low.
+UNREACHABLE_BUDGET_MS = 1_000_000
+
+
 def _budgets_for(report: dict, *, tolerance_pct: float, paths: dict) -> dict:
     """A synthetic budgets payload whose corpus block matches the given report."""
     return {
@@ -110,35 +118,59 @@ def test_refuses_shared_catalog_url() -> None:
         raise AssertionError("shared catalog URL was accepted")
 
 
-def test_injected_slowdown_raises_named_path_median(tmp_path: Path) -> None:
+def test_inject_delay_sleeps_only_the_named_path_for_its_configured_amount() -> None:
+    """The injection contract, asserted without measuring the wall clock.
+
+    `agents/CHECKS.md` forbids a test that depends on host timing. The previous
+    version of this test compared two measured medians and failed on CI as
+    `assert 82.315 >= 94.207 + 40.0`: the *baseline* absorbed ~92 ms of runner
+    noise while the run carrying a deliberate 80 ms injection measured 82.3 ms,
+    only 2.3 ms above the floor the sleep guarantees. Because the baseline
+    exceeded the injected run outright, no additive or relative margin could
+    have held -- not even a zero margin. So the clock is gone from the
+    assertion: the seam reports which path was delayed, and by how much.
+    """
     harness = _load_harness()
-    baseline = harness.run_profile(
+    slept: list[float] = []
+
+    harness._inject_delay({"digest": 80.0}, "digest", slept.append)
+    assert slept == [0.080], "the named path must sleep its configured milliseconds"
+
+    slept.clear()
+    harness._inject_delay({"digest": 80.0}, "facts", slept.append)
+    assert slept == [], "a path with no injection configured must not sleep"
+
+    for ignored in (0.0, -5.0):
+        slept.clear()
+        harness._inject_delay({"digest": ignored}, "digest", slept.append)
+        assert slept == [], f"an injection of {ignored} ms must not sleep"
+
+
+def test_injection_reaches_each_named_path_in_measurement_order(tmp_path: Path) -> None:
+    """Every timed path must request its own injection, proven through the seam.
+
+    The two amounts differ, so the recorded sequence proves routing rather than
+    merely counting: `facts` is measured before `digest` (`PATH_NAMES` order),
+    and each path is exercised `warmup + reps` times. A path whose injection
+    was dropped, or misrouted to another path, changes this sequence.
+    """
+    harness = _load_harness()
+    slept: list[float] = []
+    report = harness.run_profile(
         corpus_roots=_pinned_roots(harness),
         warmup=1,
         reps=5,
         database_url=None,
         admin_url="postgresql://unused.example/evallab",
         cpu_only=True,
-        inject_ms={},
-        work_dir=tmp_path / "base",
+        inject_ms={"facts": 30.0, "digest": 80.0},
+        work_dir=tmp_path,
         tick_n=5,
         fleet_fn=lambda: None,
+        sleeper=slept.append,
     )
-    slowed = harness.run_profile(
-        corpus_roots=_pinned_roots(harness),
-        warmup=1,
-        reps=5,
-        database_url=None,
-        admin_url="postgresql://unused.example/evallab",
-        cpu_only=True,
-        inject_ms={"digest": 80.0},
-        work_dir=tmp_path / "slow",
-        tick_n=5,
-        fleet_fn=lambda: None,
-    )
-    base = next(item.median_ms for item in baseline.paths if item.path == "digest")
-    slow = next(item.median_ms for item in slowed.paths if item.path == "digest")
-    assert slow >= base + 40.0
+    assert report.path_names() == list(harness.PATH_NAMES)
+    assert slept == [0.030] * 6 + [0.080] * 6
 
 
 def test_check_budgets_fails_when_ceiling_exceeded(tmp_path: Path) -> None:
@@ -160,7 +192,7 @@ def test_check_budgets_fails_when_ceiling_exceeded(tmp_path: Path) -> None:
     payload = harness.report_to_json(report)
     report_path = tmp_path / "report.json"
     report_path.write_text(json.dumps(payload))
-    generous = dict.fromkeys(checker.REQUIRED_PATHS, 10_000)
+    generous = dict.fromkeys(checker.REQUIRED_PATHS, UNREACHABLE_BUDGET_MS)
     tight = tmp_path / "budgets.json"
     tight.write_text(
         json.dumps(_budgets_for(payload, tolerance_pct=10, paths={**generous, "facts": 1}))
@@ -175,7 +207,7 @@ def test_check_budgets_fails_when_ceiling_exceeded(tmp_path: Path) -> None:
 
 def test_fleet_status_script_runs_with_gh_stub() -> None:
     harness = _load_harness()
-    harness._time_fleet_status({})
+    harness._time_fleet_status(lambda _name: None)
 
 
 def test_default_corpus_is_pinned_to_job_directories_not_the_evidence_directory() -> None:
@@ -252,7 +284,7 @@ def test_check_budgets_rejects_a_report_measured_on_another_corpus(tmp_path: Pat
         fleet_fn=lambda: None,
     )
     payload = harness.report_to_json(report)
-    generous = dict.fromkeys(checker.REQUIRED_PATHS, 10_000)
+    generous = dict.fromkeys(checker.REQUIRED_PATHS, UNREACHABLE_BUDGET_MS)
     budgets = _budgets_for(payload, tolerance_pct=50, paths=dict(generous))
     assert checker.assert_corpus_shape(payload, budgets) == []
 
@@ -278,7 +310,7 @@ def test_budgets_without_a_corpus_block_are_rejected(tmp_path: Path) -> None:
         json.dumps(
             {
                 "tolerance_pct": 50,
-                "paths": dict.fromkeys(checker.REQUIRED_PATHS, 10_000),
+                "paths": dict.fromkeys(checker.REQUIRED_PATHS, UNREACHABLE_BUDGET_MS),
             }
         )
     )

@@ -249,3 +249,25 @@ their handoff; zero overlap with `queue.py`, `cli.py`, or `policy/`.
   evallab -tAc "select count(*) …"`). Nothing in this PR writes to it.
 - Not run, per the brief: `scripts/premerge.sh`, project-wide formatters. CI is
   the merge authority (`agents/CHECKS.md`).
+- `gh pr checks 70` — all five green on head `f19c461`: `lint`, `test (3.12)`,
+  `test (3.14)`, `ty`, `profile`. `uvx ty@0.0.71 check src/` locally: 28
+  diagnostics, under the 33 ratchet, none of them mine.
+
+### Disclosure: two touches to the primary checkout
+
+The primary checkout was to be treated as read-only. Two things happened in that
+directory and both should be on the record:
+
+1. `git worktree add .worktrees/quota-gate` — the mission's own setup, as
+   instructed by the brief.
+2. `git worktree add --detach .worktrees/qg-baseline origin/main`, then
+   `git worktree remove --force` — a throwaway tree used solely to measure the
+   `origin/main` pytest baseline (669), because `git stash` in my own worktree
+   could not reach work I had already committed. Removed immediately after.
+
+Both write only `.git/worktrees/` metadata and a gitignored directory under
+`.worktrees/`. Neither touched tracked files, HEAD, the index, or the Sponsor's
+three uncommitted files. Verified after: primary HEAD still `0960eea`, and
+`git status --porcelain` still shows exactly ` M digests/DISCOVERIES.md`,
+`?? docs/prompts/Untitled`, `?? docs/repo_overview.html`. No `pull`, `reset`,
+`clean`, `checkout`, `stash`, or `commit` was run there.

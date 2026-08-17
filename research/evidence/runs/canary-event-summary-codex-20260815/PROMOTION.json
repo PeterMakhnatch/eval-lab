@@ -8,13 +8,15 @@
     "R1": "system/user ATIF step message text removed; sha256 and length kept",
     "R2": "agent/sessions/** raw model I/O omitted; sha256 recorded",
     "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
-    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body"
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
   },
   "totals": {
     "source_files": 47,
     "promoted_files": 44,
     "omitted_files": 3,
-    "promoted_bytes": 111703,
+    "quota_sidecars": 3,
+    "promoted_bytes": 122625,
     "source_bytes": 307696
   },
   "files": [
@@ -44,7 +46,19 @@
       "action": "omitted",
       "rule": "R2",
       "source_bytes": 54698,
-      "source_sha256": "sha256:b7164a790e900207402a278b44b05cdd090d6b81d7234260b6f49d3542c9d119"
+      "source_sha256": "sha256:b7164a790e900207402a278b44b05cdd090d6b81d7234260b6f49d3542c9d119",
+      "quota_sidecar_path": "event-summary__5E3btLv/agent/quota/rollout-2026-08-15T07-02-04-01a0043a-4b83-7252-a594-fa289617124f.rate-limits.json"
+    },
+    {
+      "source_path": "event-summary__5E3btLv/agent/sessions/2026/08/15/rollout-2026-08-15T07-02-04-01a0043a-4b83-7252-a594-fa289617124f.jsonl",
+      "promoted_path": "event-summary__5E3btLv/agent/quota/rollout-2026-08-15T07-02-04-01a0043a-4b83-7252-a594-fa289617124f.rate-limits.json",
+      "action": "redacted",
+      "rule": "R4",
+      "derived_from": "event-summary__5E3btLv/agent/sessions/2026/08/15/rollout-2026-08-15T07-02-04-01a0043a-4b83-7252-a594-fa289617124f.jsonl",
+      "source_bytes": 54698,
+      "source_sha256": "sha256:b7164a790e900207402a278b44b05cdd090d6b81d7234260b6f49d3542c9d119",
+      "promoted_bytes": 3308,
+      "promoted_sha256": "sha256:4fbfd9985c61f8fcd7c2885fba3803199d57f46ed8ce3650f59b478ecdfe7f2f"
     },
     {
       "source_path": "event-summary__5E3btLv/agent/trajectory.json",
@@ -182,7 +196,19 @@
       "action": "omitted",
       "rule": "R2",
       "source_bytes": 58129,
-      "source_sha256": "sha256:fb195d34c9488921b2625d8327273402a901b731d434feebf8aaf339b625a8c5"
+      "source_sha256": "sha256:fb195d34c9488921b2625d8327273402a901b731d434feebf8aaf339b625a8c5",
+      "quota_sidecar_path": "event-summary__EKfePmM/agent/quota/rollout-2026-08-15T07-00-17-01a00438-ab3b-7562-88a9-00b51083d4b1.rate-limits.json"
+    },
+    {
+      "source_path": "event-summary__EKfePmM/agent/sessions/2026/08/15/rollout-2026-08-15T07-00-17-01a00438-ab3b-7562-88a9-00b51083d4b1.jsonl",
+      "promoted_path": "event-summary__EKfePmM/agent/quota/rollout-2026-08-15T07-00-17-01a00438-ab3b-7562-88a9-00b51083d4b1.rate-limits.json",
+      "action": "redacted",
+      "rule": "R4",
+      "derived_from": "event-summary__EKfePmM/agent/sessions/2026/08/15/rollout-2026-08-15T07-00-17-01a00438-ab3b-7562-88a9-00b51083d4b1.jsonl",
+      "source_bytes": 58129,
+      "source_sha256": "sha256:fb195d34c9488921b2625d8327273402a901b731d434feebf8aaf339b625a8c5",
+      "promoted_bytes": 3807,
+      "promoted_sha256": "sha256:2d447715f194d332301eb38e2d7fe34e938272a7f700d0f1b653e4a0af63a099"
     },
     {
       "source_path": "event-summary__EKfePmM/agent/trajectory.json",
@@ -320,7 +346,19 @@
       "action": "omitted",
       "rule": "R2",
       "source_bytes": 56717,
-      "source_sha256": "sha256:88b122bad54166ecd8378bb113d5c686cc93d28414b48bf45efd83964055c7fa"
+      "source_sha256": "sha256:88b122bad54166ecd8378bb113d5c686cc93d28414b48bf45efd83964055c7fa",
+      "quota_sidecar_path": "event-summary__h2D9f6f/agent/quota/rollout-2026-08-15T06-58-23-01a00436-eb1e-7573-a972-86c9f7fb0508.rate-limits.json"
+    },
+    {
+      "source_path": "event-summary__h2D9f6f/agent/sessions/2026/08/15/rollout-2026-08-15T06-58-23-01a00436-eb1e-7573-a972-86c9f7fb0508.jsonl",
+      "promoted_path": "event-summary__h2D9f6f/agent/quota/rollout-2026-08-15T06-58-23-01a00436-eb1e-7573-a972-86c9f7fb0508.rate-limits.json",
+      "action": "redacted",
+      "rule": "R4",
+      "derived_from": "event-summary__h2D9f6f/agent/sessions/2026/08/15/rollout-2026-08-15T06-58-23-01a00436-eb1e-7573-a972-86c9f7fb0508.jsonl",
+      "source_bytes": 56717,
+      "source_sha256": "sha256:88b122bad54166ecd8378bb113d5c686cc93d28414b48bf45efd83964055c7fa",
+      "promoted_bytes": 3807,
+      "promoted_sha256": "sha256:ca337e379924458949190815a1a66fa6bb9c8c65c0d645b08d8523c58b836cea"
     },
     {
       "source_path": "event-summary__h2D9f6f/agent/trajectory.json",

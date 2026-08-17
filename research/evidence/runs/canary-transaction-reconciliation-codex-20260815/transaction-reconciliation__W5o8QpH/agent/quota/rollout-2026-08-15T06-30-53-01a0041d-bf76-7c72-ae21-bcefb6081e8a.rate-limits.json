@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "rule": "R4",
+  "kind": "evallab-rate-limits-sidecar",
+  "source_path": "transaction-reconciliation__W5o8QpH/agent/sessions/2026/08/15/rollout-2026-08-15T06-30-53-01a0041d-bf76-7c72-ae21-bcefb6081e8a.jsonl",
+  "source_bytes": 47038,
+  "source_sha256": "sha256:4f7d7449f0ae97f83e00784601b94b0b9985b9fbd0510604bd32ef5466a5d643",
+  "source_omitted_by_rule": "R2",
+  "kept": "the event timestamp and a whitelist of payload.rate_limits scalars; no message, prompt, reasoning, session title or token is read",
+  "dropped_field_names": [
+    "individual_limit",
+    "spend_control_reached"
+  ],
+  "snapshot_count": 4,
+  "limits": "account-scope, not the lab's share; a point-in-time snapshot, not a series; only as fresh as the trial that recorded it. See docs/quota-accounting.md.",
+  "snapshots": [
+    {
+      "timestamp": "2026-08-15T06:30:58.964Z",
+      "rate_limits": {
+        "limit_id": "codex",
+        "limit_name": null,
+        "primary": {
+          "used_percent": 70.0,
+          "window_minutes": 10080,
+          "resets_at": 1787250769
+        },
+        "secondary": null,
+        "credits": {
+          "has_credits": false,
+          "unlimited": false,
+          "balance": "0"
+        },
+        "plan_type": "prolite",
+        "rate_limit_reached_type": null
+      }
+    },
+    {
+      "timestamp": "2026-08-15T06:31:02.169Z",
+      "rate_limits": {
+        "limit_id": "codex",
+        "limit_name": null,
+        "primary": {
+          "used_percent": 70.0,
+          "window_minutes": 10080,
+          "resets_at": 1787250769
+        },
+        "secondary": null,
+        "credits": {
+          "has_credits": false,
+          "unlimited": false,
+          "balance": "0"
+        },
+        "plan_type": "prolite",
+        "rate_limit_reached_type": null
+      }
+    },
+    {
+      "timestamp": "2026-08-15T06:31:07.090Z",
+      "rate_limits": {
+        "limit_id": "codex",
+        "limit_name": null,
+        "primary": {
+          "used_percent": 70.0,
+          "window_minutes": 10080,
+          "resets_at": 1787250769
+        },
+        "secondary": null,
+        "credits": {
+          "has_credits": false,
+          "unlimited": false,
+          "balance": "0"
+        },
+        "plan_type": "prolite",
+        "rate_limit_reached_type": null
+      }
+    },
+    {
+      "timestamp": "2026-08-15T06:31:09.029Z",
+      "rate_limits": {
+        "limit_id": "codex",
+        "limit_name": null,
+        "primary": {
+          "used_percent": 70.0,
+          "window_minutes": 10080,
+          "resets_at": 1787250769
+        },
+        "secondary": null,
+        "credits": {
+          "has_credits": false,
+          "unlimited": false,
+          "balance": "0"
+        },
+        "plan_type": "prolite",
+        "rate_limit_reached_type": null
+      }
+    }
+  ]
+}

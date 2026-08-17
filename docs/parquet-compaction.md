@@ -1,3 +1,9 @@
+---
+status: living
+audience:
+  - operator
+  - analyst
+---
 # Parquet Compaction Engine
 
 Status: living. Owner: Platform lane. Date: 2026-08-16. Implements WS-E Item 4 from `docs/build-plan.md`.

@@ -1,5 +1,6 @@
 """Tests for provenance classification. Every test fails on a plausible bug."""
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -55,6 +56,13 @@ def test_proposed_classified_when_dir_exists():
 
 def test_unknown_returned_with_reason_for_unclassifiable():
     rec = classify_task("no-such-task", environ={})
+    assert rec.origin == Origin.UNKNOWN
+    assert rec.confidence == Confidence.UNKNOWN
+    assert "no matching task_ref" in rec.evidence
+
+
+def test_classify_task_accepts_process_environment():
+    rec = classify_task("no-such-task", environ=os.environ)
     assert rec.origin == Origin.UNKNOWN
     assert rec.confidence == Confidence.UNKNOWN
     assert "no matching task_ref" in rec.evidence

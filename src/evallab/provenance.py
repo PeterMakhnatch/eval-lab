@@ -10,6 +10,7 @@ import argparse
 import os
 import tomllib
 from collections import defaultdict
+from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
 
@@ -100,13 +101,15 @@ def classify_task(
     task_ref: str,
     *,
     tb3_explicit: Path | None = None,
-    environ: dict[str, str] | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> TaskOrigin:
     """Classify a single task_ref by scanning known roots.
     Detects multi-corpus collisions as harbor-derived.
     """
     repo_root = repository_root()
-    tb3_path = tb3_root(tb3_explicit, environ)
+    tb3_path = tb3_root(
+        tb3_explicit, environ if isinstance(environ, dict) else None
+    )
 
     matches: list[tuple[Origin, Path, Path, str | None, str]] = []
 
@@ -206,13 +209,15 @@ def classify_task(
 def discover_all(
     *,
     tb3_explicit: Path | None = None,
-    environ: dict[str, str] | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> list[TaskOrigin]:
     """Discover and classify every task from existing roots.
     Collisions resolved to harbor-derived. Absent root -> no tasks from it.
     """
     repo_root = repository_root()
-    tb3_path = tb3_root(tb3_explicit, environ)
+    tb3_path = tb3_root(
+        tb3_explicit, environ if isinstance(environ, dict) else None
+    )
 
     seen: dict[str, list[tuple[Origin, Path, Path, str | None, str]]] = defaultdict(
         list
@@ -332,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "report":
         # always report status of every configured corpus root
-        tb3_path = tb3_root(args.tb3_root, environ)
+        tb3_path = tb3_root(args.tb3_root)
         repo_root = repository_root()
         lib_root = (repo_root / "library/tasks").resolve()
         prop_root = _proposed_root(repo_root)

@@ -24,6 +24,7 @@ harbor-lab = "evallab.cli:legacy_main"
 dev = [
     "pytest>=8.4,<9",
     "ruff>=0.12,<1",
+    "hypothesis>=6.100,<7",
 ]
 observability = [
     "harbor-atif2otel>=0.1.0",

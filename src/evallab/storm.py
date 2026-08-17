@@ -279,10 +279,10 @@ def load_events_from_source(
     repo_root: Path | None = None,
 ) -> list[QueueEvent]:
     """Load QueueEvents from a sequence, path, or repository root."""
-    if isinstance(events, (list, tuple)):
-        return list(events)
     if isinstance(events, Path):
         event_path = events
+    elif isinstance(events, Sequence):
+        return list(events)
     elif repo_root is not None:
         event_path = repo_root / "queue" / "events.jsonl"
     else:

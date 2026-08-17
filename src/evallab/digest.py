@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -26,6 +26,7 @@ from evallab.schemas import (
     QueueReason,
     StandingApprovalsPolicy,
 )
+from evallab.storm import StormAlarm, detect_storm_alarms, digest_storm_section
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,9 @@ DriftLoader = Callable[[date], list[CanaryDriftObservation]]
 
 
 PreflightLoader = Callable[[], PreflightReport]
+
+
+StormLoader = Callable[[date], Sequence[StormAlarm]]
 
 
 SELF_TEST_JOB_PREFIX = "smoke-"
@@ -82,6 +86,7 @@ class DigestRenderer:
         trial_loader: TrialLoader | None = None,
         drift_loader: DriftLoader | None = None,
         preflight_loader: PreflightLoader | None = None,
+        storm_loader: StormLoader | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -89,6 +94,7 @@ class DigestRenderer:
         self._trial_loader = trial_loader or self._load_catalog_trials
         self._drift_loader = drift_loader or self._load_canary_drift
         self._preflight_loader = preflight_loader or self._load_preflight
+        self._storm_loader = storm_loader or self._load_storm_alarms
 
     def write(
         self,
@@ -350,6 +356,20 @@ class DigestRenderer:
         else:
             lines.append("No queue events.")
 
+        lines.append("")
+        try:
+            alarms = self._storm_loader(report_date)
+            lines.extend(digest_storm_section(alarms))
+        except Exception as exc:
+            lines.extend(
+                [
+                    "## Storm alarms",
+                    "",
+                    f"- Unavailable: storm alarms could not be evaluated ({type(exc).__name__}: "
+                    f"{exc}). That is not a statement that no event storm occurred.",
+                ]
+            )
+
         lines.extend(["", f"<!-- run-bytes: {run_bytes} -->", ""])
         destination = self.repo_root / "digests" / f"{report_date.isoformat()}.md"
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -392,6 +412,14 @@ class DigestRenderer:
             refuse_at_used_percent=getattr(
                 self.policy, "refuse_billable_at_used_percent", None
             ),
+        )
+
+    def _load_storm_alarms(self, day: date) -> list[StormAlarm]:
+        period_date = day - timedelta(days=1)
+        since_time = datetime.combine(period_date, datetime.min.time(), tzinfo=UTC)
+        return detect_storm_alarms(
+            self.queue.events_path,
+            since=since_time,
         )
 
     @staticmethod

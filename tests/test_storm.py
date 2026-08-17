@@ -12,6 +12,7 @@ from evallab.storm import (
     detect_storm_alarms,
     digest_storm_section,
     get_recommended_action_and_level,
+    load_events_from_source,
     render_storm_banner,
     status_items_from_alarms,
 )
@@ -277,3 +278,21 @@ def test_status_items_from_alarms_integration() -> None:
     assert items[0].availability == "review-needed"
     assert items[0].label == "storm:headless_doctor_failed:docker_reachable"
     assert "6 events in 1h" in (items[0].detail or "")
+
+
+def test_load_events_from_source_types(tmp_path: Path) -> None:
+    ev = _make_event(event_id="e-1", occurred_at=BASE_TIME, reason_code="reason_a")
+    assert load_events_from_source([ev]) == [ev]
+    assert load_events_from_source((ev,)) == [ev]
+    assert load_events_from_source(None) == []
+
+    path = tmp_path / "queue" / "events.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(ev.model_dump_json() + "\n")
+    loaded = load_events_from_source(path)
+    assert len(loaded) == 1
+    assert loaded[0].reason_code == "reason_a"
+
+    loaded_repo = load_events_from_source(repo_root=tmp_path)
+    assert len(loaded_repo) == 1
+    assert loaded_repo[0].reason_code == "reason_a"

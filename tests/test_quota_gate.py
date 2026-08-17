@@ -439,9 +439,32 @@ def test_free_controls_dispatch_unattended_against_an_exhausted_quota(
 def test_a_free_control_admission_is_not_annotated_with_quota_text(
     tmp_path: Path, agent: str
 ) -> None:
+    """No quota is read on a free control's behalf, on either admission path.
+
+    The standing-rule path is what the unattended cycle uses; the
+    human-approval path is what an operator gets after approving a control that
+    was parked for some other reason. Neither may acquire quota text, because a
+    control spends no allowance and saying otherwise would be noise that trains
+    the reader to skip the block that matters.
+    """
     service = executor(tmp_path, [], headroom(used_percent=100.0))
-    _, decision = service.submit(spec(agent=agent))
-    assert "subscription quota" not in decision.message
+    _, standing = service.submit(spec(agent=agent))
+    assert standing.policy_rule == "local-controls"
+    assert "subscription quota" not in standing.message
+
+    control = spec(agent=agent, spec_id="01JQUOTAGATE00000000000FRE")
+    control = control.model_copy(update={"submitted_at": datetime(2026, 8, 16, tzinfo=UTC)})
+    approved = service.gate.decide(
+        control,
+        spent_today_usd=0,
+        authorization=queue_module.PaidRunAuthorization(
+            spec_id="01JQUOTAGATE00000000000FRE",
+            actor="peter",
+            authorized_at=datetime(2026, 8, 16, 1, tzinfo=UTC),
+        ),
+    )
+    assert approved.admitted
+    assert "subscription quota" not in approved.message
 
 
 # --- what submit tells the operator -----------------------------------------

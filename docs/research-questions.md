@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+---
+
 # What this lab studies
 
 The focus document. When "what are we even analyzing?" fog sets in, start

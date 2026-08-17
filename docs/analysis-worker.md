@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - analyst
+  - runner
+---
+
 # Guarded post-trial analysis worker
 
 M006 (Research, Platform review). Code: `src/evallab/analysis_worker.py`.

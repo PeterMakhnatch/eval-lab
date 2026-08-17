@@ -1,3 +1,9 @@
+---
+status: historical
+audience:
+  - operator
+---
+
 # Architecture review — 2026-08-16
 
 Requested by Peter: state inspection, block map, data-architecture verdicts

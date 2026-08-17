@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - analyst
+  - operator
+---
+
 # Run & analysis explorer
 
 M005 (Platform). Logic: `src/evallab/explorer.py`. Page:

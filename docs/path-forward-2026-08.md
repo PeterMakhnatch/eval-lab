@@ -1,3 +1,9 @@
+---
+status: historical
+audience:
+  - operator
+---
+
 # The path forward — 2026-08
 
 Answers to five questions Peter set on 2026-08-14: what is this really,

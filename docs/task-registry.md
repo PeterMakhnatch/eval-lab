@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - builder
+  - operator
+---
+
 # Task registry and admission trust boundary
 
 Status: normative design and operational reference. Owner: REGISTER. Date: 2026-08-15.

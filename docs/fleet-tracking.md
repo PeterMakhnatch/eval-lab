@@ -1,3 +1,9 @@
+---
+status: living
+audience:
+  - operator
+---
+
 # Fleet tracking: how the human keeps up with many agents
 
 > Claude, 2026-08-13, at Peter's direction. Companion to

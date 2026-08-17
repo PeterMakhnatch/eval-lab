@@ -1,3 +1,9 @@
+---
+status: living
+audience:
+  - operator
+---
+
 # Peter's operating manual — running a lab built by agents
 
 How to direct this lab without drowning in its code. Written from the first

@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+---
+
 # External trajectory datasets: catalog and ingestion specification
 
 Role: DATA-STRATEGY. Date: 2026-08-15. Confidence labels: **[verified]** =

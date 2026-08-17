@@ -1,3 +1,9 @@
+---
+status: historical
+audience:
+  - operator
+---
+
 # Design additions: one repo, the tool stack, and the unattended research loop
 
 > Author: Claude (Opus), 2026-08-13, written at Peter's direction against

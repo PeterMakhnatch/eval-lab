@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - runner
+  - operator
+---
+
 # Scaling gates
 
 ## Principle

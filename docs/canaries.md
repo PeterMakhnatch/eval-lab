@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - runner
+  - operator
+---
+
 # Canary suite and drift interpretation
 
 The nightly suite is defined in `policy/canary-suite.yaml`. It has three

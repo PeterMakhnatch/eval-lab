@@ -1,8 +1,7 @@
 """Contract freeze tests for E00.
 
 Golden schemas committed so that any field add/rename/retype/reorder fails CI.
-Regeneration: uv run python -m evallab.contracts regenerate-goldens
-(documented in docs/contracts.md).
+Regeneration script documented in docs/contracts.md.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.contracts import (
+from evallab.schemas import (
     AnalysisRecord,
     CalibrationRecord,
     ConfidenceClaim,

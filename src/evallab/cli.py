@@ -67,6 +67,7 @@ from evallab.gc import (
     nightly_gc_plan,
     run_gc,
 )
+from evallab.lineage import lineage_to_dict, render_lineage_tree, resolve_lineage
 from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import (
@@ -525,6 +526,18 @@ def parser() -> argparse.ArgumentParser:
     db_attach.add_argument("--print-sql", action="store_true", help="emit the attach + view DDL preamble to stdout")  # noqa: E501
     db_attach.add_argument("--query", metavar="SQL", help="run query against the surface and print rows")  # noqa: E501
     db_attach.add_argument("--derived-root", type=Path, help="override the shared Parquet root (same resolution as library)")  # noqa: E501
+    lineage = commands.add_parser(
+        "lineage", help="Trace recursive lineage of generated artifacts back to Z1"
+    )
+    lineage.add_argument("target", help="Artifact path or identifier to trace")
+    lineage.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON lineage graph"
+    )
+    lineage.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
 
 
 
@@ -1567,6 +1580,15 @@ def run_cli(
                 return 0
             result.connection.close()
             return 0
+        if args.command == "lineage":
+            explicit = getattr(args, "derived_root", None)
+            derived = derived_root_from_environment(root, explicit=explicit)
+            result = resolve_lineage(args.target, repo_root=root, explicit_derived=derived)
+            if args.json:
+                print(json.dumps(lineage_to_dict(result), indent=2))
+            else:
+                print(render_lineage_tree(result))
+            return 0 if result.resolved else 1
         if args.command == "registry" and args.registry_command == "list":
             from evallab.registry import TaskRegistry
 

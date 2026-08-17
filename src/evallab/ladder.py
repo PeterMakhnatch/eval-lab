@@ -10,9 +10,11 @@ instead of duplicating.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -75,17 +77,17 @@ DEFAULT_COST_PER_TRIAL_USD: dict[str, float] = {
 
 _SLUG_SANITIZE_RE = re.compile(r"[^a-z0-9-]+")
 _CONSECUTIVE_HYPHENS_RE = re.compile(r"-+")
+_KNOWN_EXTENSIONS = (".md", ".yaml", ".yml", ".json", ".toml", ".txt", ".py")
 
 
 def sanitize_slug(value: str) -> str:
-    """Normalize a string into a clean lowercase hyphen-separated slug."""
-    if "/" in value or "\\" in value or value.endswith(
-        (".md", ".yaml", ".yml", ".json", ".toml", ".txt", ".py")
-    ):
-        stem = Path(value).stem
-    else:
-        stem = value
-    lowered = stem.lower()
+    """Normalize a string into a clean lowercase hyphen-separated slug preserving path segments."""
+    cleaned_val = value.strip()
+    for ext in _KNOWN_EXTENSIONS:
+        if cleaned_val.lower().endswith(ext):
+            cleaned_val = cleaned_val[: -len(ext)]
+            break
+    lowered = cleaned_val.lower()
     cleaned = _SLUG_SANITIZE_RE.sub("-", lowered)
     collapsed = _CONSECUTIVE_HYPHENS_RE.sub("-", cleaned).strip("-")
     return collapsed or "item"
@@ -114,11 +116,15 @@ def generate_spec_name(
     if len(candidate) <= max_len:
         return candidate
 
-    # Truncate while keeping structure and valid suffix
+    # Truncate while keeping structure, collision resistance via hash, and valid suffix
     k_suffix = f"-k{attempts}"
-    budget = max_len - len(k_suffix)
+    digest = hashlib.sha256(candidate.encode("utf-8")).hexdigest()[:8]
+    hash_suffix = f"-{digest}{k_suffix}"
+    budget = max_len - len(hash_suffix)
     truncated = candidate[:budget].rstrip("-")
-    return f"{truncated}{k_suffix}"
+    if not truncated or not truncated[0].isalnum():
+        truncated = "ladder"
+    return f"{truncated}{hash_suffix}"
 
 
 @dataclass(frozen=True)
@@ -245,12 +251,13 @@ def _resolve_cost_per_trial(
         return 0.0
     if agent_spec.est_cost_per_trial_usd is not None:
         return agent_spec.est_cost_per_trial_usd
-    if isinstance(grid_spec.est_cost_per_trial_usd, dict):
-        if agent_spec.agent in grid_spec.est_cost_per_trial_usd:
-            return float(grid_spec.est_cost_per_trial_usd[agent_spec.agent])
-    elif isinstance(grid_spec.est_cost_per_trial_usd, (int, float)):
+    if (
+        isinstance(grid_spec.est_cost_per_trial_usd, dict)
+        and agent_spec.agent in grid_spec.est_cost_per_trial_usd
+    ):
+        return float(grid_spec.est_cost_per_trial_usd[agent_spec.agent])
+    if isinstance(grid_spec.est_cost_per_trial_usd, (int, float)):
         return float(grid_spec.est_cost_per_trial_usd)
-
     return DEFAULT_COST_PER_TRIAL_USD.get(agent_spec.agent, 0.05)
 
 
@@ -281,7 +288,6 @@ def _render_hypothesis(
             return f"{grid_spec.hypothesis} (variant: {preamble}, k={attempts})"
         return f"{grid_spec.hypothesis} (k={attempts})"
 
-    # Default descriptive hypothesis
     if preamble and preamble != "none":
         preamble_desc = f"with preamble '{preamble}'"
     else:
@@ -297,18 +303,14 @@ def _normalize_agent_item(item: str | AgentSpec) -> AgentSpec:
     """Normalize a string or AgentSpec into a resolved AgentSpec."""
     if isinstance(item, AgentSpec):
         return item
-    builtins = builtin_profiles()
-    if item in builtins:
-        profile = builtins[item]
-        return AgentSpec(agent=profile.adapter, model=profile.model)
+    if item in (p := builtin_profiles()):
+        return AgentSpec(agent=p[item].adapter, model=p[item].model)
     return AgentSpec(agent=item)
 
 
 def _normalize_task_item(item: str | TaskSpec) -> TaskSpec:
     """Normalize a string or TaskSpec into a TaskSpec."""
-    if isinstance(item, TaskSpec):
-        return item
-    return TaskSpec(task=item)
+    return item if isinstance(item, TaskSpec) else TaskSpec(task=item)
 
 
 def find_existing_grid_points(
@@ -324,20 +326,11 @@ def find_existing_grid_points(
     search_dirs: list[Path] = []
     queue_root = root / "queue"
     if queue_root.is_dir():
-        for state in (
-            "proposed",
-            "pending",
-            "approved",
-            "waiting",
-            "rejected",
-            "running",
-            "done",
-            "failed",
-        ):
-            s_dir = queue_root / state
-            if s_dir.is_dir():
-                search_dirs.append(s_dir)
-
+        states = (
+            "proposed", "pending", "approved", "waiting",
+            "rejected", "running", "done", "failed",
+        )
+        search_dirs.extend(queue_root / s for s in states if (queue_root / s).is_dir())
     for extra in extra_dirs:
         if extra.is_dir() and extra not in search_dirs:
             search_dirs.append(extra)
@@ -376,6 +369,10 @@ def find_existing_grid_points(
     return points
 
 
+def _matches_str(target: str | None, val: Any) -> bool:
+    return target in val if isinstance(val, (list, tuple, set)) else target == str(val)
+
+
 def _point_matches_constraint(
     task_ref: str,
     agent_spec: AgentSpec,
@@ -387,38 +384,24 @@ def _point_matches_constraint(
     """Check whether a grid point matches an exclusion constraint."""
     for key, val in constraint.items():
         if key in {"task", "task_ref", "task_refs"}:
-            if isinstance(val, (list, tuple, set)):
-                if task_ref not in val:
-                    return False
-            elif task_ref != str(val):
+            if not _matches_str(task_ref, val):
                 return False
         elif key in {"agent", "agents"}:
-            if isinstance(val, (list, tuple, set)):
-                if agent_spec.agent not in val and agent_key not in val:
-                    return False
-            elif agent_spec.agent != str(val) and agent_key != str(val):
+            allowed = val if isinstance(val, (list, tuple, set)) else [str(val)]
+            if agent_spec.agent not in allowed and agent_key not in allowed:
                 return False
         elif key in {"model", "models"}:
-            if isinstance(val, (list, tuple, set)):
-                if agent_spec.model not in val:
-                    return False
-            elif agent_spec.model != str(val):
+            if not _matches_str(agent_spec.model, val):
                 return False
         elif key in {"preamble", "preambles"}:
-            if isinstance(val, (list, tuple, set)):
-                if preamble not in val:
-                    return False
-            elif preamble != str(val):
+            if not _matches_str(preamble, val):
                 return False
         elif key in {"k", "attempts"}:
-            if isinstance(val, (list, tuple, set)):
-                if k not in [int(x) for x in val]:
-                    return False
-            elif k != int(val):
+            allowed_k = [int(x) for x in val] if isinstance(val, (list, tuple, set)) else [int(val)]
+            if k not in allowed_k:
                 return False
-        else:
-            if str(val) != str(constraint.get(key)):
-                return False
+        elif str(val) != str(constraint.get(key)):
+            return False
     return True
 
 
@@ -502,10 +485,7 @@ def generate_grid(
 
                     # Check deduplication (resume)
                     if (task_spec.task, agent_key, preamble, k) in existing_points or (
-                        task_spec.task,
-                        agent_spec.agent,
-                        preamble,
-                        k,
+                        task_spec.task, agent_spec.agent, preamble, k
                     ) in existing_points:
                         deduped.append(
                             DedupeRecord(
@@ -520,12 +500,8 @@ def generate_grid(
 
                     candidates.append(
                         CandidatePoint(
-                            task_spec=task_spec,
-                            agent_spec=agent_spec,
-                            agent_key=agent_key,
-                            provider_key=provider_key,
-                            preamble=preamble,
-                            k=k,
+                            task_spec=task_spec, agent_spec=agent_spec, agent_key=agent_key,
+                            provider_key=provider_key, preamble=preamble, k=k,
                         )
                     )
 
@@ -542,8 +518,31 @@ def generate_grid(
         for p in provider_keys:
             if queues[p]:
                 ordered_candidates.append(queues[p].pop(0))
+    # 4. Assert uniqueness of candidate point names across all unskipped points
+    candidate_names = [
+        generate_spec_name(
+            grid_spec.name or grid_id,
+            sanitize_slug(c.task_spec.task),
+            sanitize_slug(
+                f"{c.agent_spec.agent}-{c.agent_spec.model}"
+                if c.agent_spec.model
+                else c.agent_spec.agent
+            ),
+            sanitize_slug(c.preamble),
+            c.k,
+        )
+        for c in ordered_candidates
+    ]
+    if len(candidate_names) != len(set(candidate_names)):
+        counts = Counter(candidate_names)
+        duplicates = [name for name, cnt in counts.items() if cnt > 1]
+        raise ValueError(
+            f"Candidate grid point names are not unique: "
+            f"{len(ordered_candidates)} points produced {len(set(candidate_names))} unique names. "
+            f"Duplicate names: {duplicates}"
+        )
 
-    # 4. Filter and emit specs respecting quota, budget units, and limits
+    # 5. Filter and emit specs respecting quota, budget units, and limits
     total_specs = 0
     total_trials = 0
     total_cost = 0.0
@@ -579,9 +578,7 @@ def generate_grid(
         if provider_key in provider_exhausted and agent_spec.agent not in CONTROL_ADAPTERS:
             skipped.append(
                 SkippedSpec(
-                    name=spec_name,
-                    task=task_spec.task,
-                    agent=agent_spec.agent,
+                    name=spec_name, task=task_spec.task, agent=agent_spec.agent,
                     preamble=preamble,
                     attempts=k,
                     reason="provider reported quota exhausted in current window",
@@ -615,8 +612,7 @@ def generate_grid(
                 SkippedSpec(
                     name=spec_name,
                     task=task_spec.task,
-                    agent=agent_spec.agent,
-                    preamble=preamble,
+                    agent=agent_spec.agent, preamble=preamble,
                     attempts=k,
                     reason=f"global max_specs limit ({grid_spec.limits.max_specs}) reached",
                 )
@@ -629,10 +625,8 @@ def generate_grid(
         ):
             skipped.append(
                 SkippedSpec(
-                    name=spec_name,
-                    task=task_spec.task,
-                    agent=agent_spec.agent,
-                    preamble=preamble,
+                    name=spec_name, task=task_spec.task,
+                    agent=agent_spec.agent, preamble=preamble,
                     attempts=k,
                     reason=(
                         f"global max_trials limit ({grid_spec.limits.max_trials}) "
@@ -660,7 +654,6 @@ def generate_grid(
                 )
             )
             continue
-
         # Per-provider limits check
         p_lim = grid_spec.limits.per_provider.get(provider_key)
         if p_lim is not None:
@@ -762,6 +755,17 @@ def generate_grid(
     written_paths: list[Path] = []
     submitted_specs: list[str] = []
 
+    # 6. Assert uniqueness of generated spec names before writing
+    spec_names = [s.name for s in specs]
+    if len(spec_names) != len(set(spec_names)):
+        counts = Counter(spec_names)
+        duplicates = [name for name, cnt in counts.items() if cnt > 1]
+        raise ValueError(
+            f"Generated spec names are not unique across grid points: "
+            f"{len(specs)} specs produced {len(set(spec_names))} unique names. "
+            f"Duplicate names: {duplicates}"
+        )
+
     # Write or submit if requested and not in dry-run mode
     if submit:
         executor = Executor.from_repo(root)
@@ -774,9 +778,13 @@ def generate_grid(
         out_path.mkdir(parents=True, exist_ok=True)
         for s in specs:
             file_path = out_path / f"{s.name}.json"
+            if file_path.exists():
+                raise FileExistsError(
+                    f"Spec file already exists and cannot be overwritten: {file_path}. "
+                    "Existing points must be resumed (deduped) or removed, never overwritten."
+                )
             file_path.write_text(s.model_dump_json(indent=2), encoding="utf-8")
             written_paths.append(file_path)
-
     return GridGenerationResult(
         grid_id=grid_id,
         specs=specs,
@@ -877,23 +885,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "specs": [s.model_dump(mode="json") for s in result.specs],
                 "skipped": [
                     {
-                        "name": sk.name,
-                        "task": sk.task,
-                        "agent": sk.agent,
-                        "preamble": sk.preamble,
-                        "attempts": sk.attempts,
-                        "reason": sk.reason,
+                        "name": sk.name, "task": sk.task, "agent": sk.agent,
+                        "preamble": sk.preamble, "attempts": sk.attempts, "reason": sk.reason,
                     }
                     for sk in result.skipped
                 ],
                 "deduped": [
                     {
-                        "grid_id": d.grid_id,
-                        "task": d.task,
-                        "agent": d.agent,
-                        "preamble": d.preamble,
-                        "attempts": d.attempts,
-                        "reason": d.reason,
+                        "grid_id": d.grid_id, "task": d.task, "agent": d.agent,
+                        "preamble": d.preamble, "attempts": d.attempts, "reason": d.reason,
                     }
                     for d in result.deduped
                 ],

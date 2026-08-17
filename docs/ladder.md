@@ -98,21 +98,27 @@ hypothesis_template: "Testing {agent} on {task} with preamble {preamble} at k={k
 
 ---
 
-## 3. Deduplication and Resumption
+## 3. Deduplication, Naming, and Resumption
 
 Each generated `ExperimentSpec` records its `grid_id` and its exact point coordinates:
 - `spec.grid_id`: the declared `grid_id` (e.g. `grid-event-summary-elicitation`).
 - `spec.grid_point`: `{"task_ref": "...", "agent": "...", "model": "...", "preamble": "...", "k": N}`.
+- `spec.name`: deterministic filename slug carrying the full coordinates (`grid_id-task_slug-agent_slug-preamble_slug-k{attempts}`), with hash-assisted truncation ensuring unique names $\le 80$ characters.
 
 The **dedupe key** is `grid_id + point coordinates` (`(grid_id, task_ref, agent, preamble, k)`).
+
+### Uniqueness and Overwrite Protection
+
+1. **Generation-Time Uniqueness Assertion:** LADDER verifies before writing that the set of generated spec names has the exact same cardinality as candidate points (`len(set(names)) == len(points)`). Duplicate names fail loudly at generation time.
+2. **No Overwrites:** When writing to an output directory, existing spec files are never overwritten. A matching point is resumed (counted as deduped); an un-deduped existing file raises `FileExistsError`.
+3. **Fixed-Point Convergence:** Three consecutive generation runs on an identical target directory reach a fixed point: Run 1 writes $N$ files, Run 2 writes 0 and dedupes $N$, and Run 3 writes 0 and dedupes $N$.
 
 ### Resume Behavior
 
 When `evallab ladder generate` is executed on a partially-run or previously submitted grid:
-1. LADDER scans the queue across all states (`proposed`, `pending`, `approved`, `waiting`, `running`, `done`, `failed`).
+1. LADDER scans the queue across all states (`proposed`, `pending`, `approved`, `waiting`, `running`, `done`, `failed`) and any configured output directories.
 2. Existing points matching the `grid_id` and coordinates are identified.
 3. LADDER emits **only the missing points**. Already present points are recorded as `resumed` (`deduped`) and are never duplicated.
-
 ---
 
 ## 4. Quota-Aware Ordering & Withholding Report

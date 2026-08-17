@@ -44,13 +44,14 @@ def _dir_hash(directory: Path) -> str:
 
 
 def test_sanitize_slug() -> None:
-    assert sanitize_slug("tasks/event-summary") == "event-summary"
-    assert sanitize_slug("canary/transaction-reconciliation") == "transaction-reconciliation"
-    assert sanitize_slug("research/experiments/preambles/brief-discipline.md") == "brief-discipline"
+    assert sanitize_slug("tasks/event-summary") == "tasks-event-summary"
+    assert sanitize_slug("canary/transaction-reconciliation") == "canary-transaction-reconciliation"
+    assert (
+        sanitize_slug("research/experiments/preambles/brief-discipline.md")
+        == "research-experiments-preambles-brief-discipline"
+    )
     assert sanitize_slug("Special_Characters!@#") == "special-characters"
     assert sanitize_slug("") == "item"
-
-
 def test_generate_spec_name_conforms_to_regex_and_length() -> None:
     name = generate_spec_name(
         grid_name="grid-01",
@@ -373,7 +374,7 @@ def test_cli_generate_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]
 
     captured = capsys.readouterr()
     assert "LADDER Grid Generation: 1 specs generated" in captured.out
-    assert (out_dir / "cli-test-grid-event-summary-oracle-k1.json").is_file()
+    assert (out_dir / "cli-test-grid-canary-event-summary-oracle-k1.json").is_file()
 
 
 def test_cli_generate_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -394,7 +395,7 @@ def test_cli_generate_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[
     captured = capsys.readouterr()
     parsed = json.loads(captured.out)
     assert parsed["total_specs"] == 1
-    assert parsed["specs"][0]["name"] == "json-output-grid-event-summary-oracle-k1"
+    assert parsed["specs"][0]["name"] == "json-output-grid-canary-event-summary-oracle-k1"
     assert parsed["specs"][0]["purpose"] == "elicitation"
 
 
@@ -599,7 +600,7 @@ def test_resume_not_duplicate_emits_only_missing_points(tmp_path: Path) -> None:
 
     # Pre-populate 3 points in queue directory
     existing_spec_1 = ExperimentSpec(
-        name="grid-resume-test-task-1-oracle-k1",
+        name="grid-resume-test-tasks-task-1-oracle-k1",
         hypothesis="hypothesis",
         purpose="elicitation",
         task="tasks/task-1",
@@ -610,7 +611,7 @@ def test_resume_not_duplicate_emits_only_missing_points(tmp_path: Path) -> None:
         grid_point={"task_ref": "tasks/task-1", "agent": "oracle", "preamble": "none", "k": 1},
     )
     existing_spec_2 = ExperimentSpec(
-        name="grid-resume-test-task-2-oracle-k3",
+        name="grid-resume-test-tasks-task-2-oracle-k3",
         hypothesis="hypothesis",
         purpose="elicitation",
         task="tasks/task-2",
@@ -621,7 +622,7 @@ def test_resume_not_duplicate_emits_only_missing_points(tmp_path: Path) -> None:
         grid_point={"task_ref": "tasks/task-2", "agent": "oracle", "preamble": "none", "k": 3},
     )
     existing_spec_3 = ExperimentSpec(
-        name="grid-resume-test-task-1-nop-k1",
+        name="grid-resume-test-tasks-task-1-nop-k1",
         hypothesis="hypothesis",
         purpose="elicitation",
         task="tasks/task-1",
@@ -666,6 +667,14 @@ def test_resume_not_duplicate_emits_only_missing_points(tmp_path: Path) -> None:
     assert result_again.total_specs == 0
     assert len(result_again.specs) == 0
     assert len(result_again.deduped) == 8
+    assert len(list(out_dir.glob("*.json"))) == 8
+
+    # Third consecutive run: writes 0, dedupes 8, files on disk remains 8
+    result_third = generate_grid(grid, output_dir=out_dir, repo_root=tmp_path)
+    assert result_third.total_specs == 0
+    assert len(result_third.specs) == 0
+    assert len(result_third.deduped) == 8
+    assert len(list(out_dir.glob("*.json"))) == 8
 
 
 def test_daily_budget_units_truncation_and_withholding_report() -> None:
@@ -765,7 +774,7 @@ def test_output_is_byte_identical_across_two_runs(
     assert out1.encode("utf-8") == out2.encode("utf-8")
 
 
-def test_example_grid_file_in_grids_directory_validates() -> None:
+def test_example_grid_file_in_grids_directory_validates(tmp_path: Path) -> None:
     """The committed example grid under grids/ is valid and expands cleanly."""
     example_path = Path(__file__).resolve().parents[1] / "grids" / "event-summary-elicitation.yaml"
     assert example_path.is_file()
@@ -775,6 +784,58 @@ def test_example_grid_file_in_grids_directory_validates() -> None:
     assert grid.purpose == "elicitation"
     assert grid.daily_budget_units == 20
 
-    result = generate_grid(grid, check_quota_headroom=False)
-    assert result.total_specs > 0
-    assert result.total_trials > 0
+    out_dir = tmp_path / "queue" / "proposed"
+
+    # Run 1: Writes N=12 files, 0 deduped, 12 files on disk
+    result = generate_grid(grid, output_dir=out_dir, repo_root=tmp_path, check_quota_headroom=False)
+    assert result.total_specs == 12
+    assert len(result.specs) == 12
+    assert len(result.written_paths) == 12
+    assert len(result.deduped) == 0
+
+    # Cardinality assertion: len(set(names)) == len(points)
+    spec_names = [s.name for s in result.specs]
+    assert len(set(spec_names)) == len(result.specs) == 12
+
+    # Files on disk matches total_specs after first run
+    files_on_disk = list(out_dir.glob("*.json"))
+    assert len(files_on_disk) == 12
+
+    # Run 2: Writes 0, dedupes N=12, files on disk remains 12
+    result_run2 = generate_grid(
+        grid, output_dir=out_dir, repo_root=tmp_path, check_quota_headroom=False
+    )
+    assert result_run2.total_specs == 0
+    assert len(result_run2.written_paths) == 0
+    assert len(result_run2.deduped) == 12
+    assert len(list(out_dir.glob("*.json"))) == 12
+
+    # Run 3: Writes 0, dedupes N=12, files on disk remains 12 (convergence confirmed)
+    result_run3 = generate_grid(
+        grid, output_dir=out_dir, repo_root=tmp_path, check_quota_headroom=False
+    )
+    assert result_run3.total_specs == 0
+    assert len(result_run3.written_paths) == 0
+    assert len(result_run3.deduped) == 12
+    assert len(list(out_dir.glob("*.json"))) == 12
+
+def test_grid_axes_differing_only_in_path_coordinate_produce_distinct_files(tmp_path: Path) -> None:
+    """A grid whose axes differ only in task path coordinates produces distinct files."""
+    grid = GridSpec(
+        grid_id="grid-path-coord-test",
+        purpose="elicitation",
+        axes=GridAxes(
+            task_refs=["canary/event-summary", "tasks/event-summary"],
+            agents=["oracle"],
+            preamble=["none"],
+            k=[1],
+        ),
+        check_quota_headroom=False,
+    )
+    out_dir = tmp_path / "queue" / "proposed"
+    result = generate_grid(grid, output_dir=out_dir, repo_root=tmp_path)
+    assert result.total_specs == 2
+    assert len(result.specs) == 2
+    assert len(result.written_paths) == 2
+    assert result.specs[0].name != result.specs[1].name
+    assert len(list(out_dir.glob("*.json"))) == 2

@@ -664,6 +664,22 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit audit report as JSON",
     )
+
+    tidy = commands.add_parser(
+        "tidy",
+        help="Sweep working tree strays, stale worktrees, and retention violations",
+    )
+    tidy.add_argument(
+        "--apply",
+        action="store_true",
+        help="Execute safe deletions (default is dry-run report)",
+    )
+    tidy.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Report findings without making changes (default behavior)",
+    )
     return root
 
 
@@ -1688,6 +1704,11 @@ def run_cli(
                 print(f"[{icon}] {finding.category} -> {finding.target}")
                 print(f"       {finding.message}")
             return 0 if report.passed else 1
+        if args.command == "tidy":
+            from evallab.tidy import run_tidy
+
+            apply = args.apply and not args.dry_run
+            return run_tidy(root, apply=apply)
     except (FileExistsError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

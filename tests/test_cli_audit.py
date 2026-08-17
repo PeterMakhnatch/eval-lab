@@ -41,6 +41,7 @@ TOP_LEVEL_COMMANDS = (
     "fetch",
     "gc",
     "registry",
+    "tidy",
 )
 NESTED_COMMANDS = (
     ("schedule", "install"),

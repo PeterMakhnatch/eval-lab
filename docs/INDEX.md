@@ -6,8 +6,6 @@ audience:
   - runner
   - operator
 inputs:
-  - path: docs/agent-analysis.md
-    digest: sha256:e490de090539722b445fb03f342254afe39f6109a39f5d6cb73fce3146ea8b89
   - path: docs/agent-profiles.md
     digest: sha256:ee08d680acb7186f25d20565aec4eecfe691f3c4015cd85c93f885d853fe4da6
   - path: docs/analysis-loop.md
@@ -29,11 +27,9 @@ inputs:
   - path: docs/context-packs.md
     digest: sha256:d142486f19c53ca429631cec773d83654654c52f54c17b5c0051399defeb4a87
   - path: docs/contracts.md
-    digest: sha256:58a840485cd5d4488fda23572a802fcf40708bea2485f3bc301955656b04b0bc
+    digest: sha256:55a53bd20b420eef64004a4409d735e70088ecf18408ae2cda0895bd43ff7079
   - path: docs/craft.md
     digest: sha256:fe6db1dd40e6490e188c8c0feb1f799dcd6195615787638b1baddd15801faf00
-  - path: docs/dashboard.md
-    digest: sha256:a9b3ecb34ff41bb82ab79ae2daaaea469ed66e21dcfb06f6defea0ce7ab24ffe
   - path: docs/data-architecture.md
     digest: sha256:7ff42ba0b6616fd40124fb6b0028b8288982398d55157106fc6717d44d3c5036
   - path: docs/design-additions.md
@@ -61,7 +57,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:988743dd456944ef5660b1d1a613a3bb3c6ae973ff8ba50ce9e5df8083d879d2
+    digest: sha256:df94520ea628e021912ed1037ab143e97015fff87487b257a1de45473542bdf8
   - path: docs/operator-demo.md
     digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
   - path: docs/parallel-work.md
@@ -77,7 +73,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:bfa6135d79f23aa327e1afb0e2e26f387a8b612239e226c277c1af34b6eae9b3
+    digest: sha256:3c7b4a4f973a7a256f442cc39377c88553b5e6a609dd307ed81dbbfff3179c6f
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md
@@ -94,8 +90,6 @@ inputs:
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/storm-alarms.md
     digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
-  - path: docs/surfaces.md
-    digest: sha256:599c3ae6f22cf2696bc2f7bdc17f6c207f0366ae4e8e5592a28c6fe7bfe2b064
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-registry.md
@@ -104,8 +98,6 @@ inputs:
     digest: sha256:472f511912d533fa44786c92c3cd8ea16ce3c9c33e22b37177e1b60f3de8d60b
   - path: docs/tidy.md
     digest: sha256:d0a846245e70105e2d77a685d8121acbf7a1a12d8702e79b24f4d9cff724d8a7
-  - path: docs/verdicts.md
-    digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
 ---
 
 <!-- generated-by: docindex v1 -->
@@ -122,7 +114,6 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
@@ -159,7 +150,6 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/analysis-loop.md` | Evidence-to-experiment analysis loop | `living` | `analyst` |
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
@@ -168,7 +158,6 @@ an operator can see what is archived.
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
-| `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
@@ -185,9 +174,7 @@ an operator can see what is archived.
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
-| `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
-| `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 
 ### historical
 
@@ -230,7 +217,6 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
@@ -238,7 +224,6 @@ an operator can see what is archived.
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
-| `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
@@ -257,11 +242,9 @@ an operator can see what is archived.
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
-| `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
-| `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 
 ### historical
 

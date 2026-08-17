@@ -100,12 +100,95 @@ ExperimentPurpose = Literal[
 EXPERIMENT_PURPOSES: tuple[ExperimentPurpose, ...] = get_args(ExperimentPurpose)
 
 
+class ElicitationSpec(ContractModel):
+    """§2.1 / §4 Elicitation tuple describing agent prompt and environment conditions.
+
+    A spec with purpose=elicitation must differ from its reference spec in exactly
+    one elicitation field.
+    """
+
+    preamble_hash: str | None = Field(
+        default=None,
+        description="digest or identifier of the preamble / system prompt text",
+    )
+    toolset: list[str] = Field(
+        default_factory=list,
+        description="list of tool identifiers configured for the agent",
+    )
+    env_overrides: dict[str, str] = Field(
+        default_factory=dict,
+        description="environment variable overrides applied to the execution container",
+    )
+
+    def diff_fields(self, other: ElicitationSpec) -> list[str]:
+        """Return field names that differ between two elicitation tuples."""
+        diffs: list[str] = []
+        if self.preamble_hash != other.preamble_hash:
+            diffs.append("preamble_hash")
+        if self.toolset != other.toolset:
+            diffs.append("toolset")
+        if self.env_overrides != other.env_overrides:
+            diffs.append("env_overrides")
+        return diffs
+
+
+class PreregSpec(ContractModel):
+    """§2.1 / §4 Preregistration block for comparison experiments.
+
+    Stored verbatim and quoted by the eval card to prevent post-hoc goalpost moving.
+    Both expected outcome and decision rule survive round-tripping unmodified.
+    """
+
+    expected: str = Field(
+        min_length=1,
+        description="expected result or hypothesis outcome statement verbatim",
+    )
+    decision_rule: str = Field(
+        min_length=1,
+        description="pre-agreed decision rule for hypothesis acceptance verbatim",
+    )
+
+
+class PowerSpec(ContractModel):
+    """§2.1 Statistical power and sample size planning.
+
+    Records minimum detectable difference (mdd) and planned sample size.
+    """
+
+    mdd: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="minimum detectable difference target",
+    )
+    planned_n: int | None = Field(
+        default=None,
+        ge=1,
+        description="planned sample size (number of trials or tasks)",
+    )
+
 class ExperimentSpec(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str | None = None
     name: str = Field(min_length=3, max_length=80, pattern=r"^[a-z0-9][a-z0-9-]+$")
     hypothesis: str = Field(min_length=1)
     purpose: ExperimentPurpose
+    question_ref: str | None = Field(
+        default=None,
+        description="free string linking this spec to the research question it answers",
+    )
+    elicitation: ElicitationSpec | None = Field(
+        default=None,
+        description="elicitation tuple (preamble_hash, toolset, env_overrides)",
+    )
+    prereg: PreregSpec | None = Field(
+        default=None,
+        description="preregistration block (expected result, decision rule) stored verbatim",
+    )
+    power: PowerSpec | None = Field(
+        default=None,
+        description="power planning block (mdd, planned_n)",
+    )
     task: str = Field(min_length=1)
     task_path: str | None = None
     agent: str = Field(min_length=1)
@@ -782,6 +865,33 @@ TaskAllowedUse = Literal[
 ]
 
 
+PretrainStatus = Literal["y", "n", "unknown"]
+PRETRAIN_STATUSES: tuple[PretrainStatus, ...] = get_args(PretrainStatus)
+
+
+class TaskContamination(ContractModel):
+    """§2.1 Contamination assessment for benchmark and task packages.
+
+    Records whether the task was likely in pretraining corpora, since when it has
+    been public, and the evidentiary basis for the assessment.
+    """
+
+    public_since: date | None = Field(
+        default=None,
+        description="date the task or source repository became public",
+    )
+    in_pretrain: PretrainStatus = Field(
+        default="unknown",
+        description="whether task is suspected in model pretraining data (y, n, unknown)",
+    )
+    basis: str = Field(
+        default="",
+        description="evidentiary basis or rationale for contamination assessment",
+    )
+
+
+ContaminationRecord = TaskContamination
+
 class TaskRegistryRecord(ContractModel):
     schema_version: Literal[1] = 1
     task_id: str = Field(
@@ -806,6 +916,15 @@ class TaskRegistryRecord(ContractModel):
     control_evidence: TaskControlEvidence
     state: TaskAdmissionState
     allowed_uses: list[TaskAllowedUse] = Field(min_length=1)
+    contamination: TaskContamination | None = Field(
+        default=None,
+        description="contamination assessment (public_since, in_pretrain, basis)",
+    )
+    human_minutes: int | None = Field(
+        default=None,
+        ge=0,
+        description="expert human completion time estimate in minutes, if known",
+    )
     approved_by: str | None = None
     approved_at: datetime | None = None
 

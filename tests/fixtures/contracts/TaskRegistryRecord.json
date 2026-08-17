@@ -1,0 +1,366 @@
+{
+  "$defs": {
+    "ControlEvidenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Digest"
+        },
+        "evidence_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Path"
+        },
+        "job_name": {
+          "minLength": 1,
+          "title": "Job Name",
+          "type": "string"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "reward": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Reward",
+          "type": "number"
+        }
+      },
+      "required": [
+        "job_name",
+        "reward"
+      ],
+      "title": "ControlEvidenceRef",
+      "type": "object"
+    },
+    "TaskContamination": {
+      "additionalProperties": false,
+      "description": "\u00a72.1 Contamination assessment for benchmark and task packages.\n\nRecords whether the task was likely in pretraining corpora, since when it has\nbeen public, and the evidentiary basis for the assessment.",
+      "properties": {
+        "basis": {
+          "default": "",
+          "description": "evidentiary basis or rationale for contamination assessment",
+          "title": "Basis",
+          "type": "string"
+        },
+        "in_pretrain": {
+          "default": "unknown",
+          "description": "whether task is suspected in model pretraining data (y, n, unknown)",
+          "enum": [
+            "y",
+            "n",
+            "unknown"
+          ],
+          "title": "In Pretrain",
+          "type": "string"
+        },
+        "public_since": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "date the task or source repository became public",
+          "title": "Public Since"
+        }
+      },
+      "title": "TaskContamination",
+      "type": "object"
+    },
+    "TaskControlEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "nop": {
+          "$ref": "#/$defs/ControlEvidenceRef"
+        },
+        "oracle": {
+          "$ref": "#/$defs/ControlEvidenceRef"
+        }
+      },
+      "required": [
+        "oracle",
+        "nop"
+      ],
+      "title": "TaskControlEvidence",
+      "type": "object"
+    },
+    "TaskDigests": {
+      "additionalProperties": false,
+      "properties": {
+        "environment": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Environment",
+          "type": "string"
+        },
+        "instruction": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Instruction",
+          "type": "string"
+        },
+        "package": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Package",
+          "type": "string"
+        },
+        "task_toml": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Task Toml",
+          "type": "string"
+        },
+        "verifier": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Verifier",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_toml",
+        "instruction",
+        "environment",
+        "verifier",
+        "package"
+      ],
+      "title": "TaskDigests",
+      "type": "object"
+    },
+    "TaskLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_cpus": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Cpus"
+        },
+        "max_memory_mb": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Memory Mb"
+        },
+        "timeout_seconds": {
+          "default": 1800,
+          "maximum": 21600,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "TaskLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "allowed_uses": {
+      "items": {
+        "enum": [
+          "canary",
+          "measurement",
+          "heldout",
+          "foundry-seed",
+          "training"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Allowed Uses",
+      "type": "array"
+    },
+    "approved_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved At"
+    },
+    "approved_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved By"
+    },
+    "contamination": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TaskContamination"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "contamination assessment (public_since, in_pretrain, basis)"
+    },
+    "control_evidence": {
+      "$ref": "#/$defs/TaskControlEvidence"
+    },
+    "digests": {
+      "$ref": "#/$defs/TaskDigests"
+    },
+    "human_minutes": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "expert human completion time estimate in minutes, if known",
+      "title": "Human Minutes"
+    },
+    "is_synthetic": {
+      "title": "Is Synthetic",
+      "type": "boolean"
+    },
+    "license": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "License"
+    },
+    "limits": {
+      "$ref": "#/$defs/TaskLimits"
+    },
+    "provenance_zone": {
+      "enum": [
+        "01-external",
+        "02-local-evidence",
+        "03-synthetic",
+        "04-curated"
+      ],
+      "title": "Provenance Zone",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Ref"
+    },
+    "source_uri": {
+      "minLength": 1,
+      "title": "Source Uri",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "candidate",
+        "registered",
+        "retired"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "task_id": {
+      "maxLength": 80,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9-]+$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "task_path": {
+      "minLength": 1,
+      "title": "Task Path",
+      "type": "string"
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "version",
+    "task_path",
+    "digests",
+    "source_uri",
+    "provenance_zone",
+    "is_synthetic",
+    "control_evidence",
+    "state",
+    "allowed_uses"
+  ],
+  "title": "TaskRegistryRecord",
+  "type": "object"
+}

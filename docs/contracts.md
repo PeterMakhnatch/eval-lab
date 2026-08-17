@@ -18,13 +18,14 @@ All pydantic v2 contract models live in `src/evallab/schemas.py` per platform-ar
 | `ObservationRecord` | trial_id | template_version, factual fields per OBSERVATORY TEMPLATE | ULID trial_id; fields exactly from `research/observations/TEMPLATE.md` |
 | `CalibrationRecord` | calib_id | judge_model, rubric_digest, corpus_digest, per-criterion agreement, date | ULID, sha256: digests, CriterionAgreement (agreements/total/rate) not bare float (T4) |
 | `Verdict` | (discovery_id) | status ∈ {accepted, rejected, needs_evidence, pending}, by, at, note | status literal set only; ULID discovery_id |
-
+| `ExperimentSpec` | spec_id | name, hypothesis, purpose, question_ref, elicitation, prereg, power, task, agent, model, ... | purpose enum; question_ref str; elicitation tuple (preamble_hash, toolset, env_overrides); prereg block stored verbatim; power (mdd, planned_n) |
+| `TaskRegistryRecord` | task_id | version, task_path, digests, source_uri, limits, control_evidence, state, allowed_uses, contamination, human_minutes | state invariants; contamination ({public_since, in_pretrain ∈ {y, n, unknown}, basis}); optional human_minutes |
 ## Other §2.1 entities (already modelled — do not re-declare)
 
 | Entity | Location | Key |
 |---|---|---|
 | AgentProfile | `src/evallab/profiles.py` | agent_name |
-| TaskVersion | `src/evallab/registry.py` | (task_ref, version) |
+| TaskVersion / TaskRegistryRecord | `src/evallab/schemas.py` (consumed in `src/evallab/registry.py`) | (task_ref, version) |
 | Job | `src/evallab/explorer.py` | job_id |
 | Trial | `src/evallab/atif.py` | trial_id |
 | Trajectory | `src/evallab/atif.py` | trial_id |
@@ -46,9 +47,17 @@ A test (`tests/test_contracts.py:test_golden_schemas_match_live`) asserts byte-f
 uv run python -c '
 import json
 from pathlib import Path
-from evallab.schemas import Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict
+from evallab.schemas import (
+    Suite,
+    AnalysisRecord,
+    ObservationRecord,
+    CalibrationRecord,
+    Verdict,
+    ExperimentSpec,
+    TaskRegistryRecord,
+)
 fixtures = Path("tests/fixtures/contracts")
-for Model in [Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict]:
+for Model in [Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict, ExperimentSpec, TaskRegistryRecord]:
     schema = Model.model_json_schema()
     out = fixtures / f"{Model.__name__}.json"
     out.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n")

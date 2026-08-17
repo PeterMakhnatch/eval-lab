@@ -29,7 +29,7 @@ inputs:
   - path: docs/context-packs.md
     digest: sha256:d142486f19c53ca429631cec773d83654654c52f54c17b5c0051399defeb4a87
   - path: docs/contracts.md
-    digest: sha256:58a840485cd5d4488fda23572a802fcf40708bea2485f3bc301955656b04b0bc
+    digest: sha256:55a53bd20b420eef64004a4409d735e70088ecf18408ae2cda0895bd43ff7079
   - path: docs/craft.md
     digest: sha256:fe6db1dd40e6490e188c8c0feb1f799dcd6195615787638b1baddd15801faf00
   - path: docs/dashboard.md
@@ -77,7 +77,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:bfa6135d79f23aa327e1afb0e2e26f387a8b612239e226c277c1af34b6eae9b3
+    digest: sha256:1a7d55833c1312088f018a4b311e9475f578743918f9d03da44c9b1e81555a6f
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md

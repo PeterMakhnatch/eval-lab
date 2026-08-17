@@ -1,0 +1,381 @@
+{
+  "$defs": {
+    "ElicitationSpec": {
+      "additionalProperties": false,
+      "description": "\u00a72.1 / \u00a74 Elicitation tuple describing agent prompt and environment conditions.\n\nA spec with purpose=elicitation must differ from its reference spec in exactly\none elicitation field.",
+      "properties": {
+        "env_overrides": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "environment variable overrides applied to the execution container",
+          "title": "Env Overrides",
+          "type": "object"
+        },
+        "preamble_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "digest or identifier of the preamble / system prompt text",
+          "title": "Preamble Hash"
+        },
+        "toolset": {
+          "description": "list of tool identifiers configured for the agent",
+          "items": {
+            "type": "string"
+          },
+          "title": "Toolset",
+          "type": "array"
+        }
+      },
+      "title": "ElicitationSpec",
+      "type": "object"
+    },
+    "PowerSpec": {
+      "additionalProperties": false,
+      "description": "\u00a72.1 Statistical power and sample size planning.\n\nRecords minimum detectable difference (mdd) and planned sample size.",
+      "properties": {
+        "mdd": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "minimum detectable difference target",
+          "title": "Mdd"
+        },
+        "planned_n": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "planned sample size (number of trials or tasks)",
+          "title": "Planned N"
+        }
+      },
+      "title": "PowerSpec",
+      "type": "object"
+    },
+    "PreregSpec": {
+      "additionalProperties": false,
+      "description": "\u00a72.1 / \u00a74 Preregistration block for comparison experiments.\n\nStored verbatim and quoted by the eval card to prevent post-hoc goalpost moving.\nBoth expected outcome and decision rule survive round-tripping unmodified.",
+      "properties": {
+        "decision_rule": {
+          "description": "pre-agreed decision rule for hypothesis acceptance verbatim",
+          "minLength": 1,
+          "title": "Decision Rule",
+          "type": "string"
+        },
+        "expected": {
+          "description": "expected result or hypothesis outcome statement verbatim",
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected",
+        "decision_rule"
+      ],
+      "title": "PreregSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "agent": {
+      "minLength": 1,
+      "title": "Agent",
+      "type": "string"
+    },
+    "attempts": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "concurrency": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Concurrency",
+      "type": "integer"
+    },
+    "elicitation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ElicitationSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "elicitation tuple (preamble_hash, toolset, env_overrides)"
+    },
+    "environment": {
+      "default": "docker",
+      "title": "Environment",
+      "type": "string"
+    },
+    "est_cost_usd": {
+      "default": 0.0,
+      "minimum": 0,
+      "title": "Est Cost Usd",
+      "type": "number"
+    },
+    "expected_reward": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Reward"
+    },
+    "grid_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Grid Id"
+    },
+    "grid_point": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Grid Point"
+    },
+    "hypothesis": {
+      "minLength": 1,
+      "title": "Hypothesis",
+      "type": "string"
+    },
+    "jobs_dir": {
+      "default": "runs",
+      "title": "Jobs Dir",
+      "type": "string"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "name": {
+      "maxLength": 80,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9-]+$",
+      "title": "Name",
+      "type": "string"
+    },
+    "policy_rule": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Policy Rule"
+    },
+    "power": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PowerSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "power planning block (mdd, planned_n)"
+    },
+    "prereg": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PreregSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "preregistration block (expected result, decision rule) stored verbatim"
+    },
+    "priority": {
+      "default": 100,
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Priority",
+      "type": "integer"
+    },
+    "purpose": {
+      "enum": [
+        "baseline",
+        "comparison",
+        "elicitation",
+        "drift",
+        "calibration",
+        "craft",
+        "practice"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "question_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "free string linking this spec to the research question it answers",
+      "title": "Question Ref"
+    },
+    "requires": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Requires",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "spec_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Spec Id"
+    },
+    "submitted_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Submitted At"
+    },
+    "submitted_by": {
+      "minLength": 1,
+      "title": "Submitted By",
+      "type": "string"
+    },
+    "task": {
+      "minLength": 1,
+      "title": "Task",
+      "type": "string"
+    },
+    "task_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Path"
+    },
+    "task_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Version"
+    },
+    "timeout_seconds": {
+      "default": 1800,
+      "maximum": 21600,
+      "minimum": 1,
+      "title": "Timeout Seconds",
+      "type": "integer"
+    },
+    "verifier_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Verifier Digest"
+    }
+  },
+  "required": [
+    "name",
+    "hypothesis",
+    "purpose",
+    "task",
+    "agent",
+    "submitted_by"
+  ],
+  "title": "ExperimentSpec",
+  "type": "object"
+}

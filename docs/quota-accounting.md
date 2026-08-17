@@ -312,6 +312,108 @@ ceiling**, plus refusal when `hard_stop` is true and `remaining_percent` is low
 and fresh. It does not support a percentage budget for the lab, because the
 lab's share of the percentage is unavailable and always will be.
 
+## Surviving promotion: the R4 quota sidecar
+
+Everything above is measured from `<trial>/agent/sessions/**/rollout-*.jsonl`,
+and promotion omits that path entirely under rule R2 — correctly, because the
+rollout also holds unredacted prompts and reasoning blobs. The quota signal was
+therefore discarded at the exact moment the evidence became permanent: the
+readings existed only in one workstation's gitignored `runs/` tree, and a fresh
+clone could not reproduce them.
+
+Rule R4 (`scripts/promote_codex_bundle.py`) closes that. Beside each omitted
+rollout it writes
+`<trial>/agent/quota/<rollout-stem>.rate-limits.json`:
+
+```json
+{"schema_version": 1, "rule": "R4", "kind": "evallab-rate-limits-sidecar",
+ "source_path": "…/agent/sessions/2026/08/15/rollout-….jsonl",
+ "source_bytes": 54698, "source_sha256": "sha256:b7164a79…",
+ "source_omitted_by_rule": "R2",
+ "dropped_field_names": ["individual_limit", "spend_control_reached"],
+ "snapshot_count": 5,
+ "snapshots": [{"timestamp": "2026-08-15T07:02:09.985Z",
+                "rate_limits": {"limit_id": "codex", "plan_type": "prolite",
+                                "primary": {"used_percent": 70.0,
+                                            "window_minutes": 10080,
+                                            "resets_at": 1787250769},
+                                "credits": {"has_credits": false,
+                                            "unlimited": false,
+                                            "balance": "0"}}}]}
+```
+
+It is a **whitelist**, like R3, not a filter. Nothing outside
+`payload.rate_limits` is ever read, each field inside it must match a declared
+type, an unrecognised key is dropped with only its *name* recorded, and any
+whitelisted string over 128 bytes becomes a digest marker. Message text,
+prompts, reasoning, session titles and tokens are unreachable by construction
+rather than by pattern-matching, which is what
+`tests/test_promotion_quota_sidecar.py` asserts: it feeds the parser a rollout
+carrying all six and checks that no twelve-character run of any of them appears
+anywhere in the emitted bytes. A companion test proves that scan can fail, so a
+green result is not vacuous.
+
+The sidecar carries the omitted rollout's SHA-256, so it is auditable against
+the original exactly as R2's omission record is, and the explorer labels it
+`withheld` — a few hundred bytes out of ~194 kB — so it is never mistaken for
+the session.
+
+### What a committed reading cannot tell you
+
+A number in version control invites more trust than a live one, so the same
+discipline `quota.py` applies to its output applies here. The sidecar repeats
+these limits in its own `limits` field, next to the data:
+
+- **Account scope, not the lab's share.** The provider reports one percentage
+  covering every client of the subscription. It cannot be decomposed, so a
+  sidecar never shows what the lab itself consumed — `ConsumptionLedger`, built
+  from each trial's promoted `result.json`, is the only thing that does.
+- **A point-in-time snapshot, not a series.** Each entry is what the counter
+  read during one trial. Consecutive entries are not a rate, and a gap between
+  bundles is not a period of no usage — it is a period with no paid trial to
+  observe through.
+- **Only as fresh as the trial that recorded it.** These readings are frozen at
+  promotion. `Headroom` reports `staleness` for exactly this reason; a committed
+  reading is evidence about the past, never a current balance, and must not be
+  used as one by a gate.
+
+### Known gap: the 92% reading is still not in the repository
+
+The three promoted `canary-*-codex-20260815` bundles now carry 67 snapshots,
+but they top out at **`used_percent` 70.0** — the 15 August readings. The 92%
+that prompted this work was recorded on 16 August, in
+`canary-{event-summary,terminal-bench-html-js-filter,transaction-reconciliation}-codex-20260816`,
+which are **not promoted**. R4 makes the signal survive promotion; it cannot
+promote a bundle. Preserving the 92% reading requires promoting those three
+jobs, which is a Research-lane admission decision, not a mechanism change:
+
+```bash
+uv run python scripts/promote_codex_bundle.py --source-runs runs \
+    --job canary-event-summary-codex-20260816
+```
+
+### The reader is not wired yet
+
+`evallab.quota._rate_limit_snapshots` globs `agent/sessions/**/rollout-*.jsonl`
+only, so it still reports `snapshots harvested: 0` and
+`headroom.availability = "unavailable"` against promoted evidence. `src/` is
+outside this mission's lease. The change needed is a fallback in that one
+function: when a trial yields no rollout snapshots, read
+`agent/quota/*.rate-limits.json`, accept documents whose `kind` is
+`evallab-rate-limits-sidecar`, and append
+`(_parse_instant(entry["timestamp"]), entry["rate_limits"], sidecar_path)` for
+each entry in `snapshots`. It must be a fallback, not an addition: a live run
+has the rollout and a promoted bundle has the sidecar, and reading both would
+double-count on any tree holding both. `_model_turns` needs no change — with no
+rollout it already returns `None` rather than claiming zero turns.
+
+Verified by prototype against the committed bundles with no `runs/` present:
+that fallback takes the report from `snapshots harvested: 0` /
+`headroom.availability = "unavailable"` to **67 snapshots**, `"observed"`,
+`plan_type prolite`, `resets_at 2026-08-20T18:32:49+00:00`, counter resolution
+1.0 percentage point, and the no-overflow-credits lockout note — entirely from
+committed evidence.
+
 ## Reproducing
 
 ```bash

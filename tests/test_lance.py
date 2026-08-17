@@ -93,6 +93,57 @@ def test_build_trials_from_synthetic_parquet(tmp_path, monkeypatch):
     assert "trials:" in out
 
 
+def test_build_trials_from_real_derived_layout_fixture(tmp_path, monkeypatch):
+    """Fixture layout matches real derived_root_from_environment exactly.
+    <root>/job_id=.../trial_id=.../trial_facts.parquet (no extra subdir).
+    Asserts non-zero rows (fails on double-append).
+    """
+    derived_root = tmp_path / "parquet_root"
+    job_dir = derived_root / "job_id=job42" / "trial_id=t99"
+    job_dir.mkdir(parents=True)
+    schema = pa.schema(
+        [
+            ("job_id", pa.string()),
+            ("trial_id", pa.string()),
+            ("task_name", pa.string()),
+            ("agent_version", pa.string()),
+            ("primary_reward", pa.float64()),
+            ("exception_class", pa.string()),
+            ("exception_phase", pa.string()),
+        ]
+    )
+    data = [
+        {
+            "job_id": "job42",
+            "trial_id": "t99",
+            "task_name": "task_real",
+            "agent_version": "v1.2",
+            "primary_reward": 0.95,
+            "exception_class": "",
+            "exception_phase": "",
+        }
+    ]
+    tbl = pa.Table.from_pylist(data, schema=schema)
+    pq.write_table(tbl, job_dir / "trial_facts.parquet")
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived_root))
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("trials")
+    out = f.getvalue()
+    assert "trials: 1 rows" in out
+
+
+def test_skip_reason_includes_examined_path(tmp_path, monkeypatch):
+    derived_root = tmp_path / "nonexistent_parquet_root"
+    # do not create it
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived_root))
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("trials")
+    out = f.getvalue()
+    assert "trials: skipped" in out
+    assert str(derived_root) in out  # exact path examined must be in skip reason
+
 def test_idempotent_rebuild(tmp_path, monkeypatch):
     derived = tmp_path / "derived"
     derived.mkdir()

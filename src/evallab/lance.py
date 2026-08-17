@@ -16,7 +16,9 @@ from pathlib import Path
 from typing import Protocol
 
 import lancedb
+import pyarrow as pa
 import pyarrow.parquet as pq
+from lancedb.index import IvfPq
 
 from evallab.craft import (
     TASK_INSTRUCTION,
@@ -115,7 +117,7 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
     tbl = db.create_table("tasks", data=data, mode="create")
     index_reason: str | None = None
     try:
-        tbl.create_index(vector_column_name="vector", metric="cosine")
+        tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
         # cosine because the embedder L2-normalises all vectors to unit length;
         # cosine distance on unit vectors is the appropriate metric for angular similarity
     except RuntimeError as e:
@@ -130,40 +132,47 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
 
 def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
     derived = derived_root_from_environment(repository_root())
-    parquet_root = derived / "parquet"
+    parquet_root = derived  # derived_root_from_environment returns the parquet root
     if not parquet_root.is_dir():
-        return 0, "no derived/parquet directory", None
+        return 0, f"no derived/parquet directory ({parquet_root})", None
     parquets = list(parquet_root.rglob("trial_facts.parquet"))
     if not parquets:
-        return 0, "no trial_facts.parquet files", None
+        return 0, f"no trial_facts.parquet files ({parquet_root})", None
     rows: list[dict] = []
     texts: list[str] = []
+    arrow_tables: list[pa.Table] = []
     for p in parquets:
         try:
             table = pq.read_table(p)
-            for row in table.to_pylist():
-                job_id = str(row.get("job_id", ""))
-                trial_id = str(row.get("trial_id", ""))
-                task_name = str(row.get("task_name") or "")
-                agent_name = str(row.get("agent_name") or "")
-                reward = row.get("primary_reward")
-                exc = str(row.get("exception_class") or "")
-                text = f"{task_name} {agent_name} {exc}".strip() or "empty"
-                rows.append(
-                    {
-                        "job_id": job_id,
-                        "trial_id": trial_id,
-                        "task_name": task_name,
-                        "agent_name": agent_name,
-                        "primary_reward": reward,
-                        "exception_class": exc,
-                        "text": text,
-                        "vector": None,
-                    }
-                )
-                texts.append(text)
+            arrow_tables.append(table)
         except Exception:
             continue
+    if not arrow_tables:
+        return 0, "no parsable trial rows", None
+    combined = pa.concat_tables(arrow_tables, promote_options="permissive")  # union schemas
+    for row in combined.to_pylist():
+        job_id = str(row.get("job_id", ""))
+        trial_id = str(row.get("trial_id", ""))
+        task_name = str(row.get("task_name") or "")
+        agent_version = str(row.get("agent_version") or row.get("agent_name") or "")
+        reward = row.get("primary_reward")
+        exc = str(row.get("exception_class") or "")
+        exc_phase = str(row.get("exception_phase") or "")
+        text = f"{task_name} {agent_version} {exc} {exc_phase}".strip() or "empty"
+        rows.append(
+            {
+                "job_id": job_id,
+                "trial_id": trial_id,
+                "task_name": task_name,
+                "agent_version": agent_version,
+                "primary_reward": reward,
+                "exception_class": exc,
+                "exception_phase": exc_phase,
+                "text": text,
+                "vector": None,
+            }
+        )
+        texts.append(text)
     if not texts:
         return 0, "no parsable trial rows", None
     vectors = embedder.embed(texts)
@@ -175,9 +184,8 @@ def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str 
     tbl = db.create_table("trials", data=rows, mode="create")
     index_reason: str | None = None
     try:
-        tbl.create_index(vector_column_name="vector", metric="cosine")
-        # cosine because the embedder L2-normalises all vectors to unit length;
-        # cosine distance on unit vectors is the appropriate metric for angular similarity
+        tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
+        # cosine because the embedder L2-normalises all vectors to unit length
     except RuntimeError as e:
         if "Not enough rows to train" in str(e):
             index_reason = "too few rows for ANN index (exact brute-force search)"

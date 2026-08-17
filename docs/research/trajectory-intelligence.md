@@ -1,3 +1,9 @@
+---
+status: living
+audience:
+  - analyst
+---
+
 # Trajectory intelligence: metrics and failure signals
 
 Role: DATA-STRATEGY. Date: 2026-08-15. These are deterministic descriptive

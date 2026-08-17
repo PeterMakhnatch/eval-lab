@@ -1,3 +1,12 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+  - runner
+  - operator
+---
+
 # Data architecture: four provenance zones
 
 Status: normative design. Owner: DATA-STRATEGY. Date: 2026-08-15.

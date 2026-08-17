@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+---
+
 # CRAFT: the task-corpus scanner, and where determinism stops
 
 Status: living. Owner: Platform lane. Date: 2026-08-16. Implements the

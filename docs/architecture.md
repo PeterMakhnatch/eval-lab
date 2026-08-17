@@ -1,3 +1,12 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+  - runner
+  - operator
+---
+
 # Architecture and scaling decisions
 
 ## What this lab is

@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - runner
+  - operator
+---
+
 # Execution tiers: what runs where, and what it costs
 
 Status as of 2026-08-14 (set up by Claude at Peter's direction). This is the

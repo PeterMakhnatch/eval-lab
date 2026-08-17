@@ -1,3 +1,10 @@
+---
+status: historical
+audience:
+  - builder
+  - analyst
+---
+
 # Literature survey: scaffold effects, benchmark contracts, context degradation
 
 Role: DATA-STRATEGY. Date: 2026-08-15. Sources are arXiv IDs, upstream repos

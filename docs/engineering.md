@@ -1,3 +1,12 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+  - runner
+  - operator
+---
+
 # Engineering standards and performance baselines
 
 Owner: FORGE. Scope: how the lab's code is written, checked, and measured.

@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+---
+
 # Synthetic task generation: blueprint
 
 Role: DATA-STRATEGY. Date: 2026-08-15. Status: architecture, not

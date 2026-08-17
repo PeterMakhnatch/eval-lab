@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - runner
+  - operator
+---
+
 # Agent profiles: subscription-only identity and qualification
 
 M003 (Platform). Code: `src/evallab/profiles.py`; compat layer:

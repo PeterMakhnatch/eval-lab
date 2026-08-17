@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - analyst
+  - operator
+---
+
 # Observability
 
 Where a human looks when asking "what happened?" — and what each surface owns.

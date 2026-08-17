@@ -1,3 +1,9 @@
+---
+status: living
+audience:
+  - analyst
+---
+
 # Evidence-to-experiment analysis loop
 
 ## Purpose

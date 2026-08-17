@@ -1,3 +1,10 @@
+---
+status: historical
+audience:
+  - analyst
+  - operator
+---
+
 # Mentor review — 2026-08
 
 A senior-reviewer pass over the lab: real flaws, tool verdicts, the pieces

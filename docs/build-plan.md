@@ -1,3 +1,12 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+  - runner
+  - operator
+---
+
 # Build plan (spec)
 
 Status: living. Six workstreams. Each entry: files, data model, CLI, data

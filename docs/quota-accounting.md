@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - runner
+  - operator
+---
+
 # Subscription quota accounting
 
 Why the lab's cost model measures the wrong thing, what is actually observable

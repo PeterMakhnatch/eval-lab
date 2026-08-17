@@ -1,3 +1,9 @@
+---
+status: historical
+audience:
+  - operator
+---
+
 # Moved
 
 The parallel work protocol now lives at [`agents/WORKFLOW.md`](../agents/WORKFLOW.md),

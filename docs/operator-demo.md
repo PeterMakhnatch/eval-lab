@@ -1,3 +1,9 @@
+---
+status: historical
+audience:
+  - operator
+---
+
 # Operator demo — one truthful analysis loop
 
 This is the M002 vertical slice: completed Harbor evidence becomes a

@@ -35,6 +35,7 @@ TOP_LEVEL_COMMANDS = (
     "report",
     "analyze",
     "db",
+    "lineage",
     "trace",
     "fetch",
     "gc",

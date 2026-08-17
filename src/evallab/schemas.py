@@ -14,6 +14,67 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+#: The one jobs root a submitted spec may write into.
+#:
+#: A job is addressed as ``<jobs-root>/<job>/<trial>``: the shape the executor
+#: writes (``runner.py:601``), the only shape Harbor's viewer scans
+#: (Harbor 0.21.0 ``harbor/viewer/scanner.py:50,86`` — one ``iterdir()`` per
+#: level, no recursion), and the depth the run explorer walks
+#: (``explorer.py:_discover_jobs``).
+#:
+#: Discovery does not read this field. Its roots are fixed
+#: (``dashboard/explorer.py:80``: ``runs`` and ``research/evidence/runs``), so
+#: the field is honoured only when it *is* a scanned root. Depth alone is not
+#: the rule — a flat ``my-runs`` is exactly as invisible as a nested
+#: ``runs/nightly/jobs``, because neither is scanned.
+#:
+#: ``research/evidence/runs`` is scanned but deliberately excluded here: a
+#: promoted evidence bundle is immutable and is produced by promotion, never by
+#: a run (``AGENTS.md`` "Working rules").
+EXPLORATION_JOBS_ROOT = "runs"
+
+#: Reserved scratch for the lab's own self-tests, deliberately not browsable.
+#:
+#: ``evallab smoke`` writes ``runs/_smoke/<job>/jobs`` (``smoke.py:167,222``)
+#: and reads it back by direct path (``smoke.py:232``); every job it creates
+#: carries the reserved ``smoke-`` name prefix and is excluded from the digest
+#: (``digest.py:47-60``). Nothing browses this area, so nesting under it hides
+#: nothing an operator is looking for — which is precisely what distinguishes it
+#: from the F-04 shape refused below.
+SELF_TEST_JOBS_SCRATCH = "runs/_smoke"
+
+
+def validated_jobs_dir(value: str) -> str:
+    """Refuse a ``jobs_dir`` no reader can honour, at submission time.
+
+    The field was free-form, so a run could be written where nothing looks. That
+    did not merely drop the run: the explorer read the intermediate directory as
+    a job, took the nested job's roll-up ``result.json`` for a trial of it, and
+    rendered a fabricated trial annotated ``trajectory unavailable: missing
+    trajectory.json`` while the real run vanished (M009 F-04, fixed downstream
+    in #66). Refusing here costs one validation error at submission; the
+    alternative was a phantom trial discovered hours later.
+
+    Shared by ``ExperimentSpec`` and ``ExperimentMatrix`` so the two cannot
+    drift apart.
+    """
+    normalised = value.rstrip("/")
+    if normalised == EXPLORATION_JOBS_ROOT:
+        return value
+    if normalised.split("/")[:2] == SELF_TEST_JOBS_SCRATCH.split("/"):
+        return value
+    raise ValueError(
+        f"jobs_dir {value!r} is not a jobs root this lab reads. Jobs are "
+        "addressed as <jobs-root>/<job>/<trial> — the shape the executor writes "
+        "and the only shape Harbor's viewer scans — and discovery scans fixed "
+        "roots, not this value, so the run would be written and then be "
+        "invisible to `evallab status` and the run explorer (M009 F-04). Set "
+        f'"jobs_dir": "{EXPLORATION_JOBS_ROOT}" in the spec and let the run\'s '
+        "`name` distinguish it, then resubmit with `uv run evallab submit "
+        "<spec.json>`"
+    )
+
+
 class ExperimentSpec(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str | None = None
@@ -24,7 +85,7 @@ class ExperimentSpec(ContractModel):
     agent: str = Field(min_length=1)
     model: str | None = None
     environment: str = "docker"
-    jobs_dir: str = "runs"
+    jobs_dir: str = EXPLORATION_JOBS_ROOT
     attempts: int = Field(default=1, ge=1)
     concurrency: int = Field(default=1, ge=1)
     timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
@@ -46,6 +107,11 @@ class ExperimentSpec(ContractModel):
         if value.startswith("/") or ".." in value.split("/"):
             raise ValueError("paths must stay relative to the repository")
         return value
+
+    @field_validator("jobs_dir")
+    @classmethod
+    def jobs_dir_is_a_readable_root(cls, value: str) -> str:
+        return validated_jobs_dir(value)
 
     @model_validator(mode="after")
     def controls_do_not_name_models(self) -> ExperimentSpec:
@@ -77,10 +143,23 @@ class ExperimentMatrix(ContractModel):
     hypothesis: str
     task: str
     environment: str = "docker"
-    jobs_dir: str = "runs"
+    jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
     timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
     runs: list[MatrixRun] = Field(min_length=1)
+
+    # A matrix is not built from ``ExperimentSpec`` — ``runner.request_from_matrix``
+    # expands it straight into ``RunRequest`` objects (``runner.py:710-716``), and
+    # ``runner.load_matrix`` validates it from its own file. So ``jobs_dir`` is
+    # declared twice, and every rule on it has to be applied twice or the two
+    # contracts drift. This class carried *no* path validation at all: it accepted
+    # ``/etc`` and ``../../escape``, which ``runner.py:716`` resolves outside the
+    # repository, against ``agents/WORKFLOW.md`` ("never point jobs_dir outside
+    # your worktree"). The shared validator closes that too.
+    @field_validator("jobs_dir")
+    @classmethod
+    def jobs_dir_is_a_readable_root(cls, value: str) -> str:
+        return validated_jobs_dir(value)
 
 
 class AutoRunRule(ContractModel):

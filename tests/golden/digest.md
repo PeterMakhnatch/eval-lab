@@ -136,4 +136,8 @@ A run of consecutive events identical in event, job, and policy/reason collapses
 | 2026-08-15T19:00:00+00:00 | dispatch_started | canary-event-summary-codex | canary |
 | 2026-08-16T11:30:00+00:00 | nightly_quarantined |  | headless_doctor_failed:docker_reachable |
 
+## Storm alarms
+
+- Status: quiet (no reason_code storm detected in 1h window)
+
 <!-- run-bytes: 1013 -->

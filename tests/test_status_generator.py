@@ -6,7 +6,18 @@ import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from evallab.schemas import ExperimentPurpose, ExperimentSpec, QueueEvent
+from evallab.automation import NightlyCycle
+from evallab.digest import DigestRenderer
+from evallab.queue import DirectoryQueue, Executor, load_events
+from evallab.schemas import (
+    AutoRunRule,
+    ExperimentPurpose,
+    ExperimentSpec,
+    HeadlessDoctorChecks,
+    HeadlessDoctorReport,
+    QueueEvent,
+    StandingApprovalsPolicy,
+)
 from evallab.status_generator import (
     StatusReportData,
     TrialSummary,
@@ -238,3 +249,102 @@ def test_program_ledger_and_task_decisions_integration(tmp_path: Path) -> None:
     assert "EXP-S02-txn-recon-k" in rendered
     assert "k=5 hits per_job_cost_ceiling. Peter approval needed." in rendered
     assert "## TASK DECISIONS" in rendered
+
+
+def _healthy_doctor_report() -> HeadlessDoctorReport:
+    return HeadlessDoctorReport(
+        checked_at=datetime.now(UTC),
+        healthy=True,
+        checks=HeadlessDoctorChecks(
+            keychain_readable=True,
+            codex_auth_present=True,
+            docker_reachable=True,
+            postgres_reachable=True,
+            disk_headroom=True,
+        ),
+    )
+
+
+def test_nightly_cycle_invokes_status_generator_idempotently(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    queue = DirectoryQueue(repo / "queue")
+    policy = StandingApprovalsPolicy(
+        daily_cost_ceiling_usd=20.0,
+        per_job_cost_ceiling_usd=2.0,
+        quiet_failure_rule=3,
+        auto_run=[AutoRunRule(name="local-controls", agents=["oracle", "nop"])],
+    )
+    executor = Executor(repo_root=repo, queue=queue, policy=policy)
+    renderer = DigestRenderer(
+        repo_root=repo,
+        queue=queue,
+        policy=policy,
+        trial_loader=lambda _day: [],
+        drift_loader=lambda _day: [],
+        preflight_loader=lambda: None,  # type: ignore[arg-type]
+        storm_loader=lambda _day: [],
+    )
+
+    doctor = type("Doctor", (), {"run": lambda self: _healthy_doctor_report()})()
+
+    cycle = NightlyCycle(
+        doctor=doctor,  # type: ignore[arg-type]
+        executor=executor,
+        renderer=renderer,
+        committer=lambda _path: True,
+    )
+
+    result1 = cycle.run(report_date=TARGET_DATE)
+    assert result1.status_path is not None
+    assert result1.status_path.is_file()
+    content1 = result1.status_path.read_text()
+    assert "# Research status" in content1
+
+    # Second run produces identical output
+    result2 = cycle.run(report_date=TARGET_DATE)
+    assert result2.status_path == result1.status_path
+    content2 = result2.status_path.read_text()
+    assert content1 == content2
+
+
+def test_nightly_cycle_handles_status_updater_failure_cleanly(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    queue = DirectoryQueue(repo / "queue")
+    policy = StandingApprovalsPolicy(
+        daily_cost_ceiling_usd=20.0,
+        per_job_cost_ceiling_usd=2.0,
+        quiet_failure_rule=3,
+        auto_run=[AutoRunRule(name="local-controls", agents=["oracle", "nop"])],
+    )
+    executor = Executor(repo_root=repo, queue=queue, policy=policy)
+    renderer = DigestRenderer(
+        repo_root=repo,
+        queue=queue,
+        policy=policy,
+        trial_loader=lambda _day: [],
+        drift_loader=lambda _day: [],
+        preflight_loader=lambda: None,  # type: ignore[arg-type]
+        storm_loader=lambda _day: [],
+    )
+
+    doctor = type("Doctor", (), {"run": lambda self: _healthy_doctor_report()})()
+
+    def failing_status_updater(_day: date) -> Path:
+        raise RuntimeError("simulated status generator crash")
+
+    cycle = NightlyCycle(
+        doctor=doctor,  # type: ignore[arg-type]
+        executor=executor,
+        renderer=renderer,
+        committer=lambda _path: True,
+        status_updater=failing_status_updater,
+    )
+
+    result = cycle.run(report_date=TARGET_DATE)
+    assert result.status_path is None
+    events = load_events(queue.events_path)
+    assert any(
+        e.event == "status_generation_failed"
+        and "RuntimeError" in (e.reason_code or "")
+        for e in events
+    )

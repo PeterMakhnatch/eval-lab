@@ -28,6 +28,7 @@ from evallab.schemas import (
     HeadlessDoctorReport,
     QueueEvent,
 )
+from evallab.status_generator import update_status_file
 
 MIN_FREE_DISK_BYTES = 5 * 1024**3
 MIN_FREE_DISK_FRACTION = 0.05
@@ -41,6 +42,7 @@ ResearcherPass = Callable[[date], int]
 DigestEnricher = Callable[[Path, date], None]
 CompletedJobIngester = Callable[[], IngestProjectionResult]
 DatabaseBackup = Callable[[date], Path]
+StatusUpdater = Callable[[date], Path]
 
 
 def _analysis_stage_issue_reason(report: object, *, limit: int = 512) -> str | None:
@@ -280,6 +282,7 @@ class NightlyResult:
     committed: bool
     researcher_invocations: int = 0
     backup_path: Path | None = None
+    status_path: Path | None = None
 
 
 class NightlyCycle:
@@ -296,6 +299,7 @@ class NightlyCycle:
         completed_job_ingester: CompletedJobIngester | None = None,
         database_backup: DatabaseBackup | None = None,
         analysis_stager: Callable[[], object] | None = None,
+        status_updater: StatusUpdater | None = None,
     ) -> None:
         self.doctor = doctor
         self.executor = executor
@@ -310,6 +314,11 @@ class NightlyCycle:
         # freezes identity and never calls a model; execution requires the
         # worker's own admission path in an operator-driven invocation.
         self.analysis_stager = analysis_stager
+        self.status_updater = (
+            status_updater
+            if status_updater is not None
+            else (lambda day: update_status_file(self.renderer.repo_root, target_date=day))
+        )
 
     def run(self, *, report_date: date | None = None) -> NightlyResult:
         target_date = report_date or date.today()
@@ -496,6 +505,22 @@ class NightlyCycle:
                     health_report=report,
                     dispatched=dispatched,
                 )
+        status_path: Path | None = None
+        if self.status_updater is not None:
+            try:
+                status_path = self.status_updater(target_date)
+            except Exception as exc:
+                self.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        event="status_generation_failed",
+                        actor="nightly",
+                        reason_code=f"status_generation_failed:{type(exc).__name__}",
+                        report_date=target_date.isoformat(),
+                    )
+                )
         return NightlyResult(
             report=report,
             quarantined=quarantined,
@@ -505,6 +530,7 @@ class NightlyCycle:
             committed=self.committer(digest_path),
             researcher_invocations=researcher_invocations,
             backup_path=backup_path,
+            status_path=status_path,
         )
 
 

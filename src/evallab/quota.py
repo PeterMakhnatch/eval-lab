@@ -33,6 +33,10 @@ Boundaries this module keeps deliberately:
 - It reads ``payload.rate_limits`` and token counters out of a session rollout
   and never the message text, so its output is safe to commit even though the
   rollout it parsed is not.
+- Where promotion omitted the rollout, it falls back to that trial's redacted
+  ``agent/quota/*.rate-limits.json`` sidecar so committed evidence still yields
+  a quota reading. Fallback, never addition: a tree holding both records must
+  not count the same reading twice.
 - It measures. It does not authorise, and it imports nothing from the policy
   gate.
 
@@ -63,6 +67,14 @@ PAID_AGENTS: frozenset[str] = frozenset({"codex", "claude-code"})
 Availability = Literal["observed", "unavailable"]
 
 ROLLOUT_GLOB = "agent/sessions/**/rollout-*.jsonl"
+
+#: Promotion (rule R4, ``scripts/promote_codex_bundle.py``) omits the rollout and
+#: leaves the provider's quota reading beside it as a redacted sidecar. It is the
+#: only quota signal a promoted bundle carries, and the reader below falls back
+#: to it -- never adds it -- so a tree holding both records cannot double-count.
+QUOTA_SIDECAR_GLOB = "agent/quota/*.rate-limits.json"
+QUOTA_SIDECAR_KIND = "evallab-rate-limits-sidecar"
+
 LAB_METADATA_FILENAME = "lab-metadata.json"
 
 _SECONDS_PER_MINUTE = 60
@@ -499,12 +511,54 @@ class QuotaReport(BaseModel):
         return 1.0 if all(float(value).is_integer() for value in values) else None
 
 
-def _rate_limit_snapshots(trial_dir: Path) -> list[tuple[datetime, dict[str, Any], Path]]:
-    """Provider quota snapshots inside a trial's session rollouts.
+def _sidecar_snapshots(trial_dir: Path) -> list[tuple[datetime, dict[str, Any], Path]]:
+    """Provider quota snapshots from a promoted trial's R4 quota sidecars.
 
-    Only ``payload.rate_limits`` and its timestamp are read. Rollouts also
-    contain unredacted prompt text, which is never touched here and is why the
-    promoted evidence bundles exclude them.
+    Written by ``scripts/promote_codex_bundle.py`` beside each rollout that
+    promotion omitted, carrying only the event timestamp and a whitelist of
+    ``payload.rate_limits`` scalars. A document is read only when it declares
+    itself with :data:`QUOTA_SIDECAR_KIND`, so an unrelated JSON file dropped in
+    ``agent/quota/`` is ignored rather than guessed at.
+
+    The timestamp kept is the one the *trial* recorded, never the file's, so a
+    reading recovered here ages exactly as its rollout-sourced twin would and
+    :attr:`Headroom.staleness_seconds` stays honest about a committed number.
+    """
+    snapshots: list[tuple[datetime, dict[str, Any], Path]] = []
+    for sidecar in sorted(trial_dir.glob(QUOTA_SIDECAR_GLOB)):
+        try:
+            document = _as_object(json.loads(sidecar.read_text()))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if document.get("kind") != QUOTA_SIDECAR_KIND:
+            continue
+        entries = document.get("snapshots")
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            record = _as_object(entry)
+            limits = _as_object(record.get("rate_limits"))
+            observed_at = _parse_instant(record.get("timestamp"))
+            if not limits or observed_at is None:
+                continue
+            snapshots.append((observed_at, limits, sidecar))
+    snapshots.sort(key=lambda item: item[0])
+    return snapshots
+
+
+def _rate_limit_snapshots(trial_dir: Path) -> list[tuple[datetime, dict[str, Any], Path]]:
+    """Provider quota snapshots recorded by one trial, from one source only.
+
+    The session rollout is authoritative: only ``payload.rate_limits`` and its
+    timestamp are read there. Rollouts also contain unredacted prompt text,
+    which is never touched here and is why promoted evidence bundles exclude
+    them -- and why a promoted trial's readings survive only as R4 sidecars.
+
+    The sidecar is therefore a **fallback**, not a second source. A live run has
+    the rollout, a promoted bundle has the sidecar, and a tree holding both
+    holds the same readings twice: adding them would inflate every snapshot
+    count and every counter-resolution sample. So the sidecars are consulted
+    only when the rollouts yielded nothing at all.
     """
     snapshots: list[tuple[datetime, dict[str, Any], Path]] = []
     for rollout in sorted(trial_dir.glob(ROLLOUT_GLOB)):
@@ -527,6 +581,8 @@ def _rate_limit_snapshots(trial_dir: Path) -> list[tuple[datetime, dict[str, Any
             if not limits or observed_at is None:
                 continue
             snapshots.append((observed_at, limits, rollout))
+    if not snapshots:
+        return _sidecar_snapshots(trial_dir)
     snapshots.sort(key=lambda item: item[0])
     return snapshots
 

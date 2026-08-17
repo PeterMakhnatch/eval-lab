@@ -20,6 +20,7 @@ from evallab.runner import (
 from evallab.schemas import (
     CanaryDriftObservation,
     HeadlessDoctorReport,
+    JudgeCalibrationRecord,
     QueueEvent,
     QueueReason,
     StandingApprovalsPolicy,
@@ -100,7 +101,11 @@ class DigestRenderer:
             early_trials = []
             catalog_error = True
         try:
-            drift = self._drift_loader(period_date) + self._drift_loader(report_date)
+            drift = [
+                (day, observation)
+                for day in (period_date, report_date)
+                for observation in self._drift_loader(day)
+            ]
         except Exception:
             drift = []
 
@@ -176,11 +181,14 @@ class DigestRenderer:
         if drift:
             lines.extend(
                 [
-                    "| task | version | agent | reward | 7-day mean ± σ | n | assessment |",
-                    "|---|---|---|---:|---:|---:|---|",
+                    "One row per canary per catalog day. Two rows for the same canary are "
+                    "two days of that canary, not two verdicts about one day.",
+                    "",
+                    "| day | task | version | agent | reward | 7-day mean ± σ | n | assessment |",
+                    "|---|---|---|---|---:|---:|---:|---|",
                 ]
             )
-            for observation in drift:
+            for day, observation in drift:
                 reward = "" if observation.reward is None else f"{observation.reward:g}"
                 if observation.baseline_mean is None:
                     baseline = "insufficient history"
@@ -193,7 +201,8 @@ class DigestRenderer:
                     else "within baseline"
                 )
                 lines.append(
-                    f"| {_cell(observation.task_name)} | {_cell(observation.task_version)} | "
+                    f"| {day.isoformat()} | {_cell(observation.task_name)} | "
+                    f"{_cell(observation.task_version)} | "
                     f"{_cell(observation.agent_name)} | {reward} | {baseline} | "
                     f"{observation.baseline_n} | "
                     f"{_cell(assessment)} |"
@@ -212,7 +221,7 @@ class DigestRenderer:
             if trial.exception_type
         )
         exceptions["harness_failure"] += sum(
-            observation.is_harness_drift_suspect for observation in drift
+            observation.is_harness_drift_suspect for _day, observation in drift
         )
         if not exceptions["harness_failure"]:
             del exceptions["harness_failure"]
@@ -271,7 +280,7 @@ class DigestRenderer:
                 "## Evidence and calibration",
                 "",
                 f"- Run corpus: {run_bytes} bytes ({growth})",
-                "- Judge calibration: not available until brief 09",
+                _judge_calibration_line(self.repo_root),
                 f"- Canary observations in report: {len(drift)}",
                 "",
                 "## Queue events",
@@ -280,12 +289,29 @@ class DigestRenderer:
         )
         digest_events = period_events + report_events
         if digest_events:
+            runs = _collapse_identical_runs(digest_events)
+            if any(count > 1 for _first, _last, count in runs):
+                lines.extend(
+                    [
+                        "A run of consecutive events identical in event, job, and "
+                        "policy/reason collapses to one row carrying its repeat count and "
+                        "time range. Every event that differs from the one before it is "
+                        "listed on its own line, verbatim.",
+                        "",
+                    ]
+                )
             lines.extend(["| time | event | job | policy/reason |", "|---|---|---|---|"])
-            for event in digest_events:
-                policy_or_reason = event.policy_rule or event.reason_code or ""
+            for first, last, count in runs:
+                policy_or_reason = first.policy_rule or first.reason_code or ""
+                when = (
+                    first.occurred_at.isoformat()
+                    if count == 1
+                    else f"{first.occurred_at.isoformat()} – {last.occurred_at.isoformat()}"
+                )
+                label = first.event if count == 1 else f"{first.event} ×{count}"
                 lines.append(
-                    f"| {_cell(event.occurred_at.isoformat())} | {_cell(event.event)} | "
-                    f"{_cell(event.job_name or '')} | {_cell(policy_or_reason)} |"
+                    f"| {_cell(when)} | {_cell(label)} | "
+                    f"{_cell(first.job_name or '')} | {_cell(policy_or_reason)} |"
                 )
         else:
             lines.append("No queue events.")
@@ -353,17 +379,22 @@ class DigestRenderer:
         if reported:
             lines.extend(
                 [
-                    "| job | task | agent | reward | exception | policy |",
-                    "|---|---|---|---:|---|---|",
+                    "One row per job: a job that ran several trials shows the trial count "
+                    "and every recorded reward, because 1/1/0 across three trials is not "
+                    "the same fact as 1/1/1.",
+                    "",
+                    "| job | task | agent | trials | rewards | exceptions | policy |",
+                    "|---|---|---|---:|---|---|---|",
                 ]
             )
-            for trial in reported:
-                reward = "" if trial.reward is None else f"{trial.reward:g}"
+            for group in _group_trials(reported):
+                head = group[0]
                 lines.append(
-                    f"| {_cell(trial.job_name)} | {_cell(trial.task_name)} | "
-                    f"{_cell(trial.agent_name)} | {reward} | "
-                    f"{_cell(trial.exception_type or '')} | "
-                    f"{_cell(policy_by_job.get(trial.job_name, 'unattributed'))} |"
+                    f"| {_cell(head.job_name)} | {_cell(head.task_name)} | "
+                    f"{_cell(head.agent_name)} | {len(group)} | "
+                    f"{_cell(_reward_spread(group))} | "
+                    f"{_cell(_exception_spread(group))} | "
+                    f"{_cell(policy_by_job.get(head.job_name, 'unattributed'))} |"
                 )
         elif empty:
             lines.append(empty)
@@ -495,6 +526,126 @@ def _self_test_summary(trials: list[DigestTrial]) -> list[str]:
             f"{observed}{unscored}, 0 exceptions (latest: {latest.job_name})"
         )
     return summary
+
+
+def _group_trials(trials: list[DigestTrial]) -> list[list[DigestTrial]]:
+    """One group per (job, task, agent), in first-seen order.
+
+    A canary job runs the attempt count `policy/canary-suite.yaml` declares, but
+    the catalog records no attempt ordinal — only an opaque Harbor trial name
+    (`event-summary__5E3btLv`). Numbering the rows `attempt 1..3` would invent a
+    sequence nothing recorded, so the honest rendering is one row per job with
+    the trial count and the full reward spread.
+    """
+    groups: dict[tuple[str, str, str], list[DigestTrial]] = {}
+    for trial in trials:
+        groups.setdefault((trial.job_name, trial.task_name, trial.agent_name), []).append(trial)
+    return list(groups.values())
+
+
+def _reward_spread(trials: list[DigestTrial]) -> str:
+    """Every recorded reward, so 1/1/0 can never render the same as 1/1/1."""
+    rewards = sorted(trial.reward for trial in trials if trial.reward is not None)
+    unscored = len(trials) - len(rewards)
+    if not rewards:
+        return "unscored" if len(trials) == 1 else f"{len(trials)} unscored"
+    if not unscored and rewards[0] == rewards[-1]:
+        return f"{rewards[0]:g}" if len(rewards) == 1 else f"{rewards[0]:g} ×{len(rewards)}"
+    # Sorted, never chronological: the catalog orders trials by an opaque name,
+    # so presenting them in order would imply a sequence it does not record.
+    spread = ", ".join(f"{value:g}" for value in rewards)
+    return f"{spread}, +{unscored} unscored" if unscored else spread
+
+
+def _exception_spread(trials: list[DigestTrial]) -> str:
+    counts = Counter(trial.exception_type for trial in trials if trial.exception_type)
+    total = len(trials)
+    return ", ".join(
+        name if count == total else f"{name} ({count} of {total})"
+        for name, count in sorted(counts.items())
+    )
+
+
+def _event_identity(event: QueueEvent) -> tuple[str, str, str]:
+    return (
+        event.event,
+        event.job_name or "",
+        event.policy_rule or event.reason_code or "",
+    )
+
+
+def _collapse_identical_runs(
+    events: list[QueueEvent],
+) -> list[tuple[QueueEvent, QueueEvent, int]]:
+    """Fold each run of consecutive identical events into (first, last, count).
+
+    Identity deliberately excludes the timestamp, so a half-hourly heartbeat
+    collapses. It deliberately includes the reason code, so `tick_deferred |
+    executor_busy` never disappears into a run of `tick_deferred |
+    no_approved_specs`. A run of one is returned unchanged, which is what keeps
+    every distinct event on its own verbatim line.
+    """
+    runs: list[tuple[QueueEvent, QueueEvent, int]] = []
+    for event in events:
+        if runs and _event_identity(runs[-1][0]) == _event_identity(event):
+            first, _last, count = runs[-1]
+            runs[-1] = (first, event, count + 1)
+        else:
+            runs.append((event, event, 1))
+    return runs
+
+
+def _measured_calibration_records(repo_root: Path) -> tuple[list[JudgeCalibrationRecord], int]:
+    """Every committed judge-calibration record, split measured vs unreportable."""
+    root = repo_root / "research/calibration/records"
+    measured: list[JudgeCalibrationRecord] = []
+    unreportable = 0
+    for path in sorted(root.rglob("*.json")):
+        try:
+            record = JudgeCalibrationRecord.model_validate_json(path.read_text())
+        except (OSError, ValidationError):
+            # Not a calibration record: the directory also holds queue specs and
+            # DSPy run notes. Silence here is correct; inventing a judge is not.
+            continue
+        if record.status == "measured":
+            measured.append(record)
+        else:
+            unreportable += 1
+    return measured, unreportable
+
+
+def _judge_calibration_line(repo_root: Path) -> str:
+    """Report the measured calibration state, never a brief number.
+
+    `research/calibration/records/` is the committed record of every judge the
+    lab has measured. Whether any judge is usable is exactly "does a measured
+    record reach its own agreement floor", so that is what this reports.
+    """
+    measured, unreportable = _measured_calibration_records(repo_root)
+    stub = f" {unreportable} non-measured record(s) are not reportable." if unreportable else ""
+    if not measured:
+        return (
+            "- Judge calibration: no judge is calibrated — no measured record under "
+            f"`research/calibration/records/`.{stub}"
+        )
+    passing = [record for record in measured if record.meets_floor]
+    best = max(measured, key=lambda record: record.mean_agreement)
+    detail = (
+        f"{best.family} / {best.judge_backend} {best.judge_model}, mean agreement "
+        f"{best.mean_agreement:.3f} against a {best.agreement_floor:.2f} floor over "
+        f"{best.document_count} documents ({best.evaluated_on.isoformat()})"
+    )
+    if not passing:
+        return (
+            f"- Judge calibration: no judge is calibrated — 0 of {len(measured)} measured "
+            f"record(s) reach their agreement floor, closest {detail}. No judged dimension "
+            f"is reportable and the analysis worker's `calibrated_judges_only` admission "
+            f"gate stays closed until one clears its floor.{stub}"
+        )
+    return (
+        f"- Judge calibration: {len(passing)} of {len(measured)} measured record(s) reach "
+        f"their agreement floor; best {detail}.{stub}"
+    )
 
 
 def _cell(value: str) -> str:

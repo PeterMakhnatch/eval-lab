@@ -216,6 +216,71 @@ against it.
 Free `oracle` and `nop` controls spend no allowance and are untouched by all of
 this — no quota is read on their behalf and no quota state can hold them.
 
+## Preflight: is it safe and sensible to run right now
+
+```bash
+uv run evallab preflight
+```
+
+One read-only surface answering the question you actually have before starting
+work, from evidence already on disk. It costs nothing and blocks on nothing: no
+paid call, no provider request, no `gh`, no database, no subprocess, no socket.
+`tests/test_preflight.py` proves that by making `subprocess` and `socket` raise
+and rendering anyway. It exits `1` when a provider's own reading refuses
+billable work, so `evallab preflight && evallab tick` stops before it spends.
+
+It prints three things.
+
+**Remaining quota, per provider.** `codex` and `claude-code` are two separate
+subscriptions, so they get two separate readings built from two separate scans
+— one account's headroom is never attributed to the other. Each reading carries
+`used_percent`, `remaining_percent`, `resets_at`, `credits_balance`,
+`hard_stop`, the age of the observation, and the rollout it came from, with
+`[observed]` / `[unavailable]` exactly as `approve` prints them. All figures in
+a block come from one snapshot, so the block carries one `staleness` line
+rather than repeating the same age on each row. A provider with no reading
+prints `UNKNOWN [unavailable]`, its reason, and the sentence saying UNKNOWN is
+not "plenty left" — never a number, and never a blank.
+
+**The queue, grouped by purpose,** over the unfinished states (`proposed`,
+`pending`, `approved`, `waiting`, `running`). Finished states are history: they
+cannot spend and cannot be under-powered. Until `ExperimentSpec.purpose`
+(WS-E item 1) lands, the surface says the field does not exist in this build
+and groups everything under `purpose not declared [unavailable]` rather than
+inventing a bucket. A spec file this build cannot validate is listed by name
+with its error — under-reporting the queue is the one thing this surface must
+not do. It reads the state directories directly instead of through
+`DirectoryQueue`, which creates them, because reporting that there is no queue
+must not create one.
+
+**Power warnings, for queued comparisons only.** Computed with
+`cohort.minimum_detectable_effect`, the same estimator behind `evallab power`
+and every comparison report. With no comparison queued it says so; it does not
+manufacture a warning. It warns when a comparison cannot reach a task-paired
+interval at all — fewer than two distinct tasks, or no detectable per-attempt
+difference at the declared `attempts` — and when no arm declares an
+`expected_reward`, because then the detectable effect cannot be computed
+*before* the money is spent.
+
+Two honesty limits are printed with the numbers rather than left implicit. The
+queue carries no field linking two specs into one comparison, so every queued
+comparison spec is pooled into a single cohort; pooling can only overstate
+`n_tasks`, so a warning at the pooled `n` holds for any finer partition, while
+a clean bill of health at the pooled `n` does not. And no threshold for
+"useful" is committed, for the same reason `REFUSE_BILLABLE_AT_USED_PERCENT` is
+unset — it is a spend judgement. Supply one per invocation:
+
+```bash
+uv run evallab preflight --useful-effect 0.15
+```
+
+and a comparison whose smallest detectable difference exceeds it becomes a
+warning.
+
+The same block, byte for byte, is embedded in the nightly digest under
+`## Preflight`, and the operator-facing `evallab tick` prints it before it
+builds an executor.
+
 ## Headless readiness and scheduling
 
 The scheduler fails closed. This command prints a versioned JSON object whose

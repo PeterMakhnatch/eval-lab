@@ -12,6 +12,7 @@ TOP_LEVEL_COMMANDS = (
     "doctor",
     "dashboard",
     "status",
+    "preflight",
     "submit",
     "tick",
     "approve",

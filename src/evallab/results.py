@@ -229,6 +229,34 @@ def load_job(job_dir: Path) -> JobRecord:
     )
 
 
+def _is_bookkeeping(relative: Path) -> bool:
+    """True for a path inside a dot-prefixed bookkeeping directory.
+
+    Discovery here is depth-agnostic (``rglob``), which is deliberate — it is the
+    one reader that finds a job wherever it landed. The cost is that it also
+    finds directories that are job-*shaped* but are not evaluation output:
+
+    - the queue archives an abandoned transient attempt by *moving* the whole job
+      directory, job-level ``result.json`` and all, to
+      ``<jobs-root>/.transient-attempts/<name>/attempt-<n>`` (``queue.py:1053``);
+    - the executor keeps its logs under ``<jobs-root>/.executor``
+      (``runner.py:540``);
+    - Harbor caches regrade sources as a complete job under
+      ``<jobs-root>/.sources/<uuid>/<job>`` (Harbor 0.21.0
+      ``trial/regrade.py:175``, ``download/downloader.py:118``).
+
+    Without this, one real job with two retried attempts is reported as three
+    completed jobs, inflating ``evallab status``, the consumption ledger
+    (``quota.py:717``), ``compare``, and every cohort built from these roots.
+    ``explorer.py`` already excludes dot-prefixed directories (``_is_job_dir``);
+    this is the same rule, for the same reason, on the other discovery path.
+
+    A root named *explicitly* is never filtered — naming a path is a request, not
+    a discovery, which is how ``harbor view <dir>`` behaves too.
+    """
+    return any(part.startswith(".") for part in relative.parts)
+
+
 def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
     discovered: dict[Path, None] = {}
     for raw_root in roots:
@@ -246,6 +274,8 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
             continue
         for result_path in root.rglob("result.json"):
             candidate = result_path.parent
+            if _is_bookkeeping(candidate.relative_to(root)):
+                continue
             result = _load_object(result_path)
             if (
                 "n_total_trials" in result

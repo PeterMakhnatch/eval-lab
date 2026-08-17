@@ -100,6 +100,45 @@ The complete Harbor job directory is the canonical run evidence. Once a job is
 complete, analysis code must not edit it. Any enrichment is written beside it as
 a new, provenance-bearing artifact or into a separate derived-data directory.
 
+#### The job directory layout is a contract, not a convention
+
+Every reader addresses a run as `<jobs-root>/<job>/<trial>`. That is the shape
+the executor writes (`runner.py:601`), the shape the run explorer walks
+(`explorer.py:_discover_jobs`), and the only shape Harbor's own viewer scans —
+Harbor 0.21.0 `harbor/viewer/scanner.py:50,86` does exactly one `iterdir()` per
+level with no recursion. The layout is therefore shared with an external tool,
+and neither side enforces it: Harbor's `jobs_dir` is an unvalidated `Path`
+(`harbor/models/job/config.py:350`) created with `mkdir(parents=True)`.
+
+Two consequences the lab paid for:
+
+- **`jobs_dir` names a jobs root, and discovery does not read it.** The lab's
+  discovery roots are fixed (`dashboard/explorer.py:80`: `runs` and
+  `research/evidence/runs`), so a `jobs_dir` that is not one of them puts the
+  run where nothing looks. Depth is not the rule — a flat `my-runs` is exactly
+  as invisible as a nested `runs/nightly/jobs`. `ExperimentSpec.jobs_dir` and
+  `ExperimentMatrix.jobs_dir` are therefore constrained to the exploration root
+  (`schemas.EXPLORATION_JOBS_ROOT`), refused at submission with a message naming
+  the fix. The one legitimate exception is the reserved self-test scratch
+  `runs/_smoke/…` (`schemas.SELF_TEST_JOBS_SCRATCH`), which nothing browses.
+  Promoted evidence is readable but never a write target: it is immutable.
+- **`result.json` exists at both job and trial level**, as Harbor's roll-up and
+  as a trial verdict (`harbor/job.py:644` vs `harbor/models/trial/paths.py:270`).
+  Its presence alone cannot identify a directory's level. Treating any directory
+  holding one as a trial made a nested job read as *a trial of its parent*,
+  fabricating a trial annotated `trajectory unavailable` while the real run
+  vanished (M009 F-04). Both readers now test positively: a job roll-up carries
+  `n_total_trials` and `stats`; a trial carries `task_name` and `trial_name`.
+
+Directories under a jobs root whose name begins with `.` are bookkeeping, never
+evaluation output: `.executor` logs (`runner.py:540`), `.transient-attempts`
+archives — whole job directories *moved* aside on retry (`queue.py:1053`) —
+`.tombstones`, and Harbor's own `.sources` regrade cache
+(`harbor/trial/regrade.py:175`). Discovery excludes them, or one real job with
+two retried attempts is reported as three completed jobs and every consumer
+inflates with it, the consumption ledger included. A root named *explicitly* is
+still honoured: naming a path is a request, not a discovery.
+
 Local filesystem storage is appropriate while one workstation owns the run
 corpus. Object storage becomes the canonical evidence layer when workers or
 analysts span machines. In either case, content digests and original

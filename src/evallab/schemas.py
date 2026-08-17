@@ -882,6 +882,18 @@ ULID_RE = re.compile(ULID_PATTERN)
 SHA256_DIGEST_PATTERN = r"^sha256:[0-9a-f]{64}$"
 SHA256_RE = re.compile(SHA256_DIGEST_PATTERN)
 
+#: Discovery ID format per journal convention (D-YYYYMMDD-SUFFIX).
+DISCOVERY_ID_PATTERN = r"^D-[0-9]{8}-[0-9A-Za-z]+$"
+DISCOVERY_ID_RE = re.compile(DISCOVERY_ID_PATTERN)
+
+
+def _validate_discovery_id(value: str) -> str:
+    """Reject malformed discovery identifiers at construction time."""
+    if not DISCOVERY_ID_RE.fullmatch(value):
+        raise ValueError(
+            f"identifier must match discovery ID format (D-YYYYMMDD-SUFFIX), got {value!r}"
+        )
+    return value
 
 def _validate_ulid(value: str) -> str:
     """Reject non-ULID identifiers at construction time."""
@@ -1084,11 +1096,15 @@ class CalibrationRecord(ContractModel):
 class Verdict(ContractModel):
     """§2.1 Verdict: human (or authorized) disposition on a discovery.
 
-    status restricted to the literal set in §2.1. discovery_id is ULID.
+    status restricted to the literal set in §2.1. discovery_id follows the
+    journal's discovery identifier format (D-YYYYMMDD-SUFFIX).
     """
 
     schema_version: Literal[1] = 1
-    discovery_id: str = Field(description="ULID of the discovery being verdicted (composite key)")
+    discovery_id: str = Field(
+        pattern=DISCOVERY_ID_PATTERN,
+        description="discovery identifier being verdicted (composite key)",
+    )
     status: Literal["accepted", "rejected", "needs_evidence", "pending"] = Field(
         description="disposition per §2.1"
     )
@@ -1100,9 +1116,8 @@ class Verdict(ContractModel):
 
     @field_validator("discovery_id")
     @classmethod
-    def _discovery_ulid(cls, v: str) -> str:
-        return _validate_ulid(v)
-
+    def _discovery_id(cls, v: str) -> str:
+        return _validate_discovery_id(v)
 
 
 class TaskSpec(ContractModel):

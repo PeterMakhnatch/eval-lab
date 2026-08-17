@@ -102,7 +102,7 @@ def test_roundtrip_all_models():
     assert CalibrationRecord.model_validate(calib.model_dump()) == calib
 
     verdict = Verdict(
-        discovery_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        discovery_id="D-20260815-KTXJSHGZ",
         status="accepted",
         by="peter",
         at=now,
@@ -152,13 +152,31 @@ def test_ulid_rejection(bad_id):
             per_criterion_agreement={},
             date=now,
         )
-    with pytest.raises(ValueError, match="identifier must be ULID"):
+
+@pytest.mark.parametrize(
+    "bad_id",
+    [
+        "not-a-discovery-id",
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",  # bare ULID
+        "D-2026081-KTXJSHGZ",  # date too short (7 digits)
+        "D-202608151-KTXJSHGZ",  # date too long (9 digits)
+        "D-20260815-",  # empty suffix
+        "20260815-KTXJSHGZ",  # missing D- prefix
+        "D-20260815",  # missing suffix
+        "D-20260815-foo!",  # invalid char in suffix
+    ],
+)
+def test_discovery_id_rejection(bad_id: str) -> None:
+    """Malformed discovery IDs rejected on Verdict construction."""
+    now = datetime.now(UTC)
+    with pytest.raises(ValueError):
         Verdict(
             discovery_id=bad_id,
             status="pending",
-            by="x",
+            by="peter",
             at=now,
         )
+
 
 
 @pytest.mark.parametrize(
@@ -198,7 +216,7 @@ def test_status_rejection():
     now = datetime.now(UTC)
     with pytest.raises(ValueError):
         Verdict(
-            discovery_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            discovery_id="D-20260815-KTXJSHGZ",
             status="maybe",  # type: ignore[arg-type]
             by="x",
             at=now,

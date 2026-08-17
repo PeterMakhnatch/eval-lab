@@ -7,39 +7,41 @@ audience:
 ---
 # LADDER: Evaluation Grid Generator
 
-`evallab.ladder` generates Cartesian evaluation grids for systematic agent elicitation and comparison (WS-E item 3, `docs/build-plan.md`).
+`evallab.ladder` generates Cartesian evaluation grids for systematic agent elicitation and comparison (WS-E item 3, `docs/platform-architecture.md` v2 §4).
 
-It expands a declared grid specification ($tasks \times agents \times preambles \times k\text{ attempts}$) into validated, purpose-tagged `ExperimentSpec` files ready for submission to the evaluation queue (`queue/proposed/`), while strictly respecting per-provider subscription quotas and batch ceilings.
+It expands a declared grid specification ($task\_refs \times agents \times preamble \times k$) minus exclusion constraints into validated, purpose-tagged `ExperimentSpec` files ready for submission to the evaluation queue (`queue/pending`), while strictly respecting per-provider subscription quotas, daily unit budgets, and batch ceilings.
 
 ---
 
 ## 1. Concepts & Architecture
 
 An evaluation ladder systematically measures agent behavior across four experimental axes while holding task and verifier constant:
-1. **Tasks ($T$):** Registered benchmark or canary tasks (e.g. `tasks/event-summary`, `canary/transaction-reconciliation`).
-2. **Agents & Models ($A$):** Runnable agent profiles and exact model pins (e.g. `oracle`, `nop`, `codex`, `claude-code`).
-3. **Prompt & Preamble Variants ($P$):** Extra instruction preambles (e.g. `none`, `brief-discipline.md`).
-4. **Attempt Budgets ($K$):** Trial repetitions for calculating pass@k and Wilson confidence intervals (e.g. $k \in \{1, 3, 5\}$).
+1. **Tasks ($T$ / `task_refs`):** Registered benchmark or canary tasks (e.g. `canary/event-summary`, `tasks/event-summary`).
+2. **Agents & Models ($A$ / `agents`):** Runnable agent profiles and exact model pins (e.g. `oracle`, `nop`, `codex`, `claude-code`).
+3. **Prompt & Preamble Variants ($P$ / `preamble`):** Extra instruction preambles or hashes (e.g. `none`, `brief-discipline.md`).
+4. **Attempt Budgets ($K$ / `k`):** Trial repetitions for calculating pass@k and Wilson confidence intervals (e.g. $k \in \{1, 3, 5\}$).
 
 ```
    ┌────────────────────────────────────────────────────────┐
    │                   Grid Specification                   │
-   │  tasks × agents × preambles × k [under quota limits]   │
+   │  grids/*.yaml: axes {task_refs, agents, preamble, k}   │
+   │  minus constraints, with purpose & daily_budget_units   │
    └───────────────────────────┬────────────────────────────┘
                                │
                                ▼
    ┌────────────────────────────────────────────────────────┐
    │            LADDER Engine (evallab.ladder)              │
-   │  - Quota Headroom Check (evallab.quota)                │
-   │  - Batch and Per-Provider Budget Bounds                │
-   │  - Slug Sanitization & Deterministic Naming            │
+   │  - Dedupe & Resume (dedupe key: grid_id + coordinates) │
+   │  - Exclusion Constraints Filtering                     │
+   │  - Provider Round-Robin Ordering                       │
+   │  - Quota Headroom & Daily Budget Units Enforcement     │
    │  - ExperimentSpec Validation (with required purpose)   │
    └───────────────────────────┬────────────────────────────┘
                                │
                                ▼
    ┌────────────────────────────────────────────────────────┐
-   │             Output ExperimentSpec Files                │
-   │               queue/proposed/*.json                    │
+   │        Output: Missing Points Only / Queue Submit      │
+   │           --dry-run (default) | --submit | -o          │
    └────────────────────────────────────────────────────────┘
 ```
 
@@ -47,124 +49,145 @@ Every generated `ExperimentSpec` carries a required `purpose` field (`baseline|c
 
 ---
 
-## 2. Grid Specification Schema
+## 2. Grid Specification Schema (`grids/*.yaml`)
 
-Grid specifications are written in YAML or JSON adhering to `LadderGridSpec`:
+Grid specifications are written in YAML or JSON adhering to `GridSpec` (v2 §4):
 
 ```yaml
 schema_version: 1
-name: grid-event-summary-elicitation
+grid_id: grid-event-summary-elicitation
 purpose: elicitation
+axes:
+  task_refs:
+    - canary/event-summary
+    - tasks/event-summary
+  agents:
+    - oracle
+    - nop
+    - codex
+    - agent: claude-code
+      model: anthropic/claude-fable-5
+  preamble:
+    - none
+    - research/experiments/preambles/brief-discipline.md
+  k:
+    - 1
+    - 3
+constraints:
+  - agent: nop
+    k: 3
+daily_budget_units: 20
 hypothesis_template: "Testing {agent} on {task} with preamble {preamble} at k={k}"
-
-tasks:
-  - canary/event-summary
-  - task: canary/transaction-reconciliation
-    task_path: tasks/transaction-reconciliation
-
-agents:
-  - oracle
-  - nop
-  - codex-gpt-5.6-terra
-  - agent: claude-code
-    model: anthropic/claude-fable-5
-
-preambles:
-  - none
-  - research/experiments/preambles/brief-discipline.md
-
-attempts:
-  - 1
-  - 3
-
-environment: docker
-jobs_dir: runs
-concurrency: 1
-timeout_seconds: 1800
-submitted_by: ladder-generator
-priority: 100
-
-limits:
-  max_specs: 50
-  max_trials: 150
-  max_cost_usd: 10.0
-  per_provider:
-    codex:
-      max_specs: 10
-      max_cost_usd: 4.0
-    claude-code:
-      max_specs: 10
-      max_cost_usd: 4.0
-
-check_quota_headroom: true
 ```
 
 ### Key Fields
 
 | Field | Type | Description | Default |
 |---|---|---|---|
-| `name` | `str` | Name prefix for generated specs | required |
-| `purpose` | `ExperimentPurpose` | Intent classification (`elicitation`, `comparison`, etc.) | `elicitation` |
-| `tasks` | `list[str \| TaskSpec]` | List of task IDs or detailed task objects | required |
-| `agents` | `list[str \| AgentSpec]` | Agent profiles or specs (resolves builtin profiles) | required |
-| `preambles` | `list[str]` | List of preamble names or file paths | `["none"]` |
-| `attempts` | `list[int] \| int` | Repetitions ($k$) per cell | `[1]` |
-| `limits` | `GridLimits` | Batch limits (global and per-provider) | empty limits |
+| `grid_id` | `str` | Unique identifier for the grid and deduplication | required (or `name`) |
+| `purpose` | `ExperimentPurpose` | Intent classification (`elicitation`, `comparison`, etc.) | **required** |
+| `axes` | `GridAxes` | Axes object defining `task_refs`, `agents`, `preamble`, and `k` | required |
+| `axes.task_refs` | `list[str \| TaskSpec]` | List of task IDs or task specifications | required |
+| `axes.agents` | `list[str \| AgentSpec]` | Agent profiles or specs (resolves builtin profiles) | required |
+| `axes.preamble` | `list[str]` | List of preamble names, file paths, or content hashes | `["none"]` |
+| `axes.k` | `list[int]` | Repetitions ($k$) per point cell | `[1]` |
+| `constraints` | `list[dict]` | Exclusion criteria matching point coordinates | `[]` |
+| `daily_budget_units` | `int \| float \| None`| Max units (attempts) permitted in one expansion batch | `None` (unbounded) |
 | `check_quota_headroom`| `bool` | Query `evallab.quota` before expanding paid cells | `true` |
 | `hypothesis_template` | `str \| None` | Template string with `{task}`, `{agent}`, `{preamble}`, `{k}` | auto-generated |
 
 ---
 
-## 3. Quota and Batch Limits Enforcement
+## 3. Deduplication, Naming, and Resumption
 
-To protect subscription headroom and prevent queue overflow:
+Each generated `ExperimentSpec` records its `grid_id` and its exact point coordinates:
+- `spec.grid_id`: the declared `grid_id` (e.g. `grid-event-summary-elicitation`).
+- `spec.grid_point`: `{"task_ref": "...", "agent": "...", "model": "...", "preamble": "...", "k": N}`.
+- `spec.name`: deterministic filename slug carrying the full coordinates (`grid_id-task_slug-agent_slug-preamble_slug-k{attempts}`), with hash-assisted truncation ensuring unique names $\le 80$ characters.
 
-1. **Free Local Controls:** `oracle` and `nop` are free controls ($0.00 cost) and never consume subscription quotas.
-2. **Observed Headroom Integration:** When `check_quota_headroom` is enabled, LADDER inspects `evallab.quota.load_quota_report()`. If the provider reports rate limit exhaustion or 100% window usage, paid cells for that provider are automatically pruned with recorded reasons.
-3. **Global Ceilings:** `limits.max_specs`, `limits.max_trials`, and `limits.max_cost_usd` cap the entire batch.
-4. **Per-Provider Limits:** `limits.per_provider.<provider>` restricts individual adapters (e.g. limiting `codex` to $4.00 while allowing `oracle` to run unconstrained).
+The **dedupe key** is `grid_id + point coordinates` (`(grid_id, task_ref, agent, preamble, k)`).
+
+### Uniqueness and Overwrite Protection
+
+1. **Generation-Time Uniqueness Assertion:** LADDER verifies before writing that the set of generated spec names has the exact same cardinality as candidate points (`len(set(names)) == len(points)`). Duplicate names fail loudly at generation time.
+2. **No Overwrites:** When writing to an output directory, existing spec files are never overwritten. A matching point is resumed (counted as deduped); an un-deduped existing file raises `FileExistsError`.
+3. **Fixed-Point Convergence:** Three consecutive generation runs on an identical target directory reach a fixed point: Run 1 writes $N$ files, Run 2 writes 0 and dedupes $N$, and Run 3 writes 0 and dedupes $N$.
+
+### Resume Behavior
+
+When `evallab ladder generate` is executed on a partially-run or previously submitted grid:
+1. LADDER scans the queue across all states (`proposed`, `pending`, `approved`, `waiting`, `running`, `done`, `failed`) and any configured output directories.
+2. Existing points matching the `grid_id` and coordinates are identified.
+3. LADDER emits **only the missing points**. Already present points are recorded as `resumed` (`deduped`) and are never duplicated.
+---
+
+## 4. Quota-Aware Ordering & Withholding Report
+
+1. **Provider Round-Robin:** Candidate points are grouped by provider (e.g., `oracle`, `codex`, `claude-code`) and interleaved round-robin. This balances execution across providers rather than exhausting one provider first.
+2. **Quota Headroom Integration:** When `check_quota_headroom` is enabled, LADDER inspects `evallab.quota.load_quota_report()`. If a paid provider reports quota exhaustion (100% window usage or rate limit reached), paid cells for that provider are withheld. Free local controls (`oracle`, `nop`) are never withheld for quota.
+3. **Daily Budget Units:** When `daily_budget_units` is declared, LADDER emits the prefix of candidate points that fits within the unit budget.
+4. **Withholding Report:** LADDER never silently truncates a grid. All withheld points are reported with their exact coordinates and withholding reason (e.g., `daily_budget_units limit (20) would be exceeded`, `provider reported quota exhausted in current window`).
 
 ---
 
-## 4. CLI Usage
+## 5. CLI Usage
 
-### Generate Experiment Specs
+### Default Dry-Run Mode
+By default, `evallab ladder generate` runs in **dry-run** mode. It inspects the grid, checks the queue for existing points, computes the expansion, and prints the summary without writing to disk:
+
 ```bash
-# Generate specs and print human-readable summary
-python -m evallab.ladder generate grid_spec.yaml
+uv run evallab ladder generate grids/event-summary-elicitation.yaml
+```
 
-# Generate and write directly to queue directory
-python -m evallab.ladder generate grid_spec.yaml -o queue/proposed
+### Submit to Queue
+Submit the generated specs directly into the queue:
 
-# Generate with JSON output
-python -m evallab.ladder generate grid_spec.yaml --json
+```bash
+uv run evallab ladder generate grids/event-summary-elicitation.yaml --submit
+```
+
+### Output to Directory
+Write the generated JSON spec files to a specific directory:
+
+```bash
+uv run evallab ladder generate grids/event-summary-elicitation.yaml -o queue/proposed
+```
+
+### JSON Output & Flags
+```bash
+# Emit machine-readable JSON summary
+uv run evallab ladder generate grids/event-summary-elicitation.yaml --json
 
 # Bypass quota headroom checking
-python -m evallab.ladder generate grid_spec.yaml --no-quota-check
+uv run evallab ladder generate grids/event-summary-elicitation.yaml --no-quota-check
 ```
 
 ---
 
-## 5. Programmatic API
+## 6. Programmatic API
 
 ```python
 from pathlib import Path
-from evallab.ladder import LadderGridSpec, generate_grid
+from evallab.ladder import GridAxes, GridSpec, generate_grid
 
-# Define or load spec
-grid = LadderGridSpec(
-    name="elicitation-grid",
+grid = GridSpec(
+    grid_id="elicitation-grid",
     purpose="elicitation",
-    tasks=["canary/event-summary"],
-    agents=["oracle", "codex-gpt-5.6-terra"],
-    preambles=["none", "brief-discipline"],
-    attempts=[1, 3],
+    axes=GridAxes(
+        task_refs=["canary/event-summary"],
+        agents=["oracle", "codex-gpt-5.6-terra"],
+        preamble=["none", "brief-discipline"],
+        k=[1, 3],
+    ),
+    constraints=[{"agent": "nop", "k": 3}],
+    daily_budget_units=50,
 )
 
-# Expand into validated ExperimentSpecs
-result = generate_grid(grid, output_dir=Path("queue/proposed"))
-
+# Dry run / inspection
+result = generate_grid(grid)
 print(result.summary())
-for spec in result.specs:
-    print(f"Generated {spec.name} (purpose={spec.purpose})")
+
+# Submit to queue
+result_submitted = generate_grid(grid, submit=True)
+print(f"Submitted {len(result_submitted.submitted_specs)} specs.")
 ```

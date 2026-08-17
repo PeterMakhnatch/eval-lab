@@ -564,7 +564,43 @@ def parser() -> argparse.ArgumentParser:
         help="override the shared Parquet root",
     )
 
-
+    ladder = commands.add_parser(
+        "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"
+    )
+    ladder_commands = ladder.add_subparsers(dest="ladder_command", required=True)
+    ladder_generate = ladder_commands.add_parser(
+        "generate", help="Expand a grid specification into ExperimentSpec files"
+    )
+    ladder_generate.add_argument("grid_spec", type=Path, help="Path to grid YAML/JSON file")
+    ladder_generate.add_argument(
+        "-o",
+        "--output",
+        dest="output_dir",
+        type=Path,
+        default=None,
+        help="Directory to write generated ExperimentSpec JSON files",
+    )
+    ladder_generate.add_argument(
+        "--submit",
+        action="store_true",
+        help="Submit generated ExperimentSpecs directly to the queue",
+    )
+    ladder_generate.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print expansion and decisions without writing to disk (default)",
+    )
+    ladder_generate.add_argument(
+        "--no-quota-check",
+        action="store_true",
+        help="Disable automatic headroom/quota checking against existing runs",
+    )
+    ladder_generate.add_argument(
+        "--json",
+        action="store_true",
+        help="Print generation summary and details in JSON format",
+    )
 
     trace = commands.add_parser(
         "trace",
@@ -1649,6 +1685,61 @@ def run_cli(
             else:
                 print(f"eval card: {args.output}")
                 print(f"config digest: {card_data.get('spec_digest')}")
+            return 0
+        if args.command == "ladder" and args.ladder_command == "generate":
+            from evallab.ladder import generate_grid, load_grid_spec
+
+            grid_path = _resolve(root, args.grid_spec)
+            grid_spec = load_grid_spec(grid_path)
+            if args.no_quota_check:
+                grid_spec = grid_spec.model_copy(update={"check_quota_headroom": False})
+
+            dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+            output_dir = _resolve(root, args.output_dir) if args.output_dir else None
+
+            result = generate_grid(
+                grid_spec,
+                output_dir=output_dir,
+                repo_root=root,
+                submit=args.submit,
+                dry_run=dry_run,
+            )
+
+            if args.json:
+                out_data = {
+                    "grid_id": result.grid_id,
+                    "total_specs": result.total_specs,
+                    "total_trials": result.total_trials,
+                    "total_estimated_cost_usd": result.total_estimated_cost_usd,
+                    "specs": [s.model_dump(mode="json") for s in result.specs],
+                    "skipped": [
+                        {
+                            "name": sk.name,
+                            "task": sk.task,
+                            "agent": sk.agent,
+                            "preamble": sk.preamble,
+                            "attempts": sk.attempts,
+                            "reason": sk.reason,
+                        }
+                        for sk in result.skipped
+                    ],
+                    "deduped": [
+                        {
+                            "grid_id": d.grid_id,
+                            "task": d.task,
+                            "agent": d.agent,
+                            "preamble": d.preamble,
+                            "attempts": d.attempts,
+                            "reason": d.reason,
+                        }
+                        for d in result.deduped
+                    ],
+                    "written_files": [str(p) for p in result.written_paths],
+                    "submitted_specs": result.submitted_specs,
+                }
+                print(json.dumps(out_data, indent=2))
+            else:
+                print(result.summary())
             return 0
         if args.command == "registry" and args.registry_command == "list":
             from evallab.registry import TaskRegistry

@@ -18,10 +18,9 @@ from pathlib import Path
 from typing import Protocol
 
 import lancedb
-import pyarrow as pa
-import pyarrow.parquet as pq
 from lancedb.index import IvfPq
 
+from evallab.attach import attach
 from evallab.craft import (
     TASK_INSTRUCTION,
     TASK_MANIFEST,
@@ -30,7 +29,6 @@ from evallab.craft import (
     repository_root,
 )
 from evallab.paths import derived_root_from_environment, shared_checkout_root
-
 
 MIN_ROWS_FOR_ANN = 1000
 """Minimum rows to attempt ANN index.
@@ -49,7 +47,7 @@ class Embedder(Protocol):
 
 @dataclass(frozen=True)
 class HashingEmbedder:
-    """Pure deterministic lexical embedder.
+    r"""Pure deterministic lexical embedder.
 
     Tokenises on \w+, hashes tokens stably with MD5 into dim buckets,
     accumulates counts, L2-normalises. Same text always yields identical
@@ -175,34 +173,43 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
     return n_rows, None, index_reason
 
 
-def _build_trials(embedder: Embedder, root: Path, runs_root: Path | None = None) -> tuple[int, str | None, str | None]:
-    derived = derived_root_from_environment(repository_root())
-    parquet_root = derived
-    if not parquet_root.is_dir():
-        return 0, f"no derived/parquet directory ({parquet_root})", None
-    parquets = list(parquet_root.rglob("trial_facts.parquet"))
-    if not parquets:
-        return 0, f"no trial_facts.parquet files ({parquet_root})", None
+def _build_trials(
+    embedder: Embedder,
+    root: Path,
+    runs_root: Path | None = None,
+) -> tuple[int, str | None, str | None]:
+    repo = repository_root()
+    att = attach(repo_root=repo)
+    try:
+        z3 = next((z for z in att.zones if z.name == "z3"), None)
+        if z3 is None or not z3.attached:
+            reason = z3.reason if z3 else "z3 not attached"
+            detail = f" ({z3.detail})" if z3 and z3.detail else ""
+            return 0, f"{reason}{detail}", None
+
+        try:
+            cur = att.connection.execute("SELECT * FROM trial_facts")
+            cols = [c[0] for c in cur.description]
+            raw_rows = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
+        except Exception as e:
+            return 0, f"error querying trial_facts: {e}", None
+    finally:
+        att.connection.close()
+
+    if not raw_rows:
+        return 0, f"no trial_facts rows ({z3.detail})", None
+
     runs_roots = _resolve_runs_roots(runs_root)
     rows: list[dict] = []
     texts: list[str] = []
     skipped: list[str] = []
     root_counts: dict[str, int] = {}
-    arrow_tables: list[pa.Table] = []
-    for p in parquets:
-        try:
-            table = pq.read_table(p)
-            arrow_tables.append(table)
-        except Exception:
-            continue
-    if not arrow_tables:
-        return 0, "no parsable trial rows", None
-    combined = pa.concat_tables(arrow_tables, promote_options="permissive")
-    for row in combined.to_pylist():
-        job_id = str(row.get("job_id", ""))
-        trial_id = str(row.get("trial_id", ""))
-        job_name = str(row.get("job_name", ""))
-        trial_name = str(row.get("trial_name", ""))
+
+    for row in raw_rows:
+        job_id = str(row.get("job_id") or "")
+        trial_id = str(row.get("trial_id") or "")
+        job_name = str(row.get("job_name") or "")
+        trial_name = str(row.get("trial_name") or "")
         task_name = str(row.get("task_name") or "")
         agent_version = str(row.get("agent_version") or row.get("agent_name") or "")
         reward = row.get("primary_reward")
@@ -218,7 +225,11 @@ def _build_trials(embedder: Embedder, root: Path, runs_root: Path | None = None)
                 steps = s
                 break
         if not steps:
-            primary_traj = (runs_roots[0] / job_name / trial_name / "agent" / "trajectory.json") if runs_roots else Path("unknown")
+            primary_traj = (
+                (runs_roots[0] / job_name / trial_name / "agent" / "trajectory.json")
+                if runs_roots
+                else Path("unknown")
+            )
             skipped.append(str(primary_traj))
             text = f"{task_name} {agent_version} {exc} {exc_phase}".strip() or "empty"
         else:
@@ -254,6 +265,7 @@ def _build_trials(embedder: Embedder, root: Path, runs_root: Path | None = None)
             }
         )
         texts.append(text)
+
     if not texts:
         reason = "no parsable trial rows"
         if skipped:
@@ -286,34 +298,43 @@ def _build_trials(embedder: Embedder, root: Path, runs_root: Path | None = None)
     return n_rows, None, index_reason
 
 
-def _build_steps(embedder: Embedder, root: Path, runs_root: Path | None = None) -> tuple[int, str | None, str | None]:
-    derived = derived_root_from_environment(repository_root())
-    parquet_root = derived
-    if not parquet_root.is_dir():
-        return 0, f"no derived/parquet directory ({parquet_root})", None
-    parquets = list(parquet_root.rglob("trial_facts.parquet"))
-    if not parquets:
-        return 0, f"no trial_facts.parquet files ({parquet_root})", None
+def _build_steps(
+    embedder: Embedder,
+    root: Path,
+    runs_root: Path | None = None,
+) -> tuple[int, str | None, str | None]:
+    repo = repository_root()
+    att = attach(repo_root=repo)
+    try:
+        z3 = next((z for z in att.zones if z.name == "z3"), None)
+        if z3 is None or not z3.attached:
+            reason = z3.reason if z3 else "z3 not attached"
+            detail = f" ({z3.detail})" if z3 and z3.detail else ""
+            return 0, f"{reason}{detail}", None
+
+        try:
+            cur = att.connection.execute("SELECT * FROM trial_facts")
+            cols = [c[0] for c in cur.description]
+            raw_rows = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
+        except Exception as e:
+            return 0, f"error querying trial_facts: {e}", None
+    finally:
+        att.connection.close()
+
+    if not raw_rows:
+        return 0, f"no trial_facts rows ({z3.detail})", None
+
     runs_roots = _resolve_runs_roots(runs_root)
     rows: list[dict] = []
     texts: list[str] = []
     skipped: list[str] = []
     root_counts: dict[str, int] = {}
-    arrow_tables: list[pa.Table] = []
-    for p in parquets:
-        try:
-            table = pq.read_table(p)
-            arrow_tables.append(table)
-        except Exception:
-            continue
-    if not arrow_tables:
-        return 0, "no parsable trial rows", None
-    combined = pa.concat_tables(arrow_tables, promote_options="permissive")
-    for row in combined.to_pylist():
-        job_id = str(row.get("job_id", ""))
-        trial_id = str(row.get("trial_id", ""))
-        job_name = str(row.get("job_name", ""))
-        trial_name = str(row.get("trial_name", ""))
+
+    for row in raw_rows:
+        job_id = str(row.get("job_id") or "")
+        trial_id = str(row.get("trial_id") or "")
+        job_name = str(row.get("job_name") or "")
+        trial_name = str(row.get("trial_name") or "")
         task_name = str(row.get("task_name") or "")
         reward = row.get("primary_reward")
         steps = []
@@ -326,7 +347,11 @@ def _build_steps(embedder: Embedder, root: Path, runs_root: Path | None = None) 
                 steps = s
                 break
         if not steps:
-            primary_traj = (runs_roots[0] / job_name / trial_name / "agent" / "trajectory.json") if runs_roots else Path("unknown")
+            primary_traj = (
+                (runs_roots[0] / job_name / trial_name / "agent" / "trajectory.json")
+                if runs_roots
+                else Path("unknown")
+            )
             skipped.append(str(primary_traj))
             continue
         for step in steps:
@@ -349,6 +374,7 @@ def _build_steps(embedder: Embedder, root: Path, runs_root: Path | None = None) 
                 }
             )
             texts.append(msg_text)
+
     if not texts:
         reason = "no trajectory steps found"
         if skipped:
@@ -421,23 +447,36 @@ def search(query: str, table: str = "tasks", k: int = 5) -> None:
     vec = embedder.embed([query])[0]
     root = _lance_root()
     db = lancedb.connect(str(root))
-    if table not in db.list_tables():
+    tables_obj = db.list_tables()
+    names = tables_obj.tables if hasattr(tables_obj, "tables") else list(tables_obj)
+    if table not in names:
         print(f"table {table} not found")
         return
     tbl = db.open_table(table)
-    res = tbl.search(vec).limit(k).to_list()
+    qb = tbl.search(vec)
+    fn = getattr(qb, "distance_type", None)
+    if callable(fn):
+        qb = fn("cosine")
+    res = qb.limit(k).to_list()
     for r in res:
         dist = r.get("_distance", float("nan"))
         cols = {k: v for k, v in r.items() if k != "vector"}
         print(f"dist={dist:.4f} {cols}")
-
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="evallab.lance")
     sub = parser.add_subparsers(dest="cmd", required=True)
     bp = sub.add_parser("build", help="build or refresh tables")
     bp.add_argument("--table", choices=["tasks", "trials", "steps", "all"], default="all")
-    bp.add_argument("--runs-root", type=Path, default=None, help="explicit override for runs root (also EVALLAB_RUNS_ROOT env); enables worktree support and custom locations")
+    bp.add_argument(
+        "--runs-root",
+        type=Path,
+        default=None,
+        help=(
+            "explicit override for runs root (also EVALLAB_RUNS_ROOT env); "
+            "enables worktree support and custom locations"
+        ),
+    )
     sp = sub.add_parser("search", help="nearest neighbour search")
     sp.add_argument("query")
     sp.add_argument("--table", default="tasks")

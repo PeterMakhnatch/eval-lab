@@ -11,6 +11,20 @@ LanceDB provides nearest-neighbour search over task instructions and trial text 
 
 Store location: `<derived_root>/lance/` (gitignored, rebuildable).
 
+## Storage zones and data flow
+
+The store builds its tables by consuming data from three distinct sources according to the lab's storage zone architecture (§2.1, §2.2):
+
+1. **Library supply (`library/tasks/`)**:
+   - `tasks` table reads task definitions (`task.toml`) and instructions (`instruction.md`) directly from the task library.
+2. **Zone 3 (Z3 Analytics Parquet)**:
+   - `trials` and `steps` tables read structured trial metadata (`job_id`, `trial_id`, `job_name`, `trial_name`, `task_name`, `agent_version`, `primary_reward`, `exception_class`, `exception_phase`) exclusively via the **unified attach surface** (`evallab.attach.attach`).
+   - The attach surface resolves the hot `job_id=*/trial_id=*/` partitions, cold `compact/` partitions, and schema unification (`union_by_name=true`) without ad-hoc path globbing.
+3. **Zone 1 (Z1 Evidence)**:
+   - Step messages and trial trajectory texts (`steps[].message`) are loaded from raw ATIF trajectory files (`runs/<job>/<trial>/agent/trajectory.json`).
+   - Raw trajectories are Z1 execution evidence, not derived Z3 analytics. The attach surface does not cover Z1 raw artifacts and should not. Trajectories are read directly from disk with candidate roots resolved via `evallab.paths.shared_checkout_root`.
+   - Missing trajectory files are counted and reported with concrete paths (non-fatal; trials fall back to task/agent/exception text).
+
 ## Table schemas
 
 - `tasks`
@@ -40,10 +54,10 @@ Store location: `<derived_root>/lance/` (gitignored, rebuildable).
 - Tokenises on `\w+`, lowercased.
 - Stable MD5 hash into 256 buckets, count occurrences.
 - L2-normalise.
-- Same text → identical vector in-process and across processes (asserted in tests).
+- Same text -> identical vector in-process and across processes (asserted in tests).
 - **Lexical overlap only, not semantics.** A query matches on shared words/tokens, not meaning. Do not treat distances as semantic similarity.
 
-Real neural embedder can be swapped by implementing the protocol; callers unchanged.
+Real neural embedders can be swapped by implementing the `Embedder` protocol; callers remain unchanged.
 
 ## DuckDB vs LanceDB
 
@@ -57,41 +71,28 @@ LanceDB (lexical similarity):
 - "Find trajectories where the agent produced similar step reasoning or tool output to X"
 - Nearest-neighbour on embedded text; returns distances + identifying columns (including reward and task for immediate interpretability).
 
-Example DuckDB question belongs in `evallab.database` or direct SQL.
-Example LanceDB question uses `python -m evallab.lance search "..."`
+Example DuckDB questions belong in `evallab.attach` or direct SQL.
+Example LanceDB questions use `python -m evallab.lance search "..."`.
 
-## Rebuild
+## Rebuild and search
 
-```
+```sh
 python -m evallab.lance build --table all
 python -m evallab.lance search "quick brown" --table tasks --k 5
 python -m evallab.lance search "remove javascript from html" --table steps --k 3
 ```
 
-Idempotent: re-running produces identical row counts, no duplicates.
-Skips cleanly (with reason naming exact missing path) when source data absent or trajectory missing on disk (non-fatal; count reported).
-`table_names()` deprecation fixed to `list_tables()` for clean output.
-
-Run after changes to library/tasks or after new evidence promotion.
+- Idempotent: re-running produces identical row counts, no duplicates.
+- Skips cleanly (with reason naming exact examined path) when source data is absent or unavailable.
+- Uses `list_tables()` on LanceDB connection for clean schema inspection.
 
 ## Vector index
 
-`create_index` uses the recommended form `create_index("vector", config=IvfPq(distance_type="cosine"))` (avoids deprecation warning on `vector_column_name` + `metric`).
-Cosine is the correct metric because the embedder L2-normalises every vector to unit length; cosine distance then exactly captures angular similarity (equivalent to dot product on the unit sphere).
+`create_index` uses the recommended form `create_index("vector", config=IvfPq(distance_type="cosine"))`.
+Cosine distance is used because the embedder L2-normalises every vector to unit length; cosine distance then captures angular similarity on the unit sphere.
 
-When a table has <256 rows LanceDB raises on index creation ("Not enough rows to train PQ"); this is caught specifically and reported as "index: skipped (too few rows for ANN index (exact brute-force search))". Search then falls back to exact brute-force scan over the table, which is the right behaviour at the current corpus size. The skip reason is printed by `build` so the user always knows whether ANN or exact search applies.
-
-Skip reasons for trials/steps now include the exact path examined (e.g. "no derived/parquet directory (/path/to/derived/parquet)"), making miscomputed paths visible immediately. Missing trajectories are counted and reported without aborting the build.
-## Vector index
-
-`create_index` uses the recommended form `create_index("vector", config=IvfPq(distance_type="cosine"))` (avoids deprecation warning on `vector_column_name` + `metric`).
-Cosine is the correct metric because the embedder L2-normalises every vector to unit length; cosine distance then exactly captures angular similarity (equivalent to dot product on the unit sphere).
-
-ANN index is built only when a table has >=1000 rows. Below this threshold (chosen because exact brute-force is correct and fast for corpus sizes of hundreds of rows, and to avoid LanceDB's "dataset too small (<65536)" and empty KMeans cluster warnings seen at 477 rows) the build skips `create_index` entirely and reports "index: skipped (too few rows for ANN index (exact brute-force search))". The same row-count decision is applied to tasks, trials, and steps.
+An ANN index is built only when a table has >= 1000 rows (`MIN_ROWS_FOR_ANN = 1000`). Below this threshold (where exact brute-force search is fast and avoids LanceDB's small-dataset and empty-cluster warnings), the build skips `create_index` and reports `index: skipped (too few rows for ANN index (exact brute-force search))`. The same threshold policy is applied uniformly across tasks, trials, and steps.
 
 ## Runs root resolution
 
-`runs/` (and `research/evidence/runs/` for promoted bundles) is resolved via `shared_checkout_root` from `paths.py` so linked worktrees find the primary checkout's machine-local `runs/`. Explicit override supported via `--runs-root` CLI flag on `build` or `EVALLAB_RUNS_ROOT` environment variable. Per-root trajectory counts are printed on success so the source of each bundle is visible. Missing trajectories are still counted and reported with their exact concrete path (non-fatal).
-
-Skip reasons for trials/steps now include the exact path examined (e.g. "no derived/parquet directory (/path/to/derived/parquet)"), making miscomputed paths visible immediately. Missing trajectories are counted and reported without aborting the build.
-
+`runs/` (and `research/evidence/runs/` for promoted bundles) is resolved via `shared_checkout_root` from `paths.py` so linked worktrees find the primary checkout's machine-local `runs/`. Explicit override is supported via `--runs-root` CLI flag on `build` or `EVALLAB_RUNS_ROOT` environment variable. Per-root trajectory counts are printed on success so the source of each bundle is visible. Missing trajectories are counted and reported with their concrete path (non-fatal).

@@ -61,12 +61,14 @@ def test_build_tasks_from_synthetic_fixture(tmp_path, monkeypatch):
 
 def test_build_trials_from_synthetic_parquet(tmp_path, monkeypatch):
     derived = tmp_path / "derived"
-    parquet_dir = derived / "parquet" / "job_id=job1" / "trial_id=t1"
+    parquet_dir = derived / "job_id=job1" / "trial_id=t1"
     parquet_dir.mkdir(parents=True)
     schema = pa.schema(
         [
             ("job_id", pa.string()),
             ("trial_id", pa.string()),
+            ("job_name", pa.string()),
+            ("trial_name", pa.string()),
             ("task_name", pa.string()),
             ("agent_name", pa.string()),
             ("primary_reward", pa.float64()),
@@ -77,6 +79,8 @@ def test_build_trials_from_synthetic_parquet(tmp_path, monkeypatch):
         {
             "job_id": "job1",
             "trial_id": "t1",
+            "job_name": "job1",
+            "trial_name": "t1",
             "task_name": "task1",
             "agent_name": "agentx",
             "primary_reward": 1.0,
@@ -90,7 +94,7 @@ def test_build_trials_from_synthetic_parquet(tmp_path, monkeypatch):
     with contextlib.redirect_stdout(f):
         build("trials")
     out = f.getvalue()
-    assert "trials:" in out
+    assert "trials: 1 rows" in out
 
 
 def test_build_trials_from_real_derived_layout_fixture(tmp_path, monkeypatch):
@@ -105,6 +109,8 @@ def test_build_trials_from_real_derived_layout_fixture(tmp_path, monkeypatch):
         [
             ("job_id", pa.string()),
             ("trial_id", pa.string()),
+            ("job_name", pa.string()),
+            ("trial_name", pa.string()),
             ("task_name", pa.string()),
             ("agent_version", pa.string()),
             ("primary_reward", pa.float64()),
@@ -116,6 +122,8 @@ def test_build_trials_from_real_derived_layout_fixture(tmp_path, monkeypatch):
         {
             "job_id": "job42",
             "trial_id": "t99",
+            "job_name": "job42",
+            "trial_name": "t99",
             "task_name": "task_real",
             "agent_version": "v1.2",
             "primary_reward": 0.95,
@@ -143,6 +151,25 @@ def test_skip_reason_includes_examined_path(tmp_path, monkeypatch):
     out = f.getvalue()
     assert "trials: skipped" in out
     assert str(derived_root) in out  # exact path examined must be in skip reason
+
+
+def test_builders_go_through_attach_surface_empty_fixture(tmp_path, monkeypatch):
+    """Pointing the surface at an empty fixture root yields zero rows and a reported skip
+    rather than silently finding the real corpus (catches reintroduction of direct globbing).
+    """
+    empty_derived = tmp_path / "empty_derived"
+    empty_derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(empty_derived))
+    import evallab.lance as lance_mod
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("trials")
+    out = f.getvalue()
+    assert "trials: skipped" in out
+    assert "no trial_facts rows" in out
+    assert str(empty_derived) in out
 
 
 def test_idempotent_rebuild(tmp_path, monkeypatch):
@@ -213,14 +240,17 @@ def test_create_index_misuse_raises_rather_than_suppressed(tmp_path, monkeypatch
     derived = tmp_path / "derived"
     derived.mkdir(parents=True)
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
     def bad_create_index(*args, **kwargs):
         raise ValueError("simulated misuse of create_index arguments")
+
     with (
         patch("evallab.lance.MIN_ROWS_FOR_ANN", 0),
         patch("lancedb.table.LanceTable.create_index", bad_create_index),
         pytest.raises(ValueError, match="simulated misuse"),
     ):
         build("tasks")
+
 
 def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
     """Fixture with runs/ tree + trial_facts.parquet under tmp_path.
@@ -233,7 +263,7 @@ def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
     import evallab.lance as lance_mod
     monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
 
-    parquet_dir = derived / "parquet" / "job_id=j1" / "trial_id=t1"
+    parquet_dir = derived / "job_id=j1" / "trial_id=t1"
     parquet_dir.mkdir(parents=True)
     schema = pa.schema(
         [
@@ -294,16 +324,14 @@ def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
         assert result_lines, "no search results"
         assert "remove javascript from html" in result_lines[0]
 
-    """Two steps with different text must produce different vectors (catches the original defect)."""
-    derived = tmp_path / "derived"
-    derived.mkdir(parents=True)
-    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
-    import evallab.lance as lance_mod
-    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+    # Two steps with different text must produce different vectors (catches original defect)
+    derived2 = tmp_path / "derived2"
+    derived2.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived2))
 
-    parquet_dir = derived / "p" / "job_id=j" / "trial_id=t"
-    parquet_dir.mkdir(parents=True)
-    schema = pa.schema(
+    parquet_dir2 = derived2 / "job_id=j" / "trial_id=t"
+    parquet_dir2.mkdir(parents=True)
+    schema2 = pa.schema(
         [
             ("job_id", pa.string()),
             ("trial_id", pa.string()),
@@ -314,7 +342,7 @@ def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
             ("primary_reward", pa.float64()),
         ]
     )
-    data = [
+    data2 = [
         {
             "job_id": "j",
             "trial_id": "t",
@@ -325,21 +353,22 @@ def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
             "primary_reward": 0.0,
         }
     ]
-    pq.write_table(pa.Table.from_pylist(data, schema=schema), parquet_dir / "trial_facts.parquet")
+    table2 = pa.Table.from_pylist(data2, schema=schema2)
+    pq.write_table(table2, parquet_dir2 / "trial_facts.parquet")
 
-    traj_dir = tmp_path / "runs" / "j" / "t" / "agent"
-    traj_dir.mkdir(parents=True)
-    traj = {
+    traj_dir2 = tmp_path / "runs" / "j" / "t" / "agent"
+    traj_dir2.mkdir(parents=True)
+    traj2 = {
         "schema_version": "ATIF-1",
         "steps": [
             {"step_id": 0, "source": "a", "message": "text one"},
             {"step_id": 1, "source": "b", "message": "text two different"},
         ],
     }
-    (traj_dir / "trajectory.json").write_text(json.dumps(traj))
+    (traj_dir2 / "trajectory.json").write_text(json.dumps(traj2))
 
-    f = io.StringIO()
-    with contextlib.redirect_stdout(f):
+    f3 = io.StringIO()
+    with contextlib.redirect_stdout(f3):
         build("steps")
     e = HashingEmbedder()
     v1 = e.embed(["text one"])[0]
@@ -348,14 +377,14 @@ def test_build_steps_and_trials_from_trajectory_fixture(tmp_path, monkeypatch):
 
 
 def test_missing_trajectory_counted_and_reported(tmp_path, monkeypatch):
-    """Trajectory referenced in parquet but absent on disk must be counted/reported, build must not be fatal."""
+    """Trajectory in parquet but absent on disk must be counted/reported; not fatal."""
     derived = tmp_path / "derived"
     derived.mkdir(parents=True)
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
     import evallab.lance as lance_mod
     monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
 
-    parquet_dir = derived / "parquet" / "job_id=jmiss" / "trial_id=tmiss"
+    parquet_dir = derived / "job_id=jmiss" / "trial_id=tmiss"
     parquet_dir.mkdir(parents=True)
     schema = pa.schema(
         [
@@ -386,8 +415,10 @@ def test_missing_trajectory_counted_and_reported(tmp_path, monkeypatch):
         build("steps")
     out = f.getvalue()
     assert "steps: skipped" in out or "missing 1 trajectories" in out
+
+
 def test_steps_explicit_runs_root_override(tmp_path, monkeypatch):
-    """Assert seam directly with override; row count matches steps written; reported root is the passed one."""
+    """Assert seam directly with override; row count matches steps; reported root is passed."""
     derived = tmp_path / "derived"
     derived.mkdir(parents=True)
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
@@ -404,7 +435,7 @@ def test_steps_explicit_runs_root_override(tmp_path, monkeypatch):
         "final_metrics": {},
     }
     (job_dir / "trajectory.json").write_text(json.dumps(traj))
-    parquet_dir = derived / "parquet" / "job_id=j1" / "trial_id=t1"
+    parquet_dir = derived / "job_id=j1" / "trial_id=t1"
     parquet_dir.mkdir(parents=True)
     schema = pa.schema([
         ("job_id", pa.string()),
@@ -436,7 +467,7 @@ def test_trajectory_absent_on_disk_counted_reported_not_fatal(tmp_path, monkeypa
     derived = tmp_path / "derived"
     derived.mkdir(parents=True)
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
-    parquet_dir = derived / "parquet" / "job_id=j1" / "trial_id=t1"
+    parquet_dir = derived / "job_id=j1" / "trial_id=t1"
     parquet_dir.mkdir(parents=True)
     schema = pa.schema([
         ("job_id", pa.string()),
@@ -467,7 +498,12 @@ def test_trajectory_absent_on_disk_counted_reported_not_fatal(tmp_path, monkeypa
     pq.write_table(pa.Table.from_pylist(data, schema=schema), parquet_dir / "trial_facts.parquet")
     good_dir = tmp_path / "runs" / "job1" / "good" / "agent"
     good_dir.mkdir(parents=True)
-    good_traj = {"schema_version": "ATIF-1", "session_id": "s", "steps": [{"step_id": 0, "source": "user", "message": "good step"}], "final_metrics": {}}
+    good_traj = {
+        "schema_version": "ATIF-1",
+        "session_id": "s",
+        "steps": [{"step_id": 0, "source": "user", "message": "good step"}],
+        "final_metrics": {},
+    }
     (good_dir / "trajectory.json").write_text(json.dumps(good_traj))
     import evallab.lance as lance_mod
     monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
@@ -481,20 +517,46 @@ def test_trajectory_absent_on_disk_counted_reported_not_fatal(tmp_path, monkeypa
 
 
 def test_index_decision_same_for_all_tables_at_row_count(tmp_path, monkeypatch):
-    """Index decision identical for every table at given row count (would have caught inconsistent 92 vs 477 policy)."""
+    """Index decision identical for every table at given row count."""
     derived = tmp_path / "derived"
     derived.mkdir(parents=True)
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
     import evallab.lance as lance_mod
     monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
-    pdir = derived / "parquet" / "job_id=j1" / "trial_id=t1"
+
+    # create a task fixture in tmp_path
+    task_dir = tmp_path / "library" / "tasks" / "fixture-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text('[task]\nname = "fixture-task"\n')
+    (task_dir / "instruction.md").write_text("Do something useful.")
+
+    pdir = derived / "job_id=j1" / "trial_id=t1"
     pdir.mkdir(parents=True, exist_ok=True)
-    schema = pa.schema([("job_id", pa.string()), ("trial_id", pa.string()), ("job_name", pa.string()), ("trial_name", pa.string()), ("task_name", pa.string()), ("primary_reward", pa.float64())])
-    data = [{"job_id": "j1", "trial_id": "t1", "job_name": "job1", "trial_name": "trial1", "task_name": "t", "primary_reward": 1.0}]
+    schema = pa.schema([
+        ("job_id", pa.string()),
+        ("trial_id", pa.string()),
+        ("job_name", pa.string()),
+        ("trial_name", pa.string()),
+        ("task_name", pa.string()),
+        ("primary_reward", pa.float64()),
+    ])
+    data = [{
+        "job_id": "j1",
+        "trial_id": "t1",
+        "job_name": "job1",
+        "trial_name": "trial1",
+        "task_name": "t",
+        "primary_reward": 1.0,
+    }]
     pq.write_table(pa.Table.from_pylist(data, schema=schema), pdir / "trial_facts.parquet")
     traj_dir = tmp_path / "runs" / "job1" / "trial1" / "agent"
     traj_dir.mkdir(parents=True, exist_ok=True)
-    traj = {"schema_version": "ATIF-1", "session_id": "s", "steps": [{"step_id": 0, "source": "user", "message": "step"}], "final_metrics": {}}
+    traj = {
+        "schema_version": "ATIF-1",
+        "session_id": "s",
+        "steps": [{"step_id": 0, "source": "user", "message": "step"}],
+        "final_metrics": {},
+    }
     (traj_dir / "trajectory.json").write_text(json.dumps(traj))
     f = io.StringIO()
     with contextlib.redirect_stdout(f):
@@ -504,7 +566,3 @@ def test_index_decision_same_for_all_tables_at_row_count(tmp_path, monkeypatch):
     assert "tasks " + skip_msg in out
     assert "trials " + skip_msg in out
     assert "steps " + skip_msg in out
-
-    assert "trials " + skip_msg in out
-    assert "steps " + skip_msg in out
-

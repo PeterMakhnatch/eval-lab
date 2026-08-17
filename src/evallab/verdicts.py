@@ -9,10 +9,11 @@ the prior row is never mutated or deleted.
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import duckdb
 import psycopg
@@ -102,11 +103,12 @@ def resolve_discovery_ids(
     repo_root: Path | None = None,
     discoveries_path: Path | None = None,
 ) -> set[str]:
-    """Parse digests/DISCOVERIES.md and return all known discovery IDs.
+    """Parse digests/DISCOVERIES.md and daily digests to return all known discovery IDs.
 
     Extracts:
       1. Section headers (e.g. '## D-20260815-KTXJSHGZ — draft')
-      2. Any embedded discovery IDs or ULIDs in the text
+      2. Discovery identifiers (e.g. 'D-20260816-7CQRVDQ6')
+      3. Any embedded discovery IDs or ULIDs in the text
     """
     if discoveries_path is not None:
         target = discoveries_path
@@ -115,26 +117,36 @@ def resolve_discovery_ids(
     else:
         target = DEFAULT_DISCOVERIES_PATH
 
-    if not target.is_file():
-        return set()
-
-    content = target.read_text(encoding="utf-8")
     ids: set[str] = set()
+    files_to_scan: list[Path] = []
+    if target.is_file():
+        files_to_scan.append(target)
+    if target.parent.is_dir():
+        for path in target.parent.glob("*.md"):
+            if path not in files_to_scan:
+                files_to_scan.append(path)
 
-    for line in content.splitlines():
-        if line.startswith("## "):
-            header = line.removeprefix("## ").strip()
-            for sep in (" — ", " - ", " "):
-                if sep in header:
-                    header = header.split(sep, 1)[0].strip()
-            if header:
-                ids.add(header)
+    for path in files_to_scan:
+        try:
+            content = path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for line in content.splitlines():
+            if line.startswith("## "):
+                header = line.removeprefix("## ").strip()
+                for sep in (" — ", " - ", " "):
+                    if sep in header:
+                        header = header.split(sep, 1)[0].strip()
+                if header:
+                    ids.add(header)
 
-    for match in re.findall(r"\b([0-7][0-9A-HJKMNP-TV-Z]{25})\b", content):
-        ids.add(match)
+        for match in re.findall(r"\b(D-[0-9]{8}-[0-9A-Za-z]+)\b", content):
+            ids.add(match)
+
+        for match in re.findall(r"\b([0-7][0-9A-HJKMNP-TV-Z]{25})\b", content):
+            ids.add(match)
 
     return ids
-
 
 def validate_discovery_id(
     discovery_id: str,
@@ -162,13 +174,26 @@ def execute_verdicts_views(
     conn.execute(target_sql.read_text(encoding="utf-8"))
 
 
+def _postgres_identity(dsn: str) -> str:
+    try:
+        from psycopg.conninfo import conninfo_to_dict
+
+        info = conninfo_to_dict(dsn)
+        host = str(info.get("host") or "localhost")
+        port = str(info.get("port") or "5432")
+        dbname = str(info.get("dbname") or "")
+        return f"{host}:{port}/{dbname}" if dbname else f"{host}:{port}"
+    except Exception:
+        return "unparsable"
+
+
 def write_verdict_to_catalog(
     verdict: Verdict,
     database_url: str | None = None,
 ) -> None:
     """Insert a verdict row into PostgreSQL catalog (Z2).
 
-    Idempotently ensures the table exists and appends the new verdict row.
+    Idempotently ensures the table and views exist and appends the new verdict row.
     """
     url = database_url_from_environment(database_url)
     with psycopg.connect(url, connect_timeout=2) as connection:
@@ -182,7 +207,45 @@ def write_verdict_to_catalog(
                 "at" timestamptz NOT NULL,
                 note text,
                 ingested_at timestamptz NOT NULL DEFAULT now()
+            );
+
+            CREATE INDEX IF NOT EXISTS verdicts_discovery_idx ON verdicts (discovery_id);
+            CREATE INDEX IF NOT EXISTS verdicts_at_idx ON verdicts ("at" DESC);
+            CREATE INDEX IF NOT EXISTS verdicts_status_idx ON verdicts (status);
+
+            CREATE OR REPLACE VIEW v_verdicts_history AS
+            SELECT
+                discovery_id,
+                status,
+                "by",
+                "at",
+                note
+            FROM verdicts
+            ORDER BY discovery_id, "at" ASC;
+
+            CREATE OR REPLACE VIEW v_current_verdicts AS
+            WITH ranked AS (
+                SELECT
+                    discovery_id,
+                    status,
+                    "by",
+                    "at",
+                    note,
+                    row_number() OVER (
+                        PARTITION BY discovery_id
+                        ORDER BY "at" DESC
+                    ) AS ranking
+                FROM verdicts
             )
+            SELECT
+                discovery_id,
+                status,
+                "by",
+                "at",
+                note
+            FROM ranked
+            WHERE ranking = 1
+            ORDER BY "at" DESC, discovery_id;
             """
         )
         connection.execute(
@@ -207,31 +270,51 @@ def list_current_verdicts_from_catalog(
 ) -> list[Verdict]:
     """Query current (latest by timestamp) verdicts from PostgreSQL catalog."""
     url = database_url_from_environment(database_url)
-    with psycopg.connect(url, connect_timeout=2) as connection:
-        query = """
-            SELECT discovery_id, status, "by", "at", note
-            FROM v_current_verdicts
-        """
-        params: list[Any] = []
-        if status is not None:
-            query += ' WHERE status = %s ORDER BY "at" DESC, discovery_id'
-            params.append(status)
-        else:
-            query += ' ORDER BY "at" DESC, discovery_id'
+    target_name = _postgres_identity(url)
+    try:
+        with psycopg.connect(url, connect_timeout=2) as connection:
+            query = """
+                SELECT discovery_id, status, "by", "at", note
+                FROM v_current_verdicts
+            """
+            params: list[Any] = []
+            if status is not None:
+                query += ' WHERE status = %s ORDER BY "at" DESC, discovery_id'
+                params.append(status)
+            else:
+                query += ' ORDER BY "at" DESC, discovery_id'
 
-        rows = connection.execute(query, params).fetchall()
-        return [
-            Verdict(
-                discovery_id=str(row[0]),
-                status=cast(
-                    Literal["accepted", "rejected", "needs_evidence", "pending"], str(row[1])
-                ),
-                by=str(row[2]),
-                at=row[3] if isinstance(row[3], datetime) else datetime.fromisoformat(str(row[3])),
-                note=str(row[4]) if row[4] is not None else None,
-            )
-            for row in rows
-        ]
+            rows = connection.execute(query, params).fetchall()
+            results: list[Verdict] = []
+            for row in rows:
+                try:
+                    raw_at = row[3]
+                    at_dt = (
+                        raw_at
+                        if isinstance(raw_at, datetime)
+                        else datetime.fromisoformat(str(raw_at))
+                    )
+                    if at_dt.tzinfo is None:
+                        at_dt = at_dt.replace(tzinfo=UTC)
+                    results.append(
+                        Verdict(
+                            discovery_id=str(row[0]),
+                            status=validate_status(str(row[1])),
+                            by=str(row[2]),
+                            at=at_dt,
+                            note=str(row[4]) if row[4] is not None else None,
+                        )
+                    )
+                except Exception:
+                    continue
+            return results
+    except Exception as exc:
+        msg = (
+            f"catalog read failed [unavailable] "
+            f"(examined postgresql://{target_name} relation v_current_verdicts): {exc}"
+        )
+        print(f"error: {msg}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
 
 def get_verdict_history_from_catalog(
@@ -240,27 +323,46 @@ def get_verdict_history_from_catalog(
 ) -> list[Verdict]:
     """Query full verdict history for one discovery from PostgreSQL catalog, oldest first."""
     url = database_url_from_environment(database_url)
-    with psycopg.connect(url, connect_timeout=2) as connection:
-        query = """
-            SELECT discovery_id, status, "by", "at", note
-            FROM v_verdicts_history
-            WHERE discovery_id = %s
-            ORDER BY "at" ASC
-        """
-        rows = connection.execute(query, (discovery_id,)).fetchall()
-        return [
-            Verdict(
-                discovery_id=str(row[0]),
-                status=cast(
-                    Literal["accepted", "rejected", "needs_evidence", "pending"], str(row[1])
-                ),
-                by=str(row[2]),
-                at=row[3] if isinstance(row[3], datetime) else datetime.fromisoformat(str(row[3])),
-                note=str(row[4]) if row[4] is not None else None,
-            )
-            for row in rows
-        ]
-
+    target_name = _postgres_identity(url)
+    try:
+        with psycopg.connect(url, connect_timeout=2) as connection:
+            query = """
+                SELECT discovery_id, status, "by", "at", note
+                FROM v_verdicts_history
+                WHERE discovery_id = %s
+                ORDER BY "at" ASC
+            """
+            rows = connection.execute(query, (discovery_id,)).fetchall()
+            results: list[Verdict] = []
+            for row in rows:
+                try:
+                    raw_at = row[3]
+                    at_dt = (
+                        raw_at
+                        if isinstance(raw_at, datetime)
+                        else datetime.fromisoformat(str(raw_at))
+                    )
+                    if at_dt.tzinfo is None:
+                        at_dt = at_dt.replace(tzinfo=UTC)
+                    results.append(
+                        Verdict(
+                            discovery_id=str(row[0]),
+                            status=validate_status(str(row[1])),
+                            by=str(row[2]),
+                            at=at_dt,
+                            note=str(row[4]) if row[4] is not None else None,
+                        )
+                    )
+                except Exception:
+                    continue
+            return results
+    except Exception as exc:
+        msg = (
+            f"catalog read failed [unavailable] "
+            f"(examined postgresql://{target_name} relation v_verdicts_history): {exc}"
+        )
+        print(f"error: {msg}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
 def list_current_verdicts_from_duckdb(
     conn: duckdb.DuckDBPyConnection,
@@ -366,9 +468,10 @@ def record_verdict(
     try:
         write_verdict_to_catalog(verdict, database_url=database_url)
     except Exception:
-        # In offline/CI mode with no live PostgreSQL, database write may fail.
-        # If no DuckDB connection was given and catalog failed, check if database_url was explicit.
-        if database_url is not None:
+        # In offline/CI mode with no live PostgreSQL, database write may fail if DuckDB
+        # was provided. If no DuckDB connection was given, catalog write failure must
+        # be raised so writes do not silently fail.
+        if database_url is not None or duckdb_conn is None:
             raise
 
     return verdict

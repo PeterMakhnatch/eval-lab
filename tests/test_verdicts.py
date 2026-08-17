@@ -13,6 +13,7 @@ import duckdb
 import pytest
 
 from evallab import cli
+from evallab.runner import database_url_from_environment
 from evallab.schemas import Verdict
 from evallab.verdicts import (
     DEFAULT_DISCOVERIES_PATH,
@@ -264,7 +265,7 @@ def test_resolve_discovery_ids_parsing(tmp_path: Path) -> None:
 
 
 def test_cli_verdict_record_and_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """CLI records a verdict and lists current verdicts."""
+    """CLI records a verdict and lists current verdicts, proving the round trip."""
     _create_sample_discoveries_journal(tmp_path)
 
     code = cli.run_cli(
@@ -283,10 +284,13 @@ def test_cli_verdict_record_and_list(tmp_path: Path, capsys: pytest.CaptureFixtu
     out, _ = capsys.readouterr()
     assert f"Recorded verdict for {SAMPLE_DISCOVERY_HEADER_ID}: accepted by Peter Makhnatch" in out
 
-    # CLI list (in test environment without postgres, falls back cleanly)
+    # CLI list returns the recorded verdict
     code_list = cli.run_cli(["verdict", "list"], workspace=tmp_path)
     assert code_list == 0
-
+    out_list, _ = capsys.readouterr()
+    assert SAMPLE_DISCOVERY_HEADER_ID in out_list
+    assert "accepted" in out_list
+    assert "Peter Makhnatch" in out_list
 
 def test_cli_verdict_refusal_unknown_id(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -439,9 +443,57 @@ def test_cli_verdict_empty_invocation(tmp_path: Path, capsys: pytest.CaptureFixt
     assert "usage:" in out
 
 
+def test_unreachable_catalog_fails_distinctly(capsys: pytest.CaptureFixture[str]) -> None:
+    """An unreachable catalog produces a distinguishable failure with a reason, not empty."""
+    unreachable_url = "postgresql://127.0.0.1:59999/evallab_unreachable"
+
+    # 1. list_current_verdicts_from_catalog fails with non-zero exit and informative stderr
+    with pytest.raises(SystemExit) as exc_list:
+        list_current_verdicts_from_catalog(database_url=unreachable_url)
+    assert exc_list.value.code == 2
+    out_list, err_list = capsys.readouterr()
+    assert "No verdicts recorded." not in out_list
+    assert "No verdicts recorded." not in err_list
+    assert "catalog read failed [unavailable]" in err_list
+    assert "127.0.0.1:59999" in err_list
+    assert "v_current_verdicts" in err_list
+
+    # 2. get_verdict_history_from_catalog fails with non-zero exit and informative stderr
+    with pytest.raises(SystemExit) as exc_hist:
+        get_verdict_history_from_catalog(
+            SAMPLE_DISCOVERY_HEADER_ID, database_url=unreachable_url
+        )
+    assert exc_hist.value.code == 2
+    out_hist, err_hist = capsys.readouterr()
+    assert f"No verdict history for {SAMPLE_DISCOVERY_HEADER_ID}." not in out_hist
+    assert f"No verdict history for {SAMPLE_DISCOVERY_HEADER_ID}." not in err_hist
+    assert "catalog read failed [unavailable]" in err_hist
+    assert "127.0.0.1:59999" in err_hist
+    assert "v_verdicts_history" in err_hist
+
+
+def test_genuinely_empty_table_prints_friendly_message() -> None:
+    """A genuinely empty table still prints the friendly empty message and exits zero."""
+    with duckdb.connect(":memory:") as con:
+        execute_verdicts_views(con)
+
+        # Current view on empty table
+        current = list_current_verdicts_from_duckdb(con)
+        assert current == []
+        assert format_verdicts_table(current) == "No verdicts recorded."
+
+        # History view on empty table
+        history = get_verdict_history_from_duckdb(con, SAMPLE_DISCOVERY_HEADER_ID)
+        assert history == []
+        assert (
+            format_verdict_history_table(SAMPLE_DISCOVERY_HEADER_ID, history)
+            == f"No verdict history for {SAMPLE_DISCOVERY_HEADER_ID}."
+        )
+
+
 @pytest.mark.skipif(
     not os.getenv("DATABASE_URL"),
-    reason="requires live PostgreSQL DATABASE_URL",
+    reason=f"requires live PostgreSQL {database_url_from_environment()}",
 )
 def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
     """Full PostgreSQL catalog roundtrip when DATABASE_URL is provided."""
@@ -453,7 +505,7 @@ def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
         SAMPLE_DISCOVERY_HEADER_ID,
         "accepted",
         by="Peter Makhnatch",
-        note="Catalog test",
+        note="Catalog roundtrip test",
         at=now,
         repo_root=tmp_path,
         database_url=db_url,
@@ -464,7 +516,10 @@ def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
     matching = [v for v in current if v.discovery_id == SAMPLE_DISCOVERY_HEADER_ID]
     assert len(matching) >= 1
     assert matching[0].status == "accepted"
+    assert matching[0].by == "Peter Makhnatch"
+    assert matching[0].note == "Catalog roundtrip test"
 
     history = get_verdict_history_from_catalog(SAMPLE_DISCOVERY_HEADER_ID, database_url=db_url)
     assert len(history) >= 1
     assert history[-1].status == "accepted"
+    assert history[-1].note == "Catalog roundtrip test"

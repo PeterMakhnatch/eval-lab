@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import math
 import re
 import tomllib
@@ -77,6 +78,19 @@ def _lance_root() -> Path:
     return root
 
 
+def _load_trajectory_steps(path: Path) -> list[dict] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or not str(
+        payload.get("schema_version", "")
+    ).startswith("ATIF-"):
+        return None
+    steps = payload.get("steps")
+    return [item for item in steps if isinstance(item, dict)] if isinstance(steps, list) else []
+
+
 def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
     repo = repository_root()
     source = library_source(repo)
@@ -112,9 +126,7 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
         for tr, instr, vec in zip(task_refs, instructions, vectors, strict=True)
     ]
     db = lancedb.connect(str(root))
-    if "tasks" in db.table_names():
-        db.drop_table("tasks")
-    tbl = db.create_table("tasks", data=data, mode="create")
+    tbl = db.create_table("tasks", data=data, mode="overwrite")
     index_reason: str | None = None
     try:
         tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
@@ -132,14 +144,17 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
 
 def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
     derived = derived_root_from_environment(repository_root())
-    parquet_root = derived  # derived_root_from_environment returns the parquet root
+    parquet_root = derived
     if not parquet_root.is_dir():
         return 0, f"no derived/parquet directory ({parquet_root})", None
     parquets = list(parquet_root.rglob("trial_facts.parquet"))
     if not parquets:
         return 0, f"no trial_facts.parquet files ({parquet_root})", None
+    repo = repository_root()
+    runs_root = repo / "runs"
     rows: list[dict] = []
     texts: list[str] = []
+    skipped: list[str] = []
     arrow_tables: list[pa.Table] = []
     for p in parquets:
         try:
@@ -149,16 +164,41 @@ def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str 
             continue
     if not arrow_tables:
         return 0, "no parsable trial rows", None
-    combined = pa.concat_tables(arrow_tables, promote_options="permissive")  # union schemas
+    combined = pa.concat_tables(arrow_tables, promote_options="permissive")
     for row in combined.to_pylist():
         job_id = str(row.get("job_id", ""))
         trial_id = str(row.get("trial_id", ""))
+        job_name = str(row.get("job_name", ""))
+        trial_name = str(row.get("trial_name", ""))
         task_name = str(row.get("task_name") or "")
         agent_version = str(row.get("agent_version") or row.get("agent_name") or "")
         reward = row.get("primary_reward")
         exc = str(row.get("exception_class") or "")
         exc_phase = str(row.get("exception_phase") or "")
-        text = f"{task_name} {agent_version} {exc} {exc_phase}".strip() or "empty"
+        traj_path = runs_root / job_name / trial_name / "agent" / "trajectory.json"
+        steps = _load_trajectory_steps(traj_path) or []
+        if not steps:
+            skipped.append(str(traj_path))
+            text = f"{task_name} {agent_version} {exc} {exc_phase}".strip() or "empty"
+        else:
+            MAX_CHARS = 2048
+            HEAD = 8
+            TAIL = 4
+            msgs: list[str] = []
+            for s in steps:
+                m = s.get("message")
+                if isinstance(m, dict):
+                    m = str(m)
+                if isinstance(m, str):
+                    msgs.append(m)
+            if msgs:
+                head = msgs[:HEAD]
+                tail = msgs[-TAIL:] if len(msgs) > HEAD + TAIL else []
+                sep = ["..."] if len(msgs) > HEAD + TAIL else []
+                doc = "\n".join(head + sep + tail)
+                text = doc[:MAX_CHARS]
+            else:
+                text = f"{task_name} {agent_version} {exc} {exc_phase}".strip() or "empty"
         rows.append(
             {
                 "job_id": job_id,
@@ -174,18 +214,96 @@ def _build_trials(embedder: Embedder, root: Path) -> tuple[int, str | None, str 
         )
         texts.append(text)
     if not texts:
-        return 0, "no parsable trial rows", None
+        reason = "no parsable trial rows"
+        if skipped:
+            reason = f"missing {len(skipped)} trajectories (e.g. {skipped[0]})"
+        return 0, reason, None
     vectors = embedder.embed(texts)
     for i, v in enumerate(vectors):
         rows[i]["vector"] = v
     db = lancedb.connect(str(root))
-    if "trials" in db.table_names():
-        db.drop_table("trials")
-    tbl = db.create_table("trials", data=rows, mode="create")
+    tbl = db.create_table("trials", data=rows, mode="overwrite")
     index_reason: str | None = None
     try:
         tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
-        # cosine because the embedder L2-normalises all vectors to unit length
+    except RuntimeError as e:
+        if "Not enough rows to train" in str(e):
+            index_reason = "too few rows for ANN index (exact brute-force search)"
+        else:
+            raise
+    except Exception:
+        raise
+    return len(rows), None, index_reason
+
+
+def _build_steps(embedder: Embedder, root: Path) -> tuple[int, str | None, str | None]:
+    derived = derived_root_from_environment(repository_root())
+    parquet_root = derived
+    if not parquet_root.is_dir():
+        return 0, f"no derived/parquet directory ({parquet_root})", None
+    parquets = list(parquet_root.rglob("trial_facts.parquet"))
+    if not parquets:
+        return 0, f"no trial_facts.parquet files ({parquet_root})", None
+    repo = repository_root()
+    runs_root = repo / "runs"
+    rows: list[dict] = []
+    texts: list[str] = []
+    skipped: list[str] = []
+    arrow_tables: list[pa.Table] = []
+    for p in parquets:
+        try:
+            table = pq.read_table(p)
+            arrow_tables.append(table)
+        except Exception:
+            continue
+    if not arrow_tables:
+        return 0, "no parsable trial rows", None
+    combined = pa.concat_tables(arrow_tables, promote_options="permissive")
+    for row in combined.to_pylist():
+        job_id = str(row.get("job_id", ""))
+        trial_id = str(row.get("trial_id", ""))
+        job_name = str(row.get("job_name", ""))
+        trial_name = str(row.get("trial_name", ""))
+        task_name = str(row.get("task_name") or "")
+        reward = row.get("primary_reward")
+        traj_path = runs_root / job_name / trial_name / "agent" / "trajectory.json"
+        steps = _load_trajectory_steps(traj_path) or []
+        if not steps:
+            skipped.append(str(traj_path))
+            continue
+        for step in steps:
+            step_id = step.get("step_id")
+            source = str(step.get("source") or "")
+            m = step.get("message")
+            if isinstance(m, dict):
+                m = str(m)
+            msg_text = str(m) if isinstance(m, str) else ""
+            rows.append(
+                {
+                    "job_id": job_id,
+                    "trial_id": trial_id,
+                    "task_name": task_name,
+                    "step_id": step_id,
+                    "source": source,
+                    "primary_reward": reward,
+                    "message": msg_text,
+                    "vector": None,
+                }
+            )
+            texts.append(msg_text)
+    if not texts:
+        reason = "no trajectory steps found"
+        if skipped:
+            reason = f"missing {len(skipped)} trajectories (e.g. {skipped[0]})"
+        return 0, reason, None
+    vectors = embedder.embed(texts)
+    for i, v in enumerate(vectors):
+        rows[i]["vector"] = v
+    db = lancedb.connect(str(root))
+    tbl = db.create_table("steps", data=rows, mode="overwrite")
+    index_reason: str | None = None
+    try:
+        tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
     except RuntimeError as e:
         if "Not enough rows to train" in str(e):
             index_reason = "too few rows for ANN index (exact brute-force search)"
@@ -219,6 +337,16 @@ def build(table: str = "all") -> None:
                 print(f"trials index: skipped ({idx_reason})")
             else:
                 print("trials index: created")
+    if table in ("steps", "all"):
+        n, reason, idx_reason = _build_steps(embedder, root)
+        if reason:
+            print(f"steps: skipped ({reason})")
+        else:
+            print(f"steps: {n} rows")
+            if idx_reason:
+                print(f"steps index: skipped ({idx_reason})")
+            else:
+                print("steps index: created")
 
 
 def search(query: str, table: str = "tasks", k: int = 5) -> None:
@@ -226,7 +354,7 @@ def search(query: str, table: str = "tasks", k: int = 5) -> None:
     vec = embedder.embed([query])[0]
     root = _lance_root()
     db = lancedb.connect(str(root))
-    if table not in db.table_names():
+    if table not in db.list_tables():
         print(f"table {table} not found")
         return
     tbl = db.open_table(table)
@@ -241,7 +369,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="evallab.lance")
     sub = parser.add_subparsers(dest="cmd", required=True)
     bp = sub.add_parser("build", help="build or refresh tables")
-    bp.add_argument("--table", choices=["tasks", "trials", "all"], default="all")
+    bp.add_argument("--table", choices=["tasks", "trials", "steps", "all"], default="all")
     sp = sub.add_parser("search", help="nearest neighbour search")
     sp.add_argument("query")
     sp.add_argument("--table", default="tasks")

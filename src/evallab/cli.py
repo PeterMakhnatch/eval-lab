@@ -8,7 +8,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -69,11 +69,15 @@ from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.queue import (
     DirectoryQueue,
     Executor,
+    lab_threshold_reached,
     load_policy,
     new_ulid,
+    provider_reported_exhaustion,
     read_spec,
     record_projection_failures,
+    render_headroom_notice,
 )
+from evallab.quota import Headroom, default_roots, load_quota_report
 from evallab.report import (
     build_eval_card,
     draft_eval_card,
@@ -104,6 +108,22 @@ from evallab.tracing import (
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _headroom_for(root: Path) -> Headroom:
+    """The provider quota reading for this checkout, or an honest unavailable.
+
+    `approve` must print the allowance even when the allowance cannot be read,
+    so a failed scan becomes an `unavailable` reading with its reason rather
+    than an exception or, worse, a blank.
+    """
+    try:
+        return load_quota_report(default_roots(root), now=datetime.now(UTC)).headroom
+    except (OSError, ValueError) as exc:
+        return Headroom(
+            availability="unavailable",
+            reason=f"the quota scan failed ({type(exc).__name__}: {exc})",
+        )
 
 
 LOCAL_ENV_KEYS = {
@@ -182,6 +202,15 @@ def parser() -> argparse.ArgumentParser:
         "--actor",
         required=True,
         help="who is authorizing; recorded in queue/events.jsonl and never defaulted",
+    )
+    approve.add_argument(
+        "--despite-quota",
+        action="store_true",
+        help=(
+            "authorize even though the provider reports the subscription "
+            "exhausted; recorded on the authorisation event and overrides "
+            "nothing else"
+        ),
     )
 
     reject = commands.add_parser("reject", help="Reject one queued experiment")
@@ -966,7 +995,11 @@ def run_cli(
             return _calibrate_command(args, root)
         if args.command == "approve":
             queue = DirectoryQueue(root / "queue")
-            path = queue.approve(args.spec_id, actor=args.actor)
+            path = queue.approve(
+                args.spec_id,
+                actor=args.actor,
+                quota_override=args.despite_quota,
+            )
             authorized = queue.load(path)
             print(f"authorized: {authorized.spec_id}")
             print(f"actor: {args.actor}")
@@ -977,6 +1010,23 @@ def run_cli(
                     f"estimated {authorized.est_cost_usd:.2f} USD per job, billed to "
                     "Peter's ChatGPT subscription"
                 )
+                # What the authorisation is actually spending against. The
+                # dollar figure above is an API-list-price equivalent and does
+                # not move; the subscription window does.
+                headroom = _headroom_for(root)
+                print(render_headroom_notice(headroom))
+                blocked = provider_reported_exhaustion(headroom) or lab_threshold_reached(headroom)
+                if blocked and not args.despite_quota:
+                    print(
+                        f"WARNING: dispatch will refuse this spec — {blocked}. "
+                        "Re-approve with --despite-quota only if you have reason "
+                        "to believe the reading is wrong."
+                    )
+                elif args.despite_quota and not blocked:
+                    print(
+                        "note: --despite-quota was recorded, but the reading "
+                        "reports no exhaustion, so it overrode nothing."
+                    )
             print("next: uv run evallab tick")
             return 0
         if args.command == "reject":

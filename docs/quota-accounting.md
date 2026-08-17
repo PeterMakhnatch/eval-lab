@@ -3,9 +3,10 @@
 Why the lab's cost model measures the wrong thing, what is actually observable
 instead, and the model `src/evallab/quota.py` implements.
 
-Status: the measurement exists and is proven over real history. Wiring it into
-`PolicyGate` is a separate mission; nothing in this document changes what the
-lab is authorised to run.
+Status: the measurement exists and is proven over real history, and it is now
+wired into `PolicyGate`. What that wiring does and refuses is specified in
+`docs/operations.md`, "What the quota gate does and does not decide"; the rest
+of this document remains a description of the measurement only.
 
 ## The defect being closed
 
@@ -285,9 +286,11 @@ subscription with a hard stop and no quota-aware ceiling is still wrong, and
 still worth fixing tonight. What changes is the magnitude, and therefore which
 fix is urgent.
 
-## Intended integration, not performed here
+## Integration, as performed
 
-`PolicyGate` is leased to another mission this round; nothing below is wired.
+Wired by the mission that followed this one. `PolicyGate` reads the headroom
+and shows it on every billable decision; `quota.py` still imports nothing from
+`queue.py` or `cli.py`, so measurement continues not to authorise.
 
 ```python
 from datetime import UTC, datetime
@@ -303,21 +306,28 @@ report.consumed.since(cutoff).totals().paid_trials  # trials in a window
 
 Two properties matter for a gate. `since()` drops trials with no recorded start
 rather than assuming they are recent, so a window count is a **lower bound** —
-the safe direction. And `headroom.availability` must be checked before
-`remaining_percent` is read, because an unavailable headroom is `None`, and
-treating `None` as "plenty left" would reproduce the defect in a new unit.
+the safe direction, and the reason the gate counts no trials at all: a lower
+bound cannot support a ceiling that has to bind. And `headroom.availability`
+must be checked before `remaining_percent` is read, because an unavailable
+headroom is `None`, and treating `None` as "plenty left" would reproduce the
+defect in a new unit. Both are covered by `tests/test_quota_gate.py`, the first
+by there being no trial-count rule, the second by a test that hands the
+renderer a deliberately poisoned reading — `availability: unavailable` with a
+stray `remaining_percent` of 99 — and asserts the 99 never reaches the
+operator.
 
 The honest gate this measurement supports is a **paid-trial and attempt count
-ceiling**, plus refusal when `hard_stop` is true and `remaining_percent` is low
-and fresh. It does not support a percentage budget for the lab, because the
-lab's share of the percentage is unavailable and always will be.
+ceiling**, plus refusal when the provider itself reports the window exhausted.
+Only the second is implemented. It does not support a percentage budget for the
+lab, because the lab's share of the percentage is unavailable and always will
+be.
 
 ## Reproducing
 
 ```bash
 uv run python -m evallab.quota ../../runs          # text report
 uv run python -m evallab.quota ../../runs --json   # same figures as JSON
-uv run pytest tests/test_quota.py
+uv run pytest tests/test_quota.py tests/test_quota_gate.py
 ```
 
 Field names in `~/.codex/auth.json` were listed with a script that printed keys

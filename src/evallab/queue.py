@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -28,6 +28,12 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.paths import derived_root_from_environment
+from evallab.quota import (
+    Headroom,
+    default_roots,
+    label,
+    load_quota_report,
+)
 from evallab.registry import (
     RegistryError,
     TaskComponentMissingError,
@@ -122,6 +128,15 @@ class PaidRunAuthorization:
     actor: str
     authorized_at: datetime
 
+    #: Whether the human who recorded this authorisation also said, in the same
+    #: recorded act, that they accept a provider-reported quota exhaustion. It
+    #: overrides `subscription_quota_exhausted` and nothing else — every other
+    #: refusal in `PolicyGate.decide` still applies. Recorded as
+    #: `reason_code: quota_override` on the `human_approved` event, so it lives
+    #: in the same append-only ledger as the consent it qualifies and cannot be
+    #: asserted by the spec file the automation writes.
+    quota_override: bool = False
+
 
 def authorization_required_message(spec: ExperimentSpec) -> str:
     """The refusal an operator reads — in `submit` output and in queue/reasons/."""
@@ -160,6 +175,198 @@ def standing_rule_admits(rule: AutoRunRule, spec: ExperimentSpec) -> bool:
     return set(rule.requires).issubset(spec.requires)
 
 
+# --- subscription quota at the moment of authorisation ----------------------
+#
+# `src/evallab/quota.py` measures what remains on the subscription; it
+# deliberately authorises nothing and imports nothing from here. This section
+# is the one-way link: the gate reads the measurement, shows it to whoever is
+# authorising, and refuses only what the *provider itself* says cannot run.
+#
+# Read `docs/quota-accounting.md`, "Intended integration, not performed here".
+# It names two traps and both are honoured below:
+#   1. `headroom.availability` is checked before any percentage is read, because
+#      an unavailable headroom carries `None` in every numeric field and reading
+#      `None` as "plenty left" reproduces the original defect in a new unit.
+#   2. `since()` drops trials with no recorded start, so a window count is a
+#      lower bound. Nothing here counts trials, precisely because a lower bound
+#      cannot support a ceiling that has to bind.
+
+#: Supplies the most recent provider quota snapshot. Injected, so the gate
+#: reads no filesystem and no clock of its own (`agents/CHECKS.md`).
+HeadroomReader = Callable[[], Headroom]
+
+QUOTA_READER_UNCONFIGURED_REASON = (
+    "this gate was built without a quota reader, so the subscription allowance "
+    "was never looked up"
+)
+
+#: Marks a `human_approved` event whose actor accepted the recorded quota state.
+#: It lives on the event because the event log is the only record #65 trusts.
+QUOTA_OVERRIDE_REASON_CODE = "quota_override"
+
+#: What an operator must understand about an unavailable reading. It is not a
+#: reassurance and it is not a zero.
+QUOTA_UNKNOWN_WARNING = (
+    "UNKNOWN is not 'plenty left'. This says the allowance could not be "
+    "measured, not that this run fits inside it. Check the provider yourself "
+    "before authorising."
+)
+
+#: Why a stale reading warns instead of refusing. Argued in
+#: `docs/operations.md`, "What the quota gate does and does not decide".
+QUOTA_STALENESS_NOTE = (
+    "a stale reading warns; it never refuses. The reading exists only because a "
+    "paid trial recorded it, so refusing on age would make the first paid run "
+    "after any quiet period impossible. Age is printed above precisely because "
+    "you, not this gate, are the one judging whether it is still true."
+)
+
+#: A lab-set refusal threshold on the account-wide `used_percent`, deliberately
+#: left unset.
+#:
+#: Refusing above some percentage is a *spend decision*: it trades the risk of a
+#: lockout against the certainty of work that will not happen. That trade is
+#: Peter's, so nothing here invents a number. **This is the single place a
+#: number goes.** Set it to a float and billable dispatch refuses at or above it
+#: with `subscription_quota_ceiling` — a reason code kept distinct from the
+#: provider's own `subscription_quota_exhausted` so the reasons log never
+#: attributes a lab policy to the provider.
+#:
+#: Its durable home is `policy/standing-approvals.yaml`. Putting it there needs
+#: a field on `StandingApprovalsPolicy`, which is `extra="forbid"`: an unknown
+#: YAML key is a load error, not a silent no-op, so the key cannot be added
+#: ahead of the field. `src/evallab/schemas.py` is leased to another mission
+#: this round, so the constant is the honest interim home.
+REFUSE_BILLABLE_AT_USED_PERCENT: float | None = None
+
+
+def _reader_clock(headroom: Headroom) -> datetime | None:
+    """The instant `quota.py` was given when it built this reading.
+
+    Reconstructed from the reading rather than read again, so the gate stays
+    clock-free and its tests stay deterministic.
+    """
+    if headroom.observed_at is None or headroom.staleness_seconds is None:
+        return None
+    return headroom.observed_at + timedelta(seconds=headroom.staleness_seconds)
+
+
+def quota_window_expired(headroom: Headroom) -> bool:
+    """Whether the reading describes a rate-limit window that has since reset.
+
+    The provider states when its window rolls over. Once it has, the recorded
+    `used_percent` and `rate_limit_reached_type` are facts about a window that
+    no longer exists, so they cannot refuse anything. Without this, a final
+    trial that recorded 100% would lock the lab out permanently: the only thing
+    that can produce a fresher reading is another paid trial.
+    """
+    if headroom.availability != "observed" or headroom.resets_at is None:
+        return False
+    now = _reader_clock(headroom)
+    return now is not None and headroom.resets_at <= now
+
+
+def provider_reported_exhaustion(headroom: Headroom) -> str | None:
+    """The provider's own statement that paid work cannot succeed, or `None`.
+
+    Trap one: `availability` is checked first, and every numeric comparison
+    below is unreachable unless the reading is observed. An unavailable reading
+    produces no refusal here — it is not evidence of exhaustion — but the caller
+    must still print :func:`render_headroom_notice`, which says UNKNOWN out loud
+    rather than letting silence read as consent.
+    """
+    if headroom.availability != "observed" or quota_window_expired(headroom):
+        return None
+    if headroom.rate_limit_reached_type is not None:
+        return (
+            f"the provider reports rate_limit_reached_type "
+            f"{headroom.rate_limit_reached_type!r} on limit "
+            f"{headroom.limit_id or label('unavailable')}"
+        )
+    if headroom.used_percent is not None and headroom.used_percent >= 100.0:
+        return f"the provider reports used_percent {headroom.used_percent} of the window"
+    return None
+
+
+def lab_threshold_reached(headroom: Headroom) -> str | None:
+    """Whether a Sponsor-set `used_percent` threshold has been reached.
+
+    Returns `None` while :data:`REFUSE_BILLABLE_AT_USED_PERCENT` is unset, which
+    is its committed state. Kept separate from
+    :func:`provider_reported_exhaustion` so a lab policy is never recorded as
+    the provider's statement.
+    """
+    threshold = REFUSE_BILLABLE_AT_USED_PERCENT
+    if threshold is None or headroom.availability != "observed":
+        return None
+    if quota_window_expired(headroom) or headroom.used_percent is None:
+        return None
+    if headroom.used_percent < threshold:
+        return None
+    return (
+        f"used_percent {headroom.used_percent} is at or above the lab's "
+        f"configured refusal threshold {threshold} "
+        "(REFUSE_BILLABLE_AT_USED_PERCENT in src/evallab/queue.py)"
+    )
+
+
+def _age(seconds: float | None) -> str:
+    if seconds is None:
+        return label("unavailable")
+    total = int(max(0.0, seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m"
+    return f"{minutes}m{secs:02d}s" if minutes else f"{secs}s"
+
+
+def _instant(moment: datetime | None) -> str:
+    return moment.isoformat() if moment is not None else label("unavailable")
+
+
+def render_headroom_notice(headroom: Headroom) -> str:
+    """What the operator is told about the allowance, at the moment of decision.
+
+    Every figure carries its provenance, and no figure is printed unless the
+    reading is observed. The scope line is not decoration: the percentage is
+    account-wide and the lab's share of it is structurally unknowable, so a
+    reader must not take "8% remaining" as "8% remaining for the lab".
+    """
+    header = "subscription quota (scope: account, NOT the lab; provider-reported):"
+    if headroom.availability != "observed":
+        return "\n".join(
+            [
+                header,
+                f"  remaining allowance  UNKNOWN {label('unavailable')}",
+                f"    reason: {headroom.reason or 'not reported'}",
+                f"    {QUOTA_UNKNOWN_WARNING}",
+            ]
+        )
+    lines = [
+        header,
+        f"  used_percent         {headroom.used_percent} {label('observed')}",
+        f"  remaining_percent    {headroom.remaining_percent} {label('observed')} "
+        "(account-wide, whole percentage points)",
+        f"  resets_at            {_instant(headroom.resets_at)}",
+        f"  hard_stop            {headroom.hard_stop}",
+        f"    {headroom.hard_stop_note}",
+        f"  observed_at          {_instant(headroom.observed_at)}",
+        f"  staleness            {_age(headroom.staleness_seconds)} old",
+        f"    {QUOTA_STALENESS_NOTE}",
+        f"  source               {headroom.source or label('unavailable')}",
+    ]
+    if headroom.rate_limit_reached_type is not None:
+        lines.append(f"  rate_limit_reached_type  {headroom.rate_limit_reached_type}")
+    if quota_window_expired(headroom):
+        lines.append(
+            "  NOTE: resets_at has already passed, so this reading describes a "
+            "window that has since rolled over. It cannot refuse anything, and "
+            "it cannot reassure you either."
+        )
+    return "\n".join(lines)
+
+
 class PolicyGate:
     def __init__(
         self,
@@ -167,10 +374,41 @@ class PolicyGate:
         *,
         repo_root: Path | None = None,
         registry: TaskRegistry | None = None,
+        headroom: HeadroomReader | None = None,
     ) -> None:
         self.policy = policy
         self.repo_root = repo_root.resolve() if repo_root else None
         self.registry = registry
+        self._headroom_reader = headroom
+        self._headroom: Headroom | None = None
+
+    def headroom(self) -> Headroom:
+        """The provider's most recent quota reading, resolved at most once.
+
+        Never raises. A gate that cannot read the quota reports `unavailable`
+        with the reason it failed, which the operator surfaces print as
+        UNKNOWN. It must never report a number it does not have.
+        """
+        if self._headroom is None:
+            self._headroom = self._read_headroom()
+        return self._headroom
+
+    def _read_headroom(self) -> Headroom:
+        if self._headroom_reader is None:
+            return Headroom(
+                availability="unavailable",
+                reason=QUOTA_READER_UNCONFIGURED_REASON,
+            )
+        try:
+            return self._headroom_reader()
+        except (OSError, ValueError) as exc:
+            return Headroom(
+                availability="unavailable",
+                reason=(
+                    "the quota reader failed while scanning job directories "
+                    f"({type(exc).__name__}: {exc})"
+                ),
+            )
 
     def decide(
         self,
@@ -266,10 +504,15 @@ class PolicyGate:
             # No standing rule is consulted below this point for billable work,
             # so an unattended cycle cannot reach Harbor with a paid agent.
             if authorization is None:
+                # The refusal is also where the operator first sees what the run
+                # would cost them: they are about to be asked to authorise it.
                 return PolicyDecision(
                     admitted=False,
                     reason_code="paid_run_unauthorized",
-                    message=authorization_required_message(spec),
+                    message=(
+                        f"{authorization_required_message(spec)}\n"
+                        f"{render_headroom_notice(self.headroom())}"
+                    ),
                 )
             if spec.submitted_at is None:
                 return PolicyDecision(
@@ -291,6 +534,40 @@ class PolicyGate:
                         f"(submitted {spec.submitted_at.isoformat()}); a spec id is a "
                         "name, not a reusable token. Authorise the current spec: "
                         f"uv run evallab approve {spec.spec_id} --actor <you>"
+                    ),
+                )
+            # The provider's own statement that paid work cannot succeed. This
+            # sits above the dollar ceilings because a lockout is not a budget
+            # question: no amount of remaining budget makes a locked-out call
+            # run. An unavailable or expired reading refuses nothing here — it
+            # is not evidence of exhaustion — but it is never silent either:
+            # every branch below carries `render_headroom_notice`.
+            headroom = self.headroom()
+            exhausted = provider_reported_exhaustion(headroom)
+            if exhausted is not None and not authorization.quota_override:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="subscription_quota_exhausted",
+                    message=(
+                        f"the provider reports the subscription exhausted: {exhausted}. "
+                        "This is the provider's own account of its allowance, not a "
+                        "threshold this lab invented.\n"
+                        f"{render_headroom_notice(headroom)}\n"
+                        "  override, only if you have reason to believe the reading is "
+                        f"wrong: uv run evallab approve {spec.spec_id} --actor <you> "
+                        "--despite-quota"
+                    ),
+                )
+            threshold_reached = lab_threshold_reached(headroom)
+            if threshold_reached is not None and not authorization.quota_override:
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="subscription_quota_ceiling",
+                    message=(
+                        f"{threshold_reached}.\n"
+                        f"{render_headroom_notice(headroom)}\n"
+                        f"  override: uv run evallab approve {spec.spec_id} "
+                        "--actor <you> --despite-quota"
                     ),
                 )
             if spec.est_cost_usd > self.policy.per_job_cost_ceiling_usd:
@@ -322,13 +599,27 @@ class PolicyGate:
                 )
 
         if authorization is not None:
+            notes = [
+                f"admitted by {authorization.actor}'s authorisation recorded at "
+                f"{authorization.authorized_at.isoformat()}"
+            ]
+            if spec.billable:
+                # Whoever authorised this is entitled to see, in the admission
+                # itself, the allowance they just spent against.
+                admitted_headroom = self.headroom()
+                notes.append(render_headroom_notice(admitted_headroom))
+                if authorization.quota_override and (
+                    provider_reported_exhaustion(admitted_headroom)
+                    or lab_threshold_reached(admitted_headroom)
+                ):
+                    notes.append(
+                        f"{authorization.actor} authorised this DESPITE the recorded "
+                        "quota state (--despite-quota)."
+                    )
             return PolicyDecision(
                 admitted=True,
                 policy_rule="human-approval",
-                message=(
-                    f"admitted by {authorization.actor}'s authorisation recorded at "
-                    f"{authorization.authorized_at.isoformat()}"
-                ),
+                message="\n".join(notes),
             )
 
         if spec.environment != "docker":
@@ -566,6 +857,7 @@ class DirectoryQueue:
                     spec_id=event.spec_id,
                     actor=event.actor,
                     authorized_at=event.occurred_at,
+                    quota_override=event.reason_code == QUOTA_OVERRIDE_REASON_CODE,
                 )
             elif event.event == "human_rejected":
                 granted.pop(event.spec_id, None)
@@ -576,7 +868,14 @@ class DirectoryQueue:
             return None
         return self.authorizations().get(spec.spec_id)
 
-    def approve(self, spec_id: str, *, actor: str) -> Path:
+    def approve(self, spec_id: str, *, actor: str, quota_override: bool = False) -> Path:
+        """Record one human authorisation.
+
+        `quota_override` is stored on the event, not on the spec: the spec file
+        is written by the automation, so an override asserted there would be the
+        machine authorising itself. It overrides `subscription_quota_exhausted`
+        and `subscription_quota_ceiling` only.
+        """
         source = self.locate(spec_id, ("proposed", "pending", "waiting"))
         spec = self.load(source).model_copy(update={"policy_rule": "human-approval"})
         self._replace_model(source, spec)
@@ -586,6 +885,7 @@ class DirectoryQueue:
             actor=actor,
             event="human_approved",
             policy_rule="human-approval",
+            reason_code=QUOTA_OVERRIDE_REASON_CODE if quota_override else None,
         )
 
     def reject(self, spec_id: str, *, actor: str, message: str) -> Path:
@@ -697,12 +997,17 @@ class Executor:
         spent_today: SpendCallable | None = None,
         consecutive_harness_failures: FailureCallable | None = None,
         credential_probe: CredentialProbe | None = None,
+        headroom: HeadroomReader | None = None,
         sleeper: Sleeper = time.sleep,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
-        self.gate = PolicyGate(policy, repo_root=self.repo_root)
+        self.gate = PolicyGate(
+            policy,
+            repo_root=self.repo_root,
+            headroom=headroom or self._repo_headroom,
+        )
         self._runner = runner or self._run_harbor
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
@@ -715,6 +1020,20 @@ class Executor:
             consecutive_harness_failures or self._catalog_harness_failures
         )
         self.last_tick_reason: str | None = None
+
+    def _repo_headroom(self) -> Headroom:
+        """The provider quota reading recovered from this checkout's own runs.
+
+        No network, no credential store, no API key: `quota.py` parses the
+        `rate_limits` block the agent CLI already wrote into a completed
+        trial's session rollout. A checkout with no paid trials therefore
+        reports `unavailable` — which is the truth, and is printed as UNKNOWN
+        rather than treated as headroom.
+        """
+        return load_quota_report(
+            default_roots(self.repo_root),
+            now=datetime.now(UTC),
+        ).headroom
 
     @classmethod
     def from_repo(cls, root: Path) -> Executor:

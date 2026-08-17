@@ -110,7 +110,7 @@ An authorisation naming another spec is `paid_run_authorization_mismatch`.
 uv run evallab submit queue/specs/my-codex-run.json
 #   -> state: waiting, reason paid_run_unauthorized, with both commands printed
 uv run evallab approve <spec-id> --actor peter
-#   -> prints the agent, attempt count, and estimated cost being authorised
+#   -> prints the agent, attempt count, estimated cost, and the quota state
 uv run evallab tick
 ```
 
@@ -127,6 +127,94 @@ checks, or the credential requirement — those still refuse an authorised spec.
 The nightly canary cycle still stages its paid canaries every night, but they
 land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is
 not quarantined for it. Nothing dispatches until Peter authorises a spec by id.
+
+## What the quota gate does and does not decide
+
+Authorising a paid run used to say nothing about what it would cost, because
+the only figure available was a dollar equivalent that never moves. The
+measurement in `src/evallab/quota.py` closes that: the agent CLI writes the
+provider's own `rate_limits` block into every trial's session rollout, Harbor
+copies it out, and the gate reads it. No network call, no credential store, no
+API key.
+
+Every billable decision — the `paid_run_unauthorized` refusal at `submit`, the
+`approve` output, and the admission at `tick` — now carries `used_percent`,
+`remaining_percent`, `resets_at`, `hard_stop`, the age of the reading, and the
+rollout it came from. The scope line is load-bearing: the percentage is
+**account-wide**, and the lab's share of it is structurally unknowable, so
+"8% remaining" is not "8% remaining for the lab".
+
+### The one refusal, and the number that is not there
+
+`subscription_quota_exhausted` refuses a billable dispatch when the provider
+reports `rate_limit_reached_type`, or `used_percent` at or above 100. That is
+the provider's own account of its allowance, not a threshold this lab invented,
+which is why it needs no judgement call. With `hard_stop` true — no overflow
+credits, balance `"0"` — reaching 100% is a lockout for every paid agent until
+the window resets, not an extra charge.
+
+There is **no percentage threshold below that**, deliberately. "Refuse above
+80%" trades the risk of a lockout against the certainty of work that will not
+happen, and that trade is Peter's. The mechanism exists and is unset: set
+`REFUSE_BILLABLE_AT_USED_PERCENT` in `src/evallab/queue.py` to a float and
+billable dispatch refuses at or above it under the separate reason code
+`subscription_quota_ceiling`, so a lab policy is never recorded in
+`queue/reasons/` as the provider's statement. Its durable home is this
+repository's `policy/standing-approvals.yaml`; that needs a field on
+`StandingApprovalsPolicy`, which is `extra="forbid"`, so the YAML key cannot be
+added before the field exists.
+
+### Unavailable is not "plenty left"
+
+A checkout with no paid trials has no reading. The gate reports that as
+`UNKNOWN [unavailable]` with its reason, and never as a number. It refuses
+nothing on an unavailable reading — refusing would be a bootstrap deadlock,
+because only a paid trial can produce a reading — but it never permits
+silently either: the UNKNOWN banner reaches the named human who is being asked
+to authorise, and unattended automation cannot authorise paid work at all.
+A reader that throws is also `unavailable`, with the exception in the reason.
+
+### Stale readings warn; they never refuse
+
+The reading is only as fresh as the last paid trial. Today's live reading was
+5h18m old. Both failure modes are real, and they point in opposite directions:
+
+- **Refusing on age deadlocks the lab.** Freshness is produced *by* paid runs,
+  so after any quiet period every reading is stale and the first paid run
+  becomes impossible — permanently, not until some timer expires.
+- **Trusting a stale reading silently is how a lockout arrives unannounced.**
+  This repository has measured the drift: `docs/quota-accounting.md` records
+  the account moving 71% → 91% in roughly five hours of ordinary interactive
+  use, none of it the lab's. A five-hour-old figure has a demonstrated capacity
+  to be twenty points wrong.
+
+The resolution is that the gate is not the right actor to decide. It cannot
+make a stale reading fresh, and a refusal would not have prevented that drift.
+What it can do is refuse to present an old number as a current one: the age is
+printed next to every figure, in the same block, always. The judgement stays
+with the named human that #65 already requires — who can, unlike this gate,
+look at the provider directly.
+
+One consequence needs its own escape hatch. A reading that says *exhausted* can
+itself be stale, and a paid trial that recorded 100% just before the window
+rolled over would otherwise lock the lab out forever. Two things prevent that:
+a reading whose `resets_at` has already passed describes a window that no
+longer exists and refuses nothing; and
+
+```bash
+uv run evallab approve <spec-id> --actor peter --despite-quota
+```
+
+records the override on the `human_approved` event as
+`reason_code: quota_override`. It lives in the event log, not the spec file,
+for the same reason the authorisation does — the automation writes the spec
+file. It overrides `subscription_quota_exhausted` and
+`subscription_quota_ceiling` and **nothing else**: every ceiling, the
+quiet-failure breaker, and all four of #65's fail-closed states still fire
+against it.
+
+Free `oracle` and `nop` controls spend no allowance and are untouched by all of
+this — no quota is read on their behalf and no quota state can hold them.
 
 ## Headless readiness and scheduling
 

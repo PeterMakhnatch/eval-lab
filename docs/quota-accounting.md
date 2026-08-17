@@ -117,12 +117,13 @@ figures from the artifacts alone.
 - **Claude consumption, entirely.** Zero `claude-code` trials exist, and the
   Keychain path exposes no comparable signal. `PAID_AGENTS` includes
   `claude-code` so the ledger is ready, but it has nothing to report.
-- **Quota after promotion.** `research/evidence/runs/` excludes
-  `agent/sessions/`, correctly, because rollouts contain unredacted prompt text
-  that `AGENTS.md` forbids committing. The consequence is that promotion
-  discards the quota signal at the exact moment evidence becomes permanent, and
-  this investigation is not reproducible from a fresh clone. A redacted
-  `rate_limits` sidecar written at promotion time would fix both.
+- **Quota after promotion — closed, with a caveat.** `research/evidence/runs/`
+  excludes `agent/sessions/`, correctly, because rollouts contain unredacted
+  prompt text that `AGENTS.md` forbids committing. Promotion therefore used to
+  discard the quota signal at the exact moment evidence became permanent. Rule
+  R4 writes a redacted sidecar instead and `quota.py` now falls back to it, so a
+  fresh clone does reproduce a reading. What a fresh clone *cannot* see is any
+  reading from a job nobody promoted — see "Known gap" below.
 
 ## The model
 
@@ -167,6 +168,9 @@ Provenance follows the existing operator convention exactly: `[observed]` /
   never message text, so its output is safe to commit even though the file it
   parsed is not. `tests/test_quota.py` asserts that prompt-shaped payloads
   cannot reach the report and that an observation's `source` is trial-relative.
+- Reads a trial's R4 quota sidecar only when that trial's rollouts yielded no
+  snapshot at all — a fallback, never a second source, so a tree holding both
+  records cannot count one history twice.
 - Imports nothing from `queue.py` or `cli.py`. Measurement does not authorise.
 
 ## The ledger over real history
@@ -402,33 +406,97 @@ uv run python scripts/promote_codex_bundle.py --source-runs runs \
     --job canary-event-summary-codex-20260816
 ```
 
-### The reader is not wired yet
+With the reader wired (below), the consequence is now concrete and should not
+surprise anyone: **a fresh clone reads `used_percent` 70.0, not 92.0.** All
+three 92.0 readings live in the unpromoted `-20260816` jobs, which exist only in
+one workstation's gitignored `runs/`. The report is not wrong — 70.0 is the
+freshest reading the repository holds, labelled `[observed]` and 34h57m stale at
+`2026-08-16T18:00:00Z` — but a reader must not treat it as the current balance.
+Promoting those three jobs is a Sponsor decision, not a mechanism change.
 
-`evallab.quota._rate_limit_snapshots` globs `agent/sessions/**/rollout-*.jsonl`
-only, so it still reports `snapshots harvested: 0` and
-`headroom.availability = "unavailable"` against promoted evidence. `src/` is
-outside this mission's lease. The change needed is a fallback in that one
-function: when a trial yields no rollout snapshots, read
-`agent/quota/*.rate-limits.json`, accept documents whose `kind` is
-`evallab-rate-limits-sidecar`, and append
+### The reader: a fallback to the sidecar, never an addition
+
+`evallab.quota._rate_limit_snapshots` globbed `agent/sessions/**/rollout-*.jsonl`
+only, so promoted evidence read as `snapshots harvested: 0` and
+`headroom.availability = "unavailable"` — the signal was committed but
+unreadable. It now falls back, per trial, to `agent/quota/*.rate-limits.json`
+(`_sidecar_snapshots`), accepting only documents whose `kind` is
+`evallab-rate-limits-sidecar` and keeping
 `(_parse_instant(entry["timestamp"]), entry["rate_limits"], sidecar_path)` for
-each entry in `snapshots`. It must be a fallback, not an addition: a live run
-has the rollout and a promoted bundle has the sidecar, and reading both would
-double-count on any tree holding both. `_model_turns` needs no change — with no
-rollout it already returns `None` rather than claiming zero turns.
+each entry in `snapshots`.
 
-Verified by prototype against the committed bundles with no `runs/` present:
-that fallback takes the report from `snapshots harvested: 0` /
-`headroom.availability = "unavailable"` to **67 snapshots**, `"observed"`,
-`plan_type prolite`, `resets_at 2026-08-20T18:32:49+00:00`, counter resolution
-1.0 percentage point, and the no-overflow-credits lockout note — entirely from
-committed evidence.
+**Fallback, not addition, is the whole subtlety.** A live run has the rollout, a
+promoted bundle has the sidecar, and a tree holding both holds one history
+twice; adding them would inflate every snapshot count and every
+counter-resolution sample. The sidecars are read only when that trial's rollouts
+yielded nothing at all, and
+`test_a_rollout_and_a_sidecar_on_one_trial_count_the_rollout_once` proves it: a
+trial carrying both yields two observations, both `.jsonl`-sourced, with no
+`agent/quota` path anywhere in the report. Turning the fallback into
+`snapshots.extend(...)` makes that test fail with `4 == 2`.
+
+Two properties are preserved deliberately:
+
+- **Staleness stays honest.** The instant kept is the one the *trial* recorded,
+  never the file's, so a reading recovered from a sidecar ages exactly as its
+  rollout twin does —
+  `test_a_sidecar_reading_ages_exactly_as_its_rollout_twin` asserts the same
+  `observed_at` and the same `staleness_seconds` (127798.0) from both records,
+  and that `source` ends in `.rate-limits.json` for the sidecar and `.jsonl` for
+  the rollout, so a reader can tell which kind of record answered. Dating a
+  sidecar reading by file mtime instead fails that test.
+- **The account/lab split is untouched.** `Headroom` stays account-scope and
+  provider-reported; `lab_attributable` remains permanently `[unavailable]`. A
+  sidecar makes a *remaining* reading portable; it says nothing new about the
+  lab's share.
+
+`_model_turns` needed no change, as #67 determined and
+`test_a_sidecar_only_trial_reports_no_model_turns_rather_than_zero` now checks: a
+sidecar-only trial reports `model_turns is None`, not `0`. Note that
+`ConsumptionTotals.model_turns` is a plain sum, so the *aggregate* line still
+renders `model turns 0 [observed]` over promoted evidence where every trial's
+turn count is unavailable. That is pre-existing and outside this change; it is
+recorded in `agents/handoffs/quota-fallback.md` for whoever owns the totals.
+
+Measured against the committed bundles with no `runs/` present, `now` injected as
+`2026-08-16T18:00:00Z`:
+
+```
+  used_percent                         70.0 [observed]
+  remaining_percent                    30.0 [observed]
+  limit_id / plan_type                 codex / prolite
+  window                               10080 minutes (168h00m)
+  resets_at                            2026-08-20T18:32:49+00:00
+  observed_at                          2026-08-15T07:02:25.846000+00:00
+  staleness                            34h57m
+  credits_balance                      0
+  hard stop                            True
+    no overflow credits: reaching 100% blocks every paid agent until the window
+    resets, it does not incur an extra charge
+  counter resolution                   1.0 percentage point
+  source                               event-summary__5E3btLv/agent/quota/rollout-2026-08-15T07-02-04-01a0043a-4b83-7252-a594-fa289617124f.rate-limits.json
+
+snapshots harvested: 67 [observed]
+```
+
+That is 0 → 67 snapshots and `unavailable` → `observed` entirely from committed
+evidence, reproducing #67's prototype figure exactly.
+
+What the gate sees changes with it: `Executor._repo_headroom` scans
+`default_roots`, so on a fresh clone `render_headroom_notice` now prints an
+observed 70.0 with its staleness and hard-stop instead of UNKNOWN. It still
+refuses nothing — `provider_reported_exhaustion` triggers at 100.0 and
+`REFUSE_BILLABLE_AT_USED_PERCENT` is committed as `None` — and once
+`resets_at 2026-08-20T18:32:49+00:00` passes, `quota_window_expired` treats the
+same committed reading as a window that no longer exists.
 
 ## Reproducing
 
 ```bash
 uv run python -m evallab.quota ../../runs          # text report
 uv run python -m evallab.quota ../../runs --json   # same figures as JSON
+uv run python -m evallab.quota                     # committed evidence only:
+                                                   # 67 snapshots, 70.0 [observed]
 uv run pytest tests/test_quota.py tests/test_quota_gate.py
 ```
 

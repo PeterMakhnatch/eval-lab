@@ -45,7 +45,7 @@ inputs:
   - path: docs/join-spine.md
     digest: sha256:7fece1309de2ae0464b09876dbb9979ddbdbd4e3f9ebd397ef848d377d36f95b
   - path: docs/ladder.md
-    digest: sha256:f23f72317e3d2ceba4bb1cda4c8d5e7e475529c284cbd12a56ae8fa72fb552d1
+    digest: sha256:41c3f3e308c78ebd0f52a6bd192772017a0bb90d3d4a96f8c4d612a7e115003f
   - path: docs/lancedb.md
     digest: sha256:eca76c564cf97717facf8c67bca20af4bd32fc38058a11d3c9c861fcab7acd71
   - path: docs/lineage.md
@@ -73,7 +73,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:680617ffc08efe4c5b3855bf9f917e2ecf3d128fe4d7c48124a33e0291846858
+    digest: sha256:b4f720fcaaafd591fe1c20b765b32831eb62b25c5b2efc6cb9989d9b68fe17d0
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md
@@ -96,6 +96,8 @@ inputs:
     digest: sha256:fc5cc3ceeca53378e23a249ebca3ce9365eacef65d99ed5b2fb97668010ae030
   - path: docs/task-workbench.md
     digest: sha256:472f511912d533fa44786c92c3cd8ea16ce3c9c33e22b37177e1b60f3de8d60b
+  - path: docs/tidy.md
+    digest: sha256:d0a846245e70105e2d77a685d8121acbf7a1a12d8702e79b24f4d9cff724d8a7
 ---
 
 <!-- generated-by: docindex v1 -->

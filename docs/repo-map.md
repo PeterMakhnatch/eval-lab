@@ -27,7 +27,7 @@ inputs:
   - path: src/evallab/cards.py
     digest: sha256:bff2f9adb2f7fd3286008265d214cfab8cdc23bdcdb3298dfa6628493ac1b84c
   - path: src/evallab/cli.py
-    digest: sha256:bfedf7e7c98e11fdd070bda400c5c297b9f5b80b386c830eee7b8bccc9ee58d1
+    digest: sha256:79056a2a72c197eb19e41bf893169ea8eab7bf3ebfc75553e346dcf0b3753418
   - path: src/evallab/cohort.py
     digest: sha256:2689cb0f212a5f2feac6367fd3bf8cc93ff9600260b2814c8e1f9a67bce13796
   - path: src/evallab/contextpack.py
@@ -53,7 +53,7 @@ inputs:
   - path: src/evallab/gc.py
     digest: sha256:f6c92c7d9b11214c4a0a6bda5cebe1c1c0eead8bfe4001d27982d967cb553814
   - path: src/evallab/ladder.py
-    digest: sha256:1a64548f4bde6dcd1c63aaff8b209bf78edc6736b8793bc00ea504e5556e7b44
+    digest: sha256:aeb166dd1eb9d0dab330a131772ef09e81f0c3e554169f36b06c6abd02a09b74
   - path: src/evallab/lance.py
     digest: sha256:8fb9aadc783b4246ee1f8dffe49ddb69bf1678a936a81a433dd1b0a70acd5c2d
   - path: src/evallab/lessons.py
@@ -87,7 +87,7 @@ inputs:
   - path: src/evallab/runner.py
     digest: sha256:a5daad37d4a5dd9ef4dcd84939bfd05ab6635a485721337747aa4ad9e23b2c77
   - path: src/evallab/schemas.py
-    digest: sha256:bc5fbf1882227c106df53af16c7101d205e9a12cc966006b200aee17026b4aef
+    digest: sha256:78a1195ea72e5a1ae8386e04e579b6dc71035dff1156b31e491abf81eb5df108
   - path: src/evallab/smoke.py
     digest: sha256:0fe1031ed7451d9cd1dd08ae781e1ecad1fcadb5aed93abd75118f81d2e60b3f
   - path: src/evallab/spine.py
@@ -100,6 +100,8 @@ inputs:
     digest: sha256:468d10fd2afd901cf902d78aab2b451ebc47119a033b77335603b9b842e9d0f5
   - path: src/evallab/task_workbench.py
     digest: sha256:829d6e8576440d6cab0ec1b22d3ce95c59200f1913144bd0aaa846f6f573d979
+  - path: src/evallab/tidy.py
+    digest: sha256:240a16f2f5322aa8cf97118de8c87d1edd333702b14efb0a264a60e1ee8e0fec
   - path: src/evallab/tracing.py
     digest: sha256:a26023ccf1754805ffb76de6ccb83ee568c05e97a941d83b34de197a6e283b93
 ---

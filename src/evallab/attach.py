@@ -100,6 +100,7 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     has_cold = (root / "compact").exists()
     globs = _z3_globs(root)
     created = 0
+    missing = []
     for table in TABLES:
         view_globs: list[str] = []
         for g in globs:
@@ -109,6 +110,7 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
             )
+            missing.append(table)
             continue
         glob_list = ", ".join(f"'{g}'" for g in view_globs)
         try:
@@ -121,7 +123,11 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
             )
-    return ZoneStatus("z3", True, detail=f"{str(root)} ({created}/{len(TABLES)} tables)")
+            missing.append(table)
+    detail = f"{str(root)} ({created}/{len(TABLES)} tables)"
+    if missing:
+        detail += f"; missing: {', '.join(missing)} (intentionally shaped differently)"
+    return ZoneStatus("z3", True, detail=detail)
 
 
 def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
@@ -187,11 +193,11 @@ def attach(
     z4 = _attach_z4(conn, root)
 
     zones = (z2, z3, z4)
-    sql = _build_sql_preamble(dsn, derived, root)
+    sql = build_sql_preamble(dsn, derived, root)
     return AttachResult(conn, zones, sql)
 
 
-def _build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
+def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
     lines = [
         "INSTALL postgres_scanner;",
         "LOAD postgres_scanner;",

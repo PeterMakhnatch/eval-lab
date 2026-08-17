@@ -52,3 +52,34 @@ GROUP BY j.status;
 ```
 
 When Postgres is unavailable the surface still returns a usable connection carrying Z3 and Z4; the join is skipped with explicit reason naming the DSN.
+## CLI
+
+Access is exclusively via the unified attach surface: `evallab db attach`.
+
+```sh
+$ uv run evallab db attach --zones
+z2: attached (localhost:54329/evallab)
+z3: attached (/Users/.../derived/parquet (9/9 tables))
+z4: attached (/Users/.../docs)
+
+$ uv run evallab db attach --print-sql | head -20
+INSTALL postgres_scanner;
+LOAD postgres_scanner;
+ATTACH 'postgresql://...' AS z2 (TYPE postgres);
+CREATE SCHEMA IF NOT EXISTS z3;
+CREATE SCHEMA IF NOT EXISTS z4;
+CREATE OR REPLACE VIEW trial_facts AS SELECT * FROM read_parquet([...], union_by_name=true);
+...
+
+$ uv run evallab db attach --query "select count(*) from trial_facts"
+[(92,)]
+```
+
+Cross-zone query (Z2 + Z3) demonstrating the surface:
+
+```sh
+$ uv run evallab db attach --query "SELECT j.status, COUNT(*) AS trials FROM z2.jobs j JOIN z3.trial_facts t ON j.id = t.job_id GROUP BY j.status;"
+[('done', 92)]
+```
+
+`--zones` exits non-zero only when zero zones attach.

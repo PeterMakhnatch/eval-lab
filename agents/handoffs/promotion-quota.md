@@ -1,6 +1,6 @@
 Status: review-wanted
 Last: R4 quota sidecar added to promotion, leak-tested, and backfilled into the three promoted 20260815 bundles with every other byte unchanged
-Next: Integrator merges; a Platform-lane mission adds the ~20-line sidecar reader to `src/evallab/quota.py` (patch specified and prototype-verified below)
+Next: Integrator merges PR #67 (green); a Platform-lane mission adds the ~20-line sidecar reader to `src/evallab/quota.py` (patch specified and prototype-verified below)
 Blockers: none
 
 # PROMOTION-QUOTA — preserve the provider quota signal through promotion
@@ -163,8 +163,9 @@ under "Known gap". `designed`, awaiting a lane decision.
 - This mission has no row in `agents/missions/ACTIVE.md`; only the Integrator
   edits that board. `agents/CHECKS.md` requires `make premerge`, which this
   round's instruction explicitly excluded — the full suite and `ruff` were run
-  instead, and the ty ratchet was **not** exercised locally. `UNVERIFIED`
-  against the ty gate.
+  instead, and the ty ratchet was not exercised locally. It was exercised on
+  GitHub: PR #67 is green on all five checks — `lint`, `test (3.12)`,
+  `test (3.14)`, `ty`, `profile`.
 
 ## Verification
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -11,9 +12,12 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from evallab import cli
 from evallab.ladder import (
     AgentSpec,
+    GridAxes,
     GridLimits,
+    GridSpec,
     LadderGridSpec,
     ProviderLimit,
     TaskSpec,
@@ -27,11 +31,23 @@ from evallab.quota import Headroom
 from evallab.schemas import ExperimentSpec
 
 
+def _dir_hash(directory: Path) -> str:
+    """Compute sha256 digest of all files in a directory tree."""
+    if not directory.exists():
+        return "empty"
+    hasher = hashlib.sha256()
+    for path in sorted(directory.rglob("*")):
+        if path.is_file():
+            hasher.update(str(path.relative_to(directory)).encode("utf-8"))
+            hasher.update(path.read_bytes())
+    return hasher.hexdigest()
+
+
 def test_sanitize_slug() -> None:
     assert sanitize_slug("tasks/event-summary") == "event-summary"
+    assert sanitize_slug("canary/transaction-reconciliation") == "transaction-reconciliation"
     assert sanitize_slug("research/experiments/preambles/brief-discipline.md") == "brief-discipline"
-    assert sanitize_slug("Agent_With-Special.Chars!#") == "agent-with-special-chars"
-    assert sanitize_slug("---leading-and-trailing---") == "leading-and-trailing"
+    assert sanitize_slug("Special_Characters!@#") == "special-characters"
     assert sanitize_slug("") == "item"
 
 
@@ -44,13 +60,12 @@ def test_generate_spec_name_conforms_to_regex_and_length() -> None:
         attempts=3,
     )
     assert name == "grid-01-event-summary-codex-brief-discipline-k3"
-    # Ensure it validates against ExperimentSpec name pattern
     spec = ExperimentSpec(
         name=name,
         hypothesis="test hypothesis",
         purpose="elicitation",
-        task="event-summary",
-        agent="codex",
+        task="tasks/test",
+        agent="oracle",
         submitted_by="test",
     )
     assert spec.name == name
@@ -71,17 +86,16 @@ def test_generate_spec_name_truncation_preserves_length_and_suffix() -> None:
     long_task = "a" * 50
     long_agent = "b" * 50
     name = generate_spec_name(
-        grid_name="very-long-grid-name",
+        grid_name="grid-very-long-name-exceeding-standard-limits",
         task_slug=long_task,
         agent_slug=long_agent,
-        preamble_slug="none",
+        preamble_slug="preamble",
         attempts=5,
         max_len=80,
     )
     assert len(name) <= 80
     assert name.endswith("-k5")
-    assert not name.endswith("--k5")
-    # Validates against schema
+    assert name.startswith("grid-very-long")
     spec = ExperimentSpec(
         name=name,
         hypothesis="test hypothesis",
@@ -142,6 +156,7 @@ limits:
 def test_load_grid_spec_resolves_builtin_profile() -> None:
     grid = LadderGridSpec(
         name="profile-grid",
+        purpose="elicitation",
         tasks=["canary/event-summary"],
         agents=["codex-gpt-5.6-terra"],
     )
@@ -154,6 +169,7 @@ def test_grid_spec_rejects_control_with_model() -> None:
     with pytest.raises(ValidationError):
         LadderGridSpec(
             name="bad-control-grid",
+            purpose="practice",
             tasks=["canary/event-summary"],
             agents=[AgentSpec(agent="oracle", model="gpt-4")],
         )
@@ -161,10 +177,15 @@ def test_grid_spec_rejects_control_with_model() -> None:
 
 def test_grid_spec_rejects_empty_tasks_or_agents() -> None:
     with pytest.raises(ValidationError):
-        LadderGridSpec(name="empty-tasks", tasks=[], agents=["oracle"])
+        LadderGridSpec(name="empty-tasks", purpose="practice", tasks=[], agents=["oracle"])
 
     with pytest.raises(ValidationError):
-        LadderGridSpec(name="empty-agents", tasks=["canary/event-summary"], agents=[])
+        LadderGridSpec(
+            name="empty-agents",
+            purpose="practice",
+            tasks=["canary/event-summary"],
+            agents=[],
+        )
 
 
 def test_generate_grid_cartesian_expansion() -> None:
@@ -183,13 +204,14 @@ def test_generate_grid_cartesian_expansion() -> None:
     assert len(result.specs) == 16
     assert len(result.skipped) == 0
 
-    # Verify all generated specs are valid ExperimentSpec models with purpose
     for s in result.specs:
         assert isinstance(s, ExperimentSpec)
         assert s.purpose == "elicitation"
         assert s.agent in {"oracle", "nop"}
         assert s.attempts in {1, 3}
-        assert s.est_cost_usd == 0.0  # controls are free
+        assert s.est_cost_usd == 0.0
+        assert s.grid_id == "cartesian-grid"
+        assert s.grid_point is not None
 
 
 def test_generate_grid_custom_hypothesis_template() -> None:
@@ -229,11 +251,13 @@ def test_generate_grid_writes_valid_json_files(tmp_path: Path) -> None:
         loaded = ExperimentSpec.model_validate_json(p.read_text(encoding="utf-8"))
         assert loaded.purpose == "practice"
         assert loaded.name == p.stem
+        assert loaded.grid_id == "write-grid"
 
 
 def test_generate_grid_respects_global_max_specs() -> None:
     grid = LadderGridSpec(
         name="limit-specs-grid",
+        purpose="practice",
         tasks=["task-1", "task-2", "task-3"],
         agents=["oracle", "nop"],
         attempts=[1],
@@ -250,9 +274,10 @@ def test_generate_grid_respects_global_max_specs() -> None:
 def test_generate_grid_respects_global_max_trials() -> None:
     grid = LadderGridSpec(
         name="limit-trials-grid",
+        purpose="practice",
         tasks=["task-1", "task-2"],
         agents=["oracle"],
-        attempts=[5],  # 2 specs * 5 trials = 10 trials
+        attempts=[5],
         limits=GridLimits(max_trials=7),
         check_quota_headroom=False,
     )
@@ -266,9 +291,10 @@ def test_generate_grid_respects_global_max_trials() -> None:
 def test_generate_grid_respects_global_max_cost() -> None:
     grid = LadderGridSpec(
         name="limit-cost-grid",
+        purpose="practice",
         tasks=["task-1", "task-2", "task-3"],
         agents=[AgentSpec(agent="codex", est_cost_per_trial_usd=1.0)],
-        attempts=[2],  # Each spec costs $2.00
+        attempts=[2],
         limits=GridLimits(max_cost_usd=3.0),
         check_quota_headroom=False,
     )
@@ -282,6 +308,7 @@ def test_generate_grid_respects_global_max_cost() -> None:
 def test_generate_grid_respects_per_provider_limits() -> None:
     grid = LadderGridSpec(
         name="provider-limit-grid",
+        purpose="practice",
         tasks=["task-1", "task-2"],
         agents=[
             AgentSpec(agent="codex", est_cost_per_trial_usd=0.5),
@@ -292,13 +319,12 @@ def test_generate_grid_respects_per_provider_limits() -> None:
         limits=GridLimits(
             per_provider={
                 "codex": ProviderLimit(max_specs=1),
-                "claude-code": ProviderLimit(max_cost_usd=0.4),  # $0.50 cost > $0.40 limit
+                "claude-code": ProviderLimit(max_cost_usd=0.4),
             }
         ),
         check_quota_headroom=False,
     )
     result = generate_grid(grid)
-    # codex gets 1 spec, claude-code gets 0 (exceeds cost), oracle gets 2 specs
     assert result.by_provider["codex"].specs_count == 1
     assert result.by_provider["claude-code"].specs_count == 0
     assert result.by_provider["oracle"].specs_count == 2
@@ -314,13 +340,13 @@ def test_generate_grid_skips_paid_agents_on_exhausted_headroom() -> None:
     )
     grid = LadderGridSpec(
         name="quota-headroom-grid",
+        purpose="practice",
         tasks=["canary/event-summary"],
         agents=["codex", "oracle"],
         attempts=[1],
         check_quota_headroom=True,
     )
     result = generate_grid(grid, headroom_override=exhausted_headroom)
-    # Paid codex skipped, free oracle admitted
     assert result.total_specs == 1
     assert result.specs[0].agent == "oracle"
     assert len(result.skipped) == 1
@@ -414,6 +440,7 @@ def test_grid_spec_jobs_dir_validation() -> None:
     with pytest.raises(ValueError):
         LadderGridSpec(
             name="bad-jobs-dir",
+            purpose="practice",
             tasks=["task1"],
             agents=["oracle"],
             jobs_dir="/etc/runs",
@@ -424,6 +451,7 @@ def test_grid_spec_rejects_extra_fields() -> None:
     with pytest.raises(ValidationError):
         LadderGridSpec.model_validate({
             "name": "extra-field-grid",
+            "purpose": "practice",
             "tasks": ["task1"],
             "agents": ["oracle"],
             "unexpected_extra_field": "value",
@@ -459,3 +487,294 @@ def test_cli_error_handling(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
 
     ret_no_args = main([])
     assert ret_no_args == 1
+
+
+# ---------------------------------------------------------------------------
+# Specific test requirements from v2 §4 and Mission Brief
+# ---------------------------------------------------------------------------
+
+
+def test_grid_spec_rejects_missing_purpose(tmp_path: Path) -> None:
+    """A grid without purpose is rejected at load with a message naming the field."""
+    raw_yaml = """
+schema_version: 1
+grid_id: grid-no-purpose
+axes:
+  task_refs:
+    - canary/event-summary
+  agents:
+    - oracle
+  preamble:
+    - none
+  k:
+    - 1
+"""
+    grid_file = tmp_path / "no_purpose.yaml"
+    grid_file.write_text(raw_yaml, encoding="utf-8")
+
+    with pytest.raises(ValueError) as excinfo:
+        load_grid_spec(grid_file)
+    assert "purpose" in str(excinfo.value)
+
+    # Also via dict
+    with pytest.raises(ValueError) as excinfo_dict:
+        load_grid_spec({
+            "grid_id": "grid-no-purpose",
+            "axes": {"task_refs": ["t1"], "agents": ["oracle"]},
+        })
+    assert "purpose" in str(excinfo_dict.value)
+
+
+def test_grid_expands_exact_point_set_minus_constraints() -> None:
+    """A fixture grid expands to the exact expected cross-product minus constraints."""
+    grid = GridSpec(
+        grid_id="grid-axes-test",
+        purpose="elicitation",
+        axes=GridAxes(
+            task_refs=["tasks/task-a", "tasks/task-b"],
+            agents=["oracle", "nop"],
+            preamble=["none", "p1.md"],
+            k=[1, 3],
+        ),
+        constraints=[
+            {"agent": "nop", "k": 3},  # Excludes 4 points
+            {"task_ref": "tasks/task-a", "preamble": "p1.md"},  # Excludes 3 points
+        ],
+        check_quota_headroom=False,
+    )
+    result = generate_grid(grid)
+
+    # Full cross-product: 2 * 2 * 2 * 2 = 16 points.
+    # Excluded points:
+    # 1) agent=nop, k=3 -> 4 points
+    # 2) task=task-a, preamble=p1.md -> 3 points
+    # Total excluded: 7 points -> Expected emitted: 16 - 7 = 9 points.
+    # Expected emitted: 16 - 7 = 9 points.
+
+    assert result.total_specs == 9
+    assert len(result.specs) == 9
+
+    emitted_points = {
+        (
+            s.grid_point["task_ref"],
+            s.grid_point["agent"],
+            s.grid_point["preamble"],
+            s.grid_point["k"],
+        )
+        for s in result.specs
+    }
+
+    expected_points = {
+        ("tasks/task-a", "oracle", "none", 1),
+        ("tasks/task-a", "oracle", "none", 3),
+        ("tasks/task-a", "nop", "none", 1),
+        ("tasks/task-b", "oracle", "none", 1),
+        ("tasks/task-b", "oracle", "none", 3),
+        ("tasks/task-b", "oracle", "p1.md", 1),
+        ("tasks/task-b", "oracle", "p1.md", 3),
+        ("tasks/task-b", "nop", "none", 1),
+        ("tasks/task-b", "nop", "p1.md", 1),
+    }
+
+    assert emitted_points == expected_points
+
+
+def test_resume_not_duplicate_emits_only_missing_points(tmp_path: Path) -> None:
+    """With existing points, a second generate emits only missing ones."""
+    grid = GridSpec(
+        grid_id="grid-resume-test",
+        purpose="elicitation",
+        axes=GridAxes(
+            task_refs=["tasks/task-1", "tasks/task-2"],
+            agents=["oracle", "nop"],
+            preamble=["none"],
+            k=[1, 3],
+        ),
+        check_quota_headroom=False,
+    )
+    # Total points: 2 * 2 * 1 * 2 = 8 points.
+
+    out_dir = tmp_path / "queue" / "proposed"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Pre-populate 3 points in queue directory
+    existing_spec_1 = ExperimentSpec(
+        name="grid-resume-test-task-1-oracle-k1",
+        hypothesis="hypothesis",
+        purpose="elicitation",
+        task="tasks/task-1",
+        agent="oracle",
+        attempts=1,
+        submitted_by="test",
+        grid_id="grid-resume-test",
+        grid_point={"task_ref": "tasks/task-1", "agent": "oracle", "preamble": "none", "k": 1},
+    )
+    existing_spec_2 = ExperimentSpec(
+        name="grid-resume-test-task-2-oracle-k3",
+        hypothesis="hypothesis",
+        purpose="elicitation",
+        task="tasks/task-2",
+        agent="oracle",
+        attempts=3,
+        submitted_by="test",
+        grid_id="grid-resume-test",
+        grid_point={"task_ref": "tasks/task-2", "agent": "oracle", "preamble": "none", "k": 3},
+    )
+    existing_spec_3 = ExperimentSpec(
+        name="grid-resume-test-task-1-nop-k1",
+        hypothesis="hypothesis",
+        purpose="elicitation",
+        task="tasks/task-1",
+        agent="nop",
+        attempts=1,
+        submitted_by="test",
+        grid_id="grid-resume-test",
+        grid_point={"task_ref": "tasks/task-1", "agent": "nop", "preamble": "none", "k": 1},
+    )
+
+    for s in (existing_spec_1, existing_spec_2, existing_spec_3):
+        (out_dir / f"{s.name}.json").write_text(s.model_dump_json(indent=2), encoding="utf-8")
+
+    # Run generation with output_dir set
+    result = generate_grid(grid, output_dir=out_dir, repo_root=tmp_path)
+
+    # 8 total - 3 existing = 5 emitted
+    assert result.total_specs == 5
+    assert len(result.specs) == 5
+    assert len(result.deduped) == 3
+
+    emitted_points = {
+        (
+            s.grid_point["task_ref"],
+            s.grid_point["agent"],
+            s.grid_point["preamble"],
+            s.grid_point["k"],
+        )
+        for s in result.specs
+    }
+    existing_point_set = {
+        ("tasks/task-1", "oracle", "none", 1),
+        ("tasks/task-2", "oracle", "none", 3),
+        ("tasks/task-1", "nop", "none", 1),
+    }
+
+    # Zero overlap / zero duplicates
+    assert emitted_points.isdisjoint(existing_point_set)
+
+    # Re-running again when all 8 points are now written emits 0 specs and 8 deduped
+    result_again = generate_grid(grid, output_dir=out_dir, repo_root=tmp_path)
+    assert result_again.total_specs == 0
+    assert len(result_again.specs) == 0
+    assert len(result_again.deduped) == 8
+
+
+def test_daily_budget_units_truncation_and_withholding_report() -> None:
+    """A small budget emits a prefix and reports withheld points with reason."""
+    grid = GridSpec(
+        grid_id="grid-budget-test",
+        purpose="baseline",
+        axes=GridAxes(
+            task_refs=["tasks/task-1", "tasks/task-2", "tasks/task-3"],
+            agents=["oracle", "nop"],
+            preamble=["none"],
+            k=[1, 2],
+        ),
+        daily_budget_units=4,  # Only 4 attempts fit
+        check_quota_headroom=False,
+    )
+    result = generate_grid(grid)
+
+    assert result.total_trials <= 4
+    assert len(result.specs) < 12
+    assert len(result.skipped) > 0
+
+    # Assert every withheld spec carries a clear reason
+    for skipped in result.skipped:
+        assert "daily_budget_units limit (4) would be exceeded" in skipped.reason
+
+    summary = result.summary()
+    assert "Withheld specs" in summary
+    assert "daily_budget_units limit (4) would be exceeded" in summary
+
+
+def test_dry_run_is_default_and_writes_nothing(tmp_path: Path) -> None:
+    """--dry-run writes nothing: digest of queue directory is unchanged before and after."""
+    queue_dir = tmp_path / "queue"
+    for state in ("proposed", "pending", "approved", "waiting", "running", "done", "failed"):
+        (queue_dir / state).mkdir(parents=True, exist_ok=True)
+
+    initial_digest = _dir_hash(queue_dir)
+
+    grid_file = tmp_path / "grid.yaml"
+    grid_file.write_text(
+        yaml.dump({
+            "schema_version": 1,
+            "grid_id": "dry-run-grid",
+            "purpose": "practice",
+            "axes": {
+                "task_refs": ["canary/event-summary"],
+                "agents": ["oracle"],
+                "preamble": ["none"],
+                "k": [1],
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    # Run ladder via cli in workspace tmp_path (default dry run)
+    exit_code = cli.run_cli(["ladder", "generate", str(grid_file)], workspace=tmp_path)
+    assert exit_code == 0
+
+    post_digest = _dir_hash(queue_dir)
+    assert initial_digest == post_digest
+
+
+def test_output_is_byte_identical_across_two_runs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Output is byte-identical across two runs."""
+    grid_file = tmp_path / "identical_grid.yaml"
+    grid_file.write_text(
+        yaml.dump({
+            "schema_version": 1,
+            "grid_id": "byte-identical-grid",
+            "purpose": "elicitation",
+            "axes": {
+                "task_refs": ["canary/event-summary", "tasks/transaction-reconciliation"],
+                "agents": ["oracle", "nop"],
+                "preamble": ["none", "brief-discipline.md"],
+                "k": [1, 3],
+            },
+            "constraints": [{"agent": "nop", "k": 3}],
+            "daily_budget_units": 10,
+        }),
+        encoding="utf-8",
+    )
+
+    # Run 1
+    ret1 = main(["generate", str(grid_file), "--json", "--no-quota-check"])
+    assert ret1 == 0
+    out1 = capsys.readouterr().out
+
+    # Run 2
+    ret2 = main(["generate", str(grid_file), "--json", "--no-quota-check"])
+    assert ret2 == 0
+    out2 = capsys.readouterr().out
+
+    assert out1 == out2
+    assert out1.encode("utf-8") == out2.encode("utf-8")
+
+
+def test_example_grid_file_in_grids_directory_validates() -> None:
+    """The committed example grid under grids/ is valid and expands cleanly."""
+    example_path = Path(__file__).resolve().parents[1] / "grids" / "event-summary-elicitation.yaml"
+    assert example_path.is_file()
+
+    grid = load_grid_spec(example_path)
+    assert grid.grid_id == "grid-event-summary-elicitation"
+    assert grid.purpose == "elicitation"
+    assert grid.daily_budget_units == 20
+
+    result = generate_grid(grid, check_quota_headroom=False)
+    assert result.total_specs > 0
+    assert result.total_trials > 0

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
-from typing import Any, Literal, get_args
+from typing import Any, Literal, cast, get_args
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -124,6 +124,8 @@ class ExperimentSpec(ContractModel):
     task_version: str | None = None
     verifier_digest: str | None = None
     submitted_at: datetime | None = None
+    grid_id: str | None = None
+    grid_point: dict[str, Any] | None = None
 
     @field_validator("task", "task_path", "jobs_dir")
     @classmethod
@@ -1101,3 +1103,208 @@ class Verdict(ContractModel):
     def _discovery_ulid(cls, v: str) -> str:
         return _validate_ulid(v)
 
+
+
+class TaskSpec(ContractModel):
+    """Specification of a task in the grid."""
+
+    task: str = Field(min_length=1)
+    task_path: str | None = None
+    expected_reward: float | None = None
+    task_version: str | None = None
+    verifier_digest: str | None = None
+
+
+class AgentSpec(ContractModel):
+    """Specification of an agent in the grid."""
+
+    agent: str = Field(min_length=1)
+    model: str | None = None
+    environment: str | None = None
+    est_cost_per_trial_usd: float | None = Field(default=None, ge=0.0)
+
+    @model_validator(mode="after")
+    def validate_control_models(self) -> AgentSpec:
+        if self.agent in {"oracle", "nop"} and self.model:
+            raise ValueError(f"Control agent {self.agent!r} must not declare a model")
+        return self
+
+
+class ProviderLimit(ContractModel):
+    """Quota and batch limits for a single provider/agent."""
+
+    max_specs: int | None = Field(default=None, ge=1)
+    max_trials: int | None = Field(default=None, ge=1)
+    max_cost_usd: float | None = Field(default=None, ge=0.0)
+
+
+class GridLimits(ContractModel):
+    """Global and per-provider bounds on grid expansion."""
+
+    max_specs: int | None = Field(default=None, ge=1)
+    max_trials: int | None = Field(default=None, ge=1)
+    max_cost_usd: float | None = Field(default=None, ge=0.0)
+    per_provider: dict[str, ProviderLimit] = Field(default_factory=dict)
+
+
+class GridAxes(ContractModel):
+    """Experimental axes for Cartesian grid expansion: tasks x agents x preambles x k."""
+
+    task_refs: list[TaskSpec] = Field(min_length=1)
+    agents: list[AgentSpec] = Field(min_length=1)
+    preamble: list[str] = Field(default_factory=lambda: ["none"])
+    k: list[int] = Field(default_factory=lambda: [1])
+
+    @field_validator("task_refs", mode="before")
+    @classmethod
+    def _normalize_task_refs(cls, value: Any) -> list[TaskSpec]:
+        if isinstance(value, (str, dict, TaskSpec)):
+            value = [value]
+        if not value:
+            raise ValueError("task_refs must not be empty")
+        res: list[TaskSpec] = []
+        for v in value:
+            if isinstance(v, str):
+                res.append(TaskSpec(task=v))
+            elif isinstance(v, dict):
+                res.append(TaskSpec.model_validate(v))
+            elif isinstance(v, TaskSpec):
+                res.append(v)
+            else:
+                raise ValueError(f"Invalid task reference item: {v}")
+        return res
+
+    @field_validator("agents", mode="before")
+    @classmethod
+    def _normalize_agents(cls, value: Any) -> list[AgentSpec]:
+        if isinstance(value, (str, dict, AgentSpec)):
+            value = [value]
+        if not value:
+            raise ValueError("agents must not be empty")
+        from evallab.profiles import builtin_profiles
+
+        builtins = builtin_profiles()
+        res: list[AgentSpec] = []
+        for v in value:
+            if isinstance(v, str):
+                if v in builtins:
+                    profile = builtins[v]
+                    res.append(AgentSpec(agent=profile.adapter, model=profile.model))
+                else:
+                    res.append(AgentSpec(agent=v))
+            elif isinstance(v, dict):
+                res.append(AgentSpec.model_validate(v))
+            elif isinstance(v, AgentSpec):
+                res.append(v)
+            else:
+                raise ValueError(f"Invalid agent item: {v}")
+        return res
+
+    @field_validator("preamble", mode="before")
+    @classmethod
+    def _normalize_preamble(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            value = [value]
+        if not value:
+            return ["none"]
+        return list(value)
+
+    @field_validator("k", mode="before")
+    @classmethod
+    def _normalize_k(cls, value: Any) -> list[int]:
+        if isinstance(value, int):
+            if value < 1:
+                raise ValueError("k must be >= 1")
+            return [value]
+        if not value:
+            return [1]
+        res: list[int] = []
+        for item in value:
+            int_val = int(item)
+            if int_val < 1:
+                raise ValueError(f"k value {int_val} must be >= 1")
+            res.append(int_val)
+        return res
+
+
+class GridSpec(ContractModel):
+    """Declared specification for an evaluation grid expansion (v2 §4)."""
+
+    schema_version: Literal[1] = 1
+    grid_id: str | None = None
+    name: str | None = None
+    purpose: ExperimentPurpose
+    axes: GridAxes | None = None
+    constraints: list[dict[str, Any]] = Field(default_factory=list)
+    daily_budget_units: int | float | None = Field(default=None, ge=0)
+
+    # Execution defaults and limits
+    environment: str = "docker"
+    jobs_dir: str = EXPLORATION_JOBS_ROOT
+    concurrency: int = Field(default=1, ge=1)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    submitted_by: str = Field(default="ladder-generator", min_length=1)
+    priority: int = Field(default=100, ge=0, le=1000)
+    hypothesis: str | None = None
+    hypothesis_template: str | None = None
+    est_cost_per_trial_usd: dict[str, float] | float = Field(default_factory=dict)
+    limits: GridLimits = Field(default_factory=GridLimits)
+    check_quota_headroom: bool = True
+    policy_rule: str | None = None
+    requires: list[str] = Field(default_factory=list)
+
+    # Backward-compatible flat fields
+    tasks: list[str | TaskSpec] | None = None
+    agents: list[str | AgentSpec] | None = None
+    preambles: list[str] | None = None
+    attempts: list[int] | None = None
+
+    @field_validator("jobs_dir")
+    @classmethod
+    def _jobs_dir_is_readable_root(cls, value: str) -> str:
+        return validated_jobs_dir(value)
+
+    @field_validator("constraints", mode="before")
+    @classmethod
+    def _normalize_constraints(cls, value: Any) -> list[dict[str, Any]]:
+        if value is None:
+            return []
+        if isinstance(value, dict):
+            return [value]
+        if isinstance(value, list):
+            return [v if isinstance(v, dict) else dict(v) for v in value]
+        raise ValueError("constraints must be a list of condition dicts or a condition dict")
+
+    @model_validator(mode="after")
+    def _populate_axes_and_identity(self) -> GridSpec:
+        if self.axes is None:
+            tasks_val = self.tasks
+            agents_val = self.agents
+            if tasks_val is None or len(tasks_val) == 0:
+                raise ValueError("grid specification must provide axes.task_refs or tasks")
+            if agents_val is None or len(agents_val) == 0:
+                raise ValueError("grid specification must provide axes.agents or agents")
+            preambles_val = self.preambles or ["none"]
+            attempts_val = self.attempts or [1]
+            if isinstance(attempts_val, int):
+                attempts_val = [attempts_val]
+            self.axes = GridAxes(
+                task_refs=tasks_val,
+                agents=agents_val,
+                preamble=preambles_val,
+                k=attempts_val,
+            )
+        self.tasks = cast(list[str | TaskSpec], list(self.axes.task_refs))
+        self.agents = cast(list[str | AgentSpec], list(self.axes.agents))
+        self.preambles = self.axes.preamble
+        self.attempts = self.axes.k
+        if not self.name and not self.grid_id:
+            raise ValueError("grid specification must declare either grid_id or name")
+        if not self.grid_id and self.name:
+            self.grid_id = self.name
+        if not self.name and self.grid_id:
+            self.name = self.grid_id
+        return self
+
+
+LadderGridSpec = GridSpec

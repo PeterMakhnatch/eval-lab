@@ -7,6 +7,15 @@
 # Adding a billable agent below therefore grants nothing; it only misstates
 # what this lab does. See docs/operations.md, "Paid execution requires a
 # recorded authorisation".
+#
+# The three dollar figures below are API-list-price *equivalents*. No dollars
+# move when a paid trial runs: paid agents authenticate from a personal
+# subscription, so the constraint that actually binds is a rate-limit window
+# (docs/quota-accounting.md). Billable dispatch is additionally refused when
+# the provider itself reports that window exhausted. There is deliberately no
+# percentage threshold below the provider's own limit — that is a spend
+# decision for Peter, and the one place it would go is
+# `REFUSE_BILLABLE_AT_USED_PERCENT` in `src/evallab/queue.py`, left unset.
 version: 1
 daily_cost_ceiling_usd: 20
 per_job_cost_ceiling_usd: 3
@@ -19,3 +28,4 @@ escalate_to_human:
   - new_task_registration
   - cloud_or_remote_environment
   - anything_exceeding_ceilings
+  - subscription_quota_exhausted

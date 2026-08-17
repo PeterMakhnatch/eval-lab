@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import re
@@ -9,42 +10,105 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-import duckdb
-import psycopg
 import yaml
-from psycopg.rows import dict_row
 
+from evallab.attach import AttachResult, ZoneStatus, attach
 from evallab.cohort import wilson_interval
 
 Row = Mapping[str, Any]
 
+PANES: dict[str, str] = {
+    "leaderboard": "z2.trials",
+    "canaries": "z2.canary_drift_observations",
+    "spend": "z2.trials",
+    "calibrations": "z2.judge_calibrations",
+    "atif": "trial_facts",
+    "discoveries": "z4.front_matter",
+}
+
+
+class ZoneUnavailableError(RuntimeError):
+    """Raised when a query requires a storage zone that is not attached."""
+
+    def __init__(self, zone: str, reason: str | None = None) -> None:
+        message = f"zone {zone} unavailable: {reason or 'not attached'}"
+        super().__init__(message)
+        self.zone = zone
+        self.reason = reason
+
 
 class QuerySource(Protocol):
-    def query(self, statement: str, parameters: Sequence[Any] = ()) -> list[dict[str, Any]]: ...
+    def query(
+        self, statement: str, parameters: Sequence[Any] = ()
+    ) -> list[dict[str, Any]]: ...
 
     def relation_exists(self, name: str) -> bool: ...
 
 
-class ReadOnlyPostgres:
-    """Small PostgreSQL reader that makes accidental writes fail at the server."""
+class AttachSource:
+    """Unified DuckDB attach surface reader (Z2 PostgreSQL + Z3 Parquet + Z4 docs)."""
 
-    def __init__(self, database_url: str) -> None:
-        self.database_url = database_url
+    def __init__(
+        self,
+        attach_result: AttachResult | None = None,
+        *,
+        repo_root: Path | None = None,
+        explicit_derived: Path | None = None,
+        environ: dict[str, str] | None = None,
+    ) -> None:
+        if attach_result is not None:
+            self.result = attach_result
+        else:
+            self.result = attach(
+                repo_root=repo_root,
+                explicit_derived=explicit_derived,
+                environ=environ,
+            )
+        self.connection = self.result.connection
+        self.zones: dict[str, ZoneStatus] = {z.name: z for z in self.result.zones}
+
+    def zone_status(self, name: str) -> ZoneStatus | None:
+        return self.zones.get(name)
+
+    def is_zone_attached(self, name: str) -> bool:
+        z = self.zones.get(name)
+        return bool(z and z.attached)
+
+    def require_zone(self, name: str) -> None:
+        z = self.zones.get(name)
+        if z is None or not z.attached:
+            reason = z.reason if z else "zone not found"
+            detail = f" ({z.detail})" if z and z.detail else ""
+            raise ZoneUnavailableError(name, f"{reason}{detail}")
 
     def query(
         self, statement: str, parameters: Sequence[Any] = ()
     ) -> list[dict[str, Any]]:
-        with psycopg.connect(
-            self.database_url,
-            connect_timeout=2,
-            options="-c default_transaction_read_only=on -c statement_timeout=1500",
-            row_factory=dict_row,
-        ) as connection:
-            return [dict(row) for row in connection.execute(statement, parameters).fetchall()]
+        cursor = self.connection.execute(statement, list(parameters))
+        if cursor.description is None:
+            return []
+        cols = [c[0] for c in cursor.description]
+        return [dict(zip(cols, row, strict=True)) for row in cursor.fetchall()]
 
     def relation_exists(self, name: str) -> bool:
-        rows = self.query("SELECT to_regclass(%s) IS NOT NULL AS present", (name,))
-        return bool(rows and rows[0]["present"])
+        try:
+            rows = self.connection.execute(
+                "SELECT 1 FROM information_schema.tables WHERE table_name = ? LIMIT 1",
+                [name],
+            ).fetchall()
+            if rows:
+                return True
+            views = self.connection.execute(
+                "SELECT 1 FROM duckdb_views() WHERE view_name = ? LIMIT 1",
+                [name],
+            ).fetchall()
+            return len(views) > 0
+        except Exception:
+            return False
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            self.connection.close()
 
 
 LEADERBOARD_SQL = """
@@ -56,8 +120,8 @@ SELECT
     COALESCE(t.model_name, 'adhoc') AS model_name,
     t.primary_reward,
     t.exception_type
-FROM trials t
-JOIN jobs j ON j.id = t.job_id
+FROM z2.public.trials t
+JOIN z2.public.jobs j ON j.id = t.job_id
 ORDER BY cohort, task_name, agent_name, model_name, trial_id
 """
 
@@ -75,24 +139,18 @@ SELECT
     baseline_stddev,
     is_harness_drift_suspect,
     drift_reason
-FROM canary_drift_observations
+FROM z2.public.canary_drift_observations
 ORDER BY observation_date, task_name, agent_name
 """
 
 SPEND_SQL = """
 SELECT
-    (
-        CAST(finished_at AS timestamptz)
-        AT TIME ZONE current_setting('TIMEZONE')
-    )::date AS spend_date,
+    CAST(finished_at AS date) AS spend_date,
     count(*) AS trial_count,
     COALESCE(sum(cost_usd), 0) AS spend_usd
-FROM trials
+FROM z2.public.trials
 WHERE finished_at IS NOT NULL
-  AND (
-      CAST(finished_at AS timestamptz)
-      AT TIME ZONE current_setting('TIMEZONE')
-  )::date >= %s
+  AND CAST(finished_at AS date) >= ?
 GROUP BY spend_date
 ORDER BY spend_date
 """
@@ -110,7 +168,7 @@ SELECT
     reportable,
     document_count,
     evaluated_on
-FROM judge_calibrations
+FROM z2.public.judge_calibrations
 ORDER BY evaluated_on DESC, family, judge_model, record_id
 """
 
@@ -122,7 +180,7 @@ SELECT
     COALESCE(sum(llm_call_count), 0) AS llm_call_count,
     COALESCE(sum(tool_call_count), 0) AS tool_call_count,
     count(*) FILTER (WHERE invalid_trajectory_count > 0) AS invalid_trial_count
-FROM read_parquet(?, hive_partitioning = true, union_by_name = true)
+FROM trial_facts
 """
 
 TOOL_USAGE_SQL = """
@@ -130,7 +188,7 @@ SELECT
     function_name,
     sum(call_count) AS call_count,
     count(DISTINCT trial_id) AS trial_count
-FROM read_parquet(?, hive_partitioning = true, union_by_name = true)
+FROM tool_usage
 GROUP BY function_name
 ORDER BY call_count DESC, function_name
 LIMIT 12
@@ -140,6 +198,8 @@ _DISCOVERY_HEADER = re.compile(r"^## (?P<discovery_id>D-[^ ]+) — (?P<status>[^
 
 
 def leaderboard(source: QuerySource, *, pass_threshold: float = 1.0) -> list[dict[str, Any]]:
+    if isinstance(source, AttachSource):
+        source.require_zone("z2")
     grouped: dict[tuple[str, str, str, str], list[Row]] = defaultdict(list)
     for row in source.query(LEADERBOARD_SQL):
         key = tuple(
@@ -199,6 +259,8 @@ def _normal_interval(mean: Any, standard_deviation: Any, n: int) -> tuple[float,
 
 
 def canary_history(source: QuerySource) -> list[dict[str, Any]]:
+    if isinstance(source, AttachSource):
+        source.require_zone("z2")
     history = []
     for raw in source.query(CANARY_SQL):
         row = dict(raw)
@@ -211,6 +273,8 @@ def canary_history(source: QuerySource) -> list[dict[str, Any]]:
 
 
 def spend_history(source: QuerySource, *, through: date, days: int = 7) -> list[dict[str, Any]]:
+    if isinstance(source, AttachSource):
+        source.require_zone("z2")
     start = through - timedelta(days=days - 1)
     observed: dict[date, dict[str, Any]] = {}
     for row in source.query(SPEND_SQL, (start,)):
@@ -283,29 +347,44 @@ def _file_calibrations(records_root: Path) -> list[dict[str, Any]]:
 
 
 def calibration_history(source: QuerySource, *, records_root: Path) -> list[dict[str, Any]]:
-    catalog = source.query(CALIBRATION_SQL) if source.relation_exists("judge_calibrations") else []
+    catalog: list[dict[str, Any]] = []
+    if isinstance(source, AttachSource):
+        if source.is_zone_attached("z2") and source.relation_exists("judge_calibrations"):
+            catalog = source.query(CALIBRATION_SQL)
+        elif not source.is_zone_attached("z2"):
+            files = _file_calibrations(records_root)
+            if not files:
+                source.require_zone("z2")
+            return sorted(files, key=lambda row: (str(row["date"]), row["record_id"]), reverse=True)
+    elif source.relation_exists("judge_calibrations"):
+        catalog = source.query(CALIBRATION_SQL)
+
     rows = [_agreement_summary(row) for row in catalog]
     known = {row["record_id"] for row in rows}
     rows.extend(row for row in _file_calibrations(records_root) if row["record_id"] not in known)
     return sorted(rows, key=lambda row: (str(row["date"]), row["record_id"]), reverse=True)
 
 
-def atif_activity(parquet_root: Path) -> dict[str, Any]:
-    trial_files = list(parquet_root.glob("**/trial_facts.parquet"))
-    if not trial_files:
-        return {"summary": None, "tools": []}
-    trial_glob = (parquet_root / "**/trial_facts.parquet").as_posix()
-    tool_glob = (parquet_root / "**/tool_usage.parquet").as_posix()
-    with duckdb.connect(database=":memory:") as connection:
-        summary_row = connection.execute(ATIF_SUMMARY_SQL, [trial_glob]).fetchone()
-        columns = [item[0] for item in connection.description]
-        summary = dict(zip(columns, summary_row, strict=True)) if summary_row else None
-        tools = []
-        if list(parquet_root.glob("**/tool_usage.parquet")):
-            result = connection.execute(TOOL_USAGE_SQL, [tool_glob])
-            tool_columns = [item[0] for item in result.description]
-            tools = [dict(zip(tool_columns, row, strict=True)) for row in result.fetchall()]
+def atif_activity(source: QuerySource) -> dict[str, Any]:
+    if isinstance(source, AttachSource):
+        source.require_zone("z3")
+    summary_rows = source.query(ATIF_SUMMARY_SQL)
+    summary_row = summary_rows[0] if summary_rows else None
+    summary = (
+        summary_row
+        if summary_row and summary_row.get("trial_count", 0) > 0
+        else None
+    )
+    tools = source.query(TOOL_USAGE_SQL) if source.relation_exists("tool_usage") else []
     return {"summary": summary, "tools": tools}
+
+
+def knowledge_front_matter(source: QuerySource) -> list[dict[str, Any]]:
+    if isinstance(source, AttachSource):
+        source.require_zone("z4")
+    return source.query(
+        "SELECT path, title, status, audience, generated_by FROM z4.front_matter ORDER BY path"
+    )
 
 
 def discoveries(path: Path) -> list[dict[str, str]]:

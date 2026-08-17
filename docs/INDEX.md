@@ -30,6 +30,8 @@ inputs:
     digest: sha256:58a840485cd5d4488fda23572a802fcf40708bea2485f3bc301955656b04b0bc
   - path: docs/craft.md
     digest: sha256:fe6db1dd40e6490e188c8c0feb1f799dcd6195615787638b1baddd15801faf00
+  - path: docs/dashboard.md
+    digest: sha256:a9b3ecb34ff41bb82ab79ae2daaaea469ed66e21dcfb06f6defea0ce7ab24ffe
   - path: docs/data-architecture.md
     digest: sha256:7ff42ba0b6616fd40124fb6b0028b8288982398d55157106fc6717d44d3c5036
   - path: docs/design-additions.md
@@ -158,6 +160,7 @@ an operator can see what is archived.
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
+| `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
@@ -224,6 +227,7 @@ an operator can see what is archived.
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
+| `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |

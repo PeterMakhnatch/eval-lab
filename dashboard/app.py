@@ -12,7 +12,7 @@ import streamlit as st
 
 from dashboard.projection import load_operator_snapshot
 from dashboard.queries import (
-    ReadOnlyPostgres,
+    AttachSource,
     atif_activity,
     calibration_history,
     canary_history,
@@ -22,7 +22,7 @@ from dashboard.queries import (
     queue_funnel,
     spend_history,
 )
-from evallab.paths import derived_root_from_environment
+from evallab.attach import attach
 from evallab.status import SECTION_KEYS, StatusSnapshot
 
 REPO_ROOT = Path(
@@ -32,6 +32,7 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://evallab:local-development-only@localhost:54329/evallab",
 )
+EXPLICIT_DERIVED = os.environ.get("EVALLAB_DERIVED_ROOT")
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -45,11 +46,13 @@ def load_operator_status(repo_root_value: str, database_url: str) -> dict[str, o
 
 @st.cache_data(ttl=30, show_spinner=False)
 def load_research_snapshot(
-    repo_root_value: str, database_url: str, report_day: date
+    repo_root_value: str, report_day: date, explicit_derived: str | None = None
 ) -> dict[str, Any]:
     """Preserve the established research panes beside the operator projection."""
     root = Path(repo_root_value)
-    source = ReadOnlyPostgres(database_url)
+    derived = Path(explicit_derived) if explicit_derived else None
+    attach_res = attach(repo_root=root, explicit_derived=derived)
+    source = AttachSource(attach_res)
     errors: dict[str, str] = {}
 
     def load(label: str, function: Callable[[], Any], fallback: Any) -> Any:
@@ -76,9 +79,7 @@ def load_research_snapshot(
             ),
             [],
         ),
-        "atif": load(
-            "atif", lambda: atif_activity(derived_root_from_environment(root)), {}
-        ),
+        "atif": load("atif", lambda: atif_activity(source), {}),
         "discoveries": load(
             "discoveries", lambda: discoveries(root / "digests/DISCOVERIES.md"), []
         ),
@@ -175,12 +176,12 @@ def _calibration_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 st.set_page_config(page_title="Eval Lab", page_icon="🔬", layout="wide")
 started = time.perf_counter()
 operator_payload = load_operator_status(str(REPO_ROOT), DATABASE_URL)
-research = load_research_snapshot(str(REPO_ROOT), DATABASE_URL, date.today())
+research = load_research_snapshot(str(REPO_ROOT), date.today(), EXPLICIT_DERIVED)
 
 st.title("Eval Lab research overview")
 st.caption(
-    "Read-only operator status plus catalog, ATIF-derived Parquet, queue, and "
-    "research records. Approvals remain in the evallab CLI."
+    "Read-only operator status plus unified attach surface (Z2 catalog, "
+    "Z3 Parquet, Z4 docs), queue, and research records. Approvals remain in the evallab CLI."
 )
 
 st.header("Operator status")
@@ -212,6 +213,8 @@ if research["leaderboard"]:
     st.dataframe(
         _leaderboard_rows(research["leaderboard"]), width="stretch", hide_index=True
     )
+elif "leaderboard" in research["errors"]:
+    st.warning(f"Leaderboard unavailable: {research['errors']['leaderboard']}")
 else:
     st.info("No catalog trials are indexed yet — no data, as distinct from unscorable data.")
 
@@ -237,6 +240,8 @@ if canaries:
         )
     st.line_chart(pd.DataFrame(chart_rows), x="date", y="reward", color="series")
     st.dataframe(canaries, width="stretch", hide_index=True)
+elif "canaries" in research["errors"]:
+    st.warning(f"Canary trend unavailable: {research['errors']['canaries']}")
 else:
     st.info("No canary observations are indexed yet.")
 
@@ -251,12 +256,16 @@ right.metric("Remaining", f"${max(ceiling - today_spend, 0):.2f}")
 st.progress(min(today_spend / ceiling, 1.0) if ceiling else 0.0)
 if spend:
     st.bar_chart(pd.DataFrame(spend), x="date", y="spend_usd")
+elif "spend" in research["errors"]:
+    st.warning(f"Spend history unavailable: {research['errors']['spend']}")
 
 st.header("Queue funnel")
 queue = research["queue"]
 if queue:
     st.bar_chart(pd.DataFrame(queue), x="state", y="count")
     st.dataframe(queue, width="stretch", hide_index=True)
+elif "queue" in research["errors"]:
+    st.warning(f"Queue funnel unavailable: {research['errors']['queue']}")
 else:
     st.info("No queue state is available.")
 
@@ -265,6 +274,8 @@ if research["calibrations"]:
     st.dataframe(
         _calibration_rows(research["calibrations"]), width="stretch", hide_index=True
     )
+elif "calibrations" in research["errors"]:
+    st.warning(f"Calibration history unavailable: {research['errors']['calibrations']}")
 else:
     st.info("No measured calibration records are available.")
 
@@ -282,6 +293,8 @@ if atif.get("summary"):
         st.warning(f"{summary['invalid_trial_count']} trial(s) contain invalid trajectories.")
     if atif["tools"]:
         st.dataframe(atif["tools"], width="stretch", hide_index=True)
+elif "atif" in research["errors"]:
+    st.warning(f"ATIF activity unavailable: {research['errors']['atif']}")
 else:
     st.info("No ATIF-derived Parquet is available.")
 
@@ -291,6 +304,8 @@ if research["discoveries"]:
         st.subheader(entry["discovery_id"])
         st.caption(f"Status: {entry['status']}")
         st.write(entry["claim"] or "No claim text found.")
+elif "discoveries" in research["errors"]:
+    st.warning(f"DISCOVERIES unavailable: {research['errors']['discoveries']}")
 else:
     st.info("No discovery entries are recorded.")
 

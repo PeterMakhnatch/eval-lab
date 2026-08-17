@@ -24,6 +24,10 @@ auth.json
 /logs/
 /notebooks/.ipynb_checkpoints/
 
+# Authoring quarantine: proposals are unqualified until a human registers them,
+# so they must never be committable from the working tree.
+/library/tasks/_proposed/
+
 # Local database and tooling
 postgres-data/
 .coverage

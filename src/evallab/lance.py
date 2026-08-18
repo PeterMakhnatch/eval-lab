@@ -1,4 +1,4 @@
-"""LANCE: LanceDB vector store for tasks and trials beside DuckDB.
+"""LANCE: LanceDB vector store for tasks, trials, steps, and analyses beside DuckDB.
 
 Default embedder is deterministic lexical (hashing) only; no semantics.
 """
@@ -42,8 +42,7 @@ tasks, trials, steps, analyses so policy is consistent.
 class Embedder(Protocol):
     """Protocol for text embedders. Implementations must be deterministic."""
 
-    def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        ...
+    def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
 
 @dataclass(frozen=True)
@@ -84,9 +83,9 @@ def _load_trajectory_steps(path: Path) -> list[dict] | None:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
-    if not isinstance(payload, dict) or not str(
-        payload.get("schema_version", "")
-    ).startswith("ATIF-"):
+    if not isinstance(payload, dict) or not str(payload.get("schema_version", "")).startswith(
+        "ATIF-"
+    ):
         return None
     steps = payload.get("steps")
     return [item for item in steps if isinstance(item, dict)] if isinstance(steps, list) else []
@@ -415,7 +414,10 @@ def _build_analyses(
     repo = repository_root()
     derived = derived_root_from_environment(repo)
     analyses_parquet = derived / "analyses" / "analyses.parquet"
-    if not analyses_parquet.is_file() and (derived / "parquet" / "analyses" / "analyses.parquet").is_file():
+    if (
+        not analyses_parquet.is_file()
+        and (derived / "parquet" / "analyses" / "analyses.parquet").is_file()
+    ):
         analyses_parquet = derived / "parquet" / "analyses" / "analyses.parquet"
 
     if not analyses_parquet.is_file():
@@ -445,7 +447,11 @@ def _build_analyses(
     finally:
         att.connection.close()
 
-    analysis_dir = repo / "research/analysis"
+    analysis_dirs = [
+        repo / "research/analysis",
+        repo / "research/evidence/analyses",
+        derived / "analyses",
+    ]
     rows: list[dict] = []
     texts: list[str] = []
     skipped: list[str] = []
@@ -458,35 +464,51 @@ def _build_analyses(
         category = str(row.get("category") or "").strip()
         created_at = str(row.get("created_at") or "").strip()
         conclusion = str(
-            row.get("conclusion")
-            or row.get("summary")
-            or row.get("text")
-            or ""
+            row.get("conclusion") or row.get("summary") or row.get("text") or ""
         ).strip()
 
         if not conclusion or not job_id:
-            json_path = analysis_dir / f"{analysis_id}.json"
-            if json_path.is_file():
-                try:
-                    j_data = json.loads(json_path.read_text(encoding="utf-8"))
-                    if isinstance(j_data, dict):
-                        if not conclusion:
-                            conclusion = str(
-                                j_data.get("summary")
-                                or j_data.get("conclusion")
-                                or j_data.get("text")
-                                or ""
-                            ).strip()
-                        if not job_id:
-                            job_id = str(
-                                j_data.get("job_id")
-                                or trial_to_job.get(trial_id)
-                                or ""
-                            ).strip()
-                except Exception:
-                    pass
+            for adir in analysis_dirs:
+                json_path = adir / f"{analysis_id}.json"
+                if not json_path.is_file():
+                    json_path = adir / analysis_id / "analysis.json"
+                if json_path.is_file():
+                    try:
+                        j_data = json.loads(json_path.read_text(encoding="utf-8"))
+                        if isinstance(j_data, dict):
+                            if not conclusion:
+                                conclusion = str(
+                                    j_data.get("summary")
+                                    or j_data.get("conclusion")
+                                    or j_data.get("text")
+                                    or (
+                                        j_data.get("output", {}).get("summary")
+                                        if isinstance(j_data.get("output"), dict)
+                                        else ""
+                                    )
+                                    or ""
+                                ).strip()
+                            if not job_id:
+                                job_id = str(
+                                    j_data.get("job_id") or trial_to_job.get(trial_id) or ""
+                                ).strip()
+                            if not model and j_data.get("model"):
+                                model = str(j_data.get("model")).strip()
+                            if not created_at and j_data.get("created_at"):
+                                created_at = str(j_data.get("created_at")).strip()
+                    except Exception:
+                        pass
+                if conclusion and job_id:
+                    break
 
-        if not analysis_id or not trial_id or not job_id or not model or not created_at or not conclusion:
+        if (
+            not analysis_id
+            or not trial_id
+            or not job_id
+            or not model
+            or not created_at
+            or not conclusion
+        ):
             skipped.append(analysis_id or "unknown")
             continue
 

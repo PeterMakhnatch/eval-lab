@@ -18,6 +18,10 @@ def schema_path() -> Path:
     return Path(__file__).resolve().parents[2] / "sql" / "schema.sql"
 
 
+def views_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "sql" / "views.sql"
+
+
 def initialize(database_url: str) -> None:
     schema = schema_path().read_text()
     with psycopg.connect(database_url) as connection:
@@ -391,3 +395,17 @@ def canary_drift_observations(
         )
         for row in rows
     ]
+
+
+def quota_today(database_url: str) -> list[tuple[str, int, int]]:
+    """Return today's UTC consumption (provider, runs, tokens) from v_quota_today."""
+    with psycopg.connect(database_url, connect_timeout=2) as connection:
+        return list(
+            connection.execute(
+                """
+                SELECT provider, runs, tokens
+                FROM v_quota_today
+                ORDER BY provider
+                """
+            ).fetchall()
+        )

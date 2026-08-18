@@ -8,18 +8,22 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from evallab.cohort import wilson_interval
+from evallab.cohort import NOT_COMPARABLE, wilson_interval
 from evallab.contextpack import parse_front_matter
 from evallab.lessons import (
     DEFAULT_POWER_THRESHOLD,
     GENERATED_HEADER,
+    LessonRanking,
+    LessonRow,
     LessonsResult,
     apply_statistical_gating,
     build_lessons,
+    compare_lesson_rows,
     execute_lessons_views,
     generate_lessons_file,
     parse_observation_markdown,
     populate_duckdb,
+    rank_lesson_rows,
     render_lessons_markdown,
 )
 from evallab.lineage import compute_file_digest, resolve_lineage
@@ -581,6 +585,31 @@ def test_standalone_sql_script_with_fallbacks() -> None:
             assert rows == []
 
 
+def test_empty_views_render_insufficient_n_never_silent() -> None:
+    """Test that empty view results produce gated 'insufficient n' rows, never silence."""
+    gated = apply_statistical_gating({})
+    for view_name in ["v_failure_by_facet", "v_loop_rate_by_env", "v_outcome_by_verifier_type"]:
+        rows = gated[view_name]
+        assert len(rows) >= 1
+        assert rows[0].powered is False
+        assert rows[0].status == "insufficient n"
+        assert rows[0].finding == "insufficient n"
+
+    all_lessons = [item for sublist in gated.values() for item in sublist]
+    res = LessonsResult(
+        generated_at=datetime.now(UTC),
+        power_threshold=5,
+        total_lessons=len(all_lessons),
+        powered_lessons=0,
+        underpowered_lessons=len(all_lessons),
+        lessons_by_view=gated,
+        records_summary={},
+    )
+    md = render_lessons_markdown(res)
+    assert "insufficient n" in md
+    assert md.count("insufficient n") >= 3
+
+
 def test_build_lessons_on_repository_root(tmp_path: Path) -> None:
     """Test full build_lessons execution over repository evidence."""
     repo_root = Path(__file__).resolve().parents[1]
@@ -676,3 +705,151 @@ def test_lineage_resolution_on_generated_lessons(tmp_path: Path) -> None:
     assert len(node.inputs) > 0
     assert any(child.path == "sql/lessons.sql" for child in node.inputs)
     assert node.status != "unrecorded"
+
+
+def test_statistical_gating_every_row_carries_n_and_cohort_interval_or_marker() -> None:
+    """Test that every emitted row carries n + cohort.py interval or the insufficient-n marker."""
+    repo_root = Path(__file__).resolve().parents[1]
+    result = build_lessons(repo_root)
+
+    for view_name, rows in result.lessons_by_view.items():
+        assert len(rows) > 0, f"view {view_name} must emit rows or fallback"
+        for row in rows:
+            assert isinstance(row.n, int)
+            assert row.n >= 0
+            if row.powered:
+                assert row.wilson_95 is not None
+                assert row.status == "sufficient"
+                assert f"n={row.n}" in row.finding
+                low, high = row.wilson_95
+                assert 0.0 <= low <= high <= 1.0
+            else:
+                assert row.status == "insufficient n"
+                assert row.finding == "insufficient n"
+
+
+def test_refuse_to_rank_propagates_from_cohort() -> None:
+    """Test that refuse-to-rank propagates NOT_COMPARABLE from cohort.py."""
+    # 1. Underpowered row comparison refuses to rank
+    row_underpowered = LessonRow(
+        lesson_id="test_001",
+        view_name="v_test",
+        dimension="dim_a",
+        metric_name="pass_rate",
+        n=3,
+        k=3,
+        rate=1.0,
+        wilson_95=wilson_interval(3, 3),
+        powered=False,
+        status="insufficient n",
+        finding="insufficient n",
+    )
+    row_powered = LessonRow(
+        lesson_id="test_002",
+        view_name="v_test",
+        dimension="dim_b",
+        metric_name="pass_rate",
+        n=10,
+        k=8,
+        rate=0.8,
+        wilson_95=wilson_interval(8, 10),
+        powered=True,
+        status="sufficient",
+        finding="pass_rate=80.0%",
+    )
+
+    ranking = compare_lesson_rows(row_underpowered, row_powered)
+    assert isinstance(ranking, LessonRanking)
+    assert ranking.rankable is False
+    assert ranking.ranking is None
+    assert ranking.statement.startswith(NOT_COMPARABLE)
+    assert any("insufficient n" in r for r in ranking.refusal_reasons)
+
+    # 2. Overlapping confidence intervals refuse to rank
+    row_c = LessonRow(
+        lesson_id="test_003",
+        view_name="v_test",
+        dimension="dim_c",
+        metric_name="pass_rate",
+        n=10,
+        k=7,
+        rate=0.7,
+        wilson_95=wilson_interval(7, 10),
+        powered=True,
+        status="sufficient",
+        finding="pass_rate=70.0%",
+    )
+    ranking_overlap = compare_lesson_rows(row_powered, row_c)
+    assert ranking_overlap.rankable is False
+    assert ranking_overlap.ranking is None
+    assert ranking_overlap.statement.startswith(NOT_COMPARABLE)
+    assert any("intervals overlap" in r for r in ranking_overlap.refusal_reasons)
+
+    # 3. Uninformative all-zero column refuses to rank
+    row_zero_1 = LessonRow(
+        lesson_id="test_004",
+        view_name="v_test",
+        dimension="dim_z1",
+        metric_name="loop_rate",
+        n=10,
+        k=0,
+        rate=0.0,
+        wilson_95=wilson_interval(0, 10),
+        powered=True,
+        status="sufficient",
+        finding="loop_rate=0.0%",
+    )
+    row_zero_2 = LessonRow(
+        lesson_id="test_005",
+        view_name="v_test",
+        dimension="dim_z2",
+        metric_name="loop_rate",
+        n=10,
+        k=0,
+        rate=0.0,
+        wilson_95=wilson_interval(0, 10),
+        powered=True,
+        status="sufficient",
+        finding="loop_rate=0.0%",
+    )
+    ranking_zero = compare_lesson_rows(row_zero_1, row_zero_2)
+    assert ranking_zero.rankable is False
+    assert ranking_zero.ranking is None
+    assert ranking_zero.statement.startswith(NOT_COMPARABLE)
+    assert any("uninformative metric" in r for r in ranking_zero.refusal_reasons)
+
+    # 4. Disjoint confidence intervals produce ranked result
+    row_high = LessonRow(
+        lesson_id="test_006",
+        view_name="v_test",
+        dimension="golden_file",
+        metric_name="pass_rate",
+        n=20,
+        k=20,
+        rate=1.0,
+        wilson_95=wilson_interval(20, 20),
+        powered=True,
+        status="sufficient",
+        finding="pass_rate=100.0%",
+    )
+    row_low = LessonRow(
+        lesson_id="test_007",
+        view_name="v_test",
+        dimension="hybrid",
+        metric_name="pass_rate",
+        n=20,
+        k=0,
+        rate=0.0,
+        wilson_95=wilson_interval(0, 20),
+        powered=True,
+        status="sufficient",
+        finding="pass_rate=0.0%",
+    )
+    ranking_distinct = compare_lesson_rows(row_high, row_low)
+    assert ranking_distinct.rankable is True
+    assert ranking_distinct.ranking == "golden_file > hybrid"
+    assert ranking_distinct.statement.startswith("Ranking: golden_file > hybrid")
+
+    # 5. rank_lesson_rows over collection
+    all_rankings = rank_lesson_rows([row_high, row_low, row_zero_1])
+    assert len(all_rankings) == 3

@@ -1,7 +1,6 @@
 """Tests for provenance classification. Every test fails on a plausible bug."""
 
 import os
-import subprocess
 import tempfile
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from evallab.provenance import (
     Origin,
     classify_task,
     discover_all,
+    main,
     render_report,
 )
 
@@ -21,7 +21,6 @@ _skip_real_corpus = (
     not _real_tb3.exists()
     or (_tb3_env is not None and Path(_tb3_env).expanduser() != _real_tb3)
 )
-
 
 
 def _make_task(root: Path, name: str, task_name: str | None = None) -> Path:
@@ -126,7 +125,6 @@ def test_unambiguous_harbor_native_stays_certain():
         assert rec.confidence == Confidence.CERTAIN
 
 
-
 def test_unambiguous_local_lab_stays_certain():
     rec = classify_task("local-lab/event-summary")
     assert rec.origin == Origin.LOCAL_LAB
@@ -135,47 +133,60 @@ def test_unambiguous_local_lab_stays_certain():
 
 def test_report_names_configured_but_missing_corpus_root_as_unavailable_with_reason(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     missing_root = tmp_path / "definitely-not-here"
-    cmd = [
-        "uv",
-        "run",
-        "python",
-        "-m",
-        "evallab.provenance",
-        "report",
-        "--tb3-root",
-        str(missing_root),
-    ]
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
-    )
-    out = result.stdout
-    assert result.returncode == 0
+    controlled_repo = tmp_path / "controlled-repo"
+    lib = controlled_repo / "library/tasks"
+    _make_task(lib, "local1")
+    monkeypatch.setattr("evallab.provenance.repository_root", lambda: controlled_repo)
+
+    code = main(["report", "--tb3-root", str(missing_root)])
+    assert code == 0
+    out = capsys.readouterr().out
     assert "tb3_root\tunavailable" in out
     assert "definitely-not-here" in out
     assert "path does not exist" in out
     assert "local-lab\tfound" in out
+    assert "proposed\tunavailable" in out
+
+
+def test_report_names_quarantine_root_as_found_when_present(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    missing_root = tmp_path / "definitely-not-here"
+    controlled_repo = tmp_path / "controlled-repo"
+    lib = controlled_repo / "library/tasks"
+    _make_task(lib, "local1")
+    prop = controlled_repo / "library/tasks/_proposed"
+    _make_task(prop, "prop1")
+    monkeypatch.setattr("evallab.provenance.repository_root", lambda: controlled_repo)
+
+    code = main(["report", "--tb3-root", str(missing_root)])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "proposed\tfound" in out
+    assert "proposed\tunavailable" not in out
+    assert f"proposed\tfound\t{prop.as_posix()}\t1\t" in out
+    assert "prop1\tproposed\t" in out
 
 
 def test_report_output_byte_identical_across_runs_even_with_root_status(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     missing_root = tmp_path / "definitely-not-here"
-    cmd = [
-        "uv",
-        "run",
-        "python",
-        "-m",
-        "evallab.provenance",
-        "report",
-        "--tb3-root",
-        str(missing_root),
-    ]
-    result1 = subprocess.run(
-        cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
-    )
-    result2 = subprocess.run(
-        cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
-    )
-    assert result1.stdout == result2.stdout
+    controlled_repo = tmp_path / "controlled-repo"
+    lib = controlled_repo / "library/tasks"
+    _make_task(lib, "local1")
+    monkeypatch.setattr("evallab.provenance.repository_root", lambda: controlled_repo)
+
+    main(["report", "--tb3-root", str(missing_root)])
+    out1 = capsys.readouterr().out
+    main(["report", "--tb3-root", str(missing_root)])
+    out2 = capsys.readouterr().out
+    assert out1 == out2

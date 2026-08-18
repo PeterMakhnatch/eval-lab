@@ -1,0 +1,135 @@
+# Axis Definition: Scenario (Instruction Style)
+# Range of 10 instruction styles spanning register (terse to conversational to formal) and length (minimal to comprehensive).
+# Schema: list of scenario objects.
+- slug: minimal
+  title: Minimal Directive
+  register: terse
+  length: minimal
+  description: >
+    A sparse, single-sentence objective statement with zero structural clues, file pointers, or step-by-step
+    instructions. The agent must inspect the repository layout, codebase comments, and test scripts to discover
+    all context, constraints, and success criteria autonomously.
+  guidelines: >
+    State only the end goal in one or two sentences. Do not mention file names unless absolutely necessary.
+    Avoid prescriptive workflow instructions.
+  style_constraints: >
+    Keep the instruction strictly under 50 words. Provide only the final objective.
+
+- slug: incident-emergency
+  title: Production Incident / Outage Alert
+  register: urgent
+  length: medium
+  description: >
+    High-stakes operational on-call ticket triggered by a production failure or critical degradation.
+    Contains alarming error snippets, stack traces, failing heartbeat alert timestamps, and demands
+    immediate diagnosis, root-cause isolation, and a clean, non-destructive remediation.
+  guidelines: >
+    Open with an incident priority header (e.g. SEV-1 / P0) and alert logs. Specify the observed system failure
+    and demand urgent triage and fix without downtime or data loss.
+  style_constraints: >
+    Include realistic monitoring alerts, log excerpts, and error signatures.
+
+- slug: bug-report
+  title: Defect Reproduction Report
+  register: factual
+  length: medium
+  description: >
+    A structured issue ticket filed by QA or an external user detailing observed vs expected behavior,
+    the exact operating environment, a minimal reproduction procedure, and suspected subsystem components.
+  guidelines: >
+    Include standard issue sections: Description, Steps to Reproduce, Expected Behavior, Actual Behavior,
+    and Environment Details.
+  style_constraints: >
+    Structure with markdown headers for reproduction steps and expected versus actual outputs.
+
+- slug: feature-specification
+  title: Formal Product Feature Specification
+  register: formal
+  length: long
+  description: >
+    An engineering Product Requirement Document (PRD) detailing new capabilities, interface contracts,
+    type definitions, boundary conditions, performance targets, and explicit acceptance criteria.
+  guidelines: >
+    Provide structured specifications with type signatures, edge-case requirements, and explicit
+    acceptance criteria tables.
+  style_constraints: >
+    Use formal technical requirements format with RFC-style normative requirements (MUST, MUST NOT).
+
+- slug: refactoring-migration
+  title: Architectural Refactoring & Deprecation Cutover
+  register: prescriptive
+  length: medium
+  description: >
+    Directive to migrate deprecated APIs, upgrade third-party library versions, or refactor internal
+    architectural patterns while strictly preserving public contracts and semantic backwards compatibility.
+  guidelines: >
+    Identify the old pattern or dependency to eliminate, specify the new target pattern or library,
+    and insist on 100% backwards compatibility for existing callers.
+  style_constraints: >
+    Detail migration invariants: existing test suites must pass, public function signatures must remain stable.
+
+- slug: investigation-audit
+  title: Diagnostic Investigation & Root Cause Audit
+  register: diagnostic
+  length: long
+  description: >
+    An open-ended investigation request into subtle data corruption, non-deterministic race conditions,
+    performance degradation, or memory leak anomalies where the underlying cause is unknown.
+  guidelines: >
+    Describe the anomalous symptom observed across historical runs. Ask the agent to locate the root cause,
+    verify the hypothesis with evidence, and apply a robust permanent fix.
+  style_constraints: >
+    Emphasize diagnostic rigor: identify root cause mechanism before making changes.
+
+- slug: dialogue-transcript
+  title: Multi-Turn Engineering Chat Transcript
+  register: conversational
+  length: medium
+  description: >
+    A transcript of a Slack or Teams conversation between multiple engineers discussing a requirement,
+    troubleshooting an issue, exchanging code snippets, and clarifying ambiguous edge cases informally.
+  guidelines: >
+    Format as chat messages between two or three developers with informal tone, clarifying questions,
+    and partial code snippets leading to an agreed action item.
+  style_constraints: >
+    Use speaker prefixes (e.g. Alice:, Bob:) and realistic engineering chat cadence.
+
+- slug: structured-pipeline
+  title: Multi-Stage Workflow Specification
+  register: structured
+  length: long
+  description: >
+    A phased pipeline specification with explicit sequential stages (e.g. extract, transform, validate, export),
+    strict intermediate file schemas, checkpoint validations, and failure handling policies.
+  guidelines: >
+    Break down the required task into numbered sequential phases with clear inputs, outputs, and validation rules
+    for each phase boundary.
+  style_constraints: >
+    Number each phase clearly and define exact intermediate artifact locations and schemas.
+
+- slug: adversarial-obfuscated
+  title: Obfuscated / Legacy Code Challenge
+  register: deceptive
+  length: medium
+  description: >
+    A scenario with noisy context, misleading legacy comments, red herrings, or obsolete configuration files
+    that tests the agent's discipline to verify ground truth through execution and code reading rather than
+    blindly trusting stale commentary.
+  guidelines: >
+    Include plausible but outdated comments or legacy unused functions alongside the actual problem,
+    requiring the agent to discern genuine requirements.
+  style_constraints: >
+    Ground truth must be fully decidable by reading actual source code and running test harnesses.
+
+- slug: documentation-driven
+  title: Documentation & Specification Compliance
+  register: prescriptive
+  length: medium
+  description: >
+    A task driven by an updated architecture document, API guide, or specification document where the codebase
+    has drifted from the official documentation and must be aligned to match.
+  guidelines: >
+    Provide the authoritative documentation excerpt (or point to in-repo docs) and instruct the agent to bring
+    the implementation into strict compliance.
+  style_constraints: >
+    Cite the target specification sections and define compliance requirements clearly.

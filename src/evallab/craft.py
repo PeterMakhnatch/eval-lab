@@ -65,6 +65,12 @@ _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=(?!=)(?P<value>.*)$", re.DOTA
 #: written by an older scanner is never silently compared with a newer one.
 FACETS_SCHEMA_VERSION = "craft/1"
 
+#: Number of tasks processed per classification batch.
+#: Bounded at 10 to balance grouping efficiency against memory overhead and
+#: prompt context window limits when classify is extended to LLM passes
+#: (docs/platform-architecture.md §6).
+DEFAULT_BATCH_SIZE: int = 10
+
 #: Where the TB3 corpus lives on this workstation. Injectable (env var, then
 #: `--tb3-root`) because `agents/CHECKS.md` forbids tests that depend on a
 #: developer's host layout.
@@ -961,23 +967,44 @@ def scan_task(task_dir: Path, source: TaskSource) -> CraftRecord:
     )
 
 
-def scan(sources: Sequence[TaskSource]) -> ScanResult:
-    """Scan every source, in source order then task order."""
+def scan_tasks_batch(
+    task_dirs: Sequence[Path],
+    source: TaskSource,
+) -> tuple[list[CraftRecord], list[SkippedTask]]:
+    """Extract deterministic facets for a batch of tasks from a single source."""
+    records: list[CraftRecord] = []
+    skipped: list[SkippedTask] = []
+    for task_dir in task_dirs:
+        try:
+            records.append(scan_task(task_dir, source))
+        except (tomllib.TOMLDecodeError, UnicodeError) as error:
+            skipped.append(
+                SkippedTask(
+                    path=task_dir.as_posix(),
+                    reason=f"{TASK_MANIFEST} does not parse: {type(error).__name__}",
+                )
+            )
+        except OSError as error:
+            skipped.append(SkippedTask(path=task_dir.as_posix(), reason=f"unreadable: {error}"))
+    return records, skipped
+
+
+def scan(
+    sources: Sequence[TaskSource],
+    batch_size: int = DEFAULT_BATCH_SIZE,
+) -> ScanResult:
+    """Scan every source in batches, in source order then task order."""
+    if batch_size <= 0:
+        raise ValueError(f"batch_size must be positive; got {batch_size}")
     records: list[CraftRecord] = []
     skipped: list[SkippedTask] = []
     for source in sources:
-        for task_dir in discover_tasks(source.root):
-            try:
-                records.append(scan_task(task_dir, source))
-            except (tomllib.TOMLDecodeError, UnicodeError) as error:
-                skipped.append(
-                    SkippedTask(
-                        path=task_dir.as_posix(),
-                        reason=f"{TASK_MANIFEST} does not parse: {type(error).__name__}",
-                    )
-                )
-            except OSError as error:
-                skipped.append(SkippedTask(path=task_dir.as_posix(), reason=f"unreadable: {error}"))
+        tasks = discover_tasks(source.root)
+        for offset in range(0, len(tasks), batch_size):
+            batch = tasks[offset : offset + batch_size]
+            batch_records, batch_skipped = scan_tasks_batch(batch, source)
+            records.extend(batch_records)
+            skipped.extend(batch_skipped)
     records.sort(key=lambda item: (item.source_repo, item.task_ref))
     return ScanResult(tuple(records), tuple(skipped), tuple(sources))
 
@@ -1241,6 +1268,12 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--library", action="store_true", help="scan in-repo library/")
     scan_parser.add_argument("--tb3-root", type=Path, default=None, help="override the TB3 root")
     scan_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help=f"number of tasks per classification batch (default: {DEFAULT_BATCH_SIZE})",
+    )
+    scan_parser.add_argument(
         "--out", type=Path, default=None, help="derived Parquet root (default: derived/parquet)"
     )
     scan_parser.add_argument("--json", action="store_true", help="emit the summary as JSON")
@@ -1283,7 +1316,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         else derived_root_from_environment(repo_root) / "craft"
     )
     assert_output_outside_corpora(output_root, sources)
-    result = scan(sources)
+    result = scan(sources, batch_size=args.batch_size)
     write = write_records(result.records, output_root)
     if args.json:
         print(

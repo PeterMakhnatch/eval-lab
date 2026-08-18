@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from evallab import craft
 
@@ -789,3 +791,299 @@ def test_duckdb_views_answer_the_acceptance_query(tmp_path: Path) -> None:
 
     assert rows == [("pytest", 1), ("unclassified", 1)]
     assert corpus_rows == [(2, 1, 1)]
+
+
+# --------------------------------------------------------------------------- #
+# directory-level and symlink digest tests (:350 comment contract)
+# --------------------------------------------------------------------------- #
+
+
+def test_directory_entries_and_symlinks_affect_task_digest(tmp_path: Path) -> None:
+    """Directory entries and symlinks must change the digest even with no file content changes.
+
+    Verifies the contract at craft.py:350: 'Directory entries and symlink targets
+    are included so a moved or relinked file changes the digest even when no file
+    content did.'
+    """
+    task = make_task(tmp_path, "target_task")
+    base_digest = craft.task_digest(task)
+
+    # 1. Adding an empty directory changes the digest
+    empty_subdir = task / "environment/empty_folder"
+    empty_subdir.mkdir(parents=True)
+    with_empty_dir_digest = craft.task_digest(task)
+    assert with_empty_dir_digest != base_digest
+
+    # 2. Renaming/moving an empty directory changes the digest
+    renamed_subdir = task / "environment/renamed_empty_folder"
+    empty_subdir.rename(renamed_subdir)
+    with_renamed_dir_digest = craft.task_digest(task)
+    assert with_renamed_dir_digest != with_empty_dir_digest
+    assert with_renamed_dir_digest != base_digest
+    renamed_subdir.rmdir()
+
+    # 3. Adding a symlink changes the digest
+    link_path = task / "link_to_toml"
+    link_path.symlink_to("task.toml")
+    with_link_digest = craft.task_digest(task)
+    assert with_link_digest != base_digest
+
+    # 4. Retargeting the symlink (without changing target content) changes the digest
+    link_path.unlink()
+    link_path.symlink_to("instruction.md")
+    retargeted_digest = craft.task_digest(task)
+    assert retargeted_digest != with_link_digest
+    assert retargeted_digest != base_digest
+
+    # 5. Broken symlink also produces a deterministic valid digest
+    link_path.unlink()
+    link_path.symlink_to("non_existent_file.txt")
+    broken_link_digest = craft.task_digest(task)
+    assert broken_link_digest != base_digest
+    assert broken_link_digest != retargeted_digest
+
+
+def test_cli_scan_is_idempotent_and_skips_rewrite(tmp_path: Path) -> None:
+    """Running craft scan via CLI twice over an unchanged corpus skips rewrite."""
+    corpus = tmp_path / "corpus"
+    make_task(corpus, "task1", expert_hours=1.0)
+    make_task(corpus, "task2", tests={"test.sh": "#!/bin/bash\npytest /tests\n"})
+    out = tmp_path / "out"
+
+    # First run
+    code1 = craft.main(["scan", str(corpus), "--out", str(out), "--json"])
+    assert code1 == 0
+    parquet_path = out / craft.PARQUET_NAME
+    assert parquet_path.is_file()
+    mtime1 = parquet_path.stat().st_mtime_ns
+    bytes1 = parquet_path.read_bytes()
+
+    # Second run
+    code2 = craft.main(["scan", str(corpus), "--out", str(out), "--json"])
+    assert code2 == 0
+    mtime2 = parquet_path.stat().st_mtime_ns
+    bytes2 = parquet_path.read_bytes()
+
+    assert mtime1 == mtime2
+    assert bytes1 == bytes2
+
+
+# --------------------------------------------------------------------------- #
+# classify batching
+# --------------------------------------------------------------------------- #
+
+
+def test_batch_size_constant_is_defined_and_bounded() -> None:
+    """DEFAULT_BATCH_SIZE is a named constant bounded per architectural spec."""
+    assert isinstance(craft.DEFAULT_BATCH_SIZE, int)
+    assert craft.DEFAULT_BATCH_SIZE == 10
+    assert craft.DEFAULT_BATCH_SIZE > 0
+
+
+def test_scan_rejects_non_positive_batch_size(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    make_task(corpus, "one")
+    source = source_for(corpus)
+
+    with pytest.raises(ValueError, match="batch_size must be positive"):
+        craft.scan([source], batch_size=0)
+
+    with pytest.raises(ValueError, match="batch_size must be positive"):
+        craft.scan([source], batch_size=-3)
+
+
+def test_batched_output_equals_unbatched_output_across_batch_sizes(tmp_path: Path) -> None:
+    """The central batching invariant: batched output == unbatched output.
+
+    Same rows, same order, same values, same record digest across all batch sizes.
+    """
+    corpus = tmp_path / "corpus"
+    for i in range(12):
+        tests = {"test.sh": "#!/bin/bash\npytest /tests\n"} if i % 2 == 0 else None
+        expert = float(i + 1) if i % 3 == 0 else None
+        make_task(corpus, f"task_{i:02d}", expert_hours=expert, tests=tests)
+    source = source_for(corpus)
+
+    unbatched = craft.scan([source], batch_size=1)
+    assert len(unbatched.records) == 12
+    unbatched_digest = craft.records_digest(unbatched.records)
+
+    for b in (2, 3, 4, 5, 7, 10, 11, 12, 13, 50):
+        batched = craft.scan([source], batch_size=b)
+        assert len(batched.records) == len(unbatched.records)
+        assert batched.records == unbatched.records
+        assert batched.skipped == unbatched.skipped
+        assert craft.records_digest(batched.records) == unbatched_digest
+
+
+def test_scan_batch_handles_decode_and_os_errors_gracefully(tmp_path: Path) -> None:
+    """Skipped tasks are recorded and do not derail subsequent tasks in the batch."""
+    corpus = tmp_path / "corpus"
+    make_task(corpus, "valid1")
+    bad_manifest = make_task(corpus, "bad_manifest")
+    (bad_manifest / "task.toml").write_bytes(b"\xff\xfe corrupted")
+    make_task(corpus, "valid2")
+    source = source_for(corpus)
+
+    unbatched = craft.scan([source], batch_size=1)
+    batched = craft.scan([source], batch_size=2)
+
+    assert len(batched.records) == 2
+    assert len(batched.skipped) == 1
+    assert batched.records == unbatched.records
+    assert batched.skipped == unbatched.skipped
+    assert "bad_manifest" in batched.skipped[0].path
+
+
+def test_batched_scan_is_idempotent_on_rescan(tmp_path: Path) -> None:
+    """Idempotence witness under batching: re-scan yields zero churn and skips write."""
+    corpus = tmp_path / "corpus"
+    for i in range(8):
+        make_task(corpus, f"task_{i}")
+    out = tmp_path / "out"
+    source = source_for(corpus)
+
+    first = craft.write_records(craft.scan([source], batch_size=3).records, out)
+    stamp = first.path.stat().st_mtime_ns
+    payload = first.path.read_bytes()
+
+    second = craft.write_records(craft.scan([source], batch_size=3).records, out)
+
+    assert first.rows == second.rows == 8
+    assert first.digest == second.digest
+    assert second.churn.is_empty
+    assert second.rewritten is False
+    assert second.path.stat().st_mtime_ns == stamp
+    assert second.path.read_bytes() == payload
+
+
+def test_partial_change_under_batching_rewrites_only_changed_row(tmp_path: Path) -> None:
+    """Mutating exactly one item in a batch rewrites ONLY that row in the churn report.
+
+    A naive batching implementation might invalidate the entire batch or land
+    all batch members in churn.digest_changed. This test guards against that regression.
+    """
+    corpus = tmp_path / "corpus"
+    tasks = [make_task(corpus, f"task_{i:02d}") for i in range(9)]
+    out = tmp_path / "out"
+    source = source_for(corpus)
+
+    # Initial scan with batch_size=3 (3 batches of 3)
+    first_res = craft.scan([source], batch_size=3)
+    first_write = craft.write_records(first_res.records, out)
+    assert first_write.rows == 9
+    assert first_write.rewritten is True
+
+    # Mutate task_04 (middle item of batch 2: task_03, task_04, task_05)
+    (tasks[4] / "instruction.md").write_text("Modified instruction for task 04\n")
+
+    # Second scan with batch_size=3
+    second_res = craft.scan([source], batch_size=3)
+    second_write = craft.write_records(second_res.records, out)
+
+    assert second_write.rows == 9
+    assert second_write.rewritten is True
+    # ONLY task_04 changed its digest!
+    assert second_write.churn.digest_changed == ("test/corpus\ttask_04",)
+    assert second_write.churn.added == ()
+    assert second_write.churn.removed == ()
+    assert second_write.churn.facets_changed == ()
+
+    # Verify that unchanged tasks in the same batch (task_03 and task_05) have identical records
+    rec_by_ref_1 = {r.task_ref: r for r in first_res.records}
+    rec_by_ref_2 = {r.task_ref: r for r in second_res.records}
+    assert rec_by_ref_1["task_03"] == rec_by_ref_2["task_03"]
+    assert rec_by_ref_1["task_05"] == rec_by_ref_2["task_05"]
+    assert rec_by_ref_1["task_04"].task_digest != rec_by_ref_2["task_04"].task_digest
+
+
+# --------------------------------------------------------------------------- #
+# property-based tests (Hypothesis)
+# --------------------------------------------------------------------------- #
+
+
+@settings(max_examples=25, deadline=None)
+@given(
+    num_tasks=st.integers(min_value=1, max_value=12),
+    batch_size_1=st.integers(min_value=1, max_value=15),
+    batch_size_2=st.integers(min_value=1, max_value=15),
+)
+def test_batch_invariance_property(
+    tmp_path_factory: pytest.TempPathFactory,
+    num_tasks: int,
+    batch_size_1: int,
+    batch_size_2: int,
+) -> None:
+    """Property: for any corpus and any two batch sizes, scan results are identical."""
+    corpus = tmp_path_factory.mktemp("prop_corpus")
+    for i in range(num_tasks):
+        tests = {"test.sh": "#!/bin/bash\npytest /tests\n"} if i % 2 == 0 else None
+        expert = float(i + 1) if i % 3 == 0 else None
+        make_task(corpus, f"t_{i:02d}", expert_hours=expert, tests=tests)
+
+    source = source_for(corpus)
+    res1 = craft.scan([source], batch_size=batch_size_1)
+    res2 = craft.scan([source], batch_size=batch_size_2)
+
+    assert res1.records == res2.records
+    assert res1.skipped == res2.skipped
+    assert craft.records_digest(res1.records) == craft.records_digest(res2.records)
+
+
+@settings(max_examples=20, deadline=None)
+@given(
+    num_tasks=st.integers(min_value=1, max_value=8),
+    batch_size=st.integers(min_value=1, max_value=10),
+)
+def test_idempotence_zero_churn_property(
+    tmp_path_factory: pytest.TempPathFactory,
+    num_tasks: int,
+    batch_size: int,
+) -> None:
+    """Property: for any corpus and batch size, consecutive scans yield zero churn."""
+    corpus = tmp_path_factory.mktemp("prop_idemp")
+    out = tmp_path_factory.mktemp("prop_out")
+    for i in range(num_tasks):
+        make_task(corpus, f"t_{i}")
+
+    source = source_for(corpus)
+    w1 = craft.write_records(craft.scan([source], batch_size=batch_size).records, out)
+    w2 = craft.write_records(craft.scan([source], batch_size=batch_size).records, out)
+
+    assert w1.digest == w2.digest
+    assert w2.churn.is_empty
+    assert w2.rewritten is False
+
+
+@settings(max_examples=20, deadline=None)
+@given(
+    num_tasks=st.integers(min_value=2, max_value=8),
+    batch_size=st.integers(min_value=1, max_value=6),
+    mutate_idx=st.integers(min_value=0, max_value=7),
+)
+def test_partial_mutation_isolation_property(
+    tmp_path_factory: pytest.TempPathFactory,
+    num_tasks: int,
+    batch_size: int,
+    mutate_idx: int,
+) -> None:
+    """Property: mutating 1 task rewrites only that 1 task regardless of batch size."""
+    target_idx = mutate_idx % num_tasks
+    corpus = tmp_path_factory.mktemp("prop_mut")
+    out = tmp_path_factory.mktemp("prop_mut_out")
+    task_dirs = [make_task(corpus, f"t_{i}") for i in range(num_tasks)]
+
+    source = source_for(corpus)
+    craft.write_records(craft.scan([source], batch_size=batch_size).records, out)
+
+    # Mutate exactly one task
+    (task_dirs[target_idx] / "instruction.md").write_text("changed instruction\n")
+
+    res = craft.scan([source], batch_size=batch_size)
+    w = craft.write_records(res.records, out)
+
+    assert w.rewritten is True
+    assert w.churn.digest_changed == (f"test/corpus\tt_{target_idx}",)
+    assert w.churn.added == ()
+    assert w.churn.removed == ()
+    assert w.churn.facets_changed == ()

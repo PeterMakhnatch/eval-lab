@@ -1,6 +1,6 @@
 Status: building
-Last: Cycle 3 complete: authoring proposal state machine property tests & hard registration gate verification
-Next: Cycle 4: parquet compaction property tests
+Last: Cycle 4 complete: parquet compaction property tests (idempotence, byte stability, zero row loss)
+Next: Cycle 5: attach/catalog rebuild property tests
 Blockers: none
 
 # M018 - LOOP-FUZZ Handoff
@@ -88,6 +88,37 @@ tests/test_queue_properties.py tests/test_quota_properties.py tests/test_authori
 Full test suite summary:
 ```
 1287 passed, 1 skipped, 1 xfailed in 62.16s
+```
+Premerge check:
+```
+premerge green: Python 3.12; ty 28 <= 28
+```
+
+---
+
+## Cycle 4: Parquet Compaction Property Tests
+
+### Scope & Invariants Tested
+- **Idempotence & Byte Stability**: recompacting an already-compacted day produces identical row counts and bit-for-bit identical SHA-256 parquet file hashes.
+- **Zero Row Loss**: compacted tables have exactly the count of distinct primary keys across source jobs, verified with DuckDB.
+- **Primary Key Deduplication & Sorting**: `deduplicate_and_sort` eliminates duplicate primary keys across all 9 projected tables and enforces deterministic ordering.
+- **Retention & Pruning State Machine**: `CompactionRetentionStateMachine` fuzzes dynamic job additions, compaction across dates, retention pruning cutoffs, and row conservation.
+
+### Hypothesis Findings & Counterexamples
+- `_make_row("steps", ...)` initially missed non-nullable `source_sha256` in test generator. Generator updated with full valid schema fields. No source defects in `parquet_compaction.py`.
+
+### Evidence & Pytest Output
+Suite runtime:
+```
+tests/test_compaction_properties.py: 4 passed in 42.40s
+```
+Combined property tests:
+```
+tests/test_queue_properties.py tests/test_quota_properties.py tests/test_authoring_properties.py tests/test_compaction_properties.py: 20 passed in 42.73s
+```
+Full test suite summary:
+```
+1291 passed, 1 skipped, 1 xfailed in 123.34s
 ```
 Premerge check:
 ```

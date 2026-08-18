@@ -604,6 +604,23 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         help="override the shared Parquet root",
     )
+    behavior = commands.add_parser(
+        "behavior", help="Analyze agent execution behavior, effort, and efficiency"
+    )
+    behavior.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON behavior report"
+    )
+    behavior.add_argument(
+        "--task", help="filter analysis to one task name"
+    )
+    behavior.add_argument(
+        "--agent", help="filter analysis to one agent name"
+    )
+    behavior.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"
@@ -1835,6 +1852,26 @@ def run_cli(
             else:
                 print(f"eval card: {args.output}")
                 print(f"config digest: {card_data.get('spec_digest')}")
+            return 0
+        if args.command == "behavior":
+            from evallab.behavior import (
+                generate_behavior_report,
+                render_behavior_report,
+                report_to_dict,
+            )
+
+            explicit = getattr(args, "derived_root", None)
+            derived = derived_root_from_environment(root, explicit=explicit)
+            report = generate_behavior_report(
+                repo_root=root,
+                explicit_derived=derived,
+                task_filter=args.task,
+                agent_filter=args.agent,
+            )
+            if args.json:
+                print(json.dumps(report_to_dict(report), indent=2))
+            else:
+                print(render_behavior_report(report))
             return 0
         if args.command == "ladder" and args.ladder_command == "generate":
             from evallab.ladder import generate_grid, load_grid_spec

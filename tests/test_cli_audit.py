@@ -38,6 +38,7 @@ TOP_LEVEL_COMMANDS = (
     "lineage",
     "analyst",
     "card",
+    "behavior",
     "ladder",
     "trace",
     "fetch",

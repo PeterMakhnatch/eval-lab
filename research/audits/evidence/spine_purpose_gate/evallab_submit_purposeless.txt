@@ -1,0 +1,14 @@
+Command: uv run evallab submit <purposeless_spec.json>
+Exit code: 2
+Output:
+error: 3 validation errors for ExperimentSpec
+hypothesis
+  Field required [type=missing, input_value={'name': 'test-spec', 'ta...ary', 'agent': 'oracle'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+purpose
+  Field required [type=missing, input_value={'name': 'test-spec', 'ta...ary', 'agent': 'oracle'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+submitted_by
+  Field required [type=missing, input_value={'name': 'test-spec', 'ta...ary', 'agent': 'oracle'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+

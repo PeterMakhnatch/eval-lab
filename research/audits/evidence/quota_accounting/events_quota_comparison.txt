@@ -1,0 +1,15 @@
+--- EVENTS.JSONL TRUTH ---
+Total events in queue log: 144
+Codex canary events: 53
+Dispatch attempt reservations: 6
+  Reserved attempt 1 for canary-transaction-reconciliation-codex-20260815: estimated_cost_usd=2.5
+  Reserved attempt 1 for canary-terminal-bench-html-js-filter-codex-20260815: estimated_cost_usd=2.5
+  Reserved attempt 1 for canary-event-summary-codex-20260815: estimated_cost_usd=2.5
+  Reserved attempt 1 for canary-transaction-reconciliation-codex-20260816: estimated_cost_usd=2.5
+Dispatch refusals in events: 1
+  Refused canary-event-summary-codex-20260814-r2: reason_code=quiet_failure_rule
+
+--- QUOTA.PY ARTIFACT TRUTH ---
+Headroom: used_percent=70.0, hard_stop=True, resets_at=2026-08-20 18:32:49+00:00, window_minutes=10080, total_snapshots=67
+Ledger Totals: paid_jobs=3, paid_trials=9, uncached_in=113176, cached_in=1176832, out=40375
+Reported cost USD (list-price equivalent): 0.9462

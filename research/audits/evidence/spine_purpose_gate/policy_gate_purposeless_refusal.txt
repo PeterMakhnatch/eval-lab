@@ -1,0 +1,6 @@
+Admitted: False
+Reason Code: purposeless_spec
+Message:
+spec unnamed-intent declares no purpose. Every experiment spec must declare its intent so work can be grouped, budgeted, and reviewed by intent rather than merely listed.
+  allowed values: baseline | comparison | elicitation | drift | calibration | craft | practice
+  fix: set "purpose" in the spec file to one of the values above, then resubmit with `uv run evallab submit <spec.json>`

@@ -77,7 +77,7 @@ inputs:
   - path: docs/platform-architecture.md
     digest: sha256:166e17d55026c2573eee829c4f46c7c25d64f8fdd4c0c5bddac8d9c458f75917
   - path: docs/quality.md
-    digest: sha256:1784282f5ff9458d074e1418804c6b21ba68d5c9c57f1955dbe8a6abb107c2a6
+    digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md

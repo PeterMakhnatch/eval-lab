@@ -5,8 +5,11 @@ CI has no PostgreSQL or derived corpus — tests use tmp_path and in-memory Duck
 """
 
 import json
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
 import duckdb
 import pytest
@@ -34,6 +37,7 @@ from evallab.verdicts import (
 SAMPLE_DISCOVERY_HEADER_ID = "D-20260815-KTXJSHGZ"
 SAMPLE_DISCOVERY_HEADER_ID_2 = "D-20260816-7CQRVDQ6"
 SAMPLE_CITATION_ULID = "01KZZCK33HJM4R8HW3V0Y25DXE"
+
 
 def _create_sample_discoveries_journal(root: Path) -> Path:
     journal_path = root / DEFAULT_DISCOVERIES_PATH
@@ -309,6 +313,8 @@ def test_cli_verdict_record_and_list(
         assert SAMPLE_DISCOVERY_HEADER_ID in out_list
         assert "accepted" in out_list
         assert "Peter Makhnatch" in out_list
+
+
 def test_cli_verdict_refusal_unknown_id(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -392,6 +398,7 @@ def test_format_verdict_history_table() -> None:
     assert "pending" in rendered
     assert "accepted" in rendered
 
+
 def test_cli_verdict_json(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -427,6 +434,7 @@ def test_cli_verdict_json(
         assert data["by"] == "Peter Makhnatch"
         assert data["note"] == "Needs more samples"
 
+
 def test_cli_verdict_history_command(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -458,6 +466,7 @@ def test_cli_verdict_history_command(
             ["verdict", "history", SAMPLE_DISCOVERY_HEADER_ID], workspace=tmp_path
         )
         assert code == 0
+
 
 def test_cli_verdict_missing_status_or_by(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -534,11 +543,14 @@ def test_genuinely_empty_table_prints_friendly_message() -> None:
         )
 
 
+_DSN_FOR_TEST = database_url_from_environment()
+
+
 def _catalog_reachable(dsn: str | None = None) -> bool:
     try:
         import psycopg
 
-        url = database_url_from_environment(dsn)
+        url = dsn or _DSN_FOR_TEST
         with psycopg.connect(url, connect_timeout=1) as conn:
             conn.execute("SELECT 1")
         return True
@@ -546,16 +558,55 @@ def _catalog_reachable(dsn: str | None = None) -> bool:
         return False
 
 
-_DSN_FOR_TEST = database_url_from_environment()
+def _derive_isolated_db_url(base_url: str, name: str) -> str:
+    parsed = urlsplit(base_url)
+    return urlunsplit(parsed._replace(path=f"/{name}"))
+
+
+@pytest.fixture(scope="module")
+def isolated_database_url() -> Iterator[str]:
+    """Create and drop an isolated PostgreSQL database for test isolation."""
+    if not _catalog_reachable():
+        yield _DSN_FOR_TEST
+        return
+
+    import psycopg
+
+    base_url = _DSN_FOR_TEST
+    db_name = f"test_verdicts_{uuid4().hex[:12]}"
+    target_url = _derive_isolated_db_url(base_url, db_name)
+
+    with psycopg.connect(base_url, autocommit=True) as conn:
+        conn.execute(f'CREATE DATABASE "{db_name}"')
+
+    try:
+        yield target_url
+    finally:
+        with psycopg.connect(base_url, autocommit=True) as conn:
+            try:
+                conn.execute(f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)')
+            except Exception:
+                conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
+
+
+@pytest.fixture(autouse=True)
+def _isolate_database_env(
+    isolated_database_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure DATABASE_URL environment variable points to the isolated test database."""
+    if _catalog_reachable():
+        monkeypatch.setenv("DATABASE_URL", isolated_database_url)
 
 
 @pytest.mark.skipif(
     not _catalog_reachable(),
     reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
 )
-def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
+def test_postgres_catalog_roundtrip_if_available(
+    tmp_path: Path, isolated_database_url: str
+) -> None:
     """Full PostgreSQL catalog roundtrip when DATABASE_URL is reachable."""
-    db_url = _DSN_FOR_TEST
+    db_url = isolated_database_url
     _create_sample_discoveries_journal(tmp_path)
 
     now = datetime.now(UTC)
@@ -572,7 +623,7 @@ def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
 
     current = list_current_verdicts_from_catalog(database_url=db_url)
     matching = [v for v in current if v.discovery_id == SAMPLE_DISCOVERY_HEADER_ID]
-    assert len(matching) >= 1
+    assert len(matching) == 1
     assert matching[0].status == "accepted"
     assert matching[0].by == "Peter Makhnatch"
     assert matching[0].note == "Catalog roundtrip test"
@@ -581,3 +632,57 @@ def test_postgres_catalog_roundtrip_if_available(tmp_path: Path) -> None:
     assert len(history) >= 1
     assert history[-1].status == "accepted"
     assert history[-1].note == "Catalog roundtrip test"
+
+
+@pytest.mark.skipif(
+    not _catalog_reachable(),
+    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
+)
+def test_postgres_verdict_writes_leave_live_catalog_untouched(
+    tmp_path: Path, isolated_database_url: str
+) -> None:
+    """Live verdicts row count is recorded before/after Postgres writes and asserted unchanged."""
+    import psycopg
+
+    live_url = _DSN_FOR_TEST
+
+    # Record live verdicts count before
+    with psycopg.connect(live_url) as conn, conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM verdicts")
+        count_before = cur.fetchone()[0]
+
+    _create_sample_discoveries_journal(tmp_path)
+    now = datetime.now(UTC)
+
+    # Perform writes to the isolated database
+    verdict = record_verdict(
+        SAMPLE_DISCOVERY_HEADER_ID,
+        "accepted",
+        by="Peter Makhnatch",
+        note="Isolation verification test",
+        at=now,
+        repo_root=tmp_path,
+        database_url=isolated_database_url,
+    )
+    assert verdict.status == "accepted"
+
+    current = list_current_verdicts_from_catalog(database_url=isolated_database_url)
+    assert len(current) >= 1
+    matching = [v for v in current if v.discovery_id == SAMPLE_DISCOVERY_HEADER_ID]
+    assert len(matching) == 1
+    assert matching[0].status == "accepted"
+
+    history = get_verdict_history_from_catalog(
+        SAMPLE_DISCOVERY_HEADER_ID, database_url=isolated_database_url
+    )
+    assert len(history) >= 1
+    assert history[-1].status == "accepted"
+
+    # Record live verdicts count after
+    with psycopg.connect(live_url) as conn, conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM verdicts")
+        count_after = cur.fetchone()[0]
+
+    assert count_before == count_after, (
+        f"Live catalog polluted: count changed from {count_before} to {count_after}"
+    )

@@ -11,7 +11,9 @@ Covers:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 import duckdb
@@ -20,12 +22,14 @@ import pytest
 from evallab.database import initialize, quota_today, views_path
 from evallab.runner import database_url_from_environment
 
+_DSN_FOR_TEST = database_url_from_environment()
+
 
 def _catalog_reachable(dsn: str | None = None) -> bool:
     try:
         import psycopg
 
-        url = database_url_from_environment(dsn)
+        url = dsn or _DSN_FOR_TEST
         with psycopg.connect(url, connect_timeout=1) as conn:
             conn.execute("SELECT 1")
         return True
@@ -33,7 +37,45 @@ def _catalog_reachable(dsn: str | None = None) -> bool:
         return False
 
 
-_DSN_FOR_TEST = database_url_from_environment()
+def _derive_isolated_db_url(base_url: str, name: str) -> str:
+    parsed = urlsplit(base_url)
+    return urlunsplit(parsed._replace(path=f"/{name}"))
+
+
+@pytest.fixture(scope="module")
+def isolated_database_url() -> Iterator[str]:
+    """Create and drop an isolated PostgreSQL database for test isolation."""
+    if not _catalog_reachable():
+        yield _DSN_FOR_TEST
+        return
+
+    import psycopg
+
+    base_url = _DSN_FOR_TEST
+    db_name = f"test_z2_{uuid4().hex[:12]}"
+    target_url = _derive_isolated_db_url(base_url, db_name)
+
+    with psycopg.connect(base_url, autocommit=True) as conn:
+        conn.execute(f'CREATE DATABASE "{db_name}"')
+
+    try:
+        initialize(target_url)
+        yield target_url
+    finally:
+        with psycopg.connect(base_url, autocommit=True) as conn:
+            try:
+                conn.execute(f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)')
+            except Exception:
+                conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
+
+
+@pytest.fixture(autouse=True)
+def _isolate_database_env(
+    isolated_database_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure DATABASE_URL environment variable points to the isolated test database."""
+    if _catalog_reachable():
+        monkeypatch.setenv("DATABASE_URL", isolated_database_url)
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +115,6 @@ def test_v_quota_today_utc_bucketing_duckdb() -> None:
         ts_today_mid = f"{today_iso}T12:00:00Z"
         ts_today_late = f"{today_iso}T23:59:50Z"
         ts_tomorrow = f"{tomorrow_utc_date.isoformat()}T00:00:10Z"
-
 
         con.execute(
             """
@@ -134,11 +175,11 @@ def test_v_quota_today_utc_bucketing_duckdb() -> None:
     not _catalog_reachable(),
     reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
 )
-def test_schema_ddl_idempotent() -> None:
+def test_schema_ddl_idempotent(isolated_database_url: str) -> None:
     """Applying schema DDL multiple times succeeds and leaves one set of objects."""
     import psycopg
 
-    db_url = _DSN_FOR_TEST
+    db_url = isolated_database_url
     initialize(db_url)
     initialize(db_url)
 
@@ -170,11 +211,11 @@ def test_schema_ddl_idempotent() -> None:
     not _catalog_reachable(),
     reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
 )
-def test_unfrozen_suite_accepts_membership_mutations() -> None:
+def test_unfrozen_suite_accepts_membership_mutations(isolated_database_url: str) -> None:
     """An unfrozen suite allows inserting, updating, and deleting members."""
     import psycopg
 
-    db_url = _DSN_FOR_TEST
+    db_url = isolated_database_url
     suite_name = f"test-unfrozen-{uuid4().hex[:8]}"
     suite_version = "v1"
 
@@ -228,7 +269,7 @@ def test_unfrozen_suite_accepts_membership_mutations() -> None:
     not _catalog_reachable(),
     reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
 )
-def test_frozen_suite_rejects_membership_mutations() -> None:
+def test_frozen_suite_rejects_membership_mutations(isolated_database_url: str) -> None:
     """A frozen suite rejects all membership insertions, updates, and deletions in the DB.
 
     Load-bearing test: attempts mutation directly against the store and asserts
@@ -236,7 +277,7 @@ def test_frozen_suite_rejects_membership_mutations() -> None:
     """
     import psycopg
 
-    db_url = _DSN_FOR_TEST
+    db_url = isolated_database_url
     suite_name = f"test-frozen-{uuid4().hex[:8]}"
     suite_version = "v1"
 
@@ -326,11 +367,11 @@ def test_frozen_suite_rejects_membership_mutations() -> None:
     not _catalog_reachable(),
     reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
 )
-def test_v_quota_today_postgres_utc_bucketing() -> None:
+def test_v_quota_today_postgres_utc_bucketing(isolated_database_url: str) -> None:
     """v_quota_today in PostgreSQL aggregates only trials started on current UTC day."""
     import psycopg
 
-    db_url = _DSN_FOR_TEST
+    db_url = isolated_database_url
     job_id = uuid4()
     trial_prefix = f"quota-pg-{uuid4().hex[:6]}"
 
@@ -382,20 +423,11 @@ def test_v_quota_today_postgres_utc_bucketing() -> None:
         )
         conn.commit()
 
-        try:
-            today_rows = quota_today(db_url)
-            codex_rows = [r for r in today_rows if r[0] == "codex"]
-            assert len(codex_rows) == 1
-            # Must include ts_today (200+100=300 tokens, 1 run) plus any other runs planted today
-            provider, runs, tokens = codex_rows[0]
-            assert provider == "codex"
-            assert runs >= 1
-            assert tokens >= 300
-        finally:
-            # Clean up planted trials
-            conn.execute(
-                "DELETE FROM trials WHERE trial_name LIKE %s",
-                (f"{trial_prefix}%",),
-            )
-            conn.execute("DELETE FROM jobs WHERE id = %s", (job_id,))
-            conn.commit()
+        today_rows = quota_today(db_url)
+        codex_rows = [r for r in today_rows if r[0] == "codex"]
+        assert len(codex_rows) == 1
+        # Must include ts_today (200+100=300 tokens, 1 run)
+        provider, runs, tokens = codex_rows[0]
+        assert provider == "codex"
+        assert runs == 1
+        assert tokens == 300

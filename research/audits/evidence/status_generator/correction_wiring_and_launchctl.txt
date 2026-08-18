@@ -1,0 +1,28 @@
+=== Grep and Launchctl Evidence for status_generator.py ===
+Command 1: grep -rn 'status_generator' src/ | grep -v pycache
+Output:
+src/evallab/automation.py:34:from evallab.status_generator import update_status_file
+
+Command 2: grep -rn 'update_status_file' src/
+Output:
+src/evallab/automation.py:34:from evallab.status_generator import update_status_file
+src/evallab/automation.py:774:            else (lambda day: update_status_file(self.renderer.repo_root, target_date=day))
+src/evallab/status_generator.py:466:def update_status_file(
+
+Command 3: launchctl list | grep petermakhnatch || true
+Output:
+(no output)
+
+Command 4: launchctl list | grep evallab || true
+Output:
+(no output)
+
+Command 5: ls -la ~/Library/LaunchAgents/com.petermakhnatch.evallab.*.plist
+Output:
+-rw-r--r--  1 petermakhnatch staff 1147 Aug 15 01:52 /Users/petermakhnatch/Library/LaunchAgents/com.petermakhnatch.evallab.nightly.plist
+-rw-r--r--  1 petermakhnatch staff 1081 Aug 15 01:52 /Users/petermakhnatch/Library/LaunchAgents/com.petermakhnatch.evallab.tick.plist
+
+Finding: "wired but never run".
+`status_generator.py` is legitimately wired into `automation.py` as a registered nightly automation step.
+However, `launchctl list` confirms no active schedule is loaded into launchctl on this host, explaining why `docs/STATUS.md` had never been generated/committed on main.
+Earlier correction claiming it had "0 callers in src/" was factually incorrect.

@@ -1,0 +1,15 @@
+=== Grep Evidence for storm.py callers in src/ ===
+Command: grep -rn 'from evallab.storm import' src/
+Output:
+src/evallab/digest.py:29:from evallab.storm import StormAlarm, detect_storm_alarms, digest_storm_section
+src/evallab/status_generator.py:22:from evallab.storm import (
+
+Command: grep -rn 'digest_storm_section' src/
+Output:
+src/evallab/digest.py:29:from evallab.storm import StormAlarm, detect_storm_alarms, digest_storm_section
+src/evallab/digest.py:362:    lines.extend(digest_storm_section(alarms))
+src/evallab/storm.py:266:        return digest_storm_section(self.alarms)
+src/evallab/storm.py:462:def digest_storm_section(alarms: Sequence[StormAlarm]) -> list[str]:
+
+Verdict: CONFIRMED. The module is imported and wired into digest rendering and status generation in production code.
+Earlier correction claiming it was "not imported or called anywhere in src/" was factually incorrect.

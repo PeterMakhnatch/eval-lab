@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -93,6 +94,34 @@ def test_status_update_file_writes_to_disk_cleanly(tmp_path: Path) -> None:
     update_status_file(repo, target_date=TARGET_DATE, destination=status_file)
     content2 = status_file.read_text()
     assert content1 == content2
+
+
+def test_status_update_file_default_path(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    expected_path = repo / "docs/STATUS.md"
+
+    updated = update_status_file(repo, target_date=TARGET_DATE)
+    assert updated == expected_path
+    assert expected_path.is_file()
+
+    content = expected_path.read_text()
+    assert "---" in content
+    assert "status: living" in content
+    assert f"# Research status — {TARGET_DATE.isoformat()}" in content
+
+
+def test_status_generator_sha256_byte_identity(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    _write_spec(repo / "queue/running", "spec-run-1", "running-test", "event-summary", "codex")
+
+    out1 = generate_status_markdown(repo, target_date=TARGET_DATE)
+    out2 = generate_status_markdown(repo, target_date=TARGET_DATE)
+
+    hash1 = hashlib.sha256(out1.encode("utf-8")).hexdigest()
+    hash2 = hashlib.sha256(out2.encode("utf-8")).hexdigest()
+
+    assert hash1 == hash2
+    assert out1 == out2
 
 
 def test_recent_trials_aggregation_and_formatting() -> None:
@@ -297,9 +326,9 @@ def test_nightly_cycle_invokes_status_generator_idempotently(tmp_path: Path) -> 
     result1 = cycle.run(report_date=TARGET_DATE)
     assert result1.status_path is not None
     assert result1.status_path.is_file()
+    assert result1.status_path == repo / "docs/STATUS.md"
     content1 = result1.status_path.read_text()
     assert "# Research status" in content1
-
     # Second run produces identical output
     result2 = cycle.run(report_date=TARGET_DATE)
     assert result2.status_path == result1.status_path

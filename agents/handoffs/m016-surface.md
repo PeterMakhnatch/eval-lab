@@ -1,6 +1,6 @@
 Status: building
-Last: Cycle 1: Wire status CLI entrypoint, generate first docs/STATUS.md, and add golden test skeleton
-Next: Cycle 2: Regeneration hook in automation nightly and determinism proof (byte-identical shasums)
+Last: Cycle 2: Verified nightly regeneration hook and proved byte-identical determinism with shasums
+Next: Cycle 3: Board note for lessons and Digest links for DISCOVERIES.md
 Blockers: none
 
 # M016 - LOOP-SURFACE: the generated surfaces actually generate
@@ -36,4 +36,34 @@ Command output from full pytest suite:
 
 ### 5. RECORD
 - Premerge verification: `bash scripts/premerge.sh` (pass).
-- Committed and pushed Cycle 1.
+- Committed and pushed Cycle 1. PR: https://github.com/PeterMakhnatch/eval-lab/pull/119
+
+## Cycle 2 Log
+
+### 1. RECHECK
+- Rechecked Cycle 1 acceptance with `scripts/premerge.sh`: passed (1275 passed, clean ruff, ty 28 diagnostics).
+
+### 2. EXTEND
+- Verified that STATUS refreshes on the existing nightly via `status_update` step in `NightlyCycle` (`src/evallab/automation.py`), targeting `docs/STATUS.md`.
+- Evaluated determinism across consecutive generations on live repo data.
+
+### 3. PROVE
+Exact shasum comparison command and output proving byte-identical determinism:
+```
+Run 1 SHA256: 5588fafe1a3eaf0e7eeb235a7a31546f70fa6d99ce831ab6b13ced9f8e503555  -
+Run 2 SHA256: 5588fafe1a3eaf0e7eeb235a7a31546f70fa6d99ce831ab6b13ced9f8e503555  -
+PROVEN: Generations are BYTE-IDENTICAL
+```
+
+Full pytest summary line:
+```
+1277 passed, 1 skipped, 1 xfailed in 55.60s
+```
+
+### 4. HARDEN
+- Added `test_status_update_file_default_path` and `test_status_generator_sha256_byte_identity` in `tests/test_status_generator.py`.
+- Verified that `NightlyCycle.run` produces `docs/STATUS.md` directly and is byte-identical across multiple invocations on unchanged state.
+
+### 5. RECORD
+- Premerge verification: `bash scripts/premerge.sh` (pass).
+- Committed and pushed Cycle 2. PR: https://github.com/PeterMakhnatch/eval-lab/pull/119

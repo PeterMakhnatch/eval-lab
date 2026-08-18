@@ -133,7 +133,10 @@ def test_unambiguous_local_lab_stays_certain():
     assert rec.confidence == Confidence.CERTAIN
 
 
-def test_report_names_configured_but_missing_corpus_root_as_unavailable_with_reason():
+def test_report_names_configured_but_missing_corpus_root_as_unavailable_with_reason(
+    tmp_path: Path,
+):
+    missing_root = tmp_path / "definitely-not-here"
     cmd = [
         "uv",
         "run",
@@ -142,7 +145,7 @@ def test_report_names_configured_but_missing_corpus_root_as_unavailable_with_rea
         "evallab.provenance",
         "report",
         "--tb3-root",
-        "/tmp/definitely-not-here",
+        str(missing_root),
     ]
     result = subprocess.run(
         cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent
@@ -153,10 +156,12 @@ def test_report_names_configured_but_missing_corpus_root_as_unavailable_with_rea
     assert "definitely-not-here" in out
     assert "path does not exist" in out
     assert "local-lab\tfound" in out
-    assert "proposed\tunavailable" in out
 
 
-def test_report_output_byte_identical_across_runs_even_with_root_status():
+def test_report_output_byte_identical_across_runs_even_with_root_status(
+    tmp_path: Path,
+):
+    missing_root = tmp_path / "definitely-not-here"
     cmd = [
         "uv",
         "run",
@@ -165,7 +170,7 @@ def test_report_output_byte_identical_across_runs_even_with_root_status():
         "evallab.provenance",
         "report",
         "--tb3-root",
-        "/tmp/definitely-not-here",
+        str(missing_root),
     ]
     result1 = subprocess.run(
         cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent

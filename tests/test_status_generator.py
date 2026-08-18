@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -65,6 +66,54 @@ def _write_spec(
     dest = queue_dir / f"{spec_id}.json"
     dest.write_text(spec.model_dump_json())
     return dest
+def _write_mock_job(
+    root: Path,
+    job_name: str,
+    finished_at: str,
+    task_name: str,
+    agent_name: str,
+    model_name: str | None = None,
+    reward: float = 1.0,
+) -> Path:
+    job = root / job_name
+    trial = job / f"{task_name}__trial1"
+    job.mkdir(parents=True, exist_ok=True)
+    trial.mkdir(parents=True, exist_ok=True)
+    (job / "config.json").write_text(
+        json.dumps({"agent": {"name": agent_name}, "task": {"name": task_name}})
+    )
+    (job / "lock.json").write_text(json.dumps({"harbor": {"version": "0.21.0"}}))
+    (job / "result.json").write_text(
+        json.dumps({
+            "id": f"job-id-{job_name}",
+            "started_at": finished_at,
+            "finished_at": finished_at,
+            "n_total_trials": 1,
+            "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
+        })
+    )
+    agent_info: dict[str, object] = {"name": agent_name, "version": "1.0.0"}
+    if model_name:
+        agent_info["model_info"] = {"name": model_name}
+    else:
+        agent_info["model_info"] = None
+
+    (trial / "config.json").write_text(json.dumps({"agent": {"name": agent_name}}))
+    (trial / "lock.json").write_text(json.dumps({"schema_version": 2}))
+    (trial / "result.json").write_text(
+        json.dumps({
+            "id": f"trial-id-{job_name}",
+            "trial_name": trial.name,
+            "task_name": task_name,
+            "started_at": finished_at,
+            "finished_at": finished_at,
+            "agent_info": agent_info,
+            "verifier_result": {"rewards": {"reward": reward}},
+            "exception_info": None,
+        })
+    )
+    return job
+
 
 
 def test_idempotent_and_deterministic_status_generation(tmp_path: Path) -> None:
@@ -93,6 +142,34 @@ def test_status_update_file_writes_to_disk_cleanly(tmp_path: Path) -> None:
     update_status_file(repo, target_date=TARGET_DATE, destination=status_file)
     content2 = status_file.read_text()
     assert content1 == content2
+
+
+def test_status_update_file_default_path(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    expected_path = repo / "docs/STATUS.md"
+
+    updated = update_status_file(repo, target_date=TARGET_DATE)
+    assert updated == expected_path
+    assert expected_path.is_file()
+
+    content = expected_path.read_text()
+    assert "---" in content
+    assert "status: living" in content
+    assert f"# Research status — {TARGET_DATE.isoformat()}" in content
+
+
+def test_status_generator_sha256_byte_identity(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    _write_spec(repo / "queue/running", "spec-run-1", "running-test", "event-summary", "codex")
+
+    out1 = generate_status_markdown(repo, target_date=TARGET_DATE)
+    out2 = generate_status_markdown(repo, target_date=TARGET_DATE)
+
+    hash1 = hashlib.sha256(out1.encode("utf-8")).hexdigest()
+    hash2 = hashlib.sha256(out2.encode("utf-8")).hexdigest()
+
+    assert hash1 == hash2
+    assert out1 == out2
 
 
 def test_recent_trials_aggregation_and_formatting() -> None:
@@ -297,9 +374,9 @@ def test_nightly_cycle_invokes_status_generator_idempotently(tmp_path: Path) -> 
     result1 = cycle.run(report_date=TARGET_DATE)
     assert result1.status_path is not None
     assert result1.status_path.is_file()
+    assert result1.status_path == repo / "docs/STATUS.md"
     content1 = result1.status_path.read_text()
     assert "# Research status" in content1
-
     # Second run produces identical output
     result2 = cycle.run(report_date=TARGET_DATE)
     assert result2.status_path == result1.status_path
@@ -348,3 +425,222 @@ def test_nightly_cycle_handles_status_updater_failure_cleanly(tmp_path: Path) ->
         and "RuntimeError" in (e.reason_code or "")
         for e in events
     )
+def test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    # Seed both a yesterday job and a historical job on the filesystem
+    _write_mock_job(
+        repo / "runs",
+        "job-yesterday",
+        "2026-08-15T15:00:00Z",
+        "task-yesterday",
+        "codex",
+        "gpt-5.6-terra",
+    )
+    _write_mock_job(
+        repo / "runs",
+        "job-historical",
+        "2026-08-12T15:00:00Z",
+        "task-historical",
+        "oracle",
+    )
+
+    data = collect_status_data(
+        repo,
+        target_date=TARGET_DATE,
+        trial_loader=lambda _day: [],
+    )
+    assert data.catalog_accessible is True
+    assert data.trials_source == "catalog"
+    assert len(data.recent_trials) == 0
+
+    rendered = generate_status_markdown(
+        repo,
+        target_date=TARGET_DATE,
+        trial_loader=lambda _day: [],
+    )
+    assert "## RECENT (Yesterday: 2026-08-15)" in rendered
+    assert "No completed trials observed in the reporting window." in rendered
+    assert "task-yesterday" not in rendered
+    assert "task-historical" not in rendered
+    assert "*(Source: filesystem fallback" not in rendered
+    recent_section = rendered.split("## RECENT")[1].split("## RUNNING NOW")[0]
+    assert "- **" not in recent_section
+    assert "via " not in recent_section
+
+
+def test_status_accessible_empty_catalog_never_falls_back_to_filesystem_even_with_runs_on_disk(
+    tmp_path: Path,
+) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    # Create valid jobs on disk matching reporting date and older dates
+    _write_mock_job(
+        repo / "runs",
+        "job-yesterday",
+        "2026-08-15T15:00:00Z",
+        "task-yesterday",
+        "codex",
+        "gpt-5.6-terra",
+    )
+    _write_mock_job(
+        repo / "research" / "evidence" / "runs",
+        "job-evidence-yesterday",
+        "2026-08-15T10:00:00Z",
+        "task-evidence",
+        "oracle",
+    )
+
+    # Case 1: Catalog accessible and returns [] -> Must NOT scan filesystem, must report catalog
+    data_empty_catalog = collect_status_data(
+        repo,
+        target_date=TARGET_DATE,
+        trial_loader=lambda _day: [],
+    )
+    assert data_empty_catalog.catalog_accessible is True
+    assert data_empty_catalog.trials_source == "catalog"
+    assert len(data_empty_catalog.recent_trials) == 0
+    rendered = render_status_markdown(data_empty_catalog)
+    assert "No completed trials observed in the reporting window." in rendered
+    assert "task-yesterday" not in rendered
+    assert "task-evidence" not in rendered
+    assert "*(Source: filesystem fallback" not in rendered
+
+    # Case 2: Catalog INACCESSIBLE (raises) -> Must fall back to filesystem with disclaimer
+    def failing_loader(_day: date) -> list[TrialSummary]:
+        raise RuntimeError("database down")
+
+    data_fallback = collect_status_data(
+        repo,
+        target_date=TARGET_DATE,
+        trial_loader=failing_loader,
+    )
+    assert data_fallback.catalog_accessible is False
+    assert data_fallback.trials_source == "filesystem"
+    assert len(data_fallback.recent_trials) == 2
+    rendered_fallback = render_status_markdown(data_fallback)
+    assert "*(Source: filesystem fallback — catalog unavailable)*" in rendered_fallback
+    assert "task-yesterday" in rendered_fallback
+    assert "task-evidence" in rendered_fallback
+    assert "No completed trials observed in the reporting window." not in rendered_fallback
+
+
+def test_status_rendering_three_states_distinguishable(tmp_path: Path) -> None:
+    t1 = TrialSummary(
+        job_name="job-1",
+        task_name="canary/event-summary",
+        agent_name="codex",
+        model_name="gpt-5.6-terra",
+        reward=1.0,
+        exception_type=None,
+        cost_usd=0.05,
+        finished_at="2026-08-15T10:00:00Z",
+    )
+    data_present = StatusReportData(
+        target_date=TARGET_DATE,
+        reporting_date=REPORTING_DATE,
+        recent_trials=[t1],
+        catalog_accessible=True,
+        trials_source="catalog",
+    )
+    out_present = render_status_markdown(data_present)
+    assert "- **canary/event-summary** — 1/1 `reward==1.0` via codex (gpt-5.6-terra)" in out_present
+    assert "No completed trials observed in the reporting window." not in out_present
+    assert "Source unavailable" not in out_present
+
+    data_none = StatusReportData(
+        target_date=TARGET_DATE,
+        reporting_date=REPORTING_DATE,
+        recent_trials=[],
+        catalog_accessible=True,
+        trials_source="catalog",
+    )
+    out_none = render_status_markdown(data_none)
+    assert "No completed trials observed in the reporting window." in out_none
+    assert "- **" not in out_none.split("## RECENT")[1].split("## RUNNING NOW")[0]
+    assert "Source unavailable" not in out_none
+
+    data_unavail = StatusReportData(
+        target_date=TARGET_DATE,
+        reporting_date=REPORTING_DATE,
+        recent_trials=[],
+        catalog_accessible=False,
+        trials_source="filesystem",
+        catalog_error="Postgres connection timeout",
+    )
+    out_unavail = render_status_markdown(data_unavail)
+    assert "Source unavailable: catalog inaccessible (Postgres connection timeout)." in out_unavail
+    assert "No completed trials observed in the reporting window." not in out_unavail
+    assert "- **" not in out_unavail.split("## RECENT")[1].split("## RUNNING NOW")[0]
+
+    assert out_present != out_none
+    assert out_none != out_unavail
+    assert out_present != out_unavail
+
+
+def test_status_rendering_unreadable_jobs_surfaced_as_count(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    corrupt_job = repo / "research" / "evidence" / "runs" / "corrupt-job"
+    corrupt_job.mkdir(parents=True)
+    (corrupt_job / "result.json").write_text("invalid json content {{{")
+
+    data = collect_status_data(repo, target_date=TARGET_DATE, database_url="")
+    assert data.unreadable_jobs_count == 1
+
+    rendered = render_status_markdown(data)
+    assert "- *Warning:* 1 job directory unreadable." in rendered
+    assert "- Unreadable job directories: 1" in rendered
+
+
+def test_status_filesystem_fallback_honors_date_filter_and_label(tmp_path: Path) -> None:
+    repo = _setup_mock_repo(tmp_path)
+
+    # Old job: 2026-08-12 (3 days before REPORTING_DATE 2026-08-15)
+    old_job = repo / "runs" / "old-job"
+    old_job.mkdir(parents=True)
+    (old_job / "result.json").write_text(json.dumps({
+        "id": "old-001",
+        "finished_at": "2026-08-12T15:00:00Z",
+        "n_total_trials": 1,
+        "stats": {"n_completed_trials": 1},
+    }))
+    (old_job / "config.json").write_text(
+        json.dumps({"agent": {"name": "oracle"}, "task": {"name": "task-old"}})
+    )
+    old_trial = old_job / "trial-1"
+    old_trial.mkdir(parents=True)
+    (old_trial / "result.json").write_text(json.dumps({
+        "task_name": "task-old",
+        "trial_name": "trial-1",
+        "agent_info": {"name": "oracle"},
+        "verifier_result": {"rewards": {"reward": 1.0}},
+    }))
+
+    # Yesterday job: 2026-08-15
+    yest_job = repo / "runs" / "yest-job"
+    yest_job.mkdir(parents=True)
+    (yest_job / "result.json").write_text(json.dumps({
+        "id": "yest-001",
+        "finished_at": "2026-08-15T15:00:00Z",
+        "n_total_trials": 1,
+        "stats": {"n_completed_trials": 1},
+    }))
+    (yest_job / "config.json").write_text(
+        json.dumps({"agent": {"name": "codex"}, "task": {"name": "task-yesterday"}})
+    )
+    yest_trial = yest_job / "trial-1"
+    yest_trial.mkdir(parents=True)
+    (yest_trial / "result.json").write_text(json.dumps({
+        "task_name": "task-yesterday",
+        "trial_name": "trial-1",
+        "agent_info": {"name": "codex", "model_info": {"name": "gpt-5.6-terra"}},
+        "verifier_result": {"rewards": {"reward": 1.0}},
+    }))
+
+    data = collect_status_data(repo, target_date=TARGET_DATE, database_url="")
+    assert data.trials_source == "filesystem"
+    assert len(data.recent_trials) == 1
+    assert data.recent_trials[0].task_name == "task-yesterday"
+
+    rendered = render_status_markdown(data)
+    assert "*(Source: filesystem fallback — catalog unavailable)*" in rendered
+    assert "**task-yesterday** — 1/1 `reward==1.0` via codex (gpt-5.6-terra)" in rendered
+    assert "task-old" not in rendered

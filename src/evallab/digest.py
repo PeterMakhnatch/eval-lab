@@ -53,6 +53,16 @@ PreflightLoader = Callable[[], PreflightReport]
 StormLoader = Callable[[date], Sequence[StormAlarm]]
 
 
+@dataclass(frozen=True)
+class PendingDiscovery:
+    discovery_id: str
+    status: str
+    claim: str
+    relative_link: str
+
+
+DiscoveriesLoader = Callable[[], list[PendingDiscovery]]
+
 SELF_TEST_JOB_PREFIX = "smoke-"
 """Reserved job-name prefix marking a run as one of the lab's own self-tests.
 
@@ -87,6 +97,7 @@ class DigestRenderer:
         drift_loader: DriftLoader | None = None,
         preflight_loader: PreflightLoader | None = None,
         storm_loader: StormLoader | None = None,
+        discoveries_loader: DiscoveriesLoader | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -95,6 +106,11 @@ class DigestRenderer:
         self._drift_loader = drift_loader or self._load_canary_drift
         self._preflight_loader = preflight_loader or self._load_preflight
         self._storm_loader = storm_loader or self._load_storm_alarms
+        self._discoveries_loader = (
+            discoveries_loader
+            if discoveries_loader is not None
+            else self._load_pending_discoveries
+        )
 
     def write(
         self,
@@ -323,6 +339,27 @@ class DigestRenderer:
                 _judge_calibration_line(self.repo_root),
                 f"- Canary observations in report: {len(drift)}",
                 "",
+                "## Discoveries awaiting verdict",
+                "",
+            ]
+        )
+        try:
+            pending_discoveries = self._discoveries_loader()
+            if pending_discoveries:
+                for disc in pending_discoveries:
+                    lines.append(
+                        f"- [**{disc.discovery_id}**]({disc.relative_link}) "
+                        f"(`{disc.status}`) — {_cell(disc.claim)}"
+                    )
+            else:
+                lines.append("No discoveries awaiting verdict.")
+        except Exception as exc:
+            lines.append(
+                f"- Unavailable: discoveries could not be loaded ({type(exc).__name__}: {exc})."
+            )
+        lines.extend(
+            [
+                "",
                 "## Queue events",
                 "",
             ]
@@ -413,6 +450,10 @@ class DigestRenderer:
                 self.policy, "refuse_billable_at_used_percent", None
             ),
         )
+
+    def _load_pending_discoveries(self) -> list[PendingDiscovery]:
+        discoveries_file = self.repo_root / "digests" / "DISCOVERIES.md"
+        return parse_discoveries_awaiting_verdicts(discoveries_file)
 
     def _load_storm_alarms(self, day: date) -> list[StormAlarm]:
         period_date = day - timedelta(days=1)
@@ -752,3 +793,66 @@ def _cell(value: str) -> str:
 def _signed_bytes(value: int) -> str:
     sign = "+" if value >= 0 else ""
     return f"{sign}{value} bytes since prior digest"
+
+
+def parse_discoveries_awaiting_verdicts(
+    discoveries_path: Path,
+    *,
+    database_url: str | None = None,
+    max_entries: int = 5,
+) -> list[PendingDiscovery]:
+    if not discoveries_path.is_file():
+        return []
+
+    decided_statuses: dict[str, str] = {}
+    try:
+        from evallab.verdicts import list_current_verdicts_from_catalog
+
+        verdicts = list_current_verdicts_from_catalog(database_url)
+        for v in verdicts:
+            decided_statuses[v.discovery_id] = v.status
+    except (Exception, SystemExit):
+        pass
+
+    try:
+        content = discoveries_path.read_text(encoding="utf-8")
+    except Exception:
+        return []
+
+    entries: list[tuple[str, str, str]] = []
+    current_id: str | None = None
+    current_status: str = "draft"
+    current_claim: str | None = None
+
+    for line in content.splitlines():
+        if line.startswith("## D-"):
+            if current_id is not None:
+                entries.append((current_id, current_status, current_claim or "draft finding"))
+            header_part = line.removeprefix("## ").strip()
+            parts = header_part.split(" — ", 1)
+            current_id = parts[0].strip()
+            current_status = parts[1].strip() if len(parts) > 1 else "draft"
+            current_claim = None
+        elif current_id is not None and line.startswith("- Claim:"):
+            current_claim = line.removeprefix("- Claim:").strip()
+
+    if current_id is not None:
+        entries.append((current_id, current_status, current_claim or "draft finding"))
+
+    pending: list[PendingDiscovery] = []
+    for disc_id, status_str, claim in reversed(entries):
+        effective_status = decided_statuses.get(disc_id, status_str)
+        if effective_status in ("draft", "pending", "needs_evidence"):
+            anchor = disc_id.lower()
+            pending.append(
+                PendingDiscovery(
+                    discovery_id=disc_id,
+                    status=effective_status,
+                    claim=claim,
+                    relative_link=f"DISCOVERIES.md#{anchor}",
+                )
+            )
+        if len(pending) >= max_entries:
+            break
+
+    return pending

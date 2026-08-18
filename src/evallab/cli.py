@@ -101,6 +101,7 @@ from evallab.runner import (
 )
 from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
+from evallab.status_generator import generate_status_markdown, update_status_file
 from evallab.tracing import (
     TraceError,
     format_batch,
@@ -213,6 +214,30 @@ def parser() -> argparse.ArgumentParser:
         dest="status_from",
         type=Path,
         help="Repository root or smoke scratch (queue/ + jobs/) to read",
+    )
+    status.add_argument(
+        "--generate",
+        action="store_true",
+        help="Generate docs/STATUS.md markdown projection to stdout",
+    )
+    status.add_argument(
+        "--update",
+        action="store_true",
+        help="Generate and update docs/STATUS.md on disk",
+    )
+    status.add_argument(
+        "--target-date",
+        type=date.fromisoformat,
+        default=None,
+        help="Target date for status generation (YYYY-MM-DD)",
+    )
+    status.add_argument(
+        "--output",
+        "-o",
+        dest="status_output",
+        type=Path,
+        default=None,
+        help="Destination path for status output",
     )
 
     preflight = commands.add_parser(
@@ -1089,6 +1114,30 @@ def _report_command(args: argparse.Namespace, root: Path) -> int:
 
 def _status_command(args: argparse.Namespace, root: Path) -> int:
     target = _resolve(root, args.status_from) if args.status_from is not None else root
+    if getattr(args, "generate", False):
+        md = generate_status_markdown(
+            target,
+            target_date=args.target_date,
+            database_url=getattr(args, "database_url", None),
+        )
+        if args.status_output is not None:
+            out_path = _resolve(root, args.status_output)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(md)
+            print(f"wrote: {out_path}")
+        else:
+            print(md, end="")
+        return 0
+    if getattr(args, "update", False):
+        dest = _resolve(root, args.status_output) if args.status_output is not None else None
+        out_path = update_status_file(
+            target,
+            target_date=args.target_date,
+            destination=dest,
+            database_url=getattr(args, "database_url", None),
+        )
+        print(f"updated: {out_path}")
+        return 0
     snapshot = build_status_snapshot(target)
     if args.json:
         print(json.dumps(snapshot_as_dict(snapshot), indent=2))

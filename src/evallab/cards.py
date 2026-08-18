@@ -23,6 +23,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -49,10 +50,34 @@ DEFAULT_CONTAMINATION_NOTE = (
     "training-data plausibility, task reuse, and whether any attempt could observe "
     "another attempt's artifacts."
 )
+DEFAULT_CONTAMINATION_CAVEAT = (
+    "Benchmark exposure and pretraining cutoffs must be reviewed before publication. "
+    "Task artifacts must not be observable by candidate agents during execution."
+)
+DEFAULT_ELICITATION_CAVEAT = (
+    "Elicitation parameters (agent version, model pin, preamble hash, toolset, attempts k) "
+    "must be strictly pinned before cross-cohort comparisons or ranking."
+)
 
 
 class CardRefusalError(ValueError):
     """Raised when eval-card generation is refused by platform contracts."""
+
+
+@dataclass
+class CardValidationResult:
+    valid: bool
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    card_path: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "card_path": self.card_path,
+        }
 
 
 def _safe_name(value: str) -> str:
@@ -331,6 +356,12 @@ def build_eval_card(
         {"path": job_path_str, "digest": job_lock_digest},
     ]
 
+    regeneration_query = (
+        f"SELECT task_name, count(*) AS n_trials, "
+        f"avg(CASE WHEN primary_reward >= 1.0 THEN 1.0 ELSE 0.0 END) AS pass_rate "
+        f"FROM trial_facts WHERE job_name = '{job.name}' GROUP BY task_name;"
+    )
+
     card_data: JsonObject = {
         "schema_version": 1,
         "title": spec_name,
@@ -353,8 +384,11 @@ def build_eval_card(
             "is_underpowered": is_underpowered,
         },
         "elicitation": evidence.get("elicitation"),
+        "elicitation_caveat": DEFAULT_ELICITATION_CAVEAT,
         "contamination_note": DEFAULT_CONTAMINATION_NOTE,
+        "contamination_caveat": DEFAULT_CONTAMINATION_CAVEAT,
         "threats": threats,
+        "regeneration_query": regeneration_query,
         "inputs": inputs,
     }
 
@@ -389,8 +423,11 @@ def build_eval_card(
         "{{INTERVAL}}": interval_text,
         "{{EXCEPTIONS}}": str(exception_count),
         "{{ELICITATION}}": json.dumps(card_data["elicitation"], indent=2, sort_keys=True),
+        "{{ELICITATION_CAVEAT}}": card_data["elicitation_caveat"],
         "{{CONTAMINATION}}": card_data["contamination_note"],
+        "{{CONTAMINATION_CAVEAT}}": card_data["contamination_caveat"],
         "{{THREATS}}": "\n".join(f"- {t}" for t in threats),
+        "{{REGENERATION_QUERY}}": card_data["regeneration_query"],
     }
 
     rendered = template_path.read_text(encoding="utf-8")
@@ -455,3 +492,151 @@ def generate_card(
         repo_root=root,
         explicit_derived=explicit_derived,
     )
+
+
+def validate_card(content: str, *, card_path: str | None = None) -> CardValidationResult:
+    """Validate a rendered eval-card markdown string against schema and mandatory caveats."""
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if not content or not content.strip():
+        return CardValidationResult(
+            valid=False,
+            errors=["Card content is empty."],
+            warnings=[],
+            card_path=card_path,
+        )
+
+    # 1. Unresolved template placeholders
+    unresolved = re.findall(r"\{\{[A-Za-z0-9_]+\}\}", content)
+    if unresolved:
+        errors.append(
+            f"Card contains unresolved template marker(s): {', '.join(sorted(set(unresolved)))}"
+        )
+
+    # 2. Required sections (H1 title, and H2 sections)
+    if not re.search(r"^#\s+(?:Eval\s+card:|\w+)", content, re.MULTILINE | re.IGNORECASE):
+        errors.append("Missing top-level heading '# Eval card: <title>' or '# <title>'.")
+
+    required_sections = [
+        ("Question", r"^##\s+(?:Question|Hypothesis)"),
+        (
+            "Configuration and evidence",
+            r"^##\s+(?:Configuration|Evidence|Configuration and evidence)",
+        ),
+        ("Result", r"^##\s+(?:Result|Results)"),
+        ("Elicitation", r"^##\s+Elicitation"),
+        ("Contamination", r"^##\s+Contamination"),
+        ("Threats to validity", r"^##\s+Threats(?:\s+to\s+validity)?"),
+        (
+            "Regeneration query / command",
+            r"^##\s+(?:Regeneration|Reproduction|Exact queries|Regeneration query)",
+        ),
+        ("Human review", r"^##\s+(?:Human\s+review|Review)"),
+    ]
+
+    for section_name, pattern in required_sections:
+        if not re.search(pattern, content, re.MULTILINE | re.IGNORECASE):
+            errors.append(f"Missing required section: '## {section_name}'")
+
+    # 3. Mandatory Caveats Check (scoped to sections)
+    contam_match = re.search(
+        r"##\s+Contamination[^\n]*\n([\s\S]*?)(?=^##|\Z)", content, re.MULTILINE | re.IGNORECASE
+    )
+    if contam_match:
+        contam_text = contam_match.group(1).strip()
+        has_contam_caveat = bool(
+            re.search(r"contamination\s+caveat", contam_text, re.IGNORECASE)
+            or re.search(
+                r"(?:exposure|pretraining|leakage|cutoff|training|benchmark|artifact)",
+                contam_text,
+                re.IGNORECASE,
+            )
+        )
+        if not has_contam_caveat:
+            errors.append(
+                "Missing mandatory contamination caveat "
+                "(must document benchmark exposure / contamination status)."
+            )
+
+    elicit_match = re.search(
+        r"##\s+Elicitation[^\n]*\n([\s\S]*?)(?=^##|\Z)", content, re.MULTILINE | re.IGNORECASE
+    )
+    if elicit_match:
+        elicit_text = elicit_match.group(1).strip()
+        has_elicit_caveat = bool(
+            re.search(r"elicitation\s+caveat", elicit_text, re.IGNORECASE)
+            or re.search(
+                r"(?:caveat|tuple|model|toolset|prompt|preamble|parameters|ranking)",
+                elicit_text,
+                re.IGNORECASE,
+            )
+        )
+        if not has_elicit_caveat:
+            errors.append(
+                "Missing mandatory elicitation caveat "
+                "(must document elicitation parameters / ranking constraints)."
+            )
+
+    # 4. Mandatory Uncertainty / Number rules (Tenet T4)
+    result_match = re.search(
+        r"##\s+(?:Result|Results)\b([\s\S]*?)(?=##|\Z)", content, re.IGNORECASE
+    )
+    if result_match:
+        result_text = result_match.group(1)
+        has_n = bool(
+            re.search(
+                r"\b(?:n|N_tasks|tasks?|trials?|evidence units?|n\s*=|\*\*[0-9]+\*\*)\b",
+                result_text,
+                re.IGNORECASE,
+            )
+        )
+        has_uncertainty = bool(
+            re.search(
+                r"(?:interval|bootstrap|\[\s*[-0-9.]+\s*,\s*[-0-9.]+\s*\]|"
+                r"not distinguishable|insufficient n|unavailable)",
+                result_text,
+                re.IGNORECASE,
+            )
+        )
+        if not has_n and not has_uncertainty:
+            errors.append(
+                "Result section missing sample size n or uncertainty interval / "
+                "'insufficient n' / 'not distinguishable'."
+            )
+
+    # 5. Regenerability check: must contain a code block (```sql, ```bash, or ```python)
+    has_code_block = bool(re.search(r"```(?:sql|bash|sh|python)?\n[\s\S]+?\n```", content))
+    if not has_code_block:
+        errors.append(
+            "Missing regenerability command or query code block (```sql, ```bash, or ```python)."
+        )
+
+    return CardValidationResult(
+        valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+        card_path=card_path,
+    )
+
+
+def validate_card_file(path: Path | str) -> CardValidationResult:
+    """Validate an eval card markdown file from disk."""
+    p = Path(path)
+    if not p.is_file():
+        return CardValidationResult(
+            valid=False,
+            errors=[f"Card file not found: {p}"],
+            warnings=[],
+            card_path=str(p),
+        )
+    try:
+        content = p.read_text(encoding="utf-8")
+    except Exception as exc:
+        return CardValidationResult(
+            valid=False,
+            errors=[f"Failed to read card file {p}: {exc}"],
+            warnings=[],
+            card_path=str(p),
+        )
+    return validate_card(content, card_path=str(p))

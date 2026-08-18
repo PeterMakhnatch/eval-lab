@@ -14,7 +14,7 @@ import os
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from evallab.digest import DigestRenderer, DigestTrial
+from evallab.digest import DigestRenderer, DigestTrial, PendingDiscovery
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import DirectoryQueue, provider_reported_exhaustion
 from evallab.schemas import (
@@ -415,6 +415,18 @@ def frozen_renderer(root: Path, queue: DirectoryQueue) -> DigestRenderer:
         trial_loader=trial_loader,
         drift_loader=drift_on,
         preflight_loader=lambda: report,
+        storm_loader=lambda _day: [],
+        discoveries_loader=lambda: [
+            PendingDiscovery(
+                discovery_id="D-20260815-KTXJSHGZ",
+                status="draft",
+                claim=(
+                    "Across this small control-only cohort, event-summary and "
+                    "transaction-reconciliation showed the expected pattern."
+                ),
+                relative_link="DISCOVERIES.md#d-20260815-ktxjshgz",
+            )
+        ],
     )
 
 

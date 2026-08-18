@@ -1,6 +1,6 @@
 Status: building
-Last: Cycle 2: Verified nightly regeneration hook and proved byte-identical determinism with shasums
-Next: Cycle 3: Board note for lessons and Digest links for DISCOVERIES.md
+Last: Cycle 3: Added board note for lessons, wired DISCOVERIES.md links in DigestRenderer with full test coverage
+Next: Cycle 4: Final golden-file coverage and night verification across all generated surfaces
 Blockers: none
 
 # M016 - LOOP-SURFACE: the generated surfaces actually generate
@@ -67,3 +67,32 @@ Full pytest summary line:
 ### 5. RECORD
 - Premerge verification: `bash scripts/premerge.sh` (pass).
 - Committed and pushed Cycle 2. PR: https://github.com/PeterMakhnatch/eval-lab/pull/119
+
+## Cycle 3 Log
+
+### 1. RECHECK
+- Rechecked Cycle 2 acceptance with `scripts/premerge.sh`: passed (1277 passed, clean ruff, ty 28 diagnostics).
+
+### 2. EXTEND
+- Verified that preflight section and storm-alarm sections already exist in `DigestRenderer`.
+- Checked `lessons.py` on `origin/main` for `lessons_digest_section()`: confirmed absent. Created `research/audits/board-notes.md` recording that `lessons.py` was not touched (M019's lease) and deferred lessons digest rendering until exported.
+- Extended `DigestRenderer` with `parse_discoveries_awaiting_verdicts` and a read-only rendered `## Discoveries awaiting verdict` section linking `digests/DISCOVERIES.md` entries (e.g. `[**D-20260815-KTXJSHGZ**](DISCOVERIES.md#d-20260815-ktxjshgz)`).
+- Regenerated `docs/repo-map.md` and `docs/INDEX.md`.
+
+### 3. PROVE
+Command output from running pytest covering the new digest discoveries parser and rendering:
+```
+1281 passed, 1 skipped, 1 xfailed in 69.61s (0:01:09)
+```
+
+### 4. HARDEN
+- Added unit tests in `tests/test_digest.py`:
+  - `test_digest_renders_pending_discoveries_with_links`
+  - `test_digest_renders_empty_discoveries_quietly`
+  - `test_digest_renders_unavailable_discoveries_when_loader_raises`
+  - `test_parse_discoveries_awaiting_verdicts_from_file`
+- Updated `tests/test_golden_rendering.py` and `tests/golden/digest.md`.
+
+### 5. RECORD
+- Premerge verification: `bash scripts/premerge.sh` (pass).
+- Committed and pushed Cycle 3. PR: https://github.com/PeterMakhnatch/eval-lab/pull/119

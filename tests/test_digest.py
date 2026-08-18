@@ -5,7 +5,12 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from evallab.digest import DigestRenderer, DigestTrial
+from evallab.digest import (
+    DigestRenderer,
+    DigestTrial,
+    PendingDiscovery,
+    parse_discoveries_awaiting_verdicts,
+)
 from evallab.preflight import build_preflight_report
 from evallab.queue import DirectoryQueue, QueueEvent
 from evallab.schemas import AutoRunRule, StandingApprovalsPolicy
@@ -30,6 +35,7 @@ def _make_renderer(
     trial_loader=None,
     drift_loader=None,
     preflight_loader=None,
+    discoveries_loader=None,
 ) -> DigestRenderer:
     queue = DirectoryQueue(tmp_path / "queue")
     report = build_preflight_report(tmp_path, now=NOW)
@@ -41,6 +47,7 @@ def _make_renderer(
         drift_loader=drift_loader or (lambda _day: []),
         preflight_loader=preflight_loader or (lambda: report),
         storm_loader=storm_loader,
+        discoveries_loader=discoveries_loader,
     )
 
 
@@ -137,6 +144,7 @@ def test_digest_section_order(tmp_path: Path) -> None:
         "## Cost and failures",
         "## Queue",
         "## Evidence and calibration",
+        "## Discoveries awaiting verdict",
         "## Queue events",
         "## Storm alarms",
     ]
@@ -165,3 +173,71 @@ def test_digest_default_storm_loader_reads_queue_events(tmp_path: Path) -> None:
     assert "## Storm alarms" in content
     assert "`subscription_quota_exhausted`" in content
     assert "7 (threshold > 5)" in content
+
+
+def test_digest_renders_pending_discoveries_with_links(tmp_path: Path) -> None:
+    discovery = PendingDiscovery(
+        discovery_id="D-20260815-KTXJSHGZ",
+        status="draft",
+        claim="Control cohort shows expected oracle-pass/nop-fail pattern.",
+        relative_link="DISCOVERIES.md#d-20260815-ktxjshgz",
+    )
+    renderer = _make_renderer(tmp_path, discoveries_loader=lambda: [discovery])
+    path = renderer.write(report_date=REPORT_DATE)
+    content = path.read_text()
+
+    assert "## Discoveries awaiting verdict" in content
+    assert (
+        "- [**D-20260815-KTXJSHGZ**](DISCOVERIES.md#d-20260815-ktxjshgz) (`draft`) — "
+        "Control cohort shows expected oracle-pass/nop-fail pattern."
+    ) in content
+
+
+def test_digest_renders_empty_discoveries_quietly(tmp_path: Path) -> None:
+    renderer = _make_renderer(tmp_path, discoveries_loader=lambda: [])
+    path = renderer.write(report_date=REPORT_DATE)
+    content = path.read_text()
+
+    assert "## Discoveries awaiting verdict" in content
+    assert "No discoveries awaiting verdict." in content
+
+
+def test_digest_renders_unavailable_discoveries_when_loader_raises(tmp_path: Path) -> None:
+    def failing_loader():
+        raise RuntimeError("simulated discoveries I/O error")
+
+    renderer = _make_renderer(tmp_path, discoveries_loader=failing_loader)
+    path = renderer.write(report_date=REPORT_DATE)
+    content = path.read_text()
+
+    assert "## Discoveries awaiting verdict" in content
+    assert (
+        "- Unavailable: discoveries could not be loaded "
+        "(RuntimeError: simulated discoveries I/O error)."
+    ) in content
+
+
+def test_parse_discoveries_awaiting_verdicts_from_file(tmp_path: Path) -> None:
+    disc_file = tmp_path / "DISCOVERIES.md"
+    disc_file.write_text(
+        "# Discoveries\n\n"
+        "## D-20260815-AAAA1111 — draft\n\n"
+        "- Claim: First draft finding.\n"
+        "- Evidence: evidence.json\n\n"
+        "## D-20260816-BBBB2222 — pending\n\n"
+        "- Claim: Second pending finding.\n"
+        "- Evidence: evidence2.json\n",
+        encoding="utf-8",
+    )
+
+    results = parse_discoveries_awaiting_verdicts(disc_file)
+    assert len(results) == 2
+    # Newest entry first (reversed order)
+    assert results[0].discovery_id == "D-20260816-BBBB2222"
+    assert results[0].status == "pending"
+    assert results[0].claim == "Second pending finding."
+    assert results[0].relative_link == "DISCOVERIES.md#d-20260816-bbbb2222"
+
+    assert results[1].discovery_id == "D-20260815-AAAA1111"
+    assert results[1].status == "draft"
+    assert results[1].claim == "First draft finding."

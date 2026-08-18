@@ -83,7 +83,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:a0b9b03deeefa1aa3dceb747d7aa59fbaab8abacd36c769d9fcaa43be4767b62
+    digest: sha256:5df0aaf3e24adb509795012cc56a335e584932363fbc64ef7cd5d25f33969bc4
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md

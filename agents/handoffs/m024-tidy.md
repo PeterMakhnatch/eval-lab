@@ -230,3 +230,77 @@ Dry-run mode: no files or branches were modified. Pass --apply to execute safe c
 ```
 
 **Apply Safety Confirmation**: `--apply` was **never** run against the actual repository. All 4 sibling active worktrees remain safe and unmodified.
+
+## Integrator verification (independent, on live data)
+
+The strongest available test appeared by accident while this mission ran: five sibling
+worktrees existed, and exactly one of them (`m023-craft`) was squash-merged into `main`
+mid-flight. That is the production scenario the bug hid.
+
+Old code, `main`, real repository:
+
+```
+## 1. Stale worktrees (0 items, 0 B)
+  (clean — no stale worktrees found)
+## Active worktrees (not swept) (5 items, 2297.1 MB)
+- `.worktrees/m023-craft` ... — active branch role/m023-craft (not merged into origin/main)
+```
+
+New code, same repository, same moment:
+
+```
+## 1. Stale worktrees (1 items, 459.4 MB)
+- `.worktrees/m023-craft` (role/m023-craft, 459.4 MB) — branch merged into origin/main (content) [eligible for removal]
+## Active worktrees (not swept) (3 items, 1378.3 MB)
+- `.worktrees/m020-queue` ... (not merged into origin/main)
+- `.worktrees/m021-cli` ... (not merged into origin/main)
+- `.worktrees/m022-memory` ... (not merged into origin/main)
+```
+
+459.4 MB correctly identified as reclaimable, and the three genuinely in-flight
+worktrees correctly left alone. `--apply` was never run against the real repository.
+
+### Mutation evidence (integrator-run)
+
+Missing branch ref classified `merged` instead of `unproven`:
+
+```
+FAILED tests/test_tidy.py::test_missing_branch_worktree_is_unproven_and_not_actionable
+FAILED tests/test_tidy.py::test_git_failure_classifies_unproven_rather_than_merged
+    - AssertionError: assert 'merged' == 'unproven'
+FAILED tests/test_tidy.py::test_property_actionable_implies_provably_merged_and_clean
+    - AssertionError: assert 'missing_branch' in ('ancestor_merged', 'squash_merged')
+```
+
+Accepting any `merge-tree` result as merged (`if True` in place of the tree equality):
+
+```
+FAILED tests/test_tidy.py::test_branch_with_unmerged_commit_is_never_actionable
+FAILED tests/test_tidy.py::test_property_actionable_implies_provably_merged_and_clean
+    - AssertionError: assert 'unmerged_extra_commit' in ('ancestor_merged', 'squash_merged')
+```
+
+Restored → green. The deletion-safety guarantees are therefore load-bearing, not
+decorative.
+
+### Pre-existing defect found while verifying (NOT this mission's)
+
+`tests/test_tidy.py::test_tidy_fixture_findings` fails when run alone and passes in the
+full suite — on `main` as well as on this branch:
+
+```
+$ uv run pytest tests/test_tidy.py::test_tidy_fixture_findings -q   # on main
+FAILED - assert 'z3_hot_partition' in {'events_log': RetentionFinding(...)}
+```
+
+It depends on state another test leaves behind. Recorded in
+`research/audits/board-notes.md`; out of scope here because fixing it would mean
+editing an unrelated retention fixture in the same file this mission is rewriting.
+
+### Gate
+
+```
+$ bash scripts/premerge.sh
+premerge green: Python 3.12; ty 28 <= 28
+Found 28 diagnostics
+```

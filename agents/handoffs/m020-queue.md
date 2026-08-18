@@ -57,3 +57,54 @@ Restoring sequential pass-through restored green: `1 passed in 0.65s`.
   - 1332 passed, 1 skipped, 1 xfailed in 89.97s
   - `SMOKE PASS both-stores-agree`
   - `ty` diagnostics: 27 <= baseline 28
+
+## Integrator verification (independent of the authoring agent)
+
+The authoring agent was killed twice by transport/rate-limit errors before it could push;
+its work was checkpointed by the integrator and verified here from scratch.
+
+### Mutation evidence, re-run independently
+
+| Mutation | Result |
+|---|---|
+| `O_EXCL` replaced with check-then-create + plain `O_CREAT` | `test_property_concurrent_lease_acquire_is_strictly_exclusive` fails: *"Expected exactly 1 successful claim among 2 racers, got 2"* |
+| `heartbeat_lease` made a no-op (returns before touching) | `test_lease_heartbeat_updates_mtime` fails: `assert 1787086588.78 >= (1787086688.78 - 5.0)` |
+
+Restored → 44 passed.
+
+### Concurrency is observed, not assumed
+
+`test_parallel_dispatch_executes_multiple_specs_concurrently` instruments the runner and
+records peak overlap, asserting `max_concurrent >= 2` for `tick(parallel=3)`, that all 3
+specs reach `done`, and that `list_leases()` is empty afterwards — so the pool really
+overlaps and the leases really get released.
+
+### End-to-end on the real repository
+
+```
+$ uv run python -m evallab.cli tick --parallel 3
+dispatched 0 experiment(s)
+quarantined: no
+
+$ uv run python -m evallab.cli tick --help
+usage: evallab tick [-h] [--parallel N]
+  --parallel N  Bounded parallel dispatch worker count (default: 1)
+```
+
+Zero dispatched because the approved queue is empty; the flag is wired, reaches
+`Executor.from_repo(root, parallel=...)`, and no billable work was dispatched.
+
+### What is NOT built, stated plainly
+
+Two of the four §3.1 deltas are deferred and the board must not read this as E01 complete:
+
+- **Per-provider semaphores** (`{codex: 2, claude-code: 2, oracle: 4}`) — not implemented.
+  `--parallel N` is a single global cap. Provider-level concurrency limits still have to be
+  managed by hand, which was the original complaint that motivated E01.
+- **Orphan reconcile via Docker Compose labels** — not implemented. Stale leases are
+  reclaimed opportunistically on the next `acquire_lease`, but nothing verifies that no live
+  container exists for the task, and nothing transitions an interrupted spec to
+  `failed(execution_interrupted)` while preserving its partial dir.
+
+The lease layer those two features depend on now exists and is tested, which is what this
+mission was narrowed to deliver.

@@ -45,10 +45,10 @@ A zone reports `attached=False` with explicit `reason` and the path/DSN examined
 ## Cross-zone example (Z2 + Z3)
 
 ```sql
-SELECT j.status, COUNT(*) AS trials
+SELECT j.job_name, COUNT(*) AS trials
 FROM z2.jobs j
 JOIN z3.trial_facts t ON j.id = t.job_id
-GROUP BY j.status;
+GROUP BY j.job_name;
 ```
 
 When Postgres is unavailable the surface still returns a usable connection carrying Z3 and Z4; the join is skipped with explicit reason naming the DSN.
@@ -78,8 +78,8 @@ $ uv run evallab db attach --query "select count(*) from trial_facts"
 Cross-zone query (Z2 + Z3) demonstrating the surface:
 
 ```sh
-$ uv run evallab db attach --query "SELECT j.status, COUNT(*) AS trials FROM z2.jobs j JOIN z3.trial_facts t ON j.id = t.job_id GROUP BY j.status;"
-[('done', 92)]
+$ uv run evallab db attach --query "SELECT j.job_name, COUNT(*) AS trials FROM z2.jobs j JOIN z3.trial_facts t ON j.id = t.job_id GROUP BY j.job_name;"
+[('smoke-oracle-8ya566yyqwms', 1), ...]
 ```
 
 `--zones` exits non-zero only when zero zones attach.

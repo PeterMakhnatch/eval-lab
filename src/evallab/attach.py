@@ -110,6 +110,9 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
             )
+            conn.execute(
+                f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
+            )
             missing.append(table)
             continue
         glob_list = ", ".join(f"'{g}'" for g in view_globs)
@@ -118,10 +121,17 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
                 f"CREATE OR REPLACE VIEW {table} AS "
                 f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true)"
             )
+            conn.execute(
+                f"CREATE OR REPLACE VIEW z3.{table} AS "
+                f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true)"
+            )
             created += 1
         except Exception:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
+            )
+            conn.execute(
+                f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
             )
             missing.append(table)
     detail = f"{str(root)} ({created}/{len(TABLES)} tables)"
@@ -140,6 +150,9 @@ def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
         conn.execute(
             "CREATE OR REPLACE TABLE z4.front_matter "
             "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT)"
+        )
+        conn.execute(
+            "CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter"
         )
         for md in docs_dir.rglob("*.md"):
             try:
@@ -184,10 +197,8 @@ def attach(
     derived = derived_root_from_environment(root, explicit=explicit_derived, environ=environ)  # explicit_derived for CLI flag  # noqa: E501
 
     conn = duckdb.connect(":memory:")
-    conn.execute("CREATE SCHEMA IF NOT EXISTS z2")
     conn.execute("CREATE SCHEMA IF NOT EXISTS z3")
     conn.execute("CREATE SCHEMA IF NOT EXISTS z4")
-
     z2 = _attach_z2(conn, dsn)
     z3 = _attach_z3(conn, derived)
     z4 = _attach_z4(conn, root)
@@ -213,9 +224,16 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
             f"CREATE OR REPLACE VIEW {table} AS "
             f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true);"
         )
+        lines.append(
+            f"CREATE OR REPLACE VIEW z3.{table} AS "
+            f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true);"
+        )
     lines.append(
         "CREATE OR REPLACE TABLE z4.front_matter "
         "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT);"
+    )
+    lines.append(
+        "CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter;"
     )
     return "\n".join(lines)
 

@@ -30,3 +30,17 @@
   before and after the conversion, none lost, 11 shifted; three tie-break rules were
   measured (recursion 25 shifts, first-reference 20, body frequency 11 — kept the last).
   An exact answer needs real import-graph attribution, which is a mission, not a patch.
+
+- 2026-08-18 [integrator, found by using M024's own tool]: content-equivalence merged
+  detection has a **false-negative** mode, which is the safe direction but limits the
+  reclaim. `git merge-tree` compares a branch against `main` **as it is now**. Once main
+  moves past the branch in any shared file — including the generated `docs/INDEX.md` and
+  `docs/repo-map.md` that every mission regenerates — merging the stale branch back would
+  conflict, so it classifies `unmerged` and is never swept. Measured immediately after
+  tonight's five merges: `tidy` flagged only `role/m020-queue` (the last one merged) and
+  left the four earlier merged worktrees as "active", holding 1.8 GB. All five PRs are
+  MERGED per `gh pr list --state merged --head role/<branch>`. FOLLOW-UP: add recorded PR
+  merge state as a third signal alongside ancestry and content equivalence — `tidy`
+  already has a "no open PR" notion in its merged-branches sweep, so the data source
+  exists. Do not fix this by loosening the content predicate; the current failure
+  direction refuses to delete, which is correct.

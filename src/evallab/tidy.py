@@ -138,7 +138,16 @@ def _rel_path_str(path: Path, root: Path) -> str:
 class WorktreeFinding:
     path: Path
     branch: str
-    status: Literal["clean_merged", "clean_vanished", "dirty", "current", "active_clean"]
+    status: Literal[
+        "clean_merged",
+        "clean_vanished",
+        "dirty",
+        "current",
+        "active_clean",
+        "merged",
+        "unmerged",
+        "unproven",
+    ]
     file_count: int
     size_bytes: int
     reason: str
@@ -241,12 +250,112 @@ def get_target_main_ref(root: Path) -> str | None:
     return None
 
 
+def check_branch_merged_status(
+    primary: Path,
+    branch: str,
+    target_main: str,
+) -> tuple[Literal["merged", "unmerged", "unproven"], str]:
+    """Check if branch is merged into target_main via ancestry or content.
+
+    Returns (state, reason) where state is:
+    - "merged": provably in target_main (via ancestry or 3-way merge equivalence).
+    - "unmerged": provably carrying content target_main lacks.
+    - "unproven": cannot be established (git error, missing ref, detached HEAD).
+
+    Predicate (hand-checkable):
+      1. Fast path (ancestry):
+         `git merge-base --is-ancestor <branch> <target_main>` == 0
+         If true, the branch tip is reachable from target_main.
+      2. Content path (3-way merge equivalence):
+         `git merge-tree --write-tree <target_main> <branch>` ==
+         `git rev-parse <target_main>^{tree}`
+         If the tree resulting from 3-way merge of <branch> into <target_main>
+         exactly matches <target_main>'s tree, merging <branch> introduces zero
+         new changes. All content from <branch> is already present in
+         <target_main>, even if squash-merged without graph ancestry.
+
+    Why git merge-tree --write-tree:
+      - Grounded in git plumbing: computes exact 3-way tree merge without
+        touching index/worktree.
+      - Safe under multi-commit squash merges: unlike `git cherry` or
+        commit-level `patch-id`, `merge-tree` evaluates the net tree change
+        of the entire branch.
+      - Deletion safety: any unmerged commit or difference will produce a
+        tree different from target_main's tree, or return exit code 1
+        (merge conflict), refusing deletion.
+      - Error safety: any git execution error or unrecognized ref classifies
+        as "unproven".
+    """
+    # 1. Verify branch ref exists in local heads
+    check_branch = subprocess.run(
+        ["git", "-C", str(primary), "show-ref", "--verify", f"refs/heads/{branch}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if check_branch.returncode != 0:
+        return ("unproven", f"branch '{branch}' does not exist in local refs")
+
+    # 2. Fast path: graph ancestry
+    check_ancestor = subprocess.run(
+        ["git", "-C", str(primary), "merge-base", "--is-ancestor", branch, target_main],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if check_ancestor.returncode == 0:
+        return ("merged", f"branch merged into {target_main}")
+    if check_ancestor.returncode not in (0, 1):
+        err = check_ancestor.stderr.strip() or "exit non-zero"
+        return ("unproven", f"git merge-base failed: {err}")
+
+    # 3. Content path: 3-way merge tree equivalence
+    target_tree_res = subprocess.run(
+        ["git", "-C", str(primary), "rev-parse", f"{target_main}^{{tree}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if target_tree_res.returncode != 0 or not target_tree_res.stdout.strip():
+        err = target_tree_res.stderr.strip() or "exit non-zero"
+        return ("unproven", f"failed to resolve {target_main} tree: {err}")
+    target_tree = target_tree_res.stdout.strip()
+
+    merge_tree_res = subprocess.run(
+        ["git", "-C", str(primary), "merge-tree", "--write-tree", target_main, branch],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if merge_tree_res.returncode == 0:
+        stdout_lines = merge_tree_res.stdout.splitlines()
+        merged_tree = stdout_lines[0].strip() if stdout_lines else ""
+        if merged_tree and merged_tree == target_tree:
+            return ("merged", f"branch merged into {target_main} (content)")
+        return ("unmerged", f"active branch {branch} (not merged into {target_main})")
+    elif merge_tree_res.returncode == 1:
+        # Exit code 1 means merge conflicts (unmerged changes conflicting with target_main)
+        return ("unmerged", f"active branch {branch} (not merged into {target_main})")
+    else:
+        # Exit code > 1 means git tool error / corrupted repo state
+        err = merge_tree_res.stderr.strip() or "exit non-zero"
+        return ("unproven", f"git merge-tree failed: {err}")
+
+
 def sweep_worktrees(
     root: Path,
     *,
     current_worktree: Path | None = None,
 ) -> list[WorktreeFinding]:
-    """Sweep .worktrees/* for stale or dirty worktrees."""
+    """Sweep .worktrees/* for stale or dirty worktrees.
+
+    Three-state classification:
+    - merged: provably in target_main (via ancestry or git merge-tree) -> actionable if clean
+    - unmerged: provably carrying content target_main lacks -> active, not actionable
+    - unproven: cannot be established (detached HEAD, missing branch, git failure) -> not actionable
+
+    Only clean_merged is actionable. Dirty, unmerged, and unproven worktrees are NEVER actionable.
+    """
     primary = shared_checkout_root(root)
     worktrees_dir = primary / ".worktrees"
     if not worktrees_dir.is_dir():
@@ -278,14 +387,25 @@ def sweep_worktrees(
             text=True,
             check=False,
         )
-        if status_res.returncode == 0:
-            dirty_lines = [line for line in status_res.stdout.splitlines() if line.strip()]
-            is_dirty = len(dirty_lines) > 0
-            dirty_count = len(dirty_lines)
-        else:
-            # Fallback for non-git or broken worktree
-            is_dirty = True
-            dirty_count = 1
+        if status_res.returncode != 0:
+            # Fallback for non-git or broken worktree: unproven and NEVER actionable
+            err = status_res.stderr.strip() or "exit non-zero"
+            findings.append(
+                WorktreeFinding(
+                    path=wt_path,
+                    branch="unknown",
+                    status="unproven",
+                    file_count=0,
+                    size_bytes=size,
+                    reason=f"unproven — broken worktree (git status error: {err})",
+                    actionable=False,
+                )
+            )
+            continue
+
+        dirty_lines = [line for line in status_res.stdout.splitlines() if line.strip()]
+        is_dirty = len(dirty_lines) > 0
+        dirty_count = len(dirty_lines)
 
         # 3. Determine branch
         branch_res = subprocess.run(
@@ -305,54 +425,11 @@ def sweep_worktrees(
             )
             branch = (
                 f"detached ({head_res.stdout.strip()})"
-                if head_res.returncode == 0
+                if head_res.returncode == 0 and head_res.stdout.strip()
                 else "unknown"
             )
 
-        # 4. Check staleness (merged into target or branch vanished)
-        is_merged = False
-        branch_exists = True
-
-        if branch and not branch.startswith("detached") and branch != "unknown":
-            # Check if branch exists
-            check_branch = subprocess.run(
-                ["git", "-C", str(primary), "show-ref", "--verify", f"refs/heads/{branch}"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            branch_exists = check_branch.returncode == 0
-
-            # Check if merged
-            check_merged = subprocess.run(
-                ["git", "-C", str(primary), "merge-base", "--is-ancestor", branch, target_main],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            is_merged = check_merged.returncode == 0
-        else:
-            # For detached or unknown, check commit ancestor if HEAD resolved
-            head_res = subprocess.run(
-                ["git", "-C", str(wt_path), "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if head_res.returncode == 0:
-                commit_sha = head_res.stdout.strip()
-                check_merged = subprocess.run(
-                    [
-                        "git", "-C", str(primary),
-                        "merge-base", "--is-ancestor", commit_sha, target_main,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                is_merged = check_merged.returncode == 0
-
-        # Construct finding based on state
+        # 4. If dirty, skip immediately (never actionable, preserved)
         if is_dirty:
             findings.append(
                 WorktreeFinding(
@@ -368,42 +445,73 @@ def sweep_worktrees(
                     actionable=False,
                 )
             )
-        elif is_merged:
+            continue
+
+        # 5. For clean worktree: determine three-state merged / unmerged / unproven
+        if not branch or branch == "unknown":
             findings.append(
                 WorktreeFinding(
                     path=wt_path,
-                    branch=branch,
-                    status="clean_merged",
+                    branch="unknown",
+                    status="unproven",
                     file_count=0,
                     size_bytes=size,
-                    reason=f"branch merged into {target_main}",
-                    actionable=True,
-                )
-            )
-        elif not branch_exists:
-            findings.append(
-                WorktreeFinding(
-                    path=wt_path,
-                    branch=branch,
-                    status="clean_vanished",
-                    file_count=0,
-                    size_bytes=size,
-                    reason="branch no longer exists",
-                    actionable=True,
-                )
-            )
-        else:
-            findings.append(
-                WorktreeFinding(
-                    path=wt_path,
-                    branch=branch,
-                    status="active_clean",
-                    file_count=0,
-                    size_bytes=size,
-                    reason=f"active branch {branch} (not merged into {target_main})",
+                    reason="unproven — unknown branch / broken worktree",
                     actionable=False,
                 )
             )
+        elif branch.startswith("detached"):
+            findings.append(
+                WorktreeFinding(
+                    path=wt_path,
+                    branch=branch,
+                    status="unproven",
+                    file_count=0,
+                    size_bytes=size,
+                    reason=f"unproven — {branch} (cannot verify branch merge status)",
+                    actionable=False,
+                )
+            )
+        else:
+            # Branch name is known and clean: check merged status in primary
+            state, reason = check_branch_merged_status(primary, branch, target_main)
+            if state == "merged":
+                findings.append(
+                    WorktreeFinding(
+                        path=wt_path,
+                        branch=branch,
+                        status="clean_merged",
+                        file_count=0,
+                        size_bytes=size,
+                        reason=reason,
+                        actionable=True,
+                    )
+                )
+            elif state == "unmerged":
+                findings.append(
+                    WorktreeFinding(
+                        path=wt_path,
+                        branch=branch,
+                        status="active_clean",
+                        file_count=0,
+                        size_bytes=size,
+                        reason=reason,
+                        actionable=False,
+                    )
+                )
+            else:  # state == "unproven"
+                findings.append(
+                    WorktreeFinding(
+                        path=wt_path,
+                        branch=branch,
+                        status="unproven",
+                        file_count=0,
+                        size_bytes=size,
+                        reason=f"unproven — {reason}",
+                        actionable=False,
+                    )
+                )
+
     return sorted(findings, key=lambda f: f.path.as_posix())
 
 
@@ -479,6 +587,7 @@ def sweep_branches(
             elif line.startswith("branch refs/heads/") and current_wt_path is not None:
                 b_name = line.removeprefix("branch refs/heads/").strip()
                 worktree_branches[b_name] = current_wt_path
+
     checker = gh_checker or default_gh_pr_checker
     findings: list[BranchFinding] = []
 
@@ -548,6 +657,7 @@ def sweep_branches(
                 )
             )
             continue
+
         # Check PR status via gh
         gh_available, open_pr, err_msg = checker(branch, primary)
         if not gh_available:

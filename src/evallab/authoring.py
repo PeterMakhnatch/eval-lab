@@ -49,8 +49,11 @@ from pydantic import Field
 from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, PolicyGate, load_policy, new_ulid
 from evallab.schemas import (
+    AuthoringSeedClass,
     ContractModel,
     ExperimentSpec,
+    InversionAnalysis,
+    InversionSpec,
     PolicyDecision,
     ProposalSpec,
 )
@@ -65,11 +68,11 @@ REGISTRY_RELATIVE = Path("library/registry")
 META_TASK_RELATIVE = Path("library/meta/synthesize-task@1")
 TEMPLATES_RELATIVE = Path("authoring/templates")
 AXES_NAMES: tuple[str, ...] = ("category", "scenario", "difficulty")
-SeedClass = Literal["mutation", "scenario", "craft-gap"]
+SeedClass = AuthoringSeedClass
 Outcome = Literal["proposed", "battery_passed", "craft_reviewed", "registered", "rejected"]
 BatteryCheck = Literal["oracle", "nop", "fair_oracle", "adversarial"]
 
-SEED_CLASSES: tuple[SeedClass, ...] = ("mutation", "scenario", "craft-gap")
+SEED_CLASSES: tuple[SeedClass, ...] = ("mutation", "scenario", "craft-gap", "inversion")
 OUTCOMES: tuple[Outcome, ...] = (
     "proposed",
     "battery_passed",
@@ -218,6 +221,8 @@ class Proposal:
     difficulty: str | None = None
     provenance: str | None = None
     axes: dict[str, Any] | None = None
+    inversion_analysis: dict[str, Any] | None = None
+
     def manifest(self) -> dict[str, Any]:
         data: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
@@ -250,7 +255,10 @@ class Proposal:
             data["provenance"] = self.provenance
         if self.axes is not None:
             data["axes"] = self.axes
+        if self.inversion_analysis is not None:
+            data["inversion_analysis"] = self.inversion_analysis
         return data
+
 
 @dataclass(frozen=True)
 class BatteryReport:
@@ -378,12 +386,7 @@ def bump_version(version: str | None) -> str:
     cleaned = version.strip()
     core, _, _suffix = cleaned.partition("-")
     parts = core.split(".")
-    if (
-        len(parts) >= 3
-        and parts[0].isdigit()
-        and parts[1].isdigit()
-        and parts[2].isdigit()
-    ):
+    if len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit():
         return f"{parts[0]}.{parts[1]}.{int(parts[2]) + 1}"
     if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
         return f"{parts[0]}.{int(parts[1]) + 1}.0"
@@ -502,14 +505,10 @@ def load_axis(
     base_axis = axis_name.replace(".yaml", "")
     for i, item in enumerate(data):
         if not isinstance(item, dict):
-            raise AuthoringError(
-                f"malformed axis file {path.name}: item {i} is not a dictionary"
-            )
+            raise AuthoringError(f"malformed axis file {path.name}: item {i} is not a dictionary")
         slug = item.get("slug")
         if not slug or not isinstance(slug, str):
-            raise AuthoringError(
-                f"malformed axis file {path.name}: item {i} missing valid 'slug'"
-            )
+            raise AuthoringError(f"malformed axis file {path.name}: item {i} missing valid 'slug'")
         if not item.get("description"):
             raise AuthoringError(
                 f"malformed axis file {path.name}: item {slug!r} missing 'description'"
@@ -528,8 +527,7 @@ def load_axis(
             "anti_patterns" not in item or not isinstance(item["anti_patterns"], list)
         ):
             raise AuthoringError(
-                f"malformed axis file {path.name}: "
-                f"difficulty {slug!r} missing 'anti_patterns' list"
+                f"malformed axis file {path.name}: difficulty {slug!r} missing 'anti_patterns' list"
             )
 
     return data
@@ -541,10 +539,7 @@ def load_all_axes(
     template_dir: Path | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Load all three canonical axes: category, scenario, difficulty."""
-    return {
-        axis: load_axis(axis, repo_root, template_dir=template_dir)
-        for axis in AXES_NAMES
-    }
+    return {axis: load_axis(axis, repo_root, template_dir=template_dir) for axis in AXES_NAMES}
 
 
 def find_all_craft_gaps(parquet_path: Path) -> list[dict[str, Any]]:
@@ -561,9 +556,7 @@ def find_all_craft_gaps(parquet_path: Path) -> list[dict[str, Any]]:
     table = pq.read_table(parquet_path)
     missing = [name for name in GAP_AXES if name not in table.column_names]
     if missing:
-        raise AuthoringError(
-            f"craft parquet {parquet_path} is missing gap columns {missing}"
-        )
+        raise AuthoringError(f"craft parquet {parquet_path} is missing gap columns {missing}")
     covered: set[tuple[Any, ...]] = set()
     for row in table.select(list(GAP_AXES)).to_pylist():
         if row.get("verifier_type") is not None:
@@ -711,9 +704,7 @@ def sample_spec_batch(
     scenarios = axes["scenario"]
     difficulties = axes["difficulty"]
 
-    ledger_coords = extract_ledger_coordinates(
-        ledger_path(derived), proposed_root(repo_root)
-    )
+    ledger_coords = extract_ledger_coordinates(ledger_path(derived), proposed_root(repo_root))
     seen_coords: set[tuple[Any, ...]] = set(ledger_coords)
     emitted: list[dict[str, Any]] = []
 
@@ -728,9 +719,7 @@ def sample_spec_batch(
         if len(emitted) >= gap_limit:
             break
         v_type = gap.get("verifier_type", "")
-        matching_cats = [
-            c for c in categories if v_type in c.get("typical_verifier_types", [])
-        ]
+        matching_cats = [c for c in categories if v_type in c.get("typical_verifier_types", [])]
         cat = (
             matching_cats[idx % len(matching_cats)]
             if matching_cats
@@ -824,17 +813,22 @@ def sample_spec_batch(
                 emitted.append(spec_dict)
     return emitted
 
+
 def discover_scenario_paths(repo_root: Path) -> list[Path]:
     """Research-tree markdown that can seed a scenario proposal."""
     research = repo_root / RESEARCH_RELATIVE
     if not research.is_dir():
         return []
     preferred = research / "scenarios"
-    roots = [preferred] if preferred.is_dir() else [
-        research / "explorations",
-        research / "inspections",
-        research,
-    ]
+    roots = (
+        [preferred]
+        if preferred.is_dir()
+        else [
+            research / "explorations",
+            research / "inspections",
+            research,
+        ]
+    )
     found: list[Path] = []
     seen: set[Path] = set()
     for root in roots:
@@ -852,9 +846,7 @@ def discover_scenario_paths(repo_root: Path) -> list[Path]:
 def resolve_scenario(repo_root: Path, ref: str | None) -> Path:
     candidates = discover_scenario_paths(repo_root)
     if not candidates:
-        raise AuthoringError(
-            f"no research scenario material under {repo_root / RESEARCH_RELATIVE}"
-        )
+        raise AuthoringError(f"no research scenario material under {repo_root / RESEARCH_RELATIVE}")
     if ref is None:
         return candidates[0]
     needle = ref.strip()
@@ -907,11 +899,7 @@ def resolve_registered_task(repo_root: Path, ref: str | None) -> Path:
             task_id = raw.get("task_id")
             task_path = raw.get("task_path")
             state = raw.get("state")
-            if (
-                isinstance(task_id, str)
-                and isinstance(task_path, str)
-                and state == "registered"
-            ):
+            if isinstance(task_id, str) and isinstance(task_path, str) and state == "registered":
                 records[task_id] = task_path
 
     if ref is not None:
@@ -944,6 +932,10 @@ def load_proposal(proposal_dir: Path) -> Proposal:
     if not manifest_path.is_file():
         raise ProposalNotFoundError(f"proposal manifest missing: {manifest_path}")
     raw = json.loads(manifest_path.read_text())
+    inv_analysis = raw.get("inversion_analysis")
+    if inv_analysis is None and (proposal_dir / "inversion.json").is_file():
+        with contextlib.suppress(Exception):
+            inv_analysis = json.loads((proposal_dir / "inversion.json").read_text())
     return Proposal(
         proposal_id=str(raw["proposal_id"]),
         seed_class=raw["seed_class"],
@@ -965,7 +957,9 @@ def load_proposal(proposal_dir: Path) -> Proposal:
         difficulty=raw.get("difficulty"),
         provenance=raw.get("provenance"),
         axes=raw.get("axes"),
+        inversion_analysis=inv_analysis,
     )
+
 
 class StructuralControlRunner:
     """Free local control that never starts Harbor and never calls a model.
@@ -1072,9 +1066,11 @@ class StructuralControlRunner:
         )
 
     def _adversarial(self, proposal_dir: Path, evidence_dir: Path) -> ControlResult:
-        instruction = (proposal_dir / "instruction.md").read_text() if (
-            proposal_dir / "instruction.md"
-        ).is_file() else ""
+        instruction = (
+            (proposal_dir / "instruction.md").read_text()
+            if (proposal_dir / "instruction.md").is_file()
+            else ""
+        )
         solution_blobs = _file_blobs(proposal_dir / "solution")
         leaked = [name for name, blob in solution_blobs if blob and blob in instruction]
         tests_present = bool(_existing_files(proposal_dir / "tests"))
@@ -1170,9 +1166,7 @@ def score_review(proposal: Proposal) -> tuple[float, list[str]]:
         else ""
     )
     leaked = [
-        name
-        for name, blob in _file_blobs(directory / "solution")
-        if blob and blob in instruction
+        name for name, blob in _file_blobs(directory / "solution") if blob and blob in instruction
     ]
     if hidden_ok and not leaked:
         score += 0.25
@@ -1190,9 +1184,7 @@ def score_review(proposal: Proposal) -> tuple[float, list[str]]:
     if proposal.seed_class == "mutation":
         if proposal.version and proposal.source_digest:
             score += 0.25
-            reasons.append(
-                f"mutation is a new version {proposal.version!r}, source digest bound"
-            )
+            reasons.append(f"mutation is a new version {proposal.version!r}, source digest bound")
         else:
             reasons.append("mutation missing version or source digest")
     elif proposal.seed_class == "scenario":
@@ -1201,6 +1193,16 @@ def score_review(proposal: Proposal) -> tuple[float, list[str]]:
             reasons.append(f"scenario cites research material {proposal.scenario_path}")
         else:
             reasons.append("scenario missing research citation")
+    elif proposal.seed_class == "inversion":
+        inv = proposal.inversion_analysis
+        if inv and inv.get("computed_value") is not None and proposal.source_digest:
+            score += 0.25
+            reasons.append(
+                f"inversion answer key verified by execution against {proposal.source_path} "
+                f"(digest {proposal.source_digest})"
+            )
+        else:
+            reasons.append("inversion missing verified execution key or source data digest")
     else:
         facets = proposal.target_facets or {}
         if all(name in facets for name in GAP_AXES):
@@ -1214,6 +1216,7 @@ def score_review(proposal: Proposal) -> tuple[float, list[str]]:
         else:
             reasons.append("craft-gap missing target facet triple")
     return round(score, 4), reasons
+
 
 def compute_file_digest(path: Path) -> str:
     digest = hashlib.sha256()
@@ -1268,6 +1271,17 @@ def sample_meta_spec(
                 "difficulty": "medium",
             },
         }
+    if seed == "inversion":
+        asset_path, asset_rel = resolve_inversion_asset(repo_root, ref)
+        asset_digest = compute_file_digest(asset_path)
+        slug = asset_path.stem.replace("_", "-")
+        inv_spec = InversionSpec(
+            name=f"inversion-{slug}",
+            data_asset_path=asset_rel,
+            data_asset_digest=asset_digest,
+            summary=f"Inversion task seeded from {asset_rel}",
+        )
+        return inv_spec.model_dump()
     source = resolve_registered_task(repo_root, ref)
     return {
         "schema_version": "spec/1",
@@ -1285,6 +1299,439 @@ def sample_meta_spec(
             "difficulty": "medium",
         },
     }
+
+
+def find_library_data_assets(repo_root: Path) -> list[Path]:
+    """Find available data assets within library/ environments and tasks."""
+    candidates: list[Path] = []
+    lib_dir = repo_root / "library"
+    if not lib_dir.is_dir():
+        return candidates
+
+    data_exts = {".json", ".jsonl", ".csv", ".tsv", ".parquet", ".sql", ".txt", ".sqlite", ".db"}
+    ignore_names = {
+        "Dockerfile",
+        "task.toml",
+        "spec.json",
+        "package.json",
+        "tsconfig.json",
+        "guidelines.md",
+        "README.md",
+        "CARD.md",
+        "REJECTED.md",
+    }
+
+    for p in sorted(lib_dir.rglob("*")):
+        if not p.is_file():
+            continue
+        if p.name in ignore_names or p.name.startswith("."):
+            continue
+        parts = p.parts
+        if any(part in {"solution", "tests", "_proposed", "_staged"} for part in parts):
+            continue
+        if p.suffix.lower() in data_exts and p.stat().st_size > 0:
+            candidates.append(p)
+    return candidates
+
+
+def resolve_inversion_asset(repo_root: Path, ref: str | None = None) -> tuple[Path, str]:
+    """Resolve a data asset for inversion from library/ environments.
+
+    Returns (absolute_path, repo_relative_path).
+    """
+    if ref:
+        cand = repo_root / ref
+        if cand.is_file():
+            return cand, _repo_relative(cand, repo_root)
+        task_env = repo_root / "library/tasks" / ref / "environment"
+        if task_env.is_dir():
+            for child in sorted(task_env.iterdir()):
+                if child.is_file() and child.name != "Dockerfile" and child.stat().st_size > 0:
+                    return child, _repo_relative(child, repo_root)
+        for p in find_library_data_assets(repo_root):
+            if p.name == ref or p.stem == ref or ref in p.as_posix():
+                return p, _repo_relative(p, repo_root)
+        raise AuthoringError(f"no data asset found for inversion ref {ref!r}")
+
+    assets = find_library_data_assets(repo_root)
+    if not assets:
+        raise AuthoringError("no data assets found in library/ for inversion")
+    chosen = assets[0]
+    return chosen, _repo_relative(chosen, repo_root)
+
+
+def generate_inversion_analysis_code(asset_path: Path) -> tuple[str, str, dict[str, Any]]:
+    """Probe a data asset and produce reference analysis Python code and instruction."""
+    asset_name = asset_path.name
+    suffix = asset_path.suffix.lower()
+
+    if suffix == ".jsonl":
+        code = f"""import json
+import math
+from collections import Counter
+from pathlib import Path
+
+input_path = Path("/app/input/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("environment/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("input/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("{asset_name}")
+
+lines = [
+    line.strip()
+    for line in input_path.read_text(encoding="utf-8").splitlines()
+    if line.strip()
+]
+records = [json.loads(line) for line in lines]
+
+cat_keys = ("kind", "type", "category", "event", "status")
+cat_key = next((k for k in cat_keys if records and k in records[0]), None)
+num_keys = ("duration_ms", "value", "val", "amount", "score", "time")
+num_key = next(
+    (
+        k
+        for k in num_keys
+        if records and k in records[0] and isinstance(records[0][k], (int, float))
+    ),
+    None,
+)
+
+summary = {{
+    "schema_version": 1,
+    "total_records": len(records),
+    "status": "ok",
+}}
+
+if cat_key:
+    counts = Counter(r.get(cat_key) for r in records if cat_key in r)
+    summary["counts"] = {{str(k): counts[k] for k in sorted(counts)}}
+
+if num_key:
+    nums = sorted(
+        r[num_key]
+        for r in records
+        if num_key in r and isinstance(r[num_key], (int, float))
+    )
+    if nums:
+        summary[f"total_{{num_key}}"] = sum(nums)
+        p95_idx = math.ceil(0.95 * len(nums)) - 1
+        summary[f"p95_{{num_key}}"] = nums[p95_idx]
+
+output_dir = Path("/app/output")
+if not output_dir.exists():
+    output_dir = Path("output")
+output_dir.mkdir(parents=True, exist_ok=True)
+out_text = json.dumps(summary, indent=2, sort_keys=True) + "\\n"
+(output_dir / "summary.json").write_text(out_text, encoding="utf-8")
+"""
+        instruction = f"""# Process {asset_name}
+
+Read records in `/app/input/{asset_name}` and create `/app/output/summary.json`.
+The output must be a valid JSON object with the following fields:
+- `schema_version`: integer `1`
+- `total_records`: total number of records processed
+- `status`: string `"ok"`
+
+Write valid UTF-8 JSON with a trailing newline. Do not modify or replace the input file.
+"""
+        return code, instruction, {"output_file": "output/summary.json"}
+
+    if suffix == ".json":
+        code = f"""import json
+from collections import Counter
+from pathlib import Path
+
+input_path = Path("/app/input/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("environment/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("input/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("{asset_name}")
+
+data = json.loads(input_path.read_text(encoding="utf-8"))
+
+if isinstance(data, list):
+    cat_keys = ("type", "kind", "category", "status")
+    cat_key = next(
+        (
+            k
+            for k in cat_keys
+            if data and isinstance(data[0], dict) and k in data[0]
+        ),
+        None,
+    )
+    num_keys = ("val", "value", "amount", "duration_ms", "score")
+    num_key = next(
+        (
+            k
+            for k in num_keys
+            if data
+            and isinstance(data[0], dict)
+            and k in data[0]
+            and isinstance(data[0][k], (int, float))
+        ),
+        None,
+    )
+    summary = {{
+        "schema_version": 1,
+        "total_records": len(data),
+        "status": "ok",
+    }}
+    if cat_key:
+        counts = Counter(r.get(cat_key) for r in data if isinstance(r, dict) and cat_key in r)
+        summary["type_counts"] = {{str(k): counts[k] for k in sorted(counts)}}
+    if num_key:
+        nums = [
+            r[num_key]
+            for r in data
+            if isinstance(r, dict) and num_key in r and isinstance(r[num_key], (int, float))
+        ]
+        if nums:
+            summary[f"total_{{num_key}}"] = sum(nums)
+            summary[f"max_{{num_key}}"] = max(nums)
+else:
+    summary = {{
+        "schema_version": 1,
+        "total_keys": len(data.keys()) if isinstance(data, dict) else 1,
+        "status": "ok",
+    }}
+
+output_dir = Path("/app/output")
+if not output_dir.exists():
+    output_dir = Path("output")
+output_dir.mkdir(parents=True, exist_ok=True)
+out_text = json.dumps(summary, indent=2, sort_keys=True) + "\\n"
+(output_dir / "summary.json").write_text(out_text, encoding="utf-8")
+"""
+        instruction = f"""# Process {asset_name}
+
+Read the records in `/app/input/{asset_name}` and create `/app/output/summary.json`.
+
+The output must be a valid JSON object with the following fields:
+- `schema_version`: integer `1`
+- `total_records`: count of records processed
+- `status`: string `"ok"`
+
+Write valid UTF-8 JSON with a trailing newline. Do not modify or replace the input file.
+"""
+        return code, instruction, {"output_file": "output/summary.json"}
+
+    code = f"""import hashlib
+import json
+from pathlib import Path
+
+input_path = Path("/app/input/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("environment/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("input/{asset_name}")
+if not input_path.is_file():
+    input_path = Path("{asset_name}")
+
+raw_bytes = input_path.read_bytes()
+text = raw_bytes.decode("utf-8", errors="replace")
+lines = text.splitlines()
+
+summary = {{
+    "schema_version": 1,
+    "total_lines": len(lines),
+    "non_empty_lines": sum(1 for line in lines if line.strip()),
+    "total_characters": len(text),
+    "sha256": hashlib.sha256(raw_bytes).hexdigest(),
+    "status": "ok",
+}}
+
+output_dir = Path("/app/output")
+if not output_dir.exists():
+    output_dir = Path("output")
+output_dir.mkdir(parents=True, exist_ok=True)
+out_text = json.dumps(summary, indent=2, sort_keys=True) + "\\n"
+(output_dir / "summary.json").write_text(out_text, encoding="utf-8")
+"""
+    instruction = f"""# Process {asset_name}
+
+Read the data file in `/app/input/{asset_name}` and create `/app/output/summary.json`.
+
+The output must be a valid JSON object with line counts and file statistics.
+Write valid UTF-8 JSON with a trailing newline. Do not modify or replace the input file.
+"""
+    return code, instruction, {"output_file": "output/summary.json"}
+
+
+def execute_reference_analysis(
+    analysis_code: str,
+    data_asset_path: Path,
+    *,
+    output_file_rel: str = "output/summary.json",
+    timeout_sec: float = 30.0,
+) -> dict[str, Any]:
+    """Execute Python reference analysis code against the data asset in a scratch sandbox.
+
+    Raises AuthoringError if execution fails, times out, or produces invalid output.
+    Never returns a guessed or default key.
+    """
+    if not data_asset_path.is_file():
+        raise AuthoringError(f"reference analysis failed: data asset not found: {data_asset_path}")
+
+    with tempfile.TemporaryDirectory(prefix="evallab_inversion_") as tmp:
+        sandbox = Path(tmp)
+        env_dir = sandbox / "environment"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        input_dir = sandbox / "input"
+        input_dir.mkdir(parents=True, exist_ok=True)
+        app_input_dir = sandbox / "app" / "input"
+        app_input_dir.mkdir(parents=True, exist_ok=True)
+
+        asset_name = data_asset_path.name
+        shutil.copy2(data_asset_path, env_dir / asset_name)
+        shutil.copy2(data_asset_path, input_dir / asset_name)
+        shutil.copy2(data_asset_path, app_input_dir / asset_name)
+        shutil.copy2(data_asset_path, sandbox / asset_name)
+
+        script_path = sandbox / "solve.py"
+        script_path.write_text(analysis_code, encoding="utf-8")
+
+        try:
+            res = subprocess.run(
+                [sys.executable, str(script_path)],
+                cwd=sandbox,
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise AuthoringError(
+                f"reference analysis timed out after {timeout_sec}s on {data_asset_path.name}"
+            ) from exc
+        except Exception as exc:
+            raise AuthoringError(f"reference analysis execution failed: {exc}") from exc
+
+        if res.returncode != 0:
+            err_msg = res.stderr.strip() or res.stdout.strip() or f"exit code {res.returncode}"
+            raise AuthoringError(f"reference analysis failed on {data_asset_path.name}: {err_msg}")
+
+        candidate_outputs = [
+            sandbox / output_file_rel,
+            sandbox / "app" / output_file_rel,
+            sandbox / "summary.json",
+            sandbox / "output" / "summary.json",
+            sandbox / "app" / "output" / "summary.json",
+        ]
+        out_file = None
+        for cand in candidate_outputs:
+            if cand.is_file() and cand.stat().st_size > 0:
+                out_file = cand
+                break
+
+        if out_file is None:
+            msg = (
+                f"reference analysis on {data_asset_path.name} "
+                f"produced no output file at {output_file_rel}"
+            )
+            raise AuthoringError(msg)
+
+        try:
+            computed_value = json.loads(out_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise AuthoringError(
+                f"reference analysis on {data_asset_path.name} produced invalid JSON: {exc}"
+            ) from exc
+
+        return computed_value
+
+
+def reexecute_inversion_analysis(proposal_path: Path) -> dict[str, Any]:
+    """Re-execute the recorded reference analysis for an inversion proposal.
+
+    Locates the data asset and reference analysis code, re-runs execution,
+    and returns the computed answer key.
+    """
+    proposal_path = Path(proposal_path)
+    inv_file = proposal_path / "inversion.json"
+    analysis_code: str | None = None
+    data_file: Path | None = None
+
+    if inv_file.is_file():
+        with contextlib.suppress(Exception):
+            inv_data = json.loads(inv_file.read_text(encoding="utf-8"))
+            if isinstance(inv_data, dict):
+                analysis_code = inv_data.get("analysis_code")
+
+    if analysis_code is None:
+        prop_file = proposal_path / "proposal.json"
+        if prop_file.is_file():
+            with contextlib.suppress(Exception):
+                p_data = json.loads(prop_file.read_text(encoding="utf-8"))
+                inv_block = p_data.get("inversion_analysis")
+                if isinstance(inv_block, dict):
+                    analysis_code = inv_block.get("analysis_code")
+
+    if analysis_code is None:
+        solve_py = proposal_path / "solution" / "solve.py"
+        if solve_py.is_file():
+            analysis_code = solve_py.read_text(encoding="utf-8")
+
+    if analysis_code is None:
+        raise AuthoringError(
+            f"cannot re-execute inversion: no analysis code found in {proposal_path}"
+        )
+
+    env_dir = proposal_path / "environment"
+    if env_dir.is_dir():
+        for child in env_dir.iterdir():
+            if child.is_file() and child.name != "Dockerfile" and child.stat().st_size > 0:
+                data_file = child
+                break
+
+    if data_file is None:
+        fix_dir = proposal_path / "tests" / "fixtures"
+        if fix_dir.is_dir():
+            for child in fix_dir.iterdir():
+                if child.is_file() and child.stat().st_size > 0:
+                    data_file = child
+                    break
+
+    if data_file is None:
+        raise AuthoringError(
+            f"cannot re-execute inversion: no data asset found in {proposal_path}/environment"
+        )
+
+    return execute_reference_analysis(analysis_code, data_file)
+
+
+def verify_inversion_reproducibility(proposal_or_path: Proposal | Path) -> bool:
+    """Verify that an inversion proposal's answer key is reproduced by re-execution.
+
+    Returns True if re-computed answer matches recorded computed_value exactly.
+    Raises AuthoringError if data or analysis missing.
+    """
+    path = (
+        proposal_or_path.path if isinstance(proposal_or_path, Proposal) else Path(proposal_or_path)
+    )
+    inv_file = path / "inversion.json"
+    recorded_val = None
+    if inv_file.is_file():
+        with contextlib.suppress(Exception):
+            inv_data = json.loads(inv_file.read_text(encoding="utf-8"))
+            recorded_val = inv_data.get("computed_value")
+
+    if recorded_val is None:
+        prop_file = path / "proposal.json"
+        if prop_file.is_file():
+            with contextlib.suppress(Exception):
+                p_data = json.loads(prop_file.read_text(encoding="utf-8"))
+                inv_block = p_data.get("inversion_analysis")
+                if isinstance(inv_block, dict):
+                    recorded_val = inv_block.get("computed_value")
+
+    if recorded_val is None:
+        raise AuthoringError(f"no recorded computed_value in {path}")
+
+    recomputed = reexecute_inversion_analysis(path)
+    return recomputed == recorded_val
 
 
 def assemble_meta_task(
@@ -1690,7 +2137,7 @@ mcp_servers = []
 """
     (destination / "task.toml").write_text(task_toml, encoding="utf-8")
 
-    instruction = f"""# {task_name.replace('-', ' ').title()}
+    instruction = f"""# {task_name.replace("-", " ").title()}
 
 Read the records in `/app/input/data.json` and create `/app/output/summary.json`.
 
@@ -1834,6 +2281,7 @@ if __name__ == "__main__":
     (tests_dir / "verify.py").write_text(verify_py, encoding="utf-8")
     return destination
 
+
 class AuthoringPipeline:
     """Propose → battery → review. Registration is a hard refusal."""
 
@@ -1902,6 +2350,7 @@ class AuthoringPipeline:
         model: str | None = None,
         spec: dict[str, Any] | None = None,
         exemplar: str | None = None,
+        analysis_code: str | None = None,
     ) -> Proposal: ...
 
     @overload
@@ -1915,6 +2364,7 @@ class AuthoringPipeline:
         model: str | None = None,
         spec: dict[str, Any] | None = None,
         exemplar: str | None = None,
+        analysis_code: str | None = None,
     ) -> tuple[ExperimentSpec, Path, PolicyDecision]: ...
 
     def propose(
@@ -1927,6 +2377,7 @@ class AuthoringPipeline:
         model: str | None = None,
         spec: dict[str, Any] | None = None,
         exemplar: str | None = None,
+        analysis_code: str | None = None,
     ) -> Proposal | tuple[ExperimentSpec, Path, PolicyDecision]:
         if via_harbor:
             return self.propose_via_harbor(
@@ -1945,13 +2396,22 @@ class AuthoringPipeline:
             raise AuthoringError(f"proposal id {proposal_id!r} already exists")
         destination.mkdir(parents=True, exist_ok=False)
         created = isoformat(self._now())
-        if seed == "mutation":
-            proposal = self._propose_mutation(proposal_id, destination, ref, created)
-        elif seed == "scenario":
-            proposal = self._propose_scenario(proposal_id, destination, ref, created)
-        else:
-            proposal = self._propose_craft_gap(proposal_id, destination, ref, created)
-        _atomic_write_json(destination / "proposal.json", proposal.manifest())
+        try:
+            if seed == "mutation":
+                proposal = self._propose_mutation(proposal_id, destination, ref, created)
+            elif seed == "scenario":
+                proposal = self._propose_scenario(proposal_id, destination, ref, created)
+            elif seed == "inversion":
+                proposal = self._propose_inversion(
+                    proposal_id, destination, ref, created, analysis_code=analysis_code
+                )
+            else:
+                proposal = self._propose_craft_gap(proposal_id, destination, ref, created)
+            _atomic_write_json(destination / "proposal.json", proposal.manifest())
+        except Exception:
+            if destination.exists():
+                shutil.rmtree(destination, ignore_errors=True)
+            raise
         upsert_ledger(
             self.ledger,
             QualificationRecord(
@@ -2082,9 +2542,7 @@ class AuthoringPipeline:
                 verifier_passed = True
 
         if not verifier_passed:
-            raise AuthoringError(
-                f"harvest refused: completeness checker did not pass in {job_dir}"
-            )
+            raise AuthoringError(f"harvest refused: completeness checker did not pass in {job_dir}")
 
         job_id = job_dir.name
         job_manifest = job_dir / "manifest.json"
@@ -2171,6 +2629,7 @@ class AuthoringPipeline:
             ),
         )
         return proposal
+
     def run_battery(self, proposal_id: str) -> BatteryReport:
         proposal = self.get(proposal_id)
         evidence_dir = proposal.path / "battery"
@@ -2221,8 +2680,7 @@ class AuthoringPipeline:
         record = self._record_for(proposal_id)
         if record.outcome not in {"battery_passed", "craft_reviewed"}:
             raise AuthoringError(
-                f"proposal {proposal_id!r} is {record.outcome!r}; "
-                "review requires battery_passed"
+                f"proposal {proposal_id!r} is {record.outcome!r}; review requires battery_passed"
             )
         score, reasons = score_review(proposal)
         evidence_path = proposal.path / "review.json"
@@ -2267,7 +2725,7 @@ class AuthoringPipeline:
     ) -> list[BatchItem]:
         if count < 1:
             raise AuthoringError("batch count must be >= 1")
-        cycle: Sequence[SeedClass] = seeds or ("mutation", "scenario", "craft-gap")
+        cycle: Sequence[SeedClass] = seeds or ("mutation", "scenario", "craft-gap", "inversion")
         items: list[BatchItem] = []
         for index in range(count):
             seed = cycle[index % len(cycle)]
@@ -2350,9 +2808,7 @@ class AuthoringPipeline:
             name=f"proposed-{scenario.stem}",
             version="0.1.0",
             instruction=(
-                f"# {title}\n\n"
-                f"Seeded from research scenario `{relative}`.\n\n"
-                f"{excerpt}\n"
+                f"# {title}\n\nSeeded from research scenario `{relative}`.\n\n{excerpt}\n"
             ),
             separate=True,
             verifier_hint="pytest",
@@ -2419,6 +2875,228 @@ class AuthoringPipeline:
                 "target_facets": {name: facets[name] for name in GAP_AXES},
             },
             created_at=created,
+        )
+
+    def _propose_inversion(
+        self,
+        proposal_id: str,
+        destination: Path,
+        ref: str | None,
+        created: str,
+        *,
+        analysis_code: str | None = None,
+    ) -> Proposal:
+        asset_file, asset_rel = resolve_inversion_asset(self.repo_root, ref)
+        asset_digest = compute_file_digest(asset_file)
+        asset_name = asset_file.name
+
+        if analysis_code is not None:
+            code = analysis_code
+            instruction_text = (
+                f"# Process {asset_name}\n\n"
+                f"Read `/app/input/{asset_name}` and create `/app/output/summary.json`.\n\n"
+                "Write valid UTF-8 JSON with a trailing newline. Do not modify the input file.\n"
+            )
+        else:
+            code, instruction_text, _ = generate_inversion_analysis_code(asset_file)
+
+        # Execute reference analysis to compute answer key by construction
+        computed_value = execute_reference_analysis(code, asset_file)
+        analysis_digest = f"sha256:{hashlib.sha256(code.encode('utf-8')).hexdigest()}"
+
+        inversion_metadata = {
+            "schema_version": "inversion/1",
+            "data_asset_path": asset_rel,
+            "data_asset_digest": asset_digest,
+            "analysis_code": code,
+            "analysis_digest": analysis_digest,
+            "computed_value": computed_value,
+            "executed_at": created,
+            "output_path": "output/summary.json",
+        }
+        InversionAnalysis.model_validate(inversion_metadata)
+
+        destination.mkdir(parents=True, exist_ok=True)
+        task_name = f"proposed-inversion-{asset_file.stem.replace('_', '-')}"
+
+        task_toml = f"""schema_version = "1.0"
+
+[task]
+name = "{task_name}"
+version = "0.1.0"
+description = "Inversion task computed from {asset_name}"
+
+[metadata]
+category = "data-processing"
+seed_class = "inversion"
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 300.0
+os = "linux"
+cpus = 1
+memory_mb = 512
+storage_mb = 2048
+mcp_servers = []
+"""
+        (destination / "task.toml").write_text(task_toml, encoding="utf-8")
+        (destination / "instruction.md").write_text(instruction_text, encoding="utf-8")
+
+        env_dir = destination / "environment"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        env_dockerfile = (
+            "FROM python:3.12-slim\n\n"
+            "WORKDIR /app\n\n"
+            f"COPY {asset_name} /app/input/{asset_name}\n\n"
+            "RUN mkdir -p /app/output\n"
+        )
+        (env_dir / "Dockerfile").write_text(env_dockerfile, encoding="utf-8")
+        shutil.copy2(asset_file, env_dir / asset_name)
+
+        sol_dir = destination / "solution"
+        sol_dir.mkdir(parents=True, exist_ok=True)
+        sol_sh = """#!/bin/sh
+set -eu
+
+if [ -f /solution/solve.py ]; then
+    exec python /solution/solve.py
+else
+    SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    exec python "$SCRIPT_DIR/solve.py"
+ fi
+"""
+        (sol_dir / "solve.sh").write_text(sol_sh, encoding="utf-8")
+        with contextlib.suppress(OSError):
+            os.chmod(sol_dir / "solve.sh", 0o755)
+        (sol_dir / "solve.py").write_text(code, encoding="utf-8")
+
+        tests_dir = destination / "tests"
+        tests_dir.mkdir(parents=True, exist_ok=True)
+        fixtures_dir = tests_dir / "fixtures"
+        fixtures_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(asset_file, fixtures_dir / asset_name)
+
+        test_dockerfile = (
+            "FROM python:3.12-slim\n\n"
+            "WORKDIR /app\n\n"
+            "COPY test.sh /tests/test.sh\n"
+            "COPY verify.py /tests/verify.py\n"
+            "COPY fixtures/ /tests/fixtures/\n\n"
+            "RUN chmod +x /tests/test.sh\n"
+        )
+        (tests_dir / "Dockerfile").write_text(test_dockerfile, encoding="utf-8")
+
+        test_sh = """#!/bin/sh
+set -eu
+
+if [ -f /tests/verify.py ]; then
+    exec python /tests/verify.py
+else
+    SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    exec python "$SCRIPT_DIR/verify.py"
+fi
+"""
+        (tests_dir / "test.sh").write_text(test_sh, encoding="utf-8")
+        with contextlib.suppress(OSError):
+            os.chmod(tests_dir / "test.sh", 0o755)
+
+        verify_py = f"""import json
+from pathlib import Path
+
+AGENT_OUTPUT = Path("/app/output/summary.json")
+if not AGENT_OUTPUT.is_file():
+    AGENT_OUTPUT = Path("output/summary.json")
+
+EXPECTED_OUTPUT = {json.dumps(computed_value, indent=2)}
+
+LOG_DIR = Path("/logs/verifier")
+if not LOG_DIR.exists():
+    LOG_DIR = Path("logs/verifier")
+
+
+def main() -> None:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    if not AGENT_OUTPUT.is_file():
+        passed = False
+        message = "summary.json is missing"
+    else:
+        try:
+            candidate = json.loads(AGENT_OUTPUT.read_text(encoding="utf-8"))
+            passed = candidate == EXPECTED_OUTPUT
+            message = (
+                "summary.json verified against computed answer key"
+                if passed
+                else "summary.json content mismatch"
+            )
+        except Exception as exc:
+            passed = False
+            message = f"error parsing json: {{exc}}"
+
+    checks = {{"correctness": {{"passed": passed, "message": message}}}}
+    rewards = {{"reward": 1.0 if passed else 0.0}}
+    ctrf = {{
+        "report": {{
+            "summary": {{
+                "tests": 1,
+                "passed": 1 if passed else 0,
+                "failed": 0 if passed else 1,
+            }}
+        }}
+    }}
+    (LOG_DIR / "checks.json").write_text(
+        json.dumps(checks, indent=2) + "\\n", encoding="utf-8"
+    )
+    (LOG_DIR / "reward.json").write_text(
+        json.dumps(rewards, indent=2) + "\\n", encoding="utf-8"
+    )
+    (LOG_DIR / "ctrf.json").write_text(
+        json.dumps(ctrf, indent=2) + "\\n", encoding="utf-8"
+    )
+    print(json.dumps({{"passed": passed, "checks": checks}}))
+
+
+if __name__ == "__main__":
+    main()
+"""
+        (tests_dir / "verify.py").write_text(verify_py, encoding="utf-8")
+        _atomic_write_json(destination / "inversion.json", inversion_metadata)
+
+        inputs = [
+            {
+                "path": asset_rel,
+                "id": asset_name,
+                "digest": asset_digest,
+            }
+        ]
+
+        return Proposal(
+            proposal_id=proposal_id,
+            seed_class="inversion",
+            ref_task=asset_rel,
+            path=destination,
+            outcome="proposed",
+            version="0.1.0",
+            source_path=asset_rel,
+            source_digest=asset_digest,
+            category="data-processing",
+            scenario="inversion",
+            difficulty="intermediate",
+            provenance="inversion",
+            axes={
+                "category": "data-processing",
+                "scenario": "inversion",
+                "difficulty": "intermediate",
+            },
+            created_at=created,
+            inputs=inputs,
+            inversion_analysis=inversion_metadata,
         )
 
     def _write_outcome(self, proposal: Proposal, outcome: Outcome) -> None:
@@ -2506,7 +3184,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--seed",
         default="craft-gap",
         choices=SEED_CLASSES,
-        help="mutation | scenario | craft-gap",
+        help="mutation | scenario | craft-gap | inversion",
     )
     propose.add_argument("--ref", default=None, help="source task or research scenario")
     propose.add_argument(
@@ -2518,6 +3196,9 @@ def build_parser() -> argparse.ArgumentParser:
     propose.add_argument("--model", default=None, help="model for Harbor execution")
     propose.add_argument("--spec", type=Path, default=None, help="custom spec JSON path")
     propose.add_argument("--exemplar", default=None, help="exemplar task name")
+    propose.add_argument(
+        "--analysis-code", default=None, help="custom Python analysis code for inversion"
+    )
 
     harvest = subparsers.add_parser(
         "harvest",
@@ -2632,7 +3313,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     as_json=args.json,
                 )
                 return 0
-            proposal = pipeline.propose(args.seed, ref=args.ref)
+            proposal = pipeline.propose(
+                args.seed, ref=args.ref, analysis_code=getattr(args, "analysis_code", None)
+            )
             assert isinstance(proposal, Proposal)
             _emit(
                 {

@@ -31,13 +31,15 @@ from evallab.authoring import (
     load_axis,
     load_ledger,
     main,
+    reexecute_inversion_analysis,
     sample_spec_batch,
     seed_class_pass_rates,
     spec_coordinate_key,
     upsert_ledger,
+    verify_inversion_reproducibility,
     write_ledger,
 )
-from evallab.lineage import resolve_lineage
+from evallab.lineage import read_artifact_inputs, resolve_lineage
 from evallab.paths import derived_root_from_environment
 from evallab.schemas import ProposalAxes, ProposalSpec
 
@@ -440,8 +442,8 @@ def test_five_proposal_batch_halts_at_human_gate(tmp_path: Path) -> None:
         "mutation",
         "scenario",
         "craft-gap",
+        "inversion",
         "mutation",
-        "scenario",
     ]
     assert {item.outcome for item in items} == {"craft_reviewed"}
     records = pipe.records()
@@ -505,6 +507,8 @@ def test_cli_batch_five(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
     assert payload["halt"] == REGISTER_REFUSAL
     assert REGISTER_REFUSAL in captured.err
     assert all(item["outcome"] == "craft_reviewed" for item in payload["proposals"])
+
+
 def test_completeness_checker_rejects_missing_structure(tmp_path: Path) -> None:
     task_dir = tmp_path / "broken_task"
     generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
@@ -1158,3 +1162,305 @@ def test_real_corpus_sample_specs_coverage_and_split() -> None:
     gap_count = sum(1 for s in specs if s.get("provenance") == "craft-gap")
     assert gap_count / len(specs) >= (1 / 3), f"Expected >= 1/3 gap specs, got {gap_count}/20"
     assert gap_count == 13  # 13 gaps present in real scanned corpus
+
+
+def test_propose_inversion_executes_reference_analysis_and_records_provenance(
+    tmp_path: Path,
+) -> None:
+    repo = make_repo(tmp_path)
+    # Add structured events.jsonl to library/tasks/event-summary/environment
+    events_data = [
+        {"kind": "click", "duration_ms": 120, "user": "alice"},
+        {"kind": "scroll", "duration_ms": 45, "user": "bob"},
+        {"kind": "click", "duration_ms": 200, "user": "alice"},
+        {"kind": "submit", "duration_ms": 310, "user": "carol"},
+    ]
+    env_dir = repo / "library" / "tasks" / "event-summary" / "environment"
+    events_file = env_dir / "events.jsonl"
+    events_file.write_text("\n".join(json.dumps(r) for r in events_data) + "\n", encoding="utf-8")
+
+    pipe = pipeline_for(repo)
+    proposal = pipe.propose("inversion", ref="event-summary")
+
+    assert proposal.seed_class == "inversion"
+    assert proposal.outcome == "proposed"
+    assert proposal.source_path == "library/tasks/event-summary/environment/events.jsonl"
+    assert proposal.source_digest is not None
+    assert proposal.source_digest.startswith("sha256:")
+
+    # Check inversion analysis metadata
+    assert proposal.inversion_analysis is not None
+    inv = proposal.inversion_analysis
+    assert inv["schema_version"] == "inversion/1"
+    assert inv["data_asset_path"] == "library/tasks/event-summary/environment/events.jsonl"
+    assert inv["data_asset_digest"] == proposal.source_digest
+    assert "analysis_code" in inv
+    assert inv["analysis_digest"].startswith("sha256:")
+
+    # Verify computed_value came from real execution against data
+    computed = inv["computed_value"]
+    assert computed["schema_version"] == 1
+    assert computed["total_records"] == 4
+    assert computed["status"] == "ok"
+    assert computed["counts"] == {"click": 2, "scroll": 1, "submit": 1}
+    assert computed["total_duration_ms"] == 675
+
+    # Check proposal package files
+    assert (proposal.path / "task.toml").is_file()
+    assert (proposal.path / "instruction.md").is_file()
+    assert (proposal.path / "environment/events.jsonl").is_file()
+    assert (proposal.path / "solution/solve.sh").is_file()
+    assert (proposal.path / "solution/solve.py").is_file()
+    assert (proposal.path / "tests/test.sh").is_file()
+    assert (proposal.path / "tests/verify.py").is_file()
+    assert (proposal.path / "inversion.json").is_file()
+
+    # Check ledger record
+    record = pipe.records()[0]
+    assert record.seed_class == "inversion"
+    assert record.outcome == "proposed"
+
+
+def test_failed_reference_analysis_yields_refusal_not_guessed_key(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+
+    # 1. Broken Python syntax or runtime exception in reference analysis
+    broken_code = "import json\nraise RuntimeError('Fatal failure in reference analysis')\n"
+    with pytest.raises(AuthoringError, match="reference analysis failed") as exc_info:
+        pipe.propose("inversion", ref="event-summary", analysis_code=broken_code)
+    assert "Fatal failure" in str(exc_info.value)
+
+    # Ensure no proposal was created in quarantine
+    proposals = list(pipe.quarantine.glob("*")) if pipe.quarantine.exists() else []
+    assert len(proposals) == 0
+
+    # 2. Analysis produces no output file
+    empty_code = "print('did nothing')\n"
+    with pytest.raises(AuthoringError, match="produced no output file"):
+        pipe.propose("inversion", ref="event-summary", analysis_code=empty_code)
+
+    # 3. Non-existent data asset
+    with pytest.raises(AuthoringError, match="no data asset found"):
+        pipe.propose("inversion", ref="non_existent_asset_xyz")
+
+
+def test_inversion_reproducibility_check_catches_model_authored_key(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+    proposal = pipe.propose("inversion", ref="event-summary")
+
+    # Ground truth execution reproduces exact answer
+    assert verify_inversion_reproducibility(proposal) is True
+    assert verify_inversion_reproducibility(proposal.path) is True
+
+    # Re-execute explicitly
+    recomputed = reexecute_inversion_analysis(proposal.path)
+    assert recomputed == proposal.inversion_analysis["computed_value"]
+
+    # Simulate a model-authored / fabricated key that diverges from execution
+    inv_path = proposal.path / "inversion.json"
+    inv_data = json.loads(inv_path.read_text(encoding="utf-8"))
+    inv_data["computed_value"]["total_lines"] = 99999  # fabricated value
+    inv_path.write_text(json.dumps(inv_data), encoding="utf-8")
+
+    prop_path = proposal.path / "proposal.json"
+    prop_data = json.loads(prop_path.read_text(encoding="utf-8"))
+    prop_data["inversion_analysis"]["computed_value"]["total_lines"] = 99999
+    prop_path.write_text(json.dumps(prop_data), encoding="utf-8")
+
+    # Verification detects mismatch
+    assert verify_inversion_reproducibility(proposal.path) is False
+
+
+def test_three_inversion_proposals_reach_human_gate_and_reproduce_exact_answer(
+    tmp_path: Path,
+) -> None:
+    repo = make_repo(tmp_path)
+
+    # Asset 1: JSONL event stream
+    events_path = repo / "library" / "tasks" / "event-summary" / "environment" / "events.jsonl"
+    events_path.parent.mkdir(parents=True, exist_ok=True)
+    events_path.write_text(
+        json.dumps({"kind": "view", "duration_ms": 100})
+        + "\n"
+        + json.dumps({"kind": "click", "duration_ms": 250})
+        + "\n"
+        + json.dumps({"kind": "view", "duration_ms": 150})
+        + "\n",
+        encoding="utf-8",
+    )
+
+    # Asset 2: JSON data array
+    data_path = (
+        repo
+        / "library"
+        / "meta"
+        / "synthesize-task@1"
+        / "environment"
+        / "skeleton"
+        / "environment"
+        / "data.json"
+    )
+    data_path.parent.mkdir(parents=True, exist_ok=True)
+    data_path.write_text(
+        json.dumps(
+            [
+                {"id": 1, "type": "alpha", "val": 10},
+                {"id": 2, "type": "beta", "val": 20},
+                {"id": 3, "type": "alpha", "val": 30},
+                {"id": 4, "type": "gamma", "val": 40},
+            ],
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    # Asset 3: SQL query script / data asset
+    sql_path = repo / "library" / "tasks" / "query-optimize" / "environment" / "my-query.sql"
+    sql_path.parent.mkdir(parents=True, exist_ok=True)
+    sql_path.write_text(
+        "SELECT id, name FROM users WHERE active = 1;\nSELECT count(*) FROM orders;\n",
+        encoding="utf-8",
+    )
+
+    pipe = pipeline_for(repo)
+
+    proposals = [
+        pipe.propose("inversion", ref="library/tasks/event-summary/environment/events.jsonl"),
+        pipe.propose(
+            "inversion",
+            ref="library/meta/synthesize-task@1/environment/skeleton/environment/data.json",
+        ),
+        pipe.propose("inversion", ref="library/tasks/query-optimize/environment/my-query.sql"),
+    ]
+
+    for prop in proposals:
+        assert prop.seed_class == "inversion"
+        assert prop.outcome == "proposed"
+
+        # 1. Run local battery controls
+        battery = pipe.run_battery(prop.proposal_id)
+        assert battery.all_passed is True
+        assert battery.outcome == "battery_passed"
+        assert len(battery.checks) == 4
+        assert all(c.passed for c in battery.checks)
+
+        # 2. Review rubric
+        review = pipe.review(prop.proposal_id)
+        assert review.outcome == "craft_reviewed"
+        assert review.score == 1.0
+        assert any(
+            "inversion answer key verified by execution" in reason for reason in review.reasons
+        )
+
+        # 3. Fail-closed human gate: automation cannot register
+        with pytest.raises(RegisterRefusal):
+            pipe.register(prop.proposal_id)
+
+        # 4. LOAD-BEARING: Re-executing reference analysis reproduces recorded answer exactly
+        assert verify_inversion_reproducibility(prop) is True
+        recomputed = reexecute_inversion_analysis(prop.path)
+        assert recomputed == prop.inversion_analysis["computed_value"]
+
+    # All 3 proposals reached craft_reviewed on ledger
+    records = pipe.records()
+    assert len(records) == 3
+    assert all(r.seed_class == "inversion" for r in records)
+    assert all(r.outcome == "craft_reviewed" for r in records)
+    assert all(r.review_score == 1.0 for r in records)
+
+
+def test_inversion_lineage_resolves_through_evallab_lineage(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+    proposal = pipe.propose("inversion", ref="event-summary")
+
+    manifest = json.loads((proposal.path / "proposal.json").read_text(encoding="utf-8"))
+    assert "inputs" in manifest
+    assert len(manifest["inputs"]) == 1
+    assert manifest["inputs"][0]["path"] == "library/tasks/event-summary/environment/input.txt"
+    assert manifest["inputs"][0]["digest"] == proposal.source_digest
+
+    # 1. read_artifact_inputs contract parser
+    status, inputs, reason = read_artifact_inputs(proposal.path / "proposal.json", "z3", repo)
+    assert status == "ok"
+    assert len(inputs) == 1
+    assert inputs[0]["path"] == "library/tasks/event-summary/environment/input.txt"
+    assert inputs[0]["digest"] == proposal.source_digest
+
+    # 2. Lineage walker traces from proposal to data asset and verifies digest
+    node = resolve_lineage(str(proposal.path / "proposal.json"), repo_root=repo)
+    assert len(node.inputs) == 1
+    input_node = node.inputs[0]
+    assert input_node.path == "library/tasks/event-summary/environment/input.txt"
+    assert input_node.actual_digest == proposal.source_digest
+    assert input_node.expected_digest == proposal.source_digest
+
+
+def test_inversion_task_passes_completeness_checker(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    data_file = repo / "library" / "tasks" / "event-summary" / "environment" / "data.json"
+    data_file.write_text(json.dumps([{"id": 1, "type": "a", "val": 10}]), encoding="utf-8")
+
+    pipe = pipeline_for(repo)
+    proposal = pipe.propose("inversion", ref=str(data_file.relative_to(repo)))
+
+    # Run completeness checker on generated inversion task package
+    comp_report = check_task_completeness(proposal.path)
+    assert comp_report["passed"] is True
+    assert comp_report["checks"]["package_structure"]["passed"] is True
+    assert comp_report["checks"]["oracle_solution_runs"]["passed"] is True
+    assert comp_report["checks"]["task_tests_pass"]["passed"] is True
+    assert comp_report["checks"]["no_answer_leakage"]["passed"] is True
+
+
+def test_battery_and_review_gate_inversion_without_shortcut(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+    proposal = pipe.propose("inversion", ref="event-summary")
+
+    # Cannot review before battery
+    with pytest.raises(AuthoringError, match="battery_passed"):
+        pipe.review(proposal.proposal_id)
+
+    # Delete solution: battery oracle check must fail
+    for child in (proposal.path / "solution").iterdir():
+        child.unlink()
+    (proposal.path / "solution").rmdir()
+
+    battery_report = pipe.run_battery(proposal.proposal_id)
+    assert battery_report.all_passed is False
+    assert battery_report.checks[0].passed is False  # oracle check failed
+    assert pipe.records()[0].battery_oracle is False
+    assert pipe.records()[0].outcome == "proposed"
+
+
+def test_cli_propose_inversion(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    repo = make_repo(tmp_path)
+    derived = repo / "derived" / "parquet"
+    common = ["--root", str(repo), "--out", str(derived), "--json"]
+
+    assert main([*common, "propose", "--seed", "inversion", "--ref", "event-summary"]) == 0
+    captured = json.loads(capsys.readouterr().out)
+    assert captured["seed_class"] == "inversion"
+    assert captured["outcome"] == "proposed"
+    proposal_id = captured["proposal_id"]
+
+    # Battery
+    assert main([*common, "battery", proposal_id]) == 0
+    battery = json.loads(capsys.readouterr().out)
+    assert battery["all_passed"] is True
+    assert battery["outcome"] == "battery_passed"
+
+    # Review
+    assert main([*common, "review", proposal_id]) == 0
+    review = json.loads(capsys.readouterr().out)
+    assert review["outcome"] == "craft_reviewed"
+    assert review["score"] == 1.0
+
+    # Register halts
+    assert main([*common, "register", proposal_id]) == 2
+    err_output = capsys.readouterr().err
+    assert REGISTER_REFUSAL in err_output

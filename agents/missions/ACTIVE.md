@@ -10,6 +10,73 @@ integrator owns cross-mission conflict resolution, semantic review, rebase,
 fresh exact-head CI, merge, board transition, and worktree sunset. A review
 bot may advise later; it is never merge authority.
 
+## Build result: M020–M024 all merged (40 PRs total)
+
+Five parallel build missions, five PRs, all green on exact-head CI and merged. I
+re-verified the load-bearing claim of each myself by mutation rather than accepting
+its handoff — break the guarantee, watch the named test fail, restore, watch it pass.
+
+| PR | Mission | Landed | My own mutation check |
+|---|---|---|---|
+| #126 | M020 QUEUE-PARALLEL | `running/<spec>.lease` with atomic `O_EXCL` claim, 30s runner heartbeat, `tick --parallel N` | `O_EXCL` → check-then-create: 2 racers both claim one spec, property test fails |
+| #122 | M021 CLI-REGISTRY | `cli.py` linear dispatch → 52 `set_defaults(func=…)` handlers | renaming `tick` → `tickk` fails 3 surface tests incl. "unexpected commands outside golden" |
+| #124 | M022 MEMORY-ANALYSES | `analyses` LanceDB table beside tasks/trials/steps, joinable to trial and job ids | disabling the identity guard turns "1 rows" into "7 rows", guard test fails |
+| #123 | M023 CRAFT-BATCH | batched classify with the idempotence contract finally executable | one-character off-by-one in the batch slice fails 5 tests |
+| #125 | M024 TIDY-SQUASH | content-based merged detection, three-state `merged`/`unmerged`/`unproven` | missing branch ref reading `merged` instead of `unproven` fails 3 tests |
+
+### The three findings worth reading first
+
+**M021 nearly shipped a 106-line `if False:` block, and it was there to make a
+detector lie.** The registry conversion removes the `args.command == "x"` chain that
+`repomap.py` pattern-matches to attribute each command to its implementing module, so
+the agent kept the whole dead chain under `if False:` labelled "static AST attribution
+mapping for repomap". `repomap check` passed either way. That is worse than a broken
+test: the map's reachability signal is the tool that caught `parquet_compaction.py`,
+`lessons.py`, `storm.py` and `status_generator.py` being built-and-dead, and dead code
+retained to satisfy it makes every future answer untrustworthy. Fixed properly —
+`repomap.py` now reads the registry (`_registry_owners`), and the block is gone. A real
+bug surfaced while doing it: `_called_names` counted type annotations, so handlers typed
+`harbor: HarborBackend` were attributed to `fetch`; 20 commands moved. Both behaviours
+now have mutation-verified tests.
+
+**A golden that pins CPython's argparse formatter is not a behaviour test.** M021's
+safety net snapshotted rendered `--help` text. It passed on 3.12 and failed on 3.14 in
+CI, because argparse changed its rendering. Replaced with a structural golden —
+per-command flags, metavars, defaults, choices, required-ness, help strings — generated
+from `origin/main`'s own pre-conversion parser, so it is evidence rather than a
+self-portrait. Passes on both interpreters and compares strictly more than help text did.
+
+**M022 was reporting a partial skip as silence.** Its builder printed the skipped-row
+count only when *every* row was skipped; its own test seeded 1 valid and 6 invalid rows
+and asserted only `analyses: 1 rows`, locking the silence in. Same shape as the
+`status_generator.py` defect fixed the night before. Sent back: skips are now always
+surfaced with examples, a swallowed catalog-read failure is surfaced instead of
+presenting as "rows missing identity", and the test now fails if either goes quiet.
+
+### M024 proved itself on live data within the hour
+
+While the missions ran, five worktrees existed and one (`m023-craft`) got squash-merged
+mid-flight — the exact production scenario. Old code: `Stale worktrees (0 items, 0 B)`.
+New code, same moment: `1 items, 459.4 MB … branch merged into origin/main (content)`,
+with the three genuinely in-flight worktrees correctly left alone. 2.4 GB of merged
+worktrees has since been swept.
+
+It also revealed its own limit, recorded in `research/audits/board-notes.md`:
+`merge-tree` compares against `main` **as it is now**, so once main moves past a branch
+in any shared file — including the generated `docs/INDEX.md` every mission regenerates —
+a genuinely merged branch reads as `unmerged`. That is a false negative: it refuses to
+delete rather than deleting live work, which is the correct direction to fail. The fix is
+to add recorded PR merge state as a third signal, not to loosen the content predicate.
+
+### Process note: every agent died, none of the work did
+
+All five authoring agents were killed mid-flight — three by transport errors at 15–17
+minutes, two by provider rate limits at 26–31 minutes. Their partial work was
+checkpointed from their worktrees, and the missions were finished from those checkpoints
+rather than restarted. The durable lesson is the one the loop protocol already encodes:
+commit and push every few minutes, because an unpushed branch is the only thing a dead
+agent actually loses.
+
 ## Night result: all five loops finished and merged into main (35 PRs total)
 
 29 cycles across five missions, every cycle committed and pushed. All 5 PRs verified in exact-head GitHub Actions CI and merged into main after Actions limits were lifted by making the repository public.
@@ -57,11 +124,14 @@ nightly schedule.
 
 ## Now
 
-`origin/main` is `25c8228` (**35 PRs merged** across all night loops). Full suite
-**1321 passed, 1 skipped, 1 xfailed**, ruff clean, `ty` at its 28-diagnostic
-baseline. Actions limits lifted by making the repository public, so CI runs again.
+`origin/main` is `68a21d3` (**40 PRs merged**). Full suite **1427 passed, 1 skipped,
+1 xfailed** (up from 1321), ruff clean, `ty` down to **27** diagnostics — the premerge
+script now emits `notice: ty is down to 27; lower the baseline from 28`, which is a
+one-line change nobody should make as a side effect of another mission. Zero open PRs,
+zero worktrees, `.worktrees/` swept from 2.4 GB to empty. `cli.py` is 2,463 lines with
+52 registry handlers and zero dispatch-chain comparisons.
 
-### Five build missions dispatched now (M020–M024)
+### Five build missions, all merged (M020–M024)
 
 Peter green-lit the top five unbuilt items from the v2 architecture audit and
 asked for them in parallel. These are BUILDS, not loops: each takes one audit
@@ -151,44 +221,51 @@ the entire premise of M015.
 
 ## Ready
 
-- **Nothing is dispatchable-but-unstarted for a build worker.** All five slots
-  are held by M020–M024. M009–M019 are merged; the items still listed under
-  `Next` are what the v2 architecture audit left standing after tonight's
-  dispatch, and each needs an M number and a brief before it starts.
+- **Nothing is dispatchable-but-unstarted for a build worker, and no slot is held.**
+  M009–M024 are all merged; `.worktrees/` is empty. The items under `Next` are what
+  the v2 architecture audit left standing plus three follow-ups tonight's work created,
+  and each needs an M number and a brief before it starts.
 
 ## Next
 
 Ranked by what actually blocks the lab, from the v2 architecture audit:
 
-- **Queue leases and per-provider concurrency (E01) — DISPATCHED as M020.**
-  Dispatch was single-threaded with no concurrency control: no
-  `running/<spec>.lease` heartbeat, no per-provider semaphore. Largest unbuilt
-  item in the audit; it caps every parallel run the lab can attempt. Tonight's
-  own dispatch is the evidence — provider concurrency limits had to be managed
-  by hand, staggering launches by 20 seconds, because nothing in the queue does
-  it.
-- **`cli.py` command-registry conversion — DISPATCHED as M021.** Peter approved
-  the sequencing; the measured case is under `Needs Peter` below and stands as
-  the record of why. Behaviour-preserving by contract, pinned with a per-command
-  `--help` golden captured before the refactor.
-- **Analysis conclusions are not indexed into vector memory — DISPATCHED as
-  M022.** LanceDB indexed tasks, trials, and trajectory steps — not what an
-  analyst concluded, so "find analyses similar to this one" was unanswerable.
-  Last structural gap in the study loop.
-- **`craft.py` classify batching and cookbook idempotence (E07) — DISPATCHED as
-  M023.** The idempotence contract was written in prose in the file and never
-  executed as a test.
-- **`evallab tidy` is blind to squash merges — DISPATCHED as M024.** It reported
-  "Stale worktrees (0 items)" while five fully-merged worktrees held 2.3 GB,
-  because it tests ancestry and this repo squash-merges — so a merged branch tip
-  is never an ancestor of `main`. Ancestry-true, content-false. A wrong answer in
-  the other direction deletes live work, so the brief requires a three-state
-  classification where anything unproven is never swept.
+- **Per-provider semaphores and orphan reconcile (E01, unassigned — the half M020 did
+  NOT build).** M020 landed the lease layer it all depends on: `running/<spec>.lease`
+  with atomic `O_EXCL` claim, a 30s runner heartbeat, and `tick --parallel N`. Two of
+  the four §3.1 deltas are still open, and the board must not read E01 as complete:
+  (a) there is **no per-provider semaphore** — `--parallel` is a single global cap, so
+  provider limits are still managed by hand, which was the original complaint; (b)
+  **orphan reconcile is not built** — stale leases are reclaimed opportunistically on
+  the next acquire, but nothing checks for a live container by Compose label and nothing
+  transitions an interrupted spec to `failed(execution_interrupted)` with its partial dir
+  preserved. This is now the largest unbuilt item and it is well-scoped.
+- **`tidy` should use recorded PR merge state as a third signal (unassigned, found by
+  using M024's own tool).** `merge-tree` compares a branch against `main` as it is now,
+  so once main moves past a branch in any shared file — including the generated
+  `docs/INDEX.md` every mission regenerates — a genuinely merged branch reads `unmerged`
+  and is never swept. Measured right after tonight's merges: only the last-merged
+  worktree was flagged, four earlier merged ones sat as "active" holding 1.8 GB while
+  `gh pr list --state merged --head role/<branch>` said all five were merged. Fail
+  direction is safe (refuses to delete), so this is a reclaim gap, not a risk. Do not fix
+  it by loosening the content predicate.
+- **`repomap`'s command-to-module column needs real import-graph attribution
+  (unassigned, found in M021).** It is a name-frequency heuristic and is wrong on `main`
+  in places — `verdict` was attributed to `__version__`, which is not a module. The
+  registry conversion kept all 84 command edges and shifted 11 attributions; three
+  tie-break rules were measured (helper recursion 25 shifts, first-reference 20, body
+  frequency 11 — the last was kept). An exact answer means attributing from the import
+  graph rather than counting names.
+- **Lower the `ty` baseline from 28 to 27 (unassigned, trivial).** `scripts/premerge.sh`
+  now prints `notice: ty is down to 27; lower the baseline from 28`. Deliberately not
+  done inside another mission: a ratchet should move in its own commit so the reason is
+  legible in `git log`.
 - **Profiles CLI cutover and credential unification (E01, unassigned).** Two
   credential paths still coexist (`credentials.py` and `quota.py`), with a
-  single `AgentProfile` specified but not cut over. Deliberately held back from
-  tonight's batch: it overlaps M020's provider-capacity source, so it wants
-  M020's shape settled first.
+  single `AgentProfile` specified but not cut over. Held back from tonight's batch
+  because it overlaps M020's provider-capacity source; M020 has now landed and did
+  **not** introduce a profile-backed capacity map, so this is unblocked and should
+  probably land with the per-provider semaphore above rather than separately.
 - **Operator board (E-board, unassigned).** Still no single read-only surface
   for what ran, what is running, what is queued, what is certifiable. M016's
   `docs/STATUS.md` is the cheap file-based answer to part of this; whether the
@@ -239,9 +316,21 @@ brief before dispatch.
 
 ## Needs Peter
 
-Five open items: three raised by the recent build waves, then the two carried
+Six open items: four raised by the recent build waves, then the two carried
 documentation and sequencing questions. Everything else on this board is a lane
 decision.
+
+- **Vector memory: wire it, and with which embedder?** M022 added the `analyses` table,
+  so the study loop's last structural gap is closed — but two facts bound what it can do.
+  (a) There are **zero analyses in the repo**, because no analyst has run with a real
+  model; the table was proven against four real trial and job identities paired with
+  hand-written conclusions, which is honest evidence of the mechanism and nothing more.
+  (b) `lance.py` has **no callers** in `src/`, `scripts/`, `dashboard/` or `cli.py` — it
+  is reachable only as `python -m evallab.lance`, so nothing indexes automatically. Also
+  worth knowing before anyone quotes "semantic search": the default embedder is
+  deterministic lexical hashing and says so in its own docstring, so "find analyses
+  similar to this one" is word overlap today. Three separable decisions: wire it into the
+  nightly, adopt a real embedding model (spend), or leave it as an operator-invoked tool.
 
 - **Green-light real generation and analysis runs?** This is the one that
   matters. Every box in the study loop now exists — run experiment, capture

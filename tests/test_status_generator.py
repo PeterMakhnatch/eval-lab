@@ -66,6 +66,54 @@ def _write_spec(
     dest = queue_dir / f"{spec_id}.json"
     dest.write_text(spec.model_dump_json())
     return dest
+def _write_mock_job(
+    root: Path,
+    job_name: str,
+    finished_at: str,
+    task_name: str,
+    agent_name: str,
+    model_name: str | None = None,
+    reward: float = 1.0,
+) -> Path:
+    job = root / job_name
+    trial = job / f"{task_name}__trial1"
+    job.mkdir(parents=True, exist_ok=True)
+    trial.mkdir(parents=True, exist_ok=True)
+    (job / "config.json").write_text(
+        json.dumps({"agent": {"name": agent_name}, "task": {"name": task_name}})
+    )
+    (job / "lock.json").write_text(json.dumps({"harbor": {"version": "0.21.0"}}))
+    (job / "result.json").write_text(
+        json.dumps({
+            "id": f"job-id-{job_name}",
+            "started_at": finished_at,
+            "finished_at": finished_at,
+            "n_total_trials": 1,
+            "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
+        })
+    )
+    agent_info: dict[str, object] = {"name": agent_name, "version": "1.0.0"}
+    if model_name:
+        agent_info["model_info"] = {"name": model_name}
+    else:
+        agent_info["model_info"] = None
+
+    (trial / "config.json").write_text(json.dumps({"agent": {"name": agent_name}}))
+    (trial / "lock.json").write_text(json.dumps({"schema_version": 2}))
+    (trial / "result.json").write_text(
+        json.dumps({
+            "id": f"trial-id-{job_name}",
+            "trial_name": trial.name,
+            "task_name": task_name,
+            "started_at": finished_at,
+            "finished_at": finished_at,
+            "agent_info": agent_info,
+            "verifier_result": {"rewards": {"reward": reward}},
+            "exception_info": None,
+        })
+    )
+    return job
+
 
 
 def test_idempotent_and_deterministic_status_generation(tmp_path: Path) -> None:
@@ -379,6 +427,32 @@ def test_nightly_cycle_handles_status_updater_failure_cleanly(tmp_path: Path) ->
     )
 def test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids(tmp_path: Path) -> None:
     repo = _setup_mock_repo(tmp_path)
+    # Seed both a yesterday job and a historical job on the filesystem
+    _write_mock_job(
+        repo / "runs",
+        "job-yesterday",
+        "2026-08-15T15:00:00Z",
+        "task-yesterday",
+        "codex",
+        "gpt-5.6-terra",
+    )
+    _write_mock_job(
+        repo / "runs",
+        "job-historical",
+        "2026-08-12T15:00:00Z",
+        "task-historical",
+        "oracle",
+    )
+
+    data = collect_status_data(
+        repo,
+        target_date=TARGET_DATE,
+        trial_loader=lambda _day: [],
+    )
+    assert data.catalog_accessible is True
+    assert data.trials_source == "catalog"
+    assert len(data.recent_trials) == 0
+
     rendered = generate_status_markdown(
         repo,
         target_date=TARGET_DATE,
@@ -386,9 +460,67 @@ def test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids(tmp_p
     )
     assert "## RECENT (Yesterday: 2026-08-15)" in rendered
     assert "No completed trials observed in the reporting window." in rendered
+    assert "task-yesterday" not in rendered
+    assert "task-historical" not in rendered
+    assert "*(Source: filesystem fallback" not in rendered
     recent_section = rendered.split("## RECENT")[1].split("## RUNNING NOW")[0]
     assert "- **" not in recent_section
     assert "via " not in recent_section
+
+
+def test_status_accessible_empty_catalog_never_falls_back_to_filesystem_even_with_runs_on_disk(
+    tmp_path: Path,
+) -> None:
+    repo = _setup_mock_repo(tmp_path)
+    # Create valid jobs on disk matching reporting date and older dates
+    _write_mock_job(
+        repo / "runs",
+        "job-yesterday",
+        "2026-08-15T15:00:00Z",
+        "task-yesterday",
+        "codex",
+        "gpt-5.6-terra",
+    )
+    _write_mock_job(
+        repo / "research" / "evidence" / "runs",
+        "job-evidence-yesterday",
+        "2026-08-15T10:00:00Z",
+        "task-evidence",
+        "oracle",
+    )
+
+    # Case 1: Catalog accessible and returns [] -> Must NOT scan filesystem, must report catalog
+    data_empty_catalog = collect_status_data(
+        repo,
+        target_date=TARGET_DATE,
+        trial_loader=lambda _day: [],
+    )
+    assert data_empty_catalog.catalog_accessible is True
+    assert data_empty_catalog.trials_source == "catalog"
+    assert len(data_empty_catalog.recent_trials) == 0
+    rendered = render_status_markdown(data_empty_catalog)
+    assert "No completed trials observed in the reporting window." in rendered
+    assert "task-yesterday" not in rendered
+    assert "task-evidence" not in rendered
+    assert "*(Source: filesystem fallback" not in rendered
+
+    # Case 2: Catalog INACCESSIBLE (raises) -> Must fall back to filesystem with disclaimer
+    def failing_loader(_day: date) -> list[TrialSummary]:
+        raise RuntimeError("database down")
+
+    data_fallback = collect_status_data(
+        repo,
+        target_date=TARGET_DATE,
+        trial_loader=failing_loader,
+    )
+    assert data_fallback.catalog_accessible is False
+    assert data_fallback.trials_source == "filesystem"
+    assert len(data_fallback.recent_trials) == 2
+    rendered_fallback = render_status_markdown(data_fallback)
+    assert "*(Source: filesystem fallback — catalog unavailable)*" in rendered_fallback
+    assert "task-yesterday" in rendered_fallback
+    assert "task-evidence" in rendered_fallback
+    assert "No completed trials observed in the reporting window." not in rendered_fallback
 
 
 def test_status_rendering_three_states_distinguishable(tmp_path: Path) -> None:

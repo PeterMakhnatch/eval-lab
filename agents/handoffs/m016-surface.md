@@ -1,5 +1,5 @@
 Status: done
-Last: Cycle 5: Fixed status generator honesty, zero-trial date handling, 3-state rendering, unreadable job accounting, and regenerated STATUS.md
+Last: Cycle 6: Added biting regression test guarding against accessible-catalog filesystem fallback with mutation proof
 Next: Integrator review and merge
 Blockers: none
 
@@ -244,4 +244,61 @@ Human-owned, unresolved decisions from active proposals and policy review.
 ### 5. RECORD
 - Premerge verification: `bash scripts/premerge.sh` (pass).
 - Committed and pushed Cycle 5. PR: https://github.com/PeterMakhnatch/eval-lab/pull/119
+
+## Cycle 6 Log (Integrator Third Pass Remediation: Mutation Test Hardening)
+
+### 1. RECHECK & ROOT CAUSE ANALYSIS
+- Baseline check: re-ran `scripts/premerge.sh` (passed with 1286 tests, clean ruff, ty 28 diagnostics).
+- **Why the mutant `if not recent_trials:` was unobservable in previous tests:**
+  1. `_setup_mock_repo(tmp_path)` created directory structures without seeding any job files in `runs/` or `research/evidence/runs/`. When `trial_loader` returned `[]` and the mutant triggered the filesystem fallback, `rglob("result.json")` found 0 jobs, keeping `recent_trials` empty. `render_status_markdown` then checked `elif data.catalog_accessible:` (which was `True`), rendering `"No completed trials observed in the reporting window."` identically to the unmutated code.
+  2. When historical jobs (e.g. dated 2026-08-13) were present on disk, line 259's date filter (`if finished_dt.date() != yesterday: continue`) filtered them out, also keeping `recent_trials` empty and yielding identical rendered output.
+  3. The mutant is only observable when valid jobs exist on disk (particularly matching yesterday's date, or when checking `trials_source` directly) while the catalog is accessible and empty. Under the correct guard (`if not catalog_accessible:`), the filesystem is never touched and `trials_source` remains `"catalog"`. Under the mutant (`if not recent_trials:`), the empty catalog causes an erroneous filesystem scan, loading the disk jobs, setting `trials_source = "filesystem"`, and leaking filesystem trials into the report.
+
+### 2. EXTEND
+- Implemented `_write_mock_job` in `tests/test_status_generator.py` to create valid, authentic Harbor job structures on disk (`config.json`, `lock.json`, `result.json`, `trial/result.json`).
+- Updated `test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids` to seed both yesterday (`2026-08-15`) and historical (`2026-08-12`) jobs on disk, asserting `catalog_accessible is True`, `trials_source == "catalog"`, `len(recent_trials) == 0`, and verifying no disk trial IDs or fallback disclaimers leak into the rendered markdown.
+- Added `test_status_accessible_empty_catalog_never_falls_back_to_filesystem_even_with_runs_on_disk` verifying both the accessible-empty-catalog case (no filesystem scan) and the inaccessible-catalog case (filesystem fallback with explicit disclaimer).
+
+### 3. PROVE (MUTATION TEST VERIFICATION)
+
+**Proof 1: Reverting guard to `if not recent_trials:` FAILS the test suite:**
+```
+FAILED tests/test_status_generator.py::test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids - AssertionError: assert 'filesystem' == 'catalog'
+  - catalog
+  + filesystem
+FAILED tests/test_status_generator.py::test_status_accessible_empty_catalog_never_falls_back_to_filesystem_even_with_runs_on_disk - AssertionError: assert 'filesystem' == 'catalog'
+  - catalog
+  + filesystem
+=========================== short test summary info ============================
+FAILED tests/test_status_generator.py::test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids - AssertionError: assert 'filesystem' == 'catalog'
+FAILED tests/test_status_generator.py::test_status_accessible_empty_catalog_never_falls_back_to_filesystem_even_with_runs_on_disk - AssertionError: assert 'filesystem' == 'catalog'
+pytest: 2 failed, 14 passed in 0.53s
+```
+Under the mutant, `job-yesterday` on disk was erroneously loaded and rendered as `- **task-yesterday** — 1/1 reward==1.0 via codex (gpt-5.6-terra)` with `*(Source: filesystem fallback — catalog unavailable)*`, failing all assertions.
+
+**Proof 2: Restoring correct guard `if not catalog_accessible:` PASSES the test suite:**
+```
+tests/test_status_generator.py ................                                                         [100%]
+16 passed in 0.52s
+```
+
+Full test suite output (`uv run pytest`):
+```
+=========================== short test summary info ============================
+1287 passed, 1 skipped, 1 xfailed in 50.19s
+```
+
+### 4. HARDEN
+- Hardened regression tests across `tests/test_status_generator.py`:
+  - `test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids` (with disk fixtures)
+  - `test_status_accessible_empty_catalog_never_falls_back_to_filesystem_even_with_runs_on_disk` (both accessible-empty and inaccessible-fallback paths)
+
+### 5. RECORD
+- Premerge verification: `bash scripts/premerge.sh` (pass):
+```
+Found 28 diagnostics
+premerge green: Python 3.12; ty 28 <= 28
+```
+- Note on CI: GitHub PR workflows are currently failing globally in 2-3s with 0 steps due to external runner infrastructure outages. Local `scripts/premerge.sh` with 1287 passing tests and 28 ty diagnostics serves as authoritative evidence.
+- Committed and pushed Cycle 6. PR: https://github.com/PeterMakhnatch/eval-lab/pull/119
 - Set Status: done.

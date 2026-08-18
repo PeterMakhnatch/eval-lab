@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from evallab.contextpack import (
+    CHARS_PER_TOKEN,
     CONTEXTPACK_VERSION,
     HEADER_PREFIX,
     VALID_AUDIENCES,
@@ -25,6 +26,7 @@ from evallab.contextpack import (
     VALID_STATUSES,
     TaskFacetSummary,
     build_context_pack,
+    estimate_tokens,
     extract_title,
     main,
     parse_doc,
@@ -339,6 +341,158 @@ class TestCLI:
         assert "| Path | Status | Audience | Title |" in captured.out
         assert "docs/architecture.md" in captured.out
         assert "docs/task-workbench.md" in captured.out
+
+class TestTokenBudgetAndTruncation:
+    """Test token budget calculation, priority-based truncation, and determinism."""
+
+    def test_token_estimator(self) -> None:
+        assert estimate_tokens("") == 0
+        assert estimate_tokens("a") == 1
+        assert estimate_tokens("abcd") == 1
+        assert estimate_tokens("abcde") == 2
+        assert estimate_tokens("a" * 400) == 100
+        assert CHARS_PER_TOKEN == 4
+
+    def test_pack_under_budget_is_byte_identical_to_unbudgeted(self) -> None:
+        res_unlimited = build_context_pack("builder", token_budget=None)
+        res_large_budget = build_context_pack("builder", token_budget=200_000)
+
+        assert res_large_budget.markdown == res_unlimited.markdown
+        assert res_large_budget.content_hash == res_unlimited.content_hash
+        assert res_large_budget.truncated is False
+        assert res_large_budget.tokens_shed == 0
+        assert res_large_budget.dropped_items == ()
+        header_lines = res_large_budget.markdown.split("\n# ")[0]
+        assert "<!-- truncated: true -->" not in header_lines
+    @pytest.mark.parametrize("mission_type", VALID_MISSION_TYPES)
+    def test_pack_over_budget_is_truncated_to_at_or_below_limit(self, mission_type: str) -> None:
+        budget = 12_000
+        res = build_context_pack(mission_type, token_budget=budget)
+        assert res.truncated is True
+        assert res.estimated_tokens <= budget
+        assert estimate_tokens(res.markdown) <= budget
+        assert res.tokens_shed > 0
+        assert len(res.dropped_items) > 0
+        assert len(res.docs) < 35
+        assert len(res.docs) >= 1
+
+    def test_truncation_follows_declared_priority(self, tmp_path: Path) -> None:
+        # Create custom mock docs to verify exact priority shedding order
+        docs_dir = tmp_path / "docs"
+        research_dir = docs_dir / "research"
+        research_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Supplemental research note (Category 0 - most expendable)
+        (research_dir / "expendable-research.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Expendable Research
+"""
+            + ("Research content line.\n" * 100),
+            encoding="utf-8",
+        )
+
+        # 2. General broad doc (Category 1 - multi-audience)
+        (docs_dir / "broad-platform.md").write_text(
+            """---
+status: living
+audience: [builder, analyst, runner, operator]
+---
+# Broad Platform
+"""
+            + ("Platform contract line.\n" * 100),
+            encoding="utf-8",
+        )
+
+        # 3. Essential role-specific workbench (Category 3 - single audience)
+        (docs_dir / "essential-workbench.md").write_text(
+            """---
+status: living
+audience: [builder]
+---
+# Essential Workbench
+
+Essential builder instructions.
+""",
+            encoding="utf-8",
+        )
+
+        # Build with budget that only fits the essential workbench + brief (budget=800)
+        res = build_context_pack(
+            "builder",
+            docs_dir=docs_dir,
+            root=tmp_path,
+            token_budget=800,
+        )
+
+        assert res.truncated is True
+        # Expendable research and broad platform should be dropped in priority order
+        assert "docs/research/expendable-research.md" in res.dropped_items
+        assert "docs/broad-platform.md" in res.dropped_items
+        # Check exact drop order: category 0 dropped before category 1
+        idx_research = res.dropped_items.index("docs/research/expendable-research.md")
+        idx_broad = res.dropped_items.index("docs/broad-platform.md")
+        assert idx_research < idx_broad
+        retained_paths = [d.path for d in res.docs]
+        assert "docs/essential-workbench.md" in retained_paths
+        assert "docs/research/expendable-research.md" not in retained_paths
+        assert "docs/broad-platform.md" not in retained_paths
+        # Mission brief is always intact
+        assert "Mission Brief & Execution Guide: `builder`" in res.markdown
+        assert "Objective: Authoring & Quality Certification" in res.markdown
+
+    def test_truncation_notice_names_dropped_items_and_tokens_shed(self) -> None:
+        res = build_context_pack("builder", token_budget=12_000)
+
+        assert "### ⚠️ Context Pack Truncation Notice" in res.markdown
+        assert "Configured Token Budget**: 12,000 tokens" in res.markdown
+        assert "Tokens Shed**:" in res.markdown
+        assert "- **Dropped Items (in order shed)**:" in res.markdown
+        for item in res.dropped_items:
+            assert f"`{item}`" in res.markdown
+        assert "<!-- truncated: true -->" in res.markdown
+        assert "<!-- token-budget: 12000 -->" in res.markdown
+        assert f"<!-- tokens-shed: {res.tokens_shed} -->" in res.markdown
+        assert "## Mission Brief & Execution Guide: `builder`" in res.markdown
+        assert "Task Package Layout" in res.markdown
+        assert "Workbench Certification" in res.markdown
+
+    def test_two_consecutive_builds_over_budget_are_byte_identical(self) -> None:
+        res1 = build_context_pack("builder", token_budget=12_000)
+        res2 = build_context_pack("builder", token_budget=12_000)
+
+        assert res1.markdown == res2.markdown
+        assert res1.content_hash == res2.content_hash
+        assert res1.content_hash.startswith("sha256:")
+        assert res1.to_dict() == res2.to_dict()
+
+    def test_extreme_budget_pressure_preserves_mission_brief(self) -> None:
+        # Even with an extremely tight budget (e.g. 50 tokens), mission brief survives intact
+        res = build_context_pack("builder", token_budget=50)
+        assert res.truncated is True
+        assert len(res.docs) == 0
+        assert "Mission Brief & Execution Guide: `builder`" in res.markdown
+        assert "Objective: Authoring & Quality Certification" in res.markdown
+
+    def test_cli_budget_flags(self, capsys: pytest.CaptureFixture[str]) -> None:
+        code_budget = main(["build", "builder", "--budget", "5000", "--json"])
+        assert code_budget == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["truncated"] is True
+        assert data["token_budget"] == 5000
+        assert data["estimated_tokens"] <= 5000
+        assert data["tokens_shed"] > 0
+
+        code_unlimited = main(["build", "builder", "--budget", "0", "--json"])
+        assert code_unlimited == 0
+        captured_unlimited = capsys.readouterr()
+        data_unlimited = json.loads(captured_unlimited.out)
+        assert data_unlimited["truncated"] is False
+        assert data_unlimited["token_budget"] is None
+        assert data_unlimited["doc_count"] >= 25
 
 
 class TestRepoDocIntegrity:

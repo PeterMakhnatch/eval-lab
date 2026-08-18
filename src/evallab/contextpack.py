@@ -35,7 +35,8 @@ HEADER_PREFIX = "<!-- generated-by: contextpack v1 -->"
 VALID_MISSION_TYPES = ("builder", "analyst", "runner", "operator")
 VALID_STATUSES = ("living", "historical")
 VALID_AUDIENCES = ("builder", "analyst", "runner", "operator")
-
+DEFAULT_TOKEN_BUDGET: int = 12_000
+CHARS_PER_TOKEN: int = 4
 FRONT_MATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
@@ -118,6 +119,11 @@ class ContextPackResult:
     task_facets: TaskFacetSummary | None
     content_hash: str
     markdown: str
+    token_budget: int | None = None
+    estimated_tokens: int = 0
+    truncated: bool = False
+    dropped_items: tuple[str, ...] = ()
+    tokens_shed: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         """Convert result to a JSON-serializable dictionary."""
@@ -138,6 +144,11 @@ class ContextPackResult:
                 for d in self.docs
             ],
             "task_facets": self.task_facets.to_dict() if self.task_facets else None,
+            "token_budget": self.token_budget,
+            "estimated_tokens": self.estimated_tokens,
+            "truncated": self.truncated,
+            "dropped_items": list(self.dropped_items),
+            "tokens_shed": self.tokens_shed,
         }
 
 
@@ -541,33 +552,56 @@ def render_mission_brief_template(mission_type: str, task_ref: str | None = None
     return "\n".join(lines)
 
 
-def build_context_pack(
+def estimate_tokens(text: str) -> int:
+    """Estimate token count from text length using standard 4 chars/token heuristic.
+
+    Uses ceiling integer arithmetic: `(len(text) + (CHARS_PER_TOKEN - 1)) // CHARS_PER_TOKEN`.
+    Empty string returns 0.
+    """
+    if not text:
+        return 0
+    return (len(text) + (CHARS_PER_TOKEN - 1)) // CHARS_PER_TOKEN
+
+
+def doc_priority_key(doc: DocMetadata, mission_type: str) -> tuple[int, int, int, str]:
+    """Calculate truncation priority sort key for living docs (lowest priority first).
+
+    Priority hierarchy (most expendable to most essential):
+    - Category 0: Supplemental research notes (`docs/research/*`) and
+      catalog indexes (`docs/INDEX.md`, `docs/repo-map.md`).
+    - Category 1: Broad multi-audience platform references (3 or 4 audiences).
+    - Category 2: Dual-audience technical specifications (2 audiences).
+    - Category 3: Single-audience primary mission workbenches/guides (1 audience).
+    Tie-breakers:
+    - Audience count ascending (fewer audiences = more specialized = higher priority).
+    - Document length descending (larger docs shed more tokens earlier within the same category).
+    - Lexicographical file path (deterministic tie-breaker).
+    """
+    is_research = doc.path.startswith("docs/research/")
+    is_index = doc.path in ("docs/INDEX.md", "docs/repo-map.md")
+    if is_research or is_index:
+        cat = 0
+    elif len(doc.audience) >= 3:
+        cat = 1
+    elif len(doc.audience) == 2:
+        cat = 2
+    else:
+        cat = 3
+    return (cat, -len(doc.audience), -len(doc.body), doc.path)
+
+
+def _render_pack_body(
     mission_type: str,
-    *,
-    task_ref: str | None = None,
-    docs_dir: Path | None = None,
-    parquet_path: Path | None = None,
-    root: Path | None = None,
-) -> ContextPackResult:
-    """Compile a deterministic context pack for the requested mission type."""
-    resolved_root = root if root is not None else repo_root()
-    resolved_docs_dir = docs_dir if docs_dir is not None else resolved_root / "docs"
-
-    if mission_type not in VALID_MISSION_TYPES:
-        valid_types_str = ", ".join(VALID_MISSION_TYPES)
-        raise ValueError(
-            f"Invalid mission type '{mission_type}'. Must be one of: {valid_types_str}"
-        )
-
-    # 1. Select living docs matching the mission type
-    docs = select_docs(resolved_docs_dir, mission_type, root=resolved_root)
-
-    # 2. Query task facets if task reference is provided
-    task_facets: TaskFacetSummary | None = None
-    if task_ref:
-        task_facets = query_task_facets(task_ref, parquet_path=parquet_path, root=resolved_root)
-
-    # 3. Assemble the canonical document body
+    task_ref: str | None,
+    docs: Sequence[DocMetadata],
+    task_facets: TaskFacetSummary | None,
+    dropped_items: Sequence[tuple[str, int]],
+    token_budget: int | None,
+    untruncated_tokens: int,
+    untruncated_chars: int,
+    include_task_facets: bool = True,
+) -> str:
+    """Render canonical markdown body of the context pack."""
     body_sections: list[str] = []
 
     # Title & Metadata
@@ -578,6 +612,37 @@ def build_context_pack(
         f"Living Docs Included: {len(docs)}"
     )
     body_sections.append("")
+
+    # Truncation Notice (if items were dropped due to budget constraints)
+    if dropped_items and token_budget is not None:
+        total_tokens_shed = sum(tok for _, tok in dropped_items)
+        body_sections.append("### ⚠️ Context Pack Truncation Notice")
+        body_sections.append("")
+        budget_chars = token_budget * CHARS_PER_TOKEN
+        body_sections.append(
+            f"This context pack exceeded the configured token budget of {token_budget:,} tokens "
+            f"(~{budget_chars:,} chars) and was truncated per v2 §6 priority policy "
+            "(most-expendable content shed first; mission brief and instructions protected)."
+        )
+        body_sections.append("")
+        body_sections.append(
+            f"- **Configured Token Budget**: {token_budget:,} tokens (~{budget_chars:,} chars)"
+        )
+        body_sections.append(
+            f"- **Estimated Untruncated Size**: ~{untruncated_tokens:,} tokens "
+            f"(~{untruncated_chars:,} chars)"
+        )
+        body_sections.append(
+            f"- **Tokens Shed**: ~{total_tokens_shed:,} tokens across "
+            f"{len(dropped_items)} dropped section(s)/doc(s)"
+        )
+        body_sections.append(f"- **Retained Living Docs**: {len(docs)}")
+        body_sections.append("- **Dropped Items (in order shed)**:")
+        for item_name, tok_count in dropped_items:
+            body_sections.append(f"  - `{item_name}` (~{tok_count:,} tokens shed)")
+        body_sections.append("")
+        body_sections.append("---")
+        body_sections.append("")
 
     # Table of Contents
     body_sections.append("## Index of Living Documentation")
@@ -605,50 +670,219 @@ def build_context_pack(
         body_sections.append("---")
         body_sections.append("")
 
-    # Task Facets and CRAFT Patterns (if task ref provided)
-    if task_facets:
-        body_sections.append(render_task_facets_section(task_facets))
-        body_sections.append("---")
-        body_sections.append("")
-    elif task_ref:
-        body_sections.append(f"## Target Task: `{task_ref}`")
-        body_sections.append("")
-        body_sections.append(
-            f"Task `{task_ref}` was requested, but facets were not found in `craft.parquet`."
-        )
-        body_sections.append(
-            "Author or evaluate this task following standard Harbor and CRAFT principles."
-        )
-        body_sections.append("")
-        body_sections.append("---")
-        body_sections.append("")
+    # Task Facets and CRAFT Patterns (if task ref provided and retained)
+    if include_task_facets:
+        if task_facets:
+            body_sections.append(render_task_facets_section(task_facets))
+            body_sections.append("---")
+            body_sections.append("")
+        elif task_ref:
+            body_sections.append(f"## Target Task: `{task_ref}`")
+            body_sections.append("")
+            body_sections.append(
+                f"Task `{task_ref}` was requested, but facets were not found in `craft.parquet`."
+            )
+            body_sections.append(
+                "Author or evaluate this task following standard Harbor and CRAFT principles."
+            )
+            body_sections.append("")
+            body_sections.append("---")
+            body_sections.append("")
 
-    # Mission Brief & Instructions
+    # Mission Brief & Instructions (INVIOLABLE - NEVER DROPPED)
     body_sections.append(render_mission_brief_template(mission_type, task_ref=task_ref))
 
-    canonical_body = "\n".join(body_sections).strip() + "\n"
+    return "\n".join(body_sections).strip() + "\n"
 
-    # 4. Compute deterministic SHA-256 content hash
-    content_hash = f"sha256:{hashlib.sha256(canonical_body.encode('utf-8')).hexdigest()}"
 
-    # 5. Format final output with header
+def _format_full_markdown(
+    mission_type: str,
+    task_ref: str | None,
+    doc_count: int,
+    canonical_body: str,
+    content_hash: str,
+    truncated: bool,
+    token_budget: int | None,
+    tokens_shed: int,
+) -> str:
+    """Format final compiled markdown with header comments and content digest."""
     header_lines = [
         HEADER_PREFIX,
         f"<!-- mission-type: {mission_type} -->",
         f"<!-- target-task: {task_ref or 'none'} -->",
-        f"<!-- doc-count: {len(docs)} -->",
-        f"<!-- content-sha256: {content_hash} -->",
-        "",
+        f"<!-- doc-count: {doc_count} -->",
     ]
-    full_markdown = "\n".join(header_lines) + canonical_body
+    if truncated:
+        header_lines.append("<!-- truncated: true -->")
+        if token_budget is not None:
+            header_lines.append(f"<!-- token-budget: {token_budget} -->")
+        header_lines.append(f"<!-- tokens-shed: {tokens_shed} -->")
+    header_lines.append(f"<!-- content-sha256: {content_hash} -->")
+    header_lines.append("")
+    return "\n".join(header_lines) + canonical_body
+
+
+def build_context_pack(
+    mission_type: str,
+    *,
+    task_ref: str | None = None,
+    docs_dir: Path | None = None,
+    parquet_path: Path | None = None,
+    root: Path | None = None,
+    token_budget: int | None = DEFAULT_TOKEN_BUDGET,
+) -> ContextPackResult:
+    """Compile a deterministic context pack for the requested mission type.
+
+    Enforces a token budget (default 12k tokens, overridable) with deterministic
+    priority-ordered truncation when the budget binds.
+    """
+    resolved_root = root if root is not None else repo_root()
+    resolved_docs_dir = docs_dir if docs_dir is not None else resolved_root / "docs"
+
+    if mission_type not in VALID_MISSION_TYPES:
+        valid_types_str = ", ".join(VALID_MISSION_TYPES)
+        raise ValueError(
+            f"Invalid mission type '{mission_type}'. Must be one of: {valid_types_str}"
+        )
+
+    # 1. Select living docs matching the mission type
+    docs = select_docs(resolved_docs_dir, mission_type, root=resolved_root)
+
+    # 2. Query task facets if task reference is provided
+    task_facets: TaskFacetSummary | None = None
+    if task_ref:
+        task_facets = query_task_facets(task_ref, parquet_path=parquet_path, root=resolved_root)
+
+    # 3. Assemble full untruncated canonical body
+    untruncated_body = _render_pack_body(
+        mission_type,
+        task_ref,
+        docs,
+        task_facets,
+        dropped_items=(),
+        token_budget=None,
+        untruncated_tokens=0,
+        untruncated_chars=0,
+        include_task_facets=True,
+    )
+    untruncated_hash = f"sha256:{hashlib.sha256(untruncated_body.encode('utf-8')).hexdigest()}"
+    untruncated_md = _format_full_markdown(
+        mission_type,
+        task_ref,
+        len(docs),
+        untruncated_body,
+        untruncated_hash,
+        truncated=False,
+        token_budget=None,
+        tokens_shed=0,
+    )
+    untruncated_tokens = estimate_tokens(untruncated_md)
+    untruncated_chars = len(untruncated_md)
+
+    # 4. Check if token budget binds
+    if token_budget is None or token_budget <= 0 or untruncated_tokens <= token_budget:
+        return ContextPackResult(
+            mission_type=mission_type,
+            task_ref=task_ref,
+            docs=tuple(docs),
+            task_facets=task_facets,
+            content_hash=untruncated_hash,
+            markdown=untruncated_md,
+            token_budget=token_budget,
+            estimated_tokens=untruncated_tokens,
+            truncated=False,
+            dropped_items=(),
+            tokens_shed=0,
+        )
+
+    # 5. Priority-ordered truncation
+    drop_order = sorted(docs, key=lambda d: doc_priority_key(d, mission_type))
+    retained_docs = list(docs)
+    dropped_items: list[tuple[str, int]] = []
+    include_task_facets = True
+
+    curr_body = untruncated_body
+    curr_hash = untruncated_hash
+    curr_md = untruncated_md
+
+    # Phase 1: Drop living docs from most expendable to most essential
+    for doc_to_drop in drop_order:
+        if estimate_tokens(curr_md) <= token_budget:
+            break
+        retained_docs.remove(doc_to_drop)
+        # Keep retained docs sorted alphabetically by path
+        retained_docs = sorted(retained_docs, key=lambda d: d.path)
+        doc_tok = estimate_tokens(doc_to_drop.body)
+        dropped_items.append((doc_to_drop.path, doc_tok))
+        curr_body = _render_pack_body(
+            mission_type,
+            task_ref,
+            retained_docs,
+            task_facets,
+            dropped_items=dropped_items,
+            token_budget=token_budget,
+            untruncated_tokens=untruncated_tokens,
+            untruncated_chars=untruncated_chars,
+            include_task_facets=include_task_facets,
+        )
+        curr_hash = f"sha256:{hashlib.sha256(curr_body.encode('utf-8')).hexdigest()}"
+        tokens_shed = sum(tok for _, tok in dropped_items)
+        curr_md = _format_full_markdown(
+            mission_type,
+            task_ref,
+            len(retained_docs),
+            curr_body,
+            curr_hash,
+            truncated=True,
+            token_budget=token_budget,
+            tokens_shed=tokens_shed,
+        )
+
+    # Phase 2: If all docs dropped and still over budget, drop task facets if present
+    has_task = task_facets is not None or task_ref is not None
+    if estimate_tokens(curr_md) > token_budget and has_task:
+        facets_name = f"task-facets:{task_ref or 'target'}"
+        dropped_items.append((facets_name, 500))
+        curr_body = _render_pack_body(
+            mission_type,
+            task_ref,
+            retained_docs,
+            task_facets,
+            dropped_items=dropped_items,
+            token_budget=token_budget,
+            untruncated_tokens=untruncated_tokens,
+            untruncated_chars=untruncated_chars,
+            include_task_facets=False,
+        )
+        curr_hash = f"sha256:{hashlib.sha256(curr_body.encode('utf-8')).hexdigest()}"
+        tokens_shed = sum(tok for _, tok in dropped_items)
+        curr_md = _format_full_markdown(
+            mission_type,
+            task_ref,
+            len(retained_docs),
+            curr_body,
+            curr_hash,
+            truncated=True,
+            token_budget=token_budget,
+            tokens_shed=tokens_shed,
+        )
+
+    # Final result
+    total_tokens_shed = sum(tok for _, tok in dropped_items)
+    final_tokens = estimate_tokens(curr_md)
 
     return ContextPackResult(
         mission_type=mission_type,
         task_ref=task_ref,
-        docs=tuple(docs),
-        task_facets=task_facets,
-        content_hash=content_hash,
-        markdown=full_markdown,
+        docs=tuple(retained_docs),
+        task_facets=task_facets if include_task_facets else None,
+        content_hash=curr_hash,
+        markdown=curr_md,
+        token_budget=token_budget,
+        estimated_tokens=final_tokens,
+        truncated=True,
+        dropped_items=tuple(name for name, _ in dropped_items),
+        tokens_shed=total_tokens_shed,
     )
 
 
@@ -694,6 +928,14 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         default=None,
         help="Path to craft.parquet (defaults to derived/parquet/craft/craft.parquet)",
+    )
+    build_cmd.add_argument(
+        "--budget",
+        "--token-budget",
+        type=int,
+        metavar="TOKENS",
+        default=DEFAULT_TOKEN_BUDGET,
+        help=f"Token budget ceiling (default {DEFAULT_TOKEN_BUDGET} per v2 §6; 0 for unlimited)",
     )
     build_cmd.add_argument(
         "--json",
@@ -755,6 +997,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "build":
+        budget_val = args.budget if (args.budget is not None and args.budget > 0) else None
         try:
             result = build_context_pack(
                 args.mission_type,
@@ -762,6 +1005,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 docs_dir=args.docs_dir,
                 parquet_path=args.parquet,
                 root=root,
+                token_budget=budget_val,
             )
         except Exception as exc:
             print(f"error: failed to build context pack: {exc}", file=sys.stderr)

@@ -24,35 +24,50 @@ Measured at `origin/main` (`d9dee45`) vs this branch:
 
 ## The load-bearing claim: behaviour is unchanged
 
-`tests/golden/cli_help.json` was captured **before** the conversion (commit
-`a03415b`) and holds the `--help` text of all **62** parser nodes (61 subcommands
-plus the root). No entry is empty. It has not been regenerated since. It still
-matches byte-for-byte after the conversion:
+The golden is `tests/golden/cli_surface.json`, generated from **`origin/main`'s own
+`cli.py`** — the parser as it existed before this branch touched it — so it is evidence
+rather than a self-portrait. It records all **62** parser nodes (61 subcommands plus the
+root) and, per node, every argument: flags, dest, metavar, nargs, default, choices,
+required, help string, type and action class.
 
 ```
 $ uv run pytest tests/test_cli_registry.py -q
-........................................................................  [100%]
-82 passed
+....................................................................  [100%]
+68 passed
 ```
 
-`tests/test_cli_registry.py` also asserts the registry is the only dispatch path:
-the `set_defaults(func=...)` count equals the leaf-command count, and no command
-exists outside the golden inventory.
+### A rendered-help golden was the wrong instrument, and CI caught it
+
+The first version snapshotted `parser.format_help()` output. It passed on Python 3.12
+and **failed on 3.14** in CI (`quality` job, run 32183395358): argparse changed its
+help rendering between those versions, so the golden was pinning CPython's formatter
+rather than this CLI's surface. Behaviour-preserving means the same commands, flags,
+defaults and help strings — not the same line wrapping.
+
+Replaced with the structural surface above, which is version-stable and strictly more
+precise (it compares defaults and choices, which rendered help elides). Verified on
+both interpreters:
+
+```
+$ uv run pytest tests/test_cli_registry.py -q                      # 3.12 -> 68 passed
+$ uv run --python 3.14 pytest tests/test_cli_registry.py -q        # 3.14 -> 68 passed
+```
+
+`tests/golden/cli_help.json` is deleted rather than kept alongside: two goldens where
+one is known version-fragile is how a suite starts getting skipped.
 
 ### Mutation evidence (integrator-run, independent of the authoring agent)
 
-Renaming a single command (`tick` → `tickk`) fails four tests:
+| Mutation | Result |
+|---|---|
+| rename one command (`tick` -> `tickk`) | 3 tests fail, incl. `Found unexpected commands outside golden: {'tickk'}` |
+| change one flag's help string (`approve --actor`) | `test_every_command_surface_matches_golden[approve]` fails |
 
-```
-FAILED tests/test_cli_registry.py::test_cli_help_golden_matches_complete_inventory
-FAILED tests/test_cli_registry.py::test_every_command_help_matches_golden[(root)]
-FAILED tests/test_cli_registry.py::test_every_command_help_matches_golden[tick]
-    - AssertionError: Command 'tick' missing from CLI parser
-FAILED tests/test_cli_registry.py::test_no_extra_commands_outside_golden
-    - AssertionError: Found unexpected commands outside golden: {'tickk'}
-```
+Restored -> 68 passed.
 
-Restored → green.
+`tests/test_cli_registry.py` also asserts the registry is the only dispatch path: every
+leaf command has a callable `func` default, the count of `set_defaults(func=...)` equals
+the leaf count (52), and handlers share a uniform `(args, root, ...)` signature.
 
 ## The defect this mission nearly shipped
 

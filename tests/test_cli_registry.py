@@ -1,8 +1,17 @@
 """Characterization and contract tests for the declarative CLI command registry.
 
-Pins the exact CLI parser surface against tests/golden/cli_help.json to ensure
-that any refactoring is completely behaviour-preserving (all commands, flags,
-defaults, help text, exit codes, and stdout/stderr behaviour remain identical).
+Pins the CLI parser surface against `tests/golden/cli_surface.json` so the registry
+conversion is provably behaviour-preserving: every command, flag, metavar, default,
+choice list, required-ness and help string must match the pre-conversion parser.
+
+The golden records parser *structure*, not rendered `--help` text. An earlier version
+of this file snapshotted `format_help()` output and passed on Python 3.12 while failing
+on 3.14, because argparse changed its rendering between them. That golden was testing
+CPython's formatter, not this CLI; the surface below is what "behaviour-preserving"
+actually means and it is stable across interpreter versions.
+
+The golden was generated from `origin/main`'s `cli.py` — the parser as it existed
+before the conversion — so it is evidence, not a self-portrait.
 """
 
 from __future__ import annotations
@@ -12,36 +21,68 @@ import ast
 import inspect
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from evallab import cli
 
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden"
-CLI_HELP_GOLDEN_PATH = GOLDEN_DIR / "cli_help.json"
+CLI_SURFACE_GOLDEN_PATH = GOLDEN_DIR / "cli_surface.json"
 CLI_SOURCE_PATH = Path(cli.__file__).resolve()
+REPO_ROOT = str(CLI_SOURCE_PATH.parents[2])
 
 
-def load_golden_help_map() -> dict[str, str]:
-    assert CLI_HELP_GOLDEN_PATH.exists(), f"Missing golden file: {CLI_HELP_GOLDEN_PATH}"
-    return json.loads(CLI_HELP_GOLDEN_PATH.read_text(encoding="utf-8"))
+def load_golden_surface() -> dict[str, Any]:
+    assert CLI_SURFACE_GOLDEN_PATH.exists(), f"Missing golden file: {CLI_SURFACE_GOLDEN_PATH}"
+    return json.loads(CLI_SURFACE_GOLDEN_PATH.read_text(encoding="utf-8"))
 
 
-def collect_cli_help_map(parser: argparse.ArgumentParser) -> dict[str, str]:
-    """Traverse all subparsers and sub-subparsers deterministically."""
-    help_map: dict[str, str] = {}
+def _normalize(value: Any) -> Any:
+    """Stringify a default, hiding checkout-specific absolute paths."""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return str(value).replace(REPO_ROOT, "<REPO>")
 
-    def walk(p: argparse.ArgumentParser, path: tuple[str, ...]) -> None:
-        key = " ".join(path) if path else "(root)"
-        help_map[key] = p.format_help()
-        for action in p._actions:
+
+def _action_signature(action: argparse.Action) -> dict[str, Any]:
+    return {
+        "flags": sorted(action.option_strings),
+        "dest": action.dest,
+        "metavar": _normalize(action.metavar),
+        "nargs": _normalize(action.nargs),
+        "default": _normalize(action.default),
+        "choices": sorted(_normalize(c) for c in action.choices) if action.choices else None,
+        "required": bool(action.required),
+        "help": action.help,
+        "type": getattr(action.type, "__name__", None) if action.type else None,
+        "action": type(action).__name__,
+    }
+
+
+def collect_cli_surface(parser: argparse.ArgumentParser) -> dict[str, Any]:
+    """Walk every parser node, recording its arguments rather than its rendered help."""
+    surface: dict[str, Any] = {}
+
+    def walk(current: argparse.ArgumentParser, path: str) -> None:
+        actions = [
+            action
+            for action in current._actions
+            if not isinstance(action, argparse._SubParsersAction)
+        ]
+        surface[path or "(root)"] = {
+            "options": sorted(
+                (_action_signature(action) for action in actions),
+                key=lambda item: (item["dest"], str(item["flags"])),
+            )
+        }
+        for action in current._actions:
             if isinstance(action, argparse._SubParsersAction):
-                for name in sorted(action.choices.keys()):
-                    subp = action.choices[name]
-                    walk(subp, (*path, name))
+                for name, subparser in action.choices.items():
+                    walk(subparser, f"{path} {name}".strip())
 
-    walk(parser, ())
-    return dict(sorted(help_map.items()))
+    walk(parser, "")
+    return surface
 
 
 def find_all_subparsers(
@@ -84,29 +125,29 @@ def find_leaf_parsers(
     return leaves
 
 
-GOLDEN_HELP_MAP = load_golden_help_map()
+GOLDEN_SURFACE = load_golden_surface()
 
 
-def test_cli_help_golden_matches_complete_inventory() -> None:
-    """The entire CLI help surface matches the golden snapshot byte-for-byte."""
-    current_help_map = collect_cli_help_map(cli.parser())
-    current_json = json.dumps(current_help_map, indent=2, sort_keys=True) + "\n"
-    expected_json = CLI_HELP_GOLDEN_PATH.read_text(encoding="utf-8")
-    assert current_json == expected_json
+def test_cli_surface_matches_pre_conversion_golden() -> None:
+    """The whole parser surface equals the pre-conversion parser's surface."""
+    current = collect_cli_surface(cli.parser())
+    assert json.dumps(current, indent=2, sort_keys=True) == json.dumps(
+        GOLDEN_SURFACE, indent=2, sort_keys=True
+    )
 
 
-@pytest.mark.parametrize("command_key", list(GOLDEN_HELP_MAP.keys()))
-def test_every_command_help_matches_golden(command_key: str) -> None:
-    """Every individual command's help text matches the frozen golden."""
-    current_help_map = collect_cli_help_map(cli.parser())
-    assert command_key in current_help_map, f"Command {command_key!r} missing from CLI parser"
-    assert current_help_map[command_key] == GOLDEN_HELP_MAP[command_key]
+@pytest.mark.parametrize("command_key", sorted(GOLDEN_SURFACE.keys()))
+def test_every_command_surface_matches_golden(command_key: str) -> None:
+    """Every command keeps its exact arguments: flags, metavars, defaults, choices, help."""
+    current = collect_cli_surface(cli.parser())
+    assert command_key in current, f"Command {command_key!r} missing from CLI parser"
+    assert current[command_key] == GOLDEN_SURFACE[command_key]
 
 
 def test_no_extra_commands_outside_golden() -> None:
-    """No new or extraneous commands exist that are absent from the golden."""
-    current_help_map = collect_cli_help_map(cli.parser())
-    extra = set(current_help_map.keys()) - set(GOLDEN_HELP_MAP.keys())
+    """No new or renamed commands exist that are absent from the golden."""
+    current = collect_cli_surface(cli.parser())
+    extra = set(current) - set(GOLDEN_SURFACE)
     assert not extra, f"Found unexpected commands outside golden: {extra}"
 
 

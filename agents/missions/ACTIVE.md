@@ -57,7 +57,37 @@ nightly schedule.
 
 ## Now
 
-`origin/main` is `7b5036a` (**35 PRs merged** across all night loops). Full suite **1321 passed, 1 skipped, 1 xfailed**, ruff clean, `ty` at its 28-diagnostic baseline. Zero open PRs and zero active worktrees.
+`origin/main` is `25c8228` (**35 PRs merged** across all night loops). Full suite
+**1321 passed, 1 skipped, 1 xfailed**, ruff clean, `ty` at its 28-diagnostic
+baseline. Actions limits lifted by making the repository public, so CI runs again.
+
+### Five build missions dispatched now (M020–M024)
+
+Peter green-lit the top five unbuilt items from the v2 architecture audit and
+asked for them in parallel. These are BUILDS, not loops: each takes one audit
+row, lands it with a test proven to bite by mutation, and stops at review.
+
+| Mission | Item | Lease | Worktree |
+|---|---|---|---|
+| M020 | QUEUE-PARALLEL — E01 leases, per-provider semaphores, orphan reconcile, quota deferral | `queue.py`, `runner.py`, `tests/test_queue*.py`, + the one `--parallel` flag on `tick` | `.worktrees/m020-queue` |
+| M021 | CLI-REGISTRY — `cli.py` linear dispatch chain → `set_defaults(func=…)` registry, behaviour-preserving | `cli.py`, `tests/test_cli_audit.py`, `tests/test_cli_registry.py` | `.worktrees/m021-cli` |
+| M022 | MEMORY-ANALYSES — index analyst conclusions into LanceDB beside tasks/trials/steps | `lance.py`, `tests/test_lance.py` | `.worktrees/m022-memory` |
+| M023 | CRAFT-BATCH — E07 classify batching with its documented idempotence contract finally tested | `craft.py`, `tests/test_craft.py` | `.worktrees/m023-craft` |
+| M024 | TIDY-SQUASH — content-based merged detection, three-state classification | `tidy.py`, `tests/test_tidy.py` | `.worktrees/m024-tidy` |
+
+Leases are disjoint with one deliberate exception: `cli.py` belongs to M021, and
+M020 may add only the `--parallel` argument on the existing `tick` subparser.
+M021 rebases every cycle and re-applies its conversion over whatever main holds;
+the integrator merges M020 before M021. Every other mission needing a CLI surface
+exposes a public function plus its own `python -m evallab.<module>` entry and
+files a board-note. `research/audits/board-notes.md` is the only shared writable
+file, append-only. `docs/INDEX.md` and `docs/repo-map.md` are generated and their
+conflicts are resolved by regeneration at merge, never by hand.
+
+Each mission must prove its test bites by mutation — reintroduce the defect, show
+the test failing, restore, show it passing — because the recurring finding all
+week has been tests that pass while reality disagrees. `scripts/premerge.sh`
+gates every push; no mission merges its own PR.
 
 ### Five loop missions dispatched tonight (M015–M019)
 
@@ -122,39 +152,47 @@ the entire premise of M015.
 ## Ready
 
 - **Nothing is dispatchable-but-unstarted for a build worker.** All five slots
-  are held by M015–M019 tonight. M009–M014 are merged and archived; the items
-  below are what the v2 architecture audit left standing, and each needs an M
-  number and a brief before dispatch.
+  are held by M020–M024. M009–M019 are merged; the items still listed under
+  `Next` are what the v2 architecture audit left standing after tonight's
+  dispatch, and each needs an M number and a brief before it starts.
 
 ## Next
 
 Ranked by what actually blocks the lab, from the v2 architecture audit:
 
-- **Queue leases and per-provider concurrency (E01, unassigned).** Dispatch is
-  single-threaded with no concurrency control: no `running/<spec>.lease`
-  heartbeat, no per-provider semaphore. This is the largest unbuilt item in the
-  audit and it caps every parallel run the lab can attempt. Tonight's own
-  dispatch is the evidence — provider concurrency limits had to be managed by
-  hand, staggering launches by 20 seconds, because nothing in the queue does it.
+- **Queue leases and per-provider concurrency (E01) — DISPATCHED as M020.**
+  Dispatch was single-threaded with no concurrency control: no
+  `running/<spec>.lease` heartbeat, no per-provider semaphore. Largest unbuilt
+  item in the audit; it caps every parallel run the lab can attempt. Tonight's
+  own dispatch is the evidence — provider concurrency limits had to be managed
+  by hand, staggering launches by 20 seconds, because nothing in the queue does
+  it.
+- **`cli.py` command-registry conversion — DISPATCHED as M021.** Peter approved
+  the sequencing; the measured case is under `Needs Peter` below and stands as
+  the record of why. Behaviour-preserving by contract, pinned with a per-command
+  `--help` golden captured before the refactor.
+- **Analysis conclusions are not indexed into vector memory — DISPATCHED as
+  M022.** LanceDB indexed tasks, trials, and trajectory steps — not what an
+  analyst concluded, so "find analyses similar to this one" was unanswerable.
+  Last structural gap in the study loop.
+- **`craft.py` classify batching and cookbook idempotence (E07) — DISPATCHED as
+  M023.** The idempotence contract was written in prose in the file and never
+  executed as a test.
+- **`evallab tidy` is blind to squash merges — DISPATCHED as M024.** It reported
+  "Stale worktrees (0 items)" while five fully-merged worktrees held 2.3 GB,
+  because it tests ancestry and this repo squash-merges — so a merged branch tip
+  is never an ancestor of `main`. Ancestry-true, content-false. A wrong answer in
+  the other direction deletes live work, so the brief requires a three-state
+  classification where anything unproven is never swept.
 - **Profiles CLI cutover and credential unification (E01, unassigned).** Two
   credential paths still coexist (`credentials.py` and `quota.py`), with a
-  single `AgentProfile` specified but not cut over.
-- **Analysis conclusions are not indexed into vector memory (unassigned).**
-  LanceDB indexes tasks, trials, and trajectory steps — not what an analyst
-  concluded. So "find analyses similar to this one" is not answerable, which is
-  the query the memory exists for. Small, well-scoped, and the last structural
-  gap in the study loop.
-- **`craft.py` classify batching and cookbook idempotence (E07, unassigned).**
+  single `AgentProfile` specified but not cut over. Deliberately held back from
+  tonight's batch: it overlaps M020's provider-capacity source, so it wants
+  M020's shape settled first.
 - **Operator board (E-board, unassigned).** Still no single read-only surface
   for what ran, what is running, what is queued, what is certifiable. M016's
   `docs/STATUS.md` is the cheap file-based answer to part of this; whether the
   full board is still wanted afterwards is a Peter question, not a build one.
-- **`evallab tidy` is blind to squash merges (unassigned, found tonight).** It
-  reported "Stale worktrees (0 items)" while five fully-merged worktrees held
-  2.3 GB, because it tests ancestry and this repo squash-merges — so a merged
-  branch tip is never an ancestor of `main`. Ancestry-true, content-false. A
-  wrong answer in the other direction deletes live work, so this needs care
-  rather than speed.
 
 ### Mission candidates — recorded here so they cannot vanish with an archived handoff
 
@@ -244,21 +282,25 @@ decision.
   `agents/archive/`. Carried unchanged from the previous board update; COORD-GC
   and BOARD-REFRESH both deliberately left the files in place.
 
-- **Sequence a `cli.py` command-registry conversion before M012?** This is a
-  spend-and-sequencing call — it buys no new capability and delays a feature
-  mission — so it is Peter's, not the integrator's. The measured case,
-  **re-measured at `e5d3257`** (the earlier figures were taken at `86380b0` and
-  have since been overtaken; the direction of drift is the argument):
-  - `src/evallab/cli.py` is now **2,117 lines**, up from 1,412 — it grew **705
-    lines, 50%, in roughly 70 merged PRs** without the structure changing.
-    Argparse wiring scaled with it: **154 `add_argument`** (was 111) and **60
-    `add_parser`** (was 46).
+- **~~Sequence a `cli.py` command-registry conversion before M012?~~ ANSWERED —
+  Peter said go; dispatched as M021.** Kept here because the measured case is the
+  record of why, and because the drift figures are worth re-reading if the same
+  question recurs for another shared file. It was a spend-and-sequencing call —
+  it buys no new capability and delays a feature mission — so it was Peter's, not
+  the integrator's. The measured case,
+  **re-measured at `25c8228`** (earlier figures were taken at `86380b0` and
+  `e5d3257` and have since been overtaken; the direction of drift is the
+  argument, and it never once reversed):
+  - `src/evallab/cli.py` is **2,192 lines**, up from 1,412 at `86380b0` and 2,117
+    at `e5d3257` — it grew **780 lines, 55%,** without the structure changing.
+    Argparse wiring scaled with it: **160 `add_argument`** (was 111, then 154) and
+    **61 `add_parser`** (was 46, then 60).
   - There are still **zero `set_defaults(func=...)`**, so dispatch remains a
     linear string-comparison chain that every new command must edit in the same
     place. That is the sequencing point: the cost of conversion rises with every
     command added, and 14 new commands landed while the question sat open.
-  - It is the **highest-churn file in `src/`**: **37 commits** by
-    `git log --follow` (was 24), against 14 for the next file
+  - It is the **highest-churn file in `src/`**: **39 commits** by
+    `git log --follow` (was 24, then 37), against 14 for the next file
     (`researchers.py`) and 13 for `schemas.py`.
   - It is already designated a shared file — additive-only, smallest possible
     diff — by `docs/prompts/overnight-missions.md:48`. Note the correction:

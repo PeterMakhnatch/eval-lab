@@ -1,6 +1,6 @@
 """STATUS.md Generator: deterministic projection of live catalog and queue state.
 
-Generates and updates research/experiments/STATUS.md to answer
+Generates and updates docs/STATUS.md to answer
 "what happened yesterday and what is running now" deterministically
 without requiring interactive terminal navigation.
 """
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -26,7 +27,7 @@ from evallab.storm import (
     render_storm_banner,
 )
 
-DEFAULT_STATUS_PATH = Path("research/experiments/STATUS.md")
+DEFAULT_STATUS_PATH = Path("docs/STATUS.md")
 PROGRAM_PATH = Path("research/experiments/PROGRAM.json")
 
 
@@ -78,6 +79,7 @@ class StatusReportData:
     proposed_specs: list[QueueSpecItem] = field(default_factory=list)
     program_experiments: list[ProgramExperimentItem] = field(default_factory=list)
     storm_alarms: list[StormAlarm] = field(default_factory=list)
+    storm_error: str | None = None
     operational_smoke_count: int = 0
     raw_notes: list[str] = field(default_factory=list)
 
@@ -139,6 +141,7 @@ def collect_status_data(
     database_url: str | None = None,
     storm_threshold: int = DEFAULT_STORM_THRESHOLD,
     events_window: timedelta = timedelta(hours=24),
+    storm_loader: Callable[[date], Sequence[StormAlarm]] | None = None,
 ) -> StatusReportData:
     """Collect all live state needed to project STATUS.md."""
     resolved_root = repo_root.resolve()
@@ -255,12 +258,22 @@ def collect_status_data(
     program_exps = _load_program_experiments(program_file)
 
     # 4. Storm alarms
-    since_time = datetime.combine(yesterday, datetime.min.time(), tzinfo=UTC)
-    storm_alarms = detect_storm_alarms(
-        repo_root=resolved_root,
-        threshold=storm_threshold,
-        since=since_time,
-    )
+    storm_alarms: list[StormAlarm] = []
+    storm_error: str | None = None
+    try:
+        if storm_loader is not None:
+            storm_alarms = list(storm_loader(current_date))
+        else:
+            since_time = datetime.combine(yesterday, datetime.min.time(), tzinfo=UTC)
+            storm_alarms = list(
+                detect_storm_alarms(
+                    repo_root=resolved_root,
+                    threshold=storm_threshold,
+                    since=since_time,
+                )
+            )
+    except Exception as exc:
+        storm_error = f"{type(exc).__name__}: {exc}"
 
     return StatusReportData(
         target_date=current_date,
@@ -274,6 +287,7 @@ def collect_status_data(
         proposed_specs=specs_by_state.get("proposed", []),
         program_experiments=program_exps,
         storm_alarms=storm_alarms,
+        storm_error=storm_error,
         operational_smoke_count=smoke_count,
     )
 
@@ -281,6 +295,14 @@ def collect_status_data(
 def render_status_markdown(data: StatusReportData) -> str:
     """Render deterministic Markdown representing research status."""
     lines: list[str] = [
+        "---",
+        "status: living",
+        "audience:",
+        "  - operator",
+        "  - builder",
+        "  - runner",
+        "---",
+        "",
         f"# Research status — {data.target_date.isoformat()}",
         "",
         "Projection of live catalog, queue state, and `PROGRAM.json`.",
@@ -432,13 +454,20 @@ def render_status_markdown(data: StatusReportData) -> str:
     lines.append("")
 
     # Section 6: OPERATIONAL SMOKE & SYSTEM HEALTH
+    if data.storm_error is not None:
+        storm_str = f"unavailable ({data.storm_error})"
+    elif not data.storm_alarms:
+        storm_str = "0 (quiet: no alarms in window)"
+    else:
+        storm_str = f"{len(data.storm_alarms)} (active)"
+
     lines.extend(
         [
             "## SYSTEM HEALTH & OPERATIONAL SMOKE",
             "",
             f"- Catalog accessible: {'yes' if data.catalog_accessible else 'no'}",
             f"- Operational smoke/control specs count: {data.operational_smoke_count}",
-            f"- Active storm alarms: {len(data.storm_alarms)}",
+            f"- Active storm alarms: {storm_str}",
             "",
         ]
     )
@@ -452,6 +481,7 @@ def generate_status_markdown(
     target_date: date | None = None,
     database_url: str | None = None,
     storm_threshold: int = DEFAULT_STORM_THRESHOLD,
+    storm_loader: Callable[[date], Sequence[StormAlarm]] | None = None,
 ) -> str:
     """Generate the full STATUS.md content for a repository."""
     data = collect_status_data(
@@ -459,6 +489,7 @@ def generate_status_markdown(
         target_date=target_date,
         database_url=database_url,
         storm_threshold=storm_threshold,
+        storm_loader=storm_loader,
     )
     return render_status_markdown(data)
 
@@ -470,6 +501,7 @@ def update_status_file(
     destination: Path | None = None,
     database_url: str | None = None,
     storm_threshold: int = DEFAULT_STORM_THRESHOLD,
+    storm_loader: Callable[[date], Sequence[StormAlarm]] | None = None,
 ) -> Path:
     """Generate and write STATUS.md to disk idempotently."""
     dest = destination or (repo_root / DEFAULT_STATUS_PATH)
@@ -478,6 +510,7 @@ def update_status_file(
         target_date=target_date,
         database_url=database_url,
         storm_threshold=storm_threshold,
+        storm_loader=storm_loader,
     )
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(content)

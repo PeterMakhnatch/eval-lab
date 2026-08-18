@@ -9,7 +9,7 @@ audience:
 # Eval R&D Platform — System Architecture (v2, detailed)
 
 The capital design document. v2 elaborates every plane against the system
-as it exists (33k lines in `src/evallab/`, 29 CLI commands, `sql/` views),
+as it exists (44k lines across 52 modules in `src/evallab/`, 38 CLI commands, `sql/` views),
 in the format: **Current → Contracts → Deltas → Edge cases**. Harbor is the
 execution engine; this is the laboratory around it. Sections marked ∆ are
 unbuilt or partial; everything else is grounded in shipped code.
@@ -27,15 +27,15 @@ Planes and their primary code homes:
 
 | Plane | Primary modules (today) |
 |---|---|
-| Execution | `queue.py` (1670), `runner.py` (809), `automation.py`, `credentials.py`, `canary.py`, `quota.py` (966) |
-| Data | `database.py`, `results.py`, `atif.py` (959), `facts.py` (1311), `sql/{schema,craft_views,lessons}.sql` |
-| Experimentation | `schemas.py` (872), `cli.py` preflight/power/submit/matrix, `registry.py` (930) |
-| Analysis | `cohort.py` (1089), `analysis_worker.py` (1035), `calibrate.py` (1018), `explorer.py` (1209) |
-| Knowledge | `craft.py` (1319), `contextpack.py` (795), lessons views, `research/**` |
-| Authoring | `authoring.py` (1314), `task_workbench.py` (3395), `library/tasks/_proposed/` |
-| Surfaces | `digest.py`, `dashboard/`, `tracing.py` (769), status/preflight CLI |
+| Execution | `queue.py` (1670), `runner.py` (809), `automation.py` (1003), `credentials.py`, `canary.py`, `quota.py` (966) |
+| Data | `database.py`, `results.py`, `atif.py` (959), `facts.py` (1311), `attach.py`, `sql/{schema,craft_views,lessons,behavior}.sql` |
+| Experimentation | `schemas.py` (1520), `cli.py` (2117) preflight/power/submit/matrix, `registry.py` (930), `ladder.py` (914) |
+| Analysis | `cohort.py` (1089), `analysis_worker.py` (1035), `calibrate.py` (1719), `explorer.py` (1209), `behavior.py` (736), `cards.py` (457) |
+| Knowledge | `craft.py` (1319), `contextpack.py` (795), `lance.py` (493), lessons views, `research/**` |
+| Authoring | `authoring.py` (3383), `task_workbench.py` (3395), `library/tasks/_proposed/` |
+| Surfaces | `digest.py` (754), `status_generator.py` (484), `dashboard/`, `tracing.py` (769), `lineage.py` (572), status/preflight CLI |
 | Coordination | board files (Z5), `agents/{WORKFLOW,ROLES,CHECKS}.md`, Integrator role |
-| Quality/Identity | CI (`.github/`), premerge, GATE (paid-run authorization), AgentProfile probes |
+| Quality/Identity | CI (`.github/`), premerge, GATE (paid-run authorization), AgentProfile probes, `tidy.py` (1026) |
 
 ## 2. Data plane (normative, heaviest)
 
@@ -51,7 +51,7 @@ task_ref@version → {craft_record, suite_member, registry entry}
 agent_name → agent_profile
 ```
 
-CI guard ∆: `tests/test_join_spine.py` builds one synthetic spec through a
+CI guard: `tests/test_join_spine.py` builds one synthetic spec through a
 stubbed run and asserts every hop resolves in both Z2 and Z3. No component
 may ship a write path that breaks a hop.
 
@@ -59,8 +59,8 @@ Field-level contracts (delta fields marked ∆):
 
 - **ExperimentSpec** (exists): name, hypothesis, task|task_path, agent,
   model?, attempts, concurrency, est_cost_usd (legacy alarm units),
-  policy_rule, submitted_by, priority, task_version, verifier_digest.
-  ∆ add: `purpose` (enum, required at dispatch), `question_ref` (free str),
+  policy_rule, submitted_by, priority, task_version, verifier_digest,
+  `purpose` (enum, required at dispatch), `question_ref` (free str),
   `elicitation {preamble_hash, toolset[], env_overrides{}}` — defaulted and
   hashed at submit so *every* trial is joinable to an elicitation tuple;
   `prereg {expected, decision_rule}` optional but required for
@@ -84,10 +84,9 @@ Field-level contracts (delta fields marked ∆):
 - **CraftRecord** (exists in `craft.py`): keep current facet set; contract
   freeze via `facets_schema_version`; additive evolution only.
 - **AnalysisRecord / ObservationRecord / CalibrationRecord / Proposal /
-  Lesson / Verdict** — as implemented; Verdict ∆: promote from
-  DISCOVERIES markdown block to a Z2 table `verdicts(discovery_id, status,
-  by, at, note)` written by an authorized CLI (`evallab verdict`) so
-  researcher prompts can query rather than parse.
+  Lesson / Verdict** — as implemented; Verdict: Z2 table
+  `verdicts(discovery_id, status, by, at, note)` written by an authorized CLI
+  (`evallab verdict`) so researcher prompts can query rather than parse.
 
 ### 2.2 Zone Z1 — evidence filesystem
 
@@ -150,17 +149,15 @@ holds <10k files by construction (7-day window), so scans stay flat.
 
 ### 2.5 Unified attach surface (the one query door)
 
-∆ `evallab db attach [--out init.sql]`: emits a DuckDB init script —
-`INSTALL/LOAD postgres; ATTACH '<dsn>' AS cat (READ_ONLY);` + `CREATE OR
-REPLACE VIEW <t> AS SELECT * FROM read_parquet(['hot glob','compact
-glob'], union_by_name=true)` per Z3 table + knowledge_index (a small
-pre-step compiles Z4 front-matter to
-`derived/parquet/knowledge_index/`: path, status, audience[], generated_by,
-schema_version, title). Contract: dashboards, analysis workers, researcher
+`evallab db attach [--print-sql]`: emits a DuckDB init script —
+`INSTALL postgres_scanner; LOAD postgres_scanner; ATTACH '<dsn>' AS z2 (TYPE postgres);`
++ `CREATE OR REPLACE VIEW <t> AS SELECT * FROM read_parquet(['hot glob','compact
+glob'], union_by_name=true)` per Z3 table + in-memory table `z4.front_matter`
+built directly from markdown front-matter in `docs/` (`path`, `title`, `status`,
+`audience[]`, `generated_by`). Contract: dashboards, analysis workers, researcher
 agents, and ad-hoc sessions consume ONLY this surface; new code globbing
 paths directly is a review reject. Versioned via a `pragma_attach_version`
 table so consumers can assert compatibility.
-
 ### 2.6 Zones Z4/Z5 + lineage + retention
 
 Z4 knowledge: front-matter contract `{status: living|historical, audience[],
@@ -168,7 +165,7 @@ generated_by?, schema_version?}` — already being applied across docs/;
 generated files carry `generated_by` and CI ∆ blocks human diffs to them
 (check: git author ≠ generator marker on changed generated files).
 Z5 coordination: board/briefs/handoffs move-only; COORD-GC archives.
-Lineage ∆: generated artifacts embed `inputs: [{path|id, digest}]`;
+Lineage: generated artifacts embed `inputs: [{path|id, digest}]`;
 `evallab lineage <path|id>` resolves recursively (stop at Z1).
 Retention matrix (contract):
 
@@ -204,17 +201,17 @@ GATE: paid agents additionally require an explicit authorization artifact.
   every 30 s). Per-provider concurrency: semaphore map from AgentProfile
   (`{codex: 2, claude-code: 2, oracle: 4}`); global cap = min(N, Docker
   capacity from execution-tiers doc). Reconcile treats a lease with
-  mtime > 5 min stale as orphaned: verify no live container with label
-  `evallab.spec=<id>`; if none, `failed(execution_interrupted)` with the
-  partial dir preserved.
+  mtime > 5 min stale as orphaned: verify no live container for the task
+  (via Harbor Docker Compose labels); if none, `failed(execution_interrupted)`
+  with the partial dir preserved.
 - **Quota enforcement point:** gate consults `v_quota_today`; a spec whose
   provider quota is exhausted is **deferred in approved/** (event
   `dispatch_deferred(quota_exhausted:<provider>)`), not moved to waiting —
   quota renews at UTC midnight; waiting/ remains human-only territory.
-- **Container hygiene:** runner labels containers
-  `evallab.job=<job_id>`; post-run cleanup and orphan sweeps filter by
-  label only (never global prune — Postgres/Phoenix run in the same
-  daemon).
+- **Container hygiene:** runner uses Harbor's Docker Compose labels
+  (`com.docker.compose.project`, `com.docker.compose.project.config_files`);
+  post-run cleanup and orphan sweeps filter by label only (never global prune
+  — Postgres/Phoenix run in the same daemon).
 
 Crash matrix (contract, mostly landed via SOLIDIFY): executor dies
 pre-dispatch ⇒ spec intact in approved/; mid-run ⇒ lease+label recovery as
@@ -265,7 +262,7 @@ audits registered tasks; canary suite pinned by digest. Contracts and ∆:
   warnings (specs whose planned n,k cannot detect their prereg'd effect) ·
   storm/alarm banners · blocked-on-human list (waiting/ + pending
   verdicts). Runs at tick start; `--json` for surfaces.
-- **∆ LADDER:** `grids/*.yaml` = {axes: {task_refs[], agents[],
+- **LADDER:** `grids/*.yaml` = {axes: {task_refs[], agents[],
   preamble: [hash…], k: [1,3,5]}, constraints, purpose, daily_budget_units}.
   `evallab ladder generate` expands the cross-product minus constraints,
   round-robins across providers under quota, submits in priority order,
@@ -285,12 +282,13 @@ judge agreement vs sealed corpus; `explorer.py` run/analysis browsing;
 `report family` trajectory-level reports; 27+ observation records.
 
 Contracts:
-- **Statistics API (stable):** `estimate_pass_at_k(df, k, cluster="task_ref")
-  -> {point, lo, hi, n_tasks, n_attempts, method}`;
-  `paired_compare(a, b) -> {diff, lo, hi, wins, losses, ties,
-  distinguishable: bool, reason}`; `min_detectable_diff(n_tasks, k,
-  variance_prior) -> float`. Render rule (binding): any surface printing a
-  ranking calls paired_compare and prints its `reason` verbatim when
+- **Statistics API (stable):** record-oriented functions in `cohort.py`:
+  `compare(spec, repo_root=...)` (paired comparison producing `{distinguishable: bool,
+  paired_difference_interval, ...}`), `bootstrap_mean_interval(values,
+  confidence=0.95)`, `minimum_detectable_effect(n_tasks=..., k=...,
+  baseline=..., correlation=...)`, `required_tasks_for_effect(...)`,
+  `pass_at_k_probability(...)`. Render rule (binding): any surface printing a
+  ranking calls comparison and prints its explanation verbatim when
   `distinguishable=false` — "not distinguishable at this sample size" is a
   first-class result.
 - **Analysis worker bounds:** input = read-only bundle manifest (paths +
@@ -333,7 +331,7 @@ Contracts and nuance:
   truncation drops lowest-rank patterns first, never the brief). Output
   header records selector inputs + content hash; same repo state ⇒ same
   hash (tested).
-- **Verdict loop ∆:** `evallab verdict <discovery_id> accepted|rejected|
+- **Verdict loop:** `evallab verdict <discovery_id> accepted|rejected|
   needs-evidence --note "…"` writes Z2 + patches the journal block;
   researcher prompts receive the verdict table, not raw markdown.
 
@@ -359,7 +357,7 @@ Contracts:
   present; answer-hiding ∈ known-good; instruction length within band;
   difficulty_mechanism ≠ clerical…) → score 0–100 + reasons[]; threshold
   configurable in policy, not code.
-- **Ledger:** `research/registration/qualification-ledger.parquet`
+- **Ledger:** `derived/parquet/qualification/ledger.parquet`
   (proposal_id, seed_class, stage results, score, outcome, ts) — the
   pass-rate per seed_class is the S1 metric and a dashboard pane.
 - **Promotion:** only `evallab registry add` (human, automation-refusing).
@@ -418,15 +416,15 @@ fleet-status script. Contracts and ∆:
 
 Current: CI (lint 3.12, tests 3.12/3.14, ty ratchet 33≤33), premerge parity
 script, make smoke (composed free-control path), golden CI evidence for
-perf budgets, GATE authorization, secret-scrubbed probes. ∆ Deltas:
-hypothesis fuzz `tests/test_queue_properties.py` — operation alphabet
-{submit, approve, reject, tick(n), stop, resume, crash-restart,
-quota-exhaust, credential-flip}; invariants: no spec lost, no double
-dispatch, quota never exceeded, STOP honored within one dispatch, events
-strictly append-only, every terminal state has a reason. Golden files for
-digest/STATUS/preflight rendering. Join-spine CI test (§2.1). Skills in
-`.claude/skills/`: lab-status, mission-launch (brief+pack+board entry),
-review (PR+handoff+checks). All three read-only over surfaces.
+perf budgets, GATE authorization, secret-scrubbed probes; hypothesis fuzz
+`tests/test_queue_properties.py` (operation alphabet {submit, approve, reject,
+tick(n), stop, resume, crash-restart, quota-exhaust, credential-flip};
+invariants: no spec lost, no double dispatch, quota never exceeded, STOP
+honored within one dispatch, events strictly append-only, every terminal
+state has a reason); golden files for digest/STATUS/preflight rendering;
+join-spine CI test (`tests/test_join_spine.py`, §2.1); repo-local skills in
+`.claude/skills/` (lab-status, mission-launch, review — read-only over
+surfaces).
 
 ## 11. Extension seams (stability promises)
 
@@ -444,35 +442,54 @@ RL/post-training consumes the last three seams; nothing upstream changes.
 
 ## 12. Migration map (existing → target) and epic binding
 
-| Existing module | Keep/Change | Epic |
-|---|---|---|
-| queue.py | keep core; + leases, provider semaphores, quota-deferral | E01/E-par |
-| automation.py | keep; nightly → step registry | E12 |
-| credentials.py+quota.py | unify AgentProfile; profiles CLI | E01 |
-| schemas.py | + purpose/elicitation/prereg, AgentProfile, Verdict | E00 |
-| atif.py/facts.py | keep; + compaction step + manifests | E03 |
-| database.py/sql | + suites, verdicts, v_spine, v_quota_today | E05 |
-| craft.py | keep; classify batching + cookbook idempotence tests | E07 |
-| contextpack.py | keep; size budget + hash tests | E08 |
-| cohort.py | keep; stable API names above | E11 |
-| authoring.py/workbench | keep; ledger + fair-oracle/adversarial stages | E10 |
-| dashboard/ | rebind all panes to attach surface | E13 |
-| researchers.py | consume verdict table + packs | E09 |
-| new: db attach, lineage, ladder, status-gen, board check, verdict CLI, sft export | build | E04/E14/E02/E12/E-board/E-verdict/E17 |
+| Module / Component | Keep / Change / Built | Epic | Status |
+|---|---|---|---|
+| `schemas.py` | + purpose/elicitation/prereg, AgentProfile, Verdict | E00 | shipped |
+| `ladder.py` | LADDER evaluation grid generator CLI | E02 | shipped |
+| `attach.py` | unified DuckDB attach surface (Z2+Z3+Z4) | E04 | shipped |
+| `database.py`/`sql`/`spine.py` | + suites, verdicts, v_spine, v_quota_today | E05 | shipped |
+| `cohort.py`/`cards.py` | record-oriented stats API + eval cards | E11 | shipped |
+| `automation.py`/`status_generator.py` | nightly step registry + STATUS.md generator | E12 | shipped |
+| `dashboard/` | rebind all panes to attach surface | E13 | shipped |
+| `lineage.py` | artifact lineage walker CLI | E14 | shipped |
+| `tidy.py` | working tree tidy sweep CLI | E16 | shipped |
+| `behavior.py`/`sql` | behavioral analysis views + metrics | E18 | shipped |
+| `authoring.py`/`calibrate.py` | meta-task loop, spec sampler, inversion, selector | SG-1..4 | shipped |
+| `lance.py` | LanceDB vector store beside DuckDB | — | shipped |
+| `verdicts.py` / CLI | verdict recording, history, and queries | E-verdict | shipped |
+| `queue.py` | keep core; + leases, provider semaphores, quota-deferral | E01/E-par | unbuilt |
+| `credentials.py`+`quota.py` | unify AgentProfile; profiles CLI | E01 | unbuilt |
+| `atif.py`/`facts.py` | keep; + compaction step + manifests | E03 | partial |
+| `craft.py` | keep; classify batching + cookbook idempotence tests | E07 | unbuilt |
+| `contextpack.py` | keep; size budget + hash tests | E08 | unbuilt |
+| `researchers.py` | consume verdict table + packs | E09 | unbuilt |
+| `authoring.py`/`workbench` | keep; ledger + fair-oracle/adversarial stages | E10 | partial |
+| `export.py` / CLI | sft / trajectory export | E17 | unbuilt |
+| board check CLI | board consistency validation | E-board | unbuilt |
 
-Build protocol unchanged from v1 §10: E00 freezes contracts (schemas +
-CLI signatures + file formats + fixtures); everything else parallelizes
-against them; ~12 missions of useful width.
+Build protocol: E00, E02, E04, E05, E11, E12, E13, E14, E16, E18, and SG-1..4
+have shipped; remaining epics (E01 parallel dispatch, E03 compaction automation,
+E07/E08/E09/E10 full authoring battery, E17 SFT export, E-board) remain unbuilt
+or partial.
 
 ## 13. Non-goals and risks (unchanged from v1)
 
 Non-goals: distributed execution, multi-tenancy, RL training itself,
-alternative harnesses, vector memory pre-trigger. Top risks: schema churn
-(E00 freeze + schema_version), small-files regression (§2.4 + budgets),
-judge drift (calendar), coordination sprawl (board check + T7), single
-machine (backups now, StorageBackend at gate).
+alternative harnesses. Vector memory was originally a pre-trigger non-goal,
+but the trigger was met on Peter's explicit ruling and shipped via
+`src/evallab/lance.py` (LanceDB vector store beside DuckDB with deterministic
+lexical embedding). Top risks: schema churn (E00 freeze + schema_version),
+small-files regression (§2.4 + budgets), judge drift (calendar), coordination
+sprawl (board check + T7), single machine (backups now, StorageBackend at gate).
 
 ## Changelog
+- 2026-08-17 — v3: doc-drift corrections approved by Peter; updated code
+  measurements (~44k lines across 52 modules, 38 CLI commands), §2.5 unified
+  attach flags (--print-sql) and in-memory Z4 front-matter table, §3.1 Harbor
+  Docker Compose container labels, §5 record-oriented cohort statistics API,
+  §7 qualification ledger path in derived/, §13 lance vector store trigger
+  status, and §10/§12 epic completion states (E00, E02, E04, E05, E11, E12, E13,
+  E14, E16, E18, SG-1..4 shipped).
 - 2026-08-17 — v2: full per-plane elaboration in Current→Contracts→Deltas→
   Edge-cases form, grounded in the shipped 33k-line codebase; migration
   map added (Claude, at Peter's direction).

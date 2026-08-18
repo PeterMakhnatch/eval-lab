@@ -81,7 +81,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:33d10dc2ab7895cbca9f2d0af53d6465bebe2ad9d3cdf1c9c186857ecad7b4cb
+    digest: sha256:c5e4c8169b100d318d1b41c7435b0144edefa2b4b126d69fd35067c81cb01f46
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md
@@ -110,6 +110,8 @@ inputs:
     digest: sha256:d0a846245e70105e2d77a685d8121acbf7a1a12d8702e79b24f4d9cff724d8a7
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
+  - path: docs/verifier-calibration.md
+    digest: sha256:22f01a0f9b9ad3ea437dcaa3c253de41dafb9039dbbde201def191f280e9088a
 ---
 
 <!-- generated-by: docindex v1 -->
@@ -152,6 +154,7 @@ an operator can see what is archived.
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
 | `docs/task-workbench.md` | Task-quality workbench | `living` | `builder` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
+| `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
 
 ### historical
 
@@ -195,6 +198,7 @@ an operator can see what is archived.
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
+| `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
 
 ### historical
 

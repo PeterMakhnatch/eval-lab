@@ -570,6 +570,18 @@ def test_oracle_vs_codex_card_verdict_framing() -> None:
     assert validate_card_file(card_path).valid is True
 
 
+def test_sg1_metaloop_card_checks() -> None:
+    """SG-1 meta-loop card validates and covers all 4 completeness checks."""
+    card_path = Path(__file__).resolve().parent.parent / "research/cards/sg1-metaloop.md"
+    assert card_path.is_file()
+    content = card_path.read_text(encoding="utf-8")
+    assert "package_structure" in content
+    assert "no_answer_leakage" in content
+    assert "oracle_solution_runs" in content
+    assert "task_tests_pass" in content
+    assert validate_card_file(card_path).valid is True
+
+
 def test_real_corpus_evidence_skip_if_missing() -> None:
     """Real corpus test: skips if runs/ or promoted evidence is absent (CI conformance)."""
     corpus_dir = Path("runs")

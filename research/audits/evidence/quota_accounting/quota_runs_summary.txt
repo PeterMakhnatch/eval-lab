@@ -1,0 +1,60 @@
+Subscription quota accounting
+generated_at: 2026-08-18T06:56:55.978073+00:00
+paid agents:  claude-code, codex
+roots:        research/evidence/runs
+
+REMAINING on the subscription (scope: account, NOT the lab)
+  used_percent                         70.0 [observed]
+  remaining_percent                    30.0 [observed]
+  limit_id / plan_type                 codex / prolite
+  window                               10080 minutes (168h00m)
+  resets_at                            2026-08-20T18:32:49+00:00
+  observed_at                          2026-08-15T07:02:25.846000+00:00
+  staleness                            71h54m
+  credits_balance                      0
+  hard stop                            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  rate_limit_reached_type              [unavailable]
+  counter resolution                   1.0 percentage point
+    consumption below one point of the window registers as no movement
+  source                               event-summary__5E3btLv/agent/quota/rollout-2026-08-15T07-02-04-01a0043a-4b83-7252-a594-fa289617124f.rate-limits.json
+  lab's share of that percentage       [unavailable]
+    reason: the provider reports one account-wide integer percentage that covers every client of the subscription; it cannot be decomposed into the lab's share
+
+CONSUMED by the lab (scope: this lab only)
+  paid jobs                            3 [observed]
+  paid trials dispatched               9 [observed]
+  with observed usage                  9 [observed]
+  without usage evidence               0 [observed]
+  model turns                          0 [observed]
+  uncached input tokens                113,176 [observed]
+  cached input tokens                  1,176,832 [observed]
+  input tokens (incl. cached)          1,290,008 [observed]
+  output tokens                        40,375 [observed]
+  cached share of input                91.2% [observed]
+    UNVERIFIED: whether cached input draws on the subscription allowance at the same rate as uncached input is not observable from these artifacts and is not stated in the published documentation; uncached and cached input are reported separately rather than combined into one consumption number
+  job wall clock                       32m15s [observed]
+  longest single trial                 8m35s [observed]
+  attempt slots declared (per job)     9 [observed]
+  reported_cost_usd                    0.9462 [observed] -- API list-price equivalent, NOT subscription spend
+
+CONSUMED by day
+  2026-08-15                                     9 trials    9 used     0 turns    113,176 uncached in  1,176,832 cached   40,375 out  wall 32m15s
+
+CONSUMED by task
+  local-lab/event-summary                        3 trials    3 used     0 turns     23,246 uncached in    221,952 cached    2,397 out  wall 5m18s
+  petermakhnatch/transaction-reconciliation      3 trials    3 used     0 turns     14,303 uncached in    155,648 cached    1,635 out  wall 3m36s
+  terminal-bench/html-js-filter                  3 trials    3 used     0 turns     75,627 uncached in    799,232 cached   36,343 out  wall 23m20s
+
+CONSUMED by agent
+  codex                                          9 trials    9 used     0 turns    113,176 uncached in  1,176,832 cached   40,375 out  wall 32m15s
+
+CONSUMED by policy rule
+  canary                                         9 trials    9 used     0 turns    113,176 uncached in  1,176,832 cached   40,375 out  wall 32m15s
+
+CONSUMED by job
+  canary-event-summary-codex-20260815            3 trials    3 used     0 turns     23,246 uncached in    221,952 cached    2,397 out  wall 5m18s
+  canary-terminal-bench-html-js-filter-codex-20260815   3 trials    3 used     0 turns     75,627 uncached in    799,232 cached   36,343 out  wall 23m20s
+  canary-transaction-reconciliation-codex-20260815   3 trials    3 used     0 turns     14,303 uncached in    155,648 cached    1,635 out  wall 3m36s
+
+snapshots harvested: 67 [observed]

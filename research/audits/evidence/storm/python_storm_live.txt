@@ -1,0 +1,9 @@
+Live queue/events.jsonl alarms detected: 0
+Live digest storm section: ['## Storm alarms', '', '- Status: quiet (no reason_code storm detected in 1h window)']
+Synthetic storm banner output:
+> ⚠️ **STORM ALARM ACTIVE** — Multiple event storms detected in queue log (>N/hour):
+>
+> 🚨 **CRITICAL**: `subscription_quota_exhausted` — **8** events within 1h window (threshold > 5).
+>   *Recommended Action:* Provider reports subscription allowance exhausted. Suspend dispatch or switch to approved provider/tier.
+>
+

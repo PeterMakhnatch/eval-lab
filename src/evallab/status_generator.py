@@ -16,8 +16,9 @@ from pathlib import Path
 from typing import Any
 
 from evallab import database
+from evallab.gc import parse_finished_at
 from evallab.queue import QUEUE_STATES
-from evallab.results import discover_job_dirs, load_job
+from evallab.results import load_job
 from evallab.runner import database_url_from_environment
 from evallab.schemas import ExperimentSpec
 from evallab.storm import (
@@ -72,6 +73,9 @@ class StatusReportData:
     recent_trials: list[TrialSummary] = field(default_factory=list)
     recent_jobs: list[dict[str, Any]] = field(default_factory=list)
     catalog_accessible: bool = True
+    trials_source: str = "catalog"
+    catalog_error: str | None = None
+    unreadable_jobs_count: int = 0
     running_specs: list[QueueSpecItem] = field(default_factory=list)
     approved_specs: list[QueueSpecItem] = field(default_factory=list)
     waiting_specs: list[QueueSpecItem] = field(default_factory=list)
@@ -82,7 +86,6 @@ class StatusReportData:
     storm_error: str | None = None
     operational_smoke_count: int = 0
     raw_notes: list[str] = field(default_factory=list)
-
 
 def _safe_load_spec(path: Path) -> tuple[ExperimentSpec | None, str | None]:
     try:
@@ -142,6 +145,7 @@ def collect_status_data(
     storm_threshold: int = DEFAULT_STORM_THRESHOLD,
     events_window: timedelta = timedelta(hours=24),
     storm_loader: Callable[[date], Sequence[StormAlarm]] | None = None,
+    trial_loader: Callable[[date], Sequence[TrialSummary]] | None = None,
 ) -> StatusReportData:
     """Collect all live state needed to project STATUS.md."""
     resolved_root = repo_root.resolve()
@@ -150,75 +154,157 @@ def collect_status_data(
 
     # 1. Load catalog / database trials
     catalog_accessible = True
+    trials_source = "catalog"
+    catalog_error: str | None = None
+    unreadable_jobs_count = 0
     recent_trials: list[TrialSummary] = []
-    target_db_url = database_url or database_url_from_environment()
 
-    try:
-        rows = database.digest_trials(target_db_url, yesterday)
-        for row in rows:
-            recent_trials.append(
-                TrialSummary(
-                    job_name=str(row[0]),
-                    task_name=str(row[1]),
-                    agent_name=str(row[2]),
-                    model_name=str(row[3]) if row[3] is not None else None,
-                    reward=float(row[4]) if row[4] is not None else None,
-                    exception_type=str(row[5]) if row[5] is not None else None,
-                    cost_usd=float(row[6]) if row[6] is not None else 0.0,
-                    finished_at=str(row[7]) if row[7] is not None else "",
-                )
-            )
-    except Exception:
-        catalog_accessible = False
-
-    # Also check completed evidence runs if catalog returned no trials
-    if not recent_trials:
+    if trial_loader is not None:
+        try:
+            recent_trials = list(trial_loader(yesterday))
+            catalog_accessible = True
+            trials_source = "catalog"
+        except Exception as exc:
+            catalog_accessible = False
+            catalog_error = f"{type(exc).__name__}: {exc}"
+    else:
+        target_db_url = (
+            database_url
+            if database_url is not None
+            else database_url_from_environment()
+        )
+        if target_db_url:
+            try:
+                rows = database.digest_trials(target_db_url, yesterday)
+                for row in rows:
+                    recent_trials.append(
+                        TrialSummary(
+                            job_name=str(row[0]),
+                            task_name=str(row[1] or ""),
+                            agent_name=str(row[2] or ""),
+                            model_name=str(row[3]) if row[3] is not None else None,
+                            reward=float(row[4]) if row[4] is not None else None,
+                            exception_type=str(row[5]) if row[5] is not None else None,
+                            cost_usd=float(row[6]) if row[6] is not None else 0.0,
+                            finished_at=str(row[7]) if row[7] is not None else "",
+                        )
+                    )
+                catalog_accessible = True
+                trials_source = "catalog"
+            except Exception as exc:
+                catalog_accessible = False
+                catalog_error = f"{type(exc).__name__}: {exc}"
+        else:
+            catalog_accessible = False
+            catalog_error = "DATABASE_URL not configured"
+    # Strict fallback: ONLY when catalog is inaccessible do we inspect the filesystem.
+    # When catalog is accessible and returns no trials for yesterday, that is an authentic
+    # zero-trial day ("nothing ran") and must NEVER be replaced by historical filesystem data.
+    if not catalog_accessible:
         job_roots = [
             resolved_root / "research" / "evidence" / "runs",
             resolved_root / "runs",
         ]
         seen_jobs: set[Path] = set()
+        trials_source = "filesystem"
         for root in job_roots:
             if not root.is_dir():
                 continue
-            for job_dir in discover_job_dirs([root]):
-                if job_dir in seen_jobs:
+            for result_path in root.rglob("result.json"):
+                candidate = result_path.parent
+                if candidate in seen_jobs or any(
+                    part.startswith(".") for part in candidate.relative_to(root).parts
+                ):
                     continue
-                seen_jobs.add(job_dir)
+                seen_jobs.add(candidate)
+
                 try:
-                    job = load_job(job_dir)
-                    finished = str(job.result.get("finished_at") or "")
-                    for trial in job.trials:
-                        res = trial.result
-                        exc_info = res.get("exception_info")
-                        exc_type = (
-                            exc_info.get("exception_type")
-                            if isinstance(exc_info, dict)
-                            else None
-                        )
-                        model_name = (
-                            res.get("model_info", {}).get("name")
-                            if isinstance(res.get("model_info"), dict)
-                            else None
-                        )
-                        recent_trials.append(
-                            TrialSummary(
-                                job_name=job.name,
-                                task_name=str(res.get("task_name") or job.name),
-                                agent_name=str(res.get("agent_name") or trial.name),
-                                model_name=model_name,
-                                reward=trial.primary_reward,
-                                exception_type=exc_type,
-                                cost_usd=float(res.get("cost_usd") or 0.0),
-                                finished_at=finished,
-                            )
-                        )
+                    payload = json.loads(result_path.read_text())
                 except Exception:
+                    unreadable_jobs_count += 1
                     continue
 
+                if not isinstance(payload, dict):
+                    unreadable_jobs_count += 1
+                    continue
+
+                # Only top-level completed jobs are loaded via load_job
+                if not (
+                    "n_total_trials" in payload
+                    and "stats" in payload
+                    and payload.get("finished_at")
+                ):
+                    # Check if this might be an errored/malformed job vs trial result
+                    if "task_name" not in payload and "trial_name" not in payload:
+                        unreadable_jobs_count += 1
+                    continue
+
+                try:
+                    job = load_job(candidate)
+                except Exception:
+                    unreadable_jobs_count += 1
+                    continue
+
+                finished_str = str(job.result.get("finished_at") or "")
+                finished_dt = parse_finished_at(finished_str)
+                if finished_dt is None:
+                    started_str = str(job.result.get("started_at") or "")
+                    finished_dt = parse_finished_at(started_str)
+
+                if finished_dt is None:
+                    unreadable_jobs_count += 1
+                    continue
+
+                # STRICT DATE FILTER: only include jobs finished on the reporting date (yesterday)
+                if finished_dt.date() != yesterday:
+                    continue
+
+                for trial in job.trials:
+                    res = trial.result if isinstance(trial.result, dict) else {}
+                    exc_info = res.get("exception_info")
+                    exc_type = (
+                        str(exc_info["exception_type"])
+                        if isinstance(exc_info, dict) and "exception_type" in exc_info
+                        else None
+                    )
+                    raw_agent_info = res.get("agent_info")
+                    agent_dict = raw_agent_info if isinstance(raw_agent_info, dict) else {}
+                    raw_model_info = agent_dict.get("model_info") or res.get("model_info")
+                    model_dict = raw_model_info if isinstance(raw_model_info, dict) else {}
+
+                    cfg_agent = job.config.get("agent") if isinstance(job.config, dict) else None
+                    cfg_agent_dict = cfg_agent if isinstance(cfg_agent, dict) else {}
+                    agent_name = str(
+                        agent_dict.get("name")
+                        or res.get("agent_name")
+                        or cfg_agent_dict.get("name")
+                        or "unknown"
+                    )
+
+                    model_val = model_dict.get("name") or model_dict.get("model_name")
+                    model_name = str(model_val) if model_val is not None else None
+
+                    cfg_task = job.config.get("task") if isinstance(job.config, dict) else None
+                    cfg_task_dict = cfg_task if isinstance(cfg_task, dict) else {}
+                    task_name = str(
+                        res.get("task_name")
+                        or cfg_task_dict.get("name")
+                        or job.name
+                    )
+                    recent_trials.append(
+                        TrialSummary(
+                            job_name=job.name,
+                            task_name=task_name,
+                            agent_name=agent_name,
+                            model_name=model_name,
+                            reward=trial.primary_reward,
+                            exception_type=exc_type,
+                            cost_usd=float(res.get("cost_usd") or 0.0),
+                            finished_at=finished_str,
+                        )
+                    )
     # Sort trials deterministically
     recent_trials.sort(key=lambda t: (t.task_name, t.job_name, t.agent_name))
-
     # 2. Queue state
     queue_root = resolved_root / "queue"
     specs_by_state: dict[str, list[QueueSpecItem]] = {s: [] for s in QUEUE_STATES}
@@ -280,6 +366,9 @@ def collect_status_data(
         reporting_date=yesterday,
         recent_trials=recent_trials,
         catalog_accessible=catalog_accessible,
+        trials_source=trials_source,
+        catalog_error=catalog_error,
+        unreadable_jobs_count=unreadable_jobs_count,
         running_specs=specs_by_state.get("running", []),
         approved_specs=specs_by_state.get("approved", []),
         waiting_specs=specs_by_state.get("waiting", []),
@@ -321,16 +410,12 @@ def render_status_markdown(data: StatusReportData) -> str:
             "",
         ]
     )
+    if data.recent_trials:
+        if data.trials_source == "filesystem":
+            lines.append("*(Source: filesystem fallback — catalog unavailable)*")
+            lines.append("")
 
-    if not data.recent_trials:
-        lines.extend(
-            [
-                "No completed trials observed in the reporting window.",
-                "",
-            ]
-        )
-    else:
-        # Group trials by task and agent
+        # Group trials by task
         by_task: dict[str, list[TrialSummary]] = defaultdict(list)
         for t in data.recent_trials:
             by_task[t.task_name].append(t)
@@ -338,12 +423,16 @@ def render_status_markdown(data: StatusReportData) -> str:
         for task_name in sorted(by_task.keys()):
             task_trials = by_task[task_name]
             total_trials = len(task_trials)
-            success_count = sum(1 for t in task_trials if t.reward is not None and t.reward >= 1.0)
-            exceptions = Counter(t.exception_type for t in task_trials if t.exception_type)
-            agent_names = sorted({t.agent_name for t in task_trials})
+            success_count = sum(
+                1 for t in task_trials if t.reward is not None and t.reward >= 1.0
+            )
+            exceptions = Counter(
+                t.exception_type for t in task_trials if t.exception_type
+            )
+            agent_names = sorted({t.agent_name for t in task_trials if t.agent_name})
             model_names = sorted({t.model_name for t in task_trials if t.model_name})
 
-            agent_info = ", ".join(agent_names)
+            agent_info = ", ".join(agent_names) if agent_names else "unknown"
             model_info = f" ({', '.join(model_names)})" if model_names else ""
 
             exc_summary = ""
@@ -355,8 +444,36 @@ def render_status_markdown(data: StatusReportData) -> str:
                 f"- **{task_name}** — {success_count}/{total_trials} `reward==1.0` "
                 f"via {agent_info}{model_info}{exc_summary}"
             )
+        if data.unreadable_jobs_count > 0:
+            plural = "y" if data.unreadable_jobs_count == 1 else "ies"
+            msg = f"- *Warning:* {data.unreadable_jobs_count} job director{plural} unreadable."
+            lines.append(msg)
         lines.append("")
-
+    elif data.catalog_accessible:
+        lines.extend(
+            [
+                "No completed trials observed in the reporting window.",
+                "",
+            ]
+        )
+        if data.unreadable_jobs_count > 0:
+            plural = "y" if data.unreadable_jobs_count == 1 else "ies"
+            msg = f"- *Warning:* {data.unreadable_jobs_count} job director{plural} unreadable."
+            lines.append(msg)
+            lines.append("")
+    else:
+        error_msg = f" ({data.catalog_error})" if data.catalog_error else ""
+        lines.extend(
+            [
+                f"Source unavailable: catalog inaccessible{error_msg}.",
+                "",
+            ]
+        )
+        if data.unreadable_jobs_count > 0:
+            plural = "y" if data.unreadable_jobs_count == 1 else "ies"
+            msg = f"- *Warning:* {data.unreadable_jobs_count} job director{plural} unreadable."
+            lines.append(msg)
+            lines.append("")
     # Section 2: RUNNING NOW
     lines.extend(
         [
@@ -468,10 +585,11 @@ def render_status_markdown(data: StatusReportData) -> str:
             f"- Catalog accessible: {'yes' if data.catalog_accessible else 'no'}",
             f"- Operational smoke/control specs count: {data.operational_smoke_count}",
             f"- Active storm alarms: {storm_str}",
-            "",
         ]
     )
-
+    if data.unreadable_jobs_count > 0:
+        lines.append(f"- Unreadable job directories: {data.unreadable_jobs_count}")
+    lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -482,6 +600,7 @@ def generate_status_markdown(
     database_url: str | None = None,
     storm_threshold: int = DEFAULT_STORM_THRESHOLD,
     storm_loader: Callable[[date], Sequence[StormAlarm]] | None = None,
+    trial_loader: Callable[[date], Sequence[TrialSummary]] | None = None,
 ) -> str:
     """Generate the full STATUS.md content for a repository."""
     data = collect_status_data(
@@ -490,6 +609,7 @@ def generate_status_markdown(
         database_url=database_url,
         storm_threshold=storm_threshold,
         storm_loader=storm_loader,
+        trial_loader=trial_loader,
     )
     return render_status_markdown(data)
 
@@ -502,6 +622,7 @@ def update_status_file(
     database_url: str | None = None,
     storm_threshold: int = DEFAULT_STORM_THRESHOLD,
     storm_loader: Callable[[date], Sequence[StormAlarm]] | None = None,
+    trial_loader: Callable[[date], Sequence[TrialSummary]] | None = None,
 ) -> Path:
     """Generate and write STATUS.md to disk idempotently."""
     dest = destination or (repo_root / DEFAULT_STATUS_PATH)
@@ -511,6 +632,7 @@ def update_status_file(
         database_url=database_url,
         storm_threshold=storm_threshold,
         storm_loader=storm_loader,
+        trial_loader=trial_loader,
     )
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(content)

@@ -23,7 +23,7 @@ from evallab.schemas import (
     QueueEvent,
     StandingApprovalsPolicy,
 )
-from evallab.status_generator import generate_status_markdown
+from evallab.status_generator import TrialSummary, generate_status_markdown
 from evallab.storm import StormAlarm
 
 #: Fixed instant. Every clock the renderers accept is this value.
@@ -455,9 +455,23 @@ def render_status_text(root: Path) -> str:
         root,
         target_date=REPORT_DATE,
         storm_loader=lambda day: [],
+        trial_loader=lambda day: [
+            TrialSummary(
+                job_name=t.job_name,
+                task_name=t.task_name,
+                agent_name=t.agent_name,
+                model_name=t.model_name,
+                reward=t.reward,
+                exception_type=t.exception_type,
+                cost_usd=t.cost_usd,
+                finished_at=t.finished_at,
+            )
+            for t in period_trials()
+        ]
+        if day == PERIOD_DATE
+        else [],
     )
     return normalize_rendered(rendered, root)
-
 
 
 

@@ -13,9 +13,7 @@ Answers what happened yesterday and what is running now deterministically.
 
 ## RECENT (Yesterday: 2026-08-17)
 
-- **local-lab/event-summary** — 5/6 `reward==1.0` via event-summary__5E3btLv, event-summary__EKfePmM, event-summary__FZg7pvq, event-summary__edzDz6R, event-summary__h2D9f6f
-- **petermakhnatch/transaction-reconciliation** — 3/3 `reward==1.0` via transaction-reconciliation__W5o8QpH, transaction-reconciliation__ba8ovxZ, transaction-reconciliation__frxRezo
-- **terminal-bench/html-js-filter** — 0/3 `reward==1.0` via terminal-bench-html-js-filter__5rgjEEt, terminal-bench-html-js-filter__D3GZpFU, terminal-bench-html-js-filter__kzGxL7Q
+No completed trials observed in the reporting window.
 
 ## RUNNING NOW
 

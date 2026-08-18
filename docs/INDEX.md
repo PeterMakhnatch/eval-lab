@@ -7,7 +7,7 @@ audience:
   - operator
 inputs:
   - path: docs/STATUS.md
-    digest: sha256:afe9c610367a1e664edd22e7ba63a2a3518eb672d310b3790a7a4b171c1014ea
+    digest: sha256:6af9bf3013bdb0a312dfb43c6fb32bfdc9309194612d60916781763940215c2d
   - path: docs/agent-analysis.md
     digest: sha256:e490de090539722b445fb03f342254afe39f6109a39f5d6cb73fce3146ea8b89
   - path: docs/agent-profiles.md
@@ -83,7 +83,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:458aff27a220b46d8ffcdc87bdb54da2a32277e9d4e2d87f888d384c1c0e4f4f
+    digest: sha256:0deab838203b8575be0f013a1f1848e9681f41c6c18a20020670748c0d835a48
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md

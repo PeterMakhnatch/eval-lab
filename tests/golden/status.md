@@ -13,9 +13,8 @@ Answers what happened yesterday and what is running now deterministically.
 
 ## RECENT (Yesterday: 2026-08-15)
 
-- **local-lab/event-summary** — 52/52 `reward==1.0` via codex, oracle (gpt-5.6-terra)
-- **petermakhnatch/transaction-reconciliation** — 3/3 `reward==1.0` via codex (gpt-5.6-terra)
-- **terminal-bench/html-js-filter** — 0/3 `reward==1.0` via codex (gpt-5.6-terra)
+- **canary/event-summary** — 0/2 `reward==1.0` via codex (gpt-5.6-terra) [exceptions: EnvironmentError=1]
+- **library/tasks/event-summary** — 2/2 `reward==1.0` via oracle
 
 ## RUNNING NOW
 

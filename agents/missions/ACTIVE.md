@@ -10,6 +10,41 @@ integrator owns cross-mission conflict resolution, semantic review, rebase,
 fresh exact-head CI, merge, board transition, and worktree sunset. A review
 bot may advise later; it is never merge authority.
 
+## BLOCKED: CI is not running — no loop PR can be merged
+
+**Every pull-request workflow run since roughly 07:08 UTC fails in 2–3 seconds with
+zero steps executed.** This is not a test failure and it is not any loop's code.
+
+Evidence:
+
+- `main` last ran green at **06:15 UTC**; nothing has been merged since.
+- PRs **#117, #118, #119** — three unrelated leases — fail all five checks
+  identically, in 2–3s, with `"steps": []` in the job API. Work never started.
+- No branch modified `.github/workflows/**`.
+- `uv.lock` is intact and `uv sync --frozen` succeeds locally, so this is not the
+  missing-lockfile failure it superficially resembles.
+
+**[INFERENCE]** The repository is private, so Actions minutes are metered, and
+roughly 33 PRs ran five checks each tonight. Exhausted minutes or a tripped
+spending limit produce exactly this signature — jobs that fail instantly with no
+steps. I could not confirm it: the billing API needs a `user` token scope this
+installation lacks, and GitHub attaches no message to the failed check runs.
+Peter can settle it in one look at Settings → Billing → Actions.
+
+Consequence, and the reason nothing was merged: the loop protocol's stop
+condition for red CI is to note it, keep working locally, and never rebase onto
+or merge on red. Three PRs are therefore finished-and-held, not abandoned. Each
+carries local proof in its handoff instead of a green tick:
+
+| PR | Mission | Local verification standing in for CI |
+|---|---|---|
+| #118 | M018 FUZZ | 1293 passed, ruff clean, `ty` 28; mutation-tested — reintroducing PR #102's local-time bug makes the quota property suite fail, so the tests genuinely bite |
+| #117 | M015 AUDIT | ledger + evidence only, no source changes |
+| #119 | M016 SURFACE | held for rework — see the STATUS.md defect below |
+
+Once Actions runs again these need a fresh exact-head run before merge; none of
+them should be merged on the strength of local runs alone.
+
 ## Now
 
 `origin/main` is `e5d3257` (the night-loops prompt doc, committed on top of

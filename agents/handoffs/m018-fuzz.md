@@ -1,6 +1,6 @@
 Status: building
-Last: Cycle 2 complete: quota accounting property tests & UTC rollover normalization fix
-Next: Cycle 3: authoring proposal state machine property tests
+Last: Cycle 3 complete: authoring proposal state machine property tests & hard registration gate verification
+Next: Cycle 4: parquet compaction property tests
 Blockers: none
 
 # M018 - LOOP-FUZZ Handoff
@@ -57,6 +57,37 @@ tests/test_quota_properties.py: 9 passed in 1.69s
 Full test suite summary:
 ```
 1284 passed, 1 skipped, 1 xfailed in 51.21s
+```
+Premerge check:
+```
+premerge green: Python 3.12; ty 28 <= 28
+```
+
+---
+
+## Cycle 3: Authoring Proposal State Machine Property Tests
+
+### Scope & Invariants Tested
+- **State Transition DAG**: `AuthoringProposalStateMachine` validates strict transitions: `proposed -> (battery_passed -> (craft_reviewed | rejected) | rejected)`.
+- **No Skip Invariants**: Attempting to review un-batteried proposals strictly raises `AuthoringError`. Attempting to review rejected proposals strictly raises `AuthoringError`.
+- **Hard Registration Gate**: `pipeline.register()` strictly raises `RegisterRefusal` across all proposal stages and seed classes. Automation cannot write `registered` records to the qualification ledger.
+- **Ledger Invariants**: `write_ledger` and `load_ledger` preserve record schemas, maintain strict ordering by `proposal_id`, and correctly normalize null evidence paths.
+
+### Hypothesis Findings & Counterexamples
+- No source defects in `authoring.py`. Transition constraints, ledger consistency, and registration refusal gates strictly hold across all generated proposal sequences.
+
+### Evidence & Pytest Output
+Suite runtime:
+```
+tests/test_authoring_properties.py: 3 passed in 2.59s
+```
+Combined property tests:
+```
+tests/test_queue_properties.py tests/test_quota_properties.py tests/test_authoring_properties.py: 16 passed in 6.52s
+```
+Full test suite summary:
+```
+1287 passed, 1 skipped, 1 xfailed in 62.16s
 ```
 Premerge check:
 ```

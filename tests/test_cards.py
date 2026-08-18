@@ -582,6 +582,17 @@ def test_sg1_metaloop_card_checks() -> None:
     assert validate_card_file(card_path).valid is True
 
 
+def test_behavior_study_card_validation() -> None:
+    """Behavior study card validates and separates controls from real agent trials."""
+    card_path = Path(__file__).resolve().parent.parent / "research/cards/behavior-study.md"
+    assert card_path.is_file()
+    content = card_path.read_text(encoding="utf-8")
+    assert "57 oracle control trials" in content
+    assert "33" in content
+    assert "repeated_failed_command_count" in content
+    assert validate_card_file(card_path).valid is True
+
+
 def test_real_corpus_evidence_skip_if_missing() -> None:
     """Real corpus test: skips if runs/ or promoted evidence is absent (CI conformance)."""
     corpus_dir = Path("runs")

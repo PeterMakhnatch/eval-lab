@@ -225,8 +225,8 @@ WITH env_joined AS (
         END AS env_files_bucket,
         coalesce(c.difficulty_mechanism, 'unclassified') AS difficulty_mechanism,
         coalesce(obs.loop_detected, CASE WHEN coalesce(t.repeated_failed_command_count, 0) > 0 THEN true ELSE false END) AS loop_detected,
-        coalesce(obs.steps_taken, coalesce(t.step_count, 0)) AS steps_taken,
-        coalesce(obs.tool_errors, coalesce(t.command_failure_count, 0)) AS tool_errors,
+        coalesce(obs.steps_taken, t.step_count) AS steps_taken,
+        coalesce(obs.tool_errors, t.command_failure_count) AS tool_errors,
         t.trial_id
     FROM craft c
     JOIN trial_facts t

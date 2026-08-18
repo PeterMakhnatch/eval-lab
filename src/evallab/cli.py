@@ -421,7 +421,7 @@ def _tick_command(
             )
         )
     )
-    executor = Executor.from_repo(root)
+    executor = Executor.from_repo(root, parallel=getattr(args, "parallel", 1))
     result = GuardedTick(
         doctor=HeadlessDoctor(root, executor=executor),
         executor=executor,
@@ -1769,6 +1769,13 @@ def parser() -> argparse.ArgumentParser:
     submit.set_defaults(func=_submit_command)
 
     tick = commands.add_parser("tick", help="Reconcile and drain the approved experiment queue")
+    tick.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Bounded parallel dispatch worker count (default: 1)",
+    )
     tick.set_defaults(func=_tick_command)
 
     approve = commands.add_parser(

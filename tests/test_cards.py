@@ -549,6 +549,17 @@ def test_cli_card_validate(
     captured = capsys.readouterr()
     assert "INVALID" in captured.err
 
+def test_all_committed_cards_pass_validation() -> None:
+    """All markdown cards committed under research/cards/ pass validate_card_file."""
+    cards_dir = Path(__file__).resolve().parent.parent / "research/cards"
+    assert cards_dir.is_dir()
+    card_files = [f for f in cards_dir.glob("*.md") if f.name not in {"README.md", "TEMPLATE.md"}]
+    assert len(card_files) >= 1
+    for card_file in card_files:
+        result = validate_card_file(card_file)
+        assert result.valid is True, f"Card {card_file.name} failed validation: {result.errors}"
+
+
 def test_real_corpus_evidence_skip_if_missing() -> None:
     """Real corpus test: skips if runs/ or promoted evidence is absent (CI conformance)."""
     corpus_dir = Path("runs")

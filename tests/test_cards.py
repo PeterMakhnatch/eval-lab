@@ -560,6 +560,16 @@ def test_all_committed_cards_pass_validation() -> None:
         assert result.valid is True, f"Card {card_file.name} failed validation: {result.errors}"
 
 
+def test_oracle_vs_codex_card_verdict_framing() -> None:
+    """Oracle-vs-Codex card embeds instrument finding framing, avoiding false capability claims."""
+    card_path = Path(__file__).resolve().parent.parent / "research/cards/oracle-vs-codex-cohort.md"
+    assert card_path.is_file()
+    content = card_path.read_text(encoding="utf-8")
+    assert "instrument finding" in content.lower()
+    assert "does not establish that codex lacks task capability" in content.lower()
+    assert validate_card_file(card_path).valid is True
+
+
 def test_real_corpus_evidence_skip_if_missing() -> None:
     """Real corpus test: skips if runs/ or promoted evidence is absent (CI conformance)."""
     corpus_dir = Path("runs")

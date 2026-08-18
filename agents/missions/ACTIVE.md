@@ -12,124 +12,107 @@ bot may advise later; it is never merge authority.
 
 ## Now
 
-`origin/main` is `86380b0` (PR #49, the M007 task-quality workbench).
+`origin/main` is `e5d3257` (the night-loops prompt doc, committed on top of
+`f836f6c` / PR #116). **30 PRs merged**, full suite **1272 passed, 1 skipped,
+1 xfailed**, ruff clean, `ty` at its 28-diagnostic baseline. Zero open PRs and
+zero active worktrees at dispatch time.
 
-- **No implementation mission is active.** Both feature slots emptied today when
-  M006 and M007 merged. `agents/handoffs/` holds exactly one file,
-  `board-refresh.md`, which is this Integration bookkeeping mission.
-- **The only open PR is #51** (`role/orchestrator-handoff`, head `874f568`, one
-  commit ahead of `origin/main`): a replacement-orchestrator handoff document.
-  It is prose, not code. **Its disposition is unsettled** — the integrator has
-  neither merged nor closed it, and this board does not decide it.
-- **M009, the end-to-end integration flight, is in flight now** in
-  `.worktrees/m009-flight` on `role/m009-flight`. It is the first attempt to
-  prove that the separately-built components form one usable system rather than
-  a set of independently green modules. It is an integrator acceptance exercise
-  with exclusive use of the already-running local services, so it does not
-  consume a build slot and does not make a third build PR.
-- **Five missions merged today**, newest first: M007 (#49, `86380b0`), M006
-  (#47, `4d23d7d`), COORD-GC (#54, `2173268`), PERF-REBASELINE (#53,
-  `e080dd0`), system cartography (#52, `1471f41`). All five handoffs are
-  archived 1:1 in `agents/archive/2026-08-15-handoffs/`; that directory's
-  `INDEX.md` is the pointer, and `git log --follow` resolves each moved path.
-- **Worktrees**: five besides the primary checkout —
-  `board-refresh` (this mission), `m009-flight` (M009),
-  `orchestrator-handoff` (PR #51 open, 1 commit ahead),
-  `organization-prompts` (4 commits ahead, no PR), and
-  `wave4-prompts` (1 commit ahead, no PR). The last two are deliberately kept
-  and are the only unmerged committed work with no PR attached; both are 14 and
-  17 commits behind `origin/main` respectively, so either needs a fresh branch
-  off current main rather than a rebase of a stale tree. The "down to four"
-  count recorded earlier today predates `board-refresh` and `m009-flight`.
-- **Branch sunset is incomplete, and the usual test for it does not work here.**
-  Worktrees were removed for all five merged missions, but every branch
-  survives: `origin` still carries 18 `role/*` branches, and 17 of them are
-  spent (all but `role/orchestrator-handoff`, whose PR #51 is open). None can be
-  found by `agents/WORKFLOW.md`'s "zero commits ahead of `main`" rule, because
-  every merge today was a squash merge, so each spent branch still reports
-  commits ahead — `role/solidify` reports 44, `role/m007-task-workbench` 17,
-  `role/m006-analysis-worker` 10. Deleting them is integrator sunset work and
-  BOARD-REFRESH's lease is files, not refs, so this is recorded rather than
-  done. Until it is done, treat any `role/*` branch whose PR is merged as spent
-  per `agents/CHECKS.md`: start follow-up work from a fresh branch off
-  `origin/main`, never by rebasing one of these.
+### Five loop missions dispatched tonight (M015–M019)
 
-### What the two merged features are, and are not
+These are LOOPS, not builds. The standing risk after ~55 missions in days is
+divergence — built ≠ proven ≠ used — so each mission re-verifies existing work,
+extends it one step, hardens it with a test, and records. Max 6 cycles each,
+one commit and one push per cycle, every cycle ends mergeable. Spec:
+`docs/prompts/night-loops.md`.
 
-Both merged with their capability deliberately fenced. Read this before
-planning anything that depends on them.
+| Mission | Loop | Lease | Provider |
+|---|---|---|---|
+| M015 | AUDIT — re-run merged handoffs' claims, verdict them | `research/audits/**` only | cursor |
+| M016 | SURFACE — first real `docs/STATUS.md`, digest sections | `status_generator.py`, `digest.py`, goldens | antigravity |
+| M017 | CARDS — eval cards from existing data | `cards.py`, `research/cards/**` | cursor |
+| M018 | FUZZ — hypothesis properties per state machine | `tests/test_*_properties.py` | antigravity |
+| M019 | LESSONS — aggregates with statistical gates | `lessons.py`, `sql/lessons.sql` | cursor |
 
-- **M006 is not live model analysis.** It merged with its calibration gate
-  CLOSED and its default adapter `_no_adapter`. The stage-5 path is a
-  saved-response stub. Opening that gate is M010's job, not a configuration
-  change.
-- **M007 grants nothing.** It is a certification tool: `admission_granted` is
-  false, nothing self-registers, and `library/registry/` still holds zero
-  records. Turning a candidate into a registerable packet is M011's job;
-  registration itself remains Peter's reserved authority.
+Leases are mutually disjoint and clear of SG lanes (`authoring.py` internals,
+`library/meta/`, `authoring/templates/`, `calibrate.py`). Cross-loop
+coordination is append-only through `research/audits/board-notes.md`; no loop
+edits another's files. Split 3/2 across two providers because four concurrent
+Cursor streams hit `resource_exhausted` earlier tonight, and dispatched
+staggered by 20s for the same reason. All five run as supervised processes with
+`restart: on-failure`, which is safe precisely because the protocol rechecks
+before extending and pushes every cycle — a restarted agent resumes rather than
+repeats.
 
-### Review cost, recorded because it is the most useful planning input here
+The one handshake: M019 exposes `lessons_digest_section()` for M016 to import.
+M016 uses it only if it is already on `origin/main`, otherwise files a
+board-note and does other work. Neither blocks on the other.
 
-Each feature took **four review-and-repair rounds**, and every round found a
-real defect rather than a style objection. The round headings in the archived
-handoffs are the checkable record.
+### What the earlier wave established (33 PRs — context for why these loops)
 
-- **M006** (`agents/archive/2026-08-15-handoffs/m006-analysis-worker.md`):
-  rounds at lines 76, 142, 208, and 327. The first two were integrator reviews;
-  the **last two were independent exact-head reviews** of `1f4cf6f` and
-  `95d31e4`. The fourth round's defect was a `sidecar/` dirent that was not
-  fsynced into its request directory — the name that proves a paid result
-  exists could survive as an unreferenced inode after a crash.
-- **M007** (`agents/archive/2026-08-15-handoffs/m007-task-workbench.md`):
-  rounds at lines 211, 270, 629, and 854, of which the **last three were
-  independent exact-head reviews**. The fourth round closed a
-  `tests/docker-compose.yaml` escape past Harbor's egress control.
-- **M007 also had a distinct withdrawal round** (line 583, commit `2a6aec0`),
-  which is a different kind of event from fixing code: it **withdrew an
-  already-committed certification packet** that asserted isolation for control
-  runs whose verifier in fact had full network egress. Zero `.py` files
-  changed; what changed was a published claim about evidence.
+These five loops exist because the previous wave kept finding one class of
+defect: code that was built, tested, and unreachable.
 
-Planning consequence: for work of this class, budget the review rounds as part
-of the mission, not as an exception. A single green CI run on a first head has
-not once been sufficient today.
+- **`NightlyCycle` was a hardcoded sequence**, which is why `parquet_compaction.py`
+  (751 lines) and `lessons.py` (910 lines) were fully tested and completely dead.
+  PR #106 replaced it with a declared step registry; both are now reached.
+- **`storm.py` (517) and `status_generator.py` (484)** were likewise unreachable
+  until PR #103 wired them into the digest and nightly path. `status_generator`
+  has still never produced a file — that is M016's cycle 1.
+- **The dashboard and the CLI disagreed about the same number.** Daily spend
+  buckets were four hours off because the dashboard used local time while
+  `quota.py` normalises to UTC (PR #102).
+- **The verdict feature took three review rounds**, each defect the same shape:
+  tests passed while reality disagreed. Real discovery ids
+  (`D-20260815-KTXJSHGZ`) were rejected by a blanket ULID rule; writes persisted
+  while reads queried a view that was never created; three tests passed only on a
+  machine with Postgres.
+- **The suite was writing to the live catalog.** `verdicts` held 583 rows when
+  found and 768 by the time PR #116 isolated it — it grew during the verification
+  runs themselves. On an append-only decision table that pollution is permanent
+  by design. Those 768 rows are deliberately left in place; clearing an
+  append-only audit trail is Peter's call, not a side effect of a test fix.
+
+Planning consequence, now better evidenced: budget review rounds as part of the
+mission. A single green CI run on a first head has not once been sufficient. And
+a module's tests passing says nothing about whether anything calls it — which is
+the entire premise of M015.
 
 ## Ready
 
-- Nothing is dispatchable-but-unstarted. M010 and M011 unlock together when the
-  M009 flight passes; until then there is nothing to hand a build worker.
+- **Nothing is dispatchable-but-unstarted for a build worker.** All five slots
+  are held by M015–M019 tonight. M009–M014 are merged and archived; the items
+  below are what the v2 architecture audit left standing, and each needs an M
+  number and a brief before dispatch.
 
 ## Next
 
-- **M009 — end-to-end integration flight (in flight, integrator).** Prove the
-  merged lab as one local, restartable Harbor-to-analysis product: start
-  services from current main, run a real free control, produce and index a
-  saved-response analysis, inspect it in the explorer, and test recovery. Every
-  failure becomes a narrowly scoped follow-up instead of a success claim.
-  Nothing below starts until this passes; a 24-hour soak or scheduled analysis
-  execution stays off until then.
-- **M010 and M011 — two build slots, in parallel, after M009 passes.**
-  - **M010 qualified stage-5 analysis runtime** (Research + Platform): replace
-    M006's hard-coded closed gate with a real tuple-specific qualification gate
-    and a queue-authorized bounded adapter, fail-closed until measured
-    agreement reaches 0.90.
-  - **M011 first certifiable task pack** (Tasks): drive the merged M007
-    workbench to turn the existing `event-summary` candidate into a
-    version-pinned, adversarially tested certification packet Peter can
-    knowingly register — without registering or publishing it.
-  Their leases are disjoint, which is why they can run together.
-- **M012 unified operator cockpit** (Platform), when a slot opens: one read-only
-  UI showing what ran, what is running, what is queued, what is certifiable,
-  and how each completed trial moved into analysis — without a second Streamlit
-  app. Must not overlap another dashboard mission. See the `cli.py` question
-  under `Needs Peter`, which is a sequencing question about this mission.
-- **M013 restart-safe analysis service and soak** (Platform + Research review),
-  after M010 and M009: restart-safe completion ingestion and analysis
-  reconciliation, proven under an accelerated soak, with no autonomous spend.
-- **M014 CI determinism and maintenance** (Integration + Platform), later
-  hardening: remove host-state and wall-clock flakiness, expose untested
-  command surfaces, prove any cleanup before deleting it. Waits until feature
-  branches are quiet because its test/CI lease is broad.
+Ranked by what actually blocks the lab, from the v2 architecture audit:
+
+- **Queue leases and per-provider concurrency (E01, unassigned).** Dispatch is
+  single-threaded with no concurrency control: no `running/<spec>.lease`
+  heartbeat, no per-provider semaphore. This is the largest unbuilt item in the
+  audit and it caps every parallel run the lab can attempt. Tonight's own
+  dispatch is the evidence — provider concurrency limits had to be managed by
+  hand, staggering launches by 20 seconds, because nothing in the queue does it.
+- **Profiles CLI cutover and credential unification (E01, unassigned).** Two
+  credential paths still coexist (`credentials.py` and `quota.py`), with a
+  single `AgentProfile` specified but not cut over.
+- **Analysis conclusions are not indexed into vector memory (unassigned).**
+  LanceDB indexes tasks, trials, and trajectory steps — not what an analyst
+  concluded. So "find analyses similar to this one" is not answerable, which is
+  the query the memory exists for. Small, well-scoped, and the last structural
+  gap in the study loop.
+- **`craft.py` classify batching and cookbook idempotence (E07, unassigned).**
+- **Operator board (E-board, unassigned).** Still no single read-only surface
+  for what ran, what is running, what is queued, what is certifiable. M016's
+  `docs/STATUS.md` is the cheap file-based answer to part of this; whether the
+  full board is still wanted afterwards is a Peter question, not a build one.
+- **`evallab tidy` is blind to squash merges (unassigned, found tonight).** It
+  reported "Stale worktrees (0 items)" while five fully-merged worktrees held
+  2.3 GB, because it tests ancestry and this repo squash-merges — so a merged
+  branch tip is never an ancestor of `main`. Ancestry-true, content-false. A
+  wrong answer in the other direction deletes live work, so this needs care
+  rather than speed.
 
 ### Mission candidates — recorded here so they cannot vanish with an archived handoff
 
@@ -176,7 +159,31 @@ brief before dispatch.
 
 ## Needs Peter
 
-Exactly two open items. Everything else on this board is a lane decision.
+Five open items: three raised by the recent build waves, then the two carried
+documentation and sequencing questions. Everything else on this board is a lane
+decision.
+
+- **Green-light real generation and analysis runs?** This is the one that
+  matters. Every box in the study loop now exists — run experiment, capture
+  trajectory, model studies it, thoughts stored, model builds evals, runs on
+  Harbor — and the chain has never been run once end to end with a real model.
+  `evallab analyst` refuses without `--model` by design, and the synthesis loop
+  has only ever run with a stub generator. So the paper-derived >85% synthesis
+  success rate, and any actual trajectory study, stay theoretical until tokens
+  are spent deliberately. Nothing else on this board unblocks this; it is purely
+  a spend decision.
+- **Turn the nightly schedule on?** The pipeline exists and the step registry
+  landed (PR #106), but `launchctl list` shows nothing loaded, so nothing runs
+  unattended. Building the pipeline and enabling it were deliberately kept as
+  separate decisions. Only free `oracle`/`nop` work can dispatch without a gate
+  request, so switching it on does not itself spend.
+- **Clear the 768 residue rows in `verdicts`?** The suite was writing to the live
+  catalog until PR #116; the table held 583 rows when found and 768 by the time
+  the fix landed, all of them test and verification residue rather than real
+  decisions. Clearing is therefore safe, but the table is append-only precisely
+  so that judgements cannot be rewritten, and truncating it must be an explicit
+  human act rather than a side effect of a cleanup. Say the word and it goes to
+  empty, so the next verdict is row one.
 
 - **Keep or archive the four hand-authored HTML documents under `docs/`?**
   `docs/agent-workflow.html`, `docs/eval-rd-roadmap.html`,
@@ -197,21 +204,20 @@ Exactly two open items. Everything else on this board is a lane decision.
 
 - **Sequence a `cli.py` command-registry conversion before M012?** This is a
   spend-and-sequencing call — it buys no new capability and delays a feature
-  mission — so it is Peter's, not the integrator's. The measured case, all
-  figures taken from `origin/main` at `86380b0`:
-  - `src/evallab/cli.py` is **1,412 lines**, and 892 of them (63%) are argparse
-    wiring and string dispatch: a 402-line `parser()` (lines 133–534) that does
-    nothing but build the parser tree — 111 `add_argument`, 46 `add_parser`,
-    7 `add_subparsers` — plus a flat `if args.command == ...` chain of about
-    **490 lines** inside a single ~500-line `run_cli()` (lines 873–1372; first
-    branch at 884, last at 1336). There are **zero** `set_defaults(func=...)`,
-    so dispatch is a linear string comparison chain that every new command must
-    edit in the same place. (The earlier "~90% wiring, 475-line chain" estimate
-    was taken before M006 added 57 lines; these figures are measured at
-    `86380b0`.)
-  - It is the **highest-churn file in `src/`**: 24 commits by
-    `git log --follow`, against 14 for the next file (`researchers.py`) and 13
-    for `schemas.py`.
+  mission — so it is Peter's, not the integrator's. The measured case,
+  **re-measured at `e5d3257`** (the earlier figures were taken at `86380b0` and
+  have since been overtaken; the direction of drift is the argument):
+  - `src/evallab/cli.py` is now **2,117 lines**, up from 1,412 — it grew **705
+    lines, 50%, in roughly 70 merged PRs** without the structure changing.
+    Argparse wiring scaled with it: **154 `add_argument`** (was 111) and **60
+    `add_parser`** (was 46).
+  - There are still **zero `set_defaults(func=...)`**, so dispatch remains a
+    linear string-comparison chain that every new command must edit in the same
+    place. That is the sequencing point: the cost of conversion rises with every
+    command added, and 14 new commands landed while the question sat open.
+  - It is the **highest-churn file in `src/`**: **37 commits** by
+    `git log --follow` (was 24), against 14 for the next file
+    (`researchers.py`) and 13 for `schemas.py`.
   - It is already designated a shared file — additive-only, smallest possible
     diff — by `docs/prompts/overnight-missions.md:48`. Note the correction:
     that designation lives in a dispatch brief, **not** in `policy/`, which

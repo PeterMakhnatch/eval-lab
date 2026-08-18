@@ -24,6 +24,7 @@ CONTROL_AGENTS = {"oracle", "nop"}
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 1_800
 MAX_TRIAL_TIMEOUT_SECONDS = 21_600
+DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30.0
 SUPPORT_COMMAND_TIMEOUT_SECONDS = 10
 WATCHDOG_POLL_SECONDS = 0.1
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
@@ -112,6 +113,7 @@ class RunRequest:
     timeout_seconds: int = DEFAULT_TRIAL_TIMEOUT_SECONDS
     allow_billable: bool = False
     provenance: RunProvenance | None = None
+    lease_path: Path | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -474,6 +476,8 @@ def run_harbor_process(
     log_path: Path,
     job_dir: Path | None = None,
     trial_timeout_seconds: float | None = None,
+    lease_path: Path | None = None,
+    heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
 ) -> HarborProcessResult:
     """Run Harbor under an aggregate fail-safe and a per-trial watchdog."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -488,12 +492,20 @@ def run_harbor_process(
             start_new_session=True,
         )
         started = time.monotonic()
+        last_heartbeat = started
         first_seen: dict[Path, float] = {}
         while True:
             returncode = process.poll()
             if returncode is not None:
                 break
             now = time.monotonic()
+            if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
+                try:
+                    if lease_path.is_file():
+                        lease_path.touch()
+                except OSError:
+                    pass
+                last_heartbeat = now
             timed_out_trial: str | None = None
             if job_dir is not None and trial_timeout_seconds is not None:
                 active = set(_active_trial_directories(job_dir))
@@ -654,6 +666,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         log_path=executor_log,
         job_dir=job_dir,
         trial_timeout_seconds=request.timeout_seconds,
+        lease_path=request.lease_path,
     )
     finished = datetime.now(UTC)
     _write_run_metadata(

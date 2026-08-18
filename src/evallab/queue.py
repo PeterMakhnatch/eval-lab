@@ -4,13 +4,15 @@ import fcntl
 import fnmatch
 import json
 import os
+import platform
 import secrets
 import shutil
 import subprocess
 import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
-from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -85,6 +87,7 @@ QUEUE_STATES: tuple[QueueState, ...] = (
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_EVENT_BACKUPS = 7
+DEFAULT_LEASE_STALE_SECONDS = 300.0
 _TICK_THREAD_LOCK = threading.Lock()
 
 
@@ -988,6 +991,130 @@ class DirectoryQueue:
             ),
         )
 
+    def lease_path(self, spec: ExperimentSpec | Path | str) -> Path:
+        """Return the lease file path in running/ for one experiment spec."""
+        if isinstance(spec, ExperimentSpec):
+            filename = f"{_safe_component(spec.agent)}-{spec.spec_id}.lease"
+        elif isinstance(spec, Path):
+            if spec.suffix == ".json":
+                filename = f"{spec.stem}.lease"
+            elif spec.suffix == ".lease":
+                filename = spec.name
+            else:
+                filename = f"{spec.name}.lease"
+        else:
+            spec_str = str(spec)
+            if spec_str.endswith(".lease"):
+                filename = spec_str
+            elif spec_str.endswith(".json"):
+                filename = f"{Path(spec_str).stem}.lease"
+            else:
+                matches = list(self.state_dir("running").glob(f"*-{spec_str}.lease"))
+                if matches:
+                    return matches[0]
+                matches_json = list(self.root.glob(f"**/*-{spec_str}.json"))
+                if matches_json:
+                    return self.state_dir("running") / f"{matches_json[0].stem}.lease"
+                filename = f"{spec_str}.lease"
+        return self.state_dir("running") / filename
+
+    def is_lease_stale(
+        self,
+        lease: Path | ExperimentSpec | str,
+        *,
+        stale_seconds: float = DEFAULT_LEASE_STALE_SECONDS,
+        now: float | None = None,
+    ) -> bool:
+        """Return True if the lease file is absent, unreadable, or older than stale_seconds."""
+        path = lease if isinstance(lease, Path) else self.lease_path(lease)
+        if not path.is_file():
+            return True
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            return True
+        current = now if now is not None else time.time()
+        return (current - mtime) > stale_seconds
+
+    def acquire_lease(
+        self,
+        spec: ExperimentSpec | Path | str,
+        *,
+        owner_pid: int | None = None,
+        stale_seconds: float = DEFAULT_LEASE_STALE_SECONDS,
+        now: datetime | None = None,
+    ) -> Path | None:
+        """Atomically claim one spec via O_EXCL lease file in running/.
+
+        Returns the lease path on successful claim, or None if the spec is
+        actively claimed by another executor. A stale lease (> stale_seconds)
+        is reclaimed atomically rather than permanently blocking the spec.
+        """
+        path = self.lease_path(spec)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pid = owner_pid if owner_pid is not None else os.getpid()
+        timestamp = now or datetime.now(UTC)
+        spec_id = spec.spec_id if isinstance(spec, ExperimentSpec) else str(spec)
+        payload = (
+            json.dumps(
+                {
+                    "spec_id": spec_id,
+                    "pid": pid,
+                    "acquired_at": timestamp.isoformat(),
+                    "host": platform.node(),
+                },
+                indent=2,
+            )
+            + "\n"
+        ).encode()
+
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            if self.is_lease_stale(path, stale_seconds=stale_seconds):
+                with suppress(OSError):
+                    path.unlink(missing_ok=True)
+                try:
+                    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                except (FileExistsError, OSError):
+                    return None
+            else:
+                return None
+        except OSError:
+            return None
+
+        try:
+            os.write(fd, payload)
+        finally:
+            os.close(fd)
+        return path
+
+    def release_lease(self, spec: ExperimentSpec | Path | str) -> bool:
+        """Release a held lease by unlinking the lease file in running/."""
+        path = self.lease_path(spec)
+        if path.is_file():
+            try:
+                path.unlink()
+                return True
+            except OSError:
+                return False
+        return False
+
+    def heartbeat_lease(self, spec: ExperimentSpec | Path | str) -> bool:
+        """Touch the lease file to update its mtime heartbeat."""
+        path = self.lease_path(spec)
+        if path.is_file():
+            try:
+                path.touch()
+                return True
+            except OSError:
+                return False
+        return False
+
+    def list_leases(self) -> list[Path]:
+        """Return all active lease files in running/."""
+        return sorted(self.state_dir("running").glob("*.lease"))
+
     @staticmethod
     def _create_exclusive(path: Path, model: Any) -> None:
         payload = model.model_dump_json(indent=2, exclude_none=True) + "\n"
@@ -1054,6 +1181,7 @@ class Executor:
         headroom: HeadroomReader | None = None,
         sleeper: Sleeper = time.sleep,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
+        parallel: int = 1,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -1073,6 +1201,9 @@ class Executor:
         self._consecutive_harness_failures = (
             consecutive_harness_failures or self._catalog_harness_failures
         )
+        if parallel < 1:
+            raise ValueError("parallel must be at least 1")
+        self.parallel = parallel
         self.last_tick_reason: str | None = None
 
     def _repo_headroom(self) -> Headroom:
@@ -1090,11 +1221,12 @@ class Executor:
         ).headroom
 
     @classmethod
-    def from_repo(cls, root: Path) -> Executor:
+    def from_repo(cls, root: Path, *, parallel: int = 1) -> Executor:
         return cls(
             repo_root=root,
             queue=DirectoryQueue(root / "queue"),
             policy=load_policy(root / "policy/standing-approvals.yaml"),
+            parallel=parallel,
         )
 
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
@@ -1105,63 +1237,48 @@ class Executor:
             consecutive_harness_failures=self._consecutive_harness_failures(),
         )
 
-    def tick(self) -> int:
+    def tick(self, parallel: int | None = None) -> int:
+        effective_parallel = parallel if parallel is not None else self.parallel
+        if effective_parallel < 1:
+            raise ValueError("parallel must be at least 1")
         with self.queue.tick_lock() as acquired:
             if not acquired:
                 self.last_tick_reason = "executor_busy"
                 return 0
             self.last_tick_reason = None
-            return self._tick_locked()
+            return self._tick_locked(parallel=effective_parallel)
 
-    def _tick_locked(self) -> int:
-        self.reconcile_running()
-        preflight_at_tick_start(self.repo_root)
+    def _dispatch_one(
+        self,
+        path: Path,
+        spec: ExperimentSpec,
+        authorizations: dict[str, PaidRunAuthorization],
+        credentials: frozenset[str],
+    ) -> bool:
         if self.queue.stop_path.exists():
-            return 0
-        if self.queue.list_specs("running"):
-            # A prior executor may have died while Harbor's detached process
-            # was still running and billing. Until that evidence becomes
-            # terminal (or an operator resolves it), starting any other work
-            # could bypass both the single-owner and daily-cost guarantees.
-            self.last_tick_reason = "running_specs_unresolved"
-            return 0
-        try:
-            authorizations = self.queue.authorizations()
-        except (OSError, ValueError):
-            # Fail closed. Authorisation is proven only from the event log; if
-            # the log cannot be read, nothing in this queue can be shown to be
-            # authorised, so the whole tick stops rather than guessing.
-            self.last_tick_reason = "authorization_ledger_unreadable"
-            return 0
-        dispatched = 0
-        credentials = self._credential_probe()
-        for path, spec in self.queue.list_specs("approved"):
-            if self.queue.stop_path.exists():
-                break
-            missing = missing_credential_for(spec.agent, credentials)
-            if missing is not None:
-                # The spec stays in approved/ and is retried on a later tick;
-                # a missing credential is an operator condition, not a policy
-                # refusal, so it must not land in waiting/.
-                self.queue.append_event(
-                    QueueEvent(
-                        event_id=new_ulid(),
-                        spec_id=spec.spec_id,
-                        occurred_at=datetime.now(UTC),
-                        event="dispatch_deferred",
-                        actor="executor",
-                        reason_code=f"missing_credential:{missing}",
-                        job_name=spec.name,
-                    )
+            return False
+        missing = missing_credential_for(spec.agent, credentials)
+        if missing is not None:
+            self.queue.append_event(
+                QueueEvent(
+                    event_id=new_ulid(),
+                    spec_id=str(spec.spec_id),
+                    occurred_at=datetime.now(UTC),
+                    event="dispatch_deferred",
+                    actor="executor",
+                    reason_code=f"missing_credential:{missing}",
+                    job_name=spec.name,
                 )
-                continue
-            decision = self.gate.decide(
-                spec,
-                spent_today_usd=self._effective_spend_today(),
-                consecutive_harness_failures=self._consecutive_harness_failures(),
-                authorization=authorizations.get(str(spec.spec_id)),
             )
-            if not decision.admitted:
+            return False
+        decision = self.gate.decide(
+            spec,
+            spent_today_usd=self._effective_spend_today(),
+            consecutive_harness_failures=self._consecutive_harness_failures(),
+            authorization=authorizations.get(str(spec.spec_id)),
+        )
+        if not decision.admitted:
+            try:
                 waiting = self.queue.transition(
                     path,
                     "waiting",
@@ -1170,7 +1287,14 @@ class Executor:
                     reason_code=decision.reason_code,
                 )
                 self.queue.write_reason(self.queue.load(waiting), decision)
-                continue
+            except (FileNotFoundError, FileExistsError, ValueError):
+                pass
+            return False
+        lease_path = self.queue.acquire_lease(spec)
+        if lease_path is None:
+            # Lost claim race or actively leased; tolerated vanished/claimed skip
+            return False
+        try:
             running = self.queue.transition(
                 path,
                 "running",
@@ -1178,6 +1302,10 @@ class Executor:
                 event="dispatch_started",
                 policy_rule=decision.policy_rule,
             )
+        except (FileNotFoundError, FileExistsError, ValueError):
+            self.queue.release_lease(spec)
+            return False
+        try:
             try:
                 job_dir = self.execute_spec(spec)
             except Exception as exc:
@@ -1237,7 +1365,53 @@ class Executor:
                         event="dispatch_completed",
                         policy_rule=decision.policy_rule,
                     )
-            dispatched += 1
+            return True
+        finally:
+            self.queue.release_lease(spec)
+
+    def _tick_locked(self, parallel: int = 1) -> int:
+        self.reconcile_running()
+        preflight_at_tick_start(self.repo_root)
+        if self.queue.stop_path.exists():
+            return 0
+        if self.queue.list_specs("running"):
+            # A prior executor may have died while Harbor's detached process
+            # was still running and billing. Until that evidence becomes
+            # terminal (or an operator resolves it), starting any other work
+            # could bypass both the single-owner and daily-cost guarantees.
+            self.last_tick_reason = "running_specs_unresolved"
+            return 0
+        try:
+            authorizations = self.queue.authorizations()
+        except (OSError, ValueError):
+            # Fail closed. Authorisation is proven only from the event log; if
+            # the log cannot be read, nothing in this queue can be shown to be
+            # authorised, so the whole tick stops rather than guessing.
+            self.last_tick_reason = "authorization_ledger_unreadable"
+            return 0
+        credentials = self._credential_probe()
+        approved_specs = self.queue.list_specs("approved")
+        if not approved_specs:
+            return 0
+
+        if parallel == 1:
+            dispatched = 0
+            for path, spec in approved_specs:
+                if self.queue.stop_path.exists():
+                    break
+                if self._dispatch_one(path, spec, authorizations, credentials):
+                    dispatched += 1
+            return dispatched
+
+        dispatched = 0
+        with ThreadPoolExecutor(max_workers=parallel) as pool:
+            futures = [
+                pool.submit(self._dispatch_one, path, spec, authorizations, credentials)
+                for path, spec in approved_specs
+            ]
+            for future in futures:
+                if future.result():
+                    dispatched += 1
         return dispatched
 
     def execute_spec(self, spec: ExperimentSpec) -> Path:
@@ -1277,6 +1451,7 @@ class Executor:
             attempts=spec.attempts,
             timeout_seconds=timeout_seconds,
             allow_billable=spec.billable,
+            lease_path=self.queue.lease_path(spec),
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
                 task=spec.task,

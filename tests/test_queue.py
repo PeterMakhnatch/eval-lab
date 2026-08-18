@@ -1,4 +1,7 @@
 import multiprocessing
+import os
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -890,3 +893,136 @@ def test_concurrent_executor_tick_defers_to_single_queue_owner(tmp_path: Path) -
         assert running.result(timeout=2) == 1
 
     assert calls == ["single-owner-control"]
+
+
+def test_atomic_lease_acquisition_and_release(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    s = spec("lease-test-control")
+    lease_path = queue.lease_path(s)
+    assert lease_path.name == "oracle-01TESTLEASETESTCONTR.lease" or lease_path.suffix == ".lease"
+    assert not lease_path.exists()
+
+    # First acquisition succeeds
+    acquired = queue.acquire_lease(s)
+    assert acquired == lease_path
+    assert lease_path.is_file()
+
+    # Second concurrent acquisition fails (returns None)
+    second = queue.acquire_lease(s)
+    assert second is None
+
+    # Release removes the lease file
+    assert queue.release_lease(s) is True
+    assert not lease_path.exists()
+
+    # Second release returns False
+    assert queue.release_lease(s) is False
+
+
+def test_lease_heartbeat_updates_mtime(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    s = spec("heartbeat-test-control")
+    lease_path = queue.acquire_lease(s)
+    assert lease_path is not None
+
+    # Set mtime to past
+    past = time.time() - 100.0
+    os.utime(lease_path, (past, past))
+    assert lease_path.stat().st_mtime < time.time() - 50.0
+
+    # Heartbeat touches mtime
+    assert queue.heartbeat_lease(s) is True
+    assert lease_path.stat().st_mtime >= time.time() - 5.0
+    queue.release_lease(s)
+
+
+def test_stale_lease_is_reclaimed_on_acquire(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    s = spec("stale-reclaim-control")
+    lease_path = queue.acquire_lease(s)
+    assert lease_path is not None
+
+    # Age the lease beyond stale threshold
+    past = time.time() - 400.0
+    os.utime(lease_path, (past, past))
+    assert queue.is_lease_stale(lease_path, stale_seconds=300.0) is True
+
+    # New acquire on stale lease reclaims it
+    reclaimed = queue.acquire_lease(s, stale_seconds=300.0)
+    assert reclaimed == lease_path
+    assert queue.is_lease_stale(lease_path, stale_seconds=300.0) is False
+    queue.release_lease(s)
+
+
+def test_runner_wrapper_touches_lease_heartbeat(tmp_path: Path) -> None:
+    from evallab.runner import run_harbor_process
+
+    lease_path = tmp_path / "test.lease"
+    lease_path.touch()
+    past = time.time() - 100.0
+    os.utime(lease_path, (past, past))
+
+    log_path = tmp_path / "process.log"
+    # Run a short command (python sleep 0.1) with fast heartbeat interval (0.02s)
+    result = run_harbor_process(
+        ["python3", "-c", "import time; time.sleep(0.1)"],
+        cwd=tmp_path,
+        timeout_seconds=5.0,
+        log_path=log_path,
+        lease_path=lease_path,
+        heartbeat_interval_seconds=0.02,
+    )
+    assert result.returncode == 0
+    assert not result.timed_out
+    # Lease mtime was refreshed during execution
+    assert lease_path.stat().st_mtime >= time.time() - 5.0
+
+
+def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) -> None:
+    concurrently_running = [0]
+    max_concurrent = [0]
+    lock = threading.Lock()
+
+    def parallel_run(request: RunRequest) -> Path:
+        with lock:
+            concurrently_running[0] += 1
+            if concurrently_running[0] > max_concurrent[0]:
+                max_concurrent[0] = concurrently_running[0]
+        time.sleep(0.1)
+        with lock:
+            concurrently_running[0] -= 1
+        dest = request.jobs_dir / request.name
+        dest.mkdir(parents=True, exist_ok=True)
+        return dest
+
+    service = executor(tmp_path, runner=parallel_run)
+    service.submit(spec("p-spec-1"))
+    service.submit(spec("p-spec-2"))
+    service.submit(spec("p-spec-3"))
+
+    dispatched = service.tick(parallel=3)
+    assert dispatched == 3
+    assert max_concurrent[0] >= 2, f"Expected concurrency >= 2, got {max_concurrent[0]}"
+    assert len(service.queue.list_specs("done")) == 3
+    assert len(service.queue.list_leases()) == 0
+
+
+def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> None:
+    order: list[str] = []
+
+    def tracking_run(request: RunRequest) -> Path:
+        order.append(request.name)
+        dest = request.jobs_dir / request.name
+        dest.mkdir(parents=True, exist_ok=True)
+        return dest
+
+    service = executor(tmp_path, runner=tracking_run)
+    service.submit(spec("seq-spec-1"))
+    service.submit(spec("seq-spec-2"))
+    service.submit(spec("seq-spec-3"))
+
+    dispatched = service.tick(parallel=1)
+    assert dispatched == 3
+    assert order == ["seq-spec-1", "seq-spec-2", "seq-spec-3"]
+    assert len(service.queue.list_specs("done")) == 3
+    assert len(service.queue.list_leases()) == 0

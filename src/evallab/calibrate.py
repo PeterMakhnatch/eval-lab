@@ -3,11 +3,13 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import math
 import os
 import re
 import shutil
+import statistics
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -17,9 +19,12 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from evallab import database
+from evallab.cohort import NOT_COMPARABLE, CohortMember, bootstrap_mean_interval
+from evallab.facts import TrialFact
 from evallab.queue import Executor
 from evallab.runner import database_url_from_environment
 from evallab.schemas import (
+    CalibrationRecord,
     CriterionAgreementRate,
     ExperimentSpec,
     JudgeCalibrationRecord,
@@ -1016,3 +1021,699 @@ def remove_staged_task(task_root: Path) -> None:
     if not marker.is_file() or "judge-calibration" not in marker.read_text(encoding="utf-8"):
         raise ValueError(f"not a generated calibration task: {task_root}")
     shutil.rmtree(task_root)
+
+
+# =========================================================================== #
+# SG-4: LLM-as-a-Verifier Selection Lift & Verifier Agreement vs Execution GT
+# =========================================================================== #
+
+
+class MissingVerifierDependencyError(ImportError):
+    """Raised when an operation requires the optional 'verifier' extra."""
+
+
+class PaidModelAuthorizationError(RuntimeError):
+    """Raised when attempting to invoke a paid model verifier without authorization."""
+
+
+class VerifierProtocol(Protocol):
+    """Contract for selection and scoring verifiers."""
+
+    def select(self, task: str, candidates: Sequence[str]) -> int: ...
+
+    def score(self, task: str, candidate: str) -> float: ...
+
+
+class StubVerifier:
+    """Deterministic local stub verifier incurring zero model token spend."""
+
+    def __init__(
+        self,
+        select_fn: Callable[[str, Sequence[str]], int] | None = None,
+        score_fn: Callable[[str, str], float] | None = None,
+    ) -> None:
+        self._select_fn = select_fn
+        self._score_fn = score_fn
+
+    def select(self, task: str, candidates: Sequence[str]) -> int:
+        if self._select_fn is not None:
+            return self._select_fn(task, candidates)
+        return 0
+
+    def score(self, task: str, candidate: str) -> float:
+        if self._score_fn is not None:
+            return self._score_fn(task, candidate)
+        return 1.0
+
+
+class AlwaysPassStubVerifier(StubVerifier):
+    """Stub verifier that unconditionally predicts pass (1.0)."""
+
+    def select(self, task: str, candidates: Sequence[str]) -> int:
+        return 0
+
+    def score(self, task: str, candidate: str) -> float:
+        return 1.0
+
+
+class AlwaysFailStubVerifier(StubVerifier):
+    """Stub verifier that unconditionally predicts failure (0.0)."""
+
+    def select(self, task: str, candidates: Sequence[str]) -> int:
+        return 0
+
+    def score(self, task: str, candidate: str) -> float:
+        return 0.0
+
+
+def load_llm_verifier() -> Any:
+    """Dynamically import llm_verifier or raise a graceful degradation error."""
+    try:
+        return importlib.import_module("llm_verifier")
+    except ImportError as exc:
+        raise MissingVerifierDependencyError(
+            "llm-verifier is not installed. Install with: uv add --extra verifier llm-verifier "
+            "or pip install 'eval-lab[verifier]'"
+        ) from exc
+
+
+class LlmVerifier:
+    """LLM-backed verifier wrapper guarding paid token execution behind explicit opt-in."""
+
+    def __init__(
+        self,
+        model: str = "gpt-4o",
+        *,
+        allow_paid_tokens: bool = False,
+        rubric: str | None = None,
+    ) -> None:
+        self.model = model
+        self.allow_paid_tokens = allow_paid_tokens
+        self.rubric = rubric
+        self._backend: Any | None = None
+
+    def _ensure_authorized(self) -> Any:
+        if not self.allow_paid_tokens:
+            raise PaidModelAuthorizationError(
+                "Real LLM verifiers require explicit authorization; "
+                "pass allow_paid_tokens=True to spend tokens."
+            )
+        if self._backend is None:
+            mod = load_llm_verifier()
+            self._backend = mod.Verifier(model=self.model, rubric=self.rubric)
+        return self._backend
+
+    def select(self, task: str, candidates: Sequence[str]) -> int:
+        backend = self._ensure_authorized()
+        return int(backend.select(task, candidates))
+
+    def score(self, task: str, candidate: str) -> float:
+        backend = self._ensure_authorized()
+        return float(backend.score(task, candidate))
+
+
+@dataclass(frozen=True)
+class TaskAttemptUnit:
+    """One task evidence unit containing candidate rollout attempts."""
+
+    task_name: str
+    trial_ids: list[str]
+    rewards: list[float | None]
+    exception_classes: list[str | None]
+    task_digest: str | None = None
+    candidate_texts: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ClassBalance:
+    total: int
+    measured: int
+    passed: int
+    failed: int
+    never_measured: int
+    pass_prevalence: float | None
+
+
+@dataclass(frozen=True)
+class ConfusionMatrix:
+    tp: int
+    fp: int
+    tn: int
+    fn: int
+
+
+@dataclass(frozen=True)
+class AgreementMetrics:
+    class_balance: ClassBalance
+    confusion: ConfusionMatrix
+    raw_agreement: float
+    cohens_kappa: float
+    balanced_accuracy: float
+    pass_sensitivity: float
+    fail_specificity: float
+    mcc: float
+    macro_f1: float
+
+
+@dataclass(frozen=True)
+class SelectionLiftReport:
+    n_tasks: int
+    k: int
+    is_underpowered: bool
+    pass_at_1: float | None
+    selected_at_k: float | None
+    oracle_ceiling: float | None
+    selection_lift: float | None
+    pass_at_1_interval: tuple[float, float] | None
+    selected_at_k_interval: tuple[float, float] | None
+    oracle_ceiling_interval: tuple[float, float] | None
+    selection_lift_interval: tuple[float, float] | None
+    pass_at_1_text: str
+    selected_at_k_text: str
+    oracle_ceiling_text: str
+    selection_lift_text: str
+    threats: list[str]
+    task_details: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class VerifierAgreementReport:
+    metrics: AgreementMetrics
+    never_measured_trials: list[dict[str, Any]]
+    measured_trial_count: int
+    judge_model: str
+    rubric_digest: str
+    corpus_digest: str
+
+
+def compute_agreement_metrics(
+    ground_truths: Sequence[int],
+    predictions: Sequence[int],
+    *,
+    never_measured_count: int = 0,
+) -> AgreementMetrics:
+    """Compute chance-corrected and imbalance-robust agreement metrics."""
+    if len(ground_truths) != len(predictions):
+        raise ValueError("ground_truths and predictions must have identical length")
+    n = len(ground_truths)
+    tp = sum(1 for y, p in zip(ground_truths, predictions, strict=True) if y == 1 and p == 1)
+    fp = sum(1 for y, p in zip(ground_truths, predictions, strict=True) if y == 0 and p == 1)
+    tn = sum(1 for y, p in zip(ground_truths, predictions, strict=True) if y == 0 and p == 0)
+    fn = sum(1 for y, p in zip(ground_truths, predictions, strict=True) if y == 1 and p == 0)
+
+    passed = tp + fn
+    failed = tn + fp
+    total = n + never_measured_count
+    pass_prevalence = passed / n if n > 0 else None
+
+    raw_agreement = (tp + tn) / n if n > 0 else 0.0
+    pass_sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    fail_specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+    balanced_accuracy = (pass_sensitivity + fail_specificity) / 2.0
+
+    # Cohen's Kappa
+    p_o = raw_agreement
+    p_yes_true = (tp + fn) / n if n > 0 else 0.0
+    p_yes_pred = (tp + fp) / n if n > 0 else 0.0
+    p_no_true = (tn + fp) / n if n > 0 else 0.0
+    p_no_pred = (tn + fn) / n if n > 0 else 0.0
+    p_e = (p_yes_true * p_yes_pred) + (p_no_true * p_no_pred)
+    if abs(1.0 - p_e) < 1e-12:
+        cohens_kappa = 1.0 if abs(p_o - 1.0) < 1e-12 else 0.0
+    else:
+        cohens_kappa = (p_o - p_e) / (1.0 - p_e)
+
+    # Matthews Correlation Coefficient (MCC)
+    mcc_num = (tp * tn) - (fp * fn)
+    mcc_denom = math.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+    mcc = mcc_num / mcc_denom if mcc_denom > 0 else 0.0
+
+    # Macro F1
+    f1_pass = (2.0 * tp) / (2.0 * tp + fp + fn) if (2.0 * tp + fp + fn) > 0 else 0.0
+    f1_fail = (2.0 * tn) / (2.0 * tn + fp + fn) if (2.0 * tn + fp + fn) > 0 else 0.0
+    macro_f1 = (f1_pass + f1_fail) / 2.0
+
+    return AgreementMetrics(
+        class_balance=ClassBalance(
+            total=total,
+            measured=n,
+            passed=passed,
+            failed=failed,
+            never_measured=never_measured_count,
+            pass_prevalence=pass_prevalence,
+        ),
+        confusion=ConfusionMatrix(tp=tp, fp=fp, tn=tn, fn=fn),
+        raw_agreement=raw_agreement,
+        cohens_kappa=cohens_kappa,
+        balanced_accuracy=balanced_accuracy,
+        pass_sensitivity=pass_sensitivity,
+        fail_specificity=fail_specificity,
+        mcc=mcc,
+        macro_f1=macro_f1,
+    )
+
+
+def evaluate_selection_lift(
+    tasks: Sequence[TaskAttemptUnit],
+    verifier: VerifierProtocol,
+    *,
+    k: int = 3,
+    threshold: float = 1.0,
+    seed: int = 0,
+) -> SelectionLiftReport:
+    """Evaluate best-of-k verifier selection lift against random sampling and oracle ceiling."""
+    del threshold
+    task_details: list[dict[str, Any]] = []
+    pass_at_1_values: list[float] = []
+    selected_at_k_values: list[float] = []
+    oracle_ceiling_values: list[float] = []
+    selection_lift_values: list[float] = []
+    threats: list[str] = []
+
+    insufficient_count = 0
+    for task in tasks:
+        valid_indices = [
+            i
+            for i, (exc, r) in enumerate(zip(task.exception_classes, task.rewards, strict=False))
+            if exc is None and r is not None
+        ]
+        if len(valid_indices) < k:
+            insufficient_count += 1
+            continue
+
+        selected_indices = valid_indices[:k]
+        sub_rewards: list[float] = [
+            float(r) for i in selected_indices if (r := task.rewards[i]) is not None
+        ]
+        sub_candidates = [
+            task.candidate_texts[i]
+            if i < len(task.candidate_texts)
+            else f"trial-{task.trial_ids[i]}"
+            for i in selected_indices
+        ]
+
+        p1 = statistics.fmean(sub_rewards)
+        oracle = max(sub_rewards)
+
+        chosen_idx_in_k = verifier.select(task.task_name, sub_candidates)
+        if 0 <= chosen_idx_in_k < len(sub_rewards):
+            picked_reward = sub_rewards[chosen_idx_in_k]
+        else:
+            picked_reward = sub_rewards[0]
+
+        lift = picked_reward - p1
+
+        pass_at_1_values.append(p1)
+        selected_at_k_values.append(picked_reward)
+        oracle_ceiling_values.append(oracle)
+        selection_lift_values.append(lift)
+
+        task_details.append(
+            {
+                "task_name": task.task_name,
+                "task_digest": task.task_digest,
+                "pass_at_1": p1,
+                "selected_at_k": picked_reward,
+                "oracle_ceiling": oracle,
+                "selection_lift": lift,
+                "picked_index": chosen_idx_in_k,
+                "k_rewards": sub_rewards,
+            }
+        )
+
+    n_tasks = len(pass_at_1_values)
+    is_underpowered = n_tasks < 2
+
+    p1_interval = (
+        bootstrap_mean_interval(pass_at_1_values, seed=seed) if pass_at_1_values else None
+    )
+    sel_interval = (
+        bootstrap_mean_interval(selected_at_k_values, seed=seed + 1)
+        if selected_at_k_values
+        else None
+    )
+    orc_interval = (
+        bootstrap_mean_interval(oracle_ceiling_values, seed=seed + 2)
+        if oracle_ceiling_values
+        else None
+    )
+    lift_interval = (
+        bootstrap_mean_interval(selection_lift_values, seed=seed + 3)
+        if selection_lift_values
+        else None
+    )
+
+    if is_underpowered:
+        threats.append(
+            f"Underpowered cohort (n_tasks={n_tasks} < 2); results are not distinguishable."
+        )
+        pass_at_1_text = NOT_COMPARABLE
+        selected_at_k_text = NOT_COMPARABLE
+        oracle_ceiling_text = NOT_COMPARABLE
+        selection_lift_text = NOT_COMPARABLE
+    else:
+        mean_p1 = statistics.fmean(pass_at_1_values)
+        mean_sel = statistics.fmean(selected_at_k_values)
+        mean_orc = statistics.fmean(oracle_ceiling_values)
+        mean_lift = statistics.fmean(selection_lift_values)
+        pass_at_1_text = f"{mean_p1:.3f}"
+        selected_at_k_text = f"{mean_sel:.3f}"
+        oracle_ceiling_text = f"{mean_orc:.3f}"
+        selection_lift_text = f"{mean_lift:.3f}"
+
+    if insufficient_count > 0:
+        threats.append(
+            f"{insufficient_count} task(s) had fewer than k={k} valid execution attempts."
+        )
+
+    return SelectionLiftReport(
+        n_tasks=n_tasks,
+        k=k,
+        is_underpowered=is_underpowered,
+        pass_at_1=statistics.fmean(pass_at_1_values) if pass_at_1_values else None,
+        selected_at_k=statistics.fmean(selected_at_k_values) if selected_at_k_values else None,
+        oracle_ceiling=statistics.fmean(oracle_ceiling_values) if oracle_ceiling_values else None,
+        selection_lift=statistics.fmean(selection_lift_values) if selection_lift_values else None,
+        pass_at_1_interval=p1_interval,
+        selected_at_k_interval=sel_interval,
+        oracle_ceiling_interval=orc_interval,
+        selection_lift_interval=lift_interval,
+        pass_at_1_text=pass_at_1_text,
+        selected_at_k_text=selected_at_k_text,
+        oracle_ceiling_text=oracle_ceiling_text,
+        selection_lift_text=selection_lift_text,
+        threats=threats,
+        task_details=task_details,
+    )
+
+
+def evaluate_verifier_agreement(
+    trials: Sequence[Any],
+    verifier: VerifierProtocol,
+    *,
+    threshold: float = 1.0,
+    judge_model: str = "stub-verifier/deterministic",
+    rubric_digest: str | None = None,
+    corpus_digest: str | None = None,
+) -> VerifierAgreementReport:
+    """Evaluate verifier agreement against execution reward, excluding never-measured trials."""
+    ground_truths: list[int] = []
+    predictions: list[int] = []
+    never_measured: list[dict[str, Any]] = []
+
+    for trial in trials:
+        trial_id: str
+        reward: float | None
+        exception_class: str | None
+        task_name: str
+        candidate_text: str = ""
+
+        if isinstance(trial, (tuple, list)):
+            trial_id = str(trial[0])
+            raw_reward = trial[1] if len(trial) > 1 else None
+            reward = float(raw_reward) if raw_reward is not None else None
+            raw_exc = trial[2] if len(trial) > 2 else None
+            exception_class = str(raw_exc) if raw_exc is not None else None
+            task_name = str(trial[3]) if len(trial) > 3 and trial[3] is not None else "unknown-task"
+            candidate_text = (
+                str(trial[4]) if len(trial) > 4 and trial[4] is not None else f"trial-{trial_id}"
+            )
+        elif isinstance(trial, dict):
+            trial_id = str(trial.get("trial_id") or trial.get("id") or "")
+            reward = trial.get("reward") if "reward" in trial else trial.get("primary_reward")
+            exception_class = trial.get("exception_class") or trial.get("exception_type")
+            task_name = str(trial.get("task_name") or "unknown-task")
+            candidate_text = str(
+                trial.get("candidate_text") or trial.get("content") or f"trial-{trial_id}"
+            )
+        elif isinstance(trial, CohortMember):
+            trial_id = trial.trial_id
+            reward = trial.reward
+            exception_class = trial.exception_class
+            task_name = trial.task_name or "unknown-task"
+            candidate_text = f"trial-{trial.trial_id}"
+        elif isinstance(trial, TrialFact):
+            trial_id = trial.trial_id
+            reward = trial.primary_reward
+            exception_class = trial.exception_class
+            task_name = trial.task_name or "unknown-task"
+            candidate_text = f"trial-{trial.trial_id}"
+        else:
+            trial_id = getattr(trial, "trial_id", "unknown")
+            reward = getattr(trial, "reward", getattr(trial, "primary_reward", None))
+            exception_class = getattr(trial, "exception_class", None)
+            task_name = getattr(trial, "task_name", "unknown-task")
+            candidate_text = f"trial-{trial_id}"
+
+        # Never-measured trials (non-null exception_class or missing reward) are NOT failures
+        if exception_class is not None or reward is None:
+            never_measured.append(
+                {
+                    "trial_id": trial_id,
+                    "task_name": task_name,
+                    "exception_class": exception_class or "MissingReward",
+                    "reward": reward,
+                }
+            )
+            continue
+
+        gt = 1 if float(reward) >= threshold else 0
+        pred_score = verifier.score(task_name, candidate_text)
+        pred = 1 if pred_score >= 0.5 else 0
+
+        ground_truths.append(gt)
+        predictions.append(pred)
+
+    metrics = compute_agreement_metrics(
+        ground_truths,
+        predictions,
+        never_measured_count=len(never_measured),
+    )
+
+    r_digest = rubric_digest or _sha256(b"execution_ground_truth_binary_reward")
+    c_digest = corpus_digest or _sha256(
+        json.dumps(
+            [t[0] if isinstance(t, tuple) else getattr(t, "trial_id", "") for t in trials]
+        ).encode()
+    )
+
+    return VerifierAgreementReport(
+        metrics=metrics,
+        never_measured_trials=never_measured,
+        measured_trial_count=len(ground_truths),
+        judge_model=judge_model,
+        rubric_digest=r_digest,
+        corpus_digest=c_digest,
+    )
+
+
+def save_calibration_record(records_root: Path, record: CalibrationRecord) -> Path:
+    """Save a schema-conforming CalibrationRecord to disk."""
+    records_root = records_root.resolve()
+    records_root.mkdir(parents=True, exist_ok=True)
+    destination = records_root / f"{record.calib_id}.json"
+    destination.write_text(record.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    return destination
+
+
+def load_calibration_records(records_root: Path) -> list[CalibrationRecord]:
+    """Load all CalibrationRecord instances found under records_root."""
+    records_root = records_root.resolve()
+    if not records_root.is_dir():
+        return []
+    records: list[CalibrationRecord] = []
+    for candidate in sorted(records_root.rglob("*.json")):
+        try:
+            records.append(
+                CalibrationRecord.model_validate_json(candidate.read_text(encoding="utf-8"))
+            )
+        except Exception:
+            continue
+    return records
+
+
+def build_verifier_calibration_card(
+    lift_report: SelectionLiftReport,
+    agreement_report: VerifierAgreementReport,
+    *,
+    repo_root: Path | None = None,
+    title: str = "verifier-calibration-summary",
+    is_stubbed: bool = True,
+) -> tuple[str, dict[str, Any]]:
+    """Build a purpose='calibration' eval card comparing selection lift and verifier agreement."""
+    root = (repo_root or Path.cwd()).resolve()
+    template_path = root / "research/cards/TEMPLATE.md"
+    if not template_path.is_file():
+        raise ValueError(f"eval-card template is missing: {template_path}")
+
+    provenance_banner = (
+        "INJECTED STUB VERIFIER (Deterministic local control; zero tokens spent)"
+        if is_stubbed
+        else f"LIVE LLM VERIFIER ({agreement_report.judge_model})"
+    )
+
+    p1_int = (
+        f"[{lift_report.pass_at_1_interval[0]:.3f}, {lift_report.pass_at_1_interval[1]:.3f}]"
+        if lift_report.pass_at_1_interval and not lift_report.is_underpowered
+        else "unavailable"
+    )
+    sel_int = (
+        f"[{lift_report.selected_at_k_interval[0]:.3f}, "
+        f"{lift_report.selected_at_k_interval[1]:.3f}]"
+        if lift_report.selected_at_k_interval and not lift_report.is_underpowered
+        else "unavailable"
+    )
+    orc_int = (
+        f"[{lift_report.oracle_ceiling_interval[0]:.3f}, "
+        f"{lift_report.oracle_ceiling_interval[1]:.3f}]"
+        if lift_report.oracle_ceiling_interval and not lift_report.is_underpowered
+        else "unavailable"
+    )
+    lift_int = (
+        f"[{lift_report.selection_lift_interval[0]:.3f}, "
+        f"{lift_report.selection_lift_interval[1]:.3f}]"
+        if lift_report.selection_lift_interval and not lift_report.is_underpowered
+        else "unavailable"
+    )
+
+    p_count = agreement_report.metrics.class_balance.passed
+    f_count = agreement_report.metrics.class_balance.failed
+    u_count = agreement_report.metrics.class_balance.never_measured
+    hypothesis_text = f"""Calibration of LLM verifier against execution ground truth.
+
+### Verification Mode & Provenance
+- Mode: **{provenance_banner}**
+- Zero tokens spent: **{is_stubbed}**
+
+### Selection Lift (Best-of-{lift_report.k})
+- pass@1: **{lift_report.pass_at_1_text}** (Interval: {p1_int})
+- Selected@k: **{lift_report.selected_at_k_text}** (Interval: {sel_int})
+- Oracle ceiling: **{lift_report.oracle_ceiling_text}** (Interval: {orc_int})
+- Selection lift: **{lift_report.selection_lift_text}** (Interval: {lift_int})
+
+### Chance-Corrected Verifier Agreement
+- Cohen's Kappa: **{agreement_report.metrics.cohens_kappa:.4f}**
+- Balanced Accuracy: **{agreement_report.metrics.balanced_accuracy:.4f}**
+- Raw Agreement: **{agreement_report.metrics.raw_agreement:.4f}**
+- Matthews Correlation (MCC): **{agreement_report.metrics.mcc:.4f}**
+- Macro-F1: **{agreement_report.metrics.macro_f1:.4f}**
+- Class Balance: **{p_count} passed / {f_count} failed / {u_count} unmeasured**
+"""
+
+    threats = list(lift_report.threats)
+    if is_stubbed:
+        threats.append(
+            "Results generated using an injected deterministic stub verifier (zero tokens spent)."
+        )
+    if agreement_report.metrics.class_balance.never_measured > 0:
+        threats.append(
+            f"{agreement_report.metrics.class_balance.never_measured} trial(s) had "
+            "execution/harness exceptions and were excluded from agreement measurement."
+        )
+    prev = agreement_report.metrics.class_balance.pass_prevalence
+    if prev and prev > 0.8:
+        threats.append(
+            f"Severe class imbalance in corpus ({prev:.1%} pass prevalence); "
+            "rely on Cohen's Kappa and Balanced Accuracy over raw agreement."
+        )
+    threats = list(dict.fromkeys(threats))
+
+    spec_digest = agreement_report.rubric_digest
+    job_lock_digest = agreement_report.corpus_digest
+
+    elicitation_payload = {
+        "verifier": agreement_report.judge_model,
+        "rubric_digest": agreement_report.rubric_digest,
+        "corpus_digest": agreement_report.corpus_digest,
+        "k": lift_report.k,
+        "is_stubbed": is_stubbed,
+    }
+
+    card_data: dict[str, Any] = {
+        "schema_version": 1,
+        "title": title,
+        "purpose": "calibration",
+        "spec_path": "research/calibration/specs/verifier-calibration.json",
+        "spec_digest": spec_digest,
+        "job_path": "research/evidence/runs",
+        "job_id": "verifier-calibration",
+        "job_lock_digest": job_lock_digest,
+        "task": "multi-task-suite",
+        "hypothesis": hypothesis_text,
+        "numbers": {
+            "n_tasks": lift_report.n_tasks,
+            "n_trials": agreement_report.metrics.class_balance.total,
+            "k": lift_report.k,
+            "pass_at_1": lift_report.pass_at_1,
+            "selected_at_k": lift_report.selected_at_k,
+            "oracle_ceiling": lift_report.oracle_ceiling,
+            "selection_lift": lift_report.selection_lift,
+            "cohens_kappa": agreement_report.metrics.cohens_kappa,
+            "balanced_accuracy": agreement_report.metrics.balanced_accuracy,
+            "raw_agreement": agreement_report.metrics.raw_agreement,
+            "exceptions": agreement_report.metrics.class_balance.never_measured,
+            "is_underpowered": lift_report.is_underpowered,
+        },
+        "elicitation": elicitation_payload,
+        "contamination_note": (
+            "Execution ground truth calibration from containerized test suites. "
+            "Zero external data leakage."
+        ),
+        "threats": threats,
+    }
+
+    replacements = {
+        "{{TITLE}}": title,
+        "{{HYPOTHESIS}}": hypothesis_text,
+        "{{TASK}}": "multi-task-suite",
+        "{{SPEC_PATH}}": "research/calibration/specs/verifier-calibration.json",
+        "{{SPEC_DIGEST}}": spec_digest,
+        "{{JOB_PATH}}": "research/evidence/runs",
+        "{{JOB_ID}}": "verifier-calibration",
+        "{{JOB_LOCK_DIGEST}}": job_lock_digest,
+        "{{N_TASKS}}": str(lift_report.n_tasks),
+        "{{N_TRIALS}}": str(agreement_report.metrics.class_balance.total),
+        "{{K}}": str(lift_report.k),
+        "{{PASS_AT_K}}": lift_report.selected_at_k_text,
+        "{{INTERVAL}}": sel_int,
+        "{{EXCEPTIONS}}": str(agreement_report.metrics.class_balance.never_measured),
+        "{{ELICITATION}}": json.dumps(elicitation_payload, indent=2, sort_keys=True),
+        "{{CONTAMINATION}}": card_data["contamination_note"],
+        "{{THREATS}}": "\n".join(f"- {t}" for t in threats),
+    }
+
+    rendered = template_path.read_text(encoding="utf-8")
+    for marker, val in replacements.items():
+        rendered = rendered.replace(marker, str(val))
+
+    if "{{" in rendered:
+        raise ValueError("eval-card template contains an unresolved marker")
+
+    return rendered, card_data
+
+
+def draft_verifier_calibration_card(
+    lift_report: SelectionLiftReport,
+    agreement_report: VerifierAgreementReport,
+    *,
+    repo_root: Path | None = None,
+    title: str = "verifier-calibration-summary",
+    output_path: Path | None = None,
+    is_stubbed: bool = True,
+) -> tuple[Path, dict[str, Any]]:
+    """Build and atomically write an eval card for verifier calibration."""
+    root = (repo_root or Path.cwd()).resolve()
+    rendered, card_data = build_verifier_calibration_card(
+        lift_report,
+        agreement_report,
+        repo_root=root,
+        title=title,
+        is_stubbed=is_stubbed,
+    )
+    destination = output_path or (root / "research/cards" / f"{title}.md")
+    destination = destination.resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_file = destination.with_suffix(destination.suffix + ".tmp")
+    temp_file.write_text(rendered, encoding="utf-8")
+    temp_file.replace(destination)
+    return destination, card_data

@@ -16,6 +16,11 @@ dependencies = [
     "pyyaml>=6.0.3",
 ]
 
+[project.optional-dependencies]
+verifier = [
+    "llm-verifier>=0.2.0",
+]
+
 [project.scripts]
 evallab = "evallab.cli:main"
 harbor-lab = "evallab.cli:legacy_main"

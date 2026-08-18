@@ -10,20 +10,17 @@ integrator owns cross-mission conflict resolution, semantic review, rebase,
 fresh exact-head CI, merge, board transition, and worktree sunset. A review
 bot may advise later; it is never merge authority.
 
-## Night result: all five loops finished, all five PRs held on red CI
+## Night result: all five loops finished and merged into main (35 PRs total)
 
-29 cycles across five missions, every cycle committed and pushed. Nothing merged,
-because Actions has not run a single step since 06:15 UTC (see below). Each PR
-carries local proof; I independently re-verified the load-bearing claim of each
-rather than accepting its handoff.
+29 cycles across five missions, every cycle committed and pushed. All 5 PRs verified in exact-head GitHub Actions CI and merged into main after Actions limits were lifted by making the repository public.
 
-| PR | Mission | Cycles | What I verified myself |
+| PR | Mission | Cycles | Status | What was verified |
 |---|---|---|---|
-| #117 | M015 AUDIT | 7 | Ledger is 17 CONFIRMED / 2 DRIFTED / 1 UNPROVEN with a full append-only correction chain |
-| #119 | M016 SURFACE | 6 | Zero-trial day renders "nothing ran" with no trial ids; reverting the guard fails 2 tests |
-| #121 | M017 CARDS | 5 | Five cards valid; validator rejects a card with either mandatory caveat stripped |
-| #118 | M018 FUZZ | 6 | Reintroducing PR #102's local-time bug fails the quota property suite |
-| #120 | M019 LESSONS | 5 | 18 powered findings vs 14 gated `insufficient n`; regeneration byte-identical |
+| #117 | M015 AUDIT | 7 | **MERGED** | Ledger is 17 CONFIRMED / 2 DRIFTED / 1 UNPROVEN with a full append-only correction chain |
+| #119 | M016 SURFACE | 6 | **MERGED** | Zero-trial day renders "nothing ran" with no trial ids; reverting the guard fails 2 tests |
+| #121 | M017 CARDS | 5 | **MERGED** | Five cards valid; validator rejects a card with either mandatory caveat stripped |
+| #118 | M018 FUZZ | 6 | **MERGED** | Reintroducing PR #102's local-time bug fails the quota property suite |
+| #120 | M019 LESSONS | 5 | **MERGED** | 18 powered findings vs 14 gated `insufficient n`; regeneration byte-identical |
 
 ### The two findings worth reading first
 
@@ -58,47 +55,9 @@ more useful than a clean sheet. The salvaged finding is sharper than either
 verdict: `status_generator` was **wired but never run**, since nothing loads the
 nightly schedule.
 
-## BLOCKED: CI is not running — no loop PR can be merged
-
-**Every pull-request workflow run since roughly 07:08 UTC fails in 2–3 seconds with
-zero steps executed.** This is not a test failure and it is not any loop's code.
-
-Evidence:
-
-- `main` last ran green at **06:15 UTC**; nothing has been merged since.
-- PRs **#117, #118, #119** — three unrelated leases — fail all five checks
-  identically, in 2–3s, with `"steps": []` in the job API. Work never started.
-- No branch modified `.github/workflows/**`.
-- `uv.lock` is intact and `uv sync --frozen` succeeds locally, so this is not the
-  missing-lockfile failure it superficially resembles.
-
-**[INFERENCE]** The repository is private, so Actions minutes are metered, and
-roughly 33 PRs ran five checks each tonight. Exhausted minutes or a tripped
-spending limit produce exactly this signature — jobs that fail instantly with no
-steps. I could not confirm it: the billing API needs a `user` token scope this
-installation lacks, and GitHub attaches no message to the failed check runs.
-Peter can settle it in one look at Settings → Billing → Actions.
-
-Consequence, and the reason nothing was merged: the loop protocol's stop
-condition for red CI is to note it, keep working locally, and never rebase onto
-or merge on red. Three PRs are therefore finished-and-held, not abandoned. Each
-carries local proof in its handoff instead of a green tick:
-
-| PR | Mission | Local verification standing in for CI |
-|---|---|---|
-| #118 | M018 FUZZ | 1293 passed, ruff clean, `ty` 28; mutation-tested — reintroducing PR #102's local-time bug makes the quota property suite fail, so the tests genuinely bite |
-| #117 | M015 AUDIT | ledger + evidence only, no source changes |
-| #119 | M016 SURFACE | held for rework — see the STATUS.md defect below |
-
-Once Actions runs again these need a fresh exact-head run before merge; none of
-them should be merged on the strength of local runs alone.
-
 ## Now
 
-`origin/main` is `e5d3257` (the night-loops prompt doc, committed on top of
-`f836f6c` / PR #116). **30 PRs merged**, full suite **1272 passed, 1 skipped,
-1 xfailed**, ruff clean, `ty` at its 28-diagnostic baseline. Zero open PRs and
-zero active worktrees at dispatch time.
+`origin/main` is `7b5036a` (**35 PRs merged** across all night loops). Full suite **1321 passed, 1 skipped, 1 xfailed**, ruff clean, `ty` at its 28-diagnostic baseline. Zero open PRs and zero active worktrees.
 
 ### Five loop missions dispatched tonight (M015–M019)
 

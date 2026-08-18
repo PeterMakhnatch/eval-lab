@@ -93,6 +93,93 @@ def test_cli_subcommand_is_attributed_to_implementing_module(tmp_path: Path) -> 
     )
     assert status_row.count("`status`") >= 2
 
+
+def _registry_tree(tmp_path: Path) -> Path:
+    """A CLI that dispatches through `set_defaults(func=...)`, with no if-chain."""
+    src = tmp_path / "src" / "evallab"
+    src.mkdir(parents=True)
+    _write_module(
+        src,
+        "status",
+        '"""Read-only operator snapshot of completed Harbor evidence."""\n\n'
+        "def build_status_snapshot() -> str:\n"
+        '    return "ok"\n',
+    )
+    _write_module(
+        src,
+        "fetch",
+        '"""Pinned Harbor acquisition."""\n\n\n'
+        "class HarborBackend:\n    pass\n\n\n"
+        "class FetchService:\n    pass\n",
+    )
+    _write_module(
+        src,
+        "cli",
+        "from __future__ import annotations\n\n"
+        "import argparse\n\n"
+        "from evallab.fetch import FetchService, HarborBackend\n"
+        "from evallab.status import build_status_snapshot\n\n\n"
+        "def _snapshot_command(\n"
+        "    args: argparse.Namespace,\n"
+        "    harbor: HarborBackend,\n"
+        "    service: FetchService,\n"
+        ") -> int:\n"
+        "    print(build_status_snapshot())\n"
+        "    return 0\n\n\n"
+        "def parser() -> argparse.ArgumentParser:\n"
+        "    root = argparse.ArgumentParser(prog='evallab')\n"
+        "    commands = root.add_subparsers(dest='command', required=True)\n"
+        "    snapshot = commands.add_parser('snapshot', help='operator snapshot')\n"
+        "    snapshot.set_defaults(func=_snapshot_command)\n"
+        "    return root\n\n\n"
+        "def run_cli() -> int:\n"
+        "    args = parser().parse_args()\n"
+        "    return int(args.func(args, HarborBackend(), FetchService()))\n",
+    )
+    sql = tmp_path / "sql"
+    sql.mkdir()
+    (sql / "schema.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS jobs (id uuid PRIMARY KEY);\n"
+        "CREATE OR REPLACE VIEW trial_observations AS SELECT 1;\n",
+        encoding="utf-8",
+    )
+    return src
+
+
+def _command_row(text: str, command: str) -> str:
+    return next(
+        line
+        for line in text.splitlines()
+        if line.startswith(f"| `{command}` |") and "Lines" not in line
+    )
+
+
+def test_registry_dispatch_is_attributed_to_implementing_module(tmp_path: Path) -> None:
+    """A `set_defaults(func=...)` command keeps its module edge with no if-chain.
+
+    Without registry support every command in a converted CLI silently collapses to
+    `cli`, which would make the map under-report reachability — the one signal used
+    to find built-but-unreachable modules.
+    """
+    src = _registry_tree(tmp_path)
+    text = generate_map(src_dir=src, root=tmp_path)
+    assert "| `snapshot` | `status` |" in text
+
+
+def test_handler_annotations_do_not_decide_attribution(tmp_path: Path) -> None:
+    """Signature types must not outvote the body.
+
+    `_snapshot_command` is annotated with two `fetch` types and calls exactly one
+    `status` function. Counting annotations as references would attribute the command
+    to `fetch` 2-to-1; only the body may decide.
+    """
+    src = _registry_tree(tmp_path)
+    text = generate_map(src_dir=src, root=tmp_path)
+    row = _command_row(text, "snapshot")
+    assert "`status`" in row
+    assert "`fetch`" not in row
+
+
 def test_check_fails_on_stale_committed_map(tmp_path: Path) -> None:
     src = _sample_tree(tmp_path)
     map_path = tmp_path / "docs" / "repo-map.md"
@@ -105,9 +192,7 @@ def test_check_fails_on_stale_committed_map(tmp_path: Path) -> None:
     )
     issues = check_map(src_dir=src, map_path=map_path, root=tmp_path)
     assert any("stale" in issue.message for issue in issues)
-    assert (
-        main(["check", "--src-dir", str(src), "--map", str(map_path)]) == 1
-    )
+    assert main(["check", "--src-dir", str(src), "--map", str(map_path)]) == 1
 
 
 def test_check_fails_on_module_missing_docstring(tmp_path: Path) -> None:
@@ -118,12 +203,10 @@ def test_check_fails_on_module_missing_docstring(tmp_path: Path) -> None:
 
     issues = check_map(src_dir=src, map_path=map_path, root=tmp_path)
     assert any(
-        issue.path.endswith("blank.py") and "no docstring" in issue.message
-        for issue in issues
+        issue.path.endswith("blank.py") and "no docstring" in issue.message for issue in issues
     )
-    assert (
-        main(["check", "--src-dir", str(src), "--map", str(map_path)]) == 1
-    )
+    assert main(["check", "--src-dir", str(src), "--map", str(map_path)]) == 1
+
 
 def test_unusual_top_level_constructs_are_mapped_without_crashing(tmp_path: Path) -> None:
     src = _sample_tree(tmp_path)
@@ -149,8 +232,7 @@ def test_unusual_top_level_constructs_are_mapped_without_crashing(tmp_path: Path
 
     issues = check_map(src_dir=src, map_path=map_path, root=tmp_path)
     assert any(
-        issue.path.endswith("unusual.py") and "no docstring" in issue.message
-        for issue in issues
+        issue.path.endswith("unusual.py") and "no docstring" in issue.message for issue in issues
     )
 
 
@@ -190,6 +272,7 @@ def test_operator_skills_exist_with_name_and_description() -> None:
         description = front_matter.get("description")
         assert isinstance(description, str) and description.strip()
 
+
 def test_front_matter_declares_valid_inputs_list(tmp_path: Path) -> None:
     src = _sample_tree(tmp_path)
     map_text = generate_map(src_dir=src, root=tmp_path)
@@ -214,6 +297,8 @@ def test_generation_convergence_two_consecutive_runs(tmp_path: Path) -> None:
     second = write_map(output=map_path, src_dir=src, root=tmp_path)
     assert first == second
     assert map_path.read_text(encoding="utf-8") == first
+
+
 def test_recorded_digests_match_actual_file_digests(tmp_path: Path) -> None:
     src = _sample_tree(tmp_path)
     map_text = generate_map(src_dir=src, root=tmp_path)

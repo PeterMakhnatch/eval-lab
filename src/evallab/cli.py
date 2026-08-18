@@ -180,701 +180,6 @@ def load_local_env(path: Path) -> None:
             os.environ.setdefault(normalized_key, value.strip().strip("'\""))
 
 
-def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(
-        prog="evallab",
-        description="Run, inspect, and analyze agent evaluations through Harbor.",
-    )
-    root.add_argument("--version", action="version", version=__version__)
-    commands = root.add_subparsers(dest="command", required=True)
-
-    doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
-    doctor.add_argument(
-        "--headless",
-        action="store_true",
-        help="Fail closed and print only boolean prerequisite status as JSON",
-    )
-
-    dashboard = commands.add_parser("dashboard", help="Open the read-only research overview")
-    dashboard.add_argument("--address", default="127.0.0.1")
-    dashboard.add_argument("--port", type=int, default=8501)
-    dashboard.add_argument("--database-url")
-
-    status = commands.add_parser(
-        "status",
-        help="Read-only operator snapshot of recent work, health, and saved analysis",
-    )
-    status.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit the typed status snapshot as JSON",
-    )
-    status.add_argument(
-        "--from",
-        dest="status_from",
-        type=Path,
-        help="Repository root or smoke scratch (queue/ + jobs/) to read",
-    )
-    status.add_argument(
-        "--generate",
-        action="store_true",
-        help="Generate docs/STATUS.md markdown projection to stdout",
-    )
-    status.add_argument(
-        "--update",
-        action="store_true",
-        help="Generate and update docs/STATUS.md on disk",
-    )
-    status.add_argument(
-        "--target-date",
-        type=date.fromisoformat,
-        default=None,
-        help="Target date for status generation (YYYY-MM-DD)",
-    )
-    status.add_argument(
-        "--output",
-        "-o",
-        dest="status_output",
-        type=Path,
-        default=None,
-        help="Destination path for status output",
-    )
-
-    preflight = commands.add_parser(
-        "preflight",
-        help="Read-only: remaining quota per provider, the queue by purpose, power warnings",
-    )
-    preflight.add_argument(
-        "--useful-effect",
-        type=float,
-        help=(
-            "Per-attempt difference you would call useful. Unset by default because "
-            "'useful' is a spend judgement, not a lab constant; supply it and a queued "
-            "comparison whose smallest detectable difference exceeds it becomes a warning."
-        ),
-    )
-    preflight.add_argument(
-        "--from",
-        dest="preflight_from",
-        type=Path,
-        help="Repository root to read (default: this checkout)",
-    )
-
-    submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
-    submit.add_argument("path", type=Path)
-
-    commands.add_parser("tick", help="Reconcile and drain the approved experiment queue")
-
-    approve = commands.add_parser(
-        "approve",
-        help="Authorize one queued experiment; required before any billable agent runs",
-    )
-    approve.add_argument("spec_id")
-    approve.add_argument(
-        "--actor",
-        required=True,
-        help="who is authorizing; recorded in queue/events.jsonl and never defaulted",
-    )
-    approve.add_argument(
-        "--despite-quota",
-        action="store_true",
-        help=(
-            "authorize even though the provider reports the subscription "
-            "exhausted; recorded on the authorisation event and overrides "
-            "nothing else"
-        ),
-    )
-
-    reject = commands.add_parser("reject", help="Reject one queued experiment")
-    reject.add_argument("spec_id")
-    reject.add_argument("--actor", default="peter")
-    reject.add_argument("--reason", required=True)
-
-    commands.add_parser("stop", help="Stop dispatch after the current trial")
-    commands.add_parser("resume", help="Remove the queue stop marker")
-
-    schedule = commands.add_parser("schedule", help="Manage unattended launchd schedules")
-    schedule_commands = schedule.add_subparsers(dest="schedule_command", required=True)
-    schedule_commands.add_parser("install", help="Install and load tick/nightly LaunchAgents")
-
-    digest = commands.add_parser("digest", help="Render one daily digest from catalog and events")
-    digest.add_argument("--date", dest="report_date", type=date.fromisoformat)
-
-    nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")
-    nightly.add_argument("--date", dest="report_date", type=date.fromisoformat)
-
-    research = commands.add_parser(
-        "research",
-        help="Run one guarded analyst/synthesizer/proposer pass",
-    )
-    research.add_argument("--date", dest="report_date", type=date.fromisoformat)
-
-    canary = commands.add_parser("canary", help="Manage version-pinned nightly canaries")
-    canary_commands = canary.add_subparsers(dest="canary_command", required=True)
-    import_task = canary_commands.add_parser(
-        "import-terminal-bench",
-        help="Import one task through an immutable Harbor dataset download",
-    )
-    import_task.add_argument("--dataset-ref", required=True)
-    import_task.add_argument("--task-name", required=True)
-    import_task.add_argument("--destination", type=Path, required=True)
-
-    calibrate = commands.add_parser(
-        "calibrate", help="Measure a judge against one sealed calibration family"
-    )
-    calibrate.add_argument(
-        "family", choices=("checkout-pool-exhaustion", "retry-storm-backlog")
-    )
-    calibration_mode = calibrate.add_mutually_exclusive_group()
-    calibration_mode.add_argument("--predictions", type=Path)
-    calibration_mode.add_argument("--stub", action="store_true")
-    calibration_mode.add_argument("--stage", choices=("codex", "anthropic"))
-    calibration_mode.add_argument("--dispatch-approved", metavar="SPEC_ID")
-    calibration_mode.add_argument("--dspy-dry-run", action="store_true")
-    calibrate.add_argument("--judge-model")
-    calibrate.add_argument("--est-cost-usd", type=float, default=2.75)
-    calibrate.add_argument("--date", dest="calibration_date", type=date.fromisoformat)
-    calibrate.add_argument("--records-dir", type=Path)
-    calibrate.add_argument("--prediction-artifact")
-    calibrate.add_argument("--pending-backend", action="append", default=[])
-    calibrate.add_argument("--database-url")
-    calibrate.add_argument("--skip-catalog", action="store_true")
-
-    run = commands.add_parser("run", help="Run one explicitly named Harbor job")
-    run.add_argument("--task", type=Path, required=True)
-    run.add_argument("--agent", required=True)
-    run.add_argument("--model")
-    run.add_argument("--name", required=True)
-    run.add_argument("--jobs-dir", type=Path, default=Path("runs"))
-    run.add_argument("--environment", default="docker")
-    run.add_argument("--concurrency", type=int, default=1)
-    run.add_argument("--attempts", type=int, default=1)
-    run.add_argument(
-        "--timeout-seconds",
-        type=int,
-        default=1_800,
-        help="executor wall-clock allowance per attempted trial",
-    )
-    run.add_argument(
-        "--allow-billable",
-        action="store_true",
-        help="Acknowledge that the selected adapter/model may incur charges",
-    )
-
-    matrix = commands.add_parser("matrix", help="Run a checked-in JSON experiment matrix")
-    matrix.add_argument("path", type=Path)
-    matrix.add_argument(
-        "--reuse-existing",
-        action="store_true",
-        help="Validate completed named jobs instead of refusing to reuse them",
-    )
-
-    summarize = commands.add_parser(
-        "summarize", help="Print trial results directly from Harbor job directories"
-    )
-    summarize.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
-
-    ingest = commands.add_parser("ingest", help="Upsert Harbor job metadata into PostgreSQL")
-    ingest.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
-    ingest.add_argument("--database-url")
-    ingest.add_argument(
-        "--derived-dir",
-        type=Path,
-        help="override the shared Parquet root for this invocation",
-    )
-
-    trajectories = commands.add_parser(
-        "trajectories",
-        help="Validate ATIF; optionally rebuild catalog and deterministic Parquet facts",
-    )
-    trajectories.add_argument(
-        "paths",
-        type=Path,
-        nargs="*",
-        default=[Path("runs"), Path("research/evidence/runs"), Path("evidence/runs")],
-    )
-    trajectories.add_argument(
-        "--export",
-        action="store_true",
-        help="Rebuild the catalog and write trajectory/trial facts to Parquet",
-    )
-    trajectories.add_argument(
-        "--output-dir",
-        type=Path,
-        help="override the shared Parquet root for this invocation",
-    )
-    trajectories.add_argument("--database-url")
-
-    compare = commands.add_parser("compare", help="Compare declared trial cohorts")
-    compare.add_argument("path", type=Path)
-    compare.add_argument("--output-dir", type=Path, default=Path("derived/comparisons"))
-    compare.add_argument("--index", action="store_true")
-    compare.add_argument("--database-url")
-
-    power = commands.add_parser("power", help="Plan task-paired pass@k comparison power")
-    power_mode = power.add_mutually_exclusive_group(required=True)
-    power_mode.add_argument(
-        "--n-tasks",
-        type=int,
-        help="Compute the minimum detectable per-attempt difference for this many paired tasks",
-    )
-    power_mode.add_argument(
-        "--target",
-        type=float,
-        help="Compute required paired tasks across k for this per-attempt difference",
-    )
-    power.add_argument("--k", type=int, help="Attempts per task for --n-tasks mode")
-    power.add_argument("--max-k", type=int, default=8, help="Largest k for --target mode")
-    power.add_argument("--baseline", type=float, required=True)
-    power.add_argument("--alpha", type=float, default=0.05)
-    power.add_argument("--power", dest="target_power", type=float, default=0.8)
-    power.add_argument("--pair-correlation", type=float, default=0.0)
-
-    report = commands.add_parser("report", help="Render trajectory families and eval cards")
-    report_commands = report.add_subparsers(dest="report_command", required=True)
-    report_family = report_commands.add_parser(
-        "family", help="Explain one task family from Parquet and canonical ATIF"
-    )
-    report_family.add_argument("task")
-    report_family.add_argument(
-        "--parquet-dir",
-        type=Path,
-        help="override the shared Parquet root for this invocation",
-    )
-    report_family.add_argument(
-        "--raw-root",
-        type=Path,
-        action="append",
-        help="Raw Harbor root; repeat as needed (defaults to runs and reviewed evidence)",
-    )
-    report_family.add_argument(
-        "--output-dir",
-        type=Path,
-        help="write JSON and Markdown reports (default: render without writing)",
-    )
-    report_card = report_commands.add_parser(
-        "card", help="Draft a provenance-bearing eval card from a completed spec"
-    )
-    report_card.add_argument("path", type=Path)
-    report_card.add_argument(
-        "--output",
-        type=Path,
-        help="write the eval card (default: render without writing)",
-    )
-
-    analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
-    analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
-    analyze_plan_parser = analyze_commands.add_parser(
-        "plan", help="Show a no-call stage-5 analysis plan"
-    )
-    analyze_plan_parser.add_argument("path", type=Path)
-    analyze_plan_parser.add_argument("--agent", default="codex")
-    analyze_plan_parser.add_argument("--agent-version", default="local")
-    analyze_plan_parser.add_argument("--model", default="configured-by-queue")
-    analyze_plan_parser.add_argument(
-        "--output-dir", type=Path, default=Path("derived/analyses")
-    )
-    analyze_commands.add_parser(
-        "worker-plan", help="Read-only: what an analysis-worker cycle would do"
-    )
-    analyze_commands.add_parser(
-        "worker-status", help="Read-only: analysis request counts and states"
-    )
-    analyze_worker_run = analyze_commands.add_parser(
-        "worker-run-one", help="Run ONE request through normal admission (never self-approves)"
-    )
-    analyze_worker_run.add_argument("request_id")
-    analyze_worker_resolve = analyze_commands.add_parser(
-        "worker-resolve-ambiguous",
-        help="Explicitly retry or quarantine one possibly-paid ambiguous invocation",
-    )
-    analyze_worker_resolve.add_argument("request_id")
-    analyze_worker_resolve.add_argument(
-        "--action", choices=("retry", "quarantine"), required=True
-    )
-    analyze_worker_resolve.add_argument("--actor", required=True)
-    analyze_stub = analyze_commands.add_parser(
-        "stub", help="Validate a saved response and write an immutable sidecar"
-    )
-    analyze_stub.add_argument("path", type=Path)
-    analyze_stub.add_argument("--response", type=Path, required=True)
-    analyze_stub.add_argument("--output-dir", type=Path, default=Path("derived/analyses"))
-    analyze_stub.add_argument("--index", action="store_true")
-    analyze_stub.add_argument("--database-url")
-    analyze_ingest = analyze_commands.add_parser(
-        "ingest-sidecar", help="Index one durable analysis sidecar"
-    )
-    analyze_ingest.add_argument("path", type=Path)
-    analyze_ingest.add_argument("--database-url")
-    analyze_review = analyze_commands.add_parser(
-        "review", help="Append a human review without editing the analysis"
-    )
-    analyze_review.add_argument("path", type=Path)
-    analyze_review.add_argument(
-        "--disposition",
-        required=True,
-        choices=("accepted", "needs_revision", "rejected", "superseded"),
-    )
-    analyze_review.add_argument("--rationale", required=True)
-    analyze_review.add_argument("--reviewer", required=True)
-    analyze_review.add_argument("--superseded-by")
-    analyze_review.add_argument(
-        "--index",
-        action="store_true",
-        help="Also index the review into the catalog (analysis_reviews)",
-    )
-    analyze_review.add_argument("--database-url")
-    analyze_agreement = analyze_commands.add_parser(
-        "agreement", help="Compare valid analysis categories with fixed labels"
-    )
-    analyze_agreement.add_argument("paths", type=Path, nargs="+")
-    analyze_agreement.add_argument(
-        "--labels",
-        type=Path,
-        default=Path("research/calibration/trajectory-labels"),
-    )
-    analyze_agreement.add_argument(
-        "--output",
-        type=Path,
-        default=Path("derived/analysis/failure-taxonomy-agreement.json"),
-    )
-
-    db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
-    db_commands = db.add_subparsers(dest="db_command", required=True)
-    db_init = db_commands.add_parser("init", help="Apply the idempotent schema")
-    db_init.add_argument("--database-url")
-    db_list = db_commands.add_parser("list", help="List recently ingested trials")
-    db_list.add_argument("--database-url")
-    db_list.add_argument("--limit", type=int, default=25)
-    db_attach = db_commands.add_parser("attach", help="Attach unified DuckDB surface (Z2+Z3+Z4)")
-    db_attach.add_argument("--zones", action="store_true", help="report zone status (exit non-zero if none attached)")  # noqa: E501
-    db_attach.add_argument("--print-sql", action="store_true", help="emit the attach + view DDL preamble to stdout")  # noqa: E501
-    db_attach.add_argument("--query", metavar="SQL", help="run query against the surface and print rows")  # noqa: E501
-    db_attach.add_argument("--derived-root", type=Path, help="override the shared Parquet root (same resolution as library)")  # noqa: E501
-    lineage = commands.add_parser(
-        "lineage", help="Trace recursive lineage of generated artifacts back to Z1"
-    )
-    lineage.add_argument("target", help="Artifact path or identifier to trace")
-    lineage.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON lineage graph"
-    )
-    lineage.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root (same resolution as library)",
-    )
-
-    analyst = commands.add_parser(
-        "analyst", help="Run, list, and inspect durable trial analyses with reasoning trajectories"
-    )
-    analyst_commands = analyst.add_subparsers(dest="analyst_command", required=True)
-    analyst_run = analyst_commands.add_parser(
-        "run",
-        help="Run analysis on one trial (deterministic stub by default; --model spends tokens)",
-    )
-    analyst_run.add_argument("trial_id", help="Trial identifier, trial name, or path")
-    analyst_run.add_argument(
-        "--model",
-        default=None,
-        help="Explicit model selector (opt-in spend: default is deterministic stub)",
-    )
-    analyst_run.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root",
-    )
-    analyst_run.add_argument(
-        "--runs-root",
-        type=Path,
-        help="override candidate runs root for raw trajectory discovery",
-    )
-    analyst_list = analyst_commands.add_parser(
-        "list", help="List stored analysis conclusions"
-    )
-    analyst_list.add_argument(
-        "--trial",
-        dest="trial_id",
-        default=None,
-        help="filter conclusions by source trial_id",
-    )
-    analyst_show = analyst_commands.add_parser(
-        "show", help="Show an analysis conclusion and its recorded trajectory"
-    )
-    analyst_show.add_argument("analysis_id", help="ULID of the analysis record to show")
-    analyst_show.add_argument(
-        "--json", action="store_true", help="emit raw structured JSON"
-    )
-
-    card = commands.add_parser(
-        "card", help="Generate and validate purpose-bound eval cards from completed evidence"
-    )
-    card_commands = card.add_subparsers(dest="card_command", required=True)
-    card_generate = card_commands.add_parser(
-        "generate", help="Generate an eval card from a spec_id or job_id"
-    )
-    card_generate.add_argument("target", help="Spec ID, spec path, job ID, or job path")
-    card_generate.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        help="write the eval card (default: render without writing)",
-    )
-    card_generate.add_argument(
-        "--json",
-        action="store_true",
-        help="print structured card JSON summary",
-    )
-    card_generate.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root",
-    )
-    card_validate = card_commands.add_parser(
-        "validate", help="Validate an eval card against schema and mandatory caveats"
-    )
-    card_validate.add_argument("path", type=Path, help="Path to eval card markdown file")
-    card_validate.add_argument(
-        "--json",
-        action="store_true",
-        help="print structured validation result JSON",
-    )
-    behavior = commands.add_parser(
-        "behavior", help="Analyze agent execution behavior, effort, and efficiency"
-    )
-    behavior.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON behavior report"
-    )
-    behavior.add_argument(
-        "--task", help="filter analysis to one task name"
-    )
-    behavior.add_argument(
-        "--agent", help="filter analysis to one agent name"
-    )
-    behavior.add_argument(
-        "--derived-root",
-        type=Path,
-        help="override the shared Parquet root (same resolution as library)",
-    )
-
-    ladder = commands.add_parser(
-        "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"
-    )
-    ladder_commands = ladder.add_subparsers(dest="ladder_command", required=True)
-    ladder_generate = ladder_commands.add_parser(
-        "generate", help="Expand a grid specification into ExperimentSpec files"
-    )
-    ladder_generate.add_argument("grid_spec", type=Path, help="Path to grid YAML/JSON file")
-    ladder_generate.add_argument(
-        "-o",
-        "--output",
-        dest="output_dir",
-        type=Path,
-        default=None,
-        help="Directory to write generated ExperimentSpec JSON files",
-    )
-    ladder_generate.add_argument(
-        "--submit",
-        action="store_true",
-        help="Submit generated ExperimentSpecs directly to the queue",
-    )
-    ladder_generate.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Print expansion and decisions without writing to disk (default)",
-    )
-    ladder_generate.add_argument(
-        "--no-quota-check",
-        action="store_true",
-        help="Disable automatic headroom/quota checking against existing runs",
-    )
-    ladder_generate.add_argument(
-        "--json",
-        action="store_true",
-        help="Print generation summary and details in JSON format",
-    )
-
-    trace = commands.add_parser(
-        "trace",
-        help="Convert ATIF trajectories to OTel and ship them to Phoenix",
-    )
-    trace.add_argument("path", type=Path, help="Trial directory, job directory, or trajectory.json")
-    trace.add_argument(
-        "--endpoint",
-        default=None,
-        help="Phoenix collector base URL (default: PHOENIX_COLLECTOR_ENDPOINT or http://127.0.0.1:6006)",
-    )
-    trace.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Validate and convert only; do not POST OTLP",
-    )
-    trace.add_argument(
-        "--include-controls",
-        action="store_true",
-        help="Also trace oracle/nop control trials",
-    )
-
-    fetch = commands.add_parser(
-        "fetch",
-        help="Acquire a pinned Harbor Hub dataset into library/benchmarks/",
-    )
-    fetch.add_argument(
-        "ref",
-        nargs="?",
-        help="Pinned name@version (never @latest or other unpinned refs)",
-    )
-    fetch.add_argument(
-        "--list",
-        dest="fetch_list",
-        action="store_true",
-        help="Show fetchable Hub pins and named adapter lanes",
-    )
-    fetch.add_argument(
-        "--audit",
-        dest="fetch_audit",
-        action="store_true",
-        help="Re-verify digests of every library/benchmarks ingest",
-    )
-    fetch.add_argument(
-        "--verify-sample",
-        type=int,
-        default=0,
-        metavar="N",
-        help="Run free oracle/nop on N tasks (Harbor -n <= 2) and record rewards",
-    )
-
-    gc = commands.add_parser(
-        "gc",
-        help="Plan or apply compression/pruning of unpromoted ingested runs",
-    )
-    gc.add_argument(
-        "--apply",
-        action="store_true",
-        help="Execute the plan (default is a dry-run that mutates nothing)",
-    )
-    gc.add_argument(
-        "--runs-dir",
-        type=Path,
-        default=Path("runs"),
-        help="Job directory root to scan (default: runs/)",
-    )
-
-    registry = commands.add_parser(
-        "registry",
-        help="Inspect and audit explicit registered tasks",
-    )
-    registry_commands = registry.add_subparsers(
-        dest="registry_command",
-        required=True,
-    )
-    registry_list = registry_commands.add_parser(
-        "list",
-        help="List explicit task registry records",
-    )
-    registry_list.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit records as JSON array",
-    )
-    registry_list.add_argument(
-        "--state",
-        choices=["candidate", "registered", "retired"],
-        help="Filter records by admission state",
-    )
-
-    registry_audit = registry_commands.add_parser(
-        "audit",
-        help="Audit task registry records and queue claims",
-    )
-    registry_audit.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit audit report as JSON",
-    )
-
-    tidy = commands.add_parser(
-        "tidy",
-        help="Sweep working tree strays, stale worktrees, and retention violations",
-    )
-    tidy.add_argument(
-        "--apply",
-        action="store_true",
-        help="Execute safe deletions (default is dry-run report)",
-    )
-    tidy.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Report findings without making changes (default behavior)",
-    )
-
-    verdict = commands.add_parser(
-        "verdict",
-        help="Record, list, or inspect append-only human verdicts on discoveries",
-    )
-    verdict.add_argument(
-        "action_or_id",
-        nargs="?",
-        help="Discovery ID to verdict/inspect, or 'list'/'history'",
-    )
-    verdict.add_argument(
-        "status_or_id",
-        nargs="?",
-        help="Status ('accepted'|'rejected'|'needs_evidence'|'pending') or ID for history",
-    )
-    verdict.add_argument(
-        "--by",
-        help="Human actor issuing the verdict (mandatory for recording)",
-    )
-    verdict.add_argument(
-        "--note",
-        help="Free-text rationale or evidence pointer",
-    )
-    verdict.add_argument(
-        "--status",
-        help="Filter status for 'verdict list'",
-    )
-    verdict.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit results as JSON",
-    )
-    verdict.add_argument(
-        "--database-url",
-        help="PostgreSQL catalog URL override",
-    )
-    verdict.add_argument(
-        "--derived-root",
-        type=Path,
-        help="Override the shared Parquet root",
-    )
-    return root
-
-
-def _fetch_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None
-) -> int:
-    service = FetchService(
-        root=root,
-        harbor=harbor if harbor is not None else SubprocessHarbor(),
-    )
-    if args.fetch_list:
-        print("\n".join(service.list_lines()))
-        return 0
-    if args.fetch_audit:
-        rows = service.audit()
-        print(format_audit(rows), end="")
-        return 0 if all(row.status == "pass" for row in rows) else 1
-    if not args.ref:
-        raise FetchError("provide name@version, or --list / --audit")
-    result = service.fetch(args.ref, verify_sample=args.verify_sample)
-    print(f"{result.status}: {result.message}")
-    if result.manifest_path is not None:
-        print(f"manifest: {result.manifest_path}")
-    return 0
-
-
 def _resolve(root: Path, path: Path) -> Path:
     return path.resolve() if path.is_absolute() else (root / path).resolve()
 
@@ -941,178 +246,83 @@ def _doctor(root: Path) -> int:
     return 0 if all(ok for name, ok, _ in checks if name in required) else 1
 
 
-def _run_command(args: argparse.Namespace, root: Path) -> int:
-    request = RunRequest(
-        task=_resolve(root, args.task),
-        agent=args.agent,
-        name=args.name,
-        jobs_dir=_resolve(root, args.jobs_dir),
-        environment=args.environment,
-        model=args.model,
-        concurrency=args.concurrency,
-        attempts=args.attempts,
-        timeout_seconds=args.timeout_seconds,
-        allow_billable=args.allow_billable,
+def _nightly_digest_enricher(root: Path, get_loop: Callable[[], ResearcherLoop]):
+    def enrich(path: Path, day: date) -> None:
+        get_loop().enrich_digest(path, day)
+        append_gc_plan_to_digest(path, nightly_gc_plan(root))
+
+    return enrich
+
+
+def _nightly_analysis_stager(root: Path) -> Callable[[], object]:
+    """Stage-only completion hook (M006): freezes identity, never calls."""
+
+    def stage() -> object:
+        from evallab.analysis_worker import default_job_roots, default_worker
+
+        return default_worker(root).stage(default_job_roots(root))
+
+    return stage
+
+
+def _digest_renderer(root: Path) -> DigestRenderer:
+    return DigestRenderer(
+        repo_root=root,
+        queue=DirectoryQueue(root / "queue"),
+        policy=load_policy(root / "policy/standing-approvals.yaml"),
     )
-    job_dir = Executor.from_repo(root).execute_direct(request)
-    print(f"completed: {job_dir}")
-    _print_summary([load_job(job_dir)])
-    return 0
 
 
-def _matrix_command(args: argparse.Namespace, root: Path) -> int:
-    matrix_path = _resolve(root, args.path)
-    matrix = load_matrix(matrix_path)
-    completed: list[JobRecord] = []
-    mismatch = False
-    executor = Executor.from_repo(root)
-    for run in matrix.runs:
-        request = request_from_matrix(matrix, run, repo_root=root)
-        job_dir = request.jobs_dir / request.name
-        if args.reuse_existing and job_dir.is_dir():
-            job = load_job(job_dir)
-        else:
-            job = load_job(executor.execute_direct(request))
-        completed.append(job)
-        expected = expected_primary_reward(run)
-        if expected is not None:
-            actual = job.trials[0].primary_reward if len(job.trials) == 1 else None
-            if actual != expected:
-                mismatch = True
-                print(
-                    f"expectation failed for {request.name}: expected {expected:g}, got {actual}",
-                    file=sys.stderr,
-                )
-    _print_summary(completed)
-    return 1 if mismatch else 0
+# ---------------------------------------------------------------------------
+# Declarative Command Handlers
+# ---------------------------------------------------------------------------
 
 
-def _preflight_command(args: argparse.Namespace, root: Path) -> int:
-    """Print the preflight and exit non-zero when a provider refuses billable work.
-
-    Costs nothing and blocks on nothing: the report is built from Harbor job
-    directories and `queue/` alone. `provider_reported_exhaustion` is passed in
-    rather than reimplemented so this surface and the dispatch gate can never
-    disagree about what the provider said.
-    """
-    target = _resolve(root, args.preflight_from) if args.preflight_from else root
-    report = build_preflight_report(
-        target,
-        now=datetime.now(UTC),
-        refusal=provider_reported_exhaustion,
-        refuse_at_used_percent=_configured_quota_ceiling(target),
-        useful_effect=args.useful_effect,
-    )
-    print(render_preflight(report))
-    return 1 if report.refusals() else 0
+def _doctor_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    if args.headless:
+        executor = Executor.from_repo(root)
+        report = HeadlessDoctor(root, executor=executor).run()
+        print(report.model_dump_json(indent=2))
+        return 0 if report.healthy else 1
+    return _doctor(root)
 
 
-def _power_command(args: argparse.Namespace) -> int:
-    if args.n_tasks is not None:
-        if args.k is None:
-            raise ValueError("--k is required with --n-tasks")
-        effect = minimum_detectable_effect(
-            n_tasks=args.n_tasks,
-            k=args.k,
-            baseline=args.baseline,
-            alpha=args.alpha,
-            target_power=args.target_power,
-            pair_correlation=args.pair_correlation,
+def _dashboard_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    environment = subscription_environment()
+    environment["DATABASE_URL"] = database_url_from_environment(args.database_url)
+    environment[DERIVED_ROOT_ENV] = str(derived_root_from_environment(root))
+    environment["PYTHONPATH"] = str(root)
+    try:
+        completed = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--with",
+                "streamlit==1.61.1",
+                "streamlit",
+                "run",
+                str(root / "dashboard/app.py"),
+                f"--server.address={args.address}",
+                f"--server.port={args.port}",
+                "--server.headless=true",
+                "--browser.gatherUsageStats=false",
+            ],
+            cwd=root,
+            env=environment,
+            check=False,
         )
-        baseline_pass = pass_at_k_probability(args.baseline, args.k)
-        print("Task-paired pass@k power plan")
-        print(f"n_tasks: {args.n_tasks}")
-        print(f"k: {args.k}")
-        print(f"baseline per-attempt pass rate: {args.baseline:.3f}")
-        print(f"baseline pass@{args.k}: {baseline_pass:.3f}")
-        print(f"alpha / power: {args.alpha:.3f} / {args.target_power:.3f}")
-        if effect is None:
-            print("minimum detectable per-attempt difference: unavailable at this n and k")
-        else:
-            comparison_pass = pass_at_k_probability(args.baseline + effect, args.k)
-            print(f"minimum detectable per-attempt difference: {effect:.4f}")
-            print(
-                f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}"
-            )
-        print(
-            "Assumptions: independent attempts for the pass@k transformation and a normal "
-            "approximation to paired task outcomes; "
-            f"pair correlation={args.pair_correlation:.3f}."
-        )
-        return 0
-
-    rows = power_requirements(
-        baseline=args.baseline,
-        attempt_effect=args.target,
-        max_k=args.max_k,
-        alpha=args.alpha,
-        target_power=args.target_power,
-        pair_correlation=args.pair_correlation,
-    )
-    print("| k | baseline pass@k | comparison pass@k | task effect | n_tasks | attempts |")
-    print("|---:|---:|---:|---:|---:|---:|")
-    for row in rows:
-        print(
-            f"| {row['k']} | {row['baseline_pass_at_k']:.3f} | "
-            f"{row['comparison_pass_at_k']:.3f} | {row['task_level_effect']:.3f} | "
-            f"{row['required_n_tasks']} | {row['total_attempts_two_cohorts']} |"
-        )
-    print(
-        "n_tasks is paired tasks per cohort; attempts counts both cohorts. "
-        f"alpha={args.alpha:.3f}, power={args.target_power:.3f}, "
-        f"pair correlation={args.pair_correlation:.3f}."
-    )
-    print("Assumption: attempts are independent for the pass@k transformation.")
-    return 0
+    except KeyboardInterrupt:
+        return 130
+    return completed.returncode
 
 
-def _report_command(args: argparse.Namespace, root: Path) -> int:
-    if args.report_command == "family":
-        raw_roots = args.raw_root or [
-            Path("runs"),
-            Path("research/evidence/runs"),
-            Path("evidence/runs"),
-        ]
-        parquet_root = (
-            _resolve(root, args.parquet_dir)
-            if args.parquet_dir is not None
-            else derived_root_from_environment(root)
-        )
-        resolved_raw_roots = [_resolve(root, path) for path in raw_roots]
-        if args.output_dir is None:
-            report = family_report(
-                args.task,
-                parquet_root=parquet_root,
-                raw_roots=resolved_raw_roots,
-            )
-        else:
-            json_path, markdown_path, report = write_family_report(
-                args.task,
-                parquet_root=parquet_root,
-                raw_roots=resolved_raw_roots,
-                output_root=_resolve(root, args.output_dir),
-            )
-        print(render_family_report(report))
-        if args.output_dir is not None:
-            print(f"json: {json_path}")
-            print(f"markdown: {markdown_path}")
-        return 0
-    spec_path = _resolve(root, args.path)
-    if args.output is None:
-        rendered, card = build_eval_card(spec_path, repo_root=root)
-        print(rendered)
-    else:
-        path, card = draft_eval_card(
-            spec_path,
-            repo_root=root,
-            output_path=_resolve(root, args.output),
-        )
-        print(f"eval card: {path}")
-    print(f"config digest: {card['spec_digest']}")
-    return 0
-
-
-def _status_command(args: argparse.Namespace, root: Path) -> int:
+def _status_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
     target = _resolve(root, args.status_from) if args.status_from is not None else root
     if getattr(args, "generate", False):
         md = generate_status_markdown(
@@ -1146,36 +356,298 @@ def _status_command(args: argparse.Namespace, root: Path) -> int:
     return 0
 
 
-def _dashboard_command(args: argparse.Namespace, root: Path) -> int:
-    environment = subscription_environment()
-    environment["DATABASE_URL"] = database_url_from_environment(args.database_url)
-    environment[DERIVED_ROOT_ENV] = str(derived_root_from_environment(root))
-    environment["PYTHONPATH"] = str(root)
-    try:
-        completed = subprocess.run(
-            [
-                "uv",
-                "run",
-                "--with",
-                "streamlit==1.61.1",
-                "streamlit",
-                "run",
-                str(root / "dashboard/app.py"),
-                f"--server.address={args.address}",
-                f"--server.port={args.port}",
-                "--server.headless=true",
-                "--browser.gatherUsageStats=false",
-            ],
-            cwd=root,
-            env=environment,
-            check=False,
+def _preflight_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Print the preflight and exit non-zero when a provider refuses billable work.
+
+    Costs nothing and blocks on nothing: the report is built from Harbor job
+    directories and `queue/` alone. `provider_reported_exhaustion` is passed in
+    rather than reimplemented so this surface and the dispatch gate can never
+    disagree about what the provider said.
+    """
+    target = _resolve(root, args.preflight_from) if args.preflight_from else root
+    report = build_preflight_report(
+        target,
+        now=datetime.now(UTC),
+        refusal=provider_reported_exhaustion,
+        refuse_at_used_percent=_configured_quota_ceiling(target),
+        useful_effect=args.useful_effect,
+    )
+    print(render_preflight(report))
+    return 1 if report.refusals() else 0
+
+
+def _submit_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    spec = read_spec(_resolve(root, args.path))
+    executor = Executor.from_repo(root)
+    path, decision = executor.submit(spec)
+    # `approve`, `reject`, and the catalog's `experiment_id` column all
+    # want the bare ULID. Printing the queue state directory as if it
+    # were a label made the operator copy a word that no command takes
+    # (M009 F-09). Read the id back off the artifact that was written.
+    submitted = executor.queue.load(path)
+    print(f"spec_id: {submitted.spec_id}")
+    print(f"state: {path.parent.name}")
+    print(f"path: {path}")
+    print(decision.message)
+    # A paid-authorization refusal already spells out both commands with
+    # this spec's real id; repeating one of them here reads as noise.
+    if path.parent.name == "waiting" and "evallab approve" not in decision.message:
+        print(
+            "next: uv run evallab approve "
+            f"{shlex.quote(str(submitted.spec_id))} --actor <you>"
         )
-    except KeyboardInterrupt:
-        return 130
-    return completed.returncode
+    return 0
 
 
-def _calibrate_command(args: argparse.Namespace, root: Path) -> int:
+def _tick_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    # if args.command == "tick":
+    # WS-E item 2: the preflight runs at tick start. This is the
+    # operator-facing tick; the library-level `Executor._tick_locked`
+    # takes the same call in one additive line, described in
+    # `agents/handoffs/preflight.md`.
+    print(
+        render_preflight(
+            build_preflight_report(
+                root,
+                now=datetime.now(UTC),
+                refusal=provider_reported_exhaustion,
+                refuse_at_used_percent=_configured_quota_ceiling(root),
+            )
+        )
+    )
+    executor = Executor.from_repo(root)
+    result = GuardedTick(
+        doctor=HeadlessDoctor(root, executor=executor),
+        executor=executor,
+    ).run()
+    print(f"dispatched {result.dispatched} experiment(s)")
+    print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
+    return 0 if result.report.healthy else 1
+
+
+def _approve_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    queue = DirectoryQueue(root / "queue")
+    path = queue.approve(
+        args.spec_id,
+        actor=args.actor,
+        quota_override=args.despite_quota,
+    )
+    authorized = queue.load(path)
+    print(f"authorized: {authorized.spec_id}")
+    print(f"actor: {args.actor}")
+    print(f"path: {path}")
+    if authorized.billable:
+        print(
+            f"spend: {authorized.agent} x {authorized.attempts} attempt(s), "
+            f"estimated {authorized.est_cost_usd:.2f} USD per job, billed to "
+            "Peter's ChatGPT subscription"
+        )
+        # What the authorisation is actually spending against. The
+        # dollar figure above is an API-list-price equivalent and does
+        # not move; the subscription window does.
+        headroom = _headroom_for(root)
+        print(render_headroom_notice(headroom))
+        # The threshold is policy, not code: `refuse_billable_at_used_percent`
+        # in `policy/standing-approvals.yaml`, committed unset. Loaded
+        # inline here, as `_digest_renderer` does at cli.py:1526.
+        ceiling = load_policy(
+            root / "policy/standing-approvals.yaml"
+        ).refuse_billable_at_used_percent
+        blocked = provider_reported_exhaustion(headroom) or lab_threshold_reached(
+            headroom, threshold=ceiling
+        )
+        if blocked and not args.despite_quota:
+            print(
+                f"WARNING: dispatch will refuse this spec — {blocked}. "
+                "Re-approve with --despite-quota only if you have reason "
+                "to believe the reading is wrong."
+            )
+        elif args.despite_quota and not blocked:
+            print(
+                "note: --despite-quota was recorded, but the reading "
+                "reports no exhaustion, so it overrode nothing."
+            )
+    print("next: uv run evallab tick")
+    return 0
+
+
+def _reject_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    path = DirectoryQueue(root / "queue").reject(
+        args.spec_id, actor=args.actor, message=args.reason
+    )
+    print(f"rejected: {path}")
+    return 0
+
+
+def _stop_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    DirectoryQueue(root / "queue").stop()
+    print("queue stopped")
+    return 0
+
+
+def _resume_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    DirectoryQueue(root / "queue").resume()
+    print("queue resumed")
+    return 0
+
+
+def _schedule_install_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    paths = ScheduleInstaller(root).install()
+    for path in paths:
+        print(f"installed: {path}")
+    return 0
+
+
+def _digest_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    report_date = args.report_date or date.today()
+    path = _digest_renderer(root).write(report_date=report_date)
+    ResearcherLoop.from_repo(root).enrich_digest(path, report_date)
+    append_gc_plan_to_digest(path, nightly_gc_plan(root))
+    print(f"digest: {path}")
+    return 0
+
+
+def _research_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    report_date = args.report_date or date.today()
+    executor = Executor.from_repo(root)
+    report = HeadlessDoctor(root, executor=executor).run()
+    if not report.healthy:
+        record_quarantine(
+            executor.queue,
+            event="researcher_quarantined",
+            report=report,
+            actor="manual-researcher",
+        )
+        print("researcher pass quarantined by headless doctor")
+        return 1
+    if not report.checks.codex_auth_present:
+        record_researcher_deferral(
+            executor.queue,
+            report_date=report_date,
+            actor="manual-researcher",
+            reason="missing_credential:codex",
+        )
+        print("researcher pass deferred: missing Codex credential")
+        return 0
+    result = ResearcherLoop.from_repo(root).run(report_date=report_date)
+    print(f"pass: {result.pass_id}")
+    print(f"invocations: {result.invocation_count}")
+    print(f"attributed cost: ${result.attributed_cost_usd:.2f}")
+    if result.proposal_path is not None:
+        print(f"proposal: {result.proposal_path}")
+    if result.deferred_reason:
+        print(f"deferred: {result.deferred_reason}")
+    if result.failed_reason:
+        print(f"failed: {result.failed_reason}")
+        return 1
+    return 0
+
+
+def _nightly_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    executor = Executor.from_repo(root)
+    researcher_loop: ResearcherLoop | None = None
+    database_url = database_url_from_environment()
+
+    def get_researcher_loop() -> ResearcherLoop:
+        nonlocal researcher_loop
+        if researcher_loop is None:
+            researcher_loop = ResearcherLoop.from_repo(root)
+        return researcher_loop
+
+    result = NightlyCycle(
+        doctor=HeadlessDoctor(root, executor=executor),
+        executor=executor,
+        renderer=_digest_renderer(root),
+        canary_enqueuer=CanaryEnqueuer.from_repo(root, executor).enqueue,
+        researcher_pass=lambda day: get_researcher_loop().run(
+            report_date=day
+        ).invocation_count,
+        digest_enricher=_nightly_digest_enricher(root, get_researcher_loop),
+        completed_job_ingester=lambda: ingest_and_project(
+            database_url,
+            load_jobs(
+                [
+                    root / "runs",
+                    root / "research/evidence/runs",
+                    root / "evidence/runs",
+                ]
+            ),
+            root=root,
+            output_root=derived_root_from_environment(root),
+        ),
+        database_backup=lambda day: create_postgres_backup(root, day),
+        analysis_stager=_nightly_analysis_stager(root),
+    ).run(report_date=args.report_date)
+    print(f"digest: {result.digest_path}")
+    print(
+        "database backup: "
+        f"{getattr(result, 'backup_path', None) or 'not created'}"
+    )
+    print(f"enqueued: {result.enqueued}")
+    print(f"dispatched: {result.dispatched}")
+    print(
+        "researcher invocations: "
+        f"{getattr(result, 'researcher_invocations', 0)}"
+    )
+    print(f"quarantined: {'yes' if result.quarantined else 'no'}")
+    try:
+        print(
+            format_batch(
+                trace_completed_jobs(
+                    root / "runs",
+                    include_controls=False,
+                    dry_run=False,
+                )
+            )
+        )
+    except TraceError as exc:
+        print(f"trace skipped: {exc}")
+    plan = nightly_gc_plan(root)
+    print(format_plan(plan))
+    return 1 if result.quarantined else 0
+
+
+def _canary_import_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    executor = Executor.from_repo(root)
+    imported = TerminalBenchCanaryImporter(
+        executor=executor,
+        repo_root=root,
+    ).import_task(
+        dataset_ref=args.dataset_ref,
+        task_name=args.task_name,
+        destination=_resolve(root, args.destination),
+    )
+    print(f"imported: {imported}")
+    return 0
+
+
+def _calibrate_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
     if args.dispatch_approved:
         readiness, dispatched = dispatch_approved_codex_calibration(
             root, args.family, args.dispatch_approved
@@ -1241,6 +713,1716 @@ def _calibrate_command(args: argparse.Namespace, root: Path) -> int:
     return 0
 
 
+def _run_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    request = RunRequest(
+        task=_resolve(root, args.task),
+        agent=args.agent,
+        name=args.name,
+        jobs_dir=_resolve(root, args.jobs_dir),
+        environment=args.environment,
+        model=args.model,
+        concurrency=args.concurrency,
+        attempts=args.attempts,
+        timeout_seconds=args.timeout_seconds,
+        allow_billable=args.allow_billable,
+    )
+    job_dir = Executor.from_repo(root).execute_direct(request)
+    print(f"completed: {job_dir}")
+    _print_summary([load_job(job_dir)])
+    return 0
+
+
+def _matrix_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    matrix_path = _resolve(root, args.path)
+    matrix = load_matrix(matrix_path)
+    completed: list[JobRecord] = []
+    mismatch = False
+    executor = Executor.from_repo(root)
+    for run in matrix.runs:
+        request = request_from_matrix(matrix, run, repo_root=root)
+        job_dir = request.jobs_dir / request.name
+        if args.reuse_existing and job_dir.is_dir():
+            job = load_job(job_dir)
+        else:
+            job = load_job(executor.execute_direct(request))
+        completed.append(job)
+        expected = expected_primary_reward(run)
+        if expected is not None:
+            actual = job.trials[0].primary_reward if len(job.trials) == 1 else None
+            if actual != expected:
+                mismatch = True
+                print(
+                    f"expectation failed for {request.name}: expected {expected:g}, got {actual}",
+                    file=sys.stderr,
+                )
+    _print_summary(completed)
+    return 1 if mismatch else 0
+
+
+def _summarize_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    jobs = load_jobs([_resolve(root, path) for path in args.paths])
+    if not jobs:
+        print("No completed Harbor jobs found.", file=sys.stderr)
+        return 1
+    _print_summary(jobs)
+    return 0
+
+
+def _ingest_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    jobs = load_jobs([_resolve(root, path) for path in args.paths])
+    if not jobs:
+        print("No completed Harbor jobs found.", file=sys.stderr)
+        return 1
+    url = database_url_from_environment(args.database_url)
+    derived_root = derived_root_from_environment(
+        root,
+        explicit=args.derived_dir,
+    )
+    result = ingest_and_project(
+        url,
+        jobs,
+        root=root,
+        output_root=derived_root,
+    )
+    record_projection_failures(
+        DirectoryQueue(root / "queue"),
+        result,
+        actor="manual-ingest",
+        spec_id=f"system-{new_ulid()}",
+    )
+    print(f"ingested {result.cataloged_jobs} job(s)")
+    for table, rows in sorted(result.row_counts.items()):
+        print(f"{table}: {rows} row(s)")
+    for failure in result.failures:
+        print(f"projection failed: {failure.job_name} ({failure.error_type})")
+    return 1 if result.failures else 0
+
+
+def _trajectories_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.atif import project_trial
+
+    jobs = load_jobs([_resolve(root, path) for path in args.paths])
+    if not jobs:
+        print("No completed Harbor jobs found.", file=sys.stderr)
+        return 1
+    print("| job | trial | status | documents | steps | tools |")
+    print("|---|---|---|---:|---:|---:|")
+    for job in jobs:
+        for trial in job.trials:
+            projection = project_trial(job, trial)
+            statuses = {item.validation_status for item in projection.trajectories}
+            status = (
+                "none"
+                if not statuses
+                else "invalid"
+                if "invalid" in statuses
+                else "unsupported"
+                if "unsupported" in statuses
+                else "valid"
+            )
+            print(
+                f"| {job.name} | {trial.name} | {status} | "
+                f"{len(projection.trajectories)} | {len(projection.steps)} | "
+                f"{len(projection.tool_calls)} |"
+            )
+    if not args.export:
+        return 0
+    result = ingest_and_project(
+        database_url_from_environment(args.database_url),
+        jobs,
+        root=root,
+        output_root=derived_root_from_environment(
+            root,
+            explicit=args.output_dir,
+        ),
+    )
+    record_projection_failures(
+        DirectoryQueue(root / "queue"),
+        result,
+        actor="manual-trajectories",
+        spec_id=f"system-{new_ulid()}",
+    )
+    for table in result.tables:
+        print(f"{table.table}: {table.rows} row(s) -> {table.path}")
+    print("totals:")
+    for table, rows in sorted(result.row_counts.items()):
+        print(f"{table}: {rows} row(s)")
+    for failure in result.failures:
+        print(f"projection failed: {failure.job_name} ({failure.error_type})")
+    return 1 if result.failures else 0
+
+
+def _compare_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    spec_path = _resolve(root, args.path)
+    json_path, markdown_path, report = write_comparison(
+        spec_path,
+        repo_root=root,
+        output_root=_resolve(root, args.output_dir),
+    )
+    if args.index:
+        url = database_url_from_environment(args.database_url)
+        database.initialize(url)
+        index_comparison_associations(
+            url,
+            spec_path=spec_path,
+            report=report,
+            repo_root=root,
+        )
+    for paired in report["paired"]:
+        print(paired["statement"])
+    print(f"json: {json_path}")
+    print(f"markdown: {markdown_path}")
+    return 0
+
+
+def _power_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    if args.n_tasks is not None:
+        if args.k is None:
+            raise ValueError("--k is required with --n-tasks")
+        effect = minimum_detectable_effect(
+            n_tasks=args.n_tasks,
+            k=args.k,
+            baseline=args.baseline,
+            alpha=args.alpha,
+            target_power=args.target_power,
+            pair_correlation=args.pair_correlation,
+        )
+        baseline_pass = pass_at_k_probability(args.baseline, args.k)
+        print("Task-paired pass@k power plan")
+        print(f"n_tasks: {args.n_tasks}")
+        print(f"k: {args.k}")
+        print(f"baseline per-attempt pass rate: {args.baseline:.3f}")
+        print(f"baseline pass@{args.k}: {baseline_pass:.3f}")
+        print(f"alpha / power: {args.alpha:.3f} / {args.target_power:.3f}")
+        if effect is None:
+            print("minimum detectable per-attempt difference: unavailable at this n and k")
+        else:
+            comparison_pass = pass_at_k_probability(args.baseline + effect, args.k)
+            print(f"minimum detectable per-attempt difference: {effect:.4f}")
+            print(
+                f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}"
+            )
+        print(
+            "Assumptions: independent attempts for the pass@k transformation and a normal "
+            "approximation to paired task outcomes; "
+            f"pair correlation={args.pair_correlation:.3f}."
+        )
+        return 0
+
+    rows = power_requirements(
+        baseline=args.baseline,
+        attempt_effect=args.target,
+        max_k=args.max_k,
+        alpha=args.alpha,
+        target_power=args.target_power,
+        pair_correlation=args.pair_correlation,
+    )
+    print("| k | baseline pass@k | comparison pass@k | task effect | n_tasks | attempts |")
+    print("|---:|---:|---:|---:|---:|---:|")
+    for row in rows:
+        print(
+            f"| {row['k']} | {row['baseline_pass_at_k']:.3f} | "
+            f"{row['comparison_pass_at_k']:.3f} | {row['task_level_effect']:.3f} | "
+            f"{row['required_n_tasks']} | {row['total_attempts_two_cohorts']} |"
+        )
+    print(
+        "n_tasks is paired tasks per cohort; attempts counts both cohorts. "
+        f"alpha={args.alpha:.3f}, power={args.target_power:.3f}, "
+        f"pair correlation={args.pair_correlation:.3f}."
+    )
+    print("Assumption: attempts are independent for the pass@k transformation.")
+    return 0
+
+
+def _report_family_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    raw_roots = args.raw_root or [
+        Path("runs"),
+        Path("research/evidence/runs"),
+        Path("evidence/runs"),
+    ]
+    parquet_root = (
+        _resolve(root, args.parquet_dir)
+        if args.parquet_dir is not None
+        else derived_root_from_environment(root)
+    )
+    resolved_raw_roots = [_resolve(root, path) for path in raw_roots]
+    if args.output_dir is None:
+        report = family_report(
+            args.task,
+            parquet_root=parquet_root,
+            raw_roots=resolved_raw_roots,
+        )
+    else:
+        json_path, markdown_path, report = write_family_report(
+            args.task,
+            parquet_root=parquet_root,
+            raw_roots=resolved_raw_roots,
+            output_root=_resolve(root, args.output_dir),
+        )
+    print(render_family_report(report))
+    if args.output_dir is not None:
+        print(f"json: {json_path}")
+        print(f"markdown: {markdown_path}")
+    return 0
+
+
+def _report_card_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    spec_path = _resolve(root, args.path)
+    if args.output is None:
+        rendered, card = build_eval_card(spec_path, repo_root=root)
+        print(rendered)
+    else:
+        path, card = draft_eval_card(
+            spec_path,
+            repo_root=root,
+            output_path=_resolve(root, args.output),
+        )
+        print(f"eval card: {path}")
+    print(f"config digest: {card['spec_digest']}")
+    return 0
+
+
+def _analyze_plan_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    job, trial = load_analysis_source(_resolve(root, args.path))
+    prompt_path = root / "research/analysis/stage5-prompt.md"
+    rubric_path = root / "research/analysis/stage5-rubric.json"
+    output_root = _resolve(root, args.output_dir)
+    plan = analysis_plan(
+        job,
+        trial,
+        repo_root=root,
+        destination_root=output_root,
+        prompt_path=prompt_path,
+        rubric_path=rubric_path,
+        agent=args.agent,
+        agent_version=args.agent_version,
+        model=args.model,
+    )
+    print(json.dumps(asdict(plan), indent=2, sort_keys=True))
+    return 0
+
+
+def _analyze_stub_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    job, trial = load_analysis_source(_resolve(root, args.path))
+    prompt_path = root / "research/analysis/stage5-prompt.md"
+    rubric_path = root / "research/analysis/stage5-rubric.json"
+    output_root = _resolve(root, args.output_dir)
+    response = _resolve(root, args.response).read_text()
+
+    def saved_response(_prompt: str, _schema: dict[str, object]) -> AnalyzerCallResult:
+        return AnalyzerCallResult(
+            raw_output=response,
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+        )
+
+    sidecar_path, sidecar = run_trial_analysis(
+        job,
+        trial,
+        analyzer=saved_response,
+        repo_root=root,
+        destination_root=output_root,
+        prompt_path=prompt_path,
+        rubric_path=rubric_path,
+        agent="stub",
+        agent_version="1",
+        model="saved-response",
+    )
+    print(f"analysis: {sidecar_path}")
+    print(f"validation: {sidecar.validation_status}")
+    # `--index` used to be invisible: the output was byte-identical to
+    # the un-indexed form and the only way to confirm the row existed
+    # was to query `analysis_invocations` by hand (M009 F-12).
+    if args.index:
+        url = database_url_from_environment(args.database_url)
+        database.initialize(url)
+        ingest_analysis_sidecar(url, sidecar_path, root=root)
+        print(f"indexed analysis: {sidecar.analysis_id}")
+        print(f"catalog: {database.identity(url)}")
+    else:
+        print("indexed: no (the catalog is a derived index, written on request)")
+        print(
+            "next: uv run evallab analyze ingest-sidecar "
+            f"{shlex.quote(str(sidecar_path))}"
+        )
+    return 0 if sidecar.validation_status == "valid" else 1
+
+
+def _analyze_worker_plan_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.analysis_worker import default_job_roots, default_worker
+
+    worker = default_worker(root)
+    print(json.dumps(worker.plan(default_job_roots(root)), indent=2))
+    return 0
+
+
+def _analyze_worker_status_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.analysis_worker import default_worker
+
+    worker = default_worker(root)
+    print(json.dumps(worker.status(), indent=2))
+    return 0
+
+
+def _analyze_worker_run_one_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.analysis_worker import default_worker
+
+    worker = default_worker(root)
+    transition = worker.run_one(args.request_id)
+    print(json.dumps({"state": transition.state, "reason": transition.reason}))
+    return 0 if transition.state == "completed" else 1
+
+
+def _analyze_worker_resolve_ambiguous_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.analysis_worker import default_worker
+
+    worker = default_worker(root)
+    transition = worker.resolve_ambiguous(
+        args.request_id,
+        action=args.action,
+        actor=args.actor,
+    )
+    print(json.dumps({"state": transition.state, "reason": transition.reason}))
+    return 0
+
+
+def _analyze_ingest_sidecar_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    sidecar_path = _resolve(root, args.path)
+    url = database_url_from_environment(args.database_url)
+    database.initialize(url)
+    sidecar = ingest_analysis_sidecar(url, sidecar_path, root=root)
+    reviews = len(list((sidecar_path.parent / ANALYSIS_REVIEWS_DIRNAME).glob("*.json")))
+    print(f"indexed analysis: {sidecar.analysis_id}")
+    print(f"indexed reviews: {reviews}")
+    print(f"catalog: {database.identity(url)}")
+    return 0
+
+
+def _analyze_review_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    sidecar_path = _resolve(root, args.path)
+    if not sidecar_path.is_file():
+        raise ValueError(
+            f"no analysis sidecar at {sidecar_path}; pass the "
+            f"{ANALYSIS_SIDECAR_FILENAME} path printed by "
+            "`evallab analyze stub` "
+            "(derived/analyses/<analysis_id>/analysis.json)"
+        )
+    review_path, review = write_analysis_review(
+        sidecar_path,
+        disposition=args.disposition,
+        rationale=args.rationale,
+        reviewer=args.reviewer,
+        superseded_by=(UUID(args.superseded_by) if args.superseded_by else None),
+    )
+    print(f"review: {review_path}")
+    print(f"disposition: {review.disposition}")
+    # The catalog is a derived index, so indexing stays opt-in — but the
+    # operator is told which state they are in, never left to discover
+    # that `analysis_reviews` is empty (M009 F-02).
+    if args.index:
+        url = database_url_from_environment(args.database_url)
+        database.initialize(url)
+        ingest_analysis_sidecar(url, sidecar_path, root=root)
+        print(f"indexed review: {review.review_id} -> analysis_reviews")
+        print(f"catalog: {database.identity(url)}")
+    else:
+        print("indexed: no (the catalog is a derived index, written on request)")
+        print(
+            "next: uv run evallab analyze ingest-sidecar "
+            f"{shlex.quote(str(sidecar_path))}"
+        )
+    return 0
+
+
+def _analyze_agreement_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    report_path, report = write_failure_taxonomy_agreement(
+        [_resolve(root, path) for path in args.paths],
+        labels_root=_resolve(root, args.labels),
+        output_path=_resolve(root, args.output),
+        reference_root=root,
+    )
+    agreement = report["exact_agreement"]
+    print(f"report: {report_path}")
+    print(
+        "agreement: "
+        f"{report['exact_matches']}/{report['n_matched_valid']} "
+        f"({'n/a' if agreement is None else f'{agreement:.3f}'})"
+    )
+    coverage = report["label_coverage"]
+    print(f"label coverage: {'n/a' if coverage is None else f'{coverage:.3f}'}")
+    return 0
+
+
+def _db_init_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    url = database_url_from_environment(args.database_url)
+    database.initialize(url)
+    print("database schema is current")
+    return 0
+
+
+def _db_list_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    url = database_url_from_environment(args.database_url)
+    rows = database.list_trials(url, limit=args.limit)
+    print("| job | trial | task | agent | model | reward | exception | seconds |")
+    print("|---|---|---|---|---|---:|---|---:|")
+    for row in rows:
+        print(
+            "| " + " | ".join("" if value is None else str(value) for value in row) + " |"
+        )
+    return 0
+
+
+def _db_attach_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    # thin layer over attach/print_zones/attach_and_query/build_sql_preamble
+    explicit = getattr(args, "derived_root", None)
+    derived = derived_root_from_environment(root, explicit=explicit)
+    result = attach(repo_root=root, explicit_derived=derived)
+    if args.zones:
+        print_zones(result.zones)
+        attached = sum(1 for z in result.zones if z.attached)
+        result.connection.close()
+        return 0 if attached > 0 else 1
+    if args.print_sql:
+        dsn = database_url_from_environment()
+        print(build_sql_preamble(dsn, derived, root))
+        result.connection.close()
+        return 0
+    if args.query:
+        result.connection.close()
+        rows = attach_and_query(args.query, repo_root=root, explicit_derived=derived)
+        for row in rows:
+            print(row)
+        return 0
+    result.connection.close()
+    return 0
+
+
+def _lineage_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    explicit = getattr(args, "derived_root", None)
+    derived = derived_root_from_environment(root, explicit=explicit)
+    result = resolve_lineage(args.target, repo_root=root, explicit_derived=derived)
+    if args.json:
+        print(json.dumps(lineage_to_dict(result), indent=2))
+    else:
+        print(render_lineage_tree(result))
+    return 0 if result.resolved else 1
+
+
+def _analyst_run_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.analyst import run_analysis
+
+    explicit_derived = getattr(args, "derived_root", None)
+    derived = derived_root_from_environment(root, explicit=explicit_derived)
+    record, traj_data, conclusion_file, trajectory_file = run_analysis(
+        args.trial_id,
+        model=args.model,
+        repo_root=root,
+        derived_root=derived,
+        runs_root=getattr(args, "runs_root", None),
+    )
+    print(f"analysis_id: {record.analysis_id}")
+    print(f"trial_id: {record.trial_id}")
+    print(f"model: {record.model}")
+    print(f"category: {record.category}")
+    print(f"confidence: {record.confidence.level}")
+    print(f"evidence: {len(record.evidence)} citation(s)")
+    print(f"conclusion: {conclusion_file}")
+    print(f"trajectory: {trajectory_file}")
+    return 0
+
+
+def _analyst_list_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.analyst import list_analyses
+
+    records = list_analyses(root, trial_id=args.trial_id)
+    if not records:
+        print("No analysis records found.")
+        return 0
+    print("| analysis_id | trial_id | model | category | confidence | evidence |")
+    print("|---|---|---|---|---|---:|")
+    for r in records:
+        print(
+            f"| {r['analysis_id']} | {r['trial_id']} | {r['model']} | "
+            f"{r['category']} | {r['confidence']} | {r['evidence_count']} |"
+        )
+    return 0
+
+
+def _analyst_show_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.analyst import show_analysis
+
+    try:
+        conclusion, trajectory = show_analysis(args.analysis_id, root)
+    except FileNotFoundError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        payload = {"conclusion": conclusion, "trajectory": trajectory}
+        print(json.dumps(payload, indent=2))
+        return 0
+    print(f"# Analysis {conclusion.get('analysis_id')}")
+    print(f"Trial ID: {conclusion.get('trial_id')}")
+    print(f"Model: {conclusion.get('model')}")
+    print(f"Category: {conclusion.get('category')}")
+    conf = conclusion.get("confidence") or {}
+    conf_level = conf.get("level") if isinstance(conf, dict) else str(conf)
+    print(f"Confidence: {conf_level}")
+    print(f"Summary: {conclusion.get('summary', '')}")
+    print("\n## Cited Evidence:")
+    for ev in conclusion.get("evidence", []):
+        step_info = f" (step {ev['step']})" if ev.get("step") is not None else ""
+        print(f"- {ev.get('path')}{step_info}")
+    print("\n## Lineage Inputs:")
+    for inp in conclusion.get("inputs", []):
+        print(f"- {inp.get('path')} ({inp.get('digest')})")
+    print("\n## Analyst Trajectory Steps:")
+    for step in trajectory.get("steps", []):
+        sid = step.get("step_id")
+        src = step.get("source")
+        ts = step.get("timestamp")
+        msg = step.get("message")
+        print(f"[{sid}] {src} ({ts}): {msg}")
+    return 0
+
+
+def _card_generate_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.cards import generate_card
+
+    explicit = getattr(args, "derived_root", None)
+    derived = derived_root_from_environment(root, explicit=explicit)
+    rendered, card_data = generate_card(
+        args.target,
+        repo_root=root,
+        explicit_derived=derived,
+        output_path=args.output,
+    )
+    if args.json:
+        print(json.dumps(card_data, indent=2))
+        return 0
+    if args.output is None:
+        print(rendered)
+    else:
+        print(f"eval card: {args.output}")
+        print(f"config digest: {card_data.get('spec_digest')}")
+    return 0
+
+
+def _card_validate_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.cards import validate_card_file
+
+    card_path = _resolve(root, args.path)
+    result = validate_card_file(card_path)
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+        return 0 if result.valid else 1
+    if result.valid:
+        print(f"VALID: {args.path} passed all schema and caveat checks.")
+        return 0
+    print(f"INVALID: {args.path} failed validation:", file=sys.stderr)
+    for err in result.errors:
+        print(f"  - {err}", file=sys.stderr)
+    return 1
+
+
+def _behavior_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.behavior import (
+        generate_behavior_report,
+        render_behavior_report,
+        report_to_dict,
+    )
+
+    explicit = getattr(args, "derived_root", None)
+    derived = derived_root_from_environment(root, explicit=explicit)
+    report = generate_behavior_report(
+        repo_root=root,
+        explicit_derived=derived,
+        task_filter=args.task,
+        agent_filter=args.agent,
+    )
+    if args.json:
+        print(json.dumps(report_to_dict(report), indent=2))
+    else:
+        print(render_behavior_report(report))
+    return 0
+
+
+def _ladder_generate_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import generate_grid, load_grid_spec
+
+    grid_path = _resolve(root, args.grid_spec)
+    grid_spec = load_grid_spec(grid_path)
+    if args.no_quota_check:
+        grid_spec = grid_spec.model_copy(update={"check_quota_headroom": False})
+
+    dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+    output_dir = _resolve(root, args.output_dir) if args.output_dir else None
+
+    result = generate_grid(
+        grid_spec,
+        output_dir=output_dir,
+        repo_root=root,
+        submit=args.submit,
+        dry_run=dry_run,
+    )
+
+    if args.json:
+        out_data = {
+            "grid_id": result.grid_id,
+            "total_specs": result.total_specs,
+            "total_trials": result.total_trials,
+            "total_estimated_cost_usd": result.total_estimated_cost_usd,
+            "specs": [s.model_dump(mode="json") for s in result.specs],
+            "skipped": [
+                {
+                    "name": sk.name,
+                    "task": sk.task,
+                    "agent": sk.agent,
+                    "preamble": sk.preamble,
+                    "attempts": sk.attempts,
+                    "reason": sk.reason,
+                }
+                for sk in result.skipped
+            ],
+            "deduped": [
+                {
+                    "grid_id": d.grid_id,
+                    "task": d.task,
+                    "agent": d.agent,
+                    "preamble": d.preamble,
+                    "attempts": d.attempts,
+                    "reason": d.reason,
+                }
+                for d in result.deduped
+            ],
+            "written_files": [str(p) for p in result.written_paths],
+            "submitted_specs": result.submitted_specs,
+        }
+        print(json.dumps(out_data, indent=2))
+    else:
+        print(result.summary())
+    return 0
+
+
+def _trace_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    batch = trace_path(
+        _resolve(root, args.path),
+        endpoint=args.endpoint,
+        dry_run=args.dry_run,
+        include_controls=args.include_controls,
+    )
+    print(format_batch(batch))
+    if batch.failed:
+        return 1
+    if not batch.shipped and not args.dry_run:
+        return 1
+    return 0
+
+
+def _fetch_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    service = FetchService(
+        root=root,
+        harbor=harbor if harbor is not None else SubprocessHarbor(),
+    )
+    if args.fetch_list:
+        print("\n".join(service.list_lines()))
+        return 0
+    if args.fetch_audit:
+        rows = service.audit()
+        print(format_audit(rows), end="")
+        return 0 if all(row.status == "pass" for row in rows) else 1
+    if not args.ref:
+        raise FetchError("provide name@version, or --list / --audit")
+    result = service.fetch(args.ref, verify_sample=args.verify_sample)
+    print(f"{result.status}: {result.message}")
+    if result.manifest_path is not None:
+        print(f"manifest: {result.manifest_path}")
+    return 0
+
+
+def _gc_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    plan, applied = run_gc(
+        root,
+        apply=args.apply,
+        runs_dir=_resolve(root, args.runs_dir),
+    )
+    print(format_plan(plan))
+    if applied is not None:
+        print(f"applied: {len(applied.tombstones)} tombstone(s)")
+    return 0
+
+
+def _registry_list_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.registry import TaskRegistry
+
+    reg = TaskRegistry.from_repo(root)
+    records = reg.list_records(args.state)
+    if args.json:
+        payload = [record.model_dump(mode="json") for record in records]
+        print(json.dumps(payload, indent=2))
+        return 0
+    if not records:
+        filter_msg = f" with state {args.state!r}" if args.state else ""
+        print(f"No task records found in library/registry/{filter_msg}.")
+        return 0
+    print(f"{'TASK ID':<32} {'VERSION':<10} {'STATE':<12} {'ZONE':<18} {'PATH'}")
+    print("-" * 100)
+    for record in records:
+        print(
+            f"{record.task_id:<32} {record.version:<10} {record.state:<12} "
+            f"{record.provenance_zone:<18} {record.task_path}"
+        )
+    return 0
+
+
+def _registry_audit_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.registry import audit_registry
+
+    report = audit_registry(root)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+        return 0 if report.passed else 1
+
+    print(f"Task Registry Audit (Total records: {report.total_records})")
+    print(f"  Registered: {report.registered_count}")
+    print(f"  Candidate:  {report.candidate_count}")
+    print(f"  Retired:    {report.retired_count}")
+    print()
+
+    if not report.findings:
+        print("PASS: zero audit findings. Registry and queue claims are valid.")
+        return 0
+
+    error_count = sum(1 for f in report.findings if f.severity == "error")
+    warning_count = sum(1 for f in report.findings if f.severity == "warning")
+    info_count = sum(1 for f in report.findings if f.severity == "info")
+
+    print(f"Findings: {error_count} errors, {warning_count} warnings, {info_count} info")
+    print("-" * 80)
+    for finding in report.findings:
+        icon = (
+            "FAIL"
+            if finding.severity == "error"
+            else ("WARN" if finding.severity == "warning" else "INFO")
+        )
+        print(f"[{icon}] {finding.category} -> {finding.target}")
+        print(f"       {finding.message}")
+    return 0 if report.passed else 1
+
+
+def _tidy_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.tidy import run_tidy
+
+    apply = args.apply and not args.dry_run
+    return run_tidy(root, apply=apply)
+
+
+def _verdict_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.verdicts import (
+        format_verdict_history_table,
+        format_verdicts_table,
+        get_verdict_history_from_catalog,
+        list_current_verdicts_from_catalog,
+        record_verdict,
+    )
+
+    action = args.action_or_id
+    if action is None:
+        for act in parser()._actions:
+            if isinstance(act, argparse._SubParsersAction) and "verdict" in act.choices:
+                print(act.choices["verdict"].format_help())
+                return 0
+        return 0
+    db_url = getattr(args, "database_url", None)
+
+    if action == "list":
+        status_filter = args.status or args.status_or_id
+        try:
+            verdicts = list_current_verdicts_from_catalog(
+                database_url=db_url, status=status_filter
+            )
+        except Exception:
+            if db_url is not None:
+                raise
+            verdicts = []
+        if args.json:
+            print(json.dumps([v.model_dump(mode="json") for v in verdicts], indent=2))
+        else:
+            print(format_verdicts_table(verdicts))
+        return 0
+
+    if action == "history":
+        target_id = args.status_or_id
+        if not target_id:
+            print(
+                "error: discovery_id is required for 'verdict history <discovery_id>'",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            history = get_verdict_history_from_catalog(target_id, database_url=db_url)
+        except Exception:
+            if db_url is not None:
+                raise
+            history = []
+        if args.json:
+            print(json.dumps([v.model_dump(mode="json") for v in history], indent=2))
+        else:
+            print(format_verdict_history_table(target_id, history))
+        return 0
+
+    discovery_id = action
+    status = args.status_or_id
+    if not status:
+        print(
+            "error: status is required: evallab verdict <discovery_id> "
+            "<accepted|rejected|needs_evidence|pending> --by <who>",
+            file=sys.stderr,
+        )
+        return 2
+    if not args.by:
+        print("error: --by <who> is required for recording a verdict", file=sys.stderr)
+        return 2
+
+    verdict = record_verdict(
+        discovery_id,
+        status,
+        by=args.by,
+        note=args.note,
+        repo_root=root,
+        database_url=db_url,
+    )
+    if args.json:
+        print(json.dumps(verdict.model_dump(mode="json"), indent=2))
+    else:
+        note_suffix = f" (note: {verdict.note})" if verdict.note else ""
+        print(
+            f"Recorded verdict for {verdict.discovery_id}: {verdict.status} "
+            f"by {verdict.by}{note_suffix}"
+        )
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Declarative CLI Parser Construction
+# ---------------------------------------------------------------------------
+
+
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(
+        prog="evallab",
+        description="Run, inspect, and analyze agent evaluations through Harbor.",
+    )
+    root.add_argument("--version", action="version", version=__version__)
+    commands = root.add_subparsers(dest="command", required=True)
+
+    doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
+    doctor.add_argument(
+        "--headless",
+        action="store_true",
+        help="Fail closed and print only boolean prerequisite status as JSON",
+    )
+    doctor.set_defaults(func=_doctor_command)
+
+    dashboard = commands.add_parser("dashboard", help="Open the read-only research overview")
+    dashboard.add_argument("--address", default="127.0.0.1")
+    dashboard.add_argument("--port", type=int, default=8501)
+    dashboard.add_argument("--database-url")
+    dashboard.set_defaults(func=_dashboard_command)
+
+    status = commands.add_parser(
+        "status",
+        help="Read-only operator snapshot of recent work, health, and saved analysis",
+    )
+    status.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the typed status snapshot as JSON",
+    )
+    status.add_argument(
+        "--from",
+        dest="status_from",
+        type=Path,
+        help="Repository root or smoke scratch (queue/ + jobs/) to read",
+    )
+    status.add_argument(
+        "--generate",
+        action="store_true",
+        help="Generate docs/STATUS.md markdown projection to stdout",
+    )
+    status.add_argument(
+        "--update",
+        action="store_true",
+        help="Generate and update docs/STATUS.md on disk",
+    )
+    status.add_argument(
+        "--target-date",
+        type=date.fromisoformat,
+        default=None,
+        help="Target date for status generation (YYYY-MM-DD)",
+    )
+    status.add_argument(
+        "--output",
+        "-o",
+        dest="status_output",
+        type=Path,
+        default=None,
+        help="Destination path for status output",
+    )
+    status.set_defaults(func=_status_command)
+
+    preflight = commands.add_parser(
+        "preflight",
+        help="Read-only: remaining quota per provider, the queue by purpose, power warnings",
+    )
+    preflight.add_argument(
+        "--useful-effect",
+        type=float,
+        help=(
+            "Per-attempt difference you would call useful. Unset by default because "
+            "'useful' is a spend judgement, not a lab constant; supply it and a queued "
+            "comparison whose smallest detectable difference exceeds it becomes a warning."
+        ),
+    )
+    preflight.add_argument(
+        "--from",
+        dest="preflight_from",
+        type=Path,
+        help="Repository root to read (default: this checkout)",
+    )
+    preflight.set_defaults(func=_preflight_command)
+
+    submit = commands.add_parser("submit", help="Validate and submit one experiment spec")
+    submit.add_argument("path", type=Path)
+    submit.set_defaults(func=_submit_command)
+
+    tick = commands.add_parser("tick", help="Reconcile and drain the approved experiment queue")
+    tick.set_defaults(func=_tick_command)
+
+    approve = commands.add_parser(
+        "approve",
+        help="Authorize one queued experiment; required before any billable agent runs",
+    )
+    approve.add_argument("spec_id")
+    approve.add_argument(
+        "--actor",
+        required=True,
+        help="who is authorizing; recorded in queue/events.jsonl and never defaulted",
+    )
+    approve.add_argument(
+        "--despite-quota",
+        action="store_true",
+        help=(
+            "authorize even though the provider reports the subscription "
+            "exhausted; recorded on the authorisation event and overrides "
+            "nothing else"
+        ),
+    )
+    approve.set_defaults(func=_approve_command)
+
+    reject = commands.add_parser("reject", help="Reject one queued experiment")
+    reject.add_argument("spec_id")
+    reject.add_argument("--actor", default="peter")
+    reject.add_argument("--reason", required=True)
+    reject.set_defaults(func=_reject_command)
+
+    stop = commands.add_parser("stop", help="Stop dispatch after the current trial")
+    stop.set_defaults(func=_stop_command)
+
+    resume = commands.add_parser("resume", help="Remove the queue stop marker")
+    resume.set_defaults(func=_resume_command)
+
+    schedule = commands.add_parser("schedule", help="Manage unattended launchd schedules")
+    schedule_commands = schedule.add_subparsers(dest="schedule_command", required=True)
+    schedule_install = schedule_commands.add_parser(
+        "install", help="Install and load tick/nightly LaunchAgents"
+    )
+    schedule_install.set_defaults(func=_schedule_install_command)
+
+    digest = commands.add_parser("digest", help="Render one daily digest from catalog and events")
+    digest.add_argument("--date", dest="report_date", type=date.fromisoformat)
+    digest.set_defaults(func=_digest_command)
+
+    nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")
+    nightly.add_argument("--date", dest="report_date", type=date.fromisoformat)
+    nightly.set_defaults(func=_nightly_command)
+
+    research = commands.add_parser(
+        "research",
+        help="Run one guarded analyst/synthesizer/proposer pass",
+    )
+    research.add_argument("--date", dest="report_date", type=date.fromisoformat)
+    research.set_defaults(func=_research_command)
+
+    canary = commands.add_parser("canary", help="Manage version-pinned nightly canaries")
+    canary_commands = canary.add_subparsers(dest="canary_command", required=True)
+    import_task = canary_commands.add_parser(
+        "import-terminal-bench",
+        help="Import one task through an immutable Harbor dataset download",
+    )
+    import_task.add_argument("--dataset-ref", required=True)
+    import_task.add_argument("--task-name", required=True)
+    import_task.add_argument("--destination", type=Path, required=True)
+    import_task.set_defaults(func=_canary_import_command)
+
+    calibrate = commands.add_parser(
+        "calibrate", help="Measure a judge against one sealed calibration family"
+    )
+    calibrate.add_argument(
+        "family", choices=("checkout-pool-exhaustion", "retry-storm-backlog")
+    )
+    calibration_mode = calibrate.add_mutually_exclusive_group()
+    calibration_mode.add_argument("--predictions", type=Path)
+    calibration_mode.add_argument("--stub", action="store_true")
+    calibration_mode.add_argument("--stage", choices=("codex", "anthropic"))
+    calibration_mode.add_argument("--dispatch-approved", metavar="SPEC_ID")
+    calibration_mode.add_argument("--dspy-dry-run", action="store_true")
+    calibrate.add_argument("--judge-model")
+    calibrate.add_argument("--est-cost-usd", type=float, default=2.75)
+    calibrate.add_argument("--date", dest="calibration_date", type=date.fromisoformat)
+    calibrate.add_argument("--records-dir", type=Path)
+    calibrate.add_argument("--prediction-artifact")
+    calibrate.add_argument("--pending-backend", action="append", default=[])
+    calibrate.add_argument("--database-url")
+    calibrate.add_argument("--skip-catalog", action="store_true")
+    calibrate.set_defaults(func=_calibrate_command)
+
+    run = commands.add_parser("run", help="Run one explicitly named Harbor job")
+    run.add_argument("--task", type=Path, required=True)
+    run.add_argument("--agent", required=True)
+    run.add_argument("--model")
+    run.add_argument("--name", required=True)
+    run.add_argument("--jobs-dir", type=Path, default=Path("runs"))
+    run.add_argument("--environment", default="docker")
+    run.add_argument("--concurrency", type=int, default=1)
+    run.add_argument("--attempts", type=int, default=1)
+    run.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=1_800,
+        help="executor wall-clock allowance per attempted trial",
+    )
+    run.add_argument(
+        "--allow-billable",
+        action="store_true",
+        help="Acknowledge that the selected adapter/model may incur charges",
+    )
+    run.set_defaults(func=_run_command)
+
+    matrix = commands.add_parser("matrix", help="Run a checked-in JSON experiment matrix")
+    matrix.add_argument("path", type=Path)
+    matrix.add_argument(
+        "--reuse-existing",
+        action="store_true",
+        help="Validate completed named jobs instead of refusing to reuse them",
+    )
+    matrix.set_defaults(func=_matrix_command)
+
+    summarize = commands.add_parser(
+        "summarize", help="Print trial results directly from Harbor job directories"
+    )
+    summarize.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
+    summarize.set_defaults(func=_summarize_command)
+
+    ingest = commands.add_parser("ingest", help="Upsert Harbor job metadata into PostgreSQL")
+    ingest.add_argument("paths", type=Path, nargs="+", default=[Path("runs")])
+    ingest.add_argument("--database-url")
+    ingest.add_argument(
+        "--derived-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
+    ingest.set_defaults(func=_ingest_command)
+
+    trajectories = commands.add_parser(
+        "trajectories",
+        help="Validate ATIF; optionally rebuild catalog and deterministic Parquet facts",
+    )
+    trajectories.add_argument(
+        "paths",
+        type=Path,
+        nargs="*",
+        default=[Path("runs"), Path("research/evidence/runs"), Path("evidence/runs")],
+    )
+    trajectories.add_argument(
+        "--export",
+        action="store_true",
+        help="Rebuild the catalog and write trajectory/trial facts to Parquet",
+    )
+    trajectories.add_argument(
+        "--output-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
+    trajectories.add_argument("--database-url")
+    trajectories.set_defaults(func=_trajectories_command)
+
+    compare = commands.add_parser("compare", help="Compare declared trial cohorts")
+    compare.add_argument("path", type=Path)
+    compare.add_argument("--output-dir", type=Path, default=Path("derived/comparisons"))
+    compare.add_argument("--index", action="store_true")
+    compare.add_argument("--database-url")
+    compare.set_defaults(func=_compare_command)
+
+    power = commands.add_parser("power", help="Plan task-paired pass@k comparison power")
+    power_mode = power.add_mutually_exclusive_group(required=True)
+    power_mode.add_argument(
+        "--n-tasks",
+        type=int,
+        help="Compute the minimum detectable per-attempt difference for this many paired tasks",
+    )
+    power_mode.add_argument(
+        "--target",
+        type=float,
+        help="Compute required paired tasks across k for this per-attempt difference",
+    )
+    power.add_argument("--k", type=int, help="Attempts per task for --n-tasks mode")
+    power.add_argument("--max-k", type=int, default=8, help="Largest k for --target mode")
+    power.add_argument("--baseline", type=float, required=True)
+    power.add_argument("--alpha", type=float, default=0.05)
+    power.add_argument("--power", dest="target_power", type=float, default=0.8)
+    power.add_argument("--pair-correlation", type=float, default=0.0)
+    power.set_defaults(func=_power_command)
+
+    report = commands.add_parser("report", help="Render trajectory families and eval cards")
+    report_commands = report.add_subparsers(dest="report_command", required=True)
+    report_family = report_commands.add_parser(
+        "family", help="Explain one task family from Parquet and canonical ATIF"
+    )
+    report_family.add_argument("task")
+    report_family.add_argument(
+        "--parquet-dir",
+        type=Path,
+        help="override the shared Parquet root for this invocation",
+    )
+    report_family.add_argument(
+        "--raw-root",
+        type=Path,
+        action="append",
+        help="Raw Harbor root; repeat as needed (defaults to runs and reviewed evidence)",
+    )
+    report_family.add_argument(
+        "--output-dir",
+        type=Path,
+        help="write JSON and Markdown reports (default: render without writing)",
+    )
+    report_family.set_defaults(func=_report_family_command)
+
+    report_card = report_commands.add_parser(
+        "card", help="Draft a provenance-bearing eval card from a completed spec"
+    )
+    report_card.add_argument("path", type=Path)
+    report_card.add_argument(
+        "--output",
+        type=Path,
+        help="write the eval card (default: render without writing)",
+    )
+    report_card.set_defaults(func=_report_card_command)
+
+    analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
+    analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
+    analyze_plan_parser = analyze_commands.add_parser(
+        "plan", help="Show a no-call stage-5 analysis plan"
+    )
+    analyze_plan_parser.add_argument("path", type=Path)
+    analyze_plan_parser.add_argument("--agent", default="codex")
+    analyze_plan_parser.add_argument("--agent-version", default="local")
+    analyze_plan_parser.add_argument("--model", default="configured-by-queue")
+    analyze_plan_parser.add_argument(
+        "--output-dir", type=Path, default=Path("derived/analyses")
+    )
+    analyze_plan_parser.set_defaults(func=_analyze_plan_command)
+
+    analyze_worker_plan = analyze_commands.add_parser(
+        "worker-plan", help="Read-only: what an analysis-worker cycle would do"
+    )
+    analyze_worker_plan.set_defaults(func=_analyze_worker_plan_command)
+
+    analyze_worker_status = analyze_commands.add_parser(
+        "worker-status", help="Read-only: analysis request counts and states"
+    )
+    analyze_worker_status.set_defaults(func=_analyze_worker_status_command)
+
+    analyze_worker_run = analyze_commands.add_parser(
+        "worker-run-one", help="Run ONE request through normal admission (never self-approves)"
+    )
+    analyze_worker_run.add_argument("request_id")
+    analyze_worker_run.set_defaults(func=_analyze_worker_run_one_command)
+
+    analyze_worker_resolve = analyze_commands.add_parser(
+        "worker-resolve-ambiguous",
+        help="Explicitly retry or quarantine one possibly-paid ambiguous invocation",
+    )
+    analyze_worker_resolve.add_argument("request_id")
+    analyze_worker_resolve.add_argument(
+        "--action", choices=("retry", "quarantine"), required=True
+    )
+    analyze_worker_resolve.add_argument("--actor", required=True)
+    analyze_worker_resolve.set_defaults(func=_analyze_worker_resolve_ambiguous_command)
+
+    analyze_stub = analyze_commands.add_parser(
+        "stub", help="Validate a saved response and write an immutable sidecar"
+    )
+    analyze_stub.add_argument("path", type=Path)
+    analyze_stub.add_argument("--response", type=Path, required=True)
+    analyze_stub.add_argument("--output-dir", type=Path, default=Path("derived/analyses"))
+    analyze_stub.add_argument("--index", action="store_true")
+    analyze_stub.add_argument("--database-url")
+    analyze_stub.set_defaults(func=_analyze_stub_command)
+
+    analyze_ingest = analyze_commands.add_parser(
+        "ingest-sidecar", help="Index one durable analysis sidecar"
+    )
+    analyze_ingest.add_argument("path", type=Path)
+    analyze_ingest.add_argument("--database-url")
+    analyze_ingest.set_defaults(func=_analyze_ingest_sidecar_command)
+
+    analyze_review = analyze_commands.add_parser(
+        "review", help="Append a human review without editing the analysis"
+    )
+    analyze_review.add_argument("path", type=Path)
+    analyze_review.add_argument(
+        "--disposition",
+        required=True,
+        choices=("accepted", "needs_revision", "rejected", "superseded"),
+    )
+    analyze_review.add_argument("--rationale", required=True)
+    analyze_review.add_argument("--reviewer", required=True)
+    analyze_review.add_argument("--superseded-by")
+    analyze_review.add_argument(
+        "--index",
+        action="store_true",
+        help="Also index the review into the catalog (analysis_reviews)",
+    )
+    analyze_review.add_argument("--database-url")
+    analyze_review.set_defaults(func=_analyze_review_command)
+
+    analyze_agreement = analyze_commands.add_parser(
+        "agreement", help="Compare valid analysis categories with fixed labels"
+    )
+    analyze_agreement.add_argument("paths", type=Path, nargs="+")
+    analyze_agreement.add_argument(
+        "--labels",
+        type=Path,
+        default=Path("research/calibration/trajectory-labels"),
+    )
+    analyze_agreement.add_argument(
+        "--output",
+        type=Path,
+        default=Path("derived/analysis/failure-taxonomy-agreement.json"),
+    )
+    analyze_agreement.set_defaults(func=_analyze_agreement_command)
+
+    db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
+    db_commands = db.add_subparsers(dest="db_command", required=True)
+    db_init = db_commands.add_parser("init", help="Apply the idempotent schema")
+    db_init.add_argument("--database-url")
+    db_init.set_defaults(func=_db_init_command)
+
+    db_list = db_commands.add_parser("list", help="List recently ingested trials")
+    db_list.add_argument("--database-url")
+    db_list.add_argument("--limit", type=int, default=25)
+    db_list.set_defaults(func=_db_list_command)
+
+    db_attach = db_commands.add_parser("attach", help="Attach unified DuckDB surface (Z2+Z3+Z4)")
+    db_attach.add_argument("--zones", action="store_true", help="report zone status (exit non-zero if none attached)")  # noqa: E501
+    db_attach.add_argument("--print-sql", action="store_true", help="emit the attach + view DDL preamble to stdout")  # noqa: E501
+    db_attach.add_argument("--query", metavar="SQL", help="run query against the surface and print rows")  # noqa: E501
+    db_attach.add_argument("--derived-root", type=Path, help="override the shared Parquet root (same resolution as library)")  # noqa: E501
+    db_attach.set_defaults(func=_db_attach_command)
+
+    lineage = commands.add_parser(
+        "lineage", help="Trace recursive lineage of generated artifacts back to Z1"
+    )
+    lineage.add_argument("target", help="Artifact path or identifier to trace")
+    lineage.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON lineage graph"
+    )
+    lineage.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
+    lineage.set_defaults(func=_lineage_command)
+
+    analyst = commands.add_parser(
+        "analyst", help="Run, list, and inspect durable trial analyses with reasoning trajectories"
+    )
+    analyst_commands = analyst.add_subparsers(dest="analyst_command", required=True)
+    analyst_run = analyst_commands.add_parser(
+        "run",
+        help="Run analysis on one trial (deterministic stub by default; --model spends tokens)",
+    )
+    analyst_run.add_argument("trial_id", help="Trial identifier, trial name, or path")
+    analyst_run.add_argument(
+        "--model",
+        default=None,
+        help="Explicit model selector (opt-in spend: default is deterministic stub)",
+    )
+    analyst_run.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root",
+    )
+    analyst_run.add_argument(
+        "--runs-root",
+        type=Path,
+        help="override candidate runs root for raw trajectory discovery",
+    )
+    analyst_run.set_defaults(func=_analyst_run_command)
+
+    analyst_list = analyst_commands.add_parser(
+        "list", help="List stored analysis conclusions"
+    )
+    analyst_list.add_argument(
+        "--trial",
+        dest="trial_id",
+        default=None,
+        help="filter conclusions by source trial_id",
+    )
+    analyst_list.set_defaults(func=_analyst_list_command)
+
+    analyst_show = analyst_commands.add_parser(
+        "show", help="Show an analysis conclusion and its recorded trajectory"
+    )
+    analyst_show.add_argument("analysis_id", help="ULID of the analysis record to show")
+    analyst_show.add_argument(
+        "--json", action="store_true", help="emit raw structured JSON"
+    )
+    analyst_show.set_defaults(func=_analyst_show_command)
+
+    card = commands.add_parser(
+        "card", help="Generate and validate purpose-bound eval cards from completed evidence"
+    )
+    card_commands = card.add_subparsers(dest="card_command", required=True)
+    card_generate = card_commands.add_parser(
+        "generate", help="Generate an eval card from a spec_id or job_id"
+    )
+    card_generate.add_argument("target", help="Spec ID, spec path, job ID, or job path")
+    card_generate.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="write the eval card (default: render without writing)",
+    )
+    card_generate.add_argument(
+        "--json",
+        action="store_true",
+        help="print structured card JSON summary",
+    )
+    card_generate.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root",
+    )
+    card_generate.set_defaults(func=_card_generate_command)
+
+    card_validate = card_commands.add_parser(
+        "validate", help="Validate an eval card against schema and mandatory caveats"
+    )
+    card_validate.add_argument("path", type=Path, help="Path to eval card markdown file")
+    card_validate.add_argument(
+        "--json",
+        action="store_true",
+        help="print structured validation result JSON",
+    )
+    card_validate.set_defaults(func=_card_validate_command)
+
+    behavior = commands.add_parser(
+        "behavior", help="Analyze agent execution behavior, effort, and efficiency"
+    )
+    behavior.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON behavior report"
+    )
+    behavior.add_argument(
+        "--task", help="filter analysis to one task name"
+    )
+    behavior.add_argument(
+        "--agent", help="filter analysis to one agent name"
+    )
+    behavior.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
+    behavior.set_defaults(func=_behavior_command)
+
+    ladder = commands.add_parser(
+        "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"
+    )
+    ladder_commands = ladder.add_subparsers(dest="ladder_command", required=True)
+    ladder_generate = ladder_commands.add_parser(
+        "generate", help="Expand a grid specification into ExperimentSpec files"
+    )
+    ladder_generate.add_argument("grid_spec", type=Path, help="Path to grid YAML/JSON file")
+    ladder_generate.add_argument(
+        "-o",
+        "--output",
+        dest="output_dir",
+        type=Path,
+        default=None,
+        help="Directory to write generated ExperimentSpec JSON files",
+    )
+    ladder_generate.add_argument(
+        "--submit",
+        action="store_true",
+        help="Submit generated ExperimentSpecs directly to the queue",
+    )
+    ladder_generate.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print expansion and decisions without writing to disk (default)",
+    )
+    ladder_generate.add_argument(
+        "--no-quota-check",
+        action="store_true",
+        help="Disable automatic headroom/quota checking against existing runs",
+    )
+    ladder_generate.add_argument(
+        "--json",
+        action="store_true",
+        help="Print generation summary and details in JSON format",
+    )
+    ladder_generate.set_defaults(func=_ladder_generate_command)
+
+    trace = commands.add_parser(
+        "trace",
+        help="Convert ATIF trajectories to OTel and ship them to Phoenix",
+    )
+    trace.add_argument("path", type=Path, help="Trial directory, job directory, or trajectory.json")
+    trace.add_argument(
+        "--endpoint",
+        default=None,
+        help="Phoenix collector base URL (default: PHOENIX_COLLECTOR_ENDPOINT or http://127.0.0.1:6006)",
+    )
+    trace.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate and convert only; do not POST OTLP",
+    )
+    trace.add_argument(
+        "--include-controls",
+        action="store_true",
+        help="Also trace oracle/nop control trials",
+    )
+    trace.set_defaults(func=_trace_command)
+
+    fetch = commands.add_parser(
+        "fetch",
+        help="Acquire a pinned Harbor Hub dataset into library/benchmarks/",
+    )
+    fetch.add_argument(
+        "ref",
+        nargs="?",
+        help="Pinned name@version (never @latest or other unpinned refs)",
+    )
+    fetch.add_argument(
+        "--list",
+        dest="fetch_list",
+        action="store_true",
+        help="Show fetchable Hub pins and named adapter lanes",
+    )
+    fetch.add_argument(
+        "--audit",
+        dest="fetch_audit",
+        action="store_true",
+        help="Re-verify digests of every library/benchmarks ingest",
+    )
+    fetch.add_argument(
+        "--verify-sample",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Run free oracle/nop on N tasks (Harbor -n <= 2) and record rewards",
+    )
+    fetch.set_defaults(func=_fetch_command)
+
+    gc = commands.add_parser(
+        "gc",
+        help="Plan or apply compression/pruning of unpromoted ingested runs",
+    )
+    gc.add_argument(
+        "--apply",
+        action="store_true",
+        help="Execute the plan (default is a dry-run that mutates nothing)",
+    )
+    gc.add_argument(
+        "--runs-dir",
+        type=Path,
+        default=Path("runs"),
+        help="Job directory root to scan (default: runs/)",
+    )
+    gc.set_defaults(func=_gc_command)
+
+    registry = commands.add_parser(
+        "registry",
+        help="Inspect and audit explicit registered tasks",
+    )
+    registry_commands = registry.add_subparsers(
+        dest="registry_command",
+        required=True,
+    )
+    registry_list = registry_commands.add_parser(
+        "list",
+        help="List explicit task registry records",
+    )
+    registry_list.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit records as JSON array",
+    )
+    registry_list.add_argument(
+        "--state",
+        choices=["candidate", "registered", "retired"],
+        help="Filter records by admission state",
+    )
+    registry_list.set_defaults(func=_registry_list_command)
+
+    registry_audit = registry_commands.add_parser(
+        "audit",
+        help="Audit task registry records and queue claims",
+    )
+    registry_audit.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit audit report as JSON",
+    )
+    registry_audit.set_defaults(func=_registry_audit_command)
+
+    tidy = commands.add_parser(
+        "tidy",
+        help="Sweep working tree strays, stale worktrees, and retention violations",
+    )
+    tidy.add_argument(
+        "--apply",
+        action="store_true",
+        help="Execute safe deletions (default is dry-run report)",
+    )
+    tidy.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Report findings without making changes (default behavior)",
+    )
+    tidy.set_defaults(func=_tidy_command)
+
+    verdict = commands.add_parser(
+        "verdict",
+        help="Record, list, or inspect append-only human verdicts on discoveries",
+    )
+    verdict.add_argument(
+        "action_or_id",
+        nargs="?",
+        help="Discovery ID to verdict/inspect, or 'list'/'history'",
+    )
+    verdict.add_argument(
+        "status_or_id",
+        nargs="?",
+        help="Status ('accepted'|'rejected'|'needs_evidence'|'pending') or ID for history",
+    )
+    verdict.add_argument(
+        "--by",
+        help="Human actor issuing the verdict (mandatory for recording)",
+    )
+    verdict.add_argument(
+        "--note",
+        help="Free-text rationale or evidence pointer",
+    )
+    verdict.add_argument(
+        "--status",
+        help="Filter status for 'verdict list'",
+    )
+    verdict.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit results as JSON",
+    )
+    verdict.add_argument(
+        "--database-url",
+        help="PostgreSQL catalog URL override",
+    )
+    verdict.add_argument(
+        "--derived-root",
+        type=Path,
+        help="Override the shared Parquet root",
+    )
+    verdict.set_defaults(func=_verdict_command)
+    return root
+
+
 def run_cli(
     argv: Sequence[str] | None = None,
     *,
@@ -1252,931 +2434,13 @@ def run_cli(
     args = parser().parse_args(argv)
     instrument_openinference()
     try:
-        if args.command == "fetch":
-            return _fetch_command(args, root, harbor=harbor)
-        if args.command == "doctor" and args.headless:
-            executor = Executor.from_repo(root)
-            report = HeadlessDoctor(root, executor=executor).run()
-            print(report.model_dump_json(indent=2))
-            return 0 if report.healthy else 1
-        if args.command == "doctor":
-            return _doctor(root)
-        if args.command == "preflight":
-            return _preflight_command(args, root)
-        if args.command == "power":
-            return _power_command(args)
-        if args.command == "report":
-            return _report_command(args, root)
-        if args.command == "dashboard":
-            return _dashboard_command(args, root)
-        if args.command == "status":
-            return _status_command(args, root)
-        if args.command == "submit":
-            spec = read_spec(_resolve(root, args.path))
-            executor = Executor.from_repo(root)
-            path, decision = executor.submit(spec)
-            # `approve`, `reject`, and the catalog's `experiment_id` column all
-            # want the bare ULID. Printing the queue state directory as if it
-            # were a label made the operator copy a word that no command takes
-            # (M009 F-09). Read the id back off the artifact that was written.
-            submitted = executor.queue.load(path)
-            print(f"spec_id: {submitted.spec_id}")
-            print(f"state: {path.parent.name}")
-            print(f"path: {path}")
-            print(decision.message)
-            # A paid-authorization refusal already spells out both commands with
-            # this spec's real id; repeating one of them here reads as noise.
-            if path.parent.name == "waiting" and "evallab approve" not in decision.message:
-                print(
-                    "next: uv run evallab approve "
-                    f"{shlex.quote(str(submitted.spec_id))} --actor <you>"
-                )
-            return 0
-        if args.command == "tick":
-            # WS-E item 2: the preflight runs at tick start. This is the
-            # operator-facing tick; the library-level `Executor._tick_locked`
-            # takes the same call in one additive line, described in
-            # `agents/handoffs/preflight.md`.
-            print(
-                render_preflight(
-                    build_preflight_report(
-                        root,
-                        now=datetime.now(UTC),
-                        refusal=provider_reported_exhaustion,
-                        refuse_at_used_percent=_configured_quota_ceiling(root),
-                    )
-                )
-            )
-            executor = Executor.from_repo(root)
-            result = GuardedTick(
-                doctor=HeadlessDoctor(root, executor=executor),
-                executor=executor,
-            ).run()
-            print(f"dispatched {result.dispatched} experiment(s)")
-            print(f"quarantined: {'no' if result.report.healthy else 'yes'}")
-            return 0 if result.report.healthy else 1
-        if args.command == "canary" and args.canary_command == "import-terminal-bench":
-            executor = Executor.from_repo(root)
-            imported = TerminalBenchCanaryImporter(
-                executor=executor,
-                repo_root=root,
-            ).import_task(
-                dataset_ref=args.dataset_ref,
-                task_name=args.task_name,
-                destination=_resolve(root, args.destination),
-            )
-            print(f"imported: {imported}")
-            return 0
-        if args.command == "calibrate":
-            return _calibrate_command(args, root)
-        if args.command == "approve":
-            queue = DirectoryQueue(root / "queue")
-            path = queue.approve(
-                args.spec_id,
-                actor=args.actor,
-                quota_override=args.despite_quota,
-            )
-            authorized = queue.load(path)
-            print(f"authorized: {authorized.spec_id}")
-            print(f"actor: {args.actor}")
-            print(f"path: {path}")
-            if authorized.billable:
-                print(
-                    f"spend: {authorized.agent} x {authorized.attempts} attempt(s), "
-                    f"estimated {authorized.est_cost_usd:.2f} USD per job, billed to "
-                    "Peter's ChatGPT subscription"
-                )
-                # What the authorisation is actually spending against. The
-                # dollar figure above is an API-list-price equivalent and does
-                # not move; the subscription window does.
-                headroom = _headroom_for(root)
-                print(render_headroom_notice(headroom))
-                # The threshold is policy, not code: `refuse_billable_at_used_percent`
-                # in `policy/standing-approvals.yaml`, committed unset. Loaded
-                # inline here, as `_digest_renderer` does at cli.py:1526.
-                ceiling = load_policy(
-                    root / "policy/standing-approvals.yaml"
-                ).refuse_billable_at_used_percent
-                blocked = provider_reported_exhaustion(headroom) or lab_threshold_reached(
-                    headroom, threshold=ceiling
-                )
-                if blocked and not args.despite_quota:
-                    print(
-                        f"WARNING: dispatch will refuse this spec — {blocked}. "
-                        "Re-approve with --despite-quota only if you have reason "
-                        "to believe the reading is wrong."
-                    )
-                elif args.despite_quota and not blocked:
-                    print(
-                        "note: --despite-quota was recorded, but the reading "
-                        "reports no exhaustion, so it overrode nothing."
-                    )
-            print("next: uv run evallab tick")
-            return 0
-        if args.command == "reject":
-            path = DirectoryQueue(root / "queue").reject(
-                args.spec_id, actor=args.actor, message=args.reason
-            )
-            print(f"rejected: {path}")
-            return 0
-        if args.command == "stop":
-            DirectoryQueue(root / "queue").stop()
-            print("queue stopped")
-            return 0
-        if args.command == "resume":
-            DirectoryQueue(root / "queue").resume()
-            print("queue resumed")
-            return 0
-        if args.command == "schedule" and args.schedule_command == "install":
-            paths = ScheduleInstaller(root).install()
-            for path in paths:
-                print(f"installed: {path}")
-            return 0
-        if args.command == "digest":
-            report_date = args.report_date or date.today()
-            path = _digest_renderer(root).write(report_date=report_date)
-            ResearcherLoop.from_repo(root).enrich_digest(path, report_date)
-            append_gc_plan_to_digest(path, nightly_gc_plan(root))
-            print(f"digest: {path}")
-            return 0
-        if args.command == "research":
-            report_date = args.report_date or date.today()
-            executor = Executor.from_repo(root)
-            report = HeadlessDoctor(root, executor=executor).run()
-            if not report.healthy:
-                record_quarantine(
-                    executor.queue,
-                    event="researcher_quarantined",
-                    report=report,
-                    actor="manual-researcher",
-                )
-                print("researcher pass quarantined by headless doctor")
-                return 1
-            if not report.checks.codex_auth_present:
-                record_researcher_deferral(
-                    executor.queue,
-                    report_date=report_date,
-                    actor="manual-researcher",
-                    reason="missing_credential:codex",
-                )
-                print("researcher pass deferred: missing Codex credential")
-                return 0
-            result = ResearcherLoop.from_repo(root).run(report_date=report_date)
-            print(f"pass: {result.pass_id}")
-            print(f"invocations: {result.invocation_count}")
-            print(f"attributed cost: ${result.attributed_cost_usd:.2f}")
-            if result.proposal_path is not None:
-                print(f"proposal: {result.proposal_path}")
-            if result.deferred_reason:
-                print(f"deferred: {result.deferred_reason}")
-            if result.failed_reason:
-                print(f"failed: {result.failed_reason}")
-                return 1
-            return 0
-        if args.command == "nightly":
-            executor = Executor.from_repo(root)
-            researcher_loop: ResearcherLoop | None = None
-            database_url = database_url_from_environment()
-
-            def get_researcher_loop() -> ResearcherLoop:
-                nonlocal researcher_loop
-                if researcher_loop is None:
-                    researcher_loop = ResearcherLoop.from_repo(root)
-                return researcher_loop
-
-            result = NightlyCycle(
-                doctor=HeadlessDoctor(root, executor=executor),
-                executor=executor,
-                renderer=_digest_renderer(root),
-                canary_enqueuer=CanaryEnqueuer.from_repo(root, executor).enqueue,
-                researcher_pass=lambda day: get_researcher_loop().run(
-                    report_date=day
-                ).invocation_count,
-                digest_enricher=_nightly_digest_enricher(root, get_researcher_loop),
-                completed_job_ingester=lambda: ingest_and_project(
-                    database_url,
-                    load_jobs(
-                        [
-                            root / "runs",
-                            root / "research/evidence/runs",
-                            root / "evidence/runs",
-                        ]
-                    ),
-                    root=root,
-                    output_root=derived_root_from_environment(root),
-                ),
-                database_backup=lambda day: create_postgres_backup(root, day),
-                analysis_stager=_nightly_analysis_stager(root),
-            ).run(report_date=args.report_date)
-            print(f"digest: {result.digest_path}")
-            print(
-                "database backup: "
-                f"{getattr(result, 'backup_path', None) or 'not created'}"
-            )
-            print(f"enqueued: {result.enqueued}")
-            print(f"dispatched: {result.dispatched}")
-            print(
-                "researcher invocations: "
-                f"{getattr(result, 'researcher_invocations', 0)}"
-            )
-            print(f"quarantined: {'yes' if result.quarantined else 'no'}")
-            try:
-                print(
-                    format_batch(
-                        trace_completed_jobs(
-                            root / "runs",
-                            include_controls=False,
-                            dry_run=False,
-                        )
-                    )
-                )
-            except TraceError as exc:
-                print(f"trace skipped: {exc}")
-            plan = nightly_gc_plan(root)
-            print(format_plan(plan))
-            return 1 if result.quarantined else 0
-        if args.command == "gc":
-            plan, applied = run_gc(
-                root,
-                apply=args.apply,
-                runs_dir=_resolve(root, args.runs_dir),
-            )
-            print(format_plan(plan))
-            if applied is not None:
-                print(f"applied: {len(applied.tombstones)} tombstone(s)")
-            return 0
-        if args.command == "trace":
-            batch = trace_path(
-                _resolve(root, args.path),
-                endpoint=args.endpoint,
-                dry_run=args.dry_run,
-                include_controls=args.include_controls,
-            )
-            print(format_batch(batch))
-            if batch.failed:
-                return 1
-            if not batch.shipped and not args.dry_run:
-                return 1
-            return 0
-        if args.command == "run":
-            return _run_command(args, root)
-        if args.command == "matrix":
-            return _matrix_command(args, root)
-        if args.command == "summarize":
-            jobs = load_jobs([_resolve(root, path) for path in args.paths])
-            if not jobs:
-                print("No completed Harbor jobs found.", file=sys.stderr)
-                return 1
-            _print_summary(jobs)
-            return 0
-        if args.command == "ingest":
-            jobs = load_jobs([_resolve(root, path) for path in args.paths])
-            if not jobs:
-                print("No completed Harbor jobs found.", file=sys.stderr)
-                return 1
-            url = database_url_from_environment(args.database_url)
-            derived_root = derived_root_from_environment(
-                root,
-                explicit=args.derived_dir,
-            )
-            result = ingest_and_project(
-                url,
-                jobs,
-                root=root,
-                output_root=derived_root,
-            )
-            record_projection_failures(
-                DirectoryQueue(root / "queue"),
-                result,
-                actor="manual-ingest",
-                spec_id=f"system-{new_ulid()}",
-            )
-            print(f"ingested {result.cataloged_jobs} job(s)")
-            for table, rows in sorted(result.row_counts.items()):
-                print(f"{table}: {rows} row(s)")
-            for failure in result.failures:
-                print(f"projection failed: {failure.job_name} ({failure.error_type})")
-            return 1 if result.failures else 0
-        if args.command == "trajectories":
-            from evallab.atif import project_trial
-
-            jobs = load_jobs([_resolve(root, path) for path in args.paths])
-            if not jobs:
-                print("No completed Harbor jobs found.", file=sys.stderr)
-                return 1
-            print("| job | trial | status | documents | steps | tools |")
-            print("|---|---|---|---:|---:|---:|")
-            for job in jobs:
-                for trial in job.trials:
-                    projection = project_trial(job, trial)
-                    statuses = {item.validation_status for item in projection.trajectories}
-                    status = (
-                        "none"
-                        if not statuses
-                        else "invalid"
-                        if "invalid" in statuses
-                        else "unsupported"
-                        if "unsupported" in statuses
-                        else "valid"
-                    )
-                    print(
-                        f"| {job.name} | {trial.name} | {status} | "
-                        f"{len(projection.trajectories)} | {len(projection.steps)} | "
-                        f"{len(projection.tool_calls)} |"
-                    )
-            if not args.export:
-                return 0
-            result = ingest_and_project(
-                database_url_from_environment(args.database_url),
-                jobs,
-                root=root,
-                output_root=derived_root_from_environment(
-                    root,
-                    explicit=args.output_dir,
-                ),
-            )
-            record_projection_failures(
-                DirectoryQueue(root / "queue"),
-                result,
-                actor="manual-trajectories",
-                spec_id=f"system-{new_ulid()}",
-            )
-            for table in result.tables:
-                print(f"{table.table}: {table.rows} row(s) -> {table.path}")
-            print("totals:")
-            for table, rows in sorted(result.row_counts.items()):
-                print(f"{table}: {rows} row(s)")
-            for failure in result.failures:
-                print(f"projection failed: {failure.job_name} ({failure.error_type})")
-            return 1 if result.failures else 0
-        if args.command == "compare":
-            spec_path = _resolve(root, args.path)
-            json_path, markdown_path, report = write_comparison(
-                spec_path,
-                repo_root=root,
-                output_root=_resolve(root, args.output_dir),
-            )
-            if args.index:
-                url = database_url_from_environment(args.database_url)
-                database.initialize(url)
-                index_comparison_associations(
-                    url,
-                    spec_path=spec_path,
-                    report=report,
-                    repo_root=root,
-                )
-            for paired in report["paired"]:
-                print(paired["statement"])
-            print(f"json: {json_path}")
-            print(f"markdown: {markdown_path}")
-            return 0
-        if args.command == "analyze" and args.analyze_command in {"plan", "stub"}:
-            job, trial = load_analysis_source(_resolve(root, args.path))
-            prompt_path = root / "research/analysis/stage5-prompt.md"
-            rubric_path = root / "research/analysis/stage5-rubric.json"
-            output_root = _resolve(root, args.output_dir)
-            if args.analyze_command == "plan":
-                plan = analysis_plan(
-                    job,
-                    trial,
-                    repo_root=root,
-                    destination_root=output_root,
-                    prompt_path=prompt_path,
-                    rubric_path=rubric_path,
-                    agent=args.agent,
-                    agent_version=args.agent_version,
-                    model=args.model,
-                )
-                print(json.dumps(asdict(plan), indent=2, sort_keys=True))
-                return 0
-            response = _resolve(root, args.response).read_text()
-
-            def saved_response(_prompt: str, _schema: dict[str, object]) -> AnalyzerCallResult:
-                return AnalyzerCallResult(
-                    raw_output=response,
-                    input_tokens=0,
-                    output_tokens=0,
-                    cost_usd=0.0,
-                )
-
-            sidecar_path, sidecar = run_trial_analysis(
-                job,
-                trial,
-                analyzer=saved_response,
-                repo_root=root,
-                destination_root=output_root,
-                prompt_path=prompt_path,
-                rubric_path=rubric_path,
-                agent="stub",
-                agent_version="1",
-                model="saved-response",
-            )
-            print(f"analysis: {sidecar_path}")
-            print(f"validation: {sidecar.validation_status}")
-            # `--index` used to be invisible: the output was byte-identical to
-            # the un-indexed form and the only way to confirm the row existed
-            # was to query `analysis_invocations` by hand (M009 F-12).
-            if args.index:
-                url = database_url_from_environment(args.database_url)
-                database.initialize(url)
-                ingest_analysis_sidecar(url, sidecar_path, root=root)
-                print(f"indexed analysis: {sidecar.analysis_id}")
-                print(f"catalog: {database.identity(url)}")
-            else:
-                print("indexed: no (the catalog is a derived index, written on request)")
-                print(
-                    "next: uv run evallab analyze ingest-sidecar "
-                    f"{shlex.quote(str(sidecar_path))}"
-                )
-            return 0 if sidecar.validation_status == "valid" else 1
-        if args.command == "analyze" and args.analyze_command in {
-            "worker-plan",
-            "worker-status",
-            "worker-run-one",
-            "worker-resolve-ambiguous",
-        }:
-            from evallab.analysis_worker import default_job_roots, default_worker
-
-            worker = default_worker(root)
-            if args.analyze_command == "worker-plan":
-                print(json.dumps(worker.plan(default_job_roots(root)), indent=2))
-                return 0
-            if args.analyze_command == "worker-status":
-                print(json.dumps(worker.status(), indent=2))
-                return 0
-            if args.analyze_command == "worker-resolve-ambiguous":
-                transition = worker.resolve_ambiguous(
-                    args.request_id,
-                    action=args.action,
-                    actor=args.actor,
-                )
-                print(json.dumps({"state": transition.state, "reason": transition.reason}))
-                return 0
-            transition = worker.run_one(args.request_id)
-            print(json.dumps({"state": transition.state, "reason": transition.reason}))
-            return 0 if transition.state == "completed" else 1
-        if args.command == "analyze" and args.analyze_command == "ingest-sidecar":
-            sidecar_path = _resolve(root, args.path)
-            url = database_url_from_environment(args.database_url)
-            database.initialize(url)
-            sidecar = ingest_analysis_sidecar(url, sidecar_path, root=root)
-            reviews = len(list((sidecar_path.parent / ANALYSIS_REVIEWS_DIRNAME).glob("*.json")))
-            print(f"indexed analysis: {sidecar.analysis_id}")
-            print(f"indexed reviews: {reviews}")
-            print(f"catalog: {database.identity(url)}")
-            return 0
-        if args.command == "analyze" and args.analyze_command == "review":
-            sidecar_path = _resolve(root, args.path)
-            if not sidecar_path.is_file():
-                raise ValueError(
-                    f"no analysis sidecar at {sidecar_path}; pass the "
-                    f"{ANALYSIS_SIDECAR_FILENAME} path printed by "
-                    "`evallab analyze stub` "
-                    "(derived/analyses/<analysis_id>/analysis.json)"
-                )
-            review_path, review = write_analysis_review(
-                sidecar_path,
-                disposition=args.disposition,
-                rationale=args.rationale,
-                reviewer=args.reviewer,
-                superseded_by=(UUID(args.superseded_by) if args.superseded_by else None),
-            )
-            print(f"review: {review_path}")
-            print(f"disposition: {review.disposition}")
-            # The catalog is a derived index, so indexing stays opt-in — but the
-            # operator is told which state they are in, never left to discover
-            # that `analysis_reviews` is empty (M009 F-02).
-            if args.index:
-                url = database_url_from_environment(args.database_url)
-                database.initialize(url)
-                ingest_analysis_sidecar(url, sidecar_path, root=root)
-                print(f"indexed review: {review.review_id} -> analysis_reviews")
-                print(f"catalog: {database.identity(url)}")
-            else:
-                print("indexed: no (the catalog is a derived index, written on request)")
-                print(
-                    "next: uv run evallab analyze ingest-sidecar "
-                    f"{shlex.quote(str(sidecar_path))}"
-                )
-            return 0
-        if args.command == "analyze" and args.analyze_command == "agreement":
-            report_path, report = write_failure_taxonomy_agreement(
-                [_resolve(root, path) for path in args.paths],
-                labels_root=_resolve(root, args.labels),
-                output_path=_resolve(root, args.output),
-                reference_root=root,
-            )
-            agreement = report["exact_agreement"]
-            print(f"report: {report_path}")
-            print(
-                "agreement: "
-                f"{report['exact_matches']}/{report['n_matched_valid']} "
-                f"({'n/a' if agreement is None else f'{agreement:.3f}'})"
-            )
-            coverage = report["label_coverage"]
-            print(f"label coverage: {'n/a' if coverage is None else f'{coverage:.3f}'}")
-            return 0
-        if args.command == "db" and args.db_command == "init":
-            url = database_url_from_environment(args.database_url)
-            database.initialize(url)
-            print("database schema is current")
-            return 0
-        if args.command == "db" and args.db_command == "list":
-            url = database_url_from_environment(args.database_url)
-            rows = database.list_trials(url, limit=args.limit)
-            print("| job | trial | task | agent | model | reward | exception | seconds |")
-            print("|---|---|---|---|---|---:|---|---:|")
-            for row in rows:
-                print(
-                    "| " + " | ".join("" if value is None else str(value) for value in row) + " |"
-                )
-            return 0
-        if args.command == "db" and args.db_command == "attach":
-            # thin layer over attach/print_zones/attach_and_query/build_sql_preamble
-            explicit = getattr(args, "derived_root", None)
-            derived = derived_root_from_environment(root, explicit=explicit)
-            result = attach(repo_root=root, explicit_derived=derived)
-            if args.zones:
-                print_zones(result.zones)
-                attached = sum(1 for z in result.zones if z.attached)
-                result.connection.close()
-                return 0 if attached > 0 else 1
-            if args.print_sql:
-                dsn = database_url_from_environment()
-                print(build_sql_preamble(dsn, derived, root))
-                result.connection.close()
-                return 0
-            if args.query:
-                result.connection.close()
-                rows = attach_and_query(args.query, repo_root=root, explicit_derived=derived)
-                for row in rows:
-                    print(row)
-                return 0
-            result.connection.close()
-            return 0
-        if args.command == "lineage":
-            explicit = getattr(args, "derived_root", None)
-            derived = derived_root_from_environment(root, explicit=explicit)
-            result = resolve_lineage(args.target, repo_root=root, explicit_derived=derived)
-            if args.json:
-                print(json.dumps(lineage_to_dict(result), indent=2))
-            else:
-                print(render_lineage_tree(result))
-            return 0 if result.resolved else 1
-        if args.command == "analyst":
-            from evallab.analyst import list_analyses, run_analysis, show_analysis
-
-            if args.analyst_command == "run":
-                explicit_derived = getattr(args, "derived_root", None)
-                derived = derived_root_from_environment(root, explicit=explicit_derived)
-                record, traj_data, conclusion_file, trajectory_file = run_analysis(
-                    args.trial_id,
-                    model=args.model,
-                    repo_root=root,
-                    derived_root=derived,
-                    runs_root=getattr(args, "runs_root", None),
-                )
-                print(f"analysis_id: {record.analysis_id}")
-                print(f"trial_id: {record.trial_id}")
-                print(f"model: {record.model}")
-                print(f"category: {record.category}")
-                print(f"confidence: {record.confidence.level}")
-                print(f"evidence: {len(record.evidence)} citation(s)")
-                print(f"conclusion: {conclusion_file}")
-                print(f"trajectory: {trajectory_file}")
-                return 0
-            if args.analyst_command == "list":
-                records = list_analyses(root, trial_id=args.trial_id)
-                if not records:
-                    print("No analysis records found.")
-                    return 0
-                print("| analysis_id | trial_id | model | category | confidence | evidence |")
-                print("|---|---|---|---|---|---:|")
-                for r in records:
-                    print(
-                        f"| {r['analysis_id']} | {r['trial_id']} | {r['model']} | "
-                        f"{r['category']} | {r['confidence']} | {r['evidence_count']} |"
-                    )
-                return 0
-            if args.analyst_command == "show":
-                try:
-                    conclusion, trajectory = show_analysis(args.analysis_id, root)
-                except FileNotFoundError as err:
-                    print(f"error: {err}", file=sys.stderr)
-                    return 1
-                if getattr(args, "json", False):
-                    payload = {"conclusion": conclusion, "trajectory": trajectory}
-                    print(json.dumps(payload, indent=2))
-                    return 0
-                print(f"# Analysis {conclusion.get('analysis_id')}")
-                print(f"Trial ID: {conclusion.get('trial_id')}")
-                print(f"Model: {conclusion.get('model')}")
-                print(f"Category: {conclusion.get('category')}")
-                conf = conclusion.get("confidence") or {}
-                conf_level = conf.get("level") if isinstance(conf, dict) else str(conf)
-                print(f"Confidence: {conf_level}")
-                print(f"Summary: {conclusion.get('summary', '')}")
-                print("\n## Cited Evidence:")
-                for ev in conclusion.get("evidence", []):
-                    step_info = f" (step {ev['step']})" if ev.get("step") is not None else ""
-                    print(f"- {ev.get('path')}{step_info}")
-                print("\n## Lineage Inputs:")
-                for inp in conclusion.get("inputs", []):
-                    print(f"- {inp.get('path')} ({inp.get('digest')})")
-                print("\n## Analyst Trajectory Steps:")
-                for step in trajectory.get("steps", []):
-                    sid = step.get("step_id")
-                    src = step.get("source")
-                    ts = step.get("timestamp")
-                    msg = step.get("message")
-                    print(f"[{sid}] {src} ({ts}): {msg}")
-                return 0
-        if args.command == "card":
-            subcmd = getattr(args, "card_command", None)
-            if subcmd == "generate":
-                from evallab.cards import generate_card
-
-                explicit = getattr(args, "derived_root", None)
-                derived = derived_root_from_environment(root, explicit=explicit)
-                rendered, card_data = generate_card(
-                    args.target,
-                    repo_root=root,
-                    explicit_derived=derived,
-                    output_path=args.output,
-                )
-                if args.json:
-                    print(json.dumps(card_data, indent=2))
-                    return 0
-                if args.output is None:
-                    print(rendered)
-                else:
-                    print(f"eval card: {args.output}")
-                    print(f"config digest: {card_data.get('spec_digest')}")
-                return 0
-            if subcmd == "validate":
-                from evallab.cards import validate_card_file
-
-                card_path = _resolve(root, args.path)
-                result = validate_card_file(card_path)
-                if args.json:
-                    print(json.dumps(result.to_dict(), indent=2))
-                    return 0 if result.valid else 1
-                if result.valid:
-                    print(f"VALID: {args.path} passed all schema and caveat checks.")
-                    return 0
-                print(f"INVALID: {args.path} failed validation:", file=sys.stderr)
-                for err in result.errors:
-                    print(f"  - {err}", file=sys.stderr)
-                return 1
-        if args.command == "behavior":
-            from evallab.behavior import (
-                generate_behavior_report,
-                render_behavior_report,
-                report_to_dict,
-            )
-
-            explicit = getattr(args, "derived_root", None)
-            derived = derived_root_from_environment(root, explicit=explicit)
-            report = generate_behavior_report(
-                repo_root=root,
-                explicit_derived=derived,
-                task_filter=args.task,
-                agent_filter=args.agent,
-            )
-            if args.json:
-                print(json.dumps(report_to_dict(report), indent=2))
-            else:
-                print(render_behavior_report(report))
-            return 0
-        if args.command == "ladder" and args.ladder_command == "generate":
-            from evallab.ladder import generate_grid, load_grid_spec
-
-            grid_path = _resolve(root, args.grid_spec)
-            grid_spec = load_grid_spec(grid_path)
-            if args.no_quota_check:
-                grid_spec = grid_spec.model_copy(update={"check_quota_headroom": False})
-
-            dry_run = args.dry_run or (not args.submit and args.output_dir is None)
-            output_dir = _resolve(root, args.output_dir) if args.output_dir else None
-
-            result = generate_grid(
-                grid_spec,
-                output_dir=output_dir,
-                repo_root=root,
-                submit=args.submit,
-                dry_run=dry_run,
-            )
-
-            if args.json:
-                out_data = {
-                    "grid_id": result.grid_id,
-                    "total_specs": result.total_specs,
-                    "total_trials": result.total_trials,
-                    "total_estimated_cost_usd": result.total_estimated_cost_usd,
-                    "specs": [s.model_dump(mode="json") for s in result.specs],
-                    "skipped": [
-                        {
-                            "name": sk.name,
-                            "task": sk.task,
-                            "agent": sk.agent,
-                            "preamble": sk.preamble,
-                            "attempts": sk.attempts,
-                            "reason": sk.reason,
-                        }
-                        for sk in result.skipped
-                    ],
-                    "deduped": [
-                        {
-                            "grid_id": d.grid_id,
-                            "task": d.task,
-                            "agent": d.agent,
-                            "preamble": d.preamble,
-                            "attempts": d.attempts,
-                            "reason": d.reason,
-                        }
-                        for d in result.deduped
-                    ],
-                    "written_files": [str(p) for p in result.written_paths],
-                    "submitted_specs": result.submitted_specs,
-                }
-                print(json.dumps(out_data, indent=2))
-            else:
-                print(result.summary())
-            return 0
-        if args.command == "registry" and args.registry_command == "list":
-            from evallab.registry import TaskRegistry
-
-            reg = TaskRegistry.from_repo(root)
-            records = reg.list_records(args.state)
-            if args.json:
-                payload = [record.model_dump(mode="json") for record in records]
-                print(json.dumps(payload, indent=2))
-                return 0
-            if not records:
-                filter_msg = f" with state {args.state!r}" if args.state else ""
-                print(f"No task records found in library/registry/{filter_msg}.")
-                return 0
-            print(f"{'TASK ID':<32} {'VERSION':<10} {'STATE':<12} {'ZONE':<18} {'PATH'}")
-            print("-" * 100)
-            for record in records:
-                print(
-                    f"{record.task_id:<32} {record.version:<10} {record.state:<12} "
-                    f"{record.provenance_zone:<18} {record.task_path}"
-                )
-            return 0
-        if args.command == "registry" and args.registry_command == "audit":
-            from evallab.registry import audit_registry
-
-            report = audit_registry(root)
-            if args.json:
-                print(json.dumps(report.to_dict(), indent=2))
-                return 0 if report.passed else 1
-
-            print(f"Task Registry Audit (Total records: {report.total_records})")
-            print(f"  Registered: {report.registered_count}")
-            print(f"  Candidate:  {report.candidate_count}")
-            print(f"  Retired:    {report.retired_count}")
-            print()
-
-            if not report.findings:
-                print("PASS: zero audit findings. Registry and queue claims are valid.")
-                return 0
-
-            error_count = sum(1 for f in report.findings if f.severity == "error")
-            warning_count = sum(1 for f in report.findings if f.severity == "warning")
-            info_count = sum(1 for f in report.findings if f.severity == "info")
-
-            print(f"Findings: {error_count} errors, {warning_count} warnings, {info_count} info")
-            print("-" * 80)
-            for finding in report.findings:
-                icon = (
-                    "FAIL"
-                    if finding.severity == "error"
-                    else ("WARN" if finding.severity == "warning" else "INFO")
-                )
-                print(f"[{icon}] {finding.category} -> {finding.target}")
-                print(f"       {finding.message}")
-            return 0 if report.passed else 1
-        if args.command == "tidy":
-            from evallab.tidy import run_tidy
-
-            apply = args.apply and not args.dry_run
-            return run_tidy(root, apply=apply)
-        if args.command == "verdict":
-            from evallab.verdicts import (
-                format_verdict_history_table,
-                format_verdicts_table,
-                get_verdict_history_from_catalog,
-                list_current_verdicts_from_catalog,
-                record_verdict,
-            )
-
-            action = args.action_or_id
-            if action is None:
-                for act in parser()._actions:
-                    if isinstance(act, argparse._SubParsersAction) and "verdict" in act.choices:
-                        print(act.choices["verdict"].format_help())
-                        return 0
-                return 0
-            db_url = getattr(args, "database_url", None)
-
-            if action == "list":
-                status_filter = args.status or args.status_or_id
-                try:
-                    verdicts = list_current_verdicts_from_catalog(
-                        database_url=db_url, status=status_filter
-                    )
-                except Exception:
-                    if db_url is not None:
-                        raise
-                    verdicts = []
-                if args.json:
-                    print(json.dumps([v.model_dump(mode="json") for v in verdicts], indent=2))
-                else:
-                    print(format_verdicts_table(verdicts))
-                return 0
-
-            if action == "history":
-                target_id = args.status_or_id
-                if not target_id:
-                    print(
-                        "error: discovery_id is required for 'verdict history <discovery_id>'",
-                        file=sys.stderr,
-                    )
-                    return 2
-                try:
-                    history = get_verdict_history_from_catalog(target_id, database_url=db_url)
-                except Exception:
-                    if db_url is not None:
-                        raise
-                    history = []
-                if args.json:
-                    print(json.dumps([v.model_dump(mode="json") for v in history], indent=2))
-                else:
-                    print(format_verdict_history_table(target_id, history))
-                return 0
-
-            discovery_id = action
-            status = args.status_or_id
-            if not status:
-                print(
-                    "error: status is required: evallab verdict <discovery_id> "
-                    "<accepted|rejected|needs_evidence|pending> --by <who>",
-                    file=sys.stderr,
-                )
-                return 2
-            if not args.by:
-                print("error: --by <who> is required for recording a verdict", file=sys.stderr)
-                return 2
-
-            verdict = record_verdict(
-                discovery_id,
-                status,
-                by=args.by,
-                note=args.note,
-                repo_root=root,
-                database_url=db_url,
-            )
-            if args.json:
-                print(json.dumps(verdict.model_dump(mode="json"), indent=2))
-            else:
-                note_suffix = f" (note: {verdict.note})" if verdict.note else ""
-                print(
-                    f"Recorded verdict for {verdict.discovery_id}: {verdict.status} "
-                    f"by {verdict.by}{note_suffix}"
-                )
-            return 0
+        handler: Callable[..., int] | None = getattr(args, "func", None)
+        if handler is None:
+            return 2
+        return handler(args, root, harbor=harbor)
     except (FileExistsError, OSError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    return 2
-
-
-def _nightly_digest_enricher(root: Path, get_loop: Callable[[], ResearcherLoop]):
-    def enrich(path: Path, day: date) -> None:
-        get_loop().enrich_digest(path, day)
-        append_gc_plan_to_digest(path, nightly_gc_plan(root))
-
-    return enrich
-
-
-def _nightly_analysis_stager(root: Path) -> Callable[[], object]:
-    """Stage-only completion hook (M006): freezes identity, never calls."""
-
-    def stage() -> object:
-        from evallab.analysis_worker import default_job_roots, default_worker
-
-        return default_worker(root).stage(default_job_roots(root))
-
-    return stage
-
-
-def _digest_renderer(root: Path) -> DigestRenderer:
-    return DigestRenderer(
-        repo_root=root,
-        queue=DirectoryQueue(root / "queue"),
-        policy=load_policy(root / "policy/standing-approvals.yaml"),
-    )
 
 
 def main() -> None:

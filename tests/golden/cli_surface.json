@@ -1,0 +1,3385 @@
+{
+  "(root)": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_VersionAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "version",
+        "flags": [
+          "--version"
+        ],
+        "help": "show program's version number and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "analyst": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "analyst list": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "trial_id",
+        "flags": [
+          "--trial"
+        ],
+        "help": "filter conclusions by source trial_id",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "analyst run": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_root",
+        "flags": [
+          "--derived-root"
+        ],
+        "help": "override the shared Parquet root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "model",
+        "flags": [
+          "--model"
+        ],
+        "help": "Explicit model selector (opt-in spend: default is deterministic stub)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "runs_root",
+        "flags": [
+          "--runs-root"
+        ],
+        "help": "override candidate runs root for raw trajectory discovery",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "trial_id",
+        "flags": [],
+        "help": "Trial identifier, trial name, or path",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "analyst show": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "analysis_id",
+        "flags": [],
+        "help": "ULID of the analysis record to show",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "emit raw structured JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "analyze": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "analyze agreement": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "research/calibration/trajectory-labels",
+        "dest": "labels",
+        "flags": [
+          "--labels"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/analysis/failure-taxonomy-agreement.json",
+        "dest": "output",
+        "flags": [
+          "--output"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "paths",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": "+",
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "analyze ingest-sidecar": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "analyze plan": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "codex",
+        "dest": "agent",
+        "flags": [
+          "--agent"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "local",
+        "dest": "agent_version",
+        "flags": [
+          "--agent-version"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "configured-by-queue",
+        "dest": "model",
+        "flags": [
+          "--model"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/analyses",
+        "dest": "output_dir",
+        "flags": [
+          "--output-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "analyze review": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "accepted",
+          "needs_revision",
+          "rejected",
+          "superseded"
+        ],
+        "default": null,
+        "dest": "disposition",
+        "flags": [
+          "--disposition"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "index",
+        "flags": [
+          "--index"
+        ],
+        "help": "Also index the review into the catalog (analysis_reviews)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "rationale",
+        "flags": [
+          "--rationale"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "reviewer",
+        "flags": [
+          "--reviewer"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "superseded_by",
+        "flags": [
+          "--superseded-by"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "analyze stub": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "index",
+        "flags": [
+          "--index"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/analyses",
+        "dest": "output_dir",
+        "flags": [
+          "--output-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "response",
+        "flags": [
+          "--response"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "analyze worker-plan": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "analyze worker-resolve-ambiguous": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "quarantine",
+          "retry"
+        ],
+        "default": null,
+        "dest": "action",
+        "flags": [
+          "--action"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "actor",
+        "flags": [
+          "--actor"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "request_id",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "analyze worker-run-one": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "request_id",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "analyze worker-status": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "approve": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "actor",
+        "flags": [
+          "--actor"
+        ],
+        "help": "who is authorizing; recorded in queue/events.jsonl and never defaulted",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "despite_quota",
+        "flags": [
+          "--despite-quota"
+        ],
+        "help": "authorize even though the provider reports the subscription exhausted; recorded on the authorisation event and overrides nothing else",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "spec_id",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "behavior": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "agent",
+        "flags": [
+          "--agent"
+        ],
+        "help": "filter analysis to one agent name",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_root",
+        "flags": [
+          "--derived-root"
+        ],
+        "help": "override the shared Parquet root (same resolution as library)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "emit machine-readable JSON behavior report",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "task",
+        "flags": [
+          "--task"
+        ],
+        "help": "filter analysis to one task name",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "calibrate": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "calibration_date",
+        "flags": [
+          "--date"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "fromisoformat"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "dispatch_approved",
+        "flags": [
+          "--dispatch-approved"
+        ],
+        "help": null,
+        "metavar": "SPEC_ID",
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dspy_dry_run",
+        "flags": [
+          "--dspy-dry-run"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 2.75,
+        "dest": "est_cost_usd",
+        "flags": [
+          "--est-cost-usd"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "float"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "checkout-pool-exhaustion",
+          "retry-storm-backlog"
+        ],
+        "default": null,
+        "dest": "family",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "judge_model",
+        "flags": [
+          "--judge-model"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": "[]",
+        "dest": "pending_backend",
+        "flags": [
+          "--pending-backend"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "prediction_artifact",
+        "flags": [
+          "--prediction-artifact"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "predictions",
+        "flags": [
+          "--predictions"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "records_dir",
+        "flags": [
+          "--records-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "skip_catalog",
+        "flags": [
+          "--skip-catalog"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "anthropic",
+          "codex"
+        ],
+        "default": null,
+        "dest": "stage",
+        "flags": [
+          "--stage"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "stub",
+        "flags": [
+          "--stub"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "canary": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "canary import-terminal-bench": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "dataset_ref",
+        "flags": [
+          "--dataset-ref"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "destination",
+        "flags": [
+          "--destination"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "task_name",
+        "flags": [
+          "--task-name"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "card": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "card generate": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_root",
+        "flags": [
+          "--derived-root"
+        ],
+        "help": "override the shared Parquet root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "print structured card JSON summary",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "write the eval card (default: render without writing)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "target",
+        "flags": [],
+        "help": "Spec ID, spec path, job ID, or job path",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "card validate": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "print structured validation result JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": "Path to eval card markdown file",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "compare": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "index",
+        "flags": [
+          "--index"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/comparisons",
+        "dest": "output_dir",
+        "flags": [
+          "--output-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "dashboard": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "127.0.0.1",
+        "dest": "address",
+        "flags": [
+          "--address"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 8501,
+        "dest": "port",
+        "flags": [
+          "--port"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      }
+    ]
+  },
+  "db": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "db attach": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_root",
+        "flags": [
+          "--derived-root"
+        ],
+        "help": "override the shared Parquet root (same resolution as library)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "print_sql",
+        "flags": [
+          "--print-sql"
+        ],
+        "help": "emit the attach + view DDL preamble to stdout",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "query",
+        "flags": [
+          "--query"
+        ],
+        "help": "run query against the surface and print rows",
+        "metavar": "SQL",
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "zones",
+        "flags": [
+          "--zones"
+        ],
+        "help": "report zone status (exit non-zero if none attached)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "db init": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "db list": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 25,
+        "dest": "limit",
+        "flags": [
+          "--limit"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      }
+    ]
+  },
+  "digest": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "report_date",
+        "flags": [
+          "--date"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "fromisoformat"
+      }
+    ]
+  },
+  "doctor": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "headless",
+        "flags": [
+          "--headless"
+        ],
+        "help": "Fail closed and print only boolean prerequisite status as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "fetch": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "fetch_audit",
+        "flags": [
+          "--audit"
+        ],
+        "help": "Re-verify digests of every library/benchmarks ingest",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "fetch_list",
+        "flags": [
+          "--list"
+        ],
+        "help": "Show fetchable Hub pins and named adapter lanes",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "ref",
+        "flags": [],
+        "help": "Pinned name@version (never @latest or other unpinned refs)",
+        "metavar": null,
+        "nargs": "?",
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 0,
+        "dest": "verify_sample",
+        "flags": [
+          "--verify-sample"
+        ],
+        "help": "Run free oracle/nop on N tasks (Harbor -n <= 2) and record rewards",
+        "metavar": "N",
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      }
+    ]
+  },
+  "gc": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "apply",
+        "flags": [
+          "--apply"
+        ],
+        "help": "Execute the plan (default is a dry-run that mutates nothing)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "runs",
+        "dest": "runs_dir",
+        "flags": [
+          "--runs-dir"
+        ],
+        "help": "Job directory root to scan (default: runs/)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      }
+    ]
+  },
+  "ingest": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_dir",
+        "flags": [
+          "--derived-dir"
+        ],
+        "help": "override the shared Parquet root for this invocation",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "[PosixPath('runs')]",
+        "dest": "paths",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": "+",
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "ladder": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "ladder generate": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dry_run",
+        "flags": [
+          "--dry-run"
+        ],
+        "help": "Print expansion and decisions without writing to disk (default)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "grid_spec",
+        "flags": [],
+        "help": "Path to grid YAML/JSON file",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Print generation summary and details in JSON format",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "no_quota_check",
+        "flags": [
+          "--no-quota-check"
+        ],
+        "help": "Disable automatic headroom/quota checking against existing runs",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Directory to write generated ExperimentSpec JSON files",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "submit",
+        "flags": [
+          "--submit"
+        ],
+        "help": "Submit generated ExperimentSpecs directly to the queue",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "lineage": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_root",
+        "flags": [
+          "--derived-root"
+        ],
+        "help": "override the shared Parquet root (same resolution as library)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "emit machine-readable JSON lineage graph",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "target",
+        "flags": [],
+        "help": "Artifact path or identifier to trace",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "matrix": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "reuse_existing",
+        "flags": [
+          "--reuse-existing"
+        ],
+        "help": "Validate completed named jobs instead of refusing to reuse them",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "nightly": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "report_date",
+        "flags": [
+          "--date"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "fromisoformat"
+      }
+    ]
+  },
+  "power": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 0.05,
+        "dest": "alpha",
+        "flags": [
+          "--alpha"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "float"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "baseline",
+        "flags": [
+          "--baseline"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "float"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "k",
+        "flags": [
+          "--k"
+        ],
+        "help": "Attempts per task for --n-tasks mode",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 8,
+        "dest": "max_k",
+        "flags": [
+          "--max-k"
+        ],
+        "help": "Largest k for --target mode",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "n_tasks",
+        "flags": [
+          "--n-tasks"
+        ],
+        "help": "Compute the minimum detectable per-attempt difference for this many paired tasks",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 0.0,
+        "dest": "pair_correlation",
+        "flags": [
+          "--pair-correlation"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "float"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "target",
+        "flags": [
+          "--target"
+        ],
+        "help": "Compute required paired tasks across k for this per-attempt difference",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "float"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 0.8,
+        "dest": "target_power",
+        "flags": [
+          "--power"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "float"
+      }
+    ]
+  },
+  "preflight": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "preflight_from",
+        "flags": [
+          "--from"
+        ],
+        "help": "Repository root to read (default: this checkout)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "useful_effect",
+        "flags": [
+          "--useful-effect"
+        ],
+        "help": "Per-attempt difference you would call useful. Unset by default because 'useful' is a spend judgement, not a lab constant; supply it and a queued comparison whose smallest detectable difference exceeds it becomes a warning.",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "float"
+      }
+    ]
+  },
+  "registry": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "registry audit": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit audit report as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "registry list": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit records as JSON array",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "candidate",
+          "registered",
+          "retired"
+        ],
+        "default": null,
+        "dest": "state",
+        "flags": [
+          "--state"
+        ],
+        "help": "Filter records by admission state",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "reject": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "peter",
+        "dest": "actor",
+        "flags": [
+          "--actor"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "reason",
+        "flags": [
+          "--reason"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "spec_id",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "report": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "report card": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output",
+        "flags": [
+          "--output"
+        ],
+        "help": "write the eval card (default: render without writing)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "report family": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output-dir"
+        ],
+        "help": "write JSON and Markdown reports (default: render without writing)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "parquet_dir",
+        "flags": [
+          "--parquet-dir"
+        ],
+        "help": "override the shared Parquet root for this invocation",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": null,
+        "dest": "raw_root",
+        "flags": [
+          "--raw-root"
+        ],
+        "help": "Raw Harbor root; repeat as needed (defaults to runs and reviewed evidence)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "task",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "research": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "report_date",
+        "flags": [
+          "--date"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "fromisoformat"
+      }
+    ]
+  },
+  "resume": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "run": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "agent",
+        "flags": [
+          "--agent"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "allow_billable",
+        "flags": [
+          "--allow-billable"
+        ],
+        "help": "Acknowledge that the selected adapter/model may incur charges",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 1,
+        "dest": "attempts",
+        "flags": [
+          "--attempts"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 1,
+        "dest": "concurrency",
+        "flags": [
+          "--concurrency"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "docker",
+        "dest": "environment",
+        "flags": [
+          "--environment"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "runs",
+        "dest": "jobs_dir",
+        "flags": [
+          "--jobs-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "model",
+        "flags": [
+          "--model"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "name",
+        "flags": [
+          "--name"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "task",
+        "flags": [
+          "--task"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 1800,
+        "dest": "timeout_seconds",
+        "flags": [
+          "--timeout-seconds"
+        ],
+        "help": "executor wall-clock allowance per attempted trial",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      }
+    ]
+  },
+  "schedule": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "schedule install": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "status": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "generate",
+        "flags": [
+          "--generate"
+        ],
+        "help": "Generate docs/STATUS.md markdown projection to stdout",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit the typed status snapshot as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "status_from",
+        "flags": [
+          "--from"
+        ],
+        "help": "Repository root or smoke scratch (queue/ + jobs/) to read",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "status_output",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Destination path for status output",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "target_date",
+        "flags": [
+          "--target-date"
+        ],
+        "help": "Target date for status generation (YYYY-MM-DD)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "fromisoformat"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "update",
+        "flags": [
+          "--update"
+        ],
+        "help": "Generate and update docs/STATUS.md on disk",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "stop": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "submit": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "summarize": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "[PosixPath('runs')]",
+        "dest": "paths",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": "+",
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "tick": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "tidy": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "apply",
+        "flags": [
+          "--apply"
+        ],
+        "help": "Execute safe deletions (default is dry-run report)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dry_run",
+        "flags": [
+          "--dry-run"
+        ],
+        "help": "Report findings without making changes (default behavior)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "trace": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dry_run",
+        "flags": [
+          "--dry-run"
+        ],
+        "help": "Validate and convert only; do not POST OTLP",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "endpoint",
+        "flags": [
+          "--endpoint"
+        ],
+        "help": "Phoenix collector base URL (default: PHOENIX_COLLECTOR_ENDPOINT or http://127.0.0.1:6006)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "include_controls",
+        "flags": [
+          "--include-controls"
+        ],
+        "help": "Also trace oracle/nop control trials",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": "Trial directory, job directory, or trajectory.json",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "trajectories": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "export",
+        "flags": [
+          "--export"
+        ],
+        "help": "Rebuild the catalog and write trajectory/trial facts to Parquet",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output-dir"
+        ],
+        "help": "override the shared Parquet root for this invocation",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "[PosixPath('runs'), PosixPath('research/evidence/runs'), PosixPath('evidence/runs')]",
+        "dest": "paths",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": "*",
+        "required": false,
+        "type": "Path"
+      }
+    ]
+  },
+  "verdict": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "action_or_id",
+        "flags": [],
+        "help": "Discovery ID to verdict/inspect, or 'list'/'history'",
+        "metavar": null,
+        "nargs": "?",
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "by",
+        "flags": [
+          "--by"
+        ],
+        "help": "Human actor issuing the verdict (mandatory for recording)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": "PostgreSQL catalog URL override",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_root",
+        "flags": [
+          "--derived-root"
+        ],
+        "help": "Override the shared Parquet root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit results as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "note",
+        "flags": [
+          "--note"
+        ],
+        "help": "Free-text rationale or evidence pointer",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "status",
+        "flags": [
+          "--status"
+        ],
+        "help": "Filter status for 'verdict list'",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "status_or_id",
+        "flags": [],
+        "help": "Status ('accepted'|'rejected'|'needs_evidence'|'pending') or ID for history",
+        "metavar": null,
+        "nargs": "?",
+        "required": false,
+        "type": null
+      }
+    ]
+  }
+}

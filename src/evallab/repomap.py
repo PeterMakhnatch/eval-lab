@@ -13,7 +13,7 @@ import ast
 import re
 import sys
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -488,6 +488,110 @@ def _cli_parser_commands(tree: ast.AST) -> list[tuple[str, str]]:
     return unique
 
 
+def _qualified_command_name(call: ast.Call, name: str) -> str:
+    """Resolve `add_parser("x")` to its full command path, e.g. `schedule install`."""
+    func = call.func
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        owner = func.value.id
+        if owner.endswith("_commands"):
+            prefix = owner.removesuffix("s").removesuffix("_command")
+            if prefix and prefix != owner:
+                return f"{prefix} {name}"
+    return name
+
+
+def _statements_in_source_order(node: ast.AST) -> Iterator[ast.AST]:
+    """Depth-first pre-order walk, which matches source order for straight-line code."""
+    for child in ast.iter_child_nodes(node):
+        yield child
+        yield from _statements_in_source_order(child)
+
+
+def _body_names(func: ast.AST) -> list[str]:
+    """Names referenced in a function's body, excluding its signature annotations.
+
+    Annotations must not count as references: a handler typed
+    `harbor: HarborBackend | None` would otherwise be attributed to whichever
+    module exports that type rather than to the module it actually drives.
+    """
+    if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return _called_names(func)
+    names: list[str] = []
+    for stmt in func.body:
+        names.extend(_called_names(stmt))
+    return names
+
+
+def _handler_module(
+    command: str,
+    handler: str,
+    imports: dict[str, str],
+    functions: dict[str, ast.AST],
+) -> str:
+    """Score the module implementing `command` from its registered handler.
+
+    Names referenced *directly* in the handler body win over names reached by
+    recursing through local helpers: a handler that calls one domain module and a
+    shared helper should be attributed to the domain module, not to whatever the
+    helper happens to import most often.
+    """
+    body = functions.get(handler)
+    if body is None:
+        direct = imports.get(handler)
+        if direct is not None:
+            return direct
+        return _score_module(command, [handler], imports, functions)
+    shallow = _score_module(command, _body_names(body), imports, {})
+    if shallow != "cli":
+        return shallow
+    return _score_module(command, _body_names(body), imports, functions)
+
+
+def _registry_owners(
+    tree: ast.AST,
+    imports: dict[str, str],
+    functions: dict[str, ast.AST],
+) -> dict[str, str]:
+    """Attribute commands declared with `parser.set_defaults(func=handler)`.
+
+    A declarative registry has no `args.command == "x"` dispatch chain to read, so
+    the implementing module is scored from the registered handler's body instead.
+    Without this, converting `cli.py` to a registry would silently drop every
+    command-to-module edge — and a repo map that under-reports reachability is the
+    exact signal this lab uses to find built-but-unreachable code.
+    """
+    command_by_var: dict[str, str] = {}
+    owners: dict[str, str] = {}
+
+    for node in _statements_in_source_order(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            call = node.value
+            if _call_name(call) != "add_parser":
+                continue
+            name = _add_parser_name(call)
+            if name is None:
+                continue
+            full = _qualified_command_name(call, name)
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    command_by_var[target.id] = full
+            continue
+        if not isinstance(node, ast.Call) or _call_name(node) != "set_defaults":
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)):
+            continue
+        command = command_by_var.get(func.value.id)
+        handler_node = _kwarg(node, "func")
+        if command is None or handler_node is None:
+            continue
+        handler = _call_name(handler_node)
+        if handler is None:
+            continue
+        owners[command] = _handler_module(command, handler, imports, functions)
+    return owners
+
+
 def parse_cli_commands(cli_path: Path) -> list[CommandRecord]:
     """Map every `cli.py` subcommand to the module that implements it."""
     if not cli_path.is_file():
@@ -504,6 +608,7 @@ def parse_cli_commands(cli_path: Path) -> list[CommandRecord]:
                 continue
             for key in _command_keys(node.test):
                 owners[key] = _score_module(key, _called_names(node), imports, functions)
+    owners.update(_registry_owners(tree, imports, functions))
 
     records: list[CommandRecord] = []
     for name, help_text in _cli_parser_commands(tree):

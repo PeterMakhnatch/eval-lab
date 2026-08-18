@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,11 +23,26 @@ from evallab.authoring import (
     StructuralControlRunner,
     bump_version,
     find_craft_gap,
+    generate_stub_task,
     load_ledger,
     main,
     seed_class_pass_rates,
     upsert_ledger,
     write_ledger,
+)
+from evallab.lineage import resolve_lineage
+
+# Completeness checker from meta-task package
+_checker_dir = Path(__file__).resolve().parent.parent / "library/meta/synthesize-task@1/tests"
+if str(_checker_dir) not in sys.path:
+    sys.path.insert(0, str(_checker_dir))
+
+from completeness_checker import (  # noqa: E402
+    check_no_answer_leakage,
+    check_oracle_solution_runs,
+    check_package_structure,
+    check_task_completeness,
+    check_task_tests_pass,
 )
 
 FIXED_NOW = datetime(2026, 8, 16, 12, 0, tzinfo=UTC)
@@ -102,7 +119,7 @@ def make_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     write_task(repo / "library" / "tasks", "event-summary")
     write_scenario(repo)
-    (repo / "library" / "registry").mkdir(parents=True)
+    (repo / "library" / "registry").mkdir(parents=True, exist_ok=True)
     (repo / "library" / "registry" / "event-summary.json").write_text(
         json.dumps(
             {
@@ -113,6 +130,26 @@ def make_repo(tmp_path: Path) -> Path:
         )
     )
     write_craft_parquet(repo / "derived" / "parquet" / "craft" / "craft.parquet")
+    policy_dir = repo / "policy"
+    policy_dir.mkdir(parents=True, exist_ok=True)
+    (policy_dir / "standing-approvals.yaml").write_text(
+        "version: 1\n"
+        "daily_cost_ceiling_usd: 20\n"
+        "per_job_cost_ceiling_usd: 3\n"
+        "quiet_failure_rule: 3\n"
+        "refuse_billable_at_used_percent: null\n"
+        "auto_run:\n"
+        "  - name: local-controls\n"
+        "    agents: [oracle, nop]\n"
+        "escalate_to_human:\n"
+        "  - any_billable_agent\n"
+    )
+    (repo / "queue").mkdir(parents=True, exist_ok=True)
+    meta_src = Path(__file__).resolve().parents[1] / "library/meta/synthesize-task@1"
+    if meta_src.is_dir():
+        meta_dest = repo / "library/meta/synthesize-task@1"
+        meta_dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(meta_src, meta_dest, dirs_exist_ok=True)
     return repo
 
 
@@ -454,3 +491,313 @@ def test_cli_batch_five(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
     assert payload["halt"] == REGISTER_REFUSAL
     assert REGISTER_REFUSAL in captured.err
     assert all(item["outcome"] == "craft_reviewed" for item in payload["proposals"])
+def test_completeness_checker_rejects_missing_structure(tmp_path: Path) -> None:
+    task_dir = tmp_path / "broken_task"
+    generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
+    (task_dir / "solution/solve.sh").unlink()
+
+    res = check_package_structure(task_dir)
+    assert res["passed"] is False
+    assert "solution/solve.sh" in res["message"]
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is False
+    assert overall["checks"]["package_structure"]["passed"] is False
+
+
+def test_completeness_checker_rejects_broken_oracle_solution(tmp_path: Path) -> None:
+    task_dir = tmp_path / "broken_oracle_task"
+    generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
+    (task_dir / "solution/solve.sh").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (task_dir / "solution/solve.py").unlink(missing_ok=True)
+
+    res = check_oracle_solution_runs(task_dir)
+    assert res["passed"] is False
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is False
+    assert overall["checks"]["package_structure"]["passed"] is True
+    assert overall["checks"]["oracle_solution_runs"]["passed"] is False
+
+
+def test_completeness_checker_rejects_failing_task_tests(tmp_path: Path) -> None:
+    task_dir = tmp_path / "failing_tests_task"
+    generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
+    (task_dir / "tests/test.sh").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (task_dir / "tests/verify.py").unlink(missing_ok=True)
+
+    res = check_task_tests_pass(task_dir)
+    assert res["passed"] is False
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is False
+    assert overall["checks"]["package_structure"]["passed"] is True
+    assert overall["checks"]["oracle_solution_runs"]["passed"] is True
+    assert overall["checks"]["task_tests_pass"]["passed"] is False
+
+
+def test_completeness_checker_rejects_planted_answer_leak_in_answer_file(tmp_path: Path) -> None:
+    task_dir = tmp_path / "leaking_task_answer_file"
+    generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
+
+    # Plant ANSWER.txt inside environment/ containing expected output
+    (task_dir / "environment/ANSWER.txt").write_text("expected_output: 42\n")
+
+    res = check_no_answer_leakage(task_dir)
+    assert res["passed"] is False
+    assert any("ANSWER.txt" in leak for leak in res["leaks"])
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is False
+    assert overall["checks"]["no_answer_leakage"]["passed"] is False
+
+
+def test_completeness_checker_rejects_planted_answer_in_innocuous_file(tmp_path: Path) -> None:
+    task_dir = tmp_path / "leaking_task_innocuous_file"
+    generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
+
+    # Plant answer data in innocuously named files
+    (task_dir / "environment/notes.md").write_text(
+        '{"schema_version": 1, "total_records": 3, "status": "ok"}\n'
+    )
+    (task_dir / "environment/data_2.json").write_text('{"total_records": 3, "status": "ok"}\n')
+
+    res = check_no_answer_leakage(task_dir)
+    assert res["passed"] is False
+    assert any("notes.md" in leak or "data_2.json" in leak for leak in res["leaks"])
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is False
+    assert overall["checks"]["no_answer_leakage"]["passed"] is False
+
+
+def test_completeness_checker_rejects_verbatim_oracle_solution_in_visible_file(
+    tmp_path: Path,
+) -> None:
+    task_dir = tmp_path / "leaking_task_solution_span"
+    generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
+
+    # Copy verbatim solution span into environment/notes.md
+    sol_span = (
+        'summary = {\n    "schema_version": 1,\n'
+        '    "total_records": len(data),\n    "status": "ok",\n}\n'
+    )
+    (task_dir / "environment/notes.md").write_text(sol_span)
+
+    res = check_no_answer_leakage(task_dir)
+    assert res["passed"] is False
+    assert any("notes.md" in leak for leak in res["leaks"])
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is False
+    assert overall["checks"]["no_answer_leakage"]["passed"] is False
+
+
+def test_completeness_checker_accepts_clean_task_with_legitimate_instructions(
+    tmp_path: Path,
+) -> None:
+    task_dir = tmp_path / "clean_task"
+    generate_stub_task(task_dir, {"name": "clean-task", "category": "data-processing"})
+
+    res = check_no_answer_leakage(task_dir)
+    assert res["passed"] is True
+    assert res["leaks"] == []
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is True
+    assert overall["checks"]["no_answer_leakage"]["passed"] is True
+
+
+def test_completeness_checker_rejects_structural_leakage(tmp_path: Path) -> None:
+    # 1. Hidden solution directory under environment/
+    task_dir_dir = tmp_path / "struct_dir_task"
+    generate_stub_task(task_dir_dir, {"name": "struct-task", "category": "data-processing"})
+    (task_dir_dir / "environment/solution").mkdir(parents=True)
+    (task_dir_dir / "environment/solution/solve.py").write_text("print('leak')\n")
+
+    res_dir = check_no_answer_leakage(task_dir_dir)
+    assert res_dir["passed"] is False
+    assert any("solution" in leak for leak in res_dir["leaks"])
+
+    # 2. Dockerfile COPY instruction copying hidden directories
+    task_dir_df = tmp_path / "struct_df_task"
+    generate_stub_task(task_dir_df, {"name": "struct-df-task", "category": "data-processing"})
+    (task_dir_df / "environment/Dockerfile").write_text(
+        "FROM python:3.13-slim-bookworm\nCOPY solution /app/solution\n"
+    )
+
+    res_df = check_no_answer_leakage(task_dir_df)
+    assert res_df["passed"] is False
+    assert any("Dockerfile" in leak for leak in res_df["leaks"])
+
+
+def test_propose_via_harbor_submits_craft_purpose_without_dispatch(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+
+    # Free agent: oracle
+    exp_spec, queue_path, decision = pipe.propose(
+        seed="craft-gap",
+        via_harbor=True,
+        agent="oracle",
+    )
+    assert exp_spec.purpose == "craft"
+    assert decision.admitted is True
+    assert queue_path.parent.name == "approved"
+    assert queue_path.is_file()
+    assert not (repo / "runs").exists()
+
+    # Billable agent: codex (refused without recorded authorization)
+    exp_spec_paid, queue_path_paid, decision_paid = pipe.propose(
+        seed="craft-gap",
+        via_harbor=True,
+        agent="codex",
+    )
+    assert exp_spec_paid.purpose == "craft"
+    assert decision_paid.admitted is False
+    assert decision_paid.reason_code == "paid_run_unauthorized"
+    assert queue_path_paid.parent.name == "waiting"
+    assert queue_path_paid.is_file()
+    # Still submit-only: no runs/ directory created
+    assert not (repo / "runs").exists()
+
+
+def test_harvest_refuses_package_when_completeness_checker_failed(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+
+    job_dir = repo / "runs" / "failed-synth-job"
+    task_pkg = job_dir / "artifacts" / "output" / "task"
+    generate_stub_task(task_pkg, {"name": "synth-failed"})
+
+    # Break the task in the job artifacts
+    (task_pkg / "solution/solve.sh").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    verifier_dir = job_dir / "verifier"
+    verifier_dir.mkdir(parents=True)
+    (verifier_dir / "reward.json").write_text(json.dumps({"reward": 0.0}))
+
+    with pytest.raises(AuthoringError) as exc_info:
+        pipe.harvest("failed-synth-job")
+    assert "completeness checker" in str(exc_info.value).lower()
+    assert not pipe.quarantine.exists() or not list(pipe.quarantine.iterdir())
+
+
+def test_harvested_proposal_carries_inputs_and_lineage_resolves(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+
+    job_dir = repo / "runs" / "synth-job-01"
+    task_pkg = job_dir / "artifacts" / "output" / "task"
+    generate_stub_task(task_pkg, {"name": "synth-success"})
+    (job_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "job_id": "synth-job-01",
+                "spec": {"name": "synth-success", "seed_class": "craft-gap"},
+                "exemplar": "event-summary",
+            }
+        )
+    )
+    (job_dir / "result.json").write_text(json.dumps({"passed": True, "status": "completed"}))
+    verifier_dir = job_dir / "verifier"
+    verifier_dir.mkdir(parents=True)
+    (verifier_dir / "reward.json").write_text(json.dumps({"reward": 1.0}))
+
+    proposal = pipe.harvest("synth-job-01")
+    assert proposal.outcome == "proposed"
+    assert proposal.job_id == "synth-job-01"
+    assert proposal.inputs is not None
+    assert len(proposal.inputs) >= 1
+
+    manifest = json.loads((proposal.path / "proposal.json").read_text())
+    assert "inputs" in manifest
+
+    node = resolve_lineage(str(proposal.path / "proposal.json"), repo_root=repo)
+    assert node.resolved is True
+    assert len(node.inputs) >= 1
+    # Job artifact is in Zone 1 (runs/)
+    assert any(inp.zone == "z1" for inp in node.inputs)
+
+
+def test_end_to_end_stub_loop_propose_checker_harvest_battery(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+
+    # 1. Propose via harbor
+    exp_spec, queue_path, decision = pipe.propose(
+        seed="craft-gap",
+        via_harbor=True,
+        agent="oracle",
+    )
+    assert decision.admitted is True
+    assert exp_spec.purpose == "craft"
+
+    # 2. Simulate stub generator execution
+    job_dir = repo / "runs" / exp_spec.name
+    task_pkg = job_dir / "artifacts" / "output" / "task"
+    generate_stub_task(task_pkg, {"name": "aggregated-events", "category": "data-processing"})
+    (job_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "job_id": exp_spec.name,
+                "spec": {"name": "aggregated-events", "seed_class": "craft-gap"},
+                "exemplar": "event-summary",
+            }
+        )
+    )
+    (job_dir / "result.json").write_text(json.dumps({"passed": True}))
+
+    # Completeness checker validates package
+    comp_res = check_task_completeness(task_pkg)
+    assert comp_res["passed"] is True
+    verifier_dir = job_dir / "verifier"
+    verifier_dir.mkdir(parents=True)
+    (verifier_dir / "reward.json").write_text(json.dumps({"reward": 1.0}))
+    (verifier_dir / "checks.json").write_text(json.dumps(comp_res["checks"]))
+
+    # 3. Harvest moves task into _proposed/<proposal_id>
+    proposal = pipe.harvest(job_dir)
+    assert proposal.outcome == "proposed"
+    assert (proposal.path / "task.toml").is_file()
+    assert (proposal.path / "instruction.md").is_file()
+    assert (proposal.path / "solution/solve.sh").is_file()
+    assert (proposal.path / "tests/test.sh").is_file()
+
+    # 4. Existing battery gates and passes
+    report = pipe.run_battery(proposal.proposal_id)
+    assert report.all_passed is True
+    assert report.outcome == "battery_passed"
+    assert len(report.checks) == 4
+    assert all(check.passed for check in report.checks)
+    assert pipe.records()[-1].outcome == "battery_passed"
+
+
+def test_cli_propose_via_harbor_and_harvest(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path)
+    derived = repo / "derived" / "parquet"
+    common = ["--root", str(repo), "--out", str(derived), "--json"]
+
+    # Propose --via-harbor
+    propose_args = [*common, "propose", "--via-harbor", "--seed", "craft-gap", "--agent", "oracle"]
+    assert main(propose_args) == 0
+    captured = json.loads(capsys.readouterr().out)
+    assert captured["purpose"] == "craft"
+    assert captured["destination"] == "approved"
+
+    # Create mock job output
+    job_dir = repo / "runs" / "cli-job-01"
+    task_pkg = job_dir / "artifacts" / "output" / "task"
+    generate_stub_task(task_pkg, {"name": "cli-task"})
+    (job_dir / "manifest.json").write_text(json.dumps({"job_id": "cli-job-01"}))
+    (job_dir / "result.json").write_text(json.dumps({"passed": True}))
+    verifier_dir = job_dir / "verifier"
+    verifier_dir.mkdir(parents=True)
+    (verifier_dir / "reward.json").write_text(json.dumps({"reward": 1.0}))
+
+    # Harvest
+    assert main([*common, "harvest", "cli-job-01"]) == 0
+    harvested = json.loads(capsys.readouterr().out)
+    assert harvested["outcome"] == "proposed"
+    assert harvested["job_id"] == "cli-job-01"

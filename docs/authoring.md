@@ -8,7 +8,7 @@ audience:
 # BUILDER authoring pipeline
 
 Status: living. Owner: Tasks lane. Date: 2026-08-16. Implements
-`docs/build-plan.md` WS-C.
+`docs/build-plan.md` WS-C and SG-1 (`docs/prompts/synthesis-build.md`).
 
 `src/evallab/authoring.py` seeds quarantined task proposals, runs the four
 local control checks, scores a CRAFT-derived rubric, and records every step
@@ -49,6 +49,8 @@ leased elsewhere this round. `build_parser()` is the flag surface to attach.
 python -m evallab.authoring propose --seed mutation --ref event-summary
 python -m evallab.authoring propose --seed scenario --ref research/scenarios/gap-notes.md
 python -m evallab.authoring propose --seed craft-gap
+python -m evallab.authoring propose --via-harbor --seed craft-gap --agent oracle
+python -m evallab.authoring harvest <job_id_or_path>
 python -m evallab.authoring battery <proposal_id>
 python -m evallab.authoring review <proposal_id>
 python -m evallab.authoring register <proposal_id>   # always refuses
@@ -66,6 +68,23 @@ the human summary prints.
 | `mutation` | `--ref` registered/`library/tasks` task, else the first registered or library task | New versioned copy. Never in-place. |
 | `scenario` | markdown under `research/` (`research/scenarios/` first, then explorations / inspections) | Stub Harbor package whose instruction cites the scenario path and excerpt. |
 | `craft-gap` | first uncovered `verifier_type × env_multi_container × pinned_deps` triple in `derived/parquet/craft/craft.parquet` | Stub package targeting that triple. |
+
+### Meta-Loop Generation (`--via-harbor` and `harvest`)
+
+Implements the Meta-Task pattern (arXiv:2607.27929, `library/meta/synthesize-task@1`).
+
+1. **`propose --via-harbor`**: Assembles the meta-task template (`library/meta/synthesize-task@1`), injects the sampled specification and exemplar, and submits the job through `evallab.queue` with `purpose="craft"`.
+   - **Submit-only**: Puts the job in the queue and halts. It does not dispatch or start runner processes.
+   - **Policy Gate**: Standing approvals enforce authorizations; paid models without approval land in `waiting/` and are refused execution.
+2. **Completeness Checker**: Verification logic inside the meta-task enforces 4 checks on generated packages:
+   - `package_structure`: Valid `task.toml`, `instruction.md`, `environment/Dockerfile`, `solution/solve.sh`, `tests/Dockerfile`, and `tests/test.sh`.
+   - `oracle_solution_runs`: Reference solution in `solution/` executes cleanly.
+   - `task_tests_pass`: Task verifier passes on the oracle solution output and fails on empty work.
+   - `no_answer_leakage`: Verifies that hidden test logic, golden data, and solution code do not leak into `instruction.md` or `environment/`.
+3. **`harvest`**: Ingests the generated package from a completed job run into quarantine (`library/tasks/_proposed/<proposal_id>`).
+   - Verifies the completeness checker passed in the job; rejects unverified artifacts.
+   - Records lineage inputs (`inputs: [{path, id, digest}]`, `job_id`, `injected_spec`, `exemplar`) in `proposal.json` so `evallab lineage` resolves provenance back to the generating run.
+   - Harvested proposals enter in `proposed` state and must pass the standard 4-check local battery before advancement.
 
 ### Battery
 

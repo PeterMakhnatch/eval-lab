@@ -1,0 +1,9 @@
+{
+  "schema_version": "spec/1",
+  "name": "log-aggregation-summary",
+  "category": "data-processing",
+  "scenario": "structured-pipeline",
+  "difficulty": "medium",
+  "summary": "Process structured input logs and generate aggregated summary reports",
+  "seed_class": "craft-gap"
+}

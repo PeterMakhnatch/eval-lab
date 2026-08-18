@@ -24,25 +24,30 @@ wired here because `cli.py` is leased elsewhere.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import hashlib
 import json
+import os
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 import tomllib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import product
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, overload
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import Field
 
 from evallab.paths import derived_root_from_environment
-from evallab.queue import new_ulid
-from evallab.schemas import ContractModel
+from evallab.queue import DirectoryQueue, PolicyGate, load_policy, new_ulid
+from evallab.schemas import ContractModel, ExperimentSpec, PolicyDecision
 
 SCHEMA_VERSION = "authoring/1"
 PROPOSED_RELATIVE = Path("library/tasks/_proposed")
@@ -51,7 +56,7 @@ CRAFT_PARQUET_RELATIVE = Path("craft/craft.parquet")
 RESEARCH_RELATIVE = Path("research")
 LIBRARY_TASKS_RELATIVE = Path("library/tasks")
 REGISTRY_RELATIVE = Path("library/registry")
-
+META_TASK_RELATIVE = Path("library/meta/synthesize-task@1")
 SeedClass = Literal["mutation", "scenario", "craft-gap"]
 Outcome = Literal["proposed", "battery_passed", "craft_reviewed", "registered", "rejected"]
 BatteryCheck = Literal["oracle", "nop", "fair_oracle", "adversarial"]
@@ -196,9 +201,13 @@ class Proposal:
     scenario_path: str | None = None
     target_facets: dict[str, Any] | None = None
     created_at: str | None = None
+    job_id: str | None = None
+    inputs: list[dict[str, Any]] | None = None
+    injected_spec: dict[str, Any] | None = None
+    exemplar: str | None = None
 
     def manifest(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "proposal_id": self.proposal_id,
             "seed_class": self.seed_class,
@@ -211,7 +220,15 @@ class Proposal:
             "target_facets": self.target_facets,
             "created_at": self.created_at,
         }
-
+        if self.job_id is not None:
+            data["job_id"] = self.job_id
+        if self.inputs is not None:
+            data["inputs"] = self.inputs
+        if self.injected_spec is not None:
+            data["injected_spec"] = self.injected_spec
+        if self.exemplar is not None:
+            data["exemplar"] = self.exemplar
+        return data
 
 @dataclass(frozen=True)
 class BatteryReport:
@@ -590,8 +607,11 @@ def load_proposal(proposal_dir: Path) -> Proposal:
         scenario_path=raw.get("scenario_path"),
         target_facets=raw.get("target_facets"),
         created_at=raw.get("created_at"),
+        job_id=raw.get("job_id"),
+        inputs=raw.get("inputs"),
+        injected_spec=raw.get("injected_spec"),
+        exemplar=raw.get("exemplar"),
     )
-
 
 class StructuralControlRunner:
     """Free local control that never starts Harbor and never calls a model.
@@ -841,6 +861,605 @@ def score_review(proposal: Proposal) -> tuple[float, list[str]]:
             reasons.append("craft-gap missing target facet triple")
     return round(score, 4), reasons
 
+def compute_file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def sample_meta_spec(
+    repo_root: Path,
+    *,
+    seed: SeedClass = "craft-gap",
+    ref: str | None = None,
+    derived_root: Path | None = None,
+) -> dict[str, Any]:
+    derived = derived_root or derived_root_from_environment(repo_root)
+    if seed == "craft-gap":
+        facets = find_craft_gap(craft_parquet_path(derived))
+        return {
+            "schema_version": "spec/1",
+            "name": f"gap-{facets['verifier_type']}",
+            "category": "data-processing",
+            "scenario": "structured-pipeline",
+            "difficulty": "medium",
+            "summary": f"Task targeting CRAFT gap {facets['verifier_type']}",
+            "seed_class": "craft-gap",
+            "target_facets": {name: facets[name] for name in GAP_AXES},
+        }
+    if seed == "scenario":
+        scenario = resolve_scenario(repo_root, ref)
+        return {
+            "schema_version": "spec/1",
+            "name": f"scenario-{scenario.stem}",
+            "category": "data-processing",
+            "scenario": scenario.stem,
+            "difficulty": "medium",
+            "summary": f"Task seeded from {scenario.name}",
+            "seed_class": "scenario",
+            "scenario_path": _repo_relative(scenario, repo_root),
+        }
+    source = resolve_registered_task(repo_root, ref)
+    return {
+        "schema_version": "spec/1",
+        "name": f"mutation-{source.name}",
+        "category": "data-processing",
+        "scenario": "mutation",
+        "difficulty": "medium",
+        "summary": f"Mutation of {source.name}",
+        "seed_class": "mutation",
+        "ref_task": source.name,
+    }
+
+
+def assemble_meta_task(
+    repo_root: Path,
+    *,
+    spec: dict[str, Any] | None = None,
+    exemplar: str | None = None,
+    destination: Path | None = None,
+) -> Path:
+    meta_template = repo_root / META_TASK_RELATIVE
+    spec_name = str(spec.get("name", "default")) if spec and spec.get("name") else "default"
+    dest = destination or (repo_root / "library/meta/_staged" / spec_name)
+    dest.mkdir(parents=True, exist_ok=True)
+    if meta_template.is_dir():
+        shutil.copytree(meta_template, dest, dirs_exist_ok=True, ignore=_ignore_copy)
+    if spec is not None:
+        spec_dest = dest / "environment/spec.json"
+        _atomic_write_json(spec_dest, spec)
+    if exemplar is not None:
+        ex_src = resolve_registered_task(repo_root, exemplar)
+        ex_dest = dest / "environment/exemplar"
+        if ex_dest.exists():
+            shutil.rmtree(ex_dest)
+        shutil.copytree(ex_src, ex_dest, dirs_exist_ok=True, ignore=_ignore_copy)
+    return dest
+
+
+def check_package_structure(task_dir: Path) -> dict[str, Any]:
+    task_dir = Path(task_dir)
+    errors: list[str] = []
+
+    required_files = [
+        "task.toml",
+        "instruction.md",
+        "environment/Dockerfile",
+        "solution/solve.sh",
+        "tests/Dockerfile",
+        "tests/test.sh",
+    ]
+
+    for rel in required_files:
+        p = task_dir / rel
+        if not p.is_file():
+            errors.append(f"required file missing: {rel}")
+        elif p.stat().st_size == 0:
+            errors.append(f"required file is empty: {rel}")
+
+    task_toml_path = task_dir / "task.toml"
+    if task_toml_path.is_file() and task_toml_path.stat().st_size > 0:
+        try:
+            config = tomllib.loads(task_toml_path.read_text(encoding="utf-8"))
+            if "task" not in config or not isinstance(config["task"], dict):
+                errors.append("task.toml: missing [task] section")
+            else:
+                for field in ("name", "version", "description"):
+                    if not config["task"].get(field):
+                        errors.append(f"task.toml: [task].{field} is missing or empty")
+
+            for sec in ("environment", "agent", "verifier"):
+                if sec not in config or not isinstance(config[sec], dict):
+                    errors.append(f"task.toml: missing [{sec}] section")
+        except Exception as exc:
+            errors.append(f"task.toml: parse error: {exc}")
+
+    for script_rel in ("solution/solve.sh", "tests/test.sh"):
+        p = task_dir / script_rel
+        if p.is_file():
+            content = p.read_text(encoding="utf-8", errors="replace")
+            if not content.startswith("#!"):
+                errors.append(f"{script_rel}: missing shebang (e.g. #!/bin/sh)")
+
+    passed = len(errors) == 0
+    msg = "package structure valid" if passed else f"structure errors: {'; '.join(errors)}"
+    return {
+        "check": "package_structure",
+        "passed": passed,
+        "errors": errors,
+        "message": msg,
+    }
+
+
+def _extract_sensitive_spans(task_dir: Path) -> list[tuple[str, str]]:
+    spans: list[tuple[str, str]] = []
+    roots = [task_dir / "solution", task_dir / "tests"]
+
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for p in sorted(root.rglob("*")):
+            if not p.is_file():
+                continue
+            if p.name in {"Dockerfile", "test.sh", "solve.sh"}:
+                continue
+            rel = p.relative_to(task_dir).as_posix()
+            text = p.read_text(encoding="utf-8", errors="replace")
+
+            for line in text.splitlines():
+                normalized = " ".join(line.strip().split())
+                if (
+                    len(normalized) >= 24
+                    and not normalized.startswith(("#", "//", "/*", "*", "import ", "from "))
+                    and re.search(r"[A-Za-z0-9]", normalized)
+                    and not normalized.startswith("def main():")
+                    and not normalized.startswith('if __name__ == "__main__":')
+                ):
+                    spans.append((rel, normalized))
+
+    return spans
+
+
+def check_no_answer_leakage(task_dir: Path) -> dict[str, Any]:
+    task_dir = Path(task_dir)
+    leaks: list[str] = []
+
+    env_dir = task_dir / "environment"
+    if env_dir.is_dir():
+        for p in env_dir.rglob("*"):
+            rel = p.relative_to(env_dir).as_posix()
+            parts = p.relative_to(env_dir).parts
+            if any(part in {"solution", "tests", "verifier"} for part in parts):
+                leaks.append(f"environment/ contains hidden directory: {rel}")
+            answer_keys = ("golden", "solution", "expected_summary", "answer_key")
+            if p.is_file() and any(k in p.name.lower() for k in answer_keys):
+                leaks.append(f"environment/ contains answer file: {rel}")
+
+        df = env_dir / "Dockerfile"
+        if df.is_file():
+            df_text = df.read_text(encoding="utf-8", errors="replace")
+            for line in df_text.splitlines():
+                line_clean = line.strip()
+                if line_clean.startswith(("COPY", "ADD")) and any(
+                    bad in line_clean for bad in ("solution", "tests", "verifier")
+                ):
+                    leaks.append(f"environment/Dockerfile copies hidden files: {line_clean}")
+
+    visible_files: list[Path] = []
+    instr = task_dir / "instruction.md"
+    if instr.is_file():
+        visible_files.append(instr)
+    if env_dir.is_dir():
+        for p in env_dir.rglob("*"):
+            if p.is_file() and p.name != "Dockerfile":
+                visible_files.append(p)
+
+    visible_texts: list[str] = []
+    for vf in visible_files:
+        content = vf.read_text(encoding="utf-8", errors="replace")
+        visible_texts.append(" ".join(content.split()))
+
+    combined_visible = "\n".join(visible_texts)
+
+    sensitive_spans = _extract_sensitive_spans(task_dir)
+    for src, span in sensitive_spans:
+        if span in combined_visible:
+            leaks.append(f"sensitive span from {src} leaked in visible surface: {span[:40]}...")
+
+    passed = len(leaks) == 0
+    msg = "no answer leakage detected" if passed else f"leakage detected: {'; '.join(leaks)}"
+    return {
+        "check": "no_answer_leakage",
+        "passed": passed,
+        "leaks": leaks,
+        "message": msg,
+    }
+
+
+def _prepare_workspace(task_dir: Path, workspace: Path) -> None:
+    env_dir = task_dir / "environment"
+    if env_dir.is_dir():
+        for item in env_dir.iterdir():
+            if item.name == "Dockerfile":
+                continue
+            dest = workspace / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, dest)
+
+    input_dir = workspace / "input"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    if env_dir.is_dir():
+        for item in env_dir.iterdir():
+            if item.name != "Dockerfile" and not item.is_dir():
+                shutil.copy2(item, input_dir / item.name)
+
+    (workspace / "output").mkdir(parents=True, exist_ok=True)
+
+
+def check_oracle_solution_runs(
+    task_dir: Path,
+    timeout: float = 60.0,
+    workspace: Path | None = None,
+) -> dict[str, Any]:
+    task_dir = Path(task_dir).resolve()
+    sol_sh = (task_dir / "solution/solve.sh").resolve()
+    sol_py = (task_dir / "solution/solve.py").resolve()
+
+    if not sol_sh.is_file() and not sol_py.is_file():
+        return {
+            "check": "oracle_solution_runs",
+            "passed": False,
+            "message": "solution/solve.sh or solution/solve.py is missing",
+        }
+
+    use_temp = workspace is None
+    target_workspace = Path(tempfile.mkdtemp(prefix="task_oracle_")) if use_temp else workspace
+    assert target_workspace is not None
+
+    try:
+        if use_temp:
+            _prepare_workspace(task_dir, target_workspace)
+
+        cmd = ["bash", str(sol_sh)] if sol_sh.is_file() else [sys.executable, str(sol_py)]
+        env = dict(os.environ)
+        env["APP_DIR"] = str(target_workspace)
+
+        proc = subprocess.run(
+            cmd,
+            cwd=str(target_workspace),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        passed = proc.returncode == 0
+        err_tail = proc.stderr[-200:]
+        msg = (
+            "oracle solution executed successfully"
+            if passed
+            else f"oracle failed (rc={proc.returncode}): {err_tail}"
+        )
+        return {
+            "check": "oracle_solution_runs",
+            "passed": passed,
+            "returncode": proc.returncode,
+            "stdout": proc.stdout[-1000:],
+            "stderr": proc.stderr[-1000:],
+            "message": msg,
+        }
+    except Exception as exc:
+        return {
+            "check": "oracle_solution_runs",
+            "passed": False,
+            "message": f"oracle execution raised exception: {exc}",
+        }
+    finally:
+        if use_temp and target_workspace.exists():
+            shutil.rmtree(target_workspace, ignore_errors=True)
+
+
+def check_task_tests_pass(
+    task_dir: Path,
+    timeout: float = 60.0,
+    workspace: Path | None = None,
+) -> dict[str, Any]:
+    task_dir = Path(task_dir).resolve()
+    test_sh = (task_dir / "tests/test.sh").resolve()
+    verify_py = (task_dir / "tests/verify.py").resolve()
+
+    if not test_sh.is_file() and not verify_py.is_file():
+        return {
+            "check": "task_tests_pass",
+            "passed": False,
+            "message": "tests/test.sh or tests/verify.py is missing",
+        }
+
+    use_temp = workspace is None
+    target_workspace = Path(tempfile.mkdtemp(prefix="task_verify_")) if use_temp else workspace
+    assert target_workspace is not None
+
+    try:
+        if use_temp:
+            _prepare_workspace(task_dir, target_workspace)
+            sol_sh = (task_dir / "solution/solve.sh").resolve()
+            sol_py = (task_dir / "solution/solve.py").resolve()
+            cmd = ["bash", str(sol_sh)] if sol_sh.is_file() else [sys.executable, str(sol_py)]
+            subprocess.run(cmd, cwd=str(target_workspace), capture_output=True, timeout=timeout)
+
+        cmd = ["bash", str(test_sh)] if test_sh.is_file() else [sys.executable, str(verify_py)]
+        logs_dir = target_workspace / "logs/verifier"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        proc = subprocess.run(
+            cmd,
+            cwd=str(target_workspace),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        passed = proc.returncode == 0
+        reward_file = logs_dir / "reward.json"
+        if reward_file.is_file():
+            try:
+                reward_data = json.loads(reward_file.read_text(encoding="utf-8"))
+                if isinstance(reward_data, dict) and reward_data.get("reward") != 1.0:
+                    passed = False
+            except Exception:
+                pass
+
+        err_tail = proc.stderr[-200:]
+        msg = "task tests passed" if passed else f"tests failed (rc={proc.returncode}): {err_tail}"
+        return {
+            "check": "task_tests_pass",
+            "passed": passed,
+            "returncode": proc.returncode,
+            "stdout": proc.stdout[-1000:],
+            "stderr": proc.stderr[-1000:],
+            "message": msg,
+        }
+    except Exception as exc:
+        return {
+            "check": "task_tests_pass",
+            "passed": False,
+            "message": f"verifier raised exception: {exc}",
+        }
+    finally:
+        if use_temp and target_workspace.exists():
+            shutil.rmtree(target_workspace, ignore_errors=True)
+
+
+def check_task_completeness(task_dir: Path, timeout: float = 60.0) -> dict[str, Any]:
+    task_dir = Path(task_dir)
+
+    structure_res = check_package_structure(task_dir)
+    leakage_res = check_no_answer_leakage(task_dir)
+
+    workspace = Path(tempfile.mkdtemp(prefix="task_completeness_"))
+    try:
+        _prepare_workspace(task_dir, workspace)
+        oracle_res = check_oracle_solution_runs(task_dir, timeout=timeout, workspace=workspace)
+        tests_res = check_task_tests_pass(task_dir, timeout=timeout, workspace=workspace)
+    finally:
+        shutil.rmtree(workspace, ignore_errors=True)
+
+    checks = {
+        "package_structure": structure_res,
+        "no_answer_leakage": leakage_res,
+        "oracle_solution_runs": oracle_res,
+        "task_tests_pass": tests_res,
+    }
+
+    all_passed = all(c["passed"] for c in checks.values())
+    rewards = {"reward": 1.0 if all_passed else 0.0}
+
+    return {
+        "passed": all_passed,
+        "checks": checks,
+        "rewards": rewards,
+    }
+
+
+def generate_stub_task(
+    destination: Path,
+    spec: dict[str, Any],
+    *,
+    exemplar_dir: Path | None = None,
+) -> Path:
+    _ = exemplar_dir
+    destination.mkdir(parents=True, exist_ok=True)
+    task_name = str(spec.get("name", "synthesized-task")).lower().replace(" ", "-")
+    category = str(spec.get("category", "data-processing"))
+    difficulty = str(spec.get("difficulty", "medium"))
+    summary = str(spec.get("summary", "Process input data and generate summary report"))
+
+    task_toml = f"""schema_version = "1.4"
+artifacts = [
+    "/app/output/summary.json",
+]
+
+[task]
+name = "local-lab/{task_name}"
+version = "0.1.0"
+description = "{summary}"
+keywords = ["python", "{category}", "separate-verifier"]
+
+[[task.authors]]
+name = "Eval Lab Synthesizer"
+email = "p.makhnatch@gmail.com"
+
+[metadata]
+difficulty = "{difficulty}"
+category = "{category}"
+tags = ["synthetic", "authoring"]
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+collect = []
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 300.0
+os = "linux"
+cpus = 1
+memory_mb = 512
+storage_mb = 2048
+mcp_servers = []
+"""
+    (destination / "task.toml").write_text(task_toml, encoding="utf-8")
+
+    instruction = f"""# {task_name.replace('-', ' ').title()}
+
+Read the records in `/app/input/data.json` and create `/app/output/summary.json`.
+
+The output must be a valid JSON object with the following fields:
+- `schema_version`: integer `1`
+- `total_records`: total count of records processed
+- `status`: string `"ok"`
+
+Write valid UTF-8 JSON with a trailing newline. Do not modify or delete the input file.
+"""
+    (destination / "instruction.md").write_text(instruction, encoding="utf-8")
+
+    env_dir = destination / "environment"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    env_dockerfile = (
+        "FROM python:3.13-slim-bookworm\n\n"
+        "WORKDIR /app\n\n"
+        "COPY data.json /app/input/data.json\n\n"
+        "RUN mkdir -p /app/output\n"
+    )
+    (env_dir / "Dockerfile").write_text(env_dockerfile, encoding="utf-8")
+    sample_data = [
+        {"id": 1, "type": "event_a", "val": 10},
+        {"id": 2, "type": "event_b", "val": 20},
+        {"id": 3, "type": "event_a", "val": 30},
+    ]
+    (env_dir / "data.json").write_text(json.dumps(sample_data, indent=2) + "\n", encoding="utf-8")
+
+    sol_dir = destination / "solution"
+    sol_dir.mkdir(parents=True, exist_ok=True)
+    sol_sh = """#!/bin/sh
+set -eu
+
+if [ -f /solution/solve.py ]; then
+    exec python /solution/solve.py
+else
+    SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    exec python "$SCRIPT_DIR/solve.py"
+fi
+"""
+    (sol_dir / "solve.sh").write_text(sol_sh, encoding="utf-8")
+    with contextlib.suppress(OSError):
+        os.chmod(sol_dir / "solve.sh", 0o755)
+
+    sol_py = """import json
+from pathlib import Path
+
+input_file = Path("/app/input/data.json")
+if not input_file.is_file():
+    input_file = Path("environment/data.json")
+if not input_file.is_file():
+    input_file = Path("input/data.json")
+
+data = json.loads(input_file.read_text(encoding="utf-8"))
+summary = {
+    "schema_version": 1,
+    "total_records": len(data),
+    "status": "ok",
+}
+output_dir = Path("/app/output")
+if not output_dir.exists():
+    output_dir = Path("output")
+output_dir.mkdir(parents=True, exist_ok=True)
+(output_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\\n", encoding="utf-8")
+"""
+    (sol_dir / "solve.py").write_text(sol_py, encoding="utf-8")
+
+    tests_dir = destination / "tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
+    test_dockerfile = (
+        "FROM python:3.13-slim-bookworm\n\n"
+        "WORKDIR /app\n\n"
+        "COPY test.sh /tests/test.sh\n"
+        "COPY verify.py /tests/verify.py\n\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+    (tests_dir / "Dockerfile").write_text(test_dockerfile, encoding="utf-8")
+    test_sh = """#!/bin/sh
+set -eu
+
+if [ -f /tests/verify.py ]; then
+    exec python /tests/verify.py
+else
+    SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    exec python "$SCRIPT_DIR/verify.py"
+fi
+"""
+    (tests_dir / "test.sh").write_text(test_sh, encoding="utf-8")
+    with contextlib.suppress(OSError):
+        os.chmod(tests_dir / "test.sh", 0o755)
+
+    verify_py = """import json
+from pathlib import Path
+
+AGENT_OUTPUT = Path("/app/output/summary.json")
+if not AGENT_OUTPUT.is_file():
+    AGENT_OUTPUT = Path("output/summary.json")
+
+LOG_DIR = Path("/logs/verifier")
+if not LOG_DIR.exists():
+    LOG_DIR = Path("logs/verifier")
+
+def main() -> None:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    if not AGENT_OUTPUT.is_file():
+        passed = False
+        message = "summary.json is missing"
+    else:
+        try:
+            data = json.loads(AGENT_OUTPUT.read_text(encoding="utf-8"))
+            passed = (
+                isinstance(data, dict)
+                and data.get("schema_version") == 1
+                and data.get("total_records") == 3
+                and data.get("status") == "ok"
+            )
+            message = "summary.json is valid" if passed else "summary.json content mismatch"
+        except Exception as exc:
+            passed = False
+            message = f"error parsing json: {exc}"
+
+    checks = {"correctness": {"passed": passed, "message": message}}
+    rewards = {"reward": 1.0 if passed else 0.0}
+    ctrf = {
+        "report": {
+            "summary": {
+                "tests": 1,
+                "passed": 1 if passed else 0,
+                "failed": 0 if passed else 1,
+            }
+        }
+    }
+    (LOG_DIR / "checks.json").write_text(json.dumps(checks, indent=2) + "\\n", encoding="utf-8")
+    (LOG_DIR / "reward.json").write_text(json.dumps(rewards, indent=2) + "\\n", encoding="utf-8")
+    (LOG_DIR / "ctrf.json").write_text(json.dumps(ctrf, indent=2) + "\\n", encoding="utf-8")
+    print(json.dumps({"passed": passed, "checks": checks}))
+
+if __name__ == "__main__":
+    main()
+"""
+    (tests_dir / "verify.py").write_text(verify_py, encoding="utf-8")
+    return destination
 
 class AuthoringPipeline:
     """Propose → battery → review. Registration is a hard refusal."""
@@ -881,7 +1500,52 @@ class AuthoringPipeline:
             raise ProposalNotFoundError(f"proposal {proposal_id!r} is not in {self.quarantine}")
         return load_proposal(path)
 
-    def propose(self, seed: SeedClass, *, ref: str | None = None) -> Proposal:
+    @overload
+    def propose(
+        self,
+        seed: SeedClass = "craft-gap",
+        *,
+        ref: str | None = None,
+        via_harbor: Literal[False] = False,
+        agent: str = "oracle",
+        model: str | None = None,
+        spec: dict[str, Any] | None = None,
+        exemplar: str | None = None,
+    ) -> Proposal: ...
+
+    @overload
+    def propose(
+        self,
+        seed: SeedClass = "craft-gap",
+        *,
+        ref: str | None = None,
+        via_harbor: Literal[True],
+        agent: str = "oracle",
+        model: str | None = None,
+        spec: dict[str, Any] | None = None,
+        exemplar: str | None = None,
+    ) -> tuple[ExperimentSpec, Path, PolicyDecision]: ...
+
+    def propose(
+        self,
+        seed: SeedClass = "craft-gap",
+        *,
+        ref: str | None = None,
+        via_harbor: bool = False,
+        agent: str = "oracle",
+        model: str | None = None,
+        spec: dict[str, Any] | None = None,
+        exemplar: str | None = None,
+    ) -> Proposal | tuple[ExperimentSpec, Path, PolicyDecision]:
+        if via_harbor:
+            return self.propose_via_harbor(
+                seed,
+                ref=ref,
+                agent=agent,
+                model=model,
+                spec=spec,
+                exemplar=exemplar,
+            )
         if seed not in SEED_CLASSES:
             raise AuthoringError(f"unknown seed class {seed!r}; expected one of {SEED_CLASSES}")
         proposal_id = self._new_id()
@@ -910,6 +1574,201 @@ class AuthoringPipeline:
         )
         return proposal
 
+    def propose_via_harbor(
+        self,
+        seed: SeedClass = "craft-gap",
+        *,
+        ref: str | None = None,
+        agent: str = "oracle",
+        model: str | None = None,
+        spec: dict[str, Any] | None = None,
+        exemplar: str | None = None,
+        submitted_by: str | None = None,
+    ) -> tuple[ExperimentSpec, Path, PolicyDecision]:
+        spec_dict = spec or sample_meta_spec(
+            self.repo_root,
+            seed=seed,
+            ref=ref,
+            derived_root=self.derived_root,
+        )
+        exemplar_name = exemplar or (
+            ref if ref and (self.repo_root / "library/tasks" / ref).is_dir() else "event-summary"
+        )
+        meta_task_dir = assemble_meta_task(
+            self.repo_root,
+            spec=spec_dict,
+            exemplar=exemplar_name,
+        )
+        task_ref = _repo_relative(meta_task_dir, self.repo_root)
+
+        spec_id = self._new_id()
+        task_name_slug = (
+            re.sub(r"[^a-z0-9-]+", "-", str(spec_dict.get("name", "task")).lower()).strip("-")
+            or "task"
+        )
+        exp_name = f"synth-{seed[:8]}-{task_name_slug[:20]}-{spec_id[-8:].lower()}"
+        exp_name = re.sub(r"[^a-z0-9-]+", "-", exp_name).strip("-")
+        if len(exp_name) < 3:
+            exp_name = f"synth-{exp_name}"
+
+        experiment_spec = ExperimentSpec(
+            spec_id=spec_id,
+            name=exp_name,
+            purpose="craft",
+            hypothesis="Synthesize task via meta-task scaffold and completeness verifier",
+            task=task_ref,
+            agent=agent,
+            model=model,
+            submitted_by=submitted_by or "authoring-metaloop",
+        )
+
+        queue = DirectoryQueue(self.repo_root / "queue")
+        policy_path = self.repo_root / "policy/standing-approvals.yaml"
+        gate = PolicyGate(load_policy(policy_path), repo_root=self.repo_root)
+
+        dest_path, decision = queue.submit(
+            experiment_spec,
+            gate=gate,
+            spent_today_usd=0.0,
+        )
+        return experiment_spec, dest_path, decision
+
+    def harvest(self, job_dir_or_id: str | Path) -> Proposal:
+        if isinstance(job_dir_or_id, Path):
+            job_dir = job_dir_or_id
+        else:
+            job_dir = self.repo_root / "runs" / job_dir_or_id
+
+        if not job_dir.exists():
+            alt = self.repo_root / str(job_dir_or_id)
+            if alt.exists():
+                job_dir = alt
+            else:
+                alt_ev = self.repo_root / "research/evidence/runs" / str(job_dir_or_id)
+                if alt_ev.exists():
+                    job_dir = alt_ev
+                else:
+                    raise AuthoringError(f"job directory not found: {job_dir_or_id}")
+
+        candidates = [
+            job_dir / "artifacts/output/task",
+            job_dir / "artifacts/task",
+            job_dir / "output/task",
+            job_dir / "task",
+        ]
+        task_pkg = None
+        for cand in candidates:
+            if cand.is_dir() and (cand / "task.toml").is_file():
+                task_pkg = cand
+                break
+
+        if task_pkg is None:
+            raise AuthoringError(f"no generated task artifact found in {job_dir}")
+
+        verifier_passed = False
+        verifier_dir = job_dir / "verifier"
+        reward_file = verifier_dir / "reward.json"
+        checks_file = verifier_dir / "checks.json"
+        if reward_file.is_file():
+            try:
+                rdata = json.loads(reward_file.read_text(encoding="utf-8"))
+                if isinstance(rdata, dict) and rdata.get("reward") == 1.0:
+                    verifier_passed = True
+            except Exception:
+                pass
+        elif checks_file.is_file():
+            try:
+                cdata = json.loads(checks_file.read_text(encoding="utf-8"))
+                if isinstance(cdata, dict) and all(
+                    v.get("passed") for v in cdata.values() if isinstance(v, dict)
+                ):
+                    verifier_passed = True
+            except Exception:
+                pass
+        else:
+            report = check_task_completeness(task_pkg)
+            if report.get("passed"):
+                verifier_passed = True
+
+        if not verifier_passed:
+            raise AuthoringError(
+                f"harvest refused: completeness checker did not pass in {job_dir}"
+            )
+
+        job_id = job_dir.name
+        job_manifest = job_dir / "manifest.json"
+        job_result = job_dir / "result.json"
+        spec_data: dict[str, Any] | None = None
+        exemplar_name: str | None = None
+
+        if job_manifest.is_file():
+            try:
+                m_raw = json.loads(job_manifest.read_text(encoding="utf-8"))
+                if isinstance(m_raw, dict):
+                    job_id = m_raw.get("job_id", job_id)
+                    spec_data = m_raw.get("injected_spec") or m_raw.get("spec")
+                    exemplar_name = m_raw.get("exemplar")
+            except Exception:
+                pass
+
+        proposal_id = self._new_id()
+        destination = self.quarantine / proposal_id
+        destination.mkdir(parents=True, exist_ok=False)
+        shutil.copytree(task_pkg, destination, dirs_exist_ok=True, ignore=_ignore_copy)
+
+        created = isoformat(self._now())
+        seed_class: SeedClass = "craft-gap"
+        if spec_data and spec_data.get("seed_class") in SEED_CLASSES:
+            seed_class = spec_data["seed_class"]
+
+        inputs: list[dict[str, Any]] = []
+        target_file = (
+            job_result
+            if job_result.is_file()
+            else (job_manifest if job_manifest.is_file() else None)
+        )
+        if target_file is not None:
+            inputs.append(
+                {
+                    "path": _repo_relative(target_file, self.repo_root),
+                    "id": job_id,
+                    "digest": compute_file_digest(target_file),
+                }
+            )
+        else:
+            inputs.append(
+                {
+                    "path": _repo_relative(job_dir, self.repo_root),
+                    "id": job_id,
+                    "digest": None,
+                }
+            )
+        proposal = Proposal(
+            proposal_id=proposal_id,
+            seed_class=seed_class,
+            ref_task=exemplar_name,
+            path=destination,
+            outcome="proposed",
+            version=read_task_version(destination / "task.toml") or "0.1.0",
+            created_at=created,
+            job_id=job_id,
+            inputs=inputs,
+            injected_spec=spec_data,
+            exemplar=exemplar_name,
+        )
+        _atomic_write_json(destination / "proposal.json", proposal.manifest())
+        upsert_ledger(
+            self.ledger,
+            QualificationRecord(
+                proposal_id=proposal_id,
+                seed_class=seed_class,
+                ref_task=exemplar_name,
+                outcome="proposed",
+                created_at=created,
+                updated_at=created,
+            ),
+        )
+        return proposal
     def run_battery(self, proposal_id: str) -> BatteryReport:
         proposal = self.get(proposal_id)
         evidence_dir = proposal.path / "battery"
@@ -1215,12 +2074,26 @@ def build_parser() -> argparse.ArgumentParser:
     propose = subparsers.add_parser("propose", help="seed a quarantined proposal")
     propose.add_argument(
         "--seed",
-        required=True,
+        default="craft-gap",
         choices=SEED_CLASSES,
         help="mutation | scenario | craft-gap",
     )
     propose.add_argument("--ref", default=None, help="source task or research scenario")
+    propose.add_argument(
+        "--via-harbor",
+        action="store_true",
+        help="assemble meta-task and submit through Harbor queue (purpose=craft)",
+    )
+    propose.add_argument("--agent", default="oracle", help="agent for Harbor execution")
+    propose.add_argument("--model", default=None, help="model for Harbor execution")
+    propose.add_argument("--spec", type=Path, default=None, help="custom spec JSON path")
+    propose.add_argument("--exemplar", default=None, help="exemplar task name")
 
+    harvest = subparsers.add_parser(
+        "harvest",
+        help="harvest a verified task from completed Harbor job into _proposed/",
+    )
+    harvest.add_argument("job", help="job directory or job ID to harvest")
     battery = subparsers.add_parser("battery", help="run the four local control checks")
     battery.add_argument("proposal_id")
 
@@ -1261,7 +2134,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         pipeline = _pipeline_from_args(args)
         if args.command == "propose":
+            if args.via_harbor:
+                custom_spec = (
+                    json.loads(args.spec.read_text(encoding="utf-8"))
+                    if args.spec and args.spec.is_file()
+                    else None
+                )
+                res = pipeline.propose(
+                    args.seed,
+                    ref=args.ref,
+                    via_harbor=True,
+                    agent=args.agent,
+                    model=args.model,
+                    spec=custom_spec,
+                    exemplar=args.exemplar,
+                )
+                assert isinstance(res, tuple)
+                exp_spec, queue_path, decision = res
+                _emit(
+                    {
+                        "spec_id": exp_spec.spec_id,
+                        "name": exp_spec.name,
+                        "purpose": exp_spec.purpose,
+                        "task": exp_spec.task,
+                        "agent": exp_spec.agent,
+                        "queue_path": _repo_relative(queue_path, pipeline.repo_root),
+                        "destination": queue_path.parent.name,
+                        "admitted": decision.admitted,
+                        "reason_code": decision.reason_code,
+                    },
+                    as_json=args.json,
+                )
+                return 0
             proposal = pipeline.propose(args.seed, ref=args.ref)
+            assert isinstance(proposal, Proposal)
             _emit(
                 {
                     "proposal_id": proposal.proposal_id,
@@ -1269,6 +2175,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "ref_task": proposal.ref_task,
                     "outcome": proposal.outcome,
                     "path": _repo_relative(proposal.path, pipeline.repo_root),
+                },
+                as_json=args.json,
+            )
+            return 0
+        if args.command == "harvest":
+            harvested = pipeline.harvest(args.job)
+            _emit(
+                {
+                    "proposal_id": harvested.proposal_id,
+                    "seed_class": harvested.seed_class,
+                    "ref_task": harvested.ref_task,
+                    "outcome": harvested.outcome,
+                    "path": _repo_relative(harvested.path, pipeline.repo_root),
+                    "job_id": harvested.job_id,
                 },
                 as_json=args.json,
             )

@@ -54,6 +54,7 @@ python -m evallab.authoring --json sample --count 20
 python -m evallab.authoring propose --seed mutation --ref event-summary
 python -m evallab.authoring propose --seed scenario --ref research/scenarios/gap-notes.md
 python -m evallab.authoring propose --seed craft-gap
+python -m evallab.authoring propose --seed inversion --ref library/tasks/event-summary/environment/events.jsonl
 python -m evallab.authoring propose --via-harbor --seed craft-gap --agent oracle
 python -m evallab.authoring harvest <job_id_or_path>
 python -m evallab.authoring battery <proposal_id>
@@ -73,6 +74,7 @@ the human summary prints.
 | `mutation` | `--ref` registered/`library/tasks` task, else the first registered or library task | New versioned copy. Never in-place. |
 | `scenario` | markdown under `research/` (`research/scenarios/` first, then explorations / inspections) | Stub Harbor package whose instruction cites the scenario path and excerpt. |
 | `craft-gap` | first uncovered `verifier_type × env_multi_container × pinned_deps` triple in `derived/parquet/craft/craft.parquet` | Stub package targeting that triple. |
+| `inversion` | real data asset inside `library/` environments (JSONL, JSON, CSV, SQL, text) | Answer-first task package whose answer key is computed by executing reference analysis code against the data asset; instruction is written backwards from the verified key. |
 
 ## Dimension-Decoupled Spec Sampling (SG-2)
 
@@ -121,6 +123,15 @@ Implements the Meta-Task pattern (arXiv:2607.27929, `library/meta/synthesize-tas
    - Records lineage inputs (`inputs: [{path, id, digest}]`, `job_id`, `injected_spec`, `exemplar`) in `proposal.json` so `evallab lineage` resolves provenance back to the generating run.
    - Harvested proposals enter in `proposed` state and must pass the standard 4-check local battery before advancement.
 
+
+### Inversion Tasks (`seed_class=inversion`)
+
+Implements SG-3 (`docs/prompts/synthesis-build.md` lines 56-65) answer-first task generation:
+
+1. **Execution Ground Truth**: The answer key is correct by construction because it is computed by executing Python reference analysis code against a real data asset from `library/` environments. If the analysis code fails or does not execute cleanly, the proposal is **refused** — never filled in with a guessed or model-authored value.
+2. **Reproducibility**: The reference analysis code, data asset digest, and computed value are recorded in `inversion.json` and `proposal.json` (`inversion_analysis`). The helper `verify_inversion_reproducibility` re-runs the code to confirm the key matches.
+3. **Provenance & Lineage**: The proposal embeds `inputs: [{path, id, digest}]` pointing to the source data asset so `evallab lineage` traces provenance directly to the data.
+4. **Gating**: Inversion proposals enter at `proposed` and pass through the unchanged four-check battery (`oracle`, `nop`, `fair-oracle`, `adversarial`) and CRAFT review rubric before halting at the human registration gate.
 ### Battery
 
 Four checks, free local agents only, `n ≤ 2` on nop. Default runner is
@@ -155,7 +166,7 @@ Columns:
 | Column | Type | Notes |
 |---|---|---|
 | `proposal_id` | string, required | ULID (or injected id in tests). |
-| `seed_class` | string, required | `mutation` \| `scenario` \| `craft-gap`. |
+| `seed_class` | string, required | `mutation` \| `scenario` \| `craft-gap` \| `inversion`. |
 | `ref_task` | string, nullable | Source task id or research path. |
 | `battery_oracle` | bool, nullable | |
 | `battery_nop` | bool, nullable | |

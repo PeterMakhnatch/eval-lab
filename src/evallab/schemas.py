@@ -167,6 +167,7 @@ class PowerSpec(ContractModel):
         description="planned sample size (number of trials or tasks)",
     )
 
+
 class ExperimentSpec(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str | None = None
@@ -466,9 +467,9 @@ class CohortComparisonSpec(ContractModel):
     pass_threshold: float = 1.0
     pass_k: list[int] = Field(default_factory=lambda: [1], min_length=1)
     pairing_key: Literal["task_digest", "task_name", "trial_name"] = "task_digest"
-    constraints: dict[
-        Literal["task_digest", "verifier_digest", "environment_digest"], str
-    ] = Field(default_factory=dict)
+    constraints: dict[Literal["task_digest", "verifier_digest", "environment_digest"], str] = Field(
+        default_factory=dict
+    )
     cohorts: list[CohortSelector] = Field(min_length=2)
 
     @field_validator("pass_k")
@@ -679,11 +680,14 @@ class CanaryDriftObservation(ContractModel):
     previous_task_version: str | None = None
     task_version_changed: bool
     is_harness_drift_suspect: bool
-    drift_reason: Literal[
-        "task_version_changed",
-        "reward_excursion",
-        "canary_exception",
-    ] | None = None
+    drift_reason: (
+        Literal[
+            "task_version_changed",
+            "reward_excursion",
+            "canary_exception",
+        ]
+        | None
+    ) = None
 
     @model_validator(mode="after")
     def suspect_has_reason(self) -> CanaryDriftObservation:
@@ -892,6 +896,7 @@ class TaskContamination(ContractModel):
 
 ContaminationRecord = TaskContamination
 
+
 class TaskRegistryRecord(ContractModel):
     schema_version: Literal[1] = 1
     task_id: str = Field(
@@ -983,8 +988,7 @@ class TaskRegistryRecord(ContractModel):
                 if not self.license or not self.license.strip():
                     raise ValueError("external registered task requires license")
                 if not self.source_ref or any(
-                    char in self.source_ref.lower()
-                    for char in ("latest", "head", "main", "master")
+                    char in self.source_ref.lower() for char in ("latest", "head", "main", "master")
                 ):
                     raise ValueError(
                         "external registered task requires immutable pinned source_ref "
@@ -1013,6 +1017,7 @@ def _validate_discovery_id(value: str) -> str:
             f"identifier must match discovery ID format (D-YYYYMMDD-SUFFIX), got {value!r}"
         )
     return value
+
 
 def _validate_ulid(value: str) -> str:
     """Reject non-ULID identifiers at construction time."""
@@ -1076,9 +1081,7 @@ class Suite(ContractModel):
     model_config = ConfigDict(extra="forbid", frozen=False)
 
     schema_version: Literal[1] = 1
-    name: str = Field(
-        min_length=1, max_length=80, description="human-readable suite identifier"
-    )
+    name: str = Field(min_length=1, max_length=80, description="human-readable suite identifier")
     version: str = Field(
         min_length=1, max_length=40, description="suite version; increments on content change"
     )
@@ -1229,9 +1232,7 @@ class Verdict(ContractModel):
     )
     by: str = Field(min_length=1, description="actor or session that issued the verdict")
     at: datetime = Field(description="timestamp of the verdict decision")
-    note: str | None = Field(
-        default=None, description="free-text rationale or pointer to evidence"
-    )
+    note: str | None = Field(default=None, description="free-text rationale or pointer to evidence")
 
     @field_validator("discovery_id")
     @classmethod
@@ -1476,3 +1477,44 @@ class ProposalSpec(ContractModel):
     ref_task: str | None = None
     provenance: str | None = None
     axes: dict[str, Any] | ProposalAxes | None = None
+
+
+class InversionAnalysis(ContractModel):
+    """§2.1 / SG-3 Inversion analysis metadata binding data asset, code, and verified key.
+
+    The answer key is correct by construction because it was computed by executing
+    analysis code against real data.
+    """
+
+    schema_version: Literal["inversion/1"] = "inversion/1"
+    data_asset_path: str = Field(
+        min_length=1, description="relative path to source data asset in repo"
+    )
+    data_asset_digest: str = Field(
+        pattern=r"^sha256:[0-9a-f]{64}$", description="content hash of data asset"
+    )
+    analysis_code: str = Field(
+        min_length=1, description="reference Python code executed against data asset"
+    )
+    analysis_digest: str = Field(
+        pattern=r"^sha256:[0-9a-f]{64}$", description="content hash of analysis code"
+    )
+    computed_value: Any = Field(description="exact answer key produced by code execution")
+    executed_at: str = Field(description="ISO-8601 UTC timestamp of execution")
+    output_path: str = Field(
+        default="output/summary.json", description="target output path relative to container root"
+    )
+
+
+class InversionSpec(ContractModel):
+    """Specification for generating an inversion task proposal."""
+
+    schema_version: Literal["spec/1"] = "spec/1"
+    name: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    seed_class: Literal["inversion"] = "inversion"
+    data_asset_path: str = Field(min_length=1)
+    data_asset_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    analysis_code: str | None = None
+    category: str = "data-processing"
+    difficulty: str = "medium"
+    summary: str = Field(min_length=1)

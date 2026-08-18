@@ -581,7 +581,7 @@ def parser() -> argparse.ArgumentParser:
     )
 
     card = commands.add_parser(
-        "card", help="Generate purpose-bound eval cards from completed evidence"
+        "card", help="Generate and validate purpose-bound eval cards from completed evidence"
     )
     card_commands = card.add_subparsers(dest="card_command", required=True)
     card_generate = card_commands.add_parser(
@@ -603,6 +603,15 @@ def parser() -> argparse.ArgumentParser:
         "--derived-root",
         type=Path,
         help="override the shared Parquet root",
+    )
+    card_validate = card_commands.add_parser(
+        "validate", help="Validate an eval card against schema and mandatory caveats"
+    )
+    card_validate.add_argument("path", type=Path, help="Path to eval card markdown file")
+    card_validate.add_argument(
+        "--json",
+        action="store_true",
+        help="print structured validation result JSON",
     )
     behavior = commands.add_parser(
         "behavior", help="Analyze agent execution behavior, effort, and efficiency"
@@ -1833,26 +1842,43 @@ def run_cli(
                     msg = step.get("message")
                     print(f"[{sid}] {src} ({ts}): {msg}")
                 return 0
-        if args.command == "card" and args.card_command == "generate":
-            from evallab.cards import generate_card
+        if args.command == "card":
+            subcmd = getattr(args, "card_command", None)
+            if subcmd == "generate":
+                from evallab.cards import generate_card
 
-            explicit = getattr(args, "derived_root", None)
-            derived = derived_root_from_environment(root, explicit=explicit)
-            rendered, card_data = generate_card(
-                args.target,
-                repo_root=root,
-                explicit_derived=derived,
-                output_path=args.output,
-            )
-            if args.json:
-                print(json.dumps(card_data, indent=2))
+                explicit = getattr(args, "derived_root", None)
+                derived = derived_root_from_environment(root, explicit=explicit)
+                rendered, card_data = generate_card(
+                    args.target,
+                    repo_root=root,
+                    explicit_derived=derived,
+                    output_path=args.output,
+                )
+                if args.json:
+                    print(json.dumps(card_data, indent=2))
+                    return 0
+                if args.output is None:
+                    print(rendered)
+                else:
+                    print(f"eval card: {args.output}")
+                    print(f"config digest: {card_data.get('spec_digest')}")
                 return 0
-            if args.output is None:
-                print(rendered)
-            else:
-                print(f"eval card: {args.output}")
-                print(f"config digest: {card_data.get('spec_digest')}")
-            return 0
+            if subcmd == "validate":
+                from evallab.cards import validate_card_file
+
+                card_path = _resolve(root, args.path)
+                result = validate_card_file(card_path)
+                if args.json:
+                    print(json.dumps(result.to_dict(), indent=2))
+                    return 0 if result.valid else 1
+                if result.valid:
+                    print(f"VALID: {args.path} passed all schema and caveat checks.")
+                    return 0
+                print(f"INVALID: {args.path} failed validation:", file=sys.stderr)
+                for err in result.errors:
+                    print(f"  - {err}", file=sys.stderr)
+                return 1
         if args.command == "behavior":
             from evallab.behavior import (
                 generate_behavior_report,

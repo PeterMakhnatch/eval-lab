@@ -26,7 +26,7 @@ Status: automatically drafted from completed evidence; human review required bef
 Attempts from the same task are one evidence unit. This card does not treat repeated attempts as
 independent samples.
 
-## Elicitation tuple
+## Elicitation tuple and caveats
 
 ```json
 {{ELICITATION}}
@@ -35,13 +35,23 @@ independent samples.
 The tuple must name the agent version, model pin, preamble hash, configured toolset, and `k`. An
 unavailable tuple makes cross-cohort ranking non-reportable.
 
+- Elicitation caveat: Pinned model and toolset parameters; unmeasured configurations are non-reportable.
+
 ## Contamination note
+
+- Contamination caveat: Benchmark exposure and training data contamination status.
 
 {{CONTAMINATION}}
 
 ## Threats to validity
 
 {{THREATS}}
+
+## Regeneration query / command
+
+```sql
+SELECT task_name, avg(primary_reward) FROM trial_facts GROUP BY task_name;
+```
 
 ## Human review
 
@@ -50,4 +60,3 @@ unavailable tuple makes cross-cohort ranking non-reportable.
 - [ ] Resolve the contamination note with evidence.
 - [ ] Decide whether the interval supports the intended claim.
 - [ ] Record reviewer, date, and publication disposition.
-

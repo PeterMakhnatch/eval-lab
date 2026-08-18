@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,8 @@ from evallab.cards import (
     CardRefusalError,
     build_eval_card,
     draft_eval_card,
+    validate_card,
+    validate_card_file,
 )
 from evallab.cohort import bootstrap_mean_interval
 from evallab.facts import digest_json
@@ -441,6 +444,110 @@ def test_cli_card_generate(
     assert out_path.is_file()
     assert "# Eval card: cli-test-card" in out_path.read_text(encoding="utf-8")
 
+
+def test_validate_card_valid(tmp_path: Path) -> None:
+    """Generated card passes validate_card and validate_card_file."""
+    spec_path, _ = _create_synthetic_job(
+        tmp_path,
+        name="valid-card-job",
+        task_rewards={"task-1": [1.0, 1.0], "task-2": [1.0, 0.0]},
+        spec_data={"attempts": 2},
+    )
+    rendered, _ = build_eval_card(spec_path, repo_root=tmp_path)
+    result = validate_card(rendered)
+    assert result.valid is True
+    assert len(result.errors) == 0
+
+    card_file = tmp_path / "research/cards/valid-card.md"
+    card_file.parent.mkdir(parents=True, exist_ok=True)
+    card_file.write_text(rendered, encoding="utf-8")
+    file_result = validate_card_file(card_file)
+    assert file_result.valid is True
+    assert len(file_result.errors) == 0
+
+
+def test_validate_card_unresolved_marker() -> None:
+    """Card with unresolved template markers fails validation."""
+    bad_content = "# Eval card: Bad\n\n## Question\n\n{{UNRESOLVED}}\n"
+    result = validate_card(bad_content)
+    assert result.valid is False
+    assert any("unresolved template marker" in err for err in result.errors)
+
+
+def test_validate_card_missing_contamination_caveat(tmp_path: Path) -> None:
+    """Card without contamination caveat fails validation."""
+    spec_path, _ = _create_synthetic_job(
+        tmp_path,
+        name="no-contam-job",
+        task_rewards={"task-1": [1.0, 1.0], "task-2": [1.0, 0.0]},
+        spec_data={"attempts": 2},
+    )
+    rendered, _ = build_eval_card(spec_path, repo_root=tmp_path)
+    stripped = re.sub(r"- Contamination caveat:[^\n]*\n", "", rendered)
+    stripped = re.sub(
+        r"## Contamination note[\s\S]*?(?=##)",
+        "## Contamination note\n\nNone\n\n",
+        stripped,
+    )
+    result = validate_card(stripped)
+    assert result.valid is False
+    assert any("contamination caveat" in err.lower() for err in result.errors)
+
+
+def test_validate_card_missing_elicitation_caveat(tmp_path: Path) -> None:
+    """Card without elicitation caveat fails validation."""
+    spec_path, _ = _create_synthetic_job(
+        tmp_path,
+        name="no-elicit-job",
+        task_rewards={"task-1": [1.0, 1.0], "task-2": [1.0, 0.0]},
+        spec_data={"attempts": 2},
+    )
+    rendered, _ = build_eval_card(spec_path, repo_root=tmp_path)
+    stripped = re.sub(r"- Elicitation caveat:[^\n]*\n", "", rendered)
+    stripped = re.sub(
+        r"## Elicitation tuple and caveats[\s\S]*?(?=##)",
+        "## Elicitation\n\nNone\n\n",
+        stripped,
+    )
+    result = validate_card(stripped)
+    assert result.valid is False
+    assert any("elicitation caveat" in err.lower() for err in result.errors)
+
+
+def test_cli_card_validate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI command  works."""
+    spec_path, _ = _create_synthetic_job(
+        tmp_path,
+        name="cli-validate-job",
+        task_rewards={"task-1": [1.0, 1.0], "task-2": [1.0, 0.0]},
+        spec_data={"attempts": 2},
+    )
+    card_file = tmp_path / "research/cards/cli-validate.md"
+    draft_eval_card(spec_path, repo_root=tmp_path, output_path=card_file)
+
+    # 1. card validate
+    code = cli.run_cli(["card", "validate", str(card_file)], workspace=tmp_path)
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "VALID" in captured.out
+
+    # 2. card validate --json
+    code = cli.run_cli(["card", "validate", str(card_file), "--json"], workspace=tmp_path)
+    assert code == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["valid"] is True
+
+    # 3. invalid card returns exit code 1
+    bad_file = tmp_path / "research/cards/bad.md"
+    bad_file.write_text("# Bad Card\n\nNothing here.\n", encoding="utf-8")
+    code = cli.run_cli(["card", "validate", str(bad_file)], workspace=tmp_path)
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "INVALID" in captured.err
 
 def test_real_corpus_evidence_skip_if_missing() -> None:
     """Real corpus test: skips if runs/ or promoted evidence is absent (CI conformance)."""

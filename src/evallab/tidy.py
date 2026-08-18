@@ -138,7 +138,16 @@ def _rel_path_str(path: Path, root: Path) -> str:
 class WorktreeFinding:
     path: Path
     branch: str
-    status: Literal["clean_merged", "clean_vanished", "dirty", "current", "active_clean", "merged", "unmerged", "unproven"]
+    status: Literal[
+        "clean_merged",
+        "clean_vanished",
+        "dirty",
+        "current",
+        "active_clean",
+        "merged",
+        "unmerged",
+        "unproven",
+    ]
     file_count: int
     size_bytes: int
     reason: str
@@ -258,18 +267,24 @@ def check_branch_merged_status(
          `git merge-base --is-ancestor <branch> <target_main>` == 0
          If true, the branch tip is reachable from target_main.
       2. Content path (3-way merge equivalence):
-         `git merge-tree --write-tree <target_main> <branch>` == `git rev-parse <target_main>^{tree}`
-         If the tree resulting from 3-way merge of <branch> into <target_main> exactly matches
-         <target_main>'s tree, merging <branch> introduces zero new changes. All content from
-         <branch> is already present in <target_main>, even if squash-merged without graph ancestry.
+         `git merge-tree --write-tree <target_main> <branch>` ==
+         `git rev-parse <target_main>^{tree}`
+         If the tree resulting from 3-way merge of <branch> into <target_main>
+         exactly matches <target_main>'s tree, merging <branch> introduces zero
+         new changes. All content from <branch> is already present in
+         <target_main>, even if squash-merged without graph ancestry.
 
     Why git merge-tree --write-tree:
-      - Grounded in git plumbing: computes the exact 3-way tree merge without touching index/worktree.
-      - Safe under multi-commit squash merges: unlike `git cherry` or commit-level `patch-id`,
-        `merge-tree` evaluates the net tree change of the entire branch.
-      - Deletion safety: any unmerged commit or difference will produce a tree different from
-        target_main's tree, or return exit code 1 (merge conflict), refusing deletion.
-      - Error safety: any git execution error or unrecognized ref classifies as "unproven".
+      - Grounded in git plumbing: computes exact 3-way tree merge without
+        touching index/worktree.
+      - Safe under multi-commit squash merges: unlike `git cherry` or
+        commit-level `patch-id`, `merge-tree` evaluates the net tree change
+        of the entire branch.
+      - Deletion safety: any unmerged commit or difference will produce a
+        tree different from target_main's tree, or return exit code 1
+        (merge conflict), refusing deletion.
+      - Error safety: any git execution error or unrecognized ref classifies
+        as "unproven".
     """
     # 1. Verify branch ref exists in local heads
     check_branch = subprocess.run(
@@ -291,7 +306,8 @@ def check_branch_merged_status(
     if check_ancestor.returncode == 0:
         return ("merged", f"branch merged into {target_main}")
     if check_ancestor.returncode not in (0, 1):
-        return ("unproven", f"git merge-base failed: {check_ancestor.stderr.strip() or 'exit non-zero'}")
+        err = check_ancestor.stderr.strip() or "exit non-zero"
+        return ("unproven", f"git merge-base failed: {err}")
 
     # 3. Content path: 3-way merge tree equivalence
     target_tree_res = subprocess.run(
@@ -301,7 +317,8 @@ def check_branch_merged_status(
         check=False,
     )
     if target_tree_res.returncode != 0 or not target_tree_res.stdout.strip():
-        return ("unproven", f"failed to resolve {target_main} tree: {target_tree_res.stderr.strip() or 'exit non-zero'}")
+        err = target_tree_res.stderr.strip() or "exit non-zero"
+        return ("unproven", f"failed to resolve {target_main} tree: {err}")
     target_tree = target_tree_res.stdout.strip()
 
     merge_tree_res = subprocess.run(
@@ -311,7 +328,8 @@ def check_branch_merged_status(
         check=False,
     )
     if merge_tree_res.returncode == 0:
-        merged_tree = merge_tree_res.stdout.splitlines()[0].strip() if merge_tree_res.stdout.strip() else ""
+        stdout_lines = merge_tree_res.stdout.splitlines()
+        merged_tree = stdout_lines[0].strip() if stdout_lines else ""
         if merged_tree and merged_tree == target_tree:
             return ("merged", f"branch merged into {target_main} (content)")
         return ("unmerged", f"active branch {branch} (not merged into {target_main})")
@@ -320,7 +338,8 @@ def check_branch_merged_status(
         return ("unmerged", f"active branch {branch} (not merged into {target_main})")
     else:
         # Exit code > 1 means git tool error / corrupted repo state
-        return ("unproven", f"git merge-tree failed: {merge_tree_res.stderr.strip() or 'exit non-zero'}")
+        err = merge_tree_res.stderr.strip() or "exit non-zero"
+        return ("unproven", f"git merge-tree failed: {err}")
 
 
 def sweep_worktrees(
@@ -370,6 +389,7 @@ def sweep_worktrees(
         )
         if status_res.returncode != 0:
             # Fallback for non-git or broken worktree: unproven and NEVER actionable
+            err = status_res.stderr.strip() or "exit non-zero"
             findings.append(
                 WorktreeFinding(
                     path=wt_path,
@@ -377,7 +397,7 @@ def sweep_worktrees(
                     status="unproven",
                     file_count=0,
                     size_bytes=size,
-                    reason=f"unproven — broken worktree (git status error: {status_res.stderr.strip() or 'exit non-zero'})",
+                    reason=f"unproven — broken worktree (git status error: {err})",
                     actionable=False,
                 )
             )
@@ -567,6 +587,7 @@ def sweep_branches(
             elif line.startswith("branch refs/heads/") and current_wt_path is not None:
                 b_name = line.removeprefix("branch refs/heads/").strip()
                 worktree_branches[b_name] = current_wt_path
+
     checker = gh_checker or default_gh_pr_checker
     findings: list[BranchFinding] = []
 
@@ -636,6 +657,7 @@ def sweep_branches(
                 )
             )
             continue
+
         # Check PR status via gh
         gh_available, open_pr, err_msg = checker(branch, primary)
         if not gh_available:

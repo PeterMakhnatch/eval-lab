@@ -10,11 +10,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
-from evallab.cli import run_cli
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from evallab.cli import run_cli
 from evallab.tidy import (
     check_branch_merged_status,
     classify_junk,
@@ -402,7 +401,10 @@ def test_classify_junk() -> None:
     assert classify_junk(Path("config.toml")) is None
 
 
-def test_cli_tidy_invocations(tidy_fixture_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_tidy_invocations(
+    tidy_fixture_repo: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     """Test CLI execution for tidy subcommand."""
     # Dry run
     code_dry = run_cli(["tidy", "--dry-run"], workspace=tidy_fixture_repo)
@@ -604,6 +606,52 @@ def test_squash_merged_worktree_is_detected_as_stale_and_actionable(tmp_path: Pa
     assert "squash-wt" in text
 
 
+def test_multi_commit_squash_merged_worktree_is_actionable(tmp_path: Path) -> None:
+    """Worktree with multiple commits squash-merged into main is clean_merged and actionable."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_git_repo(root)
+
+    worktrees_dir = root / ".worktrees"
+    worktrees_dir.mkdir()
+    multi_wt = worktrees_dir / "multi-wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "role/multi-feat", str(multi_wt), "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    # Commit 1
+    (multi_wt / "step1.txt").write_text("step 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=multi_wt, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "step 1"], cwd=multi_wt, check=True, capture_output=True)
+
+    # Commit 2
+    (multi_wt / "step2.txt").write_text("step 2\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=multi_wt, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "step 2"], cwd=multi_wt, check=True, capture_output=True)
+
+    # Squash merge all commits of role/multi-feat into main
+    subprocess.run(
+        ["git", "merge", "--squash", "role/multi-feat"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "squash multi-feat"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+    report = collect_tidy_report(root)
+    wt_names = {w.path.name: w for w in report.worktrees}
+    assert "multi-wt" in wt_names
+    assert wt_names["multi-wt"].actionable is True
+    assert wt_names["multi-wt"].status == "clean_merged"
+
+
 def test_branch_with_unmerged_commit_is_never_actionable(tmp_path: Path) -> None:
     """Branch with even one unmerged commit is NEVER actionable (content safety)."""
     root = tmp_path / "repo"
@@ -701,10 +749,30 @@ def test_missing_branch_worktree_is_unproven_and_not_actionable(tmp_path: Path) 
     """Missing/vanished branch worktree is classified as unproven and NEVER actionable."""
     root = tmp_path / "repo"
     root.mkdir()
-    subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Tester"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "tester@example.com"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "--allow-empty", "-m", "init"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Tester"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "tester@example.com"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
 
     worktrees_dir = root / ".worktrees"
     worktrees_dir.mkdir()
@@ -754,8 +822,18 @@ def test_dirty_merged_worktree_is_not_actionable(tmp_path: Path) -> None:
         capture_output=True,
     )
     (dirty_merged_wt / "committed.py").write_text("x = 1\n", encoding="utf-8")
-    subprocess.run(["git", "add", "."], cwd=dirty_merged_wt, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "commit"], cwd=dirty_merged_wt, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "."],
+        cwd=dirty_merged_wt,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "commit"],
+        cwd=dirty_merged_wt,
+        check=True,
+        capture_output=True,
+    )
 
     # Squash merge into main
     subprocess.run(
@@ -832,10 +910,30 @@ def test_property_actionable_implies_provably_merged_and_clean(
 ) -> None:
     """Property: actionable is True iff worktree is provably merged and clean."""
     root = tmp_path_factory.mktemp("prop_repo")
-    subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Tester"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "tester@example.com"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "--allow-empty", "-m", "init"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Tester"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "tester@example.com"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
 
     worktrees_dir = root / ".worktrees"
     worktrees_dir.mkdir()
@@ -870,21 +968,56 @@ def test_property_actionable_implies_provably_merged_and_clean(
         )
         (wt_dir / "code.py").write_text("def run(): pass\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=wt_dir, check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-m", "add code"], cwd=wt_dir, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add code"],
+            cwd=wt_dir,
+            check=True,
+            capture_output=True,
+        )
 
         if branch_type == "ancestor_merged":
-            subprocess.run(["git", "merge", "role/prop-branch"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "merge", "role/prop-branch"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
         elif branch_type == "squash_merged":
-            subprocess.run(["git", "merge", "--squash", "role/prop-branch"], cwd=root, check=True, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "squash branch"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "merge", "--squash", "role/prop-branch"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "squash branch"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
         elif branch_type == "unmerged_extra_commit":
             # Squash merge first commit
-            subprocess.run(["git", "merge", "--squash", "role/prop-branch"], cwd=root, check=True, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "squash commit 1"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "merge", "--squash", "role/prop-branch"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "squash commit 1"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
             # Add second unmerged commit
             (wt_dir / "extra.py").write_text("extra unmerged code\n", encoding="utf-8")
             subprocess.run(["git", "add", "."], cwd=wt_dir, check=True, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "unmerged commit"], cwd=wt_dir, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "unmerged commit"],
+                cwd=wt_dir,
+                check=True,
+                capture_output=True,
+            )
         elif branch_type == "unmerged_divergent":
             # No merge into main
             pass

@@ -19,7 +19,7 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:1744b4f5bba7567d52cff826ef4f5109afafd7339d261ada50d3f8cecc26c199
   - path: docs/attach-surface.md
-    digest: sha256:6e654e000adaf18a79a3e88b89c0fbc559a116908c92f3e4c55df79d5bad64dd
+    digest: sha256:9331c616efea61c692dbca6b95043e3d0f7ec71e669430772cfc4460384282f4
   - path: docs/authoring.md
     digest: sha256:0ba1ed1759a63a50c4eb1ee552230e2e42561ce7d3aa2c8512f4e1bbbedd0aea
   - path: docs/behavior-analysis.md
@@ -81,7 +81,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:f40e28f95f7c88a938d706e3dbb0f3e687d81b83689b4fa39b0e82b6c3fdd67e
+    digest: sha256:61393531f727676ce3a7955a4fddda838aecee02d7a11586fad18537457c2e28
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md

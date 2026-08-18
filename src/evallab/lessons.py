@@ -97,6 +97,7 @@ class LessonsResult:
     records_summary: dict[str, int]
     inputs: tuple[dict[str, str], ...] = ()
 
+
 def _relative_path(path: Path, root: Path) -> str:
     try:
         return path.resolve().relative_to(root.resolve()).as_posix()
@@ -578,6 +579,24 @@ def apply_statistical_gating(
             )
         )
 
+    if not lessons["v_failure_by_facet"]:
+        lessons["v_failure_by_facet"].append(
+            LessonRow(
+                lesson_id="failure_facet_001",
+                view_name="v_failure_by_facet",
+                dimension="none",
+                metric_name="failure_rate",
+                n=0,
+                k=0,
+                rate=0.0,
+                wilson_95=None,
+                powered=False,
+                status="insufficient n",
+                finding="insufficient n",
+                details={},
+            )
+        )
+
     # 2. v_loop_rate_by_env
     for idx, row in enumerate(view_rows.get("v_loop_rate_by_env", []), start=1):
         n = int(row.get("n", 0))
@@ -612,6 +631,24 @@ def apply_statistical_gating(
                 status=status,
                 finding=finding,
                 details=row,
+            )
+        )
+
+    if not lessons["v_loop_rate_by_env"]:
+        lessons["v_loop_rate_by_env"].append(
+            LessonRow(
+                lesson_id="loop_env_001",
+                view_name="v_loop_rate_by_env",
+                dimension="none",
+                metric_name="loop_rate",
+                n=0,
+                k=0,
+                rate=0.0,
+                wilson_95=None,
+                powered=False,
+                status="insufficient n",
+                finding="insufficient n",
+                details={},
             )
         )
 
@@ -651,6 +688,24 @@ def apply_statistical_gating(
                 status=status,
                 finding=finding,
                 details=row,
+            )
+        )
+
+    if not lessons["v_outcome_by_verifier_type"]:
+        lessons["v_outcome_by_verifier_type"].append(
+            LessonRow(
+                lesson_id="verifier_outcome_001",
+                view_name="v_outcome_by_verifier_type",
+                dimension="none",
+                metric_name="pass_rate",
+                n=0,
+                k=0,
+                rate=0.0,
+                wilson_95=None,
+                powered=False,
+                status="insufficient n",
+                finding="insufficient n",
+                details={},
             )
         )
 
@@ -705,6 +760,7 @@ def build_lessons(
         records_summary=records_summary,
         inputs=tuple(inputs),
     )
+
 
 # --------------------------------------------------------------------------- #
 # Markdown Report Generation
@@ -767,8 +823,10 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 "exceptions, duration, and cost."
             ),
             "",
-            "| Source Repo | Verifier Type | n | Passed | Pass Rate | Wilson 95% CI | Exceptions | "
-            "Exception Rate | Status | Finding |",
+            (
+                "| Source Repo | Verifier Type | n | Passed | Pass Rate | Wilson 95% CI | "
+                "Exceptions | Exception Rate | Status | Finding |"
+            ),
             "|---|---|---:|---:|---:|---|---:|---:|---|---|",
         ]
     )
@@ -776,6 +834,12 @@ def render_lessons_markdown(result: LessonsResult) -> str:
     verifier_lessons = result.lessons_by_view.get("v_outcome_by_verifier_type", [])
     if verifier_lessons:
         for row in verifier_lessons:
+            if row.n == 0:
+                lines.append(
+                    "| - | none | 0 | 0 | 0.0% | n/a | 0 | 0.0% | `insufficient n` | "
+                    "insufficient n |"
+                )
+                continue
             det = row.details
             repo = str(det.get("source_repo", "corpus"))
             vtype = str(det.get("verifier_type", "unclassified"))
@@ -789,7 +853,8 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             )
     else:
         lines.append(
-            "| - | none | 0 | 0 | 0.0% | n/a | 0 | 0.0% | `insufficient n` | insufficient n |"
+            "| - | none | 0 | 0 | 0.0% | n/a | 0 | 0.0% | `insufficient n` | "
+            "insufficient n |"
         )
 
     lines.extend(
@@ -799,8 +864,10 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             "",
             "Analysis of repetitive tool loops vs multi-container and environment complexity.",
             "",
-            "| Source Repo | Services | Container Mode | Env Files | n | Loops | Loop Rate | "
-            "Wilson 95% CI | Avg Steps | Avg Tool Errors | Status | Finding |",
+            (
+                "| Source Repo | Services | Container Mode | Env Files | n | Loops | Loop Rate | "
+                "Wilson 95% CI | Avg Steps | Avg Tool Errors | Status | Finding |"
+            ),
             "|---|---:|---|---|---:|---:|---:|---|---:|---:|---|---|",
         ]
     )
@@ -808,6 +875,12 @@ def render_lessons_markdown(result: LessonsResult) -> str:
     loop_lessons = result.lessons_by_view.get("v_loop_rate_by_env", [])
     if loop_lessons:
         for row in loop_lessons:
+            if row.n == 0:
+                lines.append(
+                    "| - | 0 | single | 0_files | 0 | 0 | 0.0% | n/a | n/a | n/a | "
+                    "`insufficient n` | insufficient n |"
+                )
+                continue
             det = row.details
             repo = str(det.get("source_repo", "corpus"))
             services = det.get("env_services_n", 1)
@@ -815,15 +888,18 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             files_b = str(det.get("env_files_bucket", "unknown"))
             loops = row.k
             ci_str = _format_ci(row.wilson_95)
-            avg_s = det.get("avg_steps", 0.0)
-            avg_e = det.get("avg_tool_errors", 0.0)
+            avg_s = det.get("avg_steps")
+            avg_e = det.get("avg_tool_errors")
+            avg_s_str = f"{avg_s:.1f}" if avg_s is not None else "n/a"
+            avg_e_str = f"{avg_e:.1f}" if avg_e is not None else "n/a"
             lines.append(
                 f"| {repo} | {services} | {multi} | {files_b} | {row.n} | {loops} | "
-                f"{row.rate:.1%} | {ci_str} | {avg_s} | {avg_e} | `{row.status}` | {row.finding} |"
+                f"{row.rate:.1%} | {ci_str} | {avg_s_str} | {avg_e_str} | "
+                f"`{row.status}` | {row.finding} |"
             )
     else:
         lines.append(
-            "| - | 0 | single | 0_files | 0 | 0 | 0.0% | n/a | 0.0 | 0.0 | "
+            "| - | 0 | single | 0_files | 0 | 0 | 0.0% | n/a | n/a | n/a | "
             "`insufficient n` | insufficient n |"
         )
 
@@ -837,8 +913,10 @@ def render_lessons_markdown(result: LessonsResult) -> str:
                 "across structural task facets."
             ),
             "",
-            "| Source Repo | Facet Name | Facet Value | Category | Validity | n | Failures | "
-            "Failure Rate | Wilson 95% CI | Status | Finding |",
+            (
+                "| Source Repo | Facet Name | Facet Value | Category | Validity | n | Failures | "
+                "Failure Rate | Wilson 95% CI | Status | Finding |"
+            ),
             "|---|---|---|---|---|---:|---:|---:|---|---|---|",
         ]
     )
@@ -846,6 +924,12 @@ def render_lessons_markdown(result: LessonsResult) -> str:
     failure_lessons = result.lessons_by_view.get("v_failure_by_facet", [])
     if failure_lessons:
         for row in failure_lessons:
+            if row.n == 0:
+                lines.append(
+                    "| - | none | none | none | unknown | 0 | 0 | 0.0% | n/a | "
+                    "`insufficient n` | insufficient n |"
+                )
+                continue
             det = row.details
             repo = str(det.get("source_repo", "corpus"))
             fname = str(det.get("facet_name", "facet"))

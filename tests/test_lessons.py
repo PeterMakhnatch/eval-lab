@@ -581,6 +581,31 @@ def test_standalone_sql_script_with_fallbacks() -> None:
             assert rows == []
 
 
+def test_empty_views_render_insufficient_n_never_silent() -> None:
+    """Test that empty view results produce gated 'insufficient n' rows, never silence."""
+    gated = apply_statistical_gating({})
+    for view_name in ["v_failure_by_facet", "v_loop_rate_by_env", "v_outcome_by_verifier_type"]:
+        rows = gated[view_name]
+        assert len(rows) >= 1
+        assert rows[0].powered is False
+        assert rows[0].status == "insufficient n"
+        assert rows[0].finding == "insufficient n"
+
+    all_lessons = [item for sublist in gated.values() for item in sublist]
+    res = LessonsResult(
+        generated_at=datetime.now(UTC),
+        power_threshold=5,
+        total_lessons=len(all_lessons),
+        powered_lessons=0,
+        underpowered_lessons=len(all_lessons),
+        lessons_by_view=gated,
+        records_summary={},
+    )
+    md = render_lessons_markdown(res)
+    assert "insufficient n" in md
+    assert md.count("insufficient n") >= 3
+
+
 def test_build_lessons_on_repository_root(tmp_path: Path) -> None:
     """Test full build_lessons execution over repository evidence."""
     repo_root = Path(__file__).resolve().parents[1]

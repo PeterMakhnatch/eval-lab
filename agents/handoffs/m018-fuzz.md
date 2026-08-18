@@ -1,9 +1,17 @@
-Status: building
-Last: Cycle 4 complete: parquet compaction property tests (idempotence, byte stability, zero row loss)
-Next: Cycle 5: attach/catalog rebuild property tests
+Status: review-wanted
+Last: Cycle 5 complete: attach/catalog rebuild property tests & all backlog items completed
+Next: Integrator review and merge
 Blockers: none
 
 # M018 - LOOP-FUZZ Handoff
+
+## Mission Summary
+Completed all 5 state machine property-testing backlog items across 5 cycles.
+Fuzzed invariants across Queue, Quota Accounting, Authoring Proposal State Machine, Parquet Compaction, and Attach / Catalog Rebuild.
+All property suites run <=60s individually (and 34.25s collectively).
+Full test suite is green (1294 passed), ruff clean, ty diagnostics at baseline (28 <= 28), premerge passes cleanly.
+
+---
 
 ## Cycle 1: Queue State Machine Property Tests
 
@@ -119,6 +127,36 @@ tests/test_queue_properties.py tests/test_quota_properties.py tests/test_authori
 Full test suite summary:
 ```
 1291 passed, 1 skipped, 1 xfailed in 123.34s
+```
+Premerge check:
+```
+premerge green: Python 3.12; ty 28 <= 28
+```
+
+---
+
+## Cycle 5: Attach Surface and Catalog Rebuild Property Tests
+
+### Scope & Invariants Tested
+- **Rebuild Query Invariance**: `test_property_attach_queries_identical_after_drop_and_rebuild` generates randomized raw jobs with trials, rewards, tokens, and artifacts; projects initial derived parquet; executes a 10-query suite across all 9 tables; drops derived parquet completely; rebuilds from raw; and proves 100% identical query results.
+- **Rebuild Byte Stability**: `test_property_catalog_rebuild_is_byte_stable` rebuilds from identical raw jobs into separate directories and proves bit-for-bit identical SHA-256 hashes across all generated Parquet files.
+- **Graceful Degradation**: `test_property_attach_graceful_degradation_on_empty_or_missing_derived` verifies honest ZoneStatus reporting on missing roots and empty view querying (0 rows) on empty derived roots.
+
+### Hypothesis Findings & Counterexamples
+- `sum(primary_reward)` floating-point aggregation across parallel parquet partitions exhibited slight summing associativity variance (`4e-16`). Queries stabilized using `round(..., 4)` on float sums. No source defects in `attach.py` or `facts.py`.
+
+### Evidence & Pytest Output
+Suite runtime:
+```
+tests/test_attach_properties.py: 3 passed in 3.65s
+```
+All 5 property test suites combined:
+```
+tests/test_queue_properties.py tests/test_quota_properties.py tests/test_authoring_properties.py tests/test_compaction_properties.py tests/test_attach_properties.py: 23 passed in 34.25s
+```
+Full test suite summary:
+```
+1294 passed, 1 skipped, 1 xfailed in 91.76s
 ```
 Premerge check:
 ```

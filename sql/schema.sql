@@ -434,3 +434,112 @@ SELECT
 FROM ranked
 WHERE ranking = 1
 ORDER BY "at" DESC, discovery_id;
+
+CREATE TABLE IF NOT EXISTS suites (
+    name text NOT NULL,
+    version text NOT NULL,
+    frozen_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (name, version)
+);
+
+CREATE TABLE IF NOT EXISTS suite_members (
+    suite_name text NOT NULL,
+    suite_version text NOT NULL,
+    task_ref text NOT NULL,
+    task_version text NOT NULL,
+    added_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (suite_name, suite_version, task_ref, task_version),
+    FOREIGN KEY (suite_name, suite_version) REFERENCES suites(name, version) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS suite_members_task_idx ON suite_members (task_ref, task_version);
+CREATE INDEX IF NOT EXISTS suite_members_suite_idx ON suite_members (suite_name, suite_version);
+
+CREATE OR REPLACE FUNCTION check_suite_members_immutability()
+RETURNS trigger AS $$
+DECLARE
+    v_frozen_at timestamptz;
+    v_suite_name text;
+    v_suite_version text;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_suite_name := OLD.suite_name;
+        v_suite_version := OLD.suite_version;
+    ELSE
+        v_suite_name := NEW.suite_name;
+        v_suite_version := NEW.suite_version;
+    END IF;
+
+    SELECT frozen_at INTO v_frozen_at
+    FROM suites
+    WHERE name = v_suite_name AND version = v_suite_version;
+
+    IF v_frozen_at IS NOT NULL THEN
+        RAISE EXCEPTION 'Cannot modify membership of frozen suite %@% (frozen at %)',
+            v_suite_name, v_suite_version, v_frozen_at;
+    END IF;
+
+    IF TG_OP = 'UPDATE' AND (OLD.suite_name <> NEW.suite_name OR OLD.suite_version <> NEW.suite_version) THEN
+        SELECT frozen_at INTO v_frozen_at
+        FROM suites
+        WHERE name = OLD.suite_name AND version = OLD.suite_version;
+
+        IF v_frozen_at IS NOT NULL THEN
+            RAISE EXCEPTION 'Cannot modify membership of frozen suite %@% (frozen at %)',
+                OLD.suite_name, OLD.suite_version, v_frozen_at;
+        END IF;
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_suite_members_immutability ON suite_members;
+CREATE TRIGGER trg_suite_members_immutability
+    BEFORE INSERT OR UPDATE OR DELETE ON suite_members
+    FOR EACH ROW
+    EXECUTE FUNCTION check_suite_members_immutability();
+
+CREATE OR REPLACE FUNCTION check_suite_immutability()
+RETURNS trigger AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        IF OLD.frozen_at IS NOT NULL THEN
+            RAISE EXCEPTION 'Cannot delete frozen suite %@% (frozen at %)',
+                OLD.name, OLD.version, OLD.frozen_at;
+        END IF;
+        RETURN OLD;
+    ELSIF TG_OP = 'UPDATE' THEN
+        IF OLD.frozen_at IS NOT NULL THEN
+            IF NEW.name <> OLD.name OR NEW.version <> OLD.version OR NEW.frozen_at IS DISTINCT FROM OLD.frozen_at THEN
+                RAISE EXCEPTION 'Cannot modify frozen suite %@% (frozen at %)',
+                    OLD.name, OLD.version, OLD.frozen_at;
+            END IF;
+        END IF;
+        RETURN NEW;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_suite_immutability ON suites;
+CREATE TRIGGER trg_suite_immutability
+    BEFORE UPDATE OR DELETE ON suites
+    FOR EACH ROW
+    EXECUTE FUNCTION check_suite_immutability();
+
+CREATE OR REPLACE VIEW v_quota_today AS
+SELECT
+    agent_name AS provider,
+    count(*) AS runs,
+    sum(coalesce(input_tokens, 0) + coalesce(output_tokens, 0)) AS tokens
+FROM trials
+WHERE started_at IS NOT NULL
+  AND (started_at::timestamptz AT TIME ZONE 'UTC')::date = (now() AT TIME ZONE 'UTC')::date
+GROUP BY agent_name
+ORDER BY provider;

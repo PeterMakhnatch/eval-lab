@@ -28,6 +28,8 @@ inputs:
     digest: sha256:4a70d5a356561eab053ffe7e14f6bb5fd8fed0256b9e81edddb500183697bee7
   - path: docs/canaries.md
     digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
+  - path: docs/catalog-tables.md
+    digest: sha256:ea8da71fe7a6ba15138c311b4649258dda8dbaa78e1674d1d2ced5ea8d7d2068
   - path: docs/context-packs.md
     digest: sha256:d142486f19c53ca429631cec773d83654654c52f54c17b5c0051399defeb4a87
   - path: docs/contracts.md
@@ -79,7 +81,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:f2b29c220a21bc885909e5f1992ea02a8c3073ab31b419ac74ca64940358b143
+    digest: sha256:ecfe3338ae4956070dee672ecf2834e3fbe2e39fdda84da240259d17bd5c562d
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md
@@ -130,6 +132,7 @@ an operator can see what is archived.
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
 | `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
+| `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
@@ -241,6 +244,7 @@ an operator can see what is archived.
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
+| `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |

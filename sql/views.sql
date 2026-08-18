@@ -31,6 +31,15 @@ CREATE TABLE IF NOT EXISTS trials (
     agent_name TEXT
 );
 
+CREATE TABLE IF NOT EXISTS trial_usage (
+    trial_id TEXT PRIMARY KEY,
+    started_at TEXT,
+    finished_at TEXT,
+    input_tokens BIGINT,
+    cache_tokens BIGINT,
+    output_tokens BIGINT
+);
+
 CREATE TABLE IF NOT EXISTS trajectory_documents (
     id TEXT PRIMARY KEY,
     trial_id TEXT
@@ -63,6 +72,15 @@ LEFT JOIN analysis_invocations ai ON ai.source_trial_id = t.id
 LEFT JOIN observation_records obs ON obs.trial_id = t.id
 ORDER BY e.id, j.id, t.id;
 
--- Note: v_quota_today and v_suite_leaderboard omitted.
--- No quota_consumption table or suites table present in sql/schema.sql;
--- underlying rows absent, so view would be empty. Record in Blockers.
+-- 2. v_quota_today: per-provider consumption for current UTC day (§2.3, §3.1)
+CREATE OR REPLACE VIEW v_quota_today AS
+SELECT
+    t.agent_name AS provider,
+    count(*) AS runs,
+    sum(coalesce(u.input_tokens, 0) + coalesce(u.output_tokens, 0)) AS tokens
+FROM trials t
+JOIN trial_usage u ON u.trial_id = t.id
+WHERE u.started_at IS NOT NULL
+  AND (u.started_at::timestamptz AT TIME ZONE 'UTC')::date = (current_timestamp AT TIME ZONE 'UTC')::date
+GROUP BY t.agent_name
+ORDER BY provider;

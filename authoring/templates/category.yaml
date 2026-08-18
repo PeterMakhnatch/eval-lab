@@ -1,0 +1,387 @@
+# Axis Definition: Category (Domain)
+# Derived from CRAFT facet vocabulary and Terminal-Bench 3.0 (TB3) + library corpus scan (551 tasks).
+# Schema: list of category objects.
+- slug: data-engineering
+  title: Data Engineering & Processing Pipelines
+  description: >
+    Batch ETL pipelines, distributed data deduplication, stream aggregation, dataset
+    anonymization, pretrain shard corruption recovery, and high-throughput data transformations.
+  typical_verifier_types:
+    - pytest
+    - golden_file
+    - diff
+  typical_languages:
+    - python
+    - rust
+    - sql
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/data-anonymization
+    - terminal-bench/distributed-dedup
+    - terminal-bench/pretrain-shard-corruption
+    - terminal-bench/telecom-entity-resolution
+    - library/tasks/transaction-reconciliation
+    - library/tasks/event-summary
+  topic_seeds:
+    - parquet-compaction-dedup
+    - privacy-preserving-masking
+    - cdc-event-stream-reconciliation
+    - pretraining-shard-index-recovery
+    - duckdb-columnar-migration
+
+- slug: systems-programming
+  title: Systems Programming & Runtime Internals
+  description: >
+    Low-level systems programming, memory safety, concurrency debugging, sourcemap leak resolution,
+    live process surgery, write-ahead log (WAL) recovery, and LSM-tree compaction.
+  typical_verifier_types:
+    - pytest
+    - diff
+    - hybrid
+  typical_languages:
+    - c
+    - cpp
+    - rust
+    - go
+    - zig
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/bun-sourcemap-leak
+    - terminal-bench/kv-live-surgery
+    - terminal-bench/mvcc-lsm-compaction
+    - terminal-bench/wal-recovery-ordering
+    - terminal-bench/vpp-loss-divergence
+    - terminal-bench/uefi-bootkit
+  topic_seeds:
+    - wal-segment-replay-ordering
+    - lockfree-ringbuffer-drain
+    - sourcemap-token-boundary-fix
+    - async-epoll-reactor-deadlock
+    - memory-mapped-ring-corruption
+
+- slug: scientific-computing
+  title: Computational Science & Numerical Simulation
+  description: >
+    Domain-specific simulations, molecular topology modeling, differential equation solvers,
+    climate simulation, proteomics MS2 elucidation, and contact dynamics.
+  typical_verifier_types:
+    - pytest
+    - golden_file
+    - hybrid
+  typical_languages:
+    - python
+    - cpp
+    - fortran
+    - julia
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/lake-temp-glm
+    - terminal-bench/ks-solver-cpp
+    - terminal-bench/hof-topology-interpenetration
+    - terminal-bench/glycan-ms2-elucidation
+    - terminal-bench/gsea-proteomics
+    - terminal-bench/protein-autointerp-disulfide
+    - terminal-bench/biped-contact-dynamics
+  topic_seeds:
+    - sparse-linear-system-preconditioner
+    - molecular-topology-interpenetration
+    - contact-dynamics-lcp-solver
+    - spectral-mass-fingerprint-matcher
+    - lake-stratification-thermal-model
+
+- slug: machine-learning-infra
+  title: Machine Learning Infrastructure & Kernels
+  description: >
+    LLM inference serving, low-level GPU/CPU compute kernels, quantized matrix multiplication (FP8/INT4),
+    KV cache management, checkpoint consolidation, and embedding drift monitoring.
+  typical_verifier_types:
+    - pytest
+    - golden_file
+    - diff
+  typical_languages:
+    - python
+    - cpp
+    - cuda
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/fp8-rmsnorm-gemm
+    - terminal-bench/gpt2-codegolf
+    - terminal-bench/jax-speedrun-gpu
+    - terminal-bench/sglang-qwen-burst
+    - terminal-bench/vllm-deepseek-streaming
+    - terminal-bench/embedding-drift-monitor
+    - terminal-bench/mp-checkpoint-consolidation
+  topic_seeds:
+    - quantized-gemm-scale-fusing
+    - kv-cache-paged-attention-kernel
+    - tensor-parallel-checkpoint-resarding
+    - token-streaming-backpressure-buffer
+    - embedding-distribution-wasserstein-drift
+
+- slug: formal-methods
+  title: Formal Verification & Proof Assistants
+  description: >
+    Theorem proving, formal specification verification, cryptographic correctness proofs,
+    loop invariant checking, and verified software synthesis.
+  typical_verifier_types:
+    - diff
+    - pytest
+    - hybrid
+  typical_languages:
+    - coq
+    - lean
+    - ocaml
+    - isabelle
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/coq-block-bound
+    - terminal-bench/fix-uautomizer-soundness
+    - terminal-bench/formal-crypto
+    - terminal-bench/lean-midpoint-proof
+    - terminal-bench/takens-embedding-lean
+  topic_seeds:
+    - constant-time-crypto-assembly-proof
+    - inductive-loop-invariant-induction
+    - lean4-metric-space-topology-lemma
+    - coq-verified-bitvector-arithmetic
+    - model-checking-safety-property-witness
+
+- slug: database-internals
+  title: Database Internals & Storage Engines
+  description: >
+    Query optimizer rules, transaction management, multi-version concurrency control (MVCC),
+    live database cutovers, distributed replication logs, and index reorganization.
+  typical_verifier_types:
+    - pytest
+    - diff
+    - golden_file
+  typical_languages:
+    - python
+    - rust
+    - go
+    - sql
+  multi_container_tendency: true
+  corpus_exemplars:
+    - terminal-bench/live-database-cutover
+    - terminal-bench/mvcc-lsm-compaction
+    - terminal-bench/wal-recovery-ordering
+    - library/tasks/query-optimize
+  topic_seeds:
+    - btree-concurrent-split-deadlock
+    - cost-based-join-reordering-rule
+    - zero-downtime-schema-cutover
+    - mvcc-vacuum-tombstone-reclaim
+    - raft-log-compaction-snapshot-sync
+
+- slug: operations-research
+  title: Operations Research & Combinatorial Optimization
+  description: >
+    Linear and integer programming, flight dispatch scheduling, logistics shift planning,
+    click-through rate (CTR) optimization, and manufacturing resource planning.
+  typical_verifier_types:
+    - pytest
+    - golden_file
+  typical_languages:
+    - python
+    - cpp
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/cli-2ph-simplex
+    - terminal-bench/ctr-optimization
+    - terminal-bench/erp-procurement-planning
+    - terminal-bench/cargo-flight-dispatch
+    - terminal-bench/freight-dispatch-shift
+    - terminal-bench/production-planning
+  topic_seeds:
+    - two-phase-revised-simplex-solver
+    - crew-pairing-column-generation
+    - facility-location-mixed-integer-program
+    - vehicle-routing-time-window-heuristic
+    - multi-commodity-flow-relaxation
+
+- slug: cad-hardware-design
+  title: CAD, Hardware Design & Physical Emulation
+  description: >
+    Parametric 3D mechanical CAD modeling, PCB/optical waveguide routing, retro console
+    system-on-chip emulation, and wavelength division multiplexing (WDM) network design.
+  typical_verifier_types:
+    - diff
+    - golden_file
+    - pytest
+  typical_languages:
+    - python
+    - verilog
+    - vhdl
+    - cpp
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/cad-model
+    - terminal-bench/freecad-impeller
+    - terminal-bench/freecad-platform-drawing
+    - terminal-bench/freecad-spring-clip
+    - terminal-bench/photonic-waveguide-routing
+    - terminal-bench/retro-console-soc
+    - terminal-bench/wdm-design
+  topic_seeds:
+    - parametric-impeller-boolean-mesh
+    - optical-waveguide-bend-radius-optimization
+    - retro-apu-sound-channel-synthesis
+    - gerber-trace-impedance-compliance
+    - wdm-wavelength-crossconnect-routing
+
+- slug: security-incident-response
+  title: Security Forensics, Exploit Triage & Vulnerability Analysis
+  description: >
+    Backdoor forensics, protocol interception, firmware/UEFI security analysis,
+    cryptographic key recovery, and vulnerability reproduction.
+  typical_verifier_types:
+    - pytest
+    - diff
+    - hybrid
+  typical_languages:
+    - python
+    - c
+    - shell
+    - asm
+  multi_container_tendency: true
+  corpus_exemplars:
+    - terminal-bench/memcached-backdoor
+    - terminal-bench/shadow-relay
+    - terminal-bench/uefi-bootkit
+    - terminal-bench/interleaved-vigenere
+  topic_seeds:
+    - uefi-nvram-variable-taint-analysis
+    - shadow-proxy-tunnel-decapsulation
+    - memcached-binary-protocol-injection
+    - key-derivation-oracle-sidechannel
+    - pcap-dns-exfiltration-reassembly
+
+- slug: web-engineering
+  title: Web Engineering & Frontend Performance
+  description: >
+    Frontend performance tuning, cumulative layout shift (CLS) debugging, DOM filtering,
+    reactive UI state lifecycle, next.js server-side rendering, and form migration.
+  typical_verifier_types:
+    - pytest
+    - diff
+    - golden_file
+  typical_languages:
+    - typescript
+    - javascript
+    - html
+    - css
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/cumulative-layout-shift
+    - terminal-bench/html-js-filter
+    - terminal-bench/nextjs-performance
+    - terminal-bench/react-lead-form
+    - terminal-bench/vba-userform-port
+    - library/tasks/terminal-bench-html-js-filter
+  topic_seeds:
+    - layout-shift-font-swap-metric
+    - dom-sanitizer-attribute-bypass
+    - nextjs-hydration-mismatch-fix
+    - virtual-list-scroll-flicker-patch
+    - ssr-streaming-boundary-recovery
+
+- slug: financial-engineering
+  title: Financial Engineering & Regulatory Computation
+  description: >
+    Regulatory capital calculation (SA-CCR / RWA), cross-border Intrastat reporting,
+    transaction settlement reconciliation, risk score backtesting, and claims adjudication.
+  typical_verifier_types:
+    - pytest
+    - golden_file
+  typical_languages:
+    - python
+    - sql
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/fin-saccr-rwa
+    - terminal-bench/intrastat-meldung
+    - terminal-bench/payments-pipeline-fix
+    - terminal-bench/risk-scorer-replay
+    - terminal-bench/heat-pump-warranty
+    - terminal-bench/medical-claims-processing
+  topic_seeds:
+    - saccr-replacement-cost-add-on-engine
+    - intrastat-customs-tariff-reconciliation
+    - multi-currency-settlement-rounding-fix
+    - credit-risk-pd-transition-matrix
+    - claims-adjudication-rule-engine
+
+- slug: multimedia-processing
+  title: Multimedia Processing & Audio/Visual Synthesis
+  description: >
+    Multi-part audio transcription, four-part vocal harmony generation, vector icon
+    patching, PDF examination extraction, and raster image quantization.
+  typical_verifier_types:
+    - pytest
+    - golden_file
+    - diff
+  typical_languages:
+    - python
+    - c
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/satb-audio-transcription
+    - terminal-bench/sound-change-cascade
+    - terminal-bench/music-harmony
+    - terminal-bench/exam-pdf-eval
+    - terminal-bench/ico-path-patch
+  topic_seeds:
+    - four-part-voice-leading-validator
+    - wav-spectral-pitch-contour-extractor
+    - pdf-embedded-form-xobject-parser
+    - ico-bpp-palette-lossless-packer
+    - phonetic-sound-shift-automaton
+
+- slug: graph-algorithms
+  title: Graph Algorithms & Knowledge Representation
+  description: >
+    Subgraph isomorphism algorithms (VF2), knowledge graph SPARQL/Cypher query optimization,
+    topological ordering, and network topology analysis.
+  typical_verifier_types:
+    - pytest
+    - golden_file
+  typical_languages:
+    - python
+    - rust
+    - cpp
+  multi_container_tendency: false
+  corpus_exemplars:
+    - terminal-bench/vf2-speedup-networkx
+    - terminal-bench/ontology-kg-querying
+  topic_seeds:
+    - vf2-subgraph-isomorphism-state-pruning
+    - knowledge-graph-triplestore-join-optimizer
+    - hierarchical-clustering-dendrogram-cut
+    - bi-directional-dijkstra-landmark-heuristic
+    - bipartite-matching-hopcroft-karp
+
+- slug: code-repair-and-synthesis
+  title: Code Repair, Refactoring & Algorithm Synthesis
+  description: >
+    Algorithmic function synthesis, unit test bug fixing, edge-case debugging,
+    and reference implementation reconciliation.
+  typical_verifier_types:
+    - pytest
+    - diff
+  typical_languages:
+    - python
+    - c
+    - cpp
+    - rust
+    - javascript
+  multi_container_tendency: false
+  corpus_exemplars:
+    - benchmarks/humanevalfix
+    - benchmarks/aime
+    - benchmarks/gpqa
+  topic_seeds:
+    - dynamic-programming-memoization-bug
+    - binary-search-boundary-fencepost-fix
+    - trie-prefix-lookup-deletion-leak
+    - topological-dag-cycle-detection
+    - regex-backtracking-catastrophic-fix

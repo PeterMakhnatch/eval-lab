@@ -7,6 +7,7 @@ import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -22,15 +23,23 @@ from evallab.authoring import (
     RegisterRefusal,
     StructuralControlRunner,
     bump_version,
+    design_novel_spec,
+    find_all_craft_gaps,
     find_craft_gap,
     generate_stub_task,
+    load_all_axes,
+    load_axis,
     load_ledger,
     main,
+    sample_spec_batch,
     seed_class_pass_rates,
+    spec_coordinate_key,
     upsert_ledger,
     write_ledger,
 )
 from evallab.lineage import resolve_lineage
+from evallab.paths import derived_root_from_environment
+from evallab.schemas import ProposalAxes, ProposalSpec
 
 # Completeness checker from meta-task package
 _checker_dir = Path(__file__).resolve().parent.parent / "library/meta/synthesize-task@1/tests"
@@ -150,6 +159,11 @@ def make_repo(tmp_path: Path) -> Path:
         meta_dest = repo / "library/meta/synthesize-task@1"
         meta_dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(meta_src, meta_dest, dirs_exist_ok=True)
+    tmpl_src = Path(__file__).resolve().parents[1] / "authoring/templates"
+    if tmpl_src.is_dir():
+        tmpl_dest = repo / "authoring/templates"
+        tmpl_dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(tmpl_src, tmpl_dest, dirs_exist_ok=True)
     return repo
 
 
@@ -801,3 +815,346 @@ def test_cli_propose_via_harbor_and_harvest(
     harvested = json.loads(capsys.readouterr().out)
     assert harvested["outcome"] == "proposed"
     assert harvested["job_id"] == "cli-job-01"
+
+
+# --------------------------------------------------------------------------- #
+# SG-2: Spec-Sampler, Axes, and Coverage-First Tests
+# --------------------------------------------------------------------------- #
+
+
+def test_axis_files_load_and_validate() -> None:
+    """Axis YAML files under authoring/templates load and validate correctly."""
+    repo_root = Path(__file__).resolve().parents[1]
+    axes = load_all_axes(repo_root)
+    assert "category" in axes
+    assert "scenario" in axes
+    assert "difficulty" in axes
+
+    # 1. Categories: derived from CRAFT & TB3 corpus
+    categories = axes["category"]
+    assert len(categories) >= 10
+    for cat in categories:
+        assert "slug" in cat and isinstance(cat["slug"], str)
+        assert "title" in cat and isinstance(cat["title"], str)
+        assert "description" in cat and len(cat["description"]) > 10
+        assert "corpus_exemplars" in cat and isinstance(cat["corpus_exemplars"], list)
+
+    # 2. Scenarios: 8-10 instruction styles spanning register and length
+    scenarios = axes["scenario"]
+    assert 8 <= len(scenarios) <= 10
+    for scen in scenarios:
+        assert "slug" in scen and isinstance(scen["slug"], str)
+        assert "title" in scen and isinstance(scen["title"], str)
+        assert "register" in scen and isinstance(scen["register"], str)
+        assert "length" in scen and isinstance(scen["length"], str)
+        assert "description" in scen and len(scen["description"]) > 10
+
+    # 3. Difficulty: levels with anti-pattern lists
+    difficulties = axes["difficulty"]
+    assert len(difficulties) >= 4
+    for diff in difficulties:
+        assert "slug" in diff and isinstance(diff["slug"], str)
+        assert "description" in diff and len(diff["description"]) > 10
+        assert "anti_patterns" in diff and isinstance(diff["anti_patterns"], list)
+        assert len(diff["anti_patterns"]) >= 2
+
+
+def test_malformed_axis_file_is_refused_with_filename(tmp_path: Path) -> None:
+    """A malformed or missing axis file is refused with a message naming the file."""
+    template_dir = tmp_path / "templates"
+    template_dir.mkdir()
+
+    # 1. Missing file
+    with pytest.raises(AuthoringError) as exc_missing:
+        load_axis("category", template_dir=template_dir)
+    assert "category.yaml" in str(exc_missing.value)
+
+    # 2. Syntax error in YAML
+    bad_yaml = template_dir / "category.yaml"
+    bad_yaml.write_text("slug: [unclosed list\n  broken: true")
+    with pytest.raises(AuthoringError) as exc_syntax:
+        load_axis("category", template_dir=template_dir)
+    assert "category.yaml" in str(exc_syntax.value)
+
+    # 3. Non-list YAML
+    bad_yaml.write_text("slug: single-object\ntitle: Not a list\n")
+    with pytest.raises(AuthoringError) as exc_nonlist:
+        load_axis("category", template_dir=template_dir)
+    assert "category.yaml" in str(exc_nonlist.value)
+
+    # 4. Missing required field in difficulty
+    diff_yaml = template_dir / "difficulty.yaml"
+    diff_yaml.write_text("- slug: easy\n  description: Simple task\n")
+    with pytest.raises(AuthoringError) as exc_field:
+        load_axis("difficulty", template_dir=template_dir)
+    assert "difficulty.yaml" in str(exc_field.value)
+    assert "anti_patterns" in str(exc_field.value)
+
+
+def test_find_all_craft_gaps_identifies_uncovered_facet_triples(tmp_path: Path) -> None:
+    """find_all_craft_gaps returns all uncovered facet triples in stable order."""
+    # Total combinations: 5 verifier_types x 2 multi_container x 2 pinned_deps = 20
+    # Cover 6 specific triples
+    covered = [
+        ("pytest", False, False),
+        ("pytest", False, True),
+        ("diff", False, False),
+        ("golden_file", True, False),
+        ("judge", False, True),
+        ("hybrid", True, True),
+    ]
+    parquet_path = write_craft_parquet(tmp_path / "craft.parquet", covered)
+    gaps = find_all_craft_gaps(parquet_path)
+    assert len(gaps) == 14
+    assert ("pytest", False, False) not in [
+        (g["verifier_type"], g["env_multi_container"], g["pinned_deps"]) for g in gaps
+    ]
+    assert ("pytest", True, True) in [
+        (g["verifier_type"], g["env_multi_container"], g["pinned_deps"]) for g in gaps
+    ]
+
+    # Cover all 20 triples
+    all_covered = []
+    for v in ("pytest", "diff", "golden_file", "judge", "hybrid"):
+        for m in (False, True):
+            for p in (False, True):
+                all_covered.append((v, m, p))
+    full_parquet = write_craft_parquet(tmp_path / "full_craft.parquet", all_covered)
+    assert find_all_craft_gaps(full_parquet) == []
+    with pytest.raises(AuthoringError) as exc:
+        find_craft_gap(full_parquet)
+    assert "covers every" in str(exc.value)
+
+
+def test_spec_sampling_20_specs_zero_duplicates_and_coverage_first(tmp_path: Path) -> None:
+    """Sampler emits 20 specs with zero duplicates against ledger and >=1/3 from craft gaps."""
+    repo = make_repo(tmp_path)
+    derived = repo / "derived" / "parquet"
+    derived.mkdir(parents=True, exist_ok=True)
+
+    # Provide craft parquet with 8 known gaps (12 covered)
+    # 8 / 20 = 40% >= 1/3 (33.3%)
+    covered = [
+        ("pytest", False, False),
+        ("pytest", False, True),
+        ("pytest", True, False),
+        ("diff", False, False),
+        ("diff", False, True),
+        ("golden_file", False, False),
+        ("golden_file", True, False),
+        ("judge", False, False),
+        ("judge", True, False),
+        ("hybrid", False, False),
+        ("hybrid", False, True),
+        ("hybrid", True, False),
+    ]
+    write_craft_parquet(derived / "craft" / "craft.parquet", covered)
+
+    # Sample 20 specs
+    specs = sample_spec_batch(repo, count=20, derived_root=derived, seed=123)
+    assert len(specs) == 20
+
+    # 1. Zero duplicates among the 20 emitted specs
+    emitted_coords = [spec_coordinate_key(s) for s in specs]
+    assert len(emitted_coords) == len(set(emitted_coords))
+
+    # 2. Coverage-first ordering & provenance split
+    # The 8 gap-derived specs must come FIRST
+    gap_specs = [s for s in specs if s.get("provenance") == "craft-gap"]
+    random_specs = [s for s in specs if s.get("provenance") == "random-product"]
+
+    assert len(gap_specs) == 8
+    assert len(random_specs) == 12
+    assert len(gap_specs) / len(specs) >= (1 / 3)  # 40% >= 33.3%
+
+    # Assert ordering: first 8 are craft-gap, rest are random-product
+    for i in range(8):
+        assert specs[i]["provenance"] == "craft-gap"
+        assert specs[i]["seed_class"] == "craft-gap"
+        assert "target_facets" in specs[i]
+        assert "axes" in specs[i]
+
+    for i in range(8, 20):
+        assert specs[i]["provenance"] == "random-product"
+        assert specs[i]["seed_class"] == "scenario"
+        assert "axes" in specs[i]
+
+
+def test_ledger_duplicate_exclusion(tmp_path: Path) -> None:
+    """A spec matching an existing ledger entry is not emitted."""
+    repo = make_repo(tmp_path)
+    derived = repo / "derived" / "parquet"
+    derived.mkdir(parents=True, exist_ok=True)
+
+    write_craft_parquet(derived / "craft" / "craft.parquet", [("pytest", False, False)])
+
+    # First, sample a single spec to see what would be produced
+    initial = sample_spec_batch(repo, count=1, derived_root=derived, seed=42)[0]
+    target_coord = spec_coordinate_key(initial)
+
+    # Create quarantine proposal and ledger entry with this exact coordinate
+    prop_dir = repo / "library" / "tasks" / "_proposed" / "prop-existing-01"
+    prop_dir.mkdir(parents=True, exist_ok=True)
+    prop_manifest = {
+        "schema_version": "authoring/1",
+        "proposal_id": "prop-existing-01",
+        "seed_class": initial["seed_class"],
+        "outcome": "proposed",
+        "category": initial["category"],
+        "scenario": initial["scenario"],
+        "difficulty": initial["difficulty"],
+        "target_facets": initial.get("target_facets"),
+        "axes": initial.get("axes"),
+    }
+    (prop_dir / "proposal.json").write_text(json.dumps(prop_manifest))
+
+    ledger_file = derived / "qualification" / "ledger.parquet"
+    upsert_ledger(
+        ledger_file,
+        QualificationRecord(
+            proposal_id="prop-existing-01",
+            seed_class=initial["seed_class"],
+            outcome="proposed",
+            created_at="2026-08-17T00:00:00Z",
+            updated_at="2026-08-17T00:00:00Z",
+        ),
+    )
+
+    # Sample 10 specs now with the ledger populated
+    new_specs = sample_spec_batch(repo, count=10, derived_root=derived, seed=42)
+    new_coords = [spec_coordinate_key(s) for s in new_specs]
+
+    # Target coordinate from ledger must NOT be emitted
+    assert target_coord not in new_coords
+    assert all(s["name"] != initial["name"] for s in new_specs)
+
+
+def test_multi_phase_novel_spec_mode_with_injected_stub(tmp_path: Path) -> None:
+    """Multi-phase novel-spec mode works with injected designer stub and default stub."""
+    repo = make_repo(tmp_path)
+    derived = repo / "derived" / "parquet"
+
+    # 1. Custom injected designer stub
+    def custom_designer(topic: str, style: str) -> dict[str, Any]:
+        return {
+            "schema_version": "spec/1",
+            "name": f"injected-{topic}-{style}",
+            "category": f"synth-{topic}",
+            "scenario": f"synth-{style}",
+            "difficulty": "expert",
+            "summary": f"Injected synthetic task {topic} / {style}",
+            "seed_class": "scenario",
+            "provenance": "novel-spec",
+            "axes": {
+                "category": f"synth-{topic}",
+                "scenario": f"synth-{style}",
+                "difficulty": "expert",
+            },
+        }
+
+    specs = sample_spec_batch(
+        repo,
+        count=10,
+        derived_root=derived,
+        novel_designer=custom_designer,
+        novel_count=4,
+    )
+    novel_specs = [s for s in specs if s.get("provenance") == "novel-spec"]
+    assert len(novel_specs) == 4
+    for ns in novel_specs:
+        assert ns["name"].startswith("injected-")
+        assert ns["category"].startswith("synth-")
+
+    # 2. Default deterministic designer stub (invokes no provider)
+    default_spec = design_novel_spec("distributed-tracing", "incident-emergency")
+    assert default_spec["provenance"] == "novel-spec"
+    assert default_spec["category"] == "novel-distributed-tracing"
+    assert default_spec["scenario"] == "novel-incident-emergency"
+    assert default_spec["difficulty"] == "intermediate"
+
+
+def test_proposal_records_axis_coordinates_lineage(tmp_path: Path) -> None:
+    """Proposal records axis coordinates and provenance for lineage tracking."""
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo)
+
+    # Propose craft-gap
+    proposal = pipe.propose(seed="craft-gap")
+    assert proposal.category is not None
+    assert proposal.scenario is not None
+    assert proposal.difficulty is not None
+    assert proposal.provenance == "craft-gap"
+    assert proposal.axes is not None
+    assert "target_facets" in proposal.axes
+
+    # Check proposal.json
+    raw = json.loads((proposal.path / "proposal.json").read_text())
+    assert raw["category"] == proposal.category
+    assert raw["scenario"] == proposal.scenario
+    assert raw["difficulty"] == proposal.difficulty
+    assert raw["provenance"] == "craft-gap"
+    assert raw["axes"] == proposal.axes
+
+    # Check ProposalSpec schema instantiation
+    spec_model = ProposalSpec(
+        name=f"spec-{proposal.proposal_id}",
+        category=proposal.category,
+        scenario=proposal.scenario,
+        difficulty=proposal.difficulty,
+        seed_class=proposal.seed_class,
+        provenance=proposal.provenance,
+        axes=ProposalAxes(
+            category=proposal.category,
+            scenario=proposal.scenario,
+            difficulty=proposal.difficulty,
+            target_facets=proposal.target_facets,
+        ),
+    )
+    assert spec_model.axes.category == proposal.category
+
+
+def test_cli_sample_specs(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """CLI sample command emits specs in human summary and JSON formats."""
+    repo = make_repo(tmp_path)
+    derived = repo / "derived" / "parquet"
+    derived.mkdir(parents=True, exist_ok=True)
+    write_craft_parquet(derived / "craft" / "craft.parquet", [("pytest", False, False)])
+    common = ["--root", str(repo), "--out", str(derived)]
+
+    # 1. Human formatted output
+    assert main([*common, "sample", "--count", "5"]) == 0
+    captured = capsys.readouterr().out
+    assert "Sampled 5 specs" in captured
+    assert "Craft-gap queries:" in captured
+
+    # 2. JSON formatted output
+    assert main([*common, "--json", "sample", "--count", "5"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["count"] == 5
+    assert "specs" in data
+    assert len(data["specs"]) == 5
+    assert data["craft_gap_count"] >= 1
+
+
+def test_real_corpus_sample_specs_coverage_and_split() -> None:
+    """Real corpus test: sampler emits 20 specs with zero duplicates against ledger.
+
+    Asserter: >=1/3 originate from craft gaps.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    derived = derived_root_from_environment(repo_root)
+    craft_pq = derived / "craft" / "craft.parquet"
+    if not craft_pq.is_file():
+        pytest.skip("Machine-local craft.parquet absent; skipped in CI")
+
+    specs = sample_spec_batch(repo_root, count=20, derived_root=derived)
+    assert len(specs) == 20
+
+    # Zero duplicates
+    coords = [spec_coordinate_key(s) for s in specs]
+    assert len(coords) == len(set(coords))
+
+    # Provenance split
+    gap_count = sum(1 for s in specs if s.get("provenance") == "craft-gap")
+    assert gap_count / len(specs) >= (1 / 3), f"Expected >= 1/3 gap specs, got {gap_count}/20"
+    assert gap_count == 13  # 13 gaps present in real scanned corpus

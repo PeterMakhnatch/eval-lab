@@ -7,13 +7,13 @@ audience:
 
 # BUILDER authoring pipeline
 
-Status: living. Owner: Tasks lane. Date: 2026-08-16. Implements
-`docs/build-plan.md` WS-C and SG-1 (`docs/prompts/synthesis-build.md`).
+Status: living. Owner: Tasks lane. Date: 2026-08-17. Implements
+`docs/build-plan.md` WS-C, SG-1 (`docs/prompts/synthesis-build.md`), and SG-2.
 
-`src/evallab/authoring.py` seeds quarantined task proposals, runs the four
-local control checks, scores a CRAFT-derived rubric, and records every step
-in a qualification ledger. It never registers a task. Registration remains
-the existing human-only `evallab registry` path.
+`src/evallab/authoring.py` seeds quarantined task proposals, samples specifications
+coverage-first from decoupled axes data files, runs the four local control checks,
+scores a CRAFT-derived rubric, and records every step in a qualification ledger.
+It never registers a task. Registration remains the existing human-only `evallab registry` path.
 
 ## State machine
 
@@ -46,6 +46,11 @@ in the build plan and is not wired here because `src/evallab/cli.py` is
 leased elsewhere this round. `build_parser()` is the flag surface to attach.
 
 ```bash
+# Spec sampling (SG-2)
+python -m evallab.authoring sample --count 20
+python -m evallab.authoring --json sample --count 20
+
+# Proposal generation
 python -m evallab.authoring propose --seed mutation --ref event-summary
 python -m evallab.authoring propose --seed scenario --ref research/scenarios/gap-notes.md
 python -m evallab.authoring propose --seed craft-gap
@@ -68,6 +73,36 @@ the human summary prints.
 | `mutation` | `--ref` registered/`library/tasks` task, else the first registered or library task | New versioned copy. Never in-place. |
 | `scenario` | markdown under `research/` (`research/scenarios/` first, then explorations / inspections) | Stub Harbor package whose instruction cites the scenario path and excerpt. |
 | `craft-gap` | first uncovered `verifier_type × env_multi_container × pinned_deps` triple in `derived/parquet/craft/craft.parquet` | Stub package targeting that triple. |
+
+## Dimension-Decoupled Spec Sampling (SG-2)
+
+Implements coverage-first spec sampling across decoupled axis data files under `authoring/templates/`.
+
+### 1. Axes as Data Files
+
+The axes are specified as clean, self-describing YAML files:
+
+- **`authoring/templates/category.yaml`**: Domain categories derived directly from CRAFT facets and the scanned 551-task corpus (74 TB3 tasks + 477 library tasks). Includes:
+  - `data-engineering`, `systems-programming`, `scientific-computing`, `machine-learning-infra`, `formal-methods`, `database-internals`, `operations-research`, `cad-hardware-design`, `security-incident-response`, `web-engineering`, `financial-engineering`, `multimedia-processing`, `graph-algorithms`, and `code-repair-and-synthesis`.
+  - Each category records typical verifier mechanisms, languages, container tendencies, exemplar tasks from the corpus, and topic seeds for novel generation.
+- **`authoring/templates/scenario.yaml`**: 10 instruction styles spanning register (terse to conversational to formal) and length (minimal to long):
+  - `minimal`, `incident-emergency`, `bug-report`, `feature-specification`, `refactoring-migration`, `investigation-audit`, `dialogue-transcript`, `structured-pipeline`, `adversarial-obfuscated`, and `documentation-driven`.
+  - Each scenario defines exact authoring guidelines and prompt style constraints.
+- **`authoring/templates/difficulty.yaml`**: 4 difficulty levels (`introductory`, `intermediate`, `advanced`, `expert`) with explicit complexity bounds and anti-pattern lists:
+  - Anti-patterns capture what makes a task *bad* rather than hard (e.g. artificial file obscurity, unseeded flaky verifiers, fragile string-matching, compile loops > 10m, oracle leakage).
+
+### 2. Coverage-First Sampling Order
+
+Unlike the paper (arXiv:2607.27929) which samples the axis space randomly, this lab prioritizes **coverage-first**:
+
+1. **Primary — CRAFT Gap Queries**: Queries unexercised facet combinations (`verifier_type × env_multi_container × pinned_deps`) with zero coverage in `derived/parquet/craft/craft.parquet`. All available craft gaps are emitted first.
+2. **Secondary — Random Axis Product**: Samples uniformly from the Cartesian product of `category × scenario × difficulty` to fill the remaining requested batch count once gaps are exhausted.
+3. **Multi-Phase Novel-Spec Mode**: Lightweight designer pass that synthesizes new `(category, scenario)` pairs from topic seeds and style constraints. Offline runs and tests use a deterministic stub (`default_novel_designer`) requiring no external provider calls.
+
+### 3. Ledger Deduplication and Lineage
+
+- **Deduplication against Qualification Ledger**: Every sampled spec is checked against existing entries in `derived/parquet/qualification/ledger.parquet` and quarantined proposals (`library/tasks/_proposed/`). Deduplication is keyed strictly on the spec's axis coordinates (`category`, `scenario`, `difficulty`, `target_facets`), never on display names. Matching specs are excluded.
+- **Proposal Lineage**: Axis coordinates (`axes`, `category`, `scenario`, `difficulty`, `provenance`) are permanently stored on `Proposal`, serialized into `proposal.json`, and mirrored in `ProposalSpec` Pydantic models.
 
 ### Meta-Loop Generation (`--via-harbor` and `harvest`)
 

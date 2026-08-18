@@ -1,0 +1,81 @@
+# Axis Definition: Difficulty
+# 4 difficulty levels with explicit complexity bounds and anti-pattern lists
+# defining what makes a task at each level bad, not just hard.
+# Schema: list of difficulty objects.
+- slug: introductory
+  level: 1
+  title: Introductory / Localized
+  description: >
+    Single-file or localized change with direct instructions, clear error feedback,
+    solvable in 1-3 direct steps.
+  complexity_bounds:
+    files_touched: "1-3"
+    lines_changed: "< 30"
+    execution_time_minutes: "< 2"
+  difficulty_mechanisms:
+    - clerical
+    - conceptual
+  anti_patterns:
+    - Trivial typo or variable rename with zero domain reasoning required.
+    - Artificial obscurity through hidden or undocumented environment variables.
+    - Overly prescriptive instructions dictating every bash command verbatim.
+    - Obscure single-character syntax trivia disconnected from real engineering tasks.
+
+- slug: intermediate
+  level: 2
+  title: Intermediate / Multi-Component
+  description: >
+    Multi-file changes requiring coordination between components, adhering to existing
+    codebase idioms and library patterns.
+  complexity_bounds:
+    files_touched: "2-5"
+    lines_changed: "30-150"
+    execution_time_minutes: "2-5"
+  difficulty_mechanisms:
+    - conceptual
+    - clerical
+    - mixed
+  anti_patterns:
+    - Artificial complexity created by hiding essential files in non-standard nested paths.
+    - Flaky verifiers with unseeded random tests or timing race conditions (`sleep 1`).
+    - Fragile string-matching in verifiers rejecting valid semantic solutions due to whitespace differences.
+    - Missing prerequisite dependencies in environment requiring unauthenticated internet access.
+
+- slug: advanced
+  level: 3
+  title: Advanced / Subsystem Architecture
+  description: >
+    Complex architectural debugging or optimization requiring in-depth domain knowledge,
+    algorithm implementation, or multi-container environment navigation.
+  complexity_bounds:
+    files_touched: "4-10+"
+    lines_changed: "100-500"
+    execution_time_minutes: "5-15"
+  difficulty_mechanisms:
+    - conceptual
+    - volume
+    - mixed
+  anti_patterns:
+    - Needle-in-a-haystack file hunting where 95% of time is spent searching arbitrary directory trees.
+    - Long compile/build cycles (> 10 minutes) making feedback loops tedious without adding intellectual depth.
+    - Verifiers leaking reference solutions or oracle outputs in error logs or environment artifacts.
+    - Unpinned upstream dependencies that break nondeterministically when package registries change.
+
+- slug: expert
+  level: 4
+  title: Expert / Rigorous Domain Engineering
+  description: >
+    High-difficulty edge-case engineering, kernel/systems-level debugging, formal proof construction,
+    or novel mathematical optimization with zero-error tolerance under adversarial edge cases.
+  complexity_bounds:
+    files_touched: "Subsystem-wide"
+    lines_changed: "Variable (deep logic)"
+    execution_time_minutes: "15-30"
+  difficulty_mechanisms:
+    - conceptual
+    - mixed
+  anti_patterns:
+    - Impossible requirements lacking a ground-truth feasible solution in the given container environment.
+    - Unreproducible platform-dependent behavior relying on specific host CPU timing or hardware architecture.
+    - Verifiers requiring private external network services or unauthenticated external APIs.
+    - Excessive boilerplate/clerical translation (> 1000 lines of mindless copying) masquerading as difficulty.

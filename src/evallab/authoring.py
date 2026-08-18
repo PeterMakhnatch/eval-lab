@@ -43,11 +43,17 @@ from typing import Any, Literal, Protocol, overload
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import yaml
 from pydantic import Field
 
 from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, PolicyGate, load_policy, new_ulid
-from evallab.schemas import ContractModel, ExperimentSpec, PolicyDecision
+from evallab.schemas import (
+    ContractModel,
+    ExperimentSpec,
+    PolicyDecision,
+    ProposalSpec,
+)
 
 SCHEMA_VERSION = "authoring/1"
 PROPOSED_RELATIVE = Path("library/tasks/_proposed")
@@ -57,6 +63,8 @@ RESEARCH_RELATIVE = Path("research")
 LIBRARY_TASKS_RELATIVE = Path("library/tasks")
 REGISTRY_RELATIVE = Path("library/registry")
 META_TASK_RELATIVE = Path("library/meta/synthesize-task@1")
+TEMPLATES_RELATIVE = Path("authoring/templates")
+AXES_NAMES: tuple[str, ...] = ("category", "scenario", "difficulty")
 SeedClass = Literal["mutation", "scenario", "craft-gap"]
 Outcome = Literal["proposed", "battery_passed", "craft_reviewed", "registered", "rejected"]
 BatteryCheck = Literal["oracle", "nop", "fair_oracle", "adversarial"]
@@ -205,7 +213,11 @@ class Proposal:
     inputs: list[dict[str, Any]] | None = None
     injected_spec: dict[str, Any] | None = None
     exemplar: str | None = None
-
+    category: str | None = None
+    scenario: str | None = None
+    difficulty: str | None = None
+    provenance: str | None = None
+    axes: dict[str, Any] | None = None
     def manifest(self) -> dict[str, Any]:
         data: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
@@ -228,6 +240,16 @@ class Proposal:
             data["injected_spec"] = self.injected_spec
         if self.exemplar is not None:
             data["exemplar"] = self.exemplar
+        if self.category is not None:
+            data["category"] = self.category
+        if self.scenario is not None:
+            data["scenario"] = self.scenario
+        if self.difficulty is not None:
+            data["difficulty"] = self.difficulty
+        if self.provenance is not None:
+            data["provenance"] = self.provenance
+        if self.axes is not None:
+            data["axes"] = self.axes
         return data
 
 @dataclass(frozen=True)
@@ -442,16 +464,99 @@ def seed_class_pass_rates(path: Path) -> list[tuple[str, float, int]]:
         )
 
 
-def find_craft_gap(parquet_path: Path) -> dict[str, Any]:
-    """First facet triple with zero coverage in the CRAFT parquet.
+def templates_root(repo_root: Path) -> Path:
+    return repo_root / TEMPLATES_RELATIVE
+
+
+def load_axis(
+    axis_name: str,
+    repo_root: Path | None = None,
+    *,
+    template_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Load and validate an axis definition YAML file (SG-2).
+
+    Refuses malformed or missing axis files with an AuthoringError naming the file.
+    """
+    if template_dir is not None:
+        root = template_dir
+    elif repo_root is not None and (repo_root / TEMPLATES_RELATIVE).is_dir():
+        root = repo_root / TEMPLATES_RELATIVE
+    else:
+        root = templates_root(repo_root or repository_root())
+    filename = f"{axis_name}.yaml" if not axis_name.endswith(".yaml") else axis_name
+    path = root / filename
+    if not path.is_file():
+        raise AuthoringError(f"axis file not found: {path.name}")
+    try:
+        content = path.read_text(encoding="utf-8")
+        data = yaml.safe_load(content)
+    except Exception as exc:
+        raise AuthoringError(f"malformed axis file {path.name}: {exc}") from exc
+
+    if not isinstance(data, list) or not data:
+        raise AuthoringError(
+            f"malformed axis file {path.name}: expected non-empty list of axis items"
+        )
+
+    base_axis = axis_name.replace(".yaml", "")
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            raise AuthoringError(
+                f"malformed axis file {path.name}: item {i} is not a dictionary"
+            )
+        slug = item.get("slug")
+        if not slug or not isinstance(slug, str):
+            raise AuthoringError(
+                f"malformed axis file {path.name}: item {i} missing valid 'slug'"
+            )
+        if not item.get("description"):
+            raise AuthoringError(
+                f"malformed axis file {path.name}: item {slug!r} missing 'description'"
+            )
+        if base_axis == "category" and not item.get("title"):
+            raise AuthoringError(
+                f"malformed axis file {path.name}: category {slug!r} missing 'title'"
+            )
+        if base_axis == "scenario":
+            if not item.get("title") or not item.get("register") or not item.get("length"):
+                raise AuthoringError(
+                    f"malformed axis file {path.name}: "
+                    f"scenario {slug!r} missing title/register/length"
+                )
+        elif base_axis == "difficulty" and (
+            "anti_patterns" not in item or not isinstance(item["anti_patterns"], list)
+        ):
+            raise AuthoringError(
+                f"malformed axis file {path.name}: "
+                f"difficulty {slug!r} missing 'anti_patterns' list"
+            )
+
+    return data
+
+
+def load_all_axes(
+    repo_root: Path | None = None,
+    *,
+    template_dir: Path | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Load all three canonical axes: category, scenario, difficulty."""
+    return {
+        axis: load_axis(axis, repo_root, template_dir=template_dir)
+        for axis in AXES_NAMES
+    }
+
+
+def find_all_craft_gaps(parquet_path: Path) -> list[dict[str, Any]]:
+    """All facet triples with zero coverage in the CRAFT parquet.
 
     Axes are `verifier_type × env_multi_container × pinned_deps`. Order is
-    stable so the same parquet yields the same gap.
+    stable so the same parquet yields the same gap ordering.
     """
     if not parquet_path.is_file():
         raise AuthoringError(
             f"craft parquet not found at {parquet_path}; "
-            "run `python -m evallab.craft scan` before --seed craft-gap"
+            "run `python -m evallab.craft scan` before querying craft gaps"
         )
     table = pq.read_table(parquet_path)
     missing = [name for name in GAP_AXES if name not in table.column_names]
@@ -461,19 +566,263 @@ def find_craft_gap(parquet_path: Path) -> dict[str, Any]:
         )
     covered: set[tuple[Any, ...]] = set()
     for row in table.select(list(GAP_AXES)).to_pylist():
-        covered.add(tuple(row[name] for name in GAP_AXES))
+        if row.get("verifier_type") is not None:
+            covered.add(tuple(row[name] for name in GAP_AXES))
+    gaps: list[dict[str, Any]] = []
     for candidate in product(VERIFIER_TYPES, (False, True), (False, True)):
         if candidate not in covered:
-            return {
-                "verifier_type": candidate[0],
-                "env_multi_container": candidate[1],
-                "pinned_deps": candidate[2],
-            }
-    raise AuthoringError(
-        f"craft parquet {parquet_path} covers every "
-        "verifier_type × env_multi_container × pinned_deps combination"
-    )
+            gaps.append(
+                {
+                    "verifier_type": candidate[0],
+                    "env_multi_container": candidate[1],
+                    "pinned_deps": candidate[2],
+                }
+            )
+    return gaps
 
+
+def find_craft_gap(parquet_path: Path) -> dict[str, Any]:
+    """First facet triple with zero coverage in the CRAFT parquet.
+
+    Axes are `verifier_type × env_multi_container × pinned_deps`. Order is
+    stable so the same parquet yields the same gap.
+    """
+    gaps = find_all_craft_gaps(parquet_path)
+    if not gaps:
+        raise AuthoringError(
+            f"craft parquet {parquet_path} covers every "
+            "verifier_type × env_multi_container × pinned_deps combination"
+        )
+    return gaps[0]
+
+
+def spec_coordinate_key(spec: dict[str, Any] | ProposalSpec | Proposal) -> tuple[Any, ...]:
+    """Canonical coordinate key for deduplication against the ledger and within batches."""
+    if isinstance(spec, Proposal):
+        inj = spec.injected_spec or {}
+        cat = spec.category or inj.get("category") or ""
+        scen = spec.scenario or inj.get("scenario") or ""
+        diff = spec.difficulty or inj.get("difficulty") or ""
+        facets = spec.target_facets or inj.get("target_facets") or {}
+    elif isinstance(spec, ProposalSpec):
+        data = spec.model_dump()
+        cat = str(data.get("category") or "")
+        scen = str(data.get("scenario") or "")
+        diff = str(data.get("difficulty") or "")
+        facets = data.get("target_facets") or {}
+    else:
+        data = dict(spec)
+        cat = str(data.get("category") or "")
+        scen = str(data.get("scenario") or "")
+        diff = str(data.get("difficulty") or "")
+        facets = data.get("target_facets") or {}
+    facets_items = ((k, str(v)) for k, v in facets.items()) if isinstance(facets, dict) else ()
+    facets_tuple = tuple(sorted(facets_items))
+    return (cat.lower(), scen.lower(), diff.lower(), facets_tuple)
+
+
+def extract_ledger_coordinates(
+    ledger_path: Path,
+    proposed_root: Path | None = None,
+) -> set[tuple[Any, ...]]:
+    """Extract all existing spec coordinate keys from the qualification ledger and quarantine."""
+    records = load_ledger(ledger_path)
+    coords: set[tuple[Any, ...]] = set()
+    for record in records:
+        if proposed_root is not None:
+            prop_json = proposed_root / record.proposal_id / "proposal.json"
+            if prop_json.is_file():
+                try:
+                    raw = json.loads(prop_json.read_text(encoding="utf-8"))
+                    coords.add(spec_coordinate_key(raw))
+                    if "injected_spec" in raw and isinstance(raw["injected_spec"], dict):
+                        coords.add(spec_coordinate_key(raw["injected_spec"]))
+                    if "axes" in raw and isinstance(raw["axes"], dict):
+                        coords.add(spec_coordinate_key(raw["axes"]))
+                except Exception:
+                    pass
+        if record.ref_task:
+            coords.add((record.ref_task.lower(), "", "", ()))
+    return coords
+
+
+def default_novel_designer(topic_seed: str, style_constraint: str) -> dict[str, Any]:
+    """Deterministic novel spec designer stub (SG-2).
+
+    Designs a new (category, scenario) pair from topic seed and style constraint
+    without invoking any external model or network provider.
+    """
+    clean_topic = topic_seed.strip().replace(" ", "-").lower()
+    clean_style = style_constraint.strip().replace(" ", "-").lower()
+    cat_name = f"novel-{clean_topic}"
+    scen_name = f"novel-{clean_style}"
+    return {
+        "schema_version": "spec/1",
+        "name": f"novel-{clean_topic}-{clean_style}",
+        "category": cat_name,
+        "scenario": scen_name,
+        "difficulty": "intermediate",
+        "summary": f"Novel designed task for topic '{topic_seed}' under style '{style_constraint}'",
+        "seed_class": "scenario",
+        "provenance": "novel-spec",
+        "axes": {
+            "category": cat_name,
+            "scenario": scen_name,
+            "difficulty": "intermediate",
+            "topic_seed": topic_seed,
+            "style_constraint": style_constraint,
+        },
+    }
+
+
+def design_novel_spec(
+    topic_seed: str,
+    style_constraint: str,
+    *,
+    designer: Callable[[str, str], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Generate a novel spec via an injected designer callable or deterministic default stub."""
+    fn = designer or default_novel_designer
+    return fn(topic_seed, style_constraint)
+
+
+def sample_spec_batch(
+    repo_root: Path,
+    count: int = 20,
+    *,
+    derived_root: Path | None = None,
+    seed: int = 42,
+    template_dir: Path | None = None,
+    novel_designer: Callable[[str, str], dict[str, Any]] | None = None,
+    novel_count: int = 0,
+) -> list[dict[str, Any]]:
+    """Dimension-decoupled spec sampling for authoring pipeline, coverage-first (SG-2).
+
+    Sampling order:
+    1. Primary: Craft-gap query (facet combinations with zero registered coverage).
+    2. Secondary: Random axis product (used to fill remainder after gaps exhausted).
+    3. Multi-phase novel-spec mode: lightweight designer from topic seeds (when requested).
+
+    Deduplicates against the qualification ledger and within the emitted batch.
+    """
+    derived = derived_root or derived_root_from_environment(repo_root)
+    axes = load_all_axes(repo_root, template_dir=template_dir)
+    categories = axes["category"]
+    scenarios = axes["scenario"]
+    difficulties = axes["difficulty"]
+
+    ledger_coords = extract_ledger_coordinates(
+        ledger_path(derived), proposed_root(repo_root)
+    )
+    seen_coords: set[tuple[Any, ...]] = set(ledger_coords)
+    emitted: list[dict[str, Any]] = []
+
+    # 1. Primary: CRAFT gap queries (coverage-first)
+    try:
+        gaps = find_all_craft_gaps(craft_parquet_path(derived))
+    except AuthoringError:
+        gaps = []
+
+    gap_limit = max(0, count - novel_count) if novel_count > 0 else count
+    for idx, gap in enumerate(gaps):
+        if len(emitted) >= gap_limit:
+            break
+        v_type = gap.get("verifier_type", "")
+        matching_cats = [
+            c for c in categories if v_type in c.get("typical_verifier_types", [])
+        ]
+        cat = (
+            matching_cats[idx % len(matching_cats)]
+            if matching_cats
+            else categories[idx % len(categories)]
+        )
+        scen = scenarios[idx % len(scenarios)]
+        diff = difficulties[idx % len(difficulties)]
+
+        cat_slug = cat["slug"]
+        scen_slug = scen["slug"]
+        diff_slug = diff["slug"]
+
+        spec_dict = {
+            "schema_version": "spec/1",
+            "name": f"gap-{gap['verifier_type']}-{cat_slug}-{scen_slug}",
+            "category": cat_slug,
+            "scenario": scen_slug,
+            "difficulty": diff_slug,
+            "summary": (
+                f"Task targeting CRAFT gap {gap['verifier_type']} in {cat_slug} ({scen_slug})"
+            ),
+            "seed_class": "craft-gap",
+            "target_facets": gap,
+            "provenance": "craft-gap",
+            "axes": {
+                "category": cat_slug,
+                "scenario": scen_slug,
+                "difficulty": diff_slug,
+                "target_facets": gap,
+            },
+        }
+        coord = spec_coordinate_key(spec_dict)
+        if coord not in seen_coords:
+            seen_coords.add(coord)
+            emitted.append(spec_dict)
+
+    # 2. Novel spec mode (if requested)
+    if novel_count > 0 and len(emitted) < count:
+        topic_seeds: list[str] = []
+        for c in categories:
+            topic_seeds.extend(c.get("topic_seeds", []))
+        if not topic_seeds:
+            topic_seeds = [c["slug"] for c in categories]
+
+        for i in range(novel_count):
+            if len(emitted) >= count:
+                break
+            t_seed = topic_seeds[i % len(topic_seeds)]
+            s_style = scenarios[i % len(scenarios)]["slug"]
+            novel_spec = design_novel_spec(t_seed, s_style, designer=novel_designer)
+            coord = spec_coordinate_key(novel_spec)
+            if coord not in seen_coords:
+                seen_coords.add(coord)
+                emitted.append(novel_spec)
+
+    # 3. Secondary: Random axis product (fill remainder)
+    if len(emitted) < count:
+        import random
+
+        rng = random.Random(seed)
+        all_product = list(product(categories, scenarios, difficulties))
+        rng.shuffle(all_product)
+
+        for cat, scen, diff in all_product:
+            if len(emitted) >= count:
+                break
+            cat_slug = cat["slug"]
+            scen_slug = scen["slug"]
+            diff_slug = diff["slug"]
+
+            spec_dict = {
+                "schema_version": "spec/1",
+                "name": f"axis-{cat_slug}-{scen_slug}-{diff_slug}",
+                "category": cat_slug,
+                "scenario": scen_slug,
+                "difficulty": diff_slug,
+                "summary": (
+                    f"Task sampled from axis product: {cat_slug} x {scen_slug} x {diff_slug}"
+                ),
+                "seed_class": "scenario",
+                "provenance": "random-product",
+                "axes": {
+                    "category": cat_slug,
+                    "scenario": scen_slug,
+                    "difficulty": diff_slug,
+                },
+            }
+            coord = spec_coordinate_key(spec_dict)
+            if coord not in seen_coords:
+                seen_coords.add(coord)
+                emitted.append(spec_dict)
+    return emitted
 
 def discover_scenario_paths(repo_root: Path) -> list[Path]:
     """Research-tree markdown that can seed a scenario proposal."""
@@ -611,6 +960,11 @@ def load_proposal(proposal_dir: Path) -> Proposal:
         inputs=raw.get("inputs"),
         injected_spec=raw.get("injected_spec"),
         exemplar=raw.get("exemplar"),
+        category=raw.get("category"),
+        scenario=raw.get("scenario"),
+        difficulty=raw.get("difficulty"),
+        provenance=raw.get("provenance"),
+        axes=raw.get("axes"),
     )
 
 class StructuralControlRunner:
@@ -888,6 +1242,13 @@ def sample_meta_spec(
             "summary": f"Task targeting CRAFT gap {facets['verifier_type']}",
             "seed_class": "craft-gap",
             "target_facets": {name: facets[name] for name in GAP_AXES},
+            "provenance": "craft-gap",
+            "axes": {
+                "category": "data-processing",
+                "scenario": "structured-pipeline",
+                "difficulty": "medium",
+                "target_facets": {name: facets[name] for name in GAP_AXES},
+            },
         }
     if seed == "scenario":
         scenario = resolve_scenario(repo_root, ref)
@@ -900,6 +1261,12 @@ def sample_meta_spec(
             "summary": f"Task seeded from {scenario.name}",
             "seed_class": "scenario",
             "scenario_path": _repo_relative(scenario, repo_root),
+            "provenance": "scenario",
+            "axes": {
+                "category": "data-processing",
+                "scenario": scenario.stem,
+                "difficulty": "medium",
+            },
         }
     source = resolve_registered_task(repo_root, ref)
     return {
@@ -911,6 +1278,12 @@ def sample_meta_spec(
         "summary": f"Mutation of {source.name}",
         "seed_class": "mutation",
         "ref_task": source.name,
+        "provenance": "mutation",
+        "axes": {
+            "category": "data-processing",
+            "scenario": "mutation",
+            "difficulty": "medium",
+        },
     }
 
 
@@ -1500,6 +1873,24 @@ class AuthoringPipeline:
             raise ProposalNotFoundError(f"proposal {proposal_id!r} is not in {self.quarantine}")
         return load_proposal(path)
 
+    def sample_specs(
+        self,
+        count: int = 20,
+        *,
+        seed: int = 42,
+        novel_designer: Callable[[str, str], dict[str, Any]] | None = None,
+        novel_count: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Sample specifications coverage-first via sample_spec_batch (SG-2)."""
+        return sample_spec_batch(
+            self.repo_root,
+            count=count,
+            derived_root=self.derived_root,
+            seed=seed,
+            novel_designer=novel_designer,
+            novel_count=novel_count,
+        )
+
     @overload
     def propose(
         self,
@@ -1743,6 +2134,12 @@ class AuthoringPipeline:
                     "digest": None,
                 }
             )
+        category = spec_data.get("category") if spec_data else None
+        scenario = spec_data.get("scenario") if spec_data else None
+        difficulty = spec_data.get("difficulty") if spec_data else None
+        axes = spec_data.get("axes") if spec_data else None
+        provenance = spec_data.get("provenance") if spec_data else None
+
         proposal = Proposal(
             proposal_id=proposal_id,
             seed_class=seed_class,
@@ -1755,6 +2152,11 @@ class AuthoringPipeline:
             inputs=inputs,
             injected_spec=spec_data,
             exemplar=exemplar_name,
+            category=category,
+            scenario=scenario,
+            difficulty=difficulty,
+            axes=axes,
+            provenance=provenance,
         )
         _atomic_write_json(destination / "proposal.json", proposal.manifest())
         upsert_ledger(
@@ -1918,6 +2320,15 @@ class AuthoringPipeline:
             version=new_version,
             source_path=_repo_relative(source, self.repo_root),
             source_digest=source_digest,
+            category="data-processing",
+            scenario="mutation",
+            difficulty="intermediate",
+            provenance="mutation",
+            axes={
+                "category": "data-processing",
+                "scenario": "mutation",
+                "difficulty": "intermediate",
+            },
             created_at=created,
         )
 
@@ -1954,6 +2365,15 @@ class AuthoringPipeline:
             outcome="proposed",
             version="0.1.0",
             scenario_path=relative,
+            category="data-processing",
+            scenario=scenario.stem,
+            difficulty="intermediate",
+            provenance="scenario",
+            axes={
+                "category": "data-processing",
+                "scenario": scenario.stem,
+                "difficulty": "intermediate",
+            },
             created_at=created,
         )
 
@@ -1988,6 +2408,16 @@ class AuthoringPipeline:
             outcome="proposed",
             version="0.1.0",
             target_facets={name: facets[name] for name in GAP_AXES},
+            category="data-processing",
+            scenario="structured-pipeline",
+            difficulty="intermediate",
+            provenance="craft-gap",
+            axes={
+                "category": "data-processing",
+                "scenario": "structured-pipeline",
+                "difficulty": "intermediate",
+                "target_facets": {name: facets[name] for name in GAP_AXES},
+            },
             created_at=created,
         )
 
@@ -2106,6 +2536,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     register.add_argument("proposal_id")
 
+    sample = subparsers.add_parser("sample", help="sample task specs coverage-first (SG-2)")
+    sample.add_argument("--count", type=int, default=20, help="number of specs to sample")
+    sample.add_argument("--seed", type=int, default=42, help="random seed for axis product")
+    sample.add_argument("--novel", type=int, default=0, help="number of novel specs to design")
     batch = subparsers.add_parser("batch", help="propose → battery → review; halt at the gate")
     batch.add_argument("--count", type=int, default=5)
     return parser
@@ -2133,6 +2567,38 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         pipeline = _pipeline_from_args(args)
+        if args.command == "sample":
+            specs = pipeline.sample_specs(
+                count=args.count,
+                seed=args.seed,
+                novel_count=args.novel,
+            )
+            gap_count = sum(1 for s in specs if s.get("provenance") == "craft-gap")
+            rand_count = sum(1 for s in specs if s.get("provenance") == "random-product")
+            nov_count = sum(1 for s in specs if s.get("provenance") == "novel-spec")
+            payload = {
+                "count": len(specs),
+                "craft_gap_count": gap_count,
+                "random_product_count": rand_count,
+                "novel_count": nov_count,
+                "specs": specs,
+            }
+            if args.json:
+                _emit(payload, as_json=True)
+            else:
+                pct = (gap_count / len(specs) * 100) if specs else 0.0
+                print(f"Sampled {len(specs)} specs (Coverage-First):")
+                print(f"  Craft-gap queries: {gap_count} ({pct:.1f}%)")
+                print(f"  Random axis product: {rand_count}")
+                if nov_count:
+                    print(f"  Novel specs: {nov_count}")
+                print("\nSpecs:")
+                for s in specs:
+                    print(
+                        f"  [{s.get('provenance')}] {s['name']} -> "
+                        f"({s['category']}, {s['scenario']}, {s['difficulty']})"
+                    )
+            return 0
         if args.command == "propose":
             if args.via_harbor:
                 custom_spec = (

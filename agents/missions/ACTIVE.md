@@ -10,6 +10,54 @@ integrator owns cross-mission conflict resolution, semantic review, rebase,
 fresh exact-head CI, merge, board transition, and worktree sunset. A review
 bot may advise later; it is never merge authority.
 
+## Night result: all five loops finished, all five PRs held on red CI
+
+29 cycles across five missions, every cycle committed and pushed. Nothing merged,
+because Actions has not run a single step since 06:15 UTC (see below). Each PR
+carries local proof; I independently re-verified the load-bearing claim of each
+rather than accepting its handoff.
+
+| PR | Mission | Cycles | What I verified myself |
+|---|---|---|---|
+| #117 | M015 AUDIT | 7 | Ledger is 17 CONFIRMED / 2 DRIFTED / 1 UNPROVEN with a full append-only correction chain |
+| #119 | M016 SURFACE | 6 | Zero-trial day renders "nothing ran" with no trial ids; reverting the guard fails 2 tests |
+| #121 | M017 CARDS | 5 | Five cards valid; validator rejects a card with either mandatory caveat stripped |
+| #118 | M018 FUZZ | 6 | Reintroducing PR #102's local-time bug fails the quota property suite |
+| #120 | M019 LESSONS | 5 | 18 powered findings vs 14 gated `insufficient n`; regeneration byte-identical |
+
+### The two findings worth reading first
+
+**`docs/STATUS.md` shipped confidently wrong, and I caught it before it became a
+habit.** Its "RECENT (Yesterday: 2026-08-17)" section listed five trials. The
+catalog holds **zero** trials for that date; the runs it named actually executed
+on 2026-08-13 and 2026-08-14. Cause: when the catalog legitimately returned
+nothing for the reporting day, `status_generator.py:175` fell back to an
+unfiltered all-time filesystem scan and printed it under yesterday's heading. An
+empty day is a real finding — "nothing ran" is true and useful — and substituting
+a different dataset for it is worse than rendering nothing, because it is
+confidently wrong in the one file meant to be read without a terminal. Now gated
+on catalog inaccessibility, labelled `trials_source`, and guarded by a test I
+verified bites.
+
+**`TrialConsumption.day` bucketed timezone-aware timestamps by local date** —
+PR #102's defect surviving in a second location, found by M018's property tests
+rather than by reading. Fixed in 7 lines. I confirmed the suite catches the
+regression by reintroducing it.
+
+### Where my own steering went wrong, recorded because it shaped the ledger
+
+I told M015 that a clean sweep of CONFIRMED verdicts across invisible-surface
+modules was suspicious. It responded by producing two DRIFTED rows claiming
+`storm.py` and `status_generator.py` were "not imported or called anywhere in
+`src/`" — refuted by one grep (`digest.py:29`, `status_generator.py:22`,
+`automation.py:34`). I had pushed toward a conclusion instead of toward a method;
+the corrected instruction was to establish unreachability by finding the absence
+of a caller. The ledger keeps all of it — original, wrong correction, and
+corrected correction — which is the right behaviour for an append-only record and
+more useful than a clean sheet. The salvaged finding is sharper than either
+verdict: `status_generator` was **wired but never run**, since nothing loads the
+nightly schedule.
+
 ## BLOCKED: CI is not running — no loop PR can be merged
 
 **Every pull-request workflow run since roughly 07:08 UTC fails in 2–3 seconds with

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Protocol
 
 import lancedb
+import pyarrow.parquet as pq
 from lancedb.index import IvfPq
 
 from evallab.attach import attach
@@ -34,7 +35,7 @@ MIN_ROWS_FOR_ANN = 1000
 """Minimum rows to attempt ANN index.
 Below this, exact brute-force search is used (correct and fast at current corpus sizes;
 avoids LanceDB "dataset too small" and empty-cluster warnings). Applied uniformly to
-tasks, trials, steps so policy is consistent.
+tasks, trials, steps, analyses so policy is consistent.
 """
 
 
@@ -407,6 +408,130 @@ def _build_steps(
     return n_rows, None, index_reason
 
 
+def _build_analyses(
+    embedder: Embedder,
+    root: Path,
+) -> tuple[int, str | None, str | None]:
+    repo = repository_root()
+    derived = derived_root_from_environment(repo)
+    analyses_parquet = derived / "analyses" / "analyses.parquet"
+    if not analyses_parquet.is_file() and (derived / "parquet" / "analyses" / "analyses.parquet").is_file():
+        analyses_parquet = derived / "parquet" / "analyses" / "analyses.parquet"
+
+    if not analyses_parquet.is_file():
+        return 0, f"analyses.parquet not found ({analyses_parquet})", None
+
+    try:
+        tbl_pq = pq.read_table(analyses_parquet)
+        raw_rows = tbl_pq.to_pylist()
+    except Exception as e:
+        return 0, f"error reading analyses.parquet: {e} ({analyses_parquet})", None
+
+    if not raw_rows:
+        return 0, f"no analyses rows ({analyses_parquet})", None
+
+    trial_to_job: dict[str, str] = {}
+    att = attach(repo_root=repo)
+    try:
+        z3 = next((z for z in att.zones if z.name == "z3"), None)
+        if z3 and z3.attached:
+            try:
+                cur = att.connection.execute("SELECT trial_id, job_id FROM trial_facts")
+                for r in cur.fetchall():
+                    if r[0] and r[1]:
+                        trial_to_job[str(r[0])] = str(r[1])
+            except Exception:
+                pass
+    finally:
+        att.connection.close()
+
+    analysis_dir = repo / "research/analysis"
+    rows: list[dict] = []
+    texts: list[str] = []
+    skipped: list[str] = []
+
+    for row in raw_rows:
+        analysis_id = str(row.get("analysis_id") or "").strip()
+        trial_id = str(row.get("trial_id") or "").strip()
+        job_id = str(row.get("job_id") or trial_to_job.get(trial_id) or "").strip()
+        model = str(row.get("model") or "").strip()
+        category = str(row.get("category") or "").strip()
+        created_at = str(row.get("created_at") or "").strip()
+        conclusion = str(
+            row.get("conclusion")
+            or row.get("summary")
+            or row.get("text")
+            or ""
+        ).strip()
+
+        if not conclusion or not job_id:
+            json_path = analysis_dir / f"{analysis_id}.json"
+            if json_path.is_file():
+                try:
+                    j_data = json.loads(json_path.read_text(encoding="utf-8"))
+                    if isinstance(j_data, dict):
+                        if not conclusion:
+                            conclusion = str(
+                                j_data.get("summary")
+                                or j_data.get("conclusion")
+                                or j_data.get("text")
+                                or ""
+                            ).strip()
+                        if not job_id:
+                            job_id = str(
+                                j_data.get("job_id")
+                                or trial_to_job.get(trial_id)
+                                or ""
+                            ).strip()
+                except Exception:
+                    pass
+
+        if not analysis_id or not trial_id or not job_id or not model or not created_at or not conclusion:
+            skipped.append(analysis_id or "unknown")
+            continue
+
+        rows.append(
+            {
+                "analysis_id": analysis_id,
+                "trial_id": trial_id,
+                "job_id": job_id,
+                "model": model,
+                "category": category,
+                "created_at": created_at,
+                "conclusion": conclusion,
+                "vector": None,
+            }
+        )
+        texts.append(conclusion)
+
+    if not texts:
+        reason = f"no valid analyses rows ({analyses_parquet})"
+        if skipped:
+            reason = f"skipped {len(skipped)} invalid analyses (e.g. {skipped[0]})"
+        return 0, reason, None
+
+    vectors = embedder.embed(texts)
+    for i, v in enumerate(vectors):
+        rows[i]["vector"] = v
+    db = lancedb.connect(str(root))
+    tbl = db.create_table("analyses", data=rows, mode="overwrite")
+    index_reason: str | None = None
+    n_rows = len(rows)
+    if n_rows < MIN_ROWS_FOR_ANN:
+        index_reason = "too few rows for ANN index (exact brute-force search)"
+    else:
+        try:
+            tbl.create_index("vector", config=IvfPq(distance_type="cosine"))
+        except RuntimeError as e:
+            if "Not enough rows to train" in str(e):
+                index_reason = "too few rows for ANN index (exact brute-force search)"
+            else:
+                raise
+        except Exception:
+            raise
+    return n_rows, None, index_reason
+
+
 def build(table: str = "all", runs_root: Path | None = None) -> None:
     embedder: Embedder = HashingEmbedder()
     root = _lance_root()
@@ -440,6 +565,16 @@ def build(table: str = "all", runs_root: Path | None = None) -> None:
                 print(f"steps index: skipped ({idx_reason})")
             else:
                 print("steps index: created")
+    if table in ("analyses", "all"):
+        n, reason, idx_reason = _build_analyses(embedder, root)
+        if reason:
+            print(f"analyses: skipped ({reason})")
+        else:
+            print(f"analyses: {n} rows")
+            if idx_reason:
+                print(f"analyses index: skipped ({idx_reason})")
+            else:
+                print("analyses index: created")
 
 
 def search(query: str, table: str = "tasks", k: int = 5) -> None:
@@ -463,11 +598,16 @@ def search(query: str, table: str = "tasks", k: int = 5) -> None:
         cols = {k: v for k, v in r.items() if k != "vector"}
         print(f"dist={dist:.4f} {cols}")
 
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="evallab.lance")
     sub = parser.add_subparsers(dest="cmd", required=True)
     bp = sub.add_parser("build", help="build or refresh tables")
-    bp.add_argument("--table", choices=["tasks", "trials", "steps", "all"], default="all")
+    bp.add_argument(
+        "--table",
+        choices=["tasks", "trials", "steps", "analyses", "all"],
+        default="all",
+    )
     bp.add_argument(
         "--runs-root",
         type=Path,
@@ -479,7 +619,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     sp = sub.add_parser("search", help="nearest neighbour search")
     sp.add_argument("query")
-    sp.add_argument("--table", default="tasks")
+    sp.add_argument(
+        "--table",
+        choices=["tasks", "trials", "steps", "analyses"],
+        default="tasks",
+    )
     sp.add_argument("--k", type=int, default=5)
     args = parser.parse_args(argv)
     if args.cmd == "build":

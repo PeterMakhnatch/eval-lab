@@ -199,7 +199,7 @@ def test_search_returns_planted_nearest(tmp_path, monkeypatch):
     f2 = io.StringIO()
     with contextlib.redirect_stdout(f2):
         search("task", "tasks", 3)
-    out = f2.getvalue()
+    out2 = f2.getvalue()
     assert "task_ref" in out or "dist=" in out or "table tasks not found" in out
 
 
@@ -230,6 +230,11 @@ def test_build_reports_index_status_per_table(tmp_path, monkeypatch):
         "trials: skipped" in out
         or "trials index: skipped" in out
         or "trials index: created" in out
+    )
+    assert (
+        "analyses: skipped" in out
+        or "analyses index: skipped" in out
+        or "analyses index: created" in out
     )
 
 
@@ -566,3 +571,274 @@ def test_index_decision_same_for_all_tables_at_row_count(tmp_path, monkeypatch):
     assert "tasks " + skip_msg in out
     assert "trials " + skip_msg in out
     assert "steps " + skip_msg in out
+
+
+def test_build_analyses_from_fixture_and_search(tmp_path, monkeypatch):
+    """Fixture with analyses.parquet + research/analysis/ JSON conclusions.
+    Asserts analyses table has correct row count and columns, and query hits the matching conclusion.
+    """
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    # Attach surface: trial_facts.parquet with job_id mapping
+    parquet_dir = derived / "job_id=job1" / "trial_id=trial1"
+    parquet_dir.mkdir(parents=True)
+    tf_schema = pa.schema([
+        ("job_id", pa.string()),
+        ("trial_id", pa.string()),
+        ("job_name", pa.string()),
+        ("trial_name", pa.string()),
+        ("task_name", pa.string()),
+    ])
+    tf_data = [
+        {"job_id": "job1", "trial_id": "trial1", "job_name": "j1", "trial_name": "t1", "task_name": "html-filter"},
+        {"job_id": "job2", "trial_id": "trial2", "job_name": "j2", "trial_name": "t2", "task_name": "math-eval"},
+    ]
+    pq.write_table(pa.Table.from_pylist(tf_data, schema=tf_schema), parquet_dir / "trial_facts.parquet")
+
+    # Analyses Parquet
+    analyses_dir = derived / "analyses"
+    analyses_dir.mkdir(parents=True)
+    analyses_parquet = analyses_dir / "analyses.parquet"
+    rec_schema = pa.schema([
+        ("analysis_id", pa.string()),
+        ("trial_id", pa.string()),
+        ("rubric_digest", pa.string()),
+        ("model", pa.string()),
+        ("category", pa.string()),
+        ("evidence_count", pa.int64()),
+        ("confidence_level", pa.string()),
+        ("confidence_n", pa.int64()),
+        ("confidence_interval_low", pa.float64()),
+        ("confidence_interval_high", pa.float64()),
+        ("confidence_provenance", pa.string()),
+        ("created_at", pa.string()),
+    ])
+    rec_data = [
+        {
+            "analysis_id": "01M01ANALYSIS11111111111111",
+            "trial_id": "trial1",
+            "rubric_digest": "sha256:abc",
+            "model": "stub-analyst",
+            "category": "regex_miscompilation",
+            "evidence_count": 2,
+            "confidence_level": "high",
+            "confidence_n": 10,
+            "confidence_interval_low": 0.8,
+            "confidence_interval_high": 0.95,
+            "confidence_provenance": "sha256:prov1",
+            "created_at": "2026-08-18T12:00:00Z",
+        },
+        {
+            "analysis_id": "01M02ANALYSIS22222222222222",
+            "trial_id": "trial2",
+            "rubric_digest": "sha256:def",
+            "model": "stub-analyst",
+            "category": "syntax_error",
+            "evidence_count": 1,
+            "confidence_level": "medium",
+            "confidence_n": 5,
+            "confidence_interval_low": 0.5,
+            "confidence_interval_high": 0.7,
+            "confidence_provenance": "sha256:prov2",
+            "created_at": "2026-08-18T13:00:00Z",
+        },
+    ]
+    pq.write_table(pa.Table.from_pylist(rec_data, schema=rec_schema), analyses_parquet)
+
+    # JSON conclusions in research/analysis/
+    analysis_json_dir = tmp_path / "research" / "analysis"
+    analysis_json_dir.mkdir(parents=True)
+    c1 = {
+        "analysis_id": "01M01ANALYSIS11111111111111",
+        "trial_id": "trial1",
+        "summary": "The agent failed to strip JavaScript script tags properly from HTML document.",
+        "created_at": "2026-08-18T12:00:00Z",
+    }
+    c2 = {
+        "analysis_id": "01M02ANALYSIS22222222222222",
+        "trial_id": "trial2",
+        "summary": "The model suffered a division by zero error in arithmetic parser.",
+        "created_at": "2026-08-18T13:00:00Z",
+    }
+    (analysis_json_dir / "01M01ANALYSIS11111111111111.json").write_text(json.dumps(c1))
+    (analysis_json_dir / "01M02ANALYSIS22222222222222.json").write_text(json.dumps(c2))
+
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("analyses")
+    out = f.getvalue()
+    assert "analyses: 2 rows" in out
+
+    # Verify columns and data in LanceDB
+    import lancedb
+    db = lancedb.connect(str(derived / "lance"))
+    tbl = db.open_table("analyses")
+    arrow_tbl = tbl.to_arrow()
+    col_names = set(arrow_tbl.column_names)
+    expected_cols = {"analysis_id", "trial_id", "job_id", "model", "category", "created_at", "conclusion", "vector"}
+    assert expected_cols.issubset(col_names)
+    rows = tbl.to_list()
+    assert len(rows) == 2
+    row1 = next(r for r in rows if r["analysis_id"] == "01M01ANALYSIS11111111111111")
+    assert row1["job_id"] == "job1"
+    assert row1["trial_id"] == "trial1"
+    assert row1["model"] == "stub-analyst"
+    assert "JavaScript script tags" in row1["conclusion"]
+
+    # Test nearest neighbour search
+    f2 = io.StringIO()
+    with contextlib.redirect_stdout(f2):
+        search("strip javascript script tags html", table="analyses", k=2)
+    out2 = f2.getvalue()
+    result_lines = [line for line in out2.splitlines() if line.startswith("dist=")]
+    assert len(result_lines) == 2
+    assert "01M01ANALYSIS11111111111111" in result_lines[0]
+
+
+def test_build_analyses_idempotent(tmp_path, monkeypatch):
+    """Rebuild of analyses table must be idempotent without row duplication."""
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    parquet_dir = derived / "job_id=j1" / "trial_id=t1"
+    parquet_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "j1", "trial_id": "t1"}], schema=pa.schema([("job_id", pa.string()), ("trial_id", pa.string())])),
+        parquet_dir / "trial_facts.parquet"
+    )
+
+    analyses_dir = derived / "analyses"
+    analyses_dir.mkdir(parents=True)
+    rec_schema = pa.schema([
+        ("analysis_id", pa.string()),
+        ("trial_id", pa.string()),
+        ("model", pa.string()),
+        ("category", pa.string()),
+        ("created_at", pa.string()),
+    ])
+    rec_data = [{
+        "analysis_id": "01M01A",
+        "trial_id": "t1",
+        "model": "m1",
+        "category": "cat1",
+        "created_at": "2026-08-18T10:00:00Z",
+    }]
+    pq.write_table(pa.Table.from_pylist(rec_data, schema=rec_schema), analyses_dir / "analyses.parquet")
+
+    analysis_json_dir = tmp_path / "research" / "analysis"
+    analysis_json_dir.mkdir(parents=True)
+    (analysis_json_dir / "01M01A.json").write_text(json.dumps({
+        "analysis_id": "01M01A",
+        "summary": "Conclusion statement",
+        "created_at": "2026-08-18T10:00:00Z",
+    }))
+
+    f1 = io.StringIO()
+    with contextlib.redirect_stdout(f1):
+        build("analyses")
+    assert "analyses: 1 rows" in f1.getvalue()
+
+    f2 = io.StringIO()
+    with contextlib.redirect_stdout(f2):
+        build("analyses")
+    assert "analyses: 1 rows" in f2.getvalue()
+
+    import lancedb
+    db = lancedb.connect(str(derived / "lance"))
+    tbl = db.open_table("analyses")
+    assert len(tbl.to_arrow()) == 1
+
+
+def test_build_analyses_skips_missing_required_identity_fields(tmp_path, monkeypatch):
+    """Rows missing required identity fields (analysis_id, trial_id, job_id, model, created_at, conclusion)
+    must be skipped rather than being silently indexed as empty."""
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    parquet_dir = derived / "job_id=j1" / "trial_id=t1"
+    parquet_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "j1", "trial_id": "t1"}], schema=pa.schema([("job_id", pa.string()), ("trial_id", pa.string())])),
+        parquet_dir / "trial_facts.parquet"
+    )
+
+    analyses_dir = derived / "analyses"
+    analyses_dir.mkdir(parents=True)
+    rec_schema = pa.schema([
+        ("analysis_id", pa.string()),
+        ("trial_id", pa.string()),
+        ("model", pa.string()),
+        ("category", pa.string()),
+        ("created_at", pa.string()),
+    ])
+    rec_data = [
+        # Valid row
+        {"analysis_id": "A_VALID", "trial_id": "t1", "model": "m1", "category": "cat1", "created_at": "2026-08-18T10:00:00Z"},
+        # Missing analysis_id
+        {"analysis_id": "", "trial_id": "t1", "model": "m1", "category": "cat1", "created_at": "2026-08-18T10:00:00Z"},
+        # Missing trial_id
+        {"analysis_id": "A_NOTRIAL", "trial_id": "", "model": "m1", "category": "cat1", "created_at": "2026-08-18T10:00:00Z"},
+        # Missing job_id (trial t_unknown has no mapping in trial_facts)
+        {"analysis_id": "A_NOJOB", "trial_id": "t_unknown", "model": "m1", "category": "cat1", "created_at": "2026-08-18T10:00:00Z"},
+        # Missing model
+        {"analysis_id": "A_NOMODEL", "trial_id": "t1", "model": "", "category": "cat1", "created_at": "2026-08-18T10:00:00Z"},
+        # Missing created_at
+        {"analysis_id": "A_NOTIME", "trial_id": "t1", "model": "m1", "category": "cat1", "created_at": ""},
+        # Missing conclusion (no JSON file created)
+        {"analysis_id": "A_NOCONCL", "trial_id": "t1", "model": "m1", "category": "cat1", "created_at": "2026-08-18T10:00:00Z"},
+    ]
+    pq.write_table(pa.Table.from_pylist(rec_data, schema=rec_schema), analyses_dir / "analyses.parquet")
+
+    analysis_json_dir = tmp_path / "research" / "analysis"
+    analysis_json_dir.mkdir(parents=True)
+    # Only write JSON for the valid row and those testing specific field failures
+    for a_id in ["A_VALID", "A_NOTRIAL", "A_NOJOB", "A_NOMODEL", "A_NOTIME"]:
+        (analysis_json_dir / f"{a_id}.json").write_text(json.dumps({
+            "analysis_id": a_id,
+            "summary": "Valid conclusion text.",
+            "created_at": "2026-08-18T10:00:00Z",
+        }))
+
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("analyses")
+    out = f.getvalue()
+    assert "analyses: 1 rows" in out
+
+    import lancedb
+    db = lancedb.connect(str(derived / "lance"))
+    tbl = db.open_table("analyses")
+    rows = tbl.to_list()
+    assert len(rows) == 1
+    assert rows[0]["analysis_id"] == "A_VALID"
+    assert rows[0]["job_id"] == "j1"
+    assert rows[0]["trial_id"] == "t1"
+    assert rows[0]["model"] == "m1"
+    assert rows[0]["created_at"] == "2026-08-18T10:00:00Z"
+    assert rows[0]["conclusion"] == "Valid conclusion text."
+
+
+def test_build_analyses_skipped_when_source_missing(tmp_path, monkeypatch):
+    """When analyses.parquet is missing, table build is skipped with exact path reported."""
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("analyses")
+    out = f.getvalue()
+    assert "analyses: skipped" in out
+    assert str(derived / "analyses" / "analyses.parquet") in out

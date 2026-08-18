@@ -22,6 +22,8 @@ inputs:
     digest: sha256:6e654e000adaf18a79a3e88b89c0fbc559a116908c92f3e4c55df79d5bad64dd
   - path: docs/authoring.md
     digest: sha256:75cfa759d3ce4e89e7254823eb19d00c9501aad757da23a48e77a36f8408b9e6
+  - path: docs/behavior-analysis.md
+    digest: sha256:100d45ccc9f3b0dfa046f04c77973a523133dec810d4fb2f236001fdfda9629f
   - path: docs/build-plan.md
     digest: sha256:4a70d5a356561eab053ffe7e14f6bb5fd8fed0256b9e81edddb500183697bee7
   - path: docs/canaries.md
@@ -77,7 +79,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:1a7d55833c1312088f018a4b311e9475f578743918f9d03da44c9b1e81555a6f
+    digest: sha256:e21cff93e2cf2979c58f072dc4adb5fb55f15570e34582ea2dcbd8825ceab7df
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md
@@ -126,6 +128,7 @@ an operator can see what is archived.
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
+| `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
@@ -164,6 +167,7 @@ an operator can see what is archived.
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
+| `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |

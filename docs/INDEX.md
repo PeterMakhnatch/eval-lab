@@ -75,7 +75,7 @@ inputs:
   - path: docs/path-forward-2026-08.md
     digest: sha256:7d962f12c5de2135a0ebef6e656dac17938ed75e76f73a4f8d1fd9ea286e8b0e
   - path: docs/platform-architecture.md
-    digest: sha256:4b952446b2262f9d2c007aab7f9e6ba05b804cf113f67b762d05aaca2ad6ee8a
+    digest: sha256:166e17d55026c2573eee829c4f46c7c25d64f8fdd4c0c5bddac8d9c458f75917
   - path: docs/quality.md
     digest: sha256:1784282f5ff9458d074e1418804c6b21ba68d5c9c57f1955dbe8a6abb107c2a6
   - path: docs/quota-accounting.md

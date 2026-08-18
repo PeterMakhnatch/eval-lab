@@ -1,6 +1,9 @@
 """Property-based state machine fuzz for DirectoryQueue and Executor using Hypothesis."""
 
+import os
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 from hypothesis import given, settings
@@ -495,3 +498,256 @@ def test_property_quota_never_exceeded_mid_tick(costs: list[float]) -> None:
                 reason_path = root / "queue" / "reasons" / f"{ws.spec_id}.json"
                 if reason_path.is_file():
                     assert "daily_spend_limit" in reason_path.read_text()
+
+
+# --- M020: Lease and Parallel Concurrency Properties ---
+
+
+@given(
+    st.lists(
+        st.tuples(
+            st.sampled_from(["oracle", "nop"]),
+            st.integers(min_value=1, max_value=50),
+        ),
+        min_size=2,
+        max_size=12,
+    )
+)
+@settings(max_examples=40, deadline=None)
+def test_property_two_concurrent_ticks_never_dispatch_the_same_spec_twice(
+    specs_data: list[tuple[str, int]],
+) -> None:
+    """Two or more concurrent workers racing to claim specs never dispatch any spec twice."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        queue = DirectoryQueue(root / "queue")
+        gate = PolicyGate(policy())
+
+        for i, (agent, priority) in enumerate(specs_data):
+            s = spec(f"conc-spec-{i}", agent=agent, priority=priority)
+            queue.submit(s, gate=gate, spent_today_usd=0.0)
+
+        dispatched_runs: list[str] = []
+        lock = threading.Lock()
+
+        def tracking_runner(req: RunRequest) -> Path:
+            with lock:
+                dispatched_runs.append(req.name)
+            time.sleep(0.01)
+            dest = req.jobs_dir / req.name
+            dest.mkdir(parents=True, exist_ok=True)
+            return dest
+
+        exec_service = Executor(
+            repo_root=root,
+            queue=queue,
+            policy=policy(),
+            runner=tracking_runner,
+            ingester=lambda _p: None,
+            spent_today=lambda: 0.0,
+            consecutive_harness_failures=lambda: 0,
+            credential_probe=lambda: frozenset({"claude_oauth", "codex_auth"}),
+            sleeper=lambda _s: None,
+        )
+
+        # Dispatch with parallel workers
+        total_dispatched = exec_service.tick(parallel=4)
+
+        # Invariant 1: No duplicate dispatches
+        assert len(dispatched_runs) == len(set(dispatched_runs)), (
+            f"Duplicate dispatch detected: {dispatched_runs}"
+        )
+        assert total_dispatched == len(specs_data)
+        assert len(queue.list_specs("done")) == len(specs_data)
+        assert len(queue.list_leases()) == 0
+
+
+@given(
+    st.integers(min_value=2, max_value=8),
+)
+@settings(max_examples=30, deadline=None)
+def test_property_lost_claim_race_tolerated_silently(num_racers: int) -> None:
+    """When multiple threads race to claim the same spec, exactly one wins."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        queue = DirectoryQueue(root / "queue")
+        gate = PolicyGate(policy())
+
+        s = spec("single-contested-spec", agent="oracle")
+        dest, _ = queue.submit(s, gate=gate, spent_today_usd=0.0)
+        loaded_spec = queue.load(dest)
+
+        auths = queue.authorizations()
+        creds = frozenset({"claude_oauth", "codex_auth"})
+        lock = threading.Lock()
+
+        exec_service = Executor(
+            repo_root=root,
+            queue=queue,
+            policy=policy(),
+            runner=lambda req: req.jobs_dir / req.name,
+            ingester=lambda _p: None,
+            spent_today=lambda: 0.0,
+            consecutive_harness_failures=lambda: 0,
+            credential_probe=lambda: creds,
+            sleeper=lambda _s: None,
+        )
+
+        results: list[bool] = []
+        errors: list[Exception] = []
+
+        def race_claim() -> None:
+            try:
+                outcome = exec_service._dispatch_one(dest, loaded_spec, auths, creds)
+                with lock:
+                    results.append(outcome)
+            except Exception as exc:
+                with lock:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=race_claim) for _ in range(num_racers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Invariant: No crashes, no unhandled exceptions
+        assert errors == [], f"Exceptions raised during claim race: {errors}"
+        # Exactly one thread claimed and dispatched the spec
+        assert results.count(True) == 1
+        assert results.count(False) == num_racers - 1
+
+
+@given(
+    st.lists(
+        st.tuples(
+            st.sampled_from(["oracle", "nop"]),
+            st.integers(min_value=1, max_value=100),
+        ),
+        min_size=1,
+        max_size=8,
+    )
+)
+@settings(max_examples=40, deadline=None)
+def test_property_parallel_1_matches_single_threaded_behavior(
+    specs_data: list[tuple[str, int]],
+) -> None:
+    """--parallel 1 is identical in ordering and outcome to single-threaded dispatch."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        queue = DirectoryQueue(root / "queue")
+        gate = PolicyGate(policy())
+
+        for i, (agent, priority) in enumerate(specs_data):
+            s = spec(f"comp-spec-{i}", agent=agent, priority=priority)
+            queue.submit(s, gate=gate, spent_today_usd=0.0)
+
+        dispatch_order: list[str] = []
+
+        def runner(req: RunRequest) -> Path:
+            dispatch_order.append(req.name)
+            dest = req.jobs_dir / req.name
+            dest.mkdir(parents=True, exist_ok=True)
+            return dest
+
+        exec_service = Executor(
+            repo_root=root,
+            queue=queue,
+            policy=policy(),
+            runner=runner,
+            ingester=lambda _p: None,
+            spent_today=lambda: 0.0,
+            consecutive_harness_failures=lambda: 0,
+            credential_probe=lambda: frozenset({"claude_oauth", "codex_auth"}),
+            sleeper=lambda _s: None,
+            parallel=1,
+        )
+
+        expected_order = [s.name for _, s in queue.list_specs("approved")]
+        dispatched = exec_service.tick()
+
+        assert dispatched == len(specs_data)
+        assert dispatch_order == expected_order, (
+            f"parallel=1 dispatch order {dispatch_order} diverged from expected {expected_order}"
+        )
+        assert len(queue.list_specs("done")) == len(specs_data)
+        assert len(queue.list_leases()) == 0
+
+
+@given(
+    st.lists(
+        st.sampled_from(["oracle", "nop"]),
+        min_size=1,
+        max_size=6,
+    ),
+    st.floats(min_value=305.0, max_value=600.0),
+)
+@settings(max_examples=30, deadline=None)
+def test_property_stale_lease_never_permanently_blocks_spec(
+    agents: list[str],
+    stale_age: float,
+) -> None:
+    """A stale lease left by a crashed executor is reclaimed and never permanently blocks a spec."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        queue = DirectoryQueue(root / "queue")
+        gate = PolicyGate(policy())
+
+        for i, agent in enumerate(agents):
+            s = spec(f"stale-spec-{i}", agent=agent)
+            dest, _ = queue.submit(s, gate=gate, spent_today_usd=0.0)
+            loaded = queue.load(dest)
+            # Create a stale lease for this spec
+            lease_path = queue.acquire_lease(loaded)
+            assert lease_path is not None
+            past = time.time() - stale_age
+            os.utime(lease_path, (past, past))
+            assert queue.is_lease_stale(lease_path, stale_seconds=300.0) is True
+
+        exec_service = Executor(
+            repo_root=root,
+            queue=queue,
+            policy=policy(),
+            runner=lambda req: req.jobs_dir / req.name,
+            ingester=lambda _p: None,
+            spent_today=lambda: 0.0,
+            consecutive_harness_failures=lambda: 0,
+            credential_probe=lambda: frozenset({"claude_oauth", "codex_auth"}),
+            sleeper=lambda _s: None,
+        )
+
+        # Tick should reclaim all stale leases and dispatch all specs
+        dispatched = exec_service.tick(parallel=len(agents))
+        assert dispatched == len(agents)
+        assert len(queue.list_specs("done")) == len(agents)
+        assert len(queue.list_leases()) == 0
+
+
+@given(
+    st.integers(min_value=2, max_value=8),
+)
+@settings(max_examples=30, deadline=None)
+def test_property_concurrent_lease_acquire_is_strictly_exclusive(num_racers: int) -> None:
+    """Atomic O_EXCL lease acquisition guarantees exactly one caller succeeds when N race."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        queue = DirectoryQueue(Path(tmpdir) / "queue")
+        s = spec("exclusive-lease-spec")
+        results: list[Path | None] = []
+        lock = threading.Lock()
+
+        def do_acquire() -> None:
+            res = queue.acquire_lease(s)
+            with lock:
+                results.append(res)
+
+        threads = [threading.Thread(target=do_acquire) for _ in range(num_racers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        successes = [r for r in results if r is not None]
+        assert len(successes) == 1, (
+            f"Expected exactly 1 successful claim among {num_racers} racers, got {len(successes)}"
+        )
+        assert results.count(None) == num_racers - 1

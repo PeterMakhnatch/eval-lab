@@ -3059,6 +3059,20 @@
         "nargs": 0,
         "required": false,
         "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 1,
+        "dest": "parallel",
+        "flags": [
+          "--parallel"
+        ],
+        "help": "Bounded parallel dispatch worker count (default: 1)",
+        "metavar": "N",
+        "nargs": null,
+        "required": false,
+        "type": "int"
       }
     ]
   },

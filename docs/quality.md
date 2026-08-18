@@ -45,3 +45,9 @@ A test needing corpus-shaped data builds a fixture at the real layout and inject
 A test that genuinely requires the real corpus must `skipif` with a reason naming the missing path.
 
 A test that passes only on the author's machine is a test that does not exist.
+
+## Catalog isolation
+
+Tests never write to the live catalog; anything needing a real database creates and drops an isolated one.
+
+A test session needing PostgreSQL derives an isolated database or schema from the active `DATABASE_URL`, initializes required schema objects, and drops the isolated target on teardown so live tables remain byte-for-byte untouched.

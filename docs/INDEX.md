@@ -83,7 +83,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:b91dc2d4a3cf35ef2cef67fa1143952d31193a25dc1e8dc2ac6be78017a9954c
+    digest: sha256:a0b9b03deeefa1aa3dceb747d7aa59fbaab8abacd36c769d9fcaa43be4767b62
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md
@@ -149,6 +149,7 @@ an operator can see what is archived.
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `living` | `builder, analyst, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
+| `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
@@ -191,6 +192,7 @@ an operator can see what is archived.
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `living` | `builder, analyst, operator` |
+| `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
@@ -227,6 +229,7 @@ an operator can see what is archived.
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
+| `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
 
@@ -267,6 +270,7 @@ an operator can see what is archived.
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `living` | `builder, analyst, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
+| `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |

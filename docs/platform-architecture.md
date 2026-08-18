@@ -453,7 +453,8 @@ RL/post-training consumes the last three seams; nothing upstream changes.
 | `dashboard/` | rebind all panes to attach surface | E13 | shipped |
 | `lineage.py` | artifact lineage walker CLI | E14 | shipped |
 | `tidy.py` | working tree tidy sweep CLI | E16 | shipped |
-| `behavior.py`/`sql` | behavioral analysis views + metrics | E18 | shipped |
+| `.claude/skills/` | repo-local skills: lab-status, mission-launch, review | E18 | shipped |
+| `behavior.py`/`sql` | behavioral analysis views + metrics | — | shipped |
 | `authoring.py`/`calibrate.py` | meta-task loop, spec sampler, inversion, selector | SG-1..4 | shipped |
 | `lance.py` | LanceDB vector store beside DuckDB | — | shipped |
 | `verdicts.py` / CLI | verdict recording, history, and queries | E-verdict | shipped |
@@ -488,8 +489,9 @@ sprawl (board check + T7), single machine (backups now, StorageBackend at gate).
   attach flags (--print-sql) and in-memory Z4 front-matter table, §3.1 Harbor
   Docker Compose container labels, §5 record-oriented cohort statistics API,
   §7 qualification ledger path in derived/, §13 lance vector store trigger
-  status, and §10/§12 epic completion states (E00, E02, E04, E05, E11, E12, E13,
-  E14, E16, E18, SG-1..4 shipped).
+  status, §10/§12 epic completion states (E00, E02, E04, E05, E11, E12, E13,
+  E14, E16, E18, SG-1..4 shipped), and restored E18 mapping to repo-local skills
+  under `.claude/skills/` (with `behavior.py` placed outside the epic list).
 - 2026-08-17 — v2: full per-plane elaboration in Current→Contracts→Deltas→
   Edge-cases form, grounded in the shipped 33k-line codebase; migration
   map added (Claude, at Peter's direction).

@@ -811,7 +811,7 @@ def parse_discoveries_awaiting_verdicts(
         verdicts = list_current_verdicts_from_catalog(database_url)
         for v in verdicts:
             decided_statuses[v.discovery_id] = v.status
-    except Exception:
+    except (Exception, SystemExit):
         pass
 
     try:

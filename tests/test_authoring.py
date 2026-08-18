@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,11 +22,6 @@ from evallab.authoring import (
     RegisterRefusal,
     StructuralControlRunner,
     bump_version,
-    check_no_answer_leakage,
-    check_oracle_solution_runs,
-    check_package_structure,
-    check_task_completeness,
-    check_task_tests_pass,
     find_craft_gap,
     generate_stub_task,
     load_ledger,
@@ -35,6 +31,19 @@ from evallab.authoring import (
     write_ledger,
 )
 from evallab.lineage import resolve_lineage
+
+# Completeness checker from meta-task package
+_checker_dir = Path(__file__).resolve().parent.parent / "library/meta/synthesize-task@1/tests"
+if str(_checker_dir) not in sys.path:
+    sys.path.insert(0, str(_checker_dir))
+
+from completeness_checker import (  # noqa: E402
+    check_no_answer_leakage,
+    check_oracle_solution_runs,
+    check_package_structure,
+    check_task_completeness,
+    check_task_tests_pass,
+)
 
 FIXED_NOW = datetime(2026, 8, 16, 12, 0, tzinfo=UTC)
 
@@ -527,20 +536,99 @@ def test_completeness_checker_rejects_failing_task_tests(tmp_path: Path) -> None
     assert overall["checks"]["task_tests_pass"]["passed"] is False
 
 
-def test_completeness_checker_rejects_planted_answer_leak(tmp_path: Path) -> None:
-    task_dir = tmp_path / "leaking_task"
+def test_completeness_checker_rejects_planted_answer_leak_in_answer_file(tmp_path: Path) -> None:
+    task_dir = tmp_path / "leaking_task_answer_file"
     generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
 
-    # Plant answer file inside environment/
-    (task_dir / "environment/answer_key.json").write_text("{\"answer\": 42}\n")
+    # Plant ANSWER.txt inside environment/ containing expected output
+    (task_dir / "environment/ANSWER.txt").write_text("expected_output: 42\n")
 
     res = check_no_answer_leakage(task_dir)
     assert res["passed"] is False
-    assert any("answer_key.json" in leak for leak in res["leaks"])
+    assert any("ANSWER.txt" in leak for leak in res["leaks"])
 
     overall = check_task_completeness(task_dir)
     assert overall["passed"] is False
     assert overall["checks"]["no_answer_leakage"]["passed"] is False
+
+
+def test_completeness_checker_rejects_planted_answer_in_innocuous_file(tmp_path: Path) -> None:
+    task_dir = tmp_path / "leaking_task_innocuous_file"
+    generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
+
+    # Plant answer data in innocuously named files
+    (task_dir / "environment/notes.md").write_text(
+        '{"schema_version": 1, "total_records": 3, "status": "ok"}\n'
+    )
+    (task_dir / "environment/data_2.json").write_text('{"total_records": 3, "status": "ok"}\n')
+
+    res = check_no_answer_leakage(task_dir)
+    assert res["passed"] is False
+    assert any("notes.md" in leak or "data_2.json" in leak for leak in res["leaks"])
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is False
+    assert overall["checks"]["no_answer_leakage"]["passed"] is False
+
+
+def test_completeness_checker_rejects_verbatim_oracle_solution_in_visible_file(
+    tmp_path: Path,
+) -> None:
+    task_dir = tmp_path / "leaking_task_solution_span"
+    generate_stub_task(task_dir, {"name": "test-task", "category": "data-processing"})
+
+    # Copy verbatim solution span into environment/notes.md
+    sol_span = (
+        'summary = {\n    "schema_version": 1,\n'
+        '    "total_records": len(data),\n    "status": "ok",\n}\n'
+    )
+    (task_dir / "environment/notes.md").write_text(sol_span)
+
+    res = check_no_answer_leakage(task_dir)
+    assert res["passed"] is False
+    assert any("notes.md" in leak for leak in res["leaks"])
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is False
+    assert overall["checks"]["no_answer_leakage"]["passed"] is False
+
+
+def test_completeness_checker_accepts_clean_task_with_legitimate_instructions(
+    tmp_path: Path,
+) -> None:
+    task_dir = tmp_path / "clean_task"
+    generate_stub_task(task_dir, {"name": "clean-task", "category": "data-processing"})
+
+    res = check_no_answer_leakage(task_dir)
+    assert res["passed"] is True
+    assert res["leaks"] == []
+
+    overall = check_task_completeness(task_dir)
+    assert overall["passed"] is True
+    assert overall["checks"]["no_answer_leakage"]["passed"] is True
+
+
+def test_completeness_checker_rejects_structural_leakage(tmp_path: Path) -> None:
+    # 1. Hidden solution directory under environment/
+    task_dir_dir = tmp_path / "struct_dir_task"
+    generate_stub_task(task_dir_dir, {"name": "struct-task", "category": "data-processing"})
+    (task_dir_dir / "environment/solution").mkdir(parents=True)
+    (task_dir_dir / "environment/solution/solve.py").write_text("print('leak')\n")
+
+    res_dir = check_no_answer_leakage(task_dir_dir)
+    assert res_dir["passed"] is False
+    assert any("solution" in leak for leak in res_dir["leaks"])
+
+    # 2. Dockerfile COPY instruction copying hidden directories
+    task_dir_df = tmp_path / "struct_df_task"
+    generate_stub_task(task_dir_df, {"name": "struct-df-task", "category": "data-processing"})
+    (task_dir_df / "environment/Dockerfile").write_text(
+        "FROM python:3.13-slim-bookworm\nCOPY solution /app/solution\n"
+    )
+
+    res_df = check_no_answer_leakage(task_dir_df)
+    assert res_df["passed"] is False
+    assert any("Dockerfile" in leak for leak in res_df["leaks"])
 
 
 def test_propose_via_harbor_submits_craft_purpose_without_dispatch(tmp_path: Path) -> None:

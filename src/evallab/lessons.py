@@ -4,7 +4,7 @@ Executes DuckDB aggregation views joining craft facets, trial facts,
 analysis sidecars, and observation records. Applies statistical gating with
 Wilson 95% confidence intervals (via `evallab.cohort.wilson_interval`). Rows
 below the power threshold are labeled 'insufficient n' and never reported
-as generalized findings.
+as generalized findings. Refuse-to-rank propagates from `evallab.cohort`.
 
 Generates `research/lessons.md` with header `generated-by: lessons v1`.
 """
@@ -23,7 +23,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 
-from evallab.cohort import wilson_interval
+from evallab.cohort import NOT_COMPARABLE, wilson_interval
 from evallab.craft import CRAFT_SCHEMA, CraftRecord, TaskSource, scan
 from evallab.facts import TRIAL_FACT_SCHEMA
 from evallab.lineage import compute_file_digest
@@ -85,6 +85,19 @@ class LessonRow:
 
 
 @dataclass(frozen=True)
+class LessonRanking:
+    """Pairwise comparative ranking with refuse-to-rank propagated from cohort."""
+
+    view_name: str
+    dimension_a: str
+    dimension_b: str
+    rankable: bool
+    ranking: str | None
+    statement: str
+    refusal_reasons: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class LessonsResult:
     """Aggregate result from executing all lesson views."""
 
@@ -96,6 +109,7 @@ class LessonsResult:
     lessons_by_view: dict[str, list[LessonRow]]
     records_summary: dict[str, int]
     inputs: tuple[dict[str, str], ...] = ()
+    rankings_by_view: dict[str, list[LessonRanking]] = field(default_factory=dict)
 
 
 def _relative_path(path: Path, root: Path) -> str:
@@ -257,7 +271,7 @@ def parse_observation_markdown(path: Path) -> dict[str, Any] | None:
     first_failure_step: int | None = None
     if first_failure_str not in {"none", "", "null"}:
         try:
-            first_failure_step = int(first_failure_str)
+                        first_failure_step = int(first_failure_str)
         except ValueError:
             first_failure_step = None
 
@@ -712,6 +726,77 @@ def apply_statistical_gating(
     return lessons
 
 
+def compare_lesson_rows(
+    row_a: LessonRow,
+    row_b: LessonRow,
+) -> LessonRanking:
+    """Compare two lesson rows with refusal-to-rank propagated from cohort."""
+    reasons: list[str] = []
+
+    if not row_a.powered or not row_b.powered:
+        reasons.append(
+            f"insufficient n: {row_a.dimension} (n={row_a.n}), {row_b.dimension} (n={row_b.n})"
+        )
+
+    if row_a.k == 0 and row_b.k == 0 and row_a.n > 0 and row_b.n > 0:
+        reasons.append("uninformative metric: zero observed events across both cohorts")
+
+    if row_a.wilson_95 is None or row_b.wilson_95 is None:
+        reasons.append("confidence interval unavailable")
+    elif row_a.powered and row_b.powered:
+        low_a, high_a = row_a.wilson_95
+        low_b, high_b = row_b.wilson_95
+        if max(low_a, low_b) <= min(high_a, high_b):
+            reasons.append(
+                f"intervals overlap: [{low_a:.1%}, {high_a:.1%}] vs [{low_b:.1%}, {high_b:.1%}]"
+            )
+
+    reasons = list(dict.fromkeys(reasons))
+    if reasons:
+        statement = f"{NOT_COMPARABLE}: {'; '.join(reasons)}"
+        ranking = None
+        rankable = False
+    else:
+        rankable = True
+        if row_a.rate > row_b.rate:
+            ranking = f"{row_a.dimension} > {row_b.dimension}"
+        elif row_b.rate > row_a.rate:
+            ranking = f"{row_b.dimension} > {row_a.dimension}"
+        else:
+            statement = f"{NOT_COMPARABLE}: identical observed rate {row_a.rate:.1%}"
+            return LessonRanking(
+                view_name=row_a.view_name,
+                dimension_a=row_a.dimension,
+                dimension_b=row_b.dimension,
+                rankable=False,
+                ranking=None,
+                statement=statement,
+                refusal_reasons=(f"identical observed rate {row_a.rate:.1%}",),
+            )
+        statement = f"Ranking: {ranking} (rates: {row_a.rate:.1%} vs {row_b.rate:.1%})"
+
+    return LessonRanking(
+        view_name=row_a.view_name,
+        dimension_a=row_a.dimension,
+        dimension_b=row_b.dimension,
+        rankable=rankable,
+        ranking=ranking,
+        statement=statement,
+        refusal_reasons=tuple(reasons),
+    )
+
+
+def rank_lesson_rows(
+    rows: Sequence[LessonRow],
+) -> list[LessonRanking]:
+    """Pairwise rank a collection of lesson rows within a view."""
+    rankings: list[LessonRanking] = []
+    for i in range(len(rows)):
+        for j in range(i + 1, len(rows)):
+            rankings.append(compare_lesson_rows(rows[i], rows[j]))
+    return rankings
+
+
 def build_lessons(
     root: Path,
     *,
@@ -749,6 +834,11 @@ def build_lessons(
         "observation_records": len(observations),
     }
 
+    rankings_by_view = {
+        view_name: rank_lesson_rows(rows)
+        for view_name, rows in lessons_by_view.items()
+    }
+
     inputs = collect_lessons_inputs(root, sql_path=sql_path)
     return LessonsResult(
         generated_at=generated_at if generated_at is not None else datetime.now(UTC),
@@ -759,6 +849,7 @@ def build_lessons(
         lessons_by_view=lessons_by_view,
         records_summary=records_summary,
         inputs=tuple(inputs),
+        rankings_by_view=rankings_by_view,
     )
 
 
@@ -959,10 +1050,16 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             ),
             (
                 "2. **Confidence Intervals:** Every proportion is bounded by a two-sided 95% "
-                "Wilson score interval with continuity correction."
+                "Wilson score interval with continuity correction from `evallab.cohort`."
             ),
             (
-                "3. **Deterministic Regeneration:** This file is generated by `evallab.lessons`; "
+                "3. **Refuse-to-Rank Propagation:** Comparative rankings propagate refusal "
+                "(`not distinguishable / not comparable`) from `evallab.cohort` whenever "
+                "sample sizes are underpowered, confidence intervals overlap, or metrics "
+                "reflect uninformative instrumentation gaps."
+            ),
+            (
+                "4. **Deterministic Regeneration:** This file is generated by `evallab.lessons`; "
                 "hand-edits are prohibited."
             ),
             "",

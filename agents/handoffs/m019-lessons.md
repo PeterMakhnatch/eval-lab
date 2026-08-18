@@ -1,6 +1,6 @@
 Status: building
-Last: cycle 1 - live data recheck on views with non-empty insufficient n gating
-Next: cycle 2 - statistical gates and propagation from cohort.py
+Last: cycle 2 - statistical gates (Wilson 95% CI on every row) and refuse-to-rank propagation from cohort.py
+Next: cycle 3 - add v_outcome_by_verifier_type and v_failure_by_facet join to craft parquet
 Blockers: none
 
 # M019 - LOOP-LESSONS: aggregates with honest gates
@@ -58,6 +58,37 @@ Added `test_empty_views_render_insufficient_n_never_silent` to `tests/test_lesso
 Full pytest summary:
 ```
 1272 passed, 2 skipped, 1 xfailed in 60.10s
+```
+Premerge check:
+```
+premerge green: Python 3.12; ty 28 <= 28
+```
+
+## Cycle 2: Statistical Gates & Refuse-to-Rank Propagation from cohort.py
+
+### 1. Recheck & Acceptance
+Rechecked Cycle 1 deliverables: all 3 views run against live repository data with gating and non-empty fallbacks. Ran `uv run pytest tests/test_lessons.py` with 100% pass.
+
+### 2. Implementation: Statistical Gates & Refuse-to-Rank Propagation
+Implemented statistical gating guarantees and pairwise refuse-to-rank propagation:
+1. Every emitted row carries `n` and a `cohort.py` Wilson 95% confidence interval `(low, high)`, or the `insufficient n` marker.
+2. Refuse-to-rank logic propagates directly from `cohort.NOT_COMPARABLE` (and explicit statistical criteria from `cohort.py`), preventing ranking when:
+   - Either compared row has `powered is False` (underpowered / insufficient n).
+   - Metrics are uninformative all-zero or all-constant across the comparison.
+   - Wilson 95% confidence intervals overlap between the two rows.
+   - Empirical rates are identical.
+3. Added `LessonRanking`, `compare_lesson_rows()`, and `rank_lesson_rows()` in `src/evallab/lessons.py`.
+4. Fixed ty typecheck issue in `lessons.py` (`first_failure_str` int conversion) maintaining diagnostics at exactly baseline 28.
+
+### 3. Hardening
+Added two regression tests in `tests/test_lessons.py`:
+- `test_statistical_gating_every_row_carries_n_and_cohort_interval_or_marker`: Verifies every row in `build_lessons` across all views contains valid `n`, confidence intervals when powered, and `insufficient n` markers when unpowered.
+- `test_refuse_to_rank_propagates_from_cohort`: Verifies refuse-to-rank behaves correctly on underpowered rows, overlapping confidence intervals, uninformative metrics (all-zero columns), and ranks only on disjoint intervals with `NOT_COMPARABLE` statement propagation.
+
+### 4. Verification Output
+Full pytest summary:
+```
+1275 passed, 1 skipped, 1 xfailed in 51.78s
 ```
 Premerge check:
 ```

@@ -1,0 +1,36 @@
+schema_version = "1.4"
+artifacts = [
+    "/app/output/summary.json",
+]
+
+[task]
+name = "local-lab/{{TASK_NAME}}"
+version = "0.1.0"
+description = "{{TASK_DESCRIPTION}}"
+keywords = ["python", "data-processing", "separate-verifier"]
+
+[[task.authors]]
+name = "Eval Lab Synthesizer"
+email = "p.makhnatch@gmail.com"
+
+[metadata]
+difficulty = "{{DIFFICULTY}}"
+category = "{{CATEGORY}}"
+tags = ["synthetic", "authoring"]
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+collect = []
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 300.0
+os = "linux"
+cpus = 1
+memory_mb = 512
+storage_mb = 2048
+mcp_servers = []

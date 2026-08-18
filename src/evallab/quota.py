@@ -221,8 +221,13 @@ class TrialConsumption(BaseModel):
 
     @property
     def day(self) -> date | None:
-        return self.started_at.date() if self.started_at else None
-
+        if self.started_at is None:
+            return None
+        return (
+            self.started_at.astimezone(UTC).date()
+            if self.started_at.tzinfo is not None
+            else self.started_at.date()
+        )
     @property
     def total_tokens(self) -> int | None:
         if self.input_tokens is None and self.output_tokens is None:

@@ -168,8 +168,6 @@ def _build_tasks(embedder: Embedder, root: Path) -> tuple[int, str | None, str |
                 index_reason = "too few rows for ANN index (exact brute-force search)"
             else:
                 raise
-        except Exception:
-            raise
     return n_rows, None, index_reason
 
 
@@ -293,8 +291,6 @@ def _build_trials(
                 index_reason = "too few rows for ANN index (exact brute-force search)"
             else:
                 raise
-        except Exception:
-            raise
     return n_rows, None, index_reason
 
 
@@ -402,8 +398,6 @@ def _build_steps(
                 index_reason = "too few rows for ANN index (exact brute-force search)"
             else:
                 raise
-        except Exception:
-            raise
     return n_rows, None, index_reason
 
 
@@ -433,6 +427,7 @@ def _build_analyses(
         return 0, f"no analyses rows ({analyses_parquet})", None
 
     trial_to_job: dict[str, str] = {}
+    catalog_note: str | None = None
     att = attach(repo_root=repo)
     try:
         z3 = next((z for z in att.zones if z.name == "z3"), None)
@@ -442,10 +437,17 @@ def _build_analyses(
                 for r in cur.fetchall():
                     if r[0] and r[1]:
                         trial_to_job[str(r[0])] = str(r[1])
-            except Exception:
-                pass
+            except Exception as e:
+                # Never silent: without this map every row lacking an explicit job_id
+                # is skipped for "missing identity", which reads as a data problem
+                # rather than the catalog read failure it actually is.
+                catalog_note = f"trial->job map unavailable ({type(e).__name__}: {e})"
+        else:
+            catalog_note = "trial->job map unavailable (z3 not attached)"
     finally:
         att.connection.close()
+    if catalog_note:
+        print(f"analyses: {catalog_note}")
 
     analysis_dirs = [
         repo / "research/analysis",
@@ -467,6 +469,7 @@ def _build_analyses(
             row.get("conclusion") or row.get("summary") or row.get("text") or ""
         ).strip()
 
+        corrupt_error = None
         if not conclusion or not job_id:
             for adir in analysis_dirs:
                 json_path = adir / f"{analysis_id}.json"
@@ -496,10 +499,18 @@ def _build_analyses(
                                 model = str(j_data.get("model")).strip()
                             if not created_at and j_data.get("created_at"):
                                 created_at = str(j_data.get("created_at")).strip()
-                    except Exception:
-                        pass
+                        else:
+                            corrupt_error = f"invalid JSON in {json_path.name}"
+                            break
+                    except Exception as exc:
+                        corrupt_error = f"corrupt {json_path.name}: {exc}"
+                        break
                 if conclusion and job_id:
                     break
+
+        if corrupt_error:
+            skipped.append(f"{analysis_id or 'unknown'} ({corrupt_error})")
+            continue
 
         if (
             not analysis_id
@@ -526,10 +537,17 @@ def _build_analyses(
         )
         texts.append(conclusion)
 
+    skip_info: str | None = None
+    if skipped:
+        skip_examples = ", ".join(skipped[:3]) + (", ..." if len(skipped) > 3 else "")
+        skip_info = f"{len(skipped)} skipped: {skip_examples}"
+
     if not texts:
-        reason = f"no valid analyses rows ({analyses_parquet})"
-        if skipped:
-            reason = f"skipped {len(skipped)} invalid analyses (e.g. {skipped[0]})"
+        reason = (
+            f"no valid analyses rows ({skip_info})"
+            if skip_info
+            else f"no valid analyses rows ({analyses_parquet})"
+        )
         return 0, reason, None
 
     vectors = embedder.embed(texts)
@@ -549,9 +567,7 @@ def _build_analyses(
                 index_reason = "too few rows for ANN index (exact brute-force search)"
             else:
                 raise
-        except Exception:
-            raise
-    return n_rows, None, index_reason
+    return n_rows, skip_info, index_reason
 
 
 def build(table: str = "all", runs_root: Path | None = None) -> None:
@@ -589,10 +605,11 @@ def build(table: str = "all", runs_root: Path | None = None) -> None:
                 print("steps index: created")
     if table in ("analyses", "all"):
         n, reason, idx_reason = _build_analyses(embedder, root)
-        if reason:
+        if n == 0 and reason:
             print(f"analyses: skipped ({reason})")
         else:
-            print(f"analyses: {n} rows")
+            skip_msg = f" ({reason})" if reason else ""
+            print(f"analyses: {n} rows{skip_msg}")
             if idx_reason:
                 print(f"analyses index: skipped ({idx_reason})")
             else:

@@ -1,12 +1,12 @@
 Status: complete
-Last: Implemented, proven, and hardened LanceDB `analyses` vector table indexing analyst conclusions with joinable identity, deterministic hashing embeddings, overwrite semantics, and CLI build/search wiring.
+Last: Implemented, proven, and hardened LanceDB `analyses` vector table indexing analyst conclusions with joinable identity, deterministic hashing embeddings, overwrite semantics, full skip reporting, corrupt sidecar surfacing, and CLI build/search wiring.
 Next: Wire `evallab.lance` search into researcher/analyst loops for failure memory retrieval.
 Blockers: None.
 
 # M022: MEMORY-ANALYSES — Index Analyst Conclusions into LanceDB
 
 ## Summary
-Implements the `analyses` table in LanceDB alongside existing `tasks`, `trials`, and `steps` vector tables. Analyst conclusions are read from durable Parquet projections (`derived/analyses/analyses.parquet` or `derived/parquet/analyses/analyses.parquet`) with fallback to JSON sidecars, carrying full joinable identity (`analysis_id`, `trial_id`, `job_id`, `model`, `category`, `created_at`, `conclusion`, `vector`).
+Implements the `analyses` table in LanceDB alongside existing `tasks`, `trials`, and `steps` vector tables. Analyst conclusions are read from durable Parquet projections (`derived/analyses/analyses.parquet` or `derived/parquet/analyses/analyses.parquet`) with fallback to JSON sidecars, carrying full joinable identity (`analysis_id`, `trial_id`, `job_id`, `model`, `category`, `created_at`, `conclusion`, `vector`). Rows can be completed from `research/analysis`, `research/evidence/analyses`, or `derived/analyses` JSON when parquet fields are blank, which is a second data path and readers deserve to know which source a row came from.
 
 ## Honest Corpus Reality
 1. The repository currently contains zero analysis sidecars under `research/evidence/analyses/` and no production `analyses.parquet` under `derived/` (only 3 unit-test fixtures under `tests/fixtures/explorer/analyses/`).
@@ -66,23 +66,88 @@ Test failure output (`uv run pytest tests/test_lance.py -k test_build_analyses_s
 FAILED tests/test_lance.py::test_build_analyses_skips_missing_required_identity_fields - AssertionError: assert 'analyses: 1 rows' in 'analyses: 6 rows\nanalyses index: skipped (too few rows for ANN index (exact brute-force search))\n'
 ```
 
-### Restoration
-Restored `mode="overwrite"` and strict 6-field identity check. All 22 tests in `tests/test_lance.py` pass.
+### Mutation 3: Silence on Partial Skips
+Mutating `_build_analyses` to suppress surfacing skipped items in stdout when rows are indexed:
+```python
+# Mutated:
+return n_rows, None, index_reason
+```
+Test failure output (`uv run pytest tests/test_lance.py -k test_build_analyses_skips_missing_required_identity_fields`):
+```
+FAILED tests/test_lance.py::test_build_analyses_skips_missing_required_identity_fields - AssertionError: assert 'analyses: 1 rows (6 skipped: unknown, A_NOTRIAL, A_NOJOB, ...)' in 'analyses: 1 rows\nanalyses index: skipped (too few rows for ANN index (exact brute-force search))\n'
+```
 
-## Premerge Validation
+### Restoration
+Restored `mode="overwrite"`, strict 6-field identity check, and full skip surfacing. All 23 tests in `tests/test_lance.py` pass.
+
+## Integrator verification (independent of the authoring agent)
+
+### Review finding that was sent back and fixed
+
+The first version reported skipped rows **only when every row was skipped**. Its own
+test seeded 1 valid and 6 invalid rows and asserted only `analyses: 1 rows`, so six
+rows vanished with no output and the test locked that silence in. This is the same
+defect class the lab fixed last night in `status_generator.py`, where an empty result
+was silently replaced by a different dataset. Now fixed and tested:
+
 ```
-Resolved 75 packages in 3ms
-Audited 51 packages in 1ms
-All checks passed!
-1324 passed, 2 skipped, 1 xfailed in 86.48s (0:01:26)
-PASS doctor mode=docker-free
-PASS submit->tick job=smoke-oracle-v0fnd3rhgxeg trials=1
-PASS catalog job_id=886e92a2-0de4-4384-b7ad-aa8c623e96b1
-PASS parquet job_id=886e92a2-0de4-4384-b7ad-aa8c623e96b1
-PASS digest path=runs/_smoke/smoke-oracle-v0fnd3rhgxeg/digests/2026-08-18.md
-PASS analysis sidecar=runs/_smoke/smoke-oracle-v0fnd3rhgxeg/analyses/54fad702-b0dc-4bb4-a847-571c2faf5138/analysis.json validation=valid
-PASS status snapshot sections=Recent,Now,Next,Tasks,Health,Analysis analysis=draft
-SMOKE PASS both-stores-agree
-Found 28 diagnostics
-premerge green: Python 3.12; ty 28 <= 28
+$ uv run pytest tests/test_lance.py -q      # skip reporting mutated to None
+FAILED tests/test_lance.py::test_build_analyses_skips_missing_required_identity_fields
+  - assert 'analyses: 1 rows (6 skipped: unknown, A_NOTRIAL, A_NOJOB, ...)' in 'analyses: 1 rows\n...'
+FAILED tests/test_lance.py::test_build_analyses_surfaces_corrupt_sidecar_json
+  - assert '1 skipped:' in 'analyses: skipped (no valid analyses rows (...))'
+restored -> 23 passed
 ```
+
+Also fixed: the `trial_id -> job_id` catalog read swallowed every exception with
+`except Exception: pass`. A failed catalog read then presented as "rows missing
+identity", i.e. a data problem rather than the infrastructure problem it was. It now
+prints `analyses: trial->job map unavailable (<error>)`.
+
+An independent mutation of the identity guard (disabling it entirely) turns
+`analyses: 1 rows` into `analyses: 7 rows` and fails the guard test, so the guard is
+real and not decorative.
+
+### What this actually does on today's repository
+
+```
+$ uv run python -m evallab.lance build --table analyses
+analyses: skipped (analyses.parquet not found (.../derived/parquet/analyses/analyses.parquet))
+$ ls research/evidence/analyses/ | wc -l
+0
+```
+
+**Zero analyses exist**, because no analyst has ever run with a real model
+(`ModelAnalyzer.analyze()` refuses without `--model` by design). This mission closes
+the structural gap; it cannot be exercised on real analyst output until that spend
+decision is made.
+
+To prove the query itself works rather than only the tests, the table was built from
+**four real trial and job identities** taken from this repo's own `trial_facts`
+parquet, paired with four conclusions written by hand (labelled
+`model=constructed-no-analyst-has-run`, in a throwaway `EVALLAB_DERIVED_ROOT`, never
+committed):
+
+```
+$ uv run python -m evallab.lance build --table analyses
+analyses: 4 rows
+analyses index: skipped (too few rows for ANN index (exact brute-force search))
+
+$ uv run python -m evallab.lance search --table analyses "local time versus UTC day boundary"
+dist=0.7190 ... 'Daily spend buckets were four hours off because the dashboard used local time while quota accounting normalises to UTC.'
+dist=0.9063 ... 'Trial consumption bucketed timezone-aware timestamps by local date, the same defect surviving in a second location.'
+dist=0.9199 ... 'The status surface fell back to an unfiltered filesystem scan when the catalog returned no trials for the reporting day.'
+dist=1.0000 ... 'Worktree staleness was decided by commit ancestry, which is never true in a repository that squash-merges.'
+```
+
+Ranking is correct and the rows join back to real trials and jobs.
+
+### Two caveats a reader must not miss
+
+1. **The default embedder is deterministic lexical hashing, not semantic** — the module
+   docstring says so itself ("no semantics"). So "find analyses similar to this one" is
+   word-overlap similarity today. The ordering above is real but it is lexical; a
+   genuine semantic embedder is a separate, unmade decision.
+2. **`lance.py` has no callers in `src/`, `scripts/`, `dashboard/` or `cli.py`.** It is
+   reachable only as `python -m evallab.lance`. Indexing analyses does not make the
+   vector memory part of any automated path — wiring it is a separate mission.

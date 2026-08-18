@@ -985,7 +985,9 @@ def test_build_analyses_skips_missing_required_identity_fields(tmp_path, monkeyp
     with contextlib.redirect_stdout(f):
         build("analyses")
     out = f.getvalue()
-    assert "analyses: 1 rows" in out
+    assert "analyses: 1 rows (6 skipped: unknown, A_NOTRIAL, A_NOJOB, ...)" in out
+    assert "6 skipped:" in out
+    assert "A_NOTRIAL" in out
 
     import lancedb
 
@@ -1012,3 +1014,62 @@ def test_build_analyses_skipped_when_source_missing(tmp_path, monkeypatch):
     out = f.getvalue()
     assert "analyses: skipped" in out
     assert str(derived / "analyses" / "analyses.parquet") in out
+
+
+def test_build_analyses_surfaces_corrupt_sidecar_json(tmp_path, monkeypatch):
+    """When a fallback sidecar JSON contains corrupt/unparseable content, it must be
+    surfaced in the skipped count and stdout rather than silently swallowed."""
+    derived = tmp_path / "derived"
+    derived.mkdir(parents=True)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived))
+
+    import evallab.lance as lance_mod
+
+    monkeypatch.setattr(lance_mod, "repository_root", lambda: tmp_path)
+
+    parquet_dir = derived / "job_id=j1" / "trial_id=t1"
+    parquet_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [{"job_id": "j1", "trial_id": "t1"}],
+            schema=pa.schema([("job_id", pa.string()), ("trial_id", pa.string())]),
+        ),
+        parquet_dir / "trial_facts.parquet",
+    )
+
+    analyses_dir = derived / "analyses"
+    analyses_dir.mkdir(parents=True)
+    rec_schema = pa.schema(
+        [
+            ("analysis_id", pa.string()),
+            ("trial_id", pa.string()),
+            ("model", pa.string()),
+            ("category", pa.string()),
+            ("created_at", pa.string()),
+        ]
+    )
+    rec_data = [
+        {
+            "analysis_id": "A_CORRUPT",
+            "trial_id": "t1",
+            "model": "m1",
+            "category": "cat1",
+            "created_at": "2026-08-18T10:00:00Z",
+        }
+    ]
+    pq.write_table(
+        pa.Table.from_pylist(rec_data, schema=rec_schema), analyses_dir / "analyses.parquet"
+    )
+
+    analysis_json_dir = tmp_path / "research" / "analysis"
+    analysis_json_dir.mkdir(parents=True)
+    (analysis_json_dir / "A_CORRUPT.json").write_text("{corrupted json not valid")
+
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        build("analyses")
+    out = f.getvalue()
+    assert "analyses: skipped" in out
+    assert "1 skipped:" in out
+    assert "A_CORRUPT" in out
+    assert "corrupt" in out

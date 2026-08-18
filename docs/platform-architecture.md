@@ -458,20 +458,33 @@ RL/post-training consumes the last three seams; nothing upstream changes.
 | `authoring.py`/`calibrate.py` | meta-task loop, spec sampler, inversion, selector | SG-1..4 | shipped |
 | `lance.py` | LanceDB vector store beside DuckDB | — | shipped |
 | `verdicts.py` / CLI | verdict recording, history, and queries | E-verdict | shipped |
-| `queue.py` | keep core; + leases, provider semaphores, quota-deferral | E01/E-par | unbuilt |
+| `queue.py` | leases + heartbeat + `tick --parallel N` landed (M020); provider semaphores and orphan reconcile still open | E01/E-par | partial |
 | `credentials.py`+`quota.py` | unify AgentProfile; profiles CLI | E01 | unbuilt |
 | `atif.py`/`facts.py` | keep; + compaction step + manifests | E03 | partial |
-| `craft.py` | keep; classify batching + cookbook idempotence tests | E07 | unbuilt |
+| `craft.py` | classify batching + tested idempotence contract (M023) | E07 | shipped |
 | `contextpack.py` | keep; size budget + hash tests | E08 | unbuilt |
 | `researchers.py` | consume verdict table + packs | E09 | unbuilt |
 | `authoring.py`/`workbench` | keep; ledger + fair-oracle/adversarial stages | E10 | partial |
 | `export.py` / CLI | sft / trajectory export | E17 | unbuilt |
 | board check CLI | board consistency validation | E-board | unbuilt |
 
-Build protocol: E00, E02, E04, E05, E11, E12, E13, E14, E16, E18, and SG-1..4
-have shipped; remaining epics (E01 parallel dispatch, E03 compaction automation,
-E07/E08/E09/E10 full authoring battery, E17 SFT export, E-board) remain unbuilt
-or partial.
+Build protocol: E00, E02, E04, E05, E07, E11, E12, E13, E14, E16, E18, and SG-1..4
+have shipped; E01 and E03 and E10 are partial; remaining epics (E08, E09, E17 SFT
+export, E-board) remain unbuilt.
+
+**The model-call seams are unimplemented, which no epic row states.** Three injection
+points exist and every default is a refusing stub, so the study loop cannot close on a
+real model today regardless of spend authorisation:
+
+| Seam | Default | Behaviour |
+|---|---|---|
+| `analyst.ModelAnalyzer.analyze()` | — | raises `ModelProviderRefusedError` **even when `--model` is supplied** (`analyst.py:150`) |
+| `analysis_worker.AnalyzerCallable` | `_no_adapter` | raises `no analysis adapter is wired` (`analysis_worker.py:657`) |
+| `authoring.design_novel_spec(designer=…)` | `default_novel_designer` | deterministic stub spec designer (`authoring.py:642`) |
+
+Trial *execution* against real agents does work — the catalog holds 33 `codex` trials
+beside 57 `oracle` and 2 `nop` controls — so the gap is confined to the analysis and
+generation halves, and it is code, not policy.
 
 ## 13. Non-goals and risks (unchanged from v1)
 

@@ -332,15 +332,29 @@ decision.
   similar to this one" is word overlap today. Three separable decisions: wire it into the
   nightly, adopt a real embedding model (spend), or leave it as an operator-invoked tool.
 
-- **Green-light real generation and analysis runs?** This is the one that
-  matters. Every box in the study loop now exists — run experiment, capture
-  trajectory, model studies it, thoughts stored, model builds evals, runs on
-  Harbor — and the chain has never been run once end to end with a real model.
-  `evallab analyst` refuses without `--model` by design, and the synthesis loop
-  has only ever run with a stub generator. So the paper-derived >85% synthesis
-  success rate, and any actual trajectory study, stay theoretical until tokens
-  are spent deliberately. Nothing else on this board unblocks this; it is purely
-  a spend decision.
+- **Green-light real generation and analysis runs? CORRECTED — this was never purely a
+  spend decision, and the previous wording on this board was wrong.** Trial *execution*
+  with a real agent already works: the catalog holds **33 `codex` trials** beside 57
+  `oracle` and 2 `nop` controls, across `local-lab/event-summary` (67),
+  `petermakhnatch/transaction-reconciliation` (13) and `terminal-bench/html-js-filter`
+  (12). What has never run is the *analysis* and *generation* halves, and the reason is
+  that **nobody wrote the provider call** — every model seam is a refusing stub:
+  - `analyst.py:150` — `ModelAnalyzer.analyze()` raises `ModelProviderRefusedError`
+    **even when `--model` is supplied**. `--model` only changes which class is
+    constructed (`analyst.py:404`); the call itself is unimplemented.
+  - `analysis_worker.py:657` — the `AnalyzerCallable` adapter seam defaults to
+    `_no_adapter`, which raises `no analysis adapter is wired`.
+  - `authoring.py:642` — `design_novel_spec(designer=…)` defaults to
+    `default_novel_designer`, a deterministic stub spec designer.
+
+  No provider SDK is even installed: `openai`, `litellm`, `dspy` and
+  `sentence-transformers` are all absent (only the `openinference-instrumentation-*`
+  wrappers are declared, which is why `tracing.py` contributes 2 of the 27 `ty`
+  diagnostics). So the paper-derived >85% synthesis figure and any real trajectory study
+  are blocked on **roughly one small mission** — pick a client, implement three
+  adapters against seams that already exist and are already injected in tests — and only
+  then on a spend decision. Splitting the two is the point: authorising spend today buys
+  nothing.
 - **Turn the nightly schedule on?** The pipeline exists and the step registry
   landed (PR #106), but `launchctl list` shows nothing loaded, so nothing runs
   unattended. Building the pipeline and enabling it were deliberately kept as

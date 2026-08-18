@@ -44,3 +44,23 @@
   already has a "no open PR" notion in its merged-branches sweep, so the data source
   exists. Do not fix this by loosening the content predicate; the current failure
   direction refuses to delete, which is correct.
+
+- 2026-08-18 [integrator, verifying the board's own #1 item]: **the board was wrong that
+  green-lighting real runs is "purely a spend decision".** Verified by reading the code:
+  `analyst.py:150` `ModelAnalyzer.analyze()` raises `ModelProviderRefusedError`
+  unconditionally — passing `--model` only selects the class at `analyst.py:404`, the call
+  is unimplemented; `analysis_worker.py:657` `_no_adapter` raises; `authoring.py:642`
+  `default_novel_designer` is a deterministic stub. No provider SDK is installed
+  (`openai`, `litellm`, `dspy`, `sentence-transformers` all absent). Execution against
+  real agents *does* work — 33 `codex` trials in the catalog beside 57 `oracle` + 2 `nop`.
+  Corrected on the board and in `docs/platform-architecture.md` §12, which also had
+  `queue.py` as unbuilt (leases landed, M020) and `craft.py` as unbuilt (shipped, M023).
+- 2026-08-18 [integrator]: embedder swap is smaller than assumed and has one real trap.
+  `lance.py` already has the seam — `Embedder` Protocol (`lance.py:43`), every builder
+  takes `embedder: Embedder`, and only **two** sites construct one (`build()` at :574,
+  `search()` at :620). `lancedb` 0.37.1 already ships an embedding registry including
+  `gemini-text`, `huggingface`, `gte-text`, so a real embedder needs **no new
+  dependency**. The trap: nothing records *which* embedder built a table, so a table
+  built with the 256-dim `HashingEmbedder` and searched with a different model returns
+  meaningless distances with no error. Any swap must persist embedder identity + dim and
+  refuse a mismatched search.

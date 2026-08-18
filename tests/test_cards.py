@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,8 @@ from evallab.cards import (
     CardRefusalError,
     build_eval_card,
     draft_eval_card,
+    validate_card,
+    validate_card_file,
 )
 from evallab.cohort import bootstrap_mean_interval
 from evallab.facts import digest_json
@@ -440,6 +443,154 @@ def test_cli_card_generate(
     assert f"eval card: {out_path}" in captured.out
     assert out_path.is_file()
     assert "# Eval card: cli-test-card" in out_path.read_text(encoding="utf-8")
+
+
+def test_validate_card_valid(tmp_path: Path) -> None:
+    """Generated card passes validate_card and validate_card_file."""
+    spec_path, _ = _create_synthetic_job(
+        tmp_path,
+        name="valid-card-job",
+        task_rewards={"task-1": [1.0, 1.0], "task-2": [1.0, 0.0]},
+        spec_data={"attempts": 2},
+    )
+    rendered, _ = build_eval_card(spec_path, repo_root=tmp_path)
+    result = validate_card(rendered)
+    assert result.valid is True
+    assert len(result.errors) == 0
+
+    card_file = tmp_path / "research/cards/valid-card.md"
+    card_file.parent.mkdir(parents=True, exist_ok=True)
+    card_file.write_text(rendered, encoding="utf-8")
+    file_result = validate_card_file(card_file)
+    assert file_result.valid is True
+    assert len(file_result.errors) == 0
+
+
+def test_validate_card_unresolved_marker() -> None:
+    """Card with unresolved template markers fails validation."""
+    bad_content = "# Eval card: Bad\n\n## Question\n\n{{UNRESOLVED}}\n"
+    result = validate_card(bad_content)
+    assert result.valid is False
+    assert any("unresolved template marker" in err for err in result.errors)
+
+
+def test_validate_card_missing_contamination_caveat(tmp_path: Path) -> None:
+    """Card without contamination caveat fails validation."""
+    spec_path, _ = _create_synthetic_job(
+        tmp_path,
+        name="no-contam-job",
+        task_rewards={"task-1": [1.0, 1.0], "task-2": [1.0, 0.0]},
+        spec_data={"attempts": 2},
+    )
+    rendered, _ = build_eval_card(spec_path, repo_root=tmp_path)
+    stripped = re.sub(r"- Contamination caveat:[^\n]*\n", "", rendered)
+    stripped = re.sub(
+        r"## Contamination note[\s\S]*?(?=##)",
+        "## Contamination note\n\nNone\n\n",
+        stripped,
+    )
+    result = validate_card(stripped)
+    assert result.valid is False
+    assert any("contamination caveat" in err.lower() for err in result.errors)
+
+
+def test_validate_card_missing_elicitation_caveat(tmp_path: Path) -> None:
+    """Card without elicitation caveat fails validation."""
+    spec_path, _ = _create_synthetic_job(
+        tmp_path,
+        name="no-elicit-job",
+        task_rewards={"task-1": [1.0, 1.0], "task-2": [1.0, 0.0]},
+        spec_data={"attempts": 2},
+    )
+    rendered, _ = build_eval_card(spec_path, repo_root=tmp_path)
+    stripped = re.sub(r"- Elicitation caveat:[^\n]*\n", "", rendered)
+    stripped = re.sub(
+        r"## Elicitation tuple and caveats[\s\S]*?(?=##)",
+        "## Elicitation\n\nNone\n\n",
+        stripped,
+    )
+    result = validate_card(stripped)
+    assert result.valid is False
+    assert any("elicitation caveat" in err.lower() for err in result.errors)
+
+
+def test_cli_card_validate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI command  works."""
+    spec_path, _ = _create_synthetic_job(
+        tmp_path,
+        name="cli-validate-job",
+        task_rewards={"task-1": [1.0, 1.0], "task-2": [1.0, 0.0]},
+        spec_data={"attempts": 2},
+    )
+    card_file = tmp_path / "research/cards/cli-validate.md"
+    draft_eval_card(spec_path, repo_root=tmp_path, output_path=card_file)
+
+    # 1. card validate
+    code = cli.run_cli(["card", "validate", str(card_file)], workspace=tmp_path)
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "VALID" in captured.out
+
+    # 2. card validate --json
+    code = cli.run_cli(["card", "validate", str(card_file), "--json"], workspace=tmp_path)
+    assert code == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["valid"] is True
+
+    # 3. invalid card returns exit code 1
+    bad_file = tmp_path / "research/cards/bad.md"
+    bad_file.write_text("# Bad Card\n\nNothing here.\n", encoding="utf-8")
+    code = cli.run_cli(["card", "validate", str(bad_file)], workspace=tmp_path)
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "INVALID" in captured.err
+
+def test_all_committed_cards_pass_validation() -> None:
+    """All markdown cards committed under research/cards/ pass validate_card_file."""
+    cards_dir = Path(__file__).resolve().parent.parent / "research/cards"
+    assert cards_dir.is_dir()
+    card_files = [f for f in cards_dir.glob("*.md") if f.name not in {"README.md", "TEMPLATE.md"}]
+    assert len(card_files) >= 1
+    for card_file in card_files:
+        result = validate_card_file(card_file)
+        assert result.valid is True, f"Card {card_file.name} failed validation: {result.errors}"
+
+
+def test_oracle_vs_codex_card_verdict_framing() -> None:
+    """Oracle-vs-Codex card embeds instrument finding framing, avoiding false capability claims."""
+    card_path = Path(__file__).resolve().parent.parent / "research/cards/oracle-vs-codex-cohort.md"
+    assert card_path.is_file()
+    content = card_path.read_text(encoding="utf-8")
+    assert "instrument finding" in content.lower()
+    assert "does not establish that codex lacks task capability" in content.lower()
+    assert validate_card_file(card_path).valid is True
+
+
+def test_sg1_metaloop_card_checks() -> None:
+    """SG-1 meta-loop card validates and covers all 4 completeness checks."""
+    card_path = Path(__file__).resolve().parent.parent / "research/cards/sg1-metaloop.md"
+    assert card_path.is_file()
+    content = card_path.read_text(encoding="utf-8")
+    assert "package_structure" in content
+    assert "no_answer_leakage" in content
+    assert "oracle_solution_runs" in content
+    assert "task_tests_pass" in content
+    assert validate_card_file(card_path).valid is True
+
+
+def test_behavior_study_card_validation() -> None:
+    """Behavior study card validates and separates controls from real agent trials."""
+    card_path = Path(__file__).resolve().parent.parent / "research/cards/behavior-study.md"
+    assert card_path.is_file()
+    content = card_path.read_text(encoding="utf-8")
+    assert "57 oracle control trials" in content
+    assert "33" in content
+    assert "repeated_failed_command_count" in content
+    assert validate_card_file(card_path).valid is True
 
 
 def test_real_corpus_evidence_skip_if_missing() -> None:

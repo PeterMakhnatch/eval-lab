@@ -6,6 +6,8 @@ audience:
   - runner
   - operator
 inputs:
+  - path: docs/STATUS.md
+    digest: sha256:6af9bf3013bdb0a312dfb43c6fb32bfdc9309194612d60916781763940215c2d
   - path: docs/agent-analysis.md
     digest: sha256:e490de090539722b445fb03f342254afe39f6109a39f5d6cb73fce3146ea8b89
   - path: docs/agent-profiles.md
@@ -81,7 +83,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:6005bce99e6fa53f978751550517a2af40cafd657528c63b63669798627323f9
+    digest: sha256:847f941e78e56f0ba013843312ee18f771ddbaabb1de81c332beff4188a378ae
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/external-datasets.md
@@ -128,6 +130,7 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
+| `docs/STATUS.md` | Research status — 2026-08-18 | `living` | `operator, builder, runner` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
@@ -213,6 +216,7 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
+| `docs/STATUS.md` | Research status — 2026-08-18 | `living` | `operator, builder, runner` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
@@ -241,6 +245,7 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
+| `docs/STATUS.md` | Research status — 2026-08-18 | `living` | `operator, builder, runner` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |

@@ -14,7 +14,7 @@ import os
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from evallab.digest import DigestRenderer, DigestTrial
+from evallab.digest import DigestRenderer, DigestTrial, PendingDiscovery
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import DirectoryQueue, provider_reported_exhaustion
 from evallab.schemas import (
@@ -23,6 +23,8 @@ from evallab.schemas import (
     QueueEvent,
     StandingApprovalsPolicy,
 )
+from evallab.status_generator import TrialSummary, generate_status_markdown
+from evallab.storm import StormAlarm
 
 #: Fixed instant. Every clock the renderers accept is this value.
 NOW = datetime(2026, 8, 16, 12, 0, 0, tzinfo=UTC)
@@ -365,8 +367,30 @@ def build_workspace(root: Path) -> DirectoryQueue:
     trial = make_paid_trial(root)
     add_quota_snapshot(trial, observed_at=NOW - timedelta(hours=2))
     queue = DirectoryQueue(root / "queue")
+    add_program_experiments(root)
     populate_queue(queue)
     return queue
+def add_program_experiments(root: Path) -> None:
+    program_path = root / "research/experiments/PROGRAM.json"
+    write_json(
+        program_path,
+        {
+            "experiments": [
+                {
+                    "id": "EXP-S01-canary-codex-k3",
+                    "research_question": (
+                        "Does Codex pass@3 on event-summary remain above baseline?"
+                    ),
+                    "status": "designed",
+                    "blocker": "none",
+                    "next_action": "Submit treatment spec",
+                    "notes": "Decision pending human review",
+                }
+            ]
+        },
+    )
+
+
 
 
 def frozen_preflight(root: Path):
@@ -391,6 +415,18 @@ def frozen_renderer(root: Path, queue: DirectoryQueue) -> DigestRenderer:
         trial_loader=trial_loader,
         drift_loader=drift_on,
         preflight_loader=lambda: report,
+        storm_loader=lambda _day: [],
+        discoveries_loader=lambda: [
+            PendingDiscovery(
+                discovery_id="D-20260815-KTXJSHGZ",
+                status="draft",
+                claim=(
+                    "Across this small control-only cohort, event-summary and "
+                    "transaction-reconciliation showed the expected pattern."
+                ),
+                relative_link="DISCOVERIES.md#d-20260815-ktxjshgz",
+            )
+        ],
     )
 
 
@@ -414,6 +450,29 @@ def render_digest_text(root: Path, queue: DirectoryQueue) -> str:
 
 def render_preflight_text(root: Path) -> str:
     return normalize_rendered(render_preflight(frozen_preflight(root)), root)
+def render_status_text(root: Path) -> str:
+    rendered = generate_status_markdown(
+        root,
+        target_date=REPORT_DATE,
+        storm_loader=lambda day: [],
+        trial_loader=lambda day: [
+            TrialSummary(
+                job_name=t.job_name,
+                task_name=t.task_name,
+                agent_name=t.agent_name,
+                model_name=t.model_name,
+                reward=t.reward,
+                exception_type=t.exception_type,
+                cost_usd=t.cost_usd,
+                finished_at=t.finished_at,
+            )
+            for t in period_trials()
+        ]
+        if day == PERIOD_DATE
+        else [],
+    )
+    return normalize_rendered(rendered, root)
+
 
 
 def assert_matches_golden(actual: str, filename: str) -> None:
@@ -447,3 +506,122 @@ def test_preflight_rendering_is_stable_across_two_regenerations(tmp_path: Path) 
     first = render_preflight_text(tmp_path)
     second = render_preflight_text(tmp_path)
     assert first == second
+def test_status_rendering_matches_golden(tmp_path: Path) -> None:
+    build_workspace(tmp_path)
+    assert_matches_golden(render_status_text(tmp_path), "status.md")
+
+
+def test_status_rendering_is_stable_across_two_regenerations(tmp_path: Path) -> None:
+    build_workspace(tmp_path)
+    first = render_status_text(tmp_path)
+    second = render_status_text(tmp_path)
+    assert first == second
+
+
+def test_status_rendering_storm_quiet_vs_active_vs_unavailable(tmp_path: Path) -> None:
+    build_workspace(tmp_path)
+    # 1. Quiet state
+    quiet_md = generate_status_markdown(
+        tmp_path, target_date=REPORT_DATE, storm_loader=lambda d: []
+    )
+    assert "- Active storm alarms: 0 (quiet: no alarms in window)" in quiet_md
+    assert "STORM ALARM ACTIVE" not in quiet_md
+
+    # 2. Unavailable state (loader raises)
+    def broken_loader(d: date) -> list[StormAlarm]:
+        raise RuntimeError("queue event scan timeout")
+
+    unavail_md = generate_status_markdown(
+        tmp_path, target_date=REPORT_DATE, storm_loader=broken_loader
+    )
+    assert (
+        "- Active storm alarms: unavailable (RuntimeError: queue event scan timeout)"
+        in unavail_md
+    )
+    assert "STORM ALARM ACTIVE" not in unavail_md
+
+    # 3. Active alarms state
+    alarm = StormAlarm(
+        reason_code="subscription_quota_exhausted",
+        alarm_level="critical",
+        count=8,
+        threshold=5,
+        window_seconds=3600,
+        window_start=datetime(2026, 8, 15, 12, 0, 0, tzinfo=UTC),
+        window_end=datetime(2026, 8, 15, 13, 0, 0, tzinfo=UTC),
+        first_occurred_at=datetime(2026, 8, 15, 12, 5, 0, tzinfo=UTC),
+        last_occurred_at=datetime(2026, 8, 15, 12, 45, 0, tzinfo=UTC),
+        recommended_action="Provider reports subscription allowance exhausted.",
+    )
+    active_md = generate_status_markdown(
+        tmp_path, target_date=REPORT_DATE, storm_loader=lambda d: [alarm]
+    )
+    assert "STORM ALARM ACTIVE" in active_md
+    assert "- Active storm alarms: 1 (active)" in active_md
+
+
+def test_digest_discoveries_quiet_vs_loaded_vs_unavailable(tmp_path: Path) -> None:
+    queue = build_workspace(tmp_path)
+
+    # 1. Loaded discoveries
+    disc = PendingDiscovery(
+        discovery_id="D-20260815-KTXJSHGZ",
+        status="draft",
+        claim="Tested pattern holds.",
+        relative_link="DISCOVERIES.md#d-20260815-ktxjshgz",
+    )
+    renderer_loaded = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=lambda _day: [],
+        discoveries_loader=lambda: [disc],
+    )
+    path_loaded = renderer_loaded.write(report_date=REPORT_DATE)
+    content_loaded = path_loaded.read_text()
+    assert "## Discoveries awaiting verdict" in content_loaded
+    assert (
+        "- [**D-20260815-KTXJSHGZ**](DISCOVERIES.md#d-20260815-ktxjshgz) (`draft`) — "
+        "Tested pattern holds."
+    ) in content_loaded
+
+    # 2. Quiet discoveries (empty)
+    renderer_quiet = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=lambda _day: [],
+        discoveries_loader=lambda: [],
+    )
+    path_quiet = renderer_quiet.write(report_date=REPORT_DATE)
+    content_quiet = path_quiet.read_text()
+    assert "## Discoveries awaiting verdict" in content_quiet
+    assert "No discoveries awaiting verdict." in content_quiet
+
+    # 3. Unavailable discoveries (loader raises)
+    def broken_disc():
+        raise RuntimeError("simulated discoveries store failure")
+
+    renderer_unavail = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=lambda _day: [],
+        discoveries_loader=broken_disc,
+    )
+    path_unavail = renderer_unavail.write(report_date=REPORT_DATE)
+    content_unavail = path_unavail.read_text()
+    assert "## Discoveries awaiting verdict" in content_unavail
+    assert (
+        "- Unavailable: discoveries could not be loaded "
+        "(RuntimeError: simulated discoveries store failure)."
+    ) in content_unavail

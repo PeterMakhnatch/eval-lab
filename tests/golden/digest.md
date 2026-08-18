@@ -126,6 +126,10 @@ One row per canary per catalog day. Two rows for the same canary are two days of
 - Judge calibration: no judge is calibrated — no measured record under `research/calibration/records/`.
 - Canary observations in report: 2
 
+## Discoveries awaiting verdict
+
+- [**D-20260815-KTXJSHGZ**](DISCOVERIES.md#d-20260815-ktxjshgz) (`draft`) — Across this small control-only cohort, event-summary and transaction-reconciliation showed the expected pattern.
+
 ## Queue events
 
 A run of consecutive events identical in event, job, and policy/reason collapses to one row carrying its repeat count and time range. Every event that differs from the one before it is listed on its own line, verbatim.

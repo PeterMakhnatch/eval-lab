@@ -92,7 +92,9 @@ def wilson_interval(
         )
         / scale
     )
-    return center - half_width, center + half_width
+    lower = max(0.0, center - half_width)
+    upper = min(1.0, center + half_width)
+    return lower, upper
 
 
 def _safe_path(root: Path, value: str) -> Path:

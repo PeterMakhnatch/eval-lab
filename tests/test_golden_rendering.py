@@ -544,3 +544,70 @@ def test_status_rendering_storm_quiet_vs_active_vs_unavailable(tmp_path: Path) -
     )
     assert "STORM ALARM ACTIVE" in active_md
     assert "- Active storm alarms: 1 (active)" in active_md
+
+
+def test_digest_discoveries_quiet_vs_loaded_vs_unavailable(tmp_path: Path) -> None:
+    queue = build_workspace(tmp_path)
+
+    # 1. Loaded discoveries
+    disc = PendingDiscovery(
+        discovery_id="D-20260815-KTXJSHGZ",
+        status="draft",
+        claim="Tested pattern holds.",
+        relative_link="DISCOVERIES.md#d-20260815-ktxjshgz",
+    )
+    renderer_loaded = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=lambda _day: [],
+        discoveries_loader=lambda: [disc],
+    )
+    path_loaded = renderer_loaded.write(report_date=REPORT_DATE)
+    content_loaded = path_loaded.read_text()
+    assert "## Discoveries awaiting verdict" in content_loaded
+    assert (
+        "- [**D-20260815-KTXJSHGZ**](DISCOVERIES.md#d-20260815-ktxjshgz) (`draft`) — "
+        "Tested pattern holds."
+    ) in content_loaded
+
+    # 2. Quiet discoveries (empty)
+    renderer_quiet = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=lambda _day: [],
+        discoveries_loader=lambda: [],
+    )
+    path_quiet = renderer_quiet.write(report_date=REPORT_DATE)
+    content_quiet = path_quiet.read_text()
+    assert "## Discoveries awaiting verdict" in content_quiet
+    assert "No discoveries awaiting verdict." in content_quiet
+
+    # 3. Unavailable discoveries (loader raises)
+    def broken_disc():
+        raise RuntimeError("simulated discoveries store failure")
+
+    renderer_unavail = DigestRenderer(
+        repo_root=tmp_path,
+        queue=queue,
+        policy=policy(),
+        trial_loader=trial_loader,
+        drift_loader=drift_on,
+        preflight_loader=lambda: frozen_preflight(tmp_path),
+        storm_loader=lambda _day: [],
+        discoveries_loader=broken_disc,
+    )
+    path_unavail = renderer_unavail.write(report_date=REPORT_DATE)
+    content_unavail = path_unavail.read_text()
+    assert "## Discoveries awaiting verdict" in content_unavail
+    assert (
+        "- Unavailable: discoveries could not be loaded "
+        "(RuntimeError: simulated discoveries store failure)."
+    ) in content_unavail

@@ -1,6 +1,6 @@
-Status: building
-Last: Cycle 3: Added board note for lessons, wired DISCOVERIES.md links in DigestRenderer with full test coverage
-Next: Cycle 4: Final golden-file coverage and night verification across all generated surfaces
+Status: done
+Last: Cycle 4: Added golden-file coverage for all generated surfaces and verified night acceptance
+Next: Integrator review and merge
 Blockers: none
 
 # M016 - LOOP-SURFACE: the generated surfaces actually generate
@@ -96,3 +96,32 @@ Command output from running pytest covering the new digest discoveries parser an
 ### 5. RECORD
 - Premerge verification: `bash scripts/premerge.sh` (pass).
 - Committed and pushed Cycle 3. PR: https://github.com/PeterMakhnatch/eval-lab/pull/119
+
+## Cycle 4 Log
+
+### 1. RECHECK
+- Rechecked Cycle 3 acceptance with `scripts/premerge.sh`: passed (1281 passed, clean ruff, ty 28 diagnostics).
+
+### 2. EXTEND
+- Added golden coverage across all newly added and updated surfaces (`docs/STATUS.md`, `tests/golden/status.md`, `tests/golden/digest.md`).
+- Validated all 3-state behaviors (quiet, active, unavailable) for storm alarms and discoveries in `tests/test_golden_rendering.py`.
+
+### 3. PROVE
+Command output from full pytest suite:
+```
+1282 passed, 1 skipped, 1 xfailed in 79.80s (0:01:19)
+```
+
+Premerge script execution:
+```
+premerge green: Python 3.12; ty 28 <= 28
+```
+
+### 4. HARDEN
+- Added `test_digest_discoveries_quiet_vs_loaded_vs_unavailable` in `tests/test_golden_rendering.py`.
+- Verified golden files for `status.md`, `digest.md`, and `preflight.txt`.
+
+### 5. RECORD
+- Premerge verification: `bash scripts/premerge.sh` (pass).
+- Committed and pushed Cycle 4. PR: https://github.com/PeterMakhnatch/eval-lab/pull/119
+- Set Status: done.

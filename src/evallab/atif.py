@@ -4,7 +4,7 @@ import hashlib
 import json
 from collections import defaultdict, deque
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -210,6 +210,7 @@ class ProjectionInvariant:
     excepted_job_ids: frozenset[str]
     missing_job_ids: frozenset[str]
     extra_job_ids: frozenset[str]
+    exceptions_by_reason: dict[str, frozenset[str]] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -217,12 +218,20 @@ class ProjectionInvariant:
 
     @property
     def detail(self) -> str:
-        return (
+        base = (
             f"catalog={len(self.catalog_job_ids)} projected={len(self.projected_job_ids)} "
-            f"exceptions={len(self.excepted_job_ids)} "
+            f"exceptions={len(self.excepted_job_ids)}"
+        )
+        if self.exceptions_by_reason:
+            breakdown = " (" + ", ".join(
+                f"{reason}={len(job_ids)}"
+                for reason, job_ids in sorted(self.exceptions_by_reason.items())
+            ) + ")"
+            base += breakdown
+        return (
+            f"{base} "
             f"missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
         )
-
 
 CatalogRowsLoader = Callable[[str], list[tuple[str, str, str | None]]]
 
@@ -881,8 +890,8 @@ def _load_catalog_projection_rows(database_url: str) -> list[tuple[str, str, str
         ]
 
 
-def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
-    job_ids: set[str] = set()
+def _recorded_projection_exceptions_map(events_path: Path) -> dict[str, str]:
+    exceptions: dict[str, str] = {}
     for _segment, _line_number, line in read_event_log_lines(events_path):
         if not line.strip():
             continue
@@ -895,11 +904,16 @@ def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
             f"{PROJECTION_FAILURE_REASON}:"
         ):
             continue
-        parts = reason.split(":", 3)
+        parts = reason.split(":", 2)
         if len(parts) >= 3 and parts[1]:
-            job_ids.add(parts[1])
-    return frozenset(job_ids)
+            exceptions[parts[1]] = parts[2]
+        elif len(parts) == 2 and parts[1]:
+            exceptions[parts[1]] = "unspecified"
+    return exceptions
 
+
+def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
+    return frozenset(_recorded_projection_exceptions_map(events_path).keys())
 
 def check_projection_invariant(
     database_url: str,
@@ -947,13 +961,22 @@ def check_projection_invariant(
         ):
             projected_job_ids.add(job_id)
 
-    recorded = _recorded_projection_exceptions(events_path)
+    recorded_map = _recorded_projection_exceptions_map(events_path)
+    recorded = frozenset(recorded_map.keys())
     missing = catalog_job_ids - projected_job_ids
     excepted = missing & recorded
+    exceptions_by_reason: dict[str, set[str]] = defaultdict(set)
+    for job_id in excepted:
+        reason = recorded_map.get(job_id, "unknown")
+        exceptions_by_reason[reason].add(job_id)
+    frozen_exceptions = {
+        k: frozenset(v) for k, v in sorted(exceptions_by_reason.items())
+    }
     return ProjectionInvariant(
         catalog_job_ids=catalog_job_ids,
         projected_job_ids=frozenset(projected_job_ids),
         excepted_job_ids=frozenset(excepted),
         missing_job_ids=frozenset(missing - excepted),
         extra_job_ids=frozenset(present_job_ids - catalog_job_ids),
+        exceptions_by_reason=frozen_exceptions,
     )

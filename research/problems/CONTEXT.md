@@ -117,4 +117,4 @@ built, in what order); docs/prompts/context-supply-program.md (how
 external knowledge becomes agent context); docs/prompts/gym-campaign.md
 (the current run campaign); docs/prompts/radar.md (search methods);
 docs/operating-manual.md (how Peter operates the lab);
-agents/WORKFLOW.md + agents/missions/ACTIVE.md (fleet rules + live board).
+agents/WORKFLOW.md + agents/missions/ACTIVE.md (fleet rules + live board); research/papers/MAP.md (the eight no-training lanes with every paper assigned).

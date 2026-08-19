@@ -211,8 +211,11 @@ def test_catalog_projection_invariant_requires_partition_or_reasoned_exception(
     assert invariant.ok is True
     assert invariant.projected_job_ids == {projected_job}
     assert invariant.excepted_job_ids == {excepted_job}
-    assert invariant.detail == "catalog=2 projected=1 exceptions=1 missing=0 extra=0"
-
+    assert invariant.exceptions_by_reason == {"PermissionError": frozenset({excepted_job})}
+    expected_detail = (
+        "catalog=2 projected=1 exceptions=1 (PermissionError=1) missing=0 extra=0"
+    )
+    assert invariant.detail == expected_detail
     archived_events = queue.events_path.with_name("events.jsonl.1")
     queue.events_path.replace(archived_events)
     archived = check_projection_invariant(

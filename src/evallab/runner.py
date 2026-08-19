@@ -52,6 +52,18 @@ _PROVIDER_WRAPPER_EXCEPTIONS = {
     "UnknownApiError",
 }
 _SUBSCRIPTION_ENVIRONMENT_KEYS = {
+    # Antigravity (agy) reads a plaintext OAuth token file, not an API key, so
+    # forwarding these keeps the lab subscriptions-only. Harbor's
+    # antigravity_cli adapter resolves AGY_AUTH_JSON_PATH first, then falls
+    # back to ~/.gemini/antigravity-cli/antigravity-oauth-token when
+    # AGY_FORCE_AUTH_JSON is truthy. Mint the token with:
+    #   ~/.local/share/uv/tools/harbor/bin/python \
+    #     -m harbor.agents.installed.antigravity_login
+    # CURSOR_API_KEY is deliberately absent: Harbor's cursor_cli adapter
+    # requires an API key, which this lab's profiles forbid by name. Adding it
+    # is a policy decision for a human, not a plumbing fix.
+    "AGY_AUTH_JSON_PATH",
+    "AGY_FORCE_AUTH_JSON",
     "CLAUDE_FORCE_OAUTH",
     "CODEX_HOME",
     "CODEX_FORCE_AUTH_JSON",

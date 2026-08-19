@@ -245,6 +245,23 @@ def test_subscription_environment_never_forwards_api_keys():
     assert env["CLAUDE_FORCE_OAUTH"] == "1"
 
 
+def test_subscription_environment_forwards_agy_oauth_token_but_not_cursor_key():
+    """The AGY lane authenticates with an OAuth token file, so it may cross into
+    Harbor. Cursor's adapter wants an API key, which this lab forbids: the key
+    must be dropped even when the caller has it set."""
+    source = {
+        "AGY_FORCE_AUTH_JSON": "1",
+        "AGY_AUTH_JSON_PATH": "/tokens/agy-oauth-token",
+        "CURSOR_API_KEY": FAKE_SECRET,
+        "HOME": "/home/x",
+    }
+    env = subscription_environment(source)
+    assert env["AGY_FORCE_AUTH_JSON"] == "1"
+    assert env["AGY_AUTH_JSON_PATH"] == "/tokens/agy-oauth-token"
+    assert "CURSOR_API_KEY" not in env
+    assert FAKE_SECRET not in json.dumps(env)
+
+
 def test_scrub_environment_drops_key_shaped_names_even_if_allowlisted():
     allow = frozenset({"HOME", "SNEAKY_API_KEY"})
     clean = scrub_environment({"HOME": "/h", "SNEAKY_API_KEY": FAKE_SECRET}, allow)

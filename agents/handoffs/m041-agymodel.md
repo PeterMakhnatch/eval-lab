@@ -91,3 +91,52 @@ Restored: 33 passed in 1.17s
 
 - `env -u EVALLAB_DERIVED_ROOT bash scripts/premerge.sh` -> exit code `0` (1522 passed, 2 skipped, 1 xfailed; ty 27 <= 28).
 - `uv run pytest tests/test_runner.py tests/test_modeladapter.py tests/test_profiles.py` -> 55 passed.
+
+## Addendum (orchestrator) - the thinking level was still being dropped
+
+The mapping resolved the model id correctly but discarded the `-high` / `-medium` /
+`-low` half of the pin: all three collapsed onto `google/gemini-3.7-flash`, so every
+Antigravity trial would have run at Harbor's **default** effort no matter what the lab
+pinned. Harbor takes the thinking level as a separate agent kwarg, so the local
+identifier now decomposes into both halves via `HarborModelSpec`, and `build_command`
+emits `--agent-kwarg reasoning_effort=<effort>`.
+
+Verified argv:
+
+```
+harbor run --path library/tasks/event-summary --agent antigravity-cli --env docker \
+  --job-name agy-probe --jobs-dir runs --n-concurrent 1 --n-attempts 1 \
+  --model google/gemini-3.7-flash --agent-kwarg reasoning_effort=high
+```
+
+`harbor run --print-config` resolves that to `"model_name": "google/gemini-3.7-flash"`
+with `"reasoning_effort": "high"`.
+
+**Correction to the evidence standard used above:** `--print-config` does *not* validate
+the model id or the effort. It resolves a `JobConfig` and exits without constructing the
+adapter, so it echoes whatever it is given - the old pin `gemini-3.7-flash-high` also
+"passes" `--print-config`. The real validation is dynamic and was exercised directly
+against Harbor's own class:
+
+```
+AntigravityCli._validate_reasoning_effort('medium','gemini-3.1-pro')
+  -> ValueError: Gemini model 'gemini-3.1-pro' does not support reasoning_effort='medium'
+AntigravityCli._validate_reasoning_effort('high','gemini-3.7-flash')    -> ok
+AntigravityCli._validate_reasoning_effort('medium','gemini-3.7-flash')  -> ok
+AntigravityCli._validate_reasoning_effort('high','gemini-3.1-pro')      -> ok
+```
+
+Every row in `LOCAL_TO_HARBOR_MODEL` satisfies those rules. The slash requirement at
+`antigravity_cli.py:776-777` sits inside the run path (it takes `instruction`,
+`environment`, `context`), so the old pin would not have been caught at config time - it
+would have raised `ValueError: Model name must be in the format provider/model_name`
+**mid-trial, after the container was built.**
+
+Mutation evidence for the addendum:
+- Removed the `--agent-kwarg` emission ->
+  `test_antigravity_thinking_level_travels_as_a_separate_agent_kwarg` failed. Restored, green.
+- Changed the `-low` row's level to `high` ->
+  `test_antigravity_effort_matches_the_pinned_level_and_is_omitted_when_absent` failed
+  (`assert 'high' == 'low'`). Restored, green.
+
+`premerge.sh` exit code checked directly: `0`.

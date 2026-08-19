@@ -22,6 +22,7 @@ from evallab.runner import (
     cleanup_new_harbor_containers,
     load_matrix,
     resolve_harbor_model,
+    resolve_harbor_reasoning_effort,
     run_experiment,
     run_harbor_process,
     subscription_command,
@@ -628,12 +629,67 @@ def test_resolve_harbor_model_distinguishes_local_and_harbor_namespaces() -> Non
     local_model = DEFAULT_AGENT_MODELS["antigravity-cli"]
     assert local_model == "gemini-3.7-flash-high"
 
-    assert LOCAL_TO_HARBOR_MODEL[("antigravity-cli", local_model)] == "google/gemini-3.7-flash"
+    assert LOCAL_TO_HARBOR_MODEL[("antigravity-cli", local_model)].model == (
+        "google/gemini-3.7-flash"
+    )
     harbor_model = resolve_harbor_model("antigravity-cli", local_model)
     assert harbor_model == "google/gemini-3.7-flash"
     assert harbor_model != local_model
     assert harbor_model.startswith("google/")
     assert not local_model.startswith("google/")
+
+def test_antigravity_thinking_level_travels_as_a_separate_agent_kwarg(
+    tmp_path: Path,
+) -> None:
+    """The `-high` half of the local pin is a Harbor agent kwarg, not part of the
+    model id. Without it a `-high` pin silently runs at Harbor's default effort."""
+    command = build_command(
+        RunRequest(
+            task=task(tmp_path),
+            agent="antigravity-cli",
+            model="gemini-3.7-flash-high",
+            name="sample-agy-effort",
+            jobs_dir=tmp_path / "runs",
+            allow_billable=True,
+        )
+    )
+
+    assert command[command.index("--model") + 1] == "google/gemini-3.7-flash"
+    assert "--agent-kwarg" in command
+    assert command[command.index("--agent-kwarg") + 1] == "reasoning_effort=high"
+
+
+def test_antigravity_effort_matches_the_pinned_level_and_is_omitted_when_absent(
+    tmp_path: Path,
+) -> None:
+    """Each pin carries its own level, and a model with no level sends no kwarg.
+
+    Harbor refuses `minimal`/`medium` on non-Flash models, so a wrong level here
+    would fail the trial at agent construction rather than being ignored.
+    """
+    assert resolve_harbor_reasoning_effort("antigravity-cli", "gemini-3.7-flash-low") == "low"
+    assert (
+        resolve_harbor_reasoning_effort("antigravity-cli", "gemini-3.7-flash-medium")
+        == "medium"
+    )
+    assert resolve_harbor_reasoning_effort("antigravity-cli", "gemini-3.1-pro-high") == "high"
+    # Claude on the Antigravity transport takes no Gemini thinking level.
+    assert resolve_harbor_reasoning_effort("antigravity-cli", "claude-sonnet-4-6") is None
+    assert resolve_harbor_reasoning_effort("antigravity-cli", None) is None
+    assert resolve_harbor_reasoning_effort("codex", "gpt-5.6-terra") is None
+
+    command = build_command(
+        RunRequest(
+            task=task(tmp_path),
+            agent="antigravity-cli",
+            model="claude-sonnet-4-6",
+            name="sample-agy-noeffort",
+            jobs_dir=tmp_path / "runs",
+            allow_billable=True,
+        )
+    )
+    assert "--agent-kwarg" not in command
+
 
 def test_resolve_harbor_model_variants_and_passthrough() -> None:
     """All Antigravity variants translate to Harbor format; unmapped models pass through."""

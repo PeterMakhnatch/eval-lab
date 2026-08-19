@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from pydantic import ValidationError
 
@@ -410,13 +410,39 @@ def validate_request(request: RunRequest) -> None:
 #    - In `run()`, Harbor passes `--model {model}` to `agy` inside the container
 #      (harbor/agents/installed/antigravity_cli.py:810-819).
 #
-# Therefore, `antigravity-cli` must be passed `google/gemini-3.7-flash` in Harbor.
-LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
-    ("antigravity-cli", "gemini-3.7-flash-high"): "google/gemini-3.7-flash",
-    ("antigravity-cli", "gemini-3.7-flash-medium"): "google/gemini-3.7-flash",
-    ("antigravity-cli", "gemini-3.7-flash-low"): "google/gemini-3.7-flash",
-    ("antigravity-cli", "gemini-3.1-pro-high"): "google/gemini-3.1-pro",
-    ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
+# Therefore, `antigravity-cli` must be passed `google/gemini-3.7-flash` in Harbor,
+# and the thinking level must travel separately as an agent kwarg. Harbor accepts
+# it via `harbor run --agent-kwarg reasoning_effort=<effort>` (`--ak`). Dropping
+# it would silently downgrade a `-high` pin to Harbor's default effort, so the
+# local identifier decomposes into both halves rather than just the model.
+#
+# Harbor validates the pair (`antigravity_cli.py:80-108`): effort must be one of
+# minimal/low/medium/high; `minimal` and `medium` are Flash-only; Gemini 2.5
+# models reject effort entirely. Every row below satisfies those rules.
+class HarborModelSpec(NamedTuple):
+    """A local CLI model identifier, split into what Harbor actually accepts."""
+
+    model: str
+    reasoning_effort: str | None
+
+
+LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], HarborModelSpec] = {
+    ("antigravity-cli", "gemini-3.7-flash-high"): HarborModelSpec(
+        "google/gemini-3.7-flash", "high"
+    ),
+    ("antigravity-cli", "gemini-3.7-flash-medium"): HarborModelSpec(
+        "google/gemini-3.7-flash", "medium"
+    ),
+    ("antigravity-cli", "gemini-3.7-flash-low"): HarborModelSpec(
+        "google/gemini-3.7-flash", "low"
+    ),
+    ("antigravity-cli", "gemini-3.1-pro-high"): HarborModelSpec(
+        "google/gemini-3.1-pro", "high"
+    ),
+    # Claude on the Antigravity transport takes no Gemini thinking level.
+    ("antigravity-cli", "claude-sonnet-4-6"): HarborModelSpec(
+        "google/claude-sonnet-4-6", None
+    ),
 }
 
 
@@ -428,7 +454,20 @@ def resolve_harbor_model(agent: str, model: str | None) -> str | None:
     """
     if model is None:
         return None
-    return LOCAL_TO_HARBOR_MODEL.get((agent, model), model)
+    spec = LOCAL_TO_HARBOR_MODEL.get((agent, model))
+    return spec.model if spec is not None else model
+
+
+def resolve_harbor_reasoning_effort(agent: str, model: str | None) -> str | None:
+    """Return the thinking level Harbor must receive as a separate agent kwarg.
+
+    None means "send no effort": either the pin encodes no thinking level, or
+    the target model does not accept one.
+    """
+    if model is None:
+        return None
+    spec = LOCAL_TO_HARBOR_MODEL.get((agent, model))
+    return spec.reasoning_effort if spec is not None else None
 
 
 def build_command(request: RunRequest) -> list[str]:
@@ -453,6 +492,9 @@ def build_command(request: RunRequest) -> list[str]:
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])
+        effort = resolve_harbor_reasoning_effort(request.agent, request.model)
+        if effort is not None:
+            command.extend(["--agent-kwarg", f"reasoning_effort={effort}"])
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     return command

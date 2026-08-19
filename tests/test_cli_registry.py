@@ -182,7 +182,7 @@ def test_registry_contract_func_count_equals_leaf_command_count() -> None:
         (path, subp) for path, subp in leaves if callable(subp.get_default("func"))
     ]
     assert len(leaves) == len(leaves_with_func)
-    assert len(leaves) == 52, f"Expected exactly 52 leaf commands, found {len(leaves)}"
+    assert len(leaves) == 54, f"Expected exactly 54 leaf commands, found {len(leaves)}"
 
 
 def test_registry_contract_ast_set_defaults_count_equals_leaf_count() -> None:
@@ -203,7 +203,7 @@ def test_registry_contract_ast_set_defaults_count_equals_leaf_count() -> None:
 
     leaves = find_leaf_parsers(cli.parser())
     assert len(ast_set_defaults_func_calls) == len(leaves)
-    assert len(ast_set_defaults_func_calls) == 52
+    assert len(ast_set_defaults_func_calls) == 54
 
 
 def test_registry_contract_handlers_accept_uniform_signature() -> None:

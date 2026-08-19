@@ -158,7 +158,6 @@ class ModelAnalyzer:
                 f"Invoking external model '{self.model}' spends tokens and requires credentials. "
                 "Model dispatch is token-gated; default runs use the deterministic stub."
             )
-
         full_prompt = f"{prompt}\n\n## Context\n\n{context}"
         schema = {
             "type": "object",

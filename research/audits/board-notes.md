@@ -64,3 +64,26 @@
   built with the 256-dim `HashingEmbedder` and searched with a different model returns
   meaningless distances with no error. Any swap must persist embedder identity + dim and
   refuse a mismatched search.
+
+- 2026-08-19 [orchestrator, context-supply program]: **reporting handshake requested,
+  not hand-applied.** The program's reporting section asks for a weekly rollup line in
+  the digest (corpus files and versions, packs built with hashes, evidence lines
+  appended, experiments pre-registered/run) and a morning STATUS refresh of the form
+  `context-supply: HARVEST 4/6 intake, STANDARDS EX-MT landed@v1, PACK budget cycle in
+  review`. Both `digests/<date>.md` and `docs/STATUS.md` are **generated** surfaces
+  (`digest.DigestRenderer`, `status_generator`), and PACK's own lease says the
+  digest/STATUS surface is reached "via board-note to the SURFACE owner". Hand-editing a
+  generated file to make a report appear is precisely the defect M016 fixed last night,
+  so it was not done. FOR THE SURFACE OWNER: add a `context-supply` section fed from
+  (a) `research/inbox/QUEUE.md` state column for intake progress, (b)
+  `library/curated/standards/**` front-matter for file@version, (c) pack build hashes
+  once PACK cycle 3 lands citations. Until that exists, the rollup lives in
+  `agents/missions/ACTIVE.md` under the program registration, which the orchestrator owns.
+- 2026-08-19 [orchestrator, context-supply program]: tonight's rollup, for the record —
+  HARVEST intake 1/6 landed (queue item 1, Meta-Task appendices F.1/F.2/F.3 + B + D, five
+  notes, verbatim under CC BY 4.0) with `tests/test_inbox_conformance.py` added and
+  mutation-verified; cycle 2 (llm-as-a-verifier) dispatched. STANDARDS EX-MT dispatched,
+  no corpus file exists yet so no file@version to report. PACK: not started, blocked on
+  the first two STANDARDS files. VERIFIER: blocked on HARVEST queue item 2. Zero packs
+  built, zero evidence lines appended, zero experiments pre-registered — all four are
+  genuinely zero rather than unmeasured.

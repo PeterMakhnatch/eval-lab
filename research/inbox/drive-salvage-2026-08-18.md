@@ -1,3 +1,18 @@
+---
+source_url: "drive:.R&D + .Agents - Main (Google Drive; archived 2026-08-18, no public URL)"
+source_type: drive
+retrieved: 2026-08-18
+license_note: Peter's own notes — freely usable in-repo; the linked third-party sources are paraphrase-only until individually harvested
+status: raw
+feeds:
+  - parked
+---
+
+<!-- feeds: parked deliberately. This is a link-triage note, not source material:
+     its value is the HARVEST queue entries it produced (queue items 2 and 6 in
+     research/inbox/QUEUE.md), not a corpus target of its own. It becomes
+     `superseded` when every link it names is either harvested or dropped. -->
+
 # Drive salvage — 2026-08-18
 
 Links extracted from Peter's Drive notes (.R&D, .Agents - Main) before those

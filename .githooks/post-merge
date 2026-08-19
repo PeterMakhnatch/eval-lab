@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Regenerate committed build products after a merge brings in source changes.
+#
+# The merge driver resolves the conflict on `docs/repo-map.md` / `docs/INDEX.md`,
+# but it runs per-file, before the merge as a whole has landed. This hook runs
+# afterwards, when the tree is final, and records the true generated output as a
+# follow-up commit. A merge commit is not amended: rewriting a merge you just
+# made is surprising, and a separate commit keeps the history honest about what
+# was generated versus what was merged.
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$repo_root" || exit 0
+
+# Do not commit on top of a conflicted or dirty index.
+git diff --cached --quiet || exit 0
+
+uv run python -m evallab.repomap generate -o docs/repo-map.md >/dev/null 2>&1 || exit 0
+uv run python -m evallab.docindex generate -o docs/INDEX.md >/dev/null 2>&1 || exit 0
+
+if git diff --quiet -- docs/repo-map.md docs/INDEX.md; then
+  exit 0
+fi
+
+git add -- docs/repo-map.md docs/INDEX.md
+git commit -q -m "docs: regenerate build products after merge"
+echo "post-merge: regenerated docs/repo-map.md and docs/INDEX.md"

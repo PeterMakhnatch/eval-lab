@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Fold regenerated build products into the commit that was just rewritten.
+#
+# Why this exists as well as the merge driver: during a rebase, git merges files
+# one at a time, so when `scripts/git-merge-regen.sh` runs for `docs/repo-map.md`
+# the rest of the commit's source files are not on disk yet. The driver therefore
+# resolves the conflict but can produce a stale map - correct behaviour for the
+# conflict, incomplete for the tree. This hook runs once the rewrite has fully
+# landed, when the source tree really is final, and regenerates from it.
+#
+# Scope: only the two generated docs, only when they actually changed, and only
+# for `rebase`. Anything else is left alone.
+set -uo pipefail
+
+[ "${1:-}" = "rebase" ] || exit 0
+
+# `git commit --amend` below fires post-rewrite again; stop the recursion.
+[ -n "${EVALLAB_REGEN_HOOK_ACTIVE:-}" ] && exit 0
+export EVALLAB_REGEN_HOOK_ACTIVE=1
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$repo_root" || exit 0
+
+# A rebase stopped for conflicts must not be amended - the user is mid-operation.
+git rev-parse --verify -q HEAD >/dev/null || exit 0
+[ -d "$(git rev-parse --git-path rebase-merge)" ] && exit 0
+[ -d "$(git rev-parse --git-path rebase-apply)" ] && exit 0
+
+# Never rewrite a commit that is not ours to rewrite, and never touch a dirty
+# tree: amending would silently absorb unrelated staged work.
+if ! git diff --cached --quiet; then
+  exit 0
+fi
+
+uv run python -m evallab.repomap generate -o docs/repo-map.md >/dev/null 2>&1 || exit 0
+uv run python -m evallab.docindex generate -o docs/INDEX.md >/dev/null 2>&1 || exit 0
+
+if git diff --quiet -- docs/repo-map.md docs/INDEX.md; then
+  exit 0
+fi
+
+git add -- docs/repo-map.md docs/INDEX.md
+git commit -q --amend --no-edit
+echo "post-rewrite: regenerated docs/repo-map.md and docs/INDEX.md into $(git rev-parse --short HEAD)"

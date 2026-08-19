@@ -17,7 +17,9 @@ cd "$repo_root"
 
 git config merge.regen.name "regenerate committed build products instead of merging them"
 git config merge.regen.driver "bash scripts/git-merge-regen.sh %O %A %B %P"
+git config core.hooksPath .githooks
 
-echo "configured merge.regen -> scripts/git-merge-regen.sh"
+echo "configured merge.regen  -> scripts/git-merge-regen.sh"
+echo "configured hooksPath    -> .githooks (post-merge, post-rewrite)"
 echo "covered paths:"
 git check-attr merge -- docs/repo-map.md docs/INDEX.md

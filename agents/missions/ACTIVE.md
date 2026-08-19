@@ -159,6 +159,67 @@ the test failing, restore, show it passing — because the recurring finding all
 week has been tests that pass while reality disagrees. `scripts/premerge.sh`
 gates every push; no mission merges its own PR.
 
+### Phase-1 DATA TRUTH registered (M029–M031) — TOP BUILD PRIORITY
+
+Spec: `docs/prompts/build-program.md` Phase 1. These were "registered intent"
+in prose but had **no board rows and no modules on disk** — confirmed by
+`ls src/evallab/{ingest_verify,traj,modeladapter}.py` → all absent, and no
+handoff under `agents/handoffs/`. Registered here so the priority rule has
+something to point at.
+
+| Mission | Loop | Lease (as written) | State |
+|---|---|---|---|
+| M029 | INGEST — completeness as an invariant | `src/evallab/ingest_verify.py` (new; or extend `facts.py`, declared in this row), `tests/test_ingest_verify*`, `sql/ingest_views.sql` | ready — unstarted |
+| M030 | TRAJ — trajectory analysis as a capability | `src/evallab/traj.py` (new), `atif.py` (extend, additive), `tests/test_traj*`, `sql/traj_views.sql`, `derived/parquet/traj_features/`; lessons join via board-note only | ready — unstarted |
+| M031 | SEAM — the model adapter | `src/evallab/modeladapter.py` (new), `tests/test_modeladapter.py`, injection-point wiring in `analyst.py` and `analysis_worker.py` | ready — unstarted |
+
+**These three keep top build priority**, per both `build-program.md` and
+`gym-campaign.md`: GYM-UI's analyst panel and every model-assisted analysis
+depend on SEAM, and GYM-DATA's external corpora enter INGEST's verify scope.
+When subagent slots are scarce, M029–M031 win them; context-supply (M025–M028)
+and the gym lanes yield.
+
+M031 SEAM is also the mission that would close the gap recorded under
+`Needs Peter`: all three model seams (`analyst.py:150`, `analysis_worker.py:657`,
+`authoring.py:642`) are refusing stubs, so nothing in the lab can call a model
+today regardless of spend authorisation.
+
+### Gym campaign registered (M032–M035)
+
+Spec: `docs/prompts/gym-campaign.md` v1. Peter's framing: the lab is a GYM — a
+growing collection of environments plus the machinery to run them, capture
+everything, analyze trajectories, and evolve the collection. Long-running
+missions; every cycle boundary is merge-safe.
+
+| Mission | Loop | Lease (as written) | State |
+|---|---|---|---|
+| M032 | GYM-RUN — the first campaign: fill the lake, ship the experiments | `queue/**` submissions (through the CLI, never hand-written files), `library/frozen/gym-v0/**` (new manifest), one schema addition (`extra_instruction_path`), `research/cards/campaign-*.md` | cycles 1–2 dispatched; **cycle 3 BLOCKED** (see below) |
+| M033 | GYM-DATA — more data than trajectories | `research/external/**` (new), `src/evallab/fetch.py` (extend), `sql/external_views.sql`; funnel/STATUS line via board-note to SURFACE | cycle 1 dispatched |
+| M034 | GYM-HARBOR — use the Harbor we already have | `docs/research/harbor-capability-audit.md` (new), `src/evallab/fetch.py`/`runner.py` touchpoints only with a board-row note | ready — unstarted |
+| M035 | GYM-UI — read every trajectory, and read the analyst's mind | `src/evallab/explorer.py` (extend), `tests/test_explorer*`; TRAJ consumed read-only via board-note dependency | ready — depends on M030 TRAJ for the outline function; may render raw ATIF with a built-in condenser first |
+
+**GYM-RUN cycle 3 (dispatch campaign wave 1) is blocked on two measured facts,
+not on effort.** Both were checked at registration time rather than assumed:
+
+1. **The registry is empty.** `evallab registry list` → *"No task records found in
+   `library/registry/`"*; the directory holds only `.gitkeep`. `registry.py:370`
+   refuses any spec whose task is unregistered, so **no experiment can be
+   submitted at all**, and `gym-v0` would freeze as the empty set. Registry
+   promotion is human-only by the standing never-list, so this is Peter decision
+   #2 (register the curated-nominee slice, or reject the study) — already on the
+   escalation list, now load-bearing for the whole campaign.
+2. **codex has no headroom.** Preflight: `used_percent 92.0`, `remaining_percent
+   8.0`, `credits_balance 0`, `hard stop True`, window resets
+   `2026-08-20T18:32:49Z`, and the snapshot is **65h27m stale**. Preflight's own
+   words: *"UNKNOWN is not 'plenty left'."* A campaign of every gym-v0 task ×
+   codex × k=3 does not fit inside 8% of a weekly window with no overflow
+   credits, so preflight sizes wave 1 at **zero codex trials tonight**. The
+   free `oracle` control arm per task family remains available — but with zero
+   registered tasks there are also zero families to control.
+
+Recorded rather than worked around: the doc's own constraint is "do not work
+around ceilings or provision credentials."
+
 ### Context-supply program registered (M025–M028)
 
 Spec: `docs/prompts/context-supply-program.md` v1 (Peter-level direction; this

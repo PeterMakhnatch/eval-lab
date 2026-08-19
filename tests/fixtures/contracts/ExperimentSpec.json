@@ -153,6 +153,19 @@
       "default": null,
       "title": "Expected Reward"
     },
+    "extra_instruction_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "repo-relative path to an extra instruction file appended to the task instruction (Harbor's --extra-instruction-path). This is the elicitation lever: the preamble is part of the measured tuple, not neutral background, so EXP-S03's treatment arm varies it while the control leaves it unset.",
+      "title": "Extra Instruction Path"
+    },
     "grid_id": {
       "anyOf": [
         {

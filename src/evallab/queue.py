@@ -1438,8 +1438,16 @@ class Executor:
             timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
 
         jobs_dir = self._safe_repo_path(spec.jobs_dir)
+        # A field the dispatcher never forwards is the defect class this repo keeps
+        # finding, so the elicitation preamble is resolved here beside jobs_dir.
+        extra_instruction_path = (
+            self._safe_repo_path(spec.extra_instruction_path)
+            if spec.extra_instruction_path
+            else None
+        )
         request = RunRequest(
             task=task_path,
+            extra_instruction_path=extra_instruction_path,
             agent=spec.agent,
             name=spec.name,
             jobs_dir=jobs_dir,

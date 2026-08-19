@@ -192,6 +192,15 @@ class ExperimentSpec(ContractModel):
     )
     task: str = Field(min_length=1)
     task_path: str | None = None
+    extra_instruction_path: str | None = Field(
+        default=None,
+        description=(
+            "repo-relative path to an extra instruction file appended to the task "
+            "instruction (Harbor's --extra-instruction-path). This is the elicitation "
+            "lever: the preamble is part of the measured tuple, not neutral background, "
+            "so EXP-S03's treatment arm varies it while the control leaves it unset."
+        ),
+    )
     agent: str = Field(min_length=1)
     model: str | None = None
     environment: str = "docker"
@@ -211,7 +220,7 @@ class ExperimentSpec(ContractModel):
     grid_id: str | None = None
     grid_point: dict[str, Any] | None = None
 
-    @field_validator("task", "task_path", "jobs_dir")
+    @field_validator("task", "task_path", "jobs_dir", "extra_instruction_path")
     @classmethod
     def paths_are_repo_relative(cls, value: str | None) -> str | None:
         if value is None:

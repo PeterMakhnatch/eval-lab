@@ -532,3 +532,67 @@ def test_cleanup_failure_is_secondary_evidence(
     assert runner_module._cleanup_failure(
         request, frozenset(), request.jobs_dir / request.name
     ) == "cleanup_failed:TimeoutError"
+
+
+def test_extra_instruction_path_is_forwarded_to_harbor(tmp_path: Path) -> None:
+    """EXP-S03: the elicitation preamble must reach the harbor argv.
+
+    `harbor run --extra-instruction-path <path>` appends an extra instruction file
+    to the task instruction. A spec field that never reaches the runner is the
+    defect class this repo keeps finding, so this asserts the argv, not the field.
+    """
+    preamble = tmp_path / "preamble.md"
+    preamble.write_text("Think step by step.\n")
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="sample-with-preamble",
+        jobs_dir=tmp_path / "runs",
+        extra_instruction_path=preamble,
+    )
+
+    command = build_command(request)
+
+    assert "--extra-instruction-path" in command
+    assert command[command.index("--extra-instruction-path") + 1] == str(preamble)
+
+
+def test_extra_instruction_flag_is_absent_when_unset(tmp_path: Path) -> None:
+    """No preamble means no flag at all — never an empty-string argument."""
+    command = build_command(
+        RunRequest(
+            task=task(tmp_path),
+            agent="oracle",
+            name="sample-no-preamble",
+            jobs_dir=tmp_path / "runs",
+        )
+    )
+
+    assert "--extra-instruction-path" not in command
+    assert "" not in command
+
+
+def test_existing_argv_order_is_unchanged_by_the_new_flag(tmp_path: Path) -> None:
+    """Goldens and callers depend on the fixed prefix order; the flag only appends."""
+    preamble = tmp_path / "preamble.md"
+    preamble.write_text("x\n")
+    task_dir = task(tmp_path)
+    base = build_command(
+        RunRequest(
+            task=task_dir,
+            agent="oracle",
+            name="order-check",
+            jobs_dir=tmp_path / "runs",
+        )
+    )
+    with_preamble = build_command(
+        RunRequest(
+            task=task_dir,
+            agent="oracle",
+            name="order-check",
+            jobs_dir=tmp_path / "runs",
+            extra_instruction_path=preamble,
+        )
+    )
+
+    assert with_preamble[: len(base)] == base

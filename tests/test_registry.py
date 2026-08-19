@@ -23,6 +23,8 @@ from evallab.registry import (
     audit_registry,
     compute_task_digests,
     inventory_tasks,
+    promote_task,
+    register_task,
 )
 from evallab.researchers import ResearcherLoop
 from evallab.schemas import (
@@ -792,3 +794,323 @@ def test_inventory_tasks_categorization(tmp_path: Path) -> None:
     assert inv.runnable_packages == 2
     assert inv.curated_cards_only == 1
     assert inv.template_packages == 1
+
+def _make_control_job(
+    root: Path,
+    task_dir: Path,
+    agent: str,
+    reward: float,
+    *,
+    job_name: str | None = None,
+    jobs_dir: str = "runs",
+) -> Path:
+    runs_dir = root / jobs_dir
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    task_id = task_dir.name
+    job_name = job_name or f"gymv0-{agent}-{task_id}"
+    job_dir = runs_dir / job_name
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    config = {
+        "job_name": job_name,
+        "jobs_dir": str(runs_dir),
+        "tasks": [{"path": str(task_dir.resolve())}],
+    }
+    (job_dir / "config.json").write_text(json.dumps(config, indent=2))
+
+    payload = {
+        "id": f"{agent}-id-12345",
+        "started_at": "2026-08-19T12:00:00Z",
+        "finished_at": "2026-08-19T12:01:00Z",
+        "n_total_trials": 1,
+        "stats": {
+            "n_completed_trials": 1,
+            "evals": {
+                f"{agent}__adhoc": {
+                    "metrics": [{"reward": reward}],
+                }
+            },
+        },
+    }
+    (job_dir / "result.json").write_text(json.dumps(payload, indent=2))
+    return job_dir
+
+
+def test_promote_task_discovers_control_evidence_and_creates_candidate(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/event-summary")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    record = promote_task("library/tasks/event-summary", tmp_path)
+    assert record.task_id == "event-summary"
+    assert record.version == "1.0.0"
+    assert record.state == "candidate"
+    assert record.approved_by is None
+    assert record.approved_at is None
+    assert record.control_evidence.oracle.reward == 1.0
+    assert record.control_evidence.nop.reward == 0.0
+    assert record.digests.package.startswith("sha256:")
+    assert record.digests.verifier.startswith("sha256:")
+    assert record.digests.task_toml.startswith("sha256:")
+    assert record.digests.instruction.startswith("sha256:")
+    assert record.digests.environment.startswith("sha256:")
+
+    record_file = tmp_path / "library/registry/event-summary.json"
+    assert record_file.is_file()
+
+    reg = TaskRegistry.from_repo(tmp_path)
+    loaded = reg.get("event-summary")
+    assert loaded is not None
+    assert loaded.state == "candidate"
+    assert loaded.digests.package == record.digests.package
+
+
+def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/no-oracle-task")
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    with pytest.raises(TaskControlEvidenceError) as exc_info:
+        promote_task("library/tasks/no-oracle-task", tmp_path)
+
+    err = str(exc_info.value)
+    assert "missing oracle control evidence" in err
+    cmd = (
+        "uv run python -m evallab.cli run --task library/tasks/no-oracle-task "
+        "--agent oracle --name no-oracle-task-oracle --jobs-dir runs"
+    )
+    assert cmd in err
+
+def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/no-nop-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+
+    with pytest.raises(TaskControlEvidenceError) as exc_info:
+        promote_task("library/tasks/no-nop-task", tmp_path)
+
+    err = str(exc_info.value)
+    assert "missing nop control evidence" in err
+    cmd = (
+        "uv run python -m evallab.cli run --task library/tasks/no-nop-task "
+        "--agent nop --name no-nop-task-nop --jobs-dir runs"
+    )
+    assert cmd in err
+
+def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/broken-oracle-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 0.0)  # Oracle failed!
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    with pytest.raises(TaskControlEvidenceError) as exc_info:
+        promote_task("library/tasks/broken-oracle-task", tmp_path)
+
+    err = str(exc_info.value)
+    assert "oracle control evidence for 'broken-oracle-task' did not pass" in err
+    assert "instrument is broken" in err
+
+
+def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/broken-nop-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 1.0)  # Nop passed!
+
+    with pytest.raises(TaskControlEvidenceError) as exc_info:
+        promote_task("library/tasks/broken-nop-task", tmp_path)
+
+    err = str(exc_info.value)
+    assert "nop control evidence for 'broken-nop-task' did not fail" in err
+    assert "instrument is broken" in err
+
+
+def test_register_task_requires_actor_and_records_approval(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/promoted-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    cand = promote_task("library/tasks/promoted-task", tmp_path)
+    assert cand.state == "candidate"
+
+    # Candidate cannot resolve registered/*
+    reg = TaskRegistry.from_repo(tmp_path)
+    spec = ExperimentSpec(
+        name="test-exp",
+        task="registered/promoted-task",
+        agent="oracle",
+        hypothesis="test hypothesis",
+        purpose="baseline",
+        submitted_by="Peter Makhnatch",
+    )
+    with pytest.raises(TaskStateInvalidError):
+        reg.resolve_spec(spec, tmp_path)
+
+    # Now register with actor
+    registered = register_task("promoted-task", actor="Peter Makhnatch", repo_root=tmp_path)
+    assert registered.state == "registered"
+    assert registered.approved_by == "Peter Makhnatch"
+    assert registered.approved_at is not None
+
+    # Now resolve_spec succeeds
+    reg_reloaded = TaskRegistry.from_repo(tmp_path)
+    resolved = reg_reloaded.resolve_spec(spec, tmp_path)
+    assert resolved is not None
+    assert resolved.state == "registered"
+    assert resolved.approved_by == "Peter Makhnatch"
+
+
+def test_register_task_without_actor_refuses(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/unapproved-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    promote_task("library/tasks/unapproved-task", tmp_path)
+
+    with pytest.raises(ValueError) as exc_info:
+        register_task("unapproved-task", actor="", repo_root=tmp_path)
+    assert "registered task records require approved_by / --actor" in str(exc_info.value)
+
+
+def test_promote_task_idempotence_unchanged_package(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/idempotent-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    record1 = promote_task("library/tasks/idempotent-task", tmp_path)
+    record2 = promote_task("library/tasks/idempotent-task", tmp_path)
+
+    assert record1.digests.package == record2.digests.package
+    assert record1.version == record2.version
+    assert record1.state == record2.state
+
+
+def test_promote_task_refuses_tampered_package_without_version_bump(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/tampered-bump-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.0")
+
+    # Tamper with instruction on disk
+    (task_dir / "instruction.md").write_text("Modified instruction bytes on disk.\n")
+
+    with pytest.raises(TaskDigestMismatchError) as exc_info:
+        promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.0")
+
+    err = str(exc_info.value)
+    assert "task package bytes on disk have changed" in err
+    assert "bump --version to register a new version" in err
+
+    # Bumping version succeeds
+    record_v2 = promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.1")
+    assert record_v2.version == "1.0.1"
+
+
+def test_cli_registry_promote_and_register_e2e(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import argparse
+
+    from evallab.cli import (
+        _registry_audit_command,
+        _registry_list_command,
+        _registry_promote_command,
+        _registry_register_command,
+    )
+
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/cli-test-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    # 1. Promote via CLI
+    promote_args = argparse.Namespace(
+        task_path="library/tasks/cli-test-task",
+        task_id=None,
+        version=None,
+        source_uri=None,
+        source_ref=None,
+        license=None,
+        provenance_zone=None,
+        synthetic=False,
+        timeout_seconds=None,
+        max_memory_mb=None,
+        max_cpus=None,
+        allowed_uses=None,
+        human_minutes=None,
+        state="candidate",
+        actor=None,
+        register=False,
+        jobs_dir=None,
+        registry_dir=str(tmp_path / "library/registry"),
+        json=False,
+    )
+    exit_code = _registry_promote_command(promote_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "promoted: cli-test-task@1.0.0 (state: candidate)" in out
+
+    # 2. List shows candidate
+    list_args = argparse.Namespace(state=None, json=False)
+    # Point registry from_repo to tmp_path
+    exit_code = _registry_list_command(list_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "cli-test-task" in out
+    assert "candidate" in out
+
+    # 3. Register via CLI
+    reg_args = argparse.Namespace(
+        task_id="cli-test-task",
+        actor="Peter Makhnatch",
+        registry_dir=str(tmp_path / "library/registry"),
+        json=False,
+    )
+    exit_code = _registry_register_command(reg_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "registered: cli-test-task@1.0.0 (state: registered)" in out
+    assert "approved by: Peter Makhnatch" in out
+
+    # 4. Audit passes
+    audit_args = argparse.Namespace(json=False)
+    exit_code = _registry_audit_command(audit_args, tmp_path)
+    assert exit_code == 0
+    out, _ = capsys.readouterr()
+    assert "PASS: zero audit findings" in out
+
+
+def test_cli_registry_promote_refuses_missing_evidence_with_exact_command(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import argparse
+
+    from evallab.cli import _registry_promote_command
+
+    _make_dummy_task(tmp_path, "library/tasks/missing-evidence")
+    promote_args = argparse.Namespace(
+        task_path="library/tasks/missing-evidence",
+        task_id=None,
+        version=None,
+        source_uri=None,
+        source_ref=None,
+        license=None,
+        provenance_zone=None,
+        synthetic=False,
+        timeout_seconds=None,
+        max_memory_mb=None,
+        max_cpus=None,
+        allowed_uses=None,
+        human_minutes=None,
+        state="candidate",
+        actor=None,
+        register=False,
+        jobs_dir=None,
+        registry_dir=str(tmp_path / "library/registry"),
+        json=False,
+    )
+    exit_code = _registry_promote_command(promote_args, tmp_path)
+    assert exit_code == 1
+    _, err = capsys.readouterr()
+    assert "missing oracle control evidence" in err
+    cmd = (
+        "uv run python -m evallab.cli run --task library/tasks/missing-evidence "
+        "--agent oracle --name missing-evidence-oracle --jobs-dir runs"
+    )
+    assert cmd in err

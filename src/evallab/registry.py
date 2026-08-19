@@ -7,18 +7,28 @@ membership never implies registration.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from evallab.paths import shared_checkout_root
 from evallab.schemas import (
+    ControlEvidenceRef,
     ExperimentSpec,
     TaskAdmissionState,
+    TaskAllowedUse,
+    TaskContamination,
+    TaskControlEvidence,
     TaskDigests,
+    TaskLimits,
     TaskRegistryRecord,
 )
 
@@ -146,6 +156,77 @@ def compute_task_digests(task_dir: Path) -> TaskDigests:
     )
 
 
+def _extract_reward_and_agent(
+    result_data: dict[str, Any],
+    metadata_data: dict[str, Any] | None = None,
+    trial_data: dict[str, Any] | None = None,
+) -> tuple[str | None, float | None]:
+    """Extract agent name and primary reward from Harbor result/metadata/trial dictionaries."""
+    # Check stats.evals
+    stats = result_data.get("stats")
+    if isinstance(stats, dict) and "evals" in stats:
+        evals = stats.get("evals", {})
+        for key, eval_data in evals.items():
+            if not isinstance(eval_data, dict):
+                continue
+            agent_name = key.split("__")[0] if "__" in key else key
+            metrics = eval_data.get("metrics", [])
+            observed_reward = None
+            if metrics and isinstance(metrics, list) and isinstance(metrics[0], dict):
+                if "reward" in metrics[0] and metrics[0]["reward"] is not None:
+                    observed_reward = float(metrics[0]["reward"])
+                elif "mean" in metrics[0] and metrics[0]["mean"] is not None:
+                    observed_reward = float(metrics[0]["mean"])
+                elif "correctness" in metrics[0] and metrics[0]["correctness"] is not None:
+                    observed_reward = float(metrics[0]["correctness"])
+            if observed_reward is None:
+                reward_stats = eval_data.get("reward_stats", {}).get("reward", {})
+                if isinstance(reward_stats, dict) and reward_stats:
+                    with contextlib.suppress(ValueError):
+                        observed_reward = float(next(iter(reward_stats.keys())))
+            if observed_reward is not None:
+                return agent_name, observed_reward
+
+    config = result_data.get("config", {})
+    agent_info = config.get("agent", {}) if isinstance(config, dict) else {}
+    agent_name = (
+        agent_info.get("name")
+        if isinstance(agent_info, dict)
+        else result_data.get("agent_name", result_data.get("agent"))
+    )
+
+    if not agent_name and metadata_data:
+        cmd = metadata_data.get("command", [])
+        if isinstance(cmd, list) and "--agent" in cmd:
+            idx = cmd.index("--agent")
+            if idx + 1 < len(cmd):
+                agent_name = cmd[idx + 1]
+
+    if not agent_name and trial_data:
+        t_cfg = trial_data.get("config", {})
+        t_agent = t_cfg.get("agent", {}) if isinstance(t_cfg, dict) else {}
+        if isinstance(t_agent, dict):
+            agent_name = t_agent.get("name")
+
+    observed_reward = result_data.get("primary_reward", result_data.get("reward"))
+    if observed_reward is None and trial_data:
+        observed_reward = trial_data.get("primary_reward", trial_data.get("reward"))
+        if observed_reward is None:
+            verifier_result = trial_data.get("verifier_result", {})
+            if isinstance(verifier_result, dict):
+                rewards = verifier_result.get("rewards", {})
+                if isinstance(rewards, dict) and "reward" in rewards:
+                    observed_reward = rewards["reward"]
+
+    if observed_reward is not None:
+        try:
+            return agent_name, float(observed_reward)
+        except (ValueError, TypeError):
+            pass
+
+    return agent_name, None
+
+
 def _verify_control_result(
     data: dict[str, Any],
     *,
@@ -174,6 +255,15 @@ def _verify_control_result(
                 f"control evidence has empty metrics for agent {expected_agent!r}"
             )
         observed_reward = metrics[0].get("reward")
+        if observed_reward is None:
+            observed_reward = metrics[0].get("mean")
+        if observed_reward is None:
+            observed_reward = metrics[0].get("correctness")
+        if observed_reward is None:
+            reward_stats = matching_eval.get("reward_stats", {}).get("reward", {})
+            if isinstance(reward_stats, dict) and reward_stats:
+                with contextlib.suppress(ValueError):
+                    observed_reward = float(next(iter(reward_stats.keys())))
         if observed_reward != expected_reward:
             raise TaskControlEvidenceError(
                 f"control evidence reward mismatch for {expected_agent!r}: "
@@ -196,11 +286,516 @@ def _verify_control_result(
         )
 
     observed_reward = data.get("primary_reward", data.get("reward"))
+    if observed_reward is None:
+        verifier_result = data.get("verifier_result", {})
+        if isinstance(verifier_result, dict):
+            rewards = verifier_result.get("rewards", {})
+            if isinstance(rewards, dict) and "reward" in rewards:
+                observed_reward = rewards["reward"]
     if observed_reward != expected_reward:
         raise TaskControlEvidenceError(
             f"control evidence reward mismatch for {expected_agent!r}: "
             f"expected {expected_reward}, got {observed_reward}"
         )
+
+def discover_control_evidence(
+    task_dir: Path,
+    repo_root: Path,
+    jobs_roots: Sequence[Path] | None = None,
+) -> TaskControlEvidence:
+    """Discover real oracle and nop control evidence from completed Harbor runs.
+
+    Refuses if either control evidence run is missing or contradictory.
+    """
+    repo_root = repo_root.resolve()
+    task_dir = task_dir.resolve()
+    if not task_dir.is_dir():
+        raise ValueError(f"task directory not found: {task_dir}")
+
+    task_id = task_dir.name
+    try:
+        task_dir_rel = task_dir.relative_to(repo_root).as_posix()
+    except ValueError:
+        task_dir_rel = str(task_dir)
+
+    primary = shared_checkout_root(repo_root)
+    if jobs_roots is None:
+        jobs_roots = [
+            repo_root / "runs",
+            repo_root / "research/evidence/runs",
+            repo_root / "evidence/runs",
+        ]
+        if primary != repo_root:
+            jobs_roots.extend(
+                [
+                    primary / "runs",
+                    primary / "research/evidence/runs",
+                    primary / "evidence/runs",
+                ]
+            )
+
+    oracle_matches: list[dict[str, Any]] = []
+    nop_matches: list[dict[str, Any]] = []
+    for jobs_root in jobs_roots:
+        if not jobs_root.is_dir():
+            continue
+        for res_path in sorted(jobs_root.rglob("result.json")):
+            if any(part.startswith(".") for part in res_path.relative_to(jobs_root).parts):
+                continue
+            job_dir = res_path.parent
+            try:
+                res_data = json.loads(res_path.read_text())
+            except Exception:
+                continue
+            if not isinstance(res_data, dict):
+                continue
+            if "n_total_trials" not in res_data or "stats" not in res_data:
+                continue
+
+            cfg_file = job_dir / "config.json"
+            cfg_data = json.loads(cfg_file.read_text()) if cfg_file.is_file() else {}
+            meta_file = job_dir / "lab-metadata.json"
+            meta_data = json.loads(meta_file.read_text()) if meta_file.is_file() else {}
+
+            matched = False
+            tasks = cfg_data.get("tasks", []) if isinstance(cfg_data, dict) else []
+            for t in tasks:
+                if isinstance(t, dict):
+                    t_path_str = t.get("path", "")
+                    if t_path_str and (
+                        t_path_str == str(task_dir)
+                        or t_path_str == task_dir_rel
+                        or t_path_str.endswith(task_dir_rel)
+                        or t_path_str.endswith(f"/{task_id}")
+                    ):
+                        matched = True
+                        break
+
+            if not matched and meta_data:
+                cmd = meta_data.get("command", [])
+                if isinstance(cmd, list) and "--path" in cmd:
+                    try:
+                        idx = cmd.index("--path")
+                        if idx + 1 < len(cmd):
+                            t_path_str = cmd[idx + 1]
+                            if (
+                                t_path_str == str(task_dir)
+                                or t_path_str == task_dir_rel
+                                or t_path_str.endswith(task_dir_rel)
+                                or t_path_str.endswith(f"/{task_id}")
+                            ):
+                                matched = True
+                    except (ValueError, IndexError):
+                        pass
+
+            if not matched:
+                for sub in job_dir.iterdir():
+                    if sub.is_dir() and (sub / "config.json").is_file():
+                        try:
+                            t_cfg = json.loads((sub / "config.json").read_text())
+                            t_path_str = t_cfg.get("task", {}).get("path", "")
+                            if t_path_str and (
+                                t_path_str == str(task_dir)
+                                or t_path_str == task_dir_rel
+                                or t_path_str.endswith(task_dir_rel)
+                                or t_path_str.endswith(f"/{task_id}")
+                            ):
+                                matched = True
+                                break
+                        except Exception:
+                            pass
+
+            if not matched:
+                continue
+
+            agent_name, reward = _extract_reward_and_agent(res_data, meta_data)
+            if not agent_name or reward is None:
+                continue
+
+            observed_at_str = (
+                res_data.get("finished_at")
+                or res_data.get("started_at")
+                or meta_data.get("finished_at")
+                or meta_data.get("started_at")
+            )
+            try:
+                observed_at = (
+                    datetime.fromisoformat(observed_at_str.replace("Z", "+00:00"))
+                    if observed_at_str
+                    else datetime.fromtimestamp(res_path.stat().st_mtime, tz=UTC)
+                )
+            except Exception:
+                observed_at = datetime.fromtimestamp(res_path.stat().st_mtime, tz=UTC)
+
+            evidence_digest = f"sha256:{hashlib.sha256(res_path.read_bytes()).hexdigest()}"
+            try:
+                evidence_rel_path = res_path.relative_to(repo_root).as_posix()
+            except ValueError:
+                evidence_rel_path = res_path.relative_to(primary).as_posix()
+            job_name = cfg_data.get("job_name", job_dir.name)
+
+            ref = ControlEvidenceRef(
+                job_name=job_name,
+                reward=reward,
+                evidence_path=evidence_rel_path,
+                evidence_digest=evidence_digest,
+                observed_at=observed_at,
+            )
+            if agent_name == "oracle":
+                oracle_matches.append({"ref": ref, "observed_at": observed_at})
+            elif agent_name == "nop":
+                nop_matches.append({"ref": ref, "observed_at": observed_at})
+
+    oracle_matches.sort(key=lambda x: x["observed_at"], reverse=True)
+    nop_matches.sort(key=lambda x: x["observed_at"], reverse=True)
+
+    if not oracle_matches:
+        cmd = (
+            f"uv run python -m evallab.cli run --task {task_dir_rel} "
+            f"--agent oracle --name {task_id}-oracle --jobs-dir runs"
+        )
+        raise TaskControlEvidenceError(
+            f"missing oracle control evidence for task {task_id!r}; run: {cmd}"
+        )
+    if not nop_matches:
+        cmd = (
+            f"uv run python -m evallab.cli run --task {task_dir_rel} "
+            f"--agent nop --name {task_id}-nop --jobs-dir runs"
+        )
+        raise TaskControlEvidenceError(
+            f"missing nop control evidence for task {task_id!r}; run: {cmd}"
+        )
+
+    oracle_ref = oracle_matches[0]["ref"]
+    nop_ref = nop_matches[0]["ref"]
+
+    if oracle_ref.reward != 1.0:
+        raise TaskControlEvidenceError(
+            f"oracle control evidence for {task_id!r} did not pass "
+            f"(reward: {oracle_ref.reward}, expected: 1.0); instrument is broken"
+        )
+    if nop_ref.reward != 0.0:
+        raise TaskControlEvidenceError(
+            f"nop control evidence for {task_id!r} did not fail "
+            f"(reward: {nop_ref.reward}, expected: 0.0); instrument is broken"
+        )
+
+    return TaskControlEvidence(oracle=oracle_ref, nop=nop_ref)
+
+def promote_task(
+    task_path: Path | str,
+    repo_root: Path,
+    *,
+    registry_dir: Path | None = None,
+    task_id: str | None = None,
+    version: str | None = None,
+    source_uri: str | None = None,
+    source_ref: str | None = None,
+    license_str: str | None = None,
+    provenance_zone: (
+        Literal["01-external", "02-local-evidence", "03-synthetic", "04-curated"] | None
+    ) = None,
+    is_synthetic: bool | None = None,
+    timeout_seconds: int | None = None,
+    max_memory_mb: int | None = None,
+    max_cpus: float | None = None,
+    allowed_uses: list[TaskAllowedUse] | None = None,
+    contamination: TaskContamination | None = None,
+    human_minutes: int | None = None,
+    state: TaskAdmissionState = "candidate",
+    actor: str | None = None,
+    approved_at: datetime | None = None,
+    jobs_roots: Sequence[Path] | None = None,
+) -> TaskRegistryRecord:
+    """Promote a task package on disk into the explicit task registry."""
+    repo_root = repo_root.resolve()
+    target_path = (
+        (repo_root / task_path).resolve()
+        if not Path(task_path).is_absolute()
+        else Path(task_path).resolve()
+    )
+    if not target_path.is_dir():
+        raise TaskComponentMissingError(
+            f"task directory not found on disk: {target_path}"
+        )
+
+    # Verify completeness
+    if not (target_path / "task.toml").is_file():
+        raise TaskComponentMissingError(f"task.toml missing in {target_path}")
+    if not (
+        (target_path / "instruction.md").is_file()
+        or (target_path / "instructions.md").is_file()
+    ):
+        raise TaskComponentMissingError(f"instruction.md missing in {target_path}")
+    if not (
+        (target_path / "environment").exists() or (target_path / "Dockerfile").is_file()
+    ):
+        raise TaskComponentMissingError(
+            f"environment/Dockerfile missing in {target_path}"
+        )
+    if not ((target_path / "tests").exists() or (target_path / "verifier").exists()):
+        raise TaskComponentMissingError(
+            f"verifier (tests/ or verifier/) missing in {target_path}"
+        )
+
+    # Parse task.toml
+    try:
+        toml_data = tomllib.loads(
+            (target_path / "task.toml").read_text(encoding="utf-8")
+        )
+    except Exception as exc:
+        raise ValueError(f"failed to parse task.toml in {target_path}: {exc}") from exc
+
+    task_table = (
+        toml_data.get("task", {})
+        if isinstance(toml_data.get("task"), dict)
+        else {}
+    )
+    meta_table = (
+        toml_data.get("metadata", {})
+        if isinstance(toml_data.get("metadata"), dict)
+        else {}
+    )
+    env_table = (
+        toml_data.get("environment", {})
+        if isinstance(toml_data.get("environment"), dict)
+        else {}
+    )
+    ver_table = (
+        toml_data.get("verifier", {})
+        if isinstance(toml_data.get("verifier"), dict)
+        else {}
+    )
+    agent_table = (
+        toml_data.get("agent", {})
+        if isinstance(toml_data.get("agent"), dict)
+        else {}
+    )
+
+    if not task_id:
+        task_id = target_path.name
+
+    if version is None:
+        version = str(
+            task_table.get("version") or toml_data.get("version") or "1.0.0"
+        )
+
+    try:
+        rel_task_path = target_path.relative_to(repo_root).as_posix()
+    except ValueError:
+        rel_task_path = str(target_path)
+
+    # Inferred defaults
+    if provenance_zone is None:
+        if rel_task_path.startswith("library/benchmarks/"):
+            provenance_zone = "01-external"
+        elif rel_task_path.startswith("library/synthetic/"):
+            provenance_zone = "03-synthetic"
+        elif rel_task_path.startswith("library/curated/"):
+            provenance_zone = "04-curated"
+        else:
+            provenance_zone = "02-local-evidence"
+
+    if is_synthetic is None:
+        is_synthetic = provenance_zone == "03-synthetic"
+
+    if license_str is None:
+        license_str = meta_table.get("license") or toml_data.get("license")
+        if not license_str and (target_path / "LICENSE").is_file():
+            license_str = "custom"
+        if not license_str and provenance_zone == "02-local-evidence":
+            license_str = "MIT"
+
+    if source_uri is None:
+        source_uri = f"local/{task_id}@{version}"
+
+    if timeout_seconds is None:
+        ver_timeout = float(ver_table.get("timeout_sec", 60.0))
+        agent_timeout = float(agent_table.get("timeout_sec", 120.0))
+        timeout_seconds = int(ver_timeout + agent_timeout)
+        if timeout_seconds < 1:
+            timeout_seconds = 1800
+
+    if max_memory_mb is None and "memory_mb" in env_table:
+        with contextlib.suppress(ValueError, TypeError):
+            max_memory_mb = int(env_table["memory_mb"])
+
+    if max_cpus is None and "cpus" in env_table:
+        with contextlib.suppress(ValueError, TypeError):
+            max_cpus = float(env_table["cpus"])
+
+    if human_minutes is None:
+        if "expert_time_estimate_min" in meta_table:
+            with contextlib.suppress(ValueError, TypeError):
+                human_minutes = int(float(meta_table["expert_time_estimate_min"]))
+        elif "expert_time_estimate_hours" in meta_table:
+            with contextlib.suppress(ValueError, TypeError):
+                human_minutes = int(
+                    float(meta_table["expert_time_estimate_hours"]) * 60
+                )
+
+    if allowed_uses is None:
+        allowed_uses = ["measurement", "training"]
+
+    # Compute digests
+    digests = compute_task_digests(target_path)
+
+    # Discover control evidence
+    control_evidence = discover_control_evidence(
+        target_path, repo_root, jobs_roots=jobs_roots
+    )
+
+    reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
+    record_file = reg_dir / f"{task_id}.json"
+
+    # Idempotence and integrity check
+    if record_file.is_file():
+        try:
+            existing_data = json.loads(record_file.read_text())
+            existing_record = TaskRegistryRecord.model_validate(existing_data)
+        except Exception:
+            existing_record = None
+
+        if existing_record is not None and existing_record.version == version:
+            if (
+                existing_record.digests.package != digests.package
+                or existing_record.digests.verifier != digests.verifier
+                or existing_record.digests.task_toml != digests.task_toml
+                or existing_record.digests.instruction != digests.instruction
+                or existing_record.digests.environment != digests.environment
+            ):
+                raise TaskDigestMismatchError(
+                    f"task package bytes on disk have changed for {task_id!r} "
+                    f"version {version!r} (existing package digest "
+                    f"{existing_record.digests.package}, current {digests.package}); "
+                    "bump --version to register a new version"
+                )
+
+            if state == "registered" and existing_record.state == "candidate":
+                if not actor or not actor.strip():
+                    raise ValueError(
+                        "registered task records require approved_by / --actor"
+                    )
+                updated_record = existing_record.model_copy(
+                    update={
+                        "state": "registered",
+                        "approved_by": actor,
+                        "approved_at": approved_at or datetime.now(UTC),
+                    }
+                )
+                TaskRegistryRecord.model_validate(updated_record.model_dump())
+                reg_dir.mkdir(parents=True, exist_ok=True)
+                record_file.write_text(
+                    json.dumps(updated_record.model_dump(mode="json"), indent=2) + "\n"
+                )
+                return updated_record
+
+            return existing_record
+
+    if state == "registered":
+        if not actor or not actor.strip():
+            raise ValueError(
+                "registered task records require approved_by / --actor"
+            )
+        approved_by = actor
+        approved_timestamp = approved_at or datetime.now(UTC)
+    else:
+        approved_by = None
+        approved_timestamp = None
+    record = TaskRegistryRecord(
+        schema_version=1,
+        task_id=task_id,
+        version=version,
+        task_path=rel_task_path,
+        digests=digests,
+        source_uri=source_uri,
+        source_ref=source_ref,
+        license=license_str,
+        provenance_zone=provenance_zone,
+        is_synthetic=is_synthetic,
+        limits=TaskLimits(
+            timeout_seconds=timeout_seconds,
+            max_memory_mb=max_memory_mb,
+            max_cpus=max_cpus,
+        ),
+        control_evidence=control_evidence,
+        state=state,
+        allowed_uses=allowed_uses,
+        contamination=contamination,
+        human_minutes=human_minutes,
+        approved_by=approved_by,
+        approved_at=approved_timestamp,
+    )
+
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    record_file.write_text(
+        json.dumps(record.model_dump(mode="json"), indent=2) + "\n"
+    )
+    return record
+
+
+def register_task(
+    task_id: str,
+    actor: str,
+    repo_root: Path,
+    *,
+    registry_dir: Path | None = None,
+    approved_at: datetime | None = None,
+) -> TaskRegistryRecord:
+    """Explicitly register a candidate task in the task registry with human approval."""
+    if not actor or not actor.strip():
+        raise ValueError("registered task records require approved_by / --actor")
+
+    repo_root = repo_root.resolve()
+    reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
+    record_file = reg_dir / f"{task_id}.json"
+    if not record_file.is_file():
+        raise TaskNotRegisteredError(
+            f"task {task_id!r} is not present in registry {reg_dir}"
+        )
+
+    raw = json.loads(record_file.read_text())
+    record = TaskRegistryRecord.model_validate(raw)
+
+    if record.state == "registered" and record.approved_by == actor:
+        return record
+
+    target_path = (repo_root / record.task_path).resolve()
+    if not target_path.is_dir():
+        raise TaskComponentMissingError(
+            f"task package directory missing on disk: {record.task_path}"
+        )
+
+    verify_package_completeness(repo_root, record)
+
+    current_digests = compute_task_digests(target_path)
+    if (
+        current_digests.package != record.digests.package
+        or current_digests.verifier != record.digests.verifier
+        or current_digests.task_toml != record.digests.task_toml
+        or current_digests.instruction != record.digests.instruction
+        or current_digests.environment != record.digests.environment
+    ):
+        raise TaskDigestMismatchError(
+            f"task package bytes on disk have changed for {task_id!r} "
+            f"(expected {record.digests.package}, got {current_digests.package})"
+        )
+
+    # Verify control evidence
+    temp_record = record.model_copy(
+        update={
+            "state": "registered",
+            "approved_by": actor,
+            "approved_at": approved_at or datetime.now(UTC),
+        }
+    )
+    verify_control_evidence(repo_root, temp_record)
+
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    record_file.write_text(
+        json.dumps(temp_record.model_dump(mode="json"), indent=2) + "\n"
+    )
+    return temp_record
 
 
 def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
@@ -218,9 +813,13 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
         )
     oracle_path = (root / oracle_ref.evidence_path).resolve()
     if not oracle_path.is_file():
-        raise TaskControlEvidenceError(
-            f"oracle control evidence file missing on disk: {oracle_ref.evidence_path}"
-        )
+        primary = shared_checkout_root(root)
+        if primary != root and (primary / oracle_ref.evidence_path).is_file():
+            oracle_path = (primary / oracle_ref.evidence_path).resolve()
+        else:
+            raise TaskControlEvidenceError(
+                f"oracle control evidence file missing on disk: {oracle_ref.evidence_path}"
+            )
     current_oracle_digest = f"sha256:{hashlib.sha256(oracle_path.read_bytes()).hexdigest()}"
     if current_oracle_digest != oracle_ref.evidence_digest:
         raise TaskControlEvidenceError(
@@ -248,9 +847,13 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
         )
     nop_path = (root / nop_ref.evidence_path).resolve()
     if not nop_path.is_file():
-        raise TaskControlEvidenceError(
-            f"nop control evidence file missing on disk: {nop_ref.evidence_path}"
-        )
+        primary = shared_checkout_root(root)
+        if primary != root and (primary / nop_ref.evidence_path).is_file():
+            nop_path = (primary / nop_ref.evidence_path).resolve()
+        else:
+            raise TaskControlEvidenceError(
+                f"nop control evidence file missing on disk: {nop_ref.evidence_path}"
+            )
     current_nop_digest = f"sha256:{hashlib.sha256(nop_path.read_bytes()).hexdigest()}"
     if current_nop_digest != nop_ref.evidence_digest:
         raise TaskControlEvidenceError(
@@ -277,9 +880,13 @@ def verify_package_completeness(root: Path, record: TaskRegistryRecord) -> None:
     """
     target_path = (root / record.task_path).resolve()
     if not target_path.is_dir():
-        raise TaskComponentMissingError(
-            f"task package directory missing on disk: {record.task_path}"
-        )
+        primary = shared_checkout_root(root)
+        if primary != root and (primary / record.task_path).is_dir():
+            target_path = (primary / record.task_path).resolve()
+        else:
+            raise TaskComponentMissingError(
+                f"task package directory missing on disk: {record.task_path}"
+            )
 
     if not (target_path / "task.toml").is_file():
         raise TaskComponentMissingError(
@@ -436,7 +1043,35 @@ class TaskRegistry:
 
         return record
 
+    def promote(
+        self,
+        task_path: Path | str,
+        repo_root: Path | None = None,
+        **kwargs: Any,
+    ) -> TaskRegistryRecord:
+        root = repo_root or self.root.parent.parent
+        record = promote_task(task_path, root, registry_dir=self.root, **kwargs)
+        self.records[record.task_id] = record
+        return record
 
+    def register(
+        self,
+        task_id: str,
+        actor: str,
+        repo_root: Path | None = None,
+        **kwargs: Any,
+    ) -> TaskRegistryRecord:
+        root = repo_root or self.root.parent.parent
+        record = register_task(task_id, actor, root, registry_dir=self.root, **kwargs)
+        self.records[record.task_id] = record
+        return record
+
+    def save_record(self, record: TaskRegistryRecord) -> Path:
+        self.root.mkdir(parents=True, exist_ok=True)
+        dest = self.root / f"{record.task_id}.json"
+        dest.write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
+        self.records[record.task_id] = record
+        return dest
 @dataclass(frozen=True)
 class AuditFinding:
     severity: Literal["error", "warning", "info"]

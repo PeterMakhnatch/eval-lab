@@ -2413,6 +2413,370 @@
       }
     ]
   },
+  "registry promote": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "actor",
+        "flags": [
+          "--actor"
+        ],
+        "help": "Approving human actor (required when state is registered)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "allowed_uses",
+        "flags": [
+          "--allowed-uses"
+        ],
+        "help": "Comma-separated allowed uses (default: measurement,training)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "human_minutes",
+        "flags": [
+          "--human-minutes"
+        ],
+        "help": "Expert human completion time estimate in minutes",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "jobs_dir",
+        "flags": [
+          "--jobs-dir"
+        ],
+        "help": "Directory containing completed Harbor control runs",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit promoted record as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "license",
+        "flags": [
+          "--license"
+        ],
+        "help": "Declared license",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_cpus",
+        "flags": [
+          "--max-cpus"
+        ],
+        "help": "CPU limit",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "float"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_memory_mb",
+        "flags": [
+          "--max-memory-mb"
+        ],
+        "help": "Memory limit in megabytes",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "01-external",
+          "02-local-evidence",
+          "03-synthetic",
+          "04-curated"
+        ],
+        "default": null,
+        "dest": "provenance_zone",
+        "flags": [
+          "--provenance-zone"
+        ],
+        "help": "Provenance zone",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "register",
+        "flags": [
+          "--register"
+        ],
+        "help": "Register task immediately (requires --actor)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "registry_dir",
+        "flags": [
+          "--registry-dir"
+        ],
+        "help": "Override destination registry directory",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "source_ref",
+        "flags": [
+          "--source-ref"
+        ],
+        "help": "Source revision/commit reference",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "source_uri",
+        "flags": [
+          "--source-uri"
+        ],
+        "help": "Source URI for task provenance",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "candidate",
+          "registered"
+        ],
+        "default": "candidate",
+        "dest": "state",
+        "flags": [
+          "--state"
+        ],
+        "help": "Admission state (default: candidate)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "synthetic",
+        "flags": [
+          "--synthetic"
+        ],
+        "help": "Mark task as synthetic",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "task_id",
+        "flags": [
+          "--task-id"
+        ],
+        "help": "Explicit task identifier (defaults to task.toml name or directory name)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "task_path",
+        "flags": [],
+        "help": "Path to task package directory",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "timeout_seconds",
+        "flags": [
+          "--timeout-seconds"
+        ],
+        "help": "Execution timeout limit in seconds",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "version",
+        "flags": [
+          "--version"
+        ],
+        "help": "Task version string (defaults to task.toml version or 1.0.0)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "registry register": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "actor",
+        "flags": [
+          "--actor"
+        ],
+        "help": "Approving human actor name",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit registered record as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "registry_dir",
+        "flags": [
+          "--registry-dir"
+        ],
+        "help": "Override registry directory",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "task_id",
+        "flags": [],
+        "help": "Task ID of candidate record in registry",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
   "reject": {
     "options": [
       {

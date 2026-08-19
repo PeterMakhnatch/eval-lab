@@ -205,3 +205,38 @@
   the exit status of its **last** command and `tail` always succeeds. The failure was only
   a stale generated repo-map, but the habit is the bug. Check `premerge.sh` exit codes
   directly with `echo $?`, never through a pipe. Both worker briefs now say so explicitly.
+
+- 2026-08-19 [orchestrator, cheaper thinking levels all work - and the task is saturated]:
+  ran `event-summary` on all three Gemini 3.7 Flash levels through Harbor. Every one
+  scored **primary reward 1.0** with correctness, input_preservation, and output_hygiene
+  all 1.0: `-high` 43s, `-low` 37s, `-medium` 35s. Cheaper is fine, and that is exactly
+  the problem: a task where low and high are indistinguishable **carries no signal about
+  the model**. `event-summary` is saturated at k=1. Before spending on a wave, the lab
+  needs tasks that separate levels, or it will buy 1.0s that mean nothing. Evidence:
+  `runs/agy-{lab-argv,low,medium}-1`.
+- 2026-08-19 [orchestrator, outcomes are recorded, process is not]: ingesting the five
+  Gemini trials moved the catalog 80 -> 85 with `projected=85 exceptions=0 missing=0`, so
+  M029's completeness invariant holds on new data. But the ingest reported
+  `trial_facts: 5`, `reward_facts: 20`, and `steps: 0`, `tool_calls: 0`,
+  `trajectories: 0`. The captured agent artifact is 30 lines containing only the model's
+  **final message**; there is no ATIF trajectory file. This is a transport limitation, not
+  a parser gap: `agy --prompt=` in print mode emits a single final response, so no
+  step-by-step record exists to parse. Trajectory capture on this lane needs agy's
+  `agentapi`/ACP transport rather than print mode. Until then the lab can say whether a
+  trial passed, not how the agent got there - which is precisely what the analyst panel
+  and M030 TRAJ depend on.
+- 2026-08-19 [orchestrator, killed the generated-docs merge tax]: `docs/repo-map.md` and
+  `docs/INDEX.md` are committed build products and appeared in half of the day's commits,
+  so every concurrent PR conflicted on them and forced rebase -> regenerate -> re-gate
+  (~2.5min) -> re-wait CI (~4.5min). Now: `.gitattributes` marks both `merge=regen`,
+  `scripts/git-merge-regen.sh` regenerates instead of attempting a meaningless three-way
+  text merge, and `.githooks/post-rewrite` + `post-merge` regenerate once the tree is
+  final. `scripts/setup-git.sh` wires the driver and `core.hooksPath` (a merge driver
+  cannot be committed - git deliberately refuses to let a fetched branch supply the
+  command that `git merge` executes). Two failures found by testing rather than assuming:
+  the hooks ran with a PATH lacking `~/.local/bin` so `uv` was missing and `|| exit 0`
+  hid it; and the guard `[ -d rebase-merge ] && exit 0` skipped the hook on **every**
+  rebase, because git still holds that directory open while finalising a successful
+  rebase. Unmerged index entries are the correct signal instead. Verified end to end: a
+  rebase run under `env -i PATH=/usr/bin:/bin` now completes with zero conflicts and
+  `repomap check` / `docindex check` both passing, no manual steps.

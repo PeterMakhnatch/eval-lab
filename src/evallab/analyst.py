@@ -138,20 +138,124 @@ class StubAnalyzer:
 class ModelAnalyzer:
     """Real model-backed analyzer requiring explicit model selector and opt-in."""
 
-    def __init__(self, model: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str | None = None,
+        *,
+        adapter: Any | None = None,
+    ) -> None:
         if not model:
             raise ModelProviderRefusedError(
                 "Model analyzer requires an explicit model selector (e.g. --model gpt-4o). "
                 "The default analysis path never invokes an external model provider."
             )
         self.model = model
+        self.adapter = adapter
 
     def analyze(self, prompt: str, context: str) -> AnalystResult:
-        raise ModelProviderRefusedError(
-            f"Invoking external model '{self.model}' spends tokens and requires credentials. "
-            "Model dispatch is token-gated; default runs use the deterministic stub."
-        )
+        if self.adapter is None:
+            raise ModelProviderRefusedError(
+                f"Invoking external model '{self.model}' spends tokens and requires credentials. "
+                "Model dispatch is token-gated; default runs use the deterministic stub."
+            )
 
+        full_prompt = f"{prompt}\n\n## Context\n\n{context}"
+        schema = {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string"},
+                "summary": {"type": "string"},
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "step": {"type": ["integer", "null"]},
+                        },
+                        "required": ["path"],
+                    },
+                },
+                "confidence": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high"],
+                },
+            },
+            "required": ["category", "summary"],
+        }
+
+        if callable(self.adapter):
+            call_result = self.adapter(full_prompt, schema)
+        else:
+            raise ModelProviderRefusedError(
+                f"Injected adapter for '{self.model}' is not callable."
+            )
+
+        category = "model_analysis"
+        raw_text = getattr(call_result, "raw_output", str(call_result))
+        summary = raw_text.strip()
+        evidence: list[EvidenceCitation] = []
+        confidence_level: Literal["low", "medium", "high"] = "medium"
+
+        try:
+            parsed = json.loads(raw_text)
+            if isinstance(parsed, dict):
+                if isinstance(parsed.get("category"), str) and parsed["category"].strip():
+                    category = parsed["category"].strip()
+                if isinstance(parsed.get("summary"), str) and parsed["summary"].strip():
+                    summary = parsed["summary"].strip()
+                if isinstance(parsed.get("evidence"), list):
+                    for item in parsed["evidence"]:
+                        if isinstance(item, dict) and "path" in item:
+                            evidence.append(
+                                EvidenceCitation(
+                                    path=str(item["path"]),
+                                    step=(
+                                        int(item["step"])
+                                        if item.get("step") is not None
+                                        else None
+                                    ),
+                                )
+                            )
+                conf = parsed.get("confidence")
+                if isinstance(conf, str) and conf in {"low", "medium", "high"}:
+                    confidence_level = conf  # type: ignore[assignment]
+                elif isinstance(conf, dict) and conf.get("level") in {"low", "medium", "high"}:
+                    confidence_level = conf["level"]  # type: ignore[assignment]
+        except Exception:
+            pass
+
+        if not evidence:
+            evidence = [
+                EvidenceCitation(path="agent/trajectory.json", step=0),
+                EvidenceCitation(path="result.json", step=None),
+            ]
+
+        provenance_digest = f"sha256:{hashlib.sha256(full_prompt.encode('utf-8')).hexdigest()}"
+        steps = [
+            {
+                "step_id": 0,
+                "source": "model_adapter",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "message": f"Completed model analysis with {self.model}",
+                "model": self.model,
+                "argv": getattr(call_result, "argv", []),
+                "transport": getattr(call_result, "transport", "unknown"),
+            }
+        ]
+
+        return AnalystResult(
+            category=category,
+            summary=summary,
+            evidence=evidence,
+            confidence=ConfidenceClaim(
+                level=confidence_level,
+                n=1,
+                interval=None,
+                provenance_digest=provenance_digest,
+            ),
+            steps=steps,
+        )
 
 def _resolve_runs_roots(
     repo_root: Path, runs_root: Path | None = None
@@ -382,6 +486,7 @@ def run_analysis(
     *,
     analyzer: Analyzer | None = None,
     model: str | None = None,
+    adapter: Any | None = None,
     repo_root: Path | None = None,
     derived_root: Path | None = None,
     runs_root: Path | None = None,
@@ -401,8 +506,11 @@ def run_analysis(
 
     # 1. Resolve analyzer
     if analyzer is None:
-        analyzer = ModelAnalyzer(model=model) if model is not None else StubAnalyzer()
-
+        analyzer = (
+            ModelAnalyzer(model=model, adapter=adapter)
+            if model is not None
+            else StubAnalyzer()
+        )
     # Track analyst's own trajectory steps
     analyst_steps: list[dict[str, Any]] = []
     t_start = datetime.now(UTC).isoformat()

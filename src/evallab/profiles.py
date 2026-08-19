@@ -520,6 +520,69 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     "without gemini-cli, which is IneligibleTier for individuals",
                 ),
             ),
+            # Antigravity lane (AGY). Verified in this lab on 2026-08-19: `agy models`
+            # reported 14 available models and `agy -p …` returned the exact
+            # requested string, so this lane is observed working headlessly.
+            # Peter's preferred model on this lane is Gemini 3.7 Flash.
+            AgentProfile(
+                profile_id="antigravity-gemini-3.7-flash-high",
+                adapter="antigravity-cli",
+                model="gemini-3.7-flash-high",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:agy models",
+                verified_facts=(
+                    "2026-08-19: `agy -p 'Reply with exactly: AGY_LANE_OK'` returned "
+                    "'AGY_LANE_OK' headlessly",
+                    "2026-08-19: `agy models` listed 14 available models "
+                    "including gemini-3.7-flash-high",
+                    "2026-08-19: `agy --model gemini-3.7-flash-high -p` executed "
+                    "successfully headlessly",
+                ),
+            ),
+            AgentProfile(
+                profile_id="antigravity-gemini-3.7-flash-medium",
+                adapter="antigravity-cli",
+                model="gemini-3.7-flash-medium",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:agy models",
+                verified_facts=(
+                    "2026-08-19: `agy --model gemini-3.7-flash-medium -p` executed "
+                    "successfully headlessly",
+                ),
+            ),
+            AgentProfile(
+                profile_id="antigravity-gemini-3.7-flash-low",
+                adapter="antigravity-cli",
+                model="gemini-3.7-flash-low",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:agy models",
+                verified_facts=(
+                    "2026-08-19: listed by `agy models` on the same session "
+                    "as gemini-3.7-flash-high",
+                ),
+            ),
+            AgentProfile(
+                profile_id="antigravity-gemini-3.1-pro-high",
+                adapter="antigravity-cli",
+                model="gemini-3.1-pro-high",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:agy models",
+                verified_facts=(
+                    "2026-08-19: `agy --model gemini-3.1-pro-high -p` executed "
+                    "successfully headlessly",
+                ),
+            ),
+            AgentProfile(
+                profile_id="antigravity-claude-sonnet-4-6",
+                adapter="antigravity-cli",
+                model="claude-sonnet-4-6",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:agy models",
+                verified_facts=(
+                    "2026-08-19: listed by `agy models`; reaches Claude Sonnet 4.6 "
+                    "via Google AI Pro Antigravity subscription",
+                ),
+            ),
         )
     }
 
@@ -559,6 +622,7 @@ def default_probe_for(
             return DeclaredUnavailableProbe(
                 reason=f"{profile.profile_id} declares cli-session auth with no command"
             )
-        return CliSessionProbe(argv=tuple(command), expect="logged in")
+        expect = "gemini" if command[0] == "agy" else "logged in"
+        return CliSessionProbe(argv=tuple(command), expect=expect)
     relative = (profile.secret_source or "file:")[len("file:"):]
     return AuthFileProbe(home=home, relative_path=relative, clock=clock)

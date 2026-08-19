@@ -32,6 +32,7 @@ KEYCHAIN_SERVICE = "harbor-practice-claude-oauth"
 CLAUDE_OAUTH = "claude_oauth"
 CODEX_AUTH = "codex_auth"
 CURSOR_SESSION = "cursor_session"
+ANTIGRAVITY_SESSION = "antigravity_session"
 
 # Agents whose runs require a credential. Control agents (oracle, nop) are
 # deliberately absent: they must run with no credential at all.
@@ -39,12 +40,14 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str, str] = {
     "claude-code": CLAUDE_OAUTH,
     "codex": CODEX_AUTH,
     "cursor-cli": CURSOR_SESSION,
+    "antigravity-cli": ANTIGRAVITY_SESSION,
 }
 
 _PROFILES = builtin_profiles()
 _CLAUDE_PROFILE = _PROFILES["claude-code-fable-5"]
 _CODEX_PROFILE = _PROFILES["codex-gpt-5.6-terra"]
 _CURSOR_PROFILE = _PROFILES["cursor-grok-4.6-high"]
+_ANTIGRAVITY_PROFILE = _PROFILES["antigravity-gemini-3.7-flash-high"]
 
 
 def _security_exit_status(args: list[str]) -> int:
@@ -107,6 +110,23 @@ def probe_cursor_session_result() -> ProbeResult:
         return ProbeResult(ok=False, reason="cursor session probe timed out")
 
 
+def probe_antigravity_session() -> bool:
+    return probe_antigravity_session_result().ok
+
+
+def probe_antigravity_session_result() -> ProbeResult:
+    """Ask `agy` whether it holds a session.
+
+    Antigravity keeps its credential in the OS keyring or internal token store.
+    Asking `agy models` is the honest check that an active session exists.
+    Exit status and a stdout marker only — never a token.
+    """
+    probe = CliSessionProbe(argv=("agy", "models"), expect="gemini")
+    try:
+        return probe(_ANTIGRAVITY_PROFILE)
+    except subprocess.TimeoutExpired:
+        return ProbeResult(ok=False, reason="antigravity session probe timed out")
+
 def available_credentials(home: Path | None = None) -> frozenset[str]:
     found: set[str] = set()
     if probe_claude_keychain():
@@ -115,6 +135,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(CODEX_AUTH)
     if probe_cursor_session():
         found.add(CURSOR_SESSION)
+    if probe_antigravity_session():
+        found.add(ANTIGRAVITY_SESSION)
     return frozenset(found)
 
 
@@ -138,6 +160,7 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str, str] = {
     "codex": "codex-gpt-5.6-terra",
     "claude-code": "claude-code-fable-5",
     "cursor-cli": "cursor-grok-4.6-high",
+    "antigravity-cli": "antigravity-gemini-3.7-flash-high",
 }
 
 DEFAULT_AGENT_MODELS: dict[str, str] = {

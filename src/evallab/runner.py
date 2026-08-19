@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
@@ -392,57 +392,40 @@ def validate_request(request: RunRequest) -> None:
 
 # Mapping from local CLI model identifiers to Harbor-compatible model identifiers.
 #
-# Two distinct model identifier namespaces exist across the lab:
-# 1. Local CLI namespace (used by `modeladapter.py` when invoking `agy` on host):
-#    `gemini-3.7-flash-high` (listed by `agy models`, verified working).
-# 2. Harbor namespace (used by Harbor's `antigravity-cli` adapter inside Docker):
-#    - Harbor hard-requires `provider/model_name` format with a slash
-#      (harbor/agents/installed/antigravity_cli.py:776-777).
-#    - Harbor strips the provider prefix via `self.model_name.split("/")[-1]`
-#      (harbor/agents/installed/antigravity_cli.py:779).
-#    - LiteLLM cost lookup checks `litellm.model_cost` for the base model name
-#      (harbor/agents/installed/antigravity_cli.py:625-629), which matches
-#      `gemini-3.7-flash` but has no entry for `gemini-3.7-flash-high`.
-#    - Reasoning effort is a separate parameter (antigravity_cli.py:73-78, 713-752)
-#      that generates an alias `harbor-{model}-{reasoning_effort}` and configures
-#      `thinkingLevel`. Baking `-high` into the model ID fails the slash requirement,
-#      breaks LiteLLM cost lookup, and corrupts `thinkingConfig`.
-#    - In `run()`, Harbor passes `--model {model}` to `agy` inside the container
-#      (harbor/agents/installed/antigravity_cli.py:810-819).
+# The only difference between the two namespaces is the provider prefix. Harbor
+# requires one; `agy` does not accept one:
+#  - Harbor rejects a bare id (`antigravity_cli.py:776-777`,
+#    `ValueError: Model name must be in the format provider/model_name`). That
+#    check lives in the run path, so a bare id fails mid-trial, after the
+#    container is built.
+#  - Harbor then strips the prefix (`antigravity_cli.py:779`) and passes the
+#    remainder verbatim as `agy --model <remainder>` (`:810-819`).
 #
-# Therefore, `antigravity-cli` must be passed `google/gemini-3.7-flash` in Harbor,
-# and the thinking level must travel separately as an agent kwarg. Harbor accepts
-# it via `harbor run --agent-kwarg reasoning_effort=<effort>` (`--ak`). Dropping
-# it would silently downgrade a `-high` pin to Harbor's default effort, so the
-# local identifier decomposes into both halves rather than just the model.
+# The thinking level belongs *in* the model id, because that is how `agy` names
+# its models: `agy models` lists `gemini-3.7-flash-high`, `-medium`, `-low` as
+# distinct ids. Proven by a live containerised trial on 2026-08-19:
 #
-# Harbor validates the pair (`antigravity_cli.py:80-108`): effort must be one of
-# minimal/low/medium/high; `minimal` and `medium` are Flash-only; Gemini 2.5
-# models reject effort entirely. Every row below satisfies those rules.
-class HarborModelSpec(NamedTuple):
-    """A local CLI model identifier, split into what Harbor actually accepts."""
-
-    model: str
-    reasoning_effort: str | None
-
-
-LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], HarborModelSpec] = {
-    ("antigravity-cli", "gemini-3.7-flash-high"): HarborModelSpec(
-        "google/gemini-3.7-flash", "high"
-    ),
-    ("antigravity-cli", "gemini-3.7-flash-medium"): HarborModelSpec(
-        "google/gemini-3.7-flash", "medium"
-    ),
-    ("antigravity-cli", "gemini-3.7-flash-low"): HarborModelSpec(
-        "google/gemini-3.7-flash", "low"
-    ),
-    ("antigravity-cli", "gemini-3.1-pro-high"): HarborModelSpec(
-        "google/gemini-3.1-pro", "high"
-    ),
-    # Claude on the Antigravity transport takes no Gemini thinking level.
-    ("antigravity-cli", "claude-sonnet-4-6"): HarborModelSpec(
-        "google/claude-sonnet-4-6", None
-    ),
+#   --model google/gemini-3.7-flash      -> agy exits non-zero:
+#       "invalid model selection (--model "gemini-3.7-flash" --effort ""):
+#        --model gemini-3.7-flash requires --effort (available: low, medium, high)"
+#   --model google/gemini-3.7-flash-high -> trial completes, primary reward 1.0
+#
+# Do not try to send the level separately as `--agent-kwarg reasoning_effort=`.
+# Harbor's adapter declares no `--effort` flag at all (`CLI_FLAGS` holds only
+# `sandbox`, `:47-53`); the kwarg only writes a `~/.agy` settings file that
+# Harbor's own comment says the *legacy* CLI reads (`:806-809`). It never reaches
+# the Go CLI, which is why the run above failed with an empty `--effort`.
+#
+# Cost note: `litellm.model_cost` has no entry for the suffixed id
+# (`antigravity_cli.py:625-629`), so Harbor cannot price these trials. That is
+# correct here - this lane bills against a subscription, not per token, and this
+# lab records provider dollar figures only as list-price equivalents.
+LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
+    ("antigravity-cli", "gemini-3.7-flash-high"): "google/gemini-3.7-flash-high",
+    ("antigravity-cli", "gemini-3.7-flash-medium"): "google/gemini-3.7-flash-medium",
+    ("antigravity-cli", "gemini-3.7-flash-low"): "google/gemini-3.7-flash-low",
+    ("antigravity-cli", "gemini-3.1-pro-high"): "google/gemini-3.1-pro-high",
+    ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
 }
 
 
@@ -454,20 +437,7 @@ def resolve_harbor_model(agent: str, model: str | None) -> str | None:
     """
     if model is None:
         return None
-    spec = LOCAL_TO_HARBOR_MODEL.get((agent, model))
-    return spec.model if spec is not None else model
-
-
-def resolve_harbor_reasoning_effort(agent: str, model: str | None) -> str | None:
-    """Return the thinking level Harbor must receive as a separate agent kwarg.
-
-    None means "send no effort": either the pin encodes no thinking level, or
-    the target model does not accept one.
-    """
-    if model is None:
-        return None
-    spec = LOCAL_TO_HARBOR_MODEL.get((agent, model))
-    return spec.reasoning_effort if spec is not None else None
+    return LOCAL_TO_HARBOR_MODEL.get((agent, model), model)
 
 
 def build_command(request: RunRequest) -> list[str]:
@@ -492,9 +462,6 @@ def build_command(request: RunRequest) -> list[str]:
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])
-        effort = resolve_harbor_reasoning_effort(request.agent, request.model)
-        if effort is not None:
-            command.extend(["--agent-kwarg", f"reasoning_effort={effort}"])
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     return command

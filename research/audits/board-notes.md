@@ -170,3 +170,38 @@
   via `uv run evallab approve <spec-id> --actor <name>`. The one genuinely open policy
   knob is `refuse_billable_at_used_percent` (currently `null`), which is Peter's spend
   decision.
+
+- 2026-08-19 [orchestrator, AGY lane made runnable]: three defects stood between the
+  Antigravity lane and a first Harbor trial, none of which a live run would have
+  diagnosed cheaply. (1) `runner.py` scrubbed `AGY_FORCE_AUTH_JSON` / `AGY_AUTH_JSON_PATH`
+  out of the subscription environment, so Harbor would never have seen the OAuth token
+  even after a successful login; both are now forwarded, and they qualify because they
+  name a **token file**, not an API key. (2) `DEFAULT_AGENT_MODELS` pinned the local CLI
+  id `gemini-3.7-flash-high`, which `build_command` passed straight to `harbor run
+  --model`; Harbor hard-requires `provider/model` (`antigravity_cli.py:776-777`) and
+  would have raised `ValueError: Model name must be in the format provider/model_name`
+  **mid-trial, after container build**, because that check sits in the run path rather
+  than at config resolution. (3) After fixing the id, the thinking level was silently
+  dropped: `-high`, `-medium`, and `-low` all collapsed onto one model string, so every
+  trial would have run at Harbor's default effort regardless of the pin. Harbor takes it
+  as a separate agent kwarg, so the local id now decomposes into `HarborModelSpec(model,
+  reasoning_effort)` and the argv carries `--agent-kwarg reasoning_effort=<effort>`.
+  Method note worth keeping: `harbor run --print-config` does **not** validate model or
+  effort - it resolves a JobConfig without constructing the adapter, so the broken pin
+  also "passes" it. Real validation came from calling
+  `AntigravityCli._validate_reasoning_effort` directly, which correctly refuses
+  `medium` on `gemini-3.1-pro`. Do not cite `--print-config` as proof of acceptance.
+- 2026-08-19 [orchestrator, cursor lane is trial-blocked for two independent reasons]:
+  Harbor's `cursor_cli.py:863-867` raises unless `CURSOR_API_KEY` is set, and
+  `profiles.py:39` forbids this lab from naming API-key variables, so Cursor trials need
+  both a minted key and a human decision to amend the subscriptions-only rule. Separately,
+  Harbor's cursor adapter prices and accepts only `auto`, `composer-1`, `composer-1.5`,
+  `composer-2`, `composer-2-fast`, `composer-2.5`, `grok-4.5` - there is **no grok-4.6**.
+  So the `cursor-grok-4.6-high` pin can never be a Harbor trial model; 4.6 exists only in
+  `cursor-agent`'s own namespace, reachable through `modeladapter.py` on the host. Grok as
+  an agent-under-test would be `grok-4.5`. Grok for analysis/generation works today.
+- 2026-08-19 [orchestrator, process defect I introduced]: I ran
+  `bash scripts/premerge.sh 2>&1 | tail -1` and pushed a red main, because a pipe returns
+  the exit status of its **last** command and `tail` always succeeds. The failure was only
+  a stale generated repo-map, but the habit is the bug. Check `premerge.sh` exit codes
+  directly with `echo $?`, never through a pipe. Both worker briefs now say so explicitly.

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from evallab.profiles import (
     AuthFileProbe,
+    CliSessionProbe,
     KeychainProbe,
     ProbeResult,
     builtin_profiles,
@@ -30,17 +31,20 @@ KEYCHAIN_SERVICE = "harbor-practice-claude-oauth"
 
 CLAUDE_OAUTH = "claude_oauth"
 CODEX_AUTH = "codex_auth"
+CURSOR_SESSION = "cursor_session"
 
 # Agents whose runs require a credential. Control agents (oracle, nop) are
 # deliberately absent: they must run with no credential at all.
 AGENT_CREDENTIAL_REQUIREMENTS: dict[str, str] = {
     "claude-code": CLAUDE_OAUTH,
     "codex": CODEX_AUTH,
+    "cursor-cli": CURSOR_SESSION,
 }
 
 _PROFILES = builtin_profiles()
 _CLAUDE_PROFILE = _PROFILES["claude-code-fable-5"]
 _CODEX_PROFILE = _PROFILES["codex-gpt-5.6-terra"]
+_CURSOR_PROFILE = _PROFILES["cursor-grok-4.6-high"]
 
 
 def _security_exit_status(args: list[str]) -> int:
@@ -84,12 +88,33 @@ def probe_codex_auth_result(home: Path | None = None) -> ProbeResult:
     return probe(_CODEX_PROFILE)
 
 
+def probe_cursor_session() -> bool:
+    return probe_cursor_session_result().ok
+
+
+def probe_cursor_session_result() -> ProbeResult:
+    """Ask `cursor-agent` whether it holds a session.
+
+    Cursor keeps its credential in an opaque internal store: `~/.cursor/` holds
+    only UI config and no keychain item exists, so a file probe would report
+    "available" while the session was actually expired. Asking the CLI is the
+    only honest check. Exit status and a stdout marker only — never a token.
+    """
+    probe = CliSessionProbe(argv=("cursor-agent", "status"), expect="logged in")
+    try:
+        return probe(_CURSOR_PROFILE)
+    except subprocess.TimeoutExpired:
+        return ProbeResult(ok=False, reason="cursor session probe timed out")
+
+
 def available_credentials(home: Path | None = None) -> frozenset[str]:
     found: set[str] = set()
     if probe_claude_keychain():
         found.add(CLAUDE_OAUTH)
     if probe_codex_auth(home):
         found.add(CODEX_AUTH)
+    if probe_cursor_session():
+        found.add(CURSOR_SESSION)
     return frozenset(found)
 
 
@@ -105,8 +130,18 @@ def missing_credential_for(agent: str, available: frozenset[str]) -> str | None:
 # truth). The codex pin is proven (2026-08-06 harbor-practice run); the
 # claude-code pin follows Harbor's convention but is unverified until a smoke
 # run passes — pin models explicitly in specs for comparisons.
+#: The profile that supplies each adapter's default model. Explicit rather than
+#: "last profile wins": several profiles share the `cursor-cli` adapter, so a
+#: comprehension over the registry would let iteration order pick the default —
+#: which silently chose Gemini over Peter's stated grok-4.6 default once already.
+DEFAULT_PROFILE_FOR_ADAPTER: dict[str, str] = {
+    "codex": "codex-gpt-5.6-terra",
+    "claude-code": "claude-code-fable-5",
+    "cursor-cli": "cursor-grok-4.6-high",
+}
+
 DEFAULT_AGENT_MODELS: dict[str, str] = {
-    profile.adapter: profile.model
-    for profile in builtin_profiles().values()
-    if profile.model is not None and profile.adapter in {"codex", "claude-code"}
+    adapter: model
+    for adapter, profile_id in DEFAULT_PROFILE_FOR_ADAPTER.items()
+    if (model := builtin_profiles()[profile_id].model) is not None
 }

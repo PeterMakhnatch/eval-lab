@@ -16,6 +16,7 @@ from evallab.profiles import (
     DECLARED_UNAVAILABLE,
     AgentProfile,
     AuthFileProbe,
+    CliSessionProbe,
     DeclaredUnavailableProbe,
     KeychainProbe,
     PreflightDecision,
@@ -264,3 +265,91 @@ def test_registry_serialization_is_deterministic():
     assert first == second
     digests = {pid: p.digest for pid, p in builtin_profiles().items()}
     assert len(set(digests.values())) == len(digests)  # all distinct
+
+
+# --- Cursor lane (subscription-cli-session auth) ---------------------------------
+
+
+def _fake_cli(status: int, stdout: str):
+    def runner(argv):
+        return status, stdout
+
+    return runner
+
+
+def test_cursor_default_profile_pins_grok_4_6_high() -> None:
+    """Peter's stated default is grok-4.6 **high**, explicitly not the -fast variant.
+
+    Pinned here because several profiles share the cursor-cli adapter, so nothing
+    but an assertion stops iteration order from choosing a different default.
+    """
+    from evallab.credentials import DEFAULT_AGENT_MODELS, DEFAULT_PROFILE_FOR_ADAPTER
+
+    assert DEFAULT_PROFILE_FOR_ADAPTER["cursor-cli"] == "cursor-grok-4.6-high"
+    assert DEFAULT_AGENT_MODELS["cursor-cli"] == "cursor-grok-4.6-high"
+    assert not DEFAULT_AGENT_MODELS["cursor-cli"].endswith("-fast")
+
+
+def test_cursor_profiles_are_pinned_and_cli_session_authed() -> None:
+    profiles = builtin_profiles()
+    cursor = [p for p in profiles.values() if p.adapter == "cursor-cli"]
+    assert cursor, "the cursor lane must be present in the profile registry"
+    for profile in cursor:
+        assert profile.auth_mode == "subscription-cli-session"
+        assert profile.secret_source == "cli:cursor-agent status"
+        assert profile.model and profile.model != "auto", "models must be pinned exactly"
+
+
+def test_cli_session_probe_reports_ok_on_logged_in_marker() -> None:
+    profile = builtin_profiles()["cursor-grok-4.6-high"]
+    probe = CliSessionProbe(
+        argv=("cursor-agent", "status"),
+        expect="logged in",
+        runner=_fake_cli(0, "\u2713 Logged in as someone@example.com"),
+    )
+    assert probe(profile).ok is True
+
+
+def test_cli_session_probe_fails_when_cli_reports_no_session() -> None:
+    profile = builtin_profiles()["cursor-grok-4.6-high"]
+    probe = CliSessionProbe(
+        argv=("cursor-agent", "status"), expect="logged in", runner=_fake_cli(1, "")
+    )
+    result = probe(profile)
+    assert result.ok is False
+    assert "no session" in (result.reason or "")
+
+
+def test_cli_session_probe_fails_when_marker_absent_despite_exit_zero() -> None:
+    """Exit zero is not enough: a CLI can succeed while reporting 'not logged in'."""
+    profile = builtin_profiles()["cursor-grok-4.6-high"]
+    probe = CliSessionProbe(
+        argv=("cursor-agent", "status"),
+        expect="logged in",
+        runner=_fake_cli(0, "You are not signed in."),
+    )
+    result = probe(profile)
+    assert result.ok is False
+    assert "did not match" in (result.reason or "")
+
+
+def test_cli_session_auth_requires_a_cli_secret_source() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        AgentProfile(
+            profile_id="cursor-bad-source",
+            adapter="cursor-cli",
+            model="cursor-grok-4.6-high",
+            auth_mode="subscription-cli-session",
+            secret_source="file:.cursor/cli-config.json",
+        )
+
+
+def test_default_probe_for_cursor_is_a_cli_session_probe(tmp_path: Path) -> None:
+    profile = builtin_profiles()["cursor-grok-4.6-high"]
+    probe = default_probe_for(
+        profile, home=tmp_path, security_runner=lambda argv: 1, keychain_account="nobody"
+    )
+    assert isinstance(probe, CliSessionProbe)
+    assert probe.argv == ("cursor-agent", "status")

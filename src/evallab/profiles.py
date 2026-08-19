@@ -25,7 +25,7 @@ import hashlib
 import json
 import re
 import subprocess
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -38,7 +38,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # environment mentioning one of these is a policy violation, not a feature.
 _FORBIDDEN_KEY_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY")
 
-AuthMode = Literal["none", "subscription-auth-file", "subscription-keychain"]
+AuthMode = Literal[
+    "none",
+    "subscription-auth-file",
+    "subscription-keychain",
+    "subscription-cli-session",
+]
 
 CONTROL_ADAPTERS = frozenset({"oracle", "nop"})
 
@@ -106,8 +111,11 @@ class AgentProfile(BaseModel):
         if value is None:
             return value
         _rejects_api_key_names((value,))
-        if not value.startswith(("keychain:", "file:")):
-            raise ValueError("secret_source must be 'keychain:<service>' or 'file:<pattern>'")
+        if not value.startswith(("keychain:", "file:", "cli:")):
+            raise ValueError(
+                "secret_source must be 'keychain:<service>', 'file:<pattern>' "
+                "or 'cli:<command>'"
+            )
         return value
 
     @model_validator(mode="after")
@@ -135,6 +143,12 @@ class AgentProfile(BaseModel):
             and not self.secret_source.startswith("file:")
         ):
             raise ValueError("auth-file auth requires a file: secret source")
+        if (
+            self.auth_mode == "subscription-cli-session"
+            and self.secret_source is not None
+            and not self.secret_source.startswith("cli:")
+        ):
+            raise ValueError("cli-session auth requires a 'cli:<command>' secret source")
         return self
 
     def canonical_json(self) -> str:
@@ -259,6 +273,58 @@ def _parse_expiry(value: object) -> datetime | None:
             return None
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
     return None
+
+
+@dataclass(frozen=True)
+class CliSessionProbe:
+    """Ask a subscription CLI whether it currently holds a session.
+
+    Some subscription CLIs keep their credential in an opaque internal store
+    rather than a readable auth file or a keychain item — `cursor-agent` is the
+    case that forced this seam: `~/.cursor/` holds only UI config, no keychain
+    entry exists, and the only honest way to know whether the lane can run is to
+    ask the CLI. Probing a config file instead would report "available" while the
+    session was expired, which is worse than reporting nothing.
+
+    Structure only: the probe reads the command's **exit status** and matches its
+    stdout against an expected marker. It never captures, stores or forwards a
+    token, and the command it runs must never be one that prints a secret.
+    """
+
+    argv: tuple[str, ...]
+    expect: str
+    runner: Callable[[Sequence[str]], tuple[int, str]] | None = None
+    timeout_seconds: float = 20.0
+
+    def __call__(self, profile: AgentProfile) -> ProbeResult:
+        run = self.runner or self._default_runner
+        try:
+            status, stdout = run(self.argv)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return ProbeResult(
+                ok=False, reason=f"cli session probe failed: {exc.__class__.__name__}"
+            )
+        if status != 0:
+            return ProbeResult(
+                ok=False, reason=f"{self.argv[0]} reports no session (exit {status})"
+            )
+        if self.expect and self.expect.lower() not in stdout.lower():
+            return ProbeResult(
+                ok=False,
+                reason=f"{self.argv[0]} session state did not match {self.expect!r}",
+            )
+        return ProbeResult(ok=True)
+
+    def _default_runner(self, argv: Sequence[str]) -> tuple[int, str]:
+        completed = subprocess.run(
+            list(argv),
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=self.timeout_seconds,
+            check=False,
+        )
+        return completed.returncode, completed.stdout
 
 
 @dataclass(frozen=True)
@@ -402,6 +468,58 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 secret_source="file:.grok/auth.json",
                 verified_facts=(),  # declared only; no observed run in this lab
             ),
+            # Cursor lane. Verified in this lab on 2026-08-19: `cursor-agent status`
+            # reported a live session and `cursor-agent -f -p …` returned the exact
+            # requested string, so this lane is observed working rather than declared.
+            # Peter's default is grok-4.6 **high**, explicitly not the -fast variant.
+            AgentProfile(
+                profile_id="cursor-grok-4.6-high",
+                adapter="cursor-cli",
+                model="cursor-grok-4.6-high",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:cursor-agent status",
+                verified_facts=(
+                    "2026-08-19: `cursor-agent status` reported "
+                    "'Logged in as p.makhnatch@gmail.com'",
+                    "2026-08-19: `cursor-agent -f -p` returned the exact requested "
+                    "marker, so the non-interactive lane works with the trust flag",
+                    "2026-08-19: `cursor-agent models` listed 204 pinned models "
+                    "including cursor-grok-4.6-high",
+                ),
+            ),
+            AgentProfile(
+                profile_id="cursor-grok-4.5-high",
+                adapter="cursor-cli",
+                model="cursor-grok-4.5-high",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:cursor-agent status",
+                verified_facts=(
+                    "2026-08-19: listed by `cursor-agent models` on the same session "
+                    "as cursor-grok-4.6-high",
+                ),
+            ),
+            AgentProfile(
+                profile_id="cursor-claude-opus-5-thinking-high",
+                adapter="cursor-cli",
+                model="claude-opus-5-thinking-high",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:cursor-agent status",
+                verified_facts=(
+                    "2026-08-19: listed by `cursor-agent models`; reaches Claude "
+                    "without the unprovisioned claude-code keychain item",
+                ),
+            ),
+            AgentProfile(
+                profile_id="cursor-gemini-3.7-flash-high",
+                adapter="cursor-cli",
+                model="gemini-3.7-flash-high",
+                auth_mode="subscription-cli-session",
+                secret_source="cli:cursor-agent status",
+                verified_facts=(
+                    "2026-08-19: listed by `cursor-agent models`; reaches Gemini "
+                    "without gemini-cli, which is IneligibleTier for individuals",
+                ),
+            ),
         )
     }
 
@@ -435,5 +553,12 @@ def default_probe_for(
         return KeychainProbe(
             security_runner=security_runner, service=service, account=keychain_account
         )
+    if profile.auth_mode == "subscription-cli-session":
+        command = (profile.secret_source or "cli:")[len("cli:") :].split()
+        if not command:
+            return DeclaredUnavailableProbe(
+                reason=f"{profile.profile_id} declares cli-session auth with no command"
+            )
+        return CliSessionProbe(argv=tuple(command), expect="logged in")
     relative = (profile.secret_source or "file:")[len("file:"):]
     return AuthFileProbe(home=home, relative_path=relative, clock=clock)

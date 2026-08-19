@@ -116,3 +116,33 @@
   Antigravity lane cannot currently sustain a multi-cycle night.** Recorded here rather
   than added to the gym doc's Peter-decision list, which the dispatch prompt fenced to
   its three named items.
+
+- 2026-08-19 [orchestrator, model lanes + delegation capacity]: **the Cursor lane is
+  live on main** (#132): Harbor's native `cursor-cli` adapter, a new
+  `subscription-cli-session` auth mode with `CliSessionProbe` (cursor keeps its
+  credential in an opaque store, so a file probe would report "available" on a stale
+  session), four pinned profiles, default `cursor-grok-4.6-high` per Peter. Verified:
+  `available_credentials() -> ['codex_auth', 'cursor_session']`. **gemini-cli is dead**
+  for this account (`IneligibleTierError: no longer supported for Gemini Code Assist
+  for individuals`), so the Gemini route is through Cursor. Antigravity has no
+  installable CLI found: `@google/antigravity-cli` is 404 on npm and
+  `~/.gemini/antigravity-cli/bin/` holds only `agentapi` and `webm_encoder` — Harbor
+  supports `antigravity-cli`/`antigravity-sdk` as agents but the transport is
+  unidentified; that slice died with its agent and is unstarted.
+- 2026-08-19 [orchestrator]: **free control battery ran on all four `library/tasks/`
+  packages** — oracle=1 and nop=0 for `event-summary`, `query-optimize`,
+  `transaction-reconciliation`, `terminal-bench-html-js-filter` (job dirs
+  `runs/gymv0-{oracle,nop}-*`). That is the `control_evidence` a `TaskRegistryRecord`
+  requires, so registration is now blocked only on **`evallab registry promote` not
+  existing** — the command was never implemented (`registry` has only `list`/`audit`;
+  nothing writes records). Two dispatch attempts at implementing it died on provider
+  limits; it is the highest-value unstarted slice.
+- 2026-08-19 [orchestrator]: **subagent delegation is currently non-viable on BOTH
+  lanes, at any fan-out.** Tonight: 4 concurrent cursor-lane agents all killed by
+  `resource_exhausted` at 8-10 min having created no worktree; then a SINGLE
+  gemini-lane agent killed identically at 10m04s. Interactive single-shot probes on
+  both lanes succeed every time. So this is neither concurrency nor exhausted credits
+  in the ordinary sense — sustained agent sessions specifically fail. Every deliverable
+  tonight was therefore hand-executed. This is now the binding constraint on lab
+  throughput and it needs Peter's read: it is a provider/harness capacity question, not
+  a mission question.

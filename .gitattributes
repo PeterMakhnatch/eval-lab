@@ -10,3 +10,9 @@
 # Harbor logs are immutable upstream evidence and can contain emitted trailing
 # spaces. Preserve their bytes instead of normalizing generated output.
 evidence/runs/**/*.log -whitespace
+
+# Generated build products: regenerate on merge instead of a meaningless 3-way
+# text merge. The driver is supplied by scripts/setup-git.sh (see that file for
+# why it cannot be committed).
+docs/repo-map.md merge=regen
+docs/INDEX.md merge=regen

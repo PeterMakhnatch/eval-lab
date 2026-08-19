@@ -159,6 +159,51 @@ the test failing, restore, show it passing — because the recurring finding all
 week has been tests that pass while reality disagrees. `scripts/premerge.sh`
 gates every push; no mission merges its own PR.
 
+### Context-supply program registered (M025–M028)
+
+Spec: `docs/prompts/context-supply-program.md` v1 (Peter-level direction; this
+board registers, it does not edit that doc). Premise in his words: *"I gotta feed
+it the right info since I can't post-train it."* Subscription agents arrive with
+frozen weights, so context is the only lever, and the program treats it as a
+supply chain with the same standards as any other data path here — versioned
+inputs, deterministic transforms, measured outputs. Four stages, one loop each:
+
+```text
+RAW SOURCES ──HARVEST──▶ inbox notes ──STANDARDS──▶ corpus files
+corpus files ──PACK──▶ compiled context ──(missions)──▶ agent work
+verification know-how ──VERIFIER──▶ corpus + experiments + SG-4 feed
+```
+
+| Mission | Loop | Lease (as written in the spec) | State |
+|---|---|---|---|
+| M025 | HARVEST — raw sources into distillable inbox notes | `research/inbox/**` (append and edit its own notes only), `tests/test_inbox_conformance.py` | **cycle 1 complete, in review** |
+| M026 | STANDARDS — inbox notes into the versioned craft corpus | `library/curated/standards/**`, `tests/test_standards_conformance.py`, `_proposed_templates/` staging; SG-owned `authoring/templates/` only via board-note handshake | ready — unblocked by M025 cycle 1 |
+| M027 | VERIFIER — absorb verification practice for a no-logprob lab | `library/curated/standards/verification/**`, `research/experiments/verifier/**`, `tests/test_verifier_corpus.py`; TRAJ/SEAM/calibrate touchpoints via board-note only | **blocked** — needs HARVEST queue item 2 (llm-as-a-verifier) |
+| M028 | PACK — corpus into compiled, budgeted, measured context | `src/evallab/contextpack.py`, `tests/test_contextpack*`, `docs/` front-matter fields it needs; digest/STATUS surface via board-note to the SURFACE owner | **blocked** — needs the first two STANDARDS corpus files |
+
+Dependencies, verbatim from the protocol: STANDARDS consumes HARVEST notes (start
+after HARVEST cycle 1; run concurrently thereafter — HARVEST stays ahead by at
+least one intake). VERIFIER cycle 1 needs its HARVEST note only. PACK cycle 1
+needs the first two STANDARDS files. Leases are disjoint by construction; the one
+naming convention to respect is that VERIFIER's eval card is
+`research/cards/verifier-*.md`, file-disjoint from LOOP-CARDS by the
+`experience-*` / `verifier-*` split.
+
+**Phase-1 priority, recorded because the rule only bites when slots are scarce.**
+The protocol says Phase-1 missions (INGEST, TRAJ, SEAM from
+`docs/prompts/build-program.md`) win any slot contest. Measured state right now:
+**Phase 1 is not registered on this board and none of its modules exist** — no
+`ingest_verify.py`, no `traj.py`, no `modeladapter.py`, and no handoff under
+`agents/handoffs/`. So there is no contest tonight and context-supply took the
+free slots. The moment Phase 1 is dispatched, M026–M028 yield slots to it; M025
+is cheap enough to keep running either way. Registering Phase 1 is a separate
+dispatch prompt and deliberately not done here.
+
+Cadence: nightly cycles under the shared `night-loops.md` protocol (RECHECK →
+EXTEND → PROVE → HARDEN → RECORD, max 6 cycles, one commit and one push per
+cycle, every cycle ends mergeable) so an interruption at any cycle boundary loses
+nothing. Program is DONE when all four loop-done acceptances hold.
+
 ### Five loop missions dispatched tonight (M015–M019)
 
 These are LOOPS, not builds. The standing risk after ~55 missions in days is
@@ -221,10 +266,19 @@ the entire premise of M015.
 
 ## Ready
 
-- **Nothing is dispatchable-but-unstarted for a build worker, and no slot is held.**
-  M009–M024 are all merged; `.worktrees/` is empty. The items under `Next` are what
-  the v2 architecture audit left standing plus three follow-ups tonight's work created,
-  and each needs an M number and a brief before it starts.
+- **M026 STANDARDS is dispatchable now.** Its only dependency — HARVEST cycle 1 —
+  is complete and in review, and its lease (`library/curated/standards/**`) is
+  unoccupied because the directory does not exist yet. First cycle is EX-MT, whose
+  five source notes are already landed in `research/inbox/`.
+- **M027 VERIFIER and M028 PACK are registered but blocked**, per the dependencies
+  written in the spec, not for want of capacity. VERIFIER needs HARVEST queue item
+  2 (llm-as-a-verifier); PACK needs the first two STANDARDS files.
+- **Phase-1 (INGEST, TRAJ, SEAM) remains unregistered**, which is why
+  context-supply holds slots at all — see the priority note above. Registering it
+  is `docs/prompts/build-program.md`'s dispatch prompt, not this one.
+- M009–M024 are all merged; `.worktrees/` is empty apart from live mission work.
+  The items under `Next` are what the v2 architecture audit left standing plus the
+  follow-ups tonight's work created, and each needs an M number and a brief.
 
 ## Next
 

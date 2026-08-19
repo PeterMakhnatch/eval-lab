@@ -146,3 +146,27 @@
   tonight was therefore hand-executed. This is now the binding constraint on lab
   throughput and it needs Peter's read: it is a provider/harness capacity question, not
   a mission question.
+
+- 2026-08-19 [orchestrator, delegation root cause]: **the `task`-tool subagent path is
+  broken against these providers; `omp -p` headless processes are fine.** Isolated by
+  experiment, not inferred: `omp -p --no-tools` works; `omp -p` WITH tools doing a real
+  tool call works in **3.4s**; a `task` subagent with a 5k-token brief hangs and dies at
+  ~10min; a `task` subagent with a **12-word** brief hangs identically; removing the
+  `:high` thinking suffix changes nothing. The dead agents' transcripts contain only the
+  user message and **zero assistant turns** — they never received a first response, and
+  OMP reported the exhausted retry budget as `resource_exhausted`. So it was never
+  credits (Peter confirmed plenty available), never concurrency, never brief size. It
+  also explains why M015-M019 produced 29 real cycles: those were dispatched as
+  hub-supervised `omp -p` processes. Standing rule for this repo: **dispatch workers as
+  `hub` supervised `omp -p` processes, not via the task tool.** Three workers launched
+  that way tonight all delivered merged PRs (#133, #134, #135).
+- 2026-08-19 [orchestrator, policy correction]: my earlier advice to add `cursor-cli` to
+  `auto_run.agents` in `policy/standing-approvals.yaml` was **wrong and was not applied**.
+  The file's own header says adding a billable agent there "grants nothing; it only
+  misstates what this lab does", and `queue.py` confirms it: `if spec.billable:` refuses
+  before any standing rule is consulted unless a recorded authorisation exists. `auto_run`
+  is the list of agents permitted to run with **no human in the loop**, and by design may
+  only ever hold the free controls `oracle`/`nop`. Billable lanes are admitted per-spec
+  via `uv run evallab approve <spec-id> --actor <name>`. The one genuinely open policy
+  knob is `refuse_billable_at_used_percent` (currently `null`), which is Peter's spend
+  decision.

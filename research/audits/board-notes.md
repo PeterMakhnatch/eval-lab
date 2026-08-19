@@ -101,3 +101,18 @@
   card validates against the mandatory caveat checks and reports no rates by design.
   The binding constraint on the whole campaign is Peter decision #2 (register the
   curated-nominee slice, or reject) — escalated as-is, not as a new decision.
+
+- 2026-08-19 [orchestrator, gym campaign night 1]: **context-supply dispatch is now
+  quota-blocked for the SECOND consecutive night, which trips its own escalation rule.**
+  `docs/prompts/context-supply-program.md` says two consecutive blocked nights on the
+  same item escalate to Peter's morning read via STATUS open-decisions. Tonight
+  M025 cycle 2 (llm-as-a-verifier intake) and M026 cycle 1 (EX-MT) were not re-dispatched
+  because the same provider that killed them last night killed all three gym agents
+  tonight: `GymRunFreeze`, `GymRunExpS03` and `GymDataHarborIndex` were each killed by
+  `resource_exhausted` at ~10 minutes having created no worktree at all, after a probe
+  call to `google-antigravity/gemini-3.7-flash:high` returned clean. The three gym cycles
+  were then completed by the integrator directly (#128, #129, #130). The escalation is
+  therefore a capacity decision, not a mission decision: **subagent dispatch on the
+  Antigravity lane cannot currently sustain a multi-cycle night.** Recorded here rather
+  than added to the gym doc's Peter-decision list, which the dispatch prompt fenced to
+  its three named items.

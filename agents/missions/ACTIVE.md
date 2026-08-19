@@ -193,8 +193,8 @@ missions; every cycle boundary is merge-safe.
 
 | Mission | Loop | Lease (as written) | State |
 |---|---|---|---|
-| M032 | GYM-RUN — the first campaign: fill the lake, ship the experiments | `queue/**` submissions (through the CLI, never hand-written files), `library/frozen/gym-v0/**` (new manifest), one schema addition (`extra_instruction_path`), `research/cards/campaign-*.md` | cycles 1–2 dispatched; **cycle 3 BLOCKED** (see below) |
-| M033 | GYM-DATA — more data than trajectories | `research/external/**` (new), `src/evallab/fetch.py` (extend), `sql/external_views.sql`; funnel/STATUS line via board-note to SURFACE | cycle 1 dispatched |
+| M032 | GYM-RUN — the first campaign: fill the lake, ship the experiments | `queue/**` submissions (through the CLI, never hand-written files), `library/frozen/gym-v0/**` (new manifest), one schema addition (`extra_instruction_path`), `research/cards/campaign-*.md` | **cycles 1–2 MERGED** (#129, #128); **cycle 3 recorded as zero-sized** (card `campaign-gym-v0.md`) |
+| M033 | GYM-DATA — more data than trajectories | `research/external/**` (new), `src/evallab/fetch.py` (extend), `sql/external_views.sql`; funnel/STATUS line via board-note to SURFACE | **cycle 1 MERGED** (#130) — corpus `pending`, acquisition path documented |
 | M034 | GYM-HARBOR — use the Harbor we already have | `docs/research/harbor-capability-audit.md` (new), `src/evallab/fetch.py`/`runner.py` touchpoints only with a board-row note | ready — unstarted |
 | M035 | GYM-UI — read every trajectory, and read the analyst's mind | `src/evallab/explorer.py` (extend), `tests/test_explorer*`; TRAJ consumed read-only via board-note dependency | ready — depends on M030 TRAJ for the outline function; may render raw ATIF with a built-in condenser first |
 

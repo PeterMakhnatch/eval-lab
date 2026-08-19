@@ -14,6 +14,7 @@ from pathlib import Path
 
 from evallab.quota import (
     CACHED_WEIGHTING_NOTE,
+    NO_OBSERVATION_REASON,
     PAID_AGENTS,
     ConsumptionLedger,
     QuotaReport,
@@ -189,16 +190,25 @@ def add_quota_sidecar(
 
 def test_only_paid_agents_enter_the_ledger(tmp_path: Path) -> None:
     job = make_job(tmp_path)
-    add_trial(job, name="event-summary__paid", agent="codex")
+    add_trial(job, name="event-summary__codex", agent="codex")
+    add_trial(job, name="event-summary__cursor", agent="cursor-cli")
+    add_trial(job, name="event-summary__antigravity", agent="antigravity-cli")
+    add_trial(job, name="event-summary__claude", agent="claude-code")
     add_trial(job, name="event-summary__free", agent="oracle")
     add_trial(job, name="event-summary__free2", agent="nop")
 
     report = load_quota_report([tmp_path], now=NOW)
 
-    assert [trial.agent for trial in report.consumed.trials] == ["codex"]
-    assert report.paid_agents == ("claude-code", "codex")
+    assert {trial.agent for trial in report.consumed.trials} == {
+        "codex",
+        "cursor-cli",
+        "antigravity-cli",
+        "claude-code",
+    }
+    assert report.paid_agents == ("antigravity-cli", "claude-code", "codex", "cursor-cli")
     assert "oracle" not in PAID_AGENTS and "nop" not in PAID_AGENTS
-
+    assert "cursor-cli" in PAID_AGENTS and "antigravity-cli" in PAID_AGENTS
+    assert "codex" in PAID_AGENTS and "claude-code" in PAID_AGENTS
 
 def test_observed_token_counts_are_summed_not_estimated(tmp_path: Path) -> None:
     job = make_job(tmp_path)
@@ -359,12 +369,16 @@ def test_for_agent_narrows_the_ledger(tmp_path: Path) -> None:
         trials=(
             TrialConsumption(job_name="j", trial_name="c", agent="codex"),
             TrialConsumption(job_name="j", trial_name="k", agent="claude-code"),
+            TrialConsumption(job_name="j", trial_name="u", agent="cursor-cli"),
+            TrialConsumption(job_name="j", trial_name="g", agent="antigravity-cli"),
         )
     )
 
     assert [t.trial_name for t in ledger.for_agent("claude-code").trials] == ["k"]
+    assert [t.trial_name for t in ledger.for_agent("cursor-cli").trials] == ["u"]
+    assert [t.trial_name for t in ledger.for_agent("antigravity-cli").trials] == ["g"]
+    assert [t.trial_name for t in ledger.for_agent("codex").trials] == ["c"]
     assert ledger.for_agent("nop").trials == ()
-
 
 def test_reported_cost_is_carried_but_named_as_a_list_price_equivalent(tmp_path: Path) -> None:
     job = make_job(tmp_path)
@@ -449,6 +463,77 @@ def test_headroom_is_unavailable_with_a_reason_when_no_snapshot_exists(tmp_path:
     assert headroom.staleness_seconds is None
     assert headroom.reason and "unknown" in headroom.reason
 
+
+def test_cursor_and_antigravity_consumption_and_headroom(tmp_path: Path) -> None:
+    """Cursor-cli and antigravity-cli trials record consumption and headroom."""
+    job = make_job(tmp_path)
+    cursor_trial = add_trial(
+        job,
+        name="cursor__1",
+        agent="cursor-cli",
+        input_tokens=5_000,
+        cache_tokens=4_000,
+        output_tokens=150,
+        cost_usd=0.02,
+    )
+    add_rollout(
+        cursor_trial,
+        events=[token_count_event(timestamp="2026-08-15T06:30:00Z", used_percent=45.0)],
+    )
+    agy_trial = add_trial(
+        job,
+        name="agy__1",
+        agent="antigravity-cli",
+        input_tokens=10_000,
+        cache_tokens=8_000,
+        output_tokens=300,
+        cost_usd=0.04,
+    )
+    add_rollout(
+        agy_trial,
+        events=[token_count_event(timestamp="2026-08-15T06:35:00Z", used_percent=60.0)],
+    )
+
+    cursor_report = load_quota_report(
+        [tmp_path], now=NOW, paid_agents=frozenset({"cursor-cli"})
+    )
+    assert len(cursor_report.consumed.trials) == 1
+    assert cursor_report.consumed.trials[0].agent == "cursor-cli"
+    assert cursor_report.consumed.totals().input_tokens == 5_000
+    assert cursor_report.headroom.availability == "observed"
+    assert cursor_report.headroom.used_percent == 45.0
+    assert cursor_report.headroom.remaining_percent == 55.0
+
+    agy_report = load_quota_report(
+        [tmp_path], now=NOW, paid_agents=frozenset({"antigravity-cli"})
+    )
+    assert len(agy_report.consumed.trials) == 1
+    assert agy_report.consumed.trials[0].agent == "antigravity-cli"
+    assert agy_report.consumed.totals().input_tokens == 10_000
+    assert agy_report.headroom.availability == "observed"
+    assert agy_report.headroom.used_percent == 60.0
+    assert agy_report.headroom.remaining_percent == 40.0
+
+
+def test_cursor_and_antigravity_unobserved_headroom_gives_honest_reason(tmp_path: Path) -> None:
+    """When no snapshot exists for cursor-cli or antigravity-cli, reason is unobserved."""
+    job = make_job(tmp_path)
+    add_trial(job, name="cursor__nosnap", agent="cursor-cli")
+    add_trial(job, name="agy__nosnap", agent="antigravity-cli")
+
+    cursor_report = load_quota_report(
+        [tmp_path], now=NOW, paid_agents=frozenset({"cursor-cli"})
+    )
+    assert cursor_report.headroom.availability == "unavailable"
+    assert cursor_report.headroom.reason == NO_OBSERVATION_REASON
+    assert cursor_report.headroom.remaining_percent is None
+
+    agy_report = load_quota_report(
+        [tmp_path], now=NOW, paid_agents=frozenset({"antigravity-cli"})
+    )
+    assert agy_report.headroom.availability == "unavailable"
+    assert agy_report.headroom.reason == NO_OBSERVATION_REASON
+    assert agy_report.headroom.remaining_percent is None
 
 def test_headroom_is_account_scoped_and_never_attributed_to_the_lab(tmp_path: Path) -> None:
     job = make_job(tmp_path)

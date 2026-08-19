@@ -61,7 +61,9 @@ from evallab.results import discover_job_dirs
 
 #: Agents that spend a subscription allowance. ``oracle`` and ``nop`` are free
 #: local controls and are excluded from every consumption figure.
-PAID_AGENTS: frozenset[str] = frozenset({"codex", "claude-code"})
+PAID_AGENTS: frozenset[str] = frozenset(
+    {"codex", "claude-code", "cursor-cli", "antigravity-cli"}
+)
 
 #: Provenance label, matching the vocabulary used by the operator surfaces.
 Availability = Literal["observed", "unavailable"]

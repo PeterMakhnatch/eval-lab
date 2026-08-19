@@ -1,0 +1,10 @@
+{
+  "frozen": true,
+  "frozen_at": "2026-08-19",
+  "generation": "gym-v0",
+  "note": "The registry held ZERO registered task records at freeze time, so this generation is the empty set. Measured with `evallab registry list`, which printed: 'No task records found in library/registry/.' \u2014 the directory contains only .gitkeep. registry.py refuses any experiment spec whose task is not registered, so no campaign trial can be submitted against gym-v0. Registry promotion is human-only, so closing this is a Peter decision (register the curated-nominee slice, or reject the study). This manifest is deliberately kept rather than withheld: a frozen record of an empty gym is the honest baseline, and it is what makes the later non-empty generation visibly different.",
+  "repo_commit": "a9e907574f0c45a4ca5e94e40b76d3cb0956f05d",
+  "schema_version": 1,
+  "task_count": 0,
+  "tasks": []
+}

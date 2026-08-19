@@ -353,3 +353,74 @@ def test_default_probe_for_cursor_is_a_cli_session_probe(tmp_path: Path) -> None
     )
     assert isinstance(probe, CliSessionProbe)
     assert probe.argv == ("cursor-agent", "status")
+
+# --- Antigravity lane (subscription-cli-session auth) -------------------------
+
+
+def test_antigravity_default_profile_pins_gemini_3_7_flash_high() -> None:
+    """Peter's stated default is Gemini 3.7 Flash high.
+
+    Pinned explicitly in DEFAULT_PROFILE_FOR_ADAPTER because several profiles share
+    the antigravity-cli adapter.
+    """
+    from evallab.credentials import DEFAULT_AGENT_MODELS, DEFAULT_PROFILE_FOR_ADAPTER
+
+    assert DEFAULT_PROFILE_FOR_ADAPTER["antigravity-cli"] == "antigravity-gemini-3.7-flash-high"
+    assert DEFAULT_AGENT_MODELS["antigravity-cli"] == "gemini-3.7-flash-high"
+
+
+def test_antigravity_profiles_are_pinned_and_cli_session_authed() -> None:
+    profiles = builtin_profiles()
+    antigravity = [p for p in profiles.values() if p.adapter == "antigravity-cli"]
+    assert antigravity, "the antigravity lane must be present in the profile registry"
+    for profile in antigravity:
+        assert profile.auth_mode == "subscription-cli-session"
+        assert profile.secret_source == "cli:agy models"
+        assert profile.model and profile.model != "auto", "models must be pinned exactly"
+
+
+def test_antigravity_cli_session_probe_reports_ok_on_gemini_marker() -> None:
+    profile = builtin_profiles()["antigravity-gemini-3.7-flash-high"]
+    probe = CliSessionProbe(
+        argv=("agy", "models"),
+        expect="gemini",
+        runner=_fake_cli(
+            0, "Fetching available models...\ngemini-3.7-flash-high\tGemini 3.7 Flash (High)"
+        ),
+    )
+    assert probe(profile).ok is True
+
+
+def test_antigravity_cli_session_probe_fails_when_cli_reports_no_session() -> None:
+    profile = builtin_profiles()["antigravity-gemini-3.7-flash-high"]
+    probe = CliSessionProbe(
+        argv=("agy", "models"),
+        expect="gemini",
+        runner=_fake_cli(1, "Error: Please sign in to view available models."),
+    )
+    result = probe(profile)
+    assert result.ok is False
+    assert "no session" in (result.reason or "")
+
+
+def test_antigravity_cli_session_probe_fails_when_marker_absent_despite_exit_zero() -> None:
+    """Exit zero is not enough: a CLI can succeed with an unexpected message."""
+    profile = builtin_profiles()["antigravity-gemini-3.7-flash-high"]
+    probe = CliSessionProbe(
+        argv=("agy", "models"),
+        expect="gemini",
+        runner=_fake_cli(0, "Fetching available models...\nNo models found."),
+    )
+    result = probe(profile)
+    assert result.ok is False
+    assert "did not match" in (result.reason or "")
+
+
+def test_default_probe_for_antigravity_is_a_cli_session_probe(tmp_path: Path) -> None:
+    profile = builtin_profiles()["antigravity-gemini-3.7-flash-high"]
+    probe = default_probe_for(
+        profile, home=tmp_path, security_runner=lambda argv: 1, keychain_account="nobody"
+    )
+    assert isinstance(probe, CliSessionProbe)
+    assert probe.argv == ("agy", "models")
+    assert probe.expect == "gemini"

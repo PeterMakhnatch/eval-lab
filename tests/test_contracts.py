@@ -596,3 +596,34 @@ def test_golden_freeze_detects_injected_field():
         live = mutated
         committed = _load_golden("ExperimentSpec")
         assert live == committed, "ExperimentSpec schema drift"
+
+
+def _s03_spec(**overrides: object) -> ExperimentSpec:
+    fields: dict[str, object] = {
+        "name": "exp-s03-treatment",
+        "hypothesis": "an elicitation preamble raises the pass rate",
+        "purpose": "elicitation",
+        "task": "canary/event-summary",
+        "agent": "codex",
+        "submitted_by": "test-author",
+    }
+    fields.update(overrides)
+    return ExperimentSpec(**fields)  # type: ignore[arg-type]
+
+
+def test_extra_instruction_path_defaults_to_none():
+    """The control arm leaves the preamble unset; absence must be the default."""
+    assert _s03_spec().extra_instruction_path is None
+
+
+def test_extra_instruction_path_accepts_a_repo_relative_file():
+    spec = _s03_spec(extra_instruction_path="library/preambles/s03-treatment.md")
+    assert spec.extra_instruction_path == "library/preambles/s03-treatment.md"
+
+
+@pytest.mark.parametrize("escape", ["/etc/passwd", "../../etc/passwd", "library/../../x"])
+def test_extra_instruction_path_cannot_escape_the_repository(escape):
+    """The preamble is a path the dispatcher forwards to Harbor, so it must be
+    fenced by the same repo-relative rule as task_path and jobs_dir."""
+    with pytest.raises(ValidationError):
+        _s03_spec(extra_instruction_path=escape)

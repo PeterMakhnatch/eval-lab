@@ -114,6 +114,7 @@ class RunRequest:
     allow_billable: bool = False
     provenance: RunProvenance | None = None
     lease_path: Path | None = None
+    extra_instruction_path: Path | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -398,6 +399,8 @@ def build_command(request: RunRequest) -> list[str]:
     ]
     if request.model:
         command.extend(["--model", request.model])
+    if request.extra_instruction_path is not None:
+        command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     return command
 
 

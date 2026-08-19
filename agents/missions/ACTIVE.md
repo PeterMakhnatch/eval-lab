@@ -176,10 +176,25 @@ verification know-how ──VERIFIER──▶ corpus + experiments + SG-4 feed
 
 | Mission | Loop | Lease (as written in the spec) | State |
 |---|---|---|---|
-| M025 | HARVEST — raw sources into distillable inbox notes | `research/inbox/**` (append and edit its own notes only), `tests/test_inbox_conformance.py` | **cycle 1 complete, in review** |
-| M026 | STANDARDS — inbox notes into the versioned craft corpus | `library/curated/standards/**`, `tests/test_standards_conformance.py`, `_proposed_templates/` staging; SG-owned `authoring/templates/` only via board-note handshake | ready — unblocked by M025 cycle 1 |
-| M027 | VERIFIER — absorb verification practice for a no-logprob lab | `library/curated/standards/verification/**`, `research/experiments/verifier/**`, `tests/test_verifier_corpus.py`; TRAJ/SEAM/calibrate touchpoints via board-note only | **blocked** — needs HARVEST queue item 2 (llm-as-a-verifier) |
-| M028 | PACK — corpus into compiled, budgeted, measured context | `src/evallab/contextpack.py`, `tests/test_contextpack*`, `docs/` front-matter fields it needs; digest/STATUS surface via board-note to the SURFACE owner | **blocked** — needs the first two STANDARDS corpus files |
+| M025 | HARVEST — raw sources into distillable inbox notes | `research/inbox/**` (append and edit its own notes only), `tests/test_inbox_conformance.py` | **cycle 1 MERGED** (#127); cycle 2 `blocked` — provider quota |
+| M026 | STANDARDS — inbox notes into the versioned craft corpus | `library/curated/standards/**`, `tests/test_standards_conformance.py`, `_proposed_templates/` staging; SG-owned `authoring/templates/` only via board-note handshake | dispatched, `blocked` — provider quota; dependency satisfied |
+| M027 | VERIFIER — absorb verification practice for a no-logprob lab | `library/curated/standards/verification/**`, `research/experiments/verifier/**`, `tests/test_verifier_corpus.py`; TRAJ/SEAM/calibrate touchpoints via board-note only | `blocked` — needs HARVEST queue item 2 (llm-as-a-verifier) |
+| M028 | PACK — corpus into compiled, budgeted, measured context | `src/evallab/contextpack.py`, `tests/test_contextpack*`, `docs/` front-matter fields it needs; digest/STATUS surface via board-note to the SURFACE owner | `blocked` — needs the first two STANDARDS corpus files |
+
+**Night 1 result: HARVEST cycle 1 merged; the two dispatched follow-on cycles died on
+provider quota with zero work product.** M025 cycle 2 (llm-as-a-verifier intake) and
+M026 cycle 1 (EX-MT) were dispatched onto `google-antigravity/gemini-3.7-flash:high`
+after a probe returned clean; both agents were killed by `resource_exhausted` at ~10
+minutes, before either created a worktree, so nothing was lost and nothing was
+half-landed. The program's blocked-handling rule covers exactly this: *"A loop blocked
+on quota defers to the next night."* Both are deferred, not abandoned, and their state
+fields above are the truth per the resumption rule.
+
+**Escalation counter: night 1 of 2.** The rule is *"two consecutive blocked nights on
+the same item → escalate to Peter's morning read via STATUS open-decisions."* This is
+night one, so it is deliberately NOT escalated. If the next night's cycles die on quota
+again for the same two items, that becomes a STATUS open-decision — and the decision on
+the table would be provider capacity for unattended loops, not the loops themselves.
 
 Dependencies, verbatim from the protocol: STANDARDS consumes HARVEST notes (start
 after HARVEST cycle 1; run concurrently thereafter — HARVEST stays ahead by at
@@ -266,17 +281,20 @@ the entire premise of M015.
 
 ## Ready
 
-- **M026 STANDARDS is dispatchable now.** Its only dependency — HARVEST cycle 1 —
-  is complete and in review, and its lease (`library/curated/standards/**`) is
-  unoccupied because the directory does not exist yet. First cycle is EX-MT, whose
-  five source notes are already landed in `research/inbox/`.
-- **M027 VERIFIER and M028 PACK are registered but blocked**, per the dependencies
-  written in the spec, not for want of capacity. VERIFIER needs HARVEST queue item
-  2 (llm-as-a-verifier); PACK needs the first two STANDARDS files.
+- **M026 STANDARDS: dependency satisfied, deferred on quota.** HARVEST cycle 1 is
+  MERGED (`5068b4d`, PR #127), so EX-MT's five source notes are on `main` and its
+  lease (`library/curated/standards/**`) is still unoccupied — the directory does
+  not exist yet. First thing next night, no re-planning needed: the brief is
+  written in `docs/prompts/context-supply-program.md` EX-MT, including the full
+  F.1 adaptation mapping.
+- **M025 HARVEST cycle 2 is the highest-value next intake** because queue item 2
+  (llm-as-a-verifier) is what unblocks M027. Also deferred on quota.
+- **M027 VERIFIER and M028 PACK stay blocked on dependencies, not capacity.**
+  VERIFIER needs HARVEST queue item 2; PACK needs the first two STANDARDS files.
 - **Phase-1 (INGEST, TRAJ, SEAM) remains unregistered**, which is why
   context-supply holds slots at all — see the priority note above. Registering it
   is `docs/prompts/build-program.md`'s dispatch prompt, not this one.
-- M009–M024 are all merged; `.worktrees/` is empty apart from live mission work.
+- M009–M025 are merged; `.worktrees/` is empty and `evallab tidy` reports clean.
   The items under `Next` are what the v2 architecture audit left standing plus the
   follow-ups tonight's work created, and each needs an M number and a brief.
 

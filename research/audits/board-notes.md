@@ -87,3 +87,17 @@
   the first two STANDARDS files. VERIFIER: blocked on HARVEST queue item 2. Zero packs
   built, zero evidence lines appended, zero experiments pre-registered — all four are
   genuinely zero rather than unmeasured.
+
+- 2026-08-19 [orchestrator, M032 GYM-RUN cycle 3]: wave 1 sized by preflight at
+  **zero codex trials**, and the campaign card `research/cards/campaign-gym-v0.md` was
+  written by the integrator (not a worker) as the cycle-3 record because the finding is
+  a determination, not a build. Two independent blockers, both measured: (1) the
+  registry is empty (`registry list` -> "No task records found in library/registry/";
+  only `.gitkeep` present), and `registry.py:370` refuses unregistered tasks, so zero
+  specs are submittable and there are zero task families for the free oracle control
+  arm; (2) codex preflight reads `used_percent 92.0 / remaining 8.0 / credits_balance 0
+  / hard stop True`, resets 2026-08-20T18:32:49Z, snapshot 65h27m stale. Per the doc's
+  own constraint no ceiling was worked around and no credentials were provisioned. The
+  card validates against the mandatory caveat checks and reports no rates by design.
+  The binding constraint on the whole campaign is Peter decision #2 (register the
+  curated-nominee slice, or reject) — escalated as-is, not as a new decision.

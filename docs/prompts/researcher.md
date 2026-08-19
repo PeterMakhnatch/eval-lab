@@ -48,7 +48,7 @@ them.
 
 ## Dispatch prompt
 
-> Read docs/prompts/researcher.md and research/problems/LEDGER.md.
+> Read docs/prompts/researcher.md, research/problems/CONTEXT.md, and research/problems/LEDGER.md.
 > Register RESEARCHER as a standing mission (lease as written). Cycle 1
 > tonight: P1 (step-level progress detection) — verify the TOFFEE
 > trajectory-metadata claims from its actual repo and the Docker

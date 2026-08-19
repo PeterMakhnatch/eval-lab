@@ -33,9 +33,14 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 cd "$repo_root" || exit 0
 
 # A rebase stopped for conflicts must not be amended - the user is mid-operation.
+# Do not test for the rebase state directory here: git still holds it open when
+# post-rewrite fires as part of finalising a successful rebase, so that check
+# would skip the hook every single time. Unmerged index entries are the real
+# signal that the operation stopped for a human.
 git rev-parse --verify -q HEAD >/dev/null || exit 0
-[ -d "$(git rev-parse --git-path rebase-merge)" ] && exit 0
-[ -d "$(git rev-parse --git-path rebase-apply)" ] && exit 0
+if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+  exit 0
+fi
 
 # Never rewrite a commit that is not ours to rewrite, and never touch a dirty
 # tree: amending would silently absorb unrelated staged work.

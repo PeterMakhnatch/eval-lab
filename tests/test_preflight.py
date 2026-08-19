@@ -286,19 +286,36 @@ def test_exhausted_credits_are_reported_as_a_lockout_not_a_charge(tmp_path: Path
 
 
 def test_one_provider_reading_is_never_attributed_to_the_other(tmp_path: Path) -> None:
-    """`codex` and `claude-code` are separate subscriptions, so separate readings."""
+    """Each paid lane is a separate subscription, so separate readings."""
     trial = make_paid_trial(tmp_path, agent="codex")
     add_quota_snapshot(trial, observed_at=NOW - timedelta(minutes=5))
 
     report = build_preflight_report(tmp_path, now=NOW, refusal=provider_reported_exhaustion)
     by_agent = {provider.agent: provider for provider in report.providers}
 
+    assert set(by_agent.keys()) == {"antigravity-cli", "claude-code", "codex", "cursor-cli"}
     assert by_agent["codex"].observed is True
     assert by_agent["codex"].paid_trials == 1
     assert by_agent["claude-code"].observed is False
     assert by_agent["claude-code"].paid_trials == 0
     assert by_agent["claude-code"].headroom.remaining_percent is None
+    assert by_agent["cursor-cli"].observed is False
+    assert by_agent["cursor-cli"].paid_trials == 0
+    assert by_agent["cursor-cli"].headroom.remaining_percent is None
+    assert by_agent["antigravity-cli"].observed is False
+    assert by_agent["antigravity-cli"].paid_trials == 0
+    assert by_agent["antigravity-cli"].headroom.remaining_percent is None
 
+
+def test_preflight_renders_all_four_lanes(tmp_path: Path) -> None:
+    """Preflight renders sections for all four registered paid lanes."""
+    report = build_preflight_report(tmp_path, now=NOW, refusal=provider_reported_exhaustion)
+    rendered = render_preflight(report)
+
+    assert "antigravity-cli" in rendered
+    assert "claude-code" in rendered
+    assert "codex" in rendered
+    assert "cursor-cli" in rendered
 
 def test_the_providers_own_exhaustion_statement_is_surfaced(tmp_path: Path) -> None:
     trial = make_paid_trial(tmp_path)

@@ -1,3 +1,16 @@
+---
+source_url: "drive:.Agents/Evals-Benchmarks (Google Drive; Peter's curated doc, exported 2026-08-19)"
+source_type: drive
+retrieved: 2026-08-19
+license_note: Peter's own distillation — freely usable in-repo; upstream Terminal-Bench docs it summarises are paraphrased, not reproduced
+status: raw
+feeds:
+  - library/curated/standards/instruction-rules.md
+  - library/curated/standards/verifier-antipatterns.md
+  - library/curated/standards/task-debugging.md
+  - library/curated/standards/authoring-workflow.md
+---
+
 # Drive export — "Evals / Benchmarks" (Peter's curated notes)
 
 Provenance: Google Drive > .Agents > "Evals / Benchmraks" doc, exported

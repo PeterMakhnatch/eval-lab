@@ -390,6 +390,47 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError("A model requires --allow-billable")
 
 
+# Mapping from local CLI model identifiers to Harbor-compatible model identifiers.
+#
+# Two distinct model identifier namespaces exist across the lab:
+# 1. Local CLI namespace (used by `modeladapter.py` when invoking `agy` on host):
+#    `gemini-3.7-flash-high` (listed by `agy models`, verified working).
+# 2. Harbor namespace (used by Harbor's `antigravity-cli` adapter inside Docker):
+#    - Harbor hard-requires `provider/model_name` format with a slash
+#      (harbor/agents/installed/antigravity_cli.py:776-777).
+#    - Harbor strips the provider prefix via `self.model_name.split("/")[-1]`
+#      (harbor/agents/installed/antigravity_cli.py:779).
+#    - LiteLLM cost lookup checks `litellm.model_cost` for the base model name
+#      (harbor/agents/installed/antigravity_cli.py:625-629), which matches
+#      `gemini-3.7-flash` but has no entry for `gemini-3.7-flash-high`.
+#    - Reasoning effort is a separate parameter (antigravity_cli.py:73-78, 713-752)
+#      that generates an alias `harbor-{model}-{reasoning_effort}` and configures
+#      `thinkingLevel`. Baking `-high` into the model ID fails the slash requirement,
+#      breaks LiteLLM cost lookup, and corrupts `thinkingConfig`.
+#    - In `run()`, Harbor passes `--model {model}` to `agy` inside the container
+#      (harbor/agents/installed/antigravity_cli.py:810-819).
+#
+# Therefore, `antigravity-cli` must be passed `google/gemini-3.7-flash` in Harbor.
+LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
+    ("antigravity-cli", "gemini-3.7-flash-high"): "google/gemini-3.7-flash",
+    ("antigravity-cli", "gemini-3.7-flash-medium"): "google/gemini-3.7-flash",
+    ("antigravity-cli", "gemini-3.7-flash-low"): "google/gemini-3.7-flash",
+    ("antigravity-cli", "gemini-3.1-pro-high"): "google/gemini-3.1-pro",
+    ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
+}
+
+
+def resolve_harbor_model(agent: str, model: str | None) -> str | None:
+    """Translate a local CLI model identifier to Harbor's expected model string.
+
+    Returns the mapped Harbor model if one is registered for (agent, model),
+    or the original model identifier if not mapped.
+    """
+    if model is None:
+        return None
+    return LOCAL_TO_HARBOR_MODEL.get((agent, model), model)
+
+
 def build_command(request: RunRequest) -> list[str]:
     command = [
         "harbor",
@@ -409,8 +450,9 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
-    if request.model:
-        command.extend(["--model", request.model])
+    harbor_model = resolve_harbor_model(request.agent, request.model)
+    if harbor_model:
+        command.extend(["--model", harbor_model])
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     return command

@@ -14,12 +14,14 @@ from evallab.runner import (
     HARBOR_COMPOSE_CONFIG_LABEL,
     HARBOR_COMPOSE_PROJECT_LABEL,
     HARBOR_COMPOSE_WORKDIR_LABEL,
+    LOCAL_TO_HARBOR_MODEL,
     HarborProcessResult,
     RunRequest,
     TransientHarnessFailure,
     build_command,
     cleanup_new_harbor_containers,
     load_matrix,
+    resolve_harbor_model,
     run_experiment,
     run_harbor_process,
     subscription_command,
@@ -596,3 +598,65 @@ def test_existing_argv_order_is_unchanged_by_the_new_flag(tmp_path: Path) -> Non
     )
 
     assert with_preamble[: len(base)] == base
+
+
+def test_antigravity_model_translation_for_harbor(tmp_path: Path) -> None:
+    """Harbor requires provider/model format (e.g. google/gemini-3.7-flash).
+
+    The lab tracks local CLI models as gemini-3.7-flash-high (matching `agy models`).
+    build_command must translate this to the Harbor namespace when generating argv.
+    """
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="antigravity-cli",
+        model="gemini-3.7-flash-high",
+        name="sample-agy-run",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    command = build_command(request)
+
+    assert "--model" in command
+    assert command[command.index("--model") + 1] == "google/gemini-3.7-flash"
+
+
+def test_resolve_harbor_model_distinguishes_local_and_harbor_namespaces() -> None:
+    """The local CLI namespace and the Harbor namespace must remain distinct."""
+    from evallab.credentials import DEFAULT_AGENT_MODELS
+
+    local_model = DEFAULT_AGENT_MODELS["antigravity-cli"]
+    assert local_model == "gemini-3.7-flash-high"
+
+    assert LOCAL_TO_HARBOR_MODEL[("antigravity-cli", local_model)] == "google/gemini-3.7-flash"
+    harbor_model = resolve_harbor_model("antigravity-cli", local_model)
+    assert harbor_model == "google/gemini-3.7-flash"
+    assert harbor_model != local_model
+    assert harbor_model.startswith("google/")
+    assert not local_model.startswith("google/")
+
+def test_resolve_harbor_model_variants_and_passthrough() -> None:
+    """All Antigravity variants translate to Harbor format; unmapped models pass through."""
+    assert (
+        resolve_harbor_model("antigravity-cli", "gemini-3.7-flash-medium")
+        == "google/gemini-3.7-flash"
+    )
+    assert (
+        resolve_harbor_model("antigravity-cli", "gemini-3.7-flash-low")
+        == "google/gemini-3.7-flash"
+    )
+    assert (
+        resolve_harbor_model("antigravity-cli", "gemini-3.1-pro-high")
+        == "google/gemini-3.1-pro"
+    )
+    assert (
+        resolve_harbor_model("antigravity-cli", "claude-sonnet-4-6")
+        == "google/claude-sonnet-4-6"
+    )
+    # Unmapped models pass through unchanged
+    assert resolve_harbor_model("codex", "gpt-5.6-terra") == "gpt-5.6-terra"
+    assert (
+        resolve_harbor_model("claude-code", "anthropic/claude-fable-5")
+        == "anthropic/claude-fable-5"
+    )
+    assert resolve_harbor_model("oracle", None) is None

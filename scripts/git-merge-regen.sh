@@ -25,6 +25,17 @@
 # this driver exists to remove.
 set -uo pipefail
 
+# Git runs hooks and merge drivers with the invoking environment, which routinely
+# lacks `~/.local/bin` (where `uv` is installed). A silent `command not found`
+# here would leave a stale build product with no explanation, so the PATH is
+# bootstrapped and a missing `uv` is reported rather than swallowed.
+PATH="$HOME/.local/bin:$PATH"
+export PATH
+if ! command -v uv >/dev/null 2>&1; then
+  echo "$(basename "$0"): uv not found on PATH; left generated docs untouched" >&2
+  exit 0
+fi
+
 ours="${2:?missing %A}"
 path="${4:-}"
 

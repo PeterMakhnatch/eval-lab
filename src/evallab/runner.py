@@ -428,6 +428,15 @@ LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
     ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
 }
 
+HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
+    "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
+}
+
+
+def resolve_harbor_agent(agent: str) -> str:
+    """Use the lab-owned adapter where Harbor supports custom import paths."""
+    return HARBOR_AGENT_IMPORT_PATHS.get(agent, agent)
+
 
 def resolve_harbor_model(agent: str, model: str | None) -> str | None:
     """Translate a local CLI model identifier to Harbor's expected model string.
@@ -447,7 +456,7 @@ def build_command(request: RunRequest) -> list[str]:
         "--path",
         str(request.task),
         "--agent",
-        request.agent,
+        resolve_harbor_agent(request.agent),
         "--env",
         request.environment,
         "--job-name",
@@ -547,6 +556,14 @@ def run_harbor_process(
 ) -> HarborProcessResult:
     """Run Harbor under an aggregate fail-safe and a per-trial watchdog."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    runtime_environment = subscription_environment()
+    if any(import_path in command for import_path in HARBOR_AGENT_IMPORT_PATHS.values()):
+        source_root = cwd / "src"
+        if source_root.is_dir():
+            inherited_pythonpath = os.environ.get("PYTHONPATH")
+            runtime_environment["PYTHONPATH"] = os.pathsep.join(
+                str(path) for path in (source_root, inherited_pythonpath) if path
+            )
     with log_path.open("wb") as log:
         process = subprocess.Popen(
             command,
@@ -554,7 +571,7 @@ def run_harbor_process(
             stdin=subprocess.DEVNULL,
             stdout=log,
             stderr=subprocess.STDOUT,
-            env=subscription_environment(),
+            env=runtime_environment,
             start_new_session=True,
         )
         started = time.monotonic()

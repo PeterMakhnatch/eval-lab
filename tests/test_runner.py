@@ -21,6 +21,7 @@ from evallab.runner import (
     build_command,
     cleanup_new_harbor_containers,
     load_matrix,
+    resolve_harbor_agent,
     resolve_harbor_model,
     run_experiment,
     run_harbor_process,
@@ -54,6 +55,39 @@ def test_control_command_is_explicit_and_free(tmp_path: Path) -> None:
     assert command[command.index("--agent") + 1] == "oracle"
     assert command[command.index("--n-concurrent") + 1] == "1"
     assert "--model" not in command
+
+
+def test_antigravity_routes_through_repo_owned_capture_and_keeps_harbor_models(
+    tmp_path: Path,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="antigravity-cli",
+        model="gemini-3.7-flash-high",
+        name="agy-capture-test",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+    command = build_command(request)
+    assert resolve_harbor_agent("antigravity-cli") == (
+        "evallab.harbor_antigravity:AntigravityCliCapture"
+    )
+    assert command[command.index("--agent") + 1] == (
+        "evallab.harbor_antigravity:AntigravityCliCapture"
+    )
+    assert command[command.index("--model") + 1] == "google/gemini-3.7-flash-high"
+    assert {
+        resolve_harbor_model("antigravity-cli", model)
+        for model in (
+            "gemini-3.7-flash-low",
+            "gemini-3.7-flash-medium",
+            "gemini-3.7-flash-high",
+        )
+    } == {
+        "google/gemini-3.7-flash-low",
+        "google/gemini-3.7-flash-medium",
+        "google/gemini-3.7-flash-high",
+    }
 
 
 def test_non_control_agent_requires_billable_acknowledgement(tmp_path: Path) -> None:

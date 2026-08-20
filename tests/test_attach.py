@@ -133,7 +133,7 @@ def test_cli_zones_reports_z3_with_row_counts(tmp_path: Path, capsys: pytest.Cap
     out, _ = capsys.readouterr()
     assert code == 0
     assert "z3: attached" in out
-    assert "9/9 tables" in out
+    assert "9/11 tables" in out
 
 
 def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501

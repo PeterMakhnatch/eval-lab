@@ -48,11 +48,14 @@ TABLES = (
     "tool_usage",
     "observations",
     "jobs",
+    "traj_features",
+    "traj_labels",
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"
 Z3_COLD = "compact/{table}/dt=*/part*.parquet"
-
+Z3_STANDALONE = "{table}/{table}.parquet"
+Z3_STANDALONE_DIR = "{table}/*.parquet"
 
 def _postgres_dsn() -> str:
     return database_url_from_environment()
@@ -84,28 +87,31 @@ def _attach_z2(conn: duckdb.DuckDBPyConnection, dsn: str) -> ZoneStatus:
 def _z3_globs(root: Path) -> list[str]:
     hot = str(root / Z3_HOT)
     cold = str(root / Z3_COLD)
-    return [hot, cold]
-
+    standalone = str(root / Z3_STANDALONE)
+    standalone_dir = str(root / Z3_STANDALONE_DIR)
+    return [hot, cold, standalone, standalone_dir]
 
 def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     if not root.exists():
         return ZoneStatus(
             "z3", False, reason="derived root does not exist", detail=str(root)
         )
-    has_hot = False
-    if root.exists():
-        has_hot = any(
-            (root / d).exists() for d in root.iterdir() if d.name.startswith("job_id=")
-        )
-    has_cold = (root / "compact").exists()
     globs = _z3_globs(root)
     created = 0
     missing = []
     for table in TABLES:
         view_globs: list[str] = []
         for g in globs:
-            if ("job_id=" in g and has_hot) or ("compact" in g and has_cold):
-                view_globs.append(g.format(table=table))
+            if "job_id=" in g:
+                if any(root.glob(f"job_id=*/trial_id=*/{table}.parquet")):
+                    view_globs.append(g.format(table=table))
+            elif "compact" in g:
+                if any(root.glob(f"compact/{table}/dt=*/part*.parquet")):
+                    view_globs.append(g.format(table=table))
+            else:
+                cand_path = root / table
+                if cand_path.is_dir() and any(cand_path.glob("*.parquet")):
+                    view_globs.append(g.format(table=table))
         if not view_globs:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"

@@ -70,6 +70,7 @@ def test_tick_reports_each_spec_and_drains_sequentially(tmp_path: Path) -> None:
         runner=runner,
         ingester=lambda _path: None,
         credential_probe=lambda: frozenset(),
+        spent_today=lambda: 0.0,
         progress=progress.append,
         sleeper=lambda _seconds: None,
     )
@@ -97,6 +98,7 @@ def test_timeout_moves_spec_to_inspectable_failed_state(tmp_path: Path) -> None:
         runner=runner,
         ingester=lambda _path: None,
         credential_probe=lambda: frozenset(),
+        spent_today=lambda: 0.0,
         sleeper=lambda _seconds: None,
     )
     submitted, _ = service.submit(control("stuck-child"))
@@ -118,6 +120,7 @@ def test_restart_recovers_expired_running_state(tmp_path: Path) -> None:
         runner=lambda request: request.jobs_dir / request.name,
         ingester=lambda _path: None,
         credential_probe=lambda: frozenset(),
+        spent_today=lambda: 0.0,
         sleeper=lambda _seconds: None,
     )
     approved, _ = service.submit(control("expired-child"))

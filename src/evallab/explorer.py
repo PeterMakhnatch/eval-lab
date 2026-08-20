@@ -49,10 +49,33 @@ from pydantic import ValidationError
 
 from evallab.registry import TaskRegistry
 from evallab.schemas import ANALYSIS_SIDECAR_FILENAME, TrialAnalysisSidecar
+from evallab.traj import (
+    ReviewQueueItem,
+    TrajectoryOutline,
+    outline_trajectory,
+    select_review_queue,
+)
 
 Provenance = Literal["observed", "derived", "draft", "withheld", "unavailable"]
 
-_SECRET_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY", "PASSWORD", "TOKEN")
+_SECRET_MARKERS = (
+    "API_KEY",
+    "API_TOKEN",
+    "_SECRET",
+    "ACCESS_KEY",
+    "PASSWORD",
+    "TOKEN",
+    "OAUTH",
+    "SESSION",
+)
+_SECRET_TEXT_PATTERNS = (
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+"),
+    re.compile(r"(?i)\b(?:sk|rk)-[A-Za-z0-9._-]+"),
+    re.compile(
+        r"(?i)\b(?:api[_ -]?key|access[_ -]?token|oauth[_ -]?token|"
+        r"session[_ -]?token|password|secret)(\s*[:=]\s*)[^\s,;]+"
+    ),
+)
 _HIDDEN_TASK_DIRS = frozenset({"tests", "solution"})
 _VERIFY_HINTS = ("pytest", "test", "verify", "check", "lint", "validate")
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
@@ -202,21 +225,34 @@ def content_summary(labeled: Labeled) -> str:
     return f"{labeled.provenance}: {labeled.reason or 'no reason recorded'}"
 
 
+def redact_text(text: str) -> str:
+    """Redact common bearer/key-shaped values before a UI can render them."""
+    redacted = text
+    for pattern in _SECRET_TEXT_PATTERNS:
+        redacted = pattern.sub("[redacted]", redacted)
+    return redacted
+
+
+def _redact_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact_text(value)
+    if isinstance(value, dict):
+        return redact_mapping(value)
+    if isinstance(value, list):
+        return [_redact_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_value(item) for item in value)
+    return value
+
+
 def redact_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
-    """Drop values whose keys look credential-shaped; keys stay visible."""
+    """Redact credential-shaped keys and nested string values recursively."""
     clean: dict[str, Any] = {}
     for key, value in mapping.items():
-        if any(marker in key.upper() for marker in _SECRET_MARKERS):
+        if any(marker in str(key).upper() for marker in _SECRET_MARKERS):
             clean[key] = "[redacted]"
-        elif isinstance(value, dict):
-            clean[key] = redact_mapping(value)
-        elif isinstance(value, list):
-            clean[key] = [
-                redact_mapping(item) if isinstance(item, dict) else item
-                for item in value
-            ]
         else:
-            clean[key] = value
+            clean[key] = _redact_value(value)
     return clean
 
 
@@ -327,6 +363,22 @@ class AnalysisView:
 
 
 @dataclass(frozen=True)
+class StoredAnalysisView:
+    """One durable analyst conclusion plus its optional process artifact."""
+
+    analysis_id: str
+    trial_id: str | None
+    trial_key: str | None
+    link: Labeled
+    category: Labeled
+    summary: Labeled
+    confidence: Labeled
+    provenance: Labeled
+    citations: tuple[CitationResolution, ...]
+    transcript: Labeled  # artifact path/step count, never synthesized reasoning
+
+
+@dataclass(frozen=True)
 class TrialView:
     trial_key: str  # job_name/trial_name
     job_name: str
@@ -346,6 +398,11 @@ class TrialView:
     trajectory: TrajectoryView | Labeled
     artifacts: tuple[ArtifactLink, ...]
     omitted_files: Labeled  # withheld: files promotion removed from the bundle
+    trajectory_outline: TrajectoryOutline | None = None
+    trajectory_fallback: Labeled | None = None
+    verifier_output: Labeled | None = None
+    reward_dimensions: Labeled | None = None
+    exit_code: Labeled | None = None
 
 
 @dataclass(frozen=True)
@@ -380,6 +437,8 @@ class ExplorerIndex:
     trials: dict[str, TrialView]
     analyses: tuple[AnalysisView, ...]
     notes: tuple[str, ...]  # degradation reasons; cold start stays navigable
+    review_queue: tuple[ReviewQueueItem, ...] = ()
+    analyst_analyses: tuple[StoredAnalysisView, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -396,11 +455,7 @@ def _observation_results(step: dict[str, Any]) -> list[dict[str, Any]]:
     rather than leaving 58 real observation results invisible to every surface.
     """
     observation = step.get("observation")
-    raw = (
-        observation.get("results")
-        if isinstance(observation, dict)
-        else step.get("observations")
-    )
+    raw = observation.get("results") if isinstance(observation, dict) else step.get("observations")
     return [item for item in (raw or []) if isinstance(item, dict)]
 
 
@@ -561,15 +616,13 @@ def _promotion_manifest(trial_dir: Path) -> tuple[dict[str, dict[str, Any]], lis
             if source.startswith(prefix):
                 omitted.append(entry)
         elif isinstance(promoted, str) and promoted.startswith(prefix):
-            kept[promoted[len(prefix):]] = entry
+            kept[promoted[len(prefix) :]] = entry
     return kept, omitted
 
 
 def _artifact_content(entry: dict[str, Any] | None, relative: str) -> Labeled:
     if entry is None:
-        return derived(
-            None, f"{relative} has no promotion record; nothing here was redacted"
-        )
+        return derived(None, f"{relative} has no promotion record; nothing here was redacted")
     if entry.get("action") != "redacted":
         return Labeled(
             {"size_bytes": entry.get("promoted_bytes")},
@@ -628,7 +681,7 @@ def _omitted_files(trial_dir: Path) -> Labeled:
             "withheld_bytes": total,
             "markers": tuple(
                 {
-                    "path": str(entry.get("source_path"))[len(prefix):],
+                    "path": str(entry.get("source_path"))[len(prefix) :],
                     "bytes": entry.get("source_bytes"),
                     "digest": entry.get("source_sha256"),
                     "rule": entry.get("rule"),
@@ -659,6 +712,142 @@ def _as_mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _outline_for_trial(trial_dir: Path, jobs_root: Path) -> TrajectoryOutline | None:
+    """Use the M030 typed outline while keeping index discovery non-throwing."""
+    try:
+        resolved_jobs_root = jobs_root.resolve()
+        return outline_trajectory(
+            trial_dir.resolve(),
+            repo_root=resolved_jobs_root.parent,
+            explicit_runs_root=resolved_jobs_root,
+        )
+    except Exception:
+        return None
+
+
+def _trajectory_fallback(outline: TrajectoryOutline | None, agent_name: Any) -> Labeled | None:
+    """Make AGY's print-mode limitation explicit instead of implying a trace."""
+    if outline is None or outline.status == "featured":
+        return None
+    reason = outline.unavailable_reason or "trajectory unavailable"
+    if str(agent_name).lower() == "antigravity-cli":
+        return unavailable(
+            f"{reason}; AGY fallback: final response only; process stream was not captured"
+        )
+    return unavailable(reason)
+
+
+def _first_exit_code(*payloads: dict[str, Any]) -> int | str | None:
+    for payload in payloads:
+        for key in ("exit_code", "exit_status", "return_code", "returncode"):
+            value = payload.get(key)
+            if isinstance(value, int | str):
+                return value
+    return None
+
+
+def _stored_analysis_views(
+    analysis_dir: Path, trials: dict[str, TrialView]
+) -> tuple[tuple[StoredAnalysisView, ...], tuple[str, ...]]:
+    """Load ``research/analysis`` conclusions and transcript artifacts read-only."""
+    views: list[StoredAnalysisView] = []
+    notes: list[str] = []
+    if not analysis_dir.is_dir():
+        return (), (f"analyst storage unavailable: {analysis_dir}",)
+
+    by_trial_id: dict[str, TrialView] = {}
+    duplicate_ids: set[str] = set()
+    for trial in trials.values():
+        payload, _ = _load_json(Path(trial.trial_dir) / "result.json")
+        trial_id = payload.get("id") if payload else None
+        if not trial_id:
+            continue
+        key = str(trial_id)
+        if key in by_trial_id:
+            duplicate_ids.add(key)
+        else:
+            by_trial_id[key] = trial
+
+    for path in sorted(analysis_dir.glob("*.json")):
+        if path.name.endswith(".trajectory.json") or path.name.endswith(".provenance.json"):
+            continue
+        payload, error = _load_json(path)
+        if payload is None or "analysis_id" not in payload:
+            if error:
+                notes.append(f"analyst {path.name}: {error}")
+            continue
+        analysis_id = str(payload["analysis_id"])
+        source_trial_id = str(payload.get("trial_id") or "")
+        trial = None if source_trial_id in duplicate_ids else by_trial_id.get(source_trial_id)
+        if source_trial_id in duplicate_ids:
+            link = unavailable(f"source trial id {source_trial_id} is duplicated in the index")
+        elif trial is None:
+            link = unavailable(
+                f"source trial {source_trial_id or 'unknown'} was not found among indexed trials"
+            )
+        else:
+            link = observed(trial.trial_key)
+
+        evidence_rows = payload.get("evidence")
+        citations: list[CitationResolution] = []
+        if isinstance(evidence_rows, list):
+            for raw in evidence_rows:
+                if not isinstance(raw, dict):
+                    continue
+                citations.append(
+                    _resolve_citation(
+                        {
+                            "path": raw.get("path"),
+                            "step_id": raw.get("step", raw.get("step_id")),
+                            "supports": raw.get("supports") or "stored analyst evidence",
+                        },
+                        trial,
+                    )
+                )
+
+        transcript_path = analysis_dir / f"{analysis_id}.trajectory.json"
+        transcript_payload, transcript_error = _load_json(transcript_path)
+        if transcript_payload is None:
+            transcript = unavailable(
+                "analyst transcript artifact unavailable; only the stored conclusion/final "
+                f"response is recorded ({transcript_error or 'file missing'})"
+            )
+        else:
+            steps = transcript_payload.get("steps")
+            count = len(steps) if isinstance(steps, list) else 0
+            transcript = observed({"path": transcript_path.name, "steps": count})
+
+        provenance = {
+            key: payload[key]
+            for key in ("model", "rubric_digest", "created_at", "inputs")
+            if key in payload
+        }
+        views.append(
+            StoredAnalysisView(
+                analysis_id=analysis_id,
+                trial_id=source_trial_id or None,
+                trial_key=trial.trial_key if trial else None,
+                link=link,
+                category=Labeled(redact_text(str(payload.get("category") or "")), "draft"),
+                summary=Labeled(
+                    redact_text(str(payload.get("summary") or "")),
+                    "draft",
+                    "stored analyst conclusion; not ground truth",
+                ),
+                confidence=Labeled(
+                    redact_mapping(payload.get("confidence"))
+                    if isinstance(payload.get("confidence"), dict)
+                    else {},
+                    "draft",
+                ),
+                provenance=observed(redact_mapping(provenance)),
+                citations=tuple(citations),
+                transcript=transcript,
+            )
+        )
+    return tuple(views), tuple(notes)
+
+
 def _trial_view(job_name: str, trial_dir: Path, jobs_root: Path) -> TrialView:
     result, result_error = _load_json(trial_dir / "result.json")
     result = result or {}
@@ -677,7 +866,8 @@ def _trial_view(job_name: str, trial_dir: Path, jobs_root: Path) -> TrialView:
     elif exception:
         outcome = derived("infra-exception", "exception_info present; not a score")
         reward = (
-            observed(reward_value) if reward_value is not None
+            observed(reward_value)
+            if reward_value is not None
             else unavailable("no reward recorded (exception before verdict)")
         )
     elif reward_value is None:
@@ -706,6 +896,23 @@ def _trial_view(job_name: str, trial_dir: Path, jobs_root: Path) -> TrialView:
         else unavailable("no cost recorded (controls and subscription runs bill nothing)")
     )
     config, config_error = _load_json(trial_dir / "config.json")
+    outline = _outline_for_trial(trial_dir, jobs_root)
+    verifier_output = (
+        observed(redact_mapping(verifier_result))
+        if verifier_result
+        else unavailable(result_error or "verifier_result missing")
+    )
+    reward_dimensions = (
+        observed(redact_mapping(rewards))
+        if rewards
+        else unavailable(result_error or "verifier rewards missing")
+    )
+    recorded_exit = _first_exit_code(result, agent_result, verifier_result)
+    exit_code = (
+        observed(recorded_exit)
+        if recorded_exit is not None
+        else unavailable("no process exit code recorded")
+    )
     return TrialView(
         trial_key=trial_key,
         job_name=job_name,
@@ -714,11 +921,13 @@ def _trial_view(job_name: str, trial_dir: Path, jobs_root: Path) -> TrialView:
         jobs_root=str(jobs_root.resolve()),
         status_root=str(_status_root_for_jobs_root(jobs_root)),
         task_name=(
-            observed(result.get("task_name")) if result.get("task_name")
+            observed(result.get("task_name"))
+            if result.get("task_name")
             else unavailable(result_error or "task name absent")
         ),
         agent=(
-            observed(agent_info.get("name")) if agent_info.get("name")
+            observed(agent_info.get("name"))
+            if agent_info.get("name")
             else unavailable("agent name absent")
         ),
         model=(
@@ -729,17 +938,27 @@ def _trial_view(job_name: str, trial_dir: Path, jobs_root: Path) -> TrialView:
         reward=reward,
         outcome_class=outcome,
         exception=(
-            observed(exception) if exception else derived(None, "no exception recorded")
+            observed(redact_mapping(exception))
+            if isinstance(exception, dict)
+            else observed(redact_text(str(exception)))
+            if exception
+            else derived(None, "no exception recorded")
         ),
         timing=timing,
         cost=cost,
         config=(
-            observed(redact_mapping(config)) if config is not None
+            observed(redact_mapping(config))
+            if config is not None
             else unavailable(config_error or "config missing")
         ),
         trajectory=_trajectory_view(trial_dir),
         artifacts=_artifact_links(trial_dir),
         omitted_files=_omitted_files(trial_dir),
+        trajectory_outline=outline,
+        trajectory_fallback=_trajectory_fallback(outline, agent_info.get("name")),
+        verifier_output=verifier_output,
+        reward_dimensions=reward_dimensions,
+        exit_code=exit_code,
     )
 
 
@@ -851,9 +1070,7 @@ def _discover_jobs(root: Path) -> tuple[list[Path], list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def _cited_content(
-    trial: TrialView, jailed: Path | None, step_id: Any, call_id: Any
-) -> Labeled:
+def _cited_content(trial: TrialView, jailed: Path | None, step_id: Any, call_id: Any) -> Labeled:
     """What a *resolved* citation actually lets a reader see.
 
     Resolution answers "does this exist"; this answers "is it readable". A
@@ -891,9 +1108,7 @@ def _cited_content(
     return unavailable("citation names neither a readable file nor a trajectory step")
 
 
-def _resolve_citation(
-    citation: dict[str, Any], trial: TrialView | None
-) -> CitationResolution:
+def _resolve_citation(citation: dict[str, Any], trial: TrialView | None) -> CitationResolution:
     path = str(citation.get("path") or "")
     step_id = citation.get("step_id")
     call_id = citation.get("tool_call_id")
@@ -935,8 +1150,12 @@ def _resolve_citation(
     else:
         content = _cited_content(trial, jailed, step_id, call_id)
     return CitationResolution(
-        citation_path=path, step_id=step_id, tool_call_id=call_id,
-        supports=supports, resolution=resolution, content=content,
+        citation_path=path,
+        step_id=step_id,
+        tool_call_id=call_id,
+        supports=supports,
+        resolution=resolution,
+        content=content,
     )
 
 
@@ -1031,9 +1250,7 @@ def _analysis_views(
             )
         else:
             link = observed(trial.trial_key)
-        citations = tuple(
-            _resolve_citation(c.model_dump(), trial) for c in sidecar.output.evidence
-        )
+        citations = tuple(_resolve_citation(c.model_dump(), trial) for c in sidecar.output.evidence)
         views.append(
             AnalysisView(
                 analysis_id=str(sidecar.analysis_id),
@@ -1063,6 +1280,10 @@ def build_index(
     jobs_roots: list[Path],
     analyses_dir: Path | None = None,
     registry_dir: Path | None = None,
+    *,
+    repo_root: Path | None = None,
+    analyst_dir: Path | None = None,
+    review_queue_limit: int = 3,
 ) -> ExplorerIndex:
     """Assemble the full linked index. Read-only; degrades, never raises."""
     notes: list[str] = []
@@ -1114,7 +1335,8 @@ def build_index(
                     job_dir=str(job_dir),
                     jobs_root=str(root.resolve()),
                     task_names=(
-                        observed(sorted(task_names)) if task_names
+                        observed(sorted(task_names))
+                        if task_names
                         else unavailable("no readable trial results")
                     ),
                     trial_keys=tuple(trial_keys),
@@ -1147,15 +1369,34 @@ def build_index(
         for task, keys in sorted(by_task.items())
     )
 
-    analyses, analysis_notes = (
-        _analysis_views(analyses_dir, trials) if analyses_dir else ((), ())
-    )
+    analyses, analysis_notes = _analysis_views(analyses_dir, trials) if analyses_dir else ((), ())
     notes.extend(analysis_notes)
+    review_queue: tuple[ReviewQueueItem, ...] = ()
+    if review_queue_limit > 0:
+        try:
+            review_queue = tuple(
+                select_review_queue(
+                    limit=review_queue_limit,
+                    runs_roots=jobs_roots,
+                    repo_root=(repo_root or Path.cwd()),
+                )
+            )[:review_queue_limit]
+        except Exception as exc:
+            notes.append(f"trajectory review queue unavailable: {type(exc).__name__}")
+    analyst_analyses: tuple[StoredAnalysisView, ...] = ()
+    if analyst_dir is not None:
+        analyst_analyses, analyst_notes = _stored_analysis_views(analyst_dir, trials)
+        notes.extend(analyst_notes)
     if not trials:
         notes.append("cold start: no readable trials; views render empty, not broken")
     return ExplorerIndex(
-        tasks=tasks, jobs=tuple(jobs), trials=trials,
-        analyses=analyses, notes=tuple(notes),
+        tasks=tasks,
+        jobs=tuple(jobs),
+        trials=trials,
+        analyses=analyses,
+        notes=tuple(notes),
+        review_queue=review_queue,
+        analyst_analyses=analyst_analyses,
     )
 
 
@@ -1176,34 +1417,45 @@ def next_actions_for_task(task_name: str, task_path: str | None = None) -> tuple
     path = task_path or f"path/to/{slug}"
     quoted_path = shlex.quote(path)
     return (
-        NextAction("Run the oracle control (free, local)",
-                   f"uv run evallab run --task {quoted_path} --agent oracle "
-                   f"--name {slug}-oracle"),
-        NextAction("Run the nop control (free, local)",
-                   f"uv run evallab run --task {quoted_path} --agent nop "
-                   f"--name {slug}-nop"),
+        NextAction(
+            "Run the oracle control (free, local)",
+            f"uv run evallab run --task {quoted_path} --agent oracle --name {slug}-oracle",
+        ),
+        NextAction(
+            "Run the nop control (free, local)",
+            f"uv run evallab run --task {quoted_path} --agent nop --name {slug}-nop",
+        ),
     )
 
 
 def next_actions_for_trial(trial: TrialView) -> tuple[NextAction, ...]:
     actions = [
-        NextAction("Open Harbor's viewer for this trial's jobs root",
-                   f"harbor view {shlex.quote(trial.jobs_root)} --jobs"),
-        NextAction("Show the no-call stage-5 analysis plan",
-                   f"uv run evallab analyze plan {shlex.quote(trial.trial_dir)}"),
+        NextAction(
+            "Open Harbor's viewer for this trial's jobs root",
+            f"harbor view {shlex.quote(trial.jobs_root)} --jobs",
+        ),
+        NextAction(
+            "Show the no-call stage-5 analysis plan",
+            f"uv run evallab analyze plan {shlex.quote(trial.trial_dir)}",
+        ),
     ]
     if trial.outcome_class.value == "infra-exception":
         actions.append(
-            NextAction("Re-run this job's controls before drawing any conclusion",
-                       f"uv run evallab status --from {shlex.quote(trial.status_root)}")
+            NextAction(
+                "Re-run this job's controls before drawing any conclusion",
+                f"uv run evallab status --from {shlex.quote(trial.status_root)}",
+            )
         )
     return tuple(actions)
 
 
 def next_actions_for_queue() -> tuple[NextAction, ...]:
     return (
-        NextAction("Submit an experiment spec (policy-gated)",
-                   "uv run evallab submit path/to/spec.json"),
-        NextAction("Approve one waiting experiment (Peter's ceilings still apply)",
-                   "uv run evallab approve SPEC_ID --actor peter"),
+        NextAction(
+            "Submit an experiment spec (policy-gated)", "uv run evallab submit path/to/spec.json"
+        ),
+        NextAction(
+            "Approve one waiting experiment (Peter's ceilings still apply)",
+            "uv run evallab approve SPEC_ID --actor peter",
+        ),
     )

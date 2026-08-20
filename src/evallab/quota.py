@@ -65,6 +65,26 @@ PAID_AGENTS: frozenset[str] = frozenset(
     {"codex", "claude-code", "cursor-cli", "antigravity-cli"}
 )
 
+#: The account named in operator-facing billing and allowance messages. These
+#: are deliberately provider-specific: a Codex snapshot cannot describe
+#: Antigravity or Cursor.
+PROVIDER_SUBSCRIPTIONS: dict[str, str] = {
+    "codex": "Peter's ChatGPT/Codex subscription",
+    "claude-code": "Peter's Claude subscription",
+    "cursor-cli": "Cursor subscription/API-key policy state",
+    "antigravity-cli": "Peter's Google subscription (Antigravity OAuth)",
+}
+
+
+def provider_subscription_description(agent: str) -> str:
+    return PROVIDER_SUBSCRIPTIONS.get(agent, f"{agent} subscription/policy state")
+
+
+#: Codex is the only lane whose local artifacts currently expose a measured
+#: rate-limit snapshot. Other lanes must remain UNKNOWN until their own
+#: provider emits an independently identified snapshot.
+MEASURED_QUOTA_AGENTS: frozenset[str] = frozenset({"codex"})
+
 #: Provenance label, matching the vocabulary used by the operator surfaces.
 Availability = Literal["observed", "unavailable"]
 
@@ -553,20 +573,19 @@ def _sidecar_snapshots(trial_dir: Path) -> list[tuple[datetime, dict[str, Any], 
     return snapshots
 
 
-def _rate_limit_snapshots(trial_dir: Path) -> list[tuple[datetime, dict[str, Any], Path]]:
-    """Provider quota snapshots recorded by one trial, from one source only.
+def _rate_limit_snapshots(
+    trial_dir: Path,
+    *,
+    agent: str,
+) -> list[tuple[datetime, dict[str, Any], Path]]:
+    """Read only a snapshot format proven to belong to ``agent``.
 
-    The session rollout is authoritative: only ``payload.rate_limits`` and its
-    timestamp are read there. Rollouts also contain unredacted prompt text,
-    which is never touched here and is why promoted evidence bundles exclude
-    them -- and why a promoted trial's readings survive only as R4 sidecars.
-
-    The sidecar is therefore a **fallback**, not a second source. A live run has
-    the rollout, a promoted bundle has the sidecar, and a tree holding both
-    holds the same readings twice: adding them would inflate every snapshot
-    count and every counter-resolution sample. So the sidecars are consulted
-    only when the rollouts yielded nothing at all.
+    Codex rollouts expose the ``rate_limits`` block consumed here. Antigravity
+    and Cursor artifacts do not expose a compatible measured allowance, so a
+    block found in one of those trials is not silently treated as their quota.
     """
+    if agent not in MEASURED_QUOTA_AGENTS:
+        return []
     snapshots: list[tuple[datetime, dict[str, Any], Path]] = []
     for rollout in sorted(trial_dir.glob(ROLLOUT_GLOB)):
         try:
@@ -757,7 +776,9 @@ def _trial_consumption(
             limits=limits,
             source=str(rollout.relative_to(trial_dir.parent)),
         )
-        for observed_at, limits, rollout in _rate_limit_snapshots(trial_dir)
+        for observed_at, limits, rollout in _rate_limit_snapshots(
+            trial_dir, agent=agent
+        )
     ]
     return consumption, observations
 

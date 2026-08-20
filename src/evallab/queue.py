@@ -30,12 +30,12 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.paths import derived_root_from_environment
-from evallab.preflight import preflight_at_tick_start
 from evallab.quota import (
     Headroom,
     default_roots,
     label,
     load_quota_report,
+    provider_subscription_description,
 )
 from evallab.registry import (
     RegistryError,
@@ -146,9 +146,10 @@ class PaidRunAuthorization:
 def authorization_required_message(spec: ExperimentSpec) -> str:
     """The refusal an operator reads — in `submit` output and in queue/reasons/."""
     spec_id = spec.spec_id or "<spec-id>"
+    subscription = provider_subscription_description(spec.agent)
     return (
-        f"{spec.agent} is a billable agent. Paid execution here draws on Peter's "
-        "ChatGPT subscription, so it never runs unattended: this spec waits until "
+        f"{spec.agent} is a billable agent. Paid execution here draws on "
+        f"{subscription}, so it never runs unattended: this spec waits until "
         "a named human authorises it.\n"
         f"  authorise: uv run evallab approve {spec_id} --actor <you>\n"
         f'  refuse:    uv run evallab reject {spec_id} --actor <you> --reason "<why>"\n'
@@ -365,15 +366,18 @@ def _instant(moment: datetime | None) -> str:
     return moment.isoformat() if moment is not None else label("unavailable")
 
 
-def render_headroom_notice(headroom: Headroom) -> str:
-    """What the operator is told about the allowance, at the moment of decision.
-
-    Every figure carries its provenance, and no figure is printed unless the
-    reading is observed. The scope line is not decoration: the percentage is
-    account-wide and the lab's share of it is structurally unknowable, so a
-    reader must not take "8% remaining" as "8% remaining for the lab".
-    """
-    header = "subscription quota (scope: account, NOT the lab; provider-reported):"
+def render_headroom_notice(
+    headroom: Headroom,
+    *,
+    agent: str | None = None,
+) -> str:
+    """What the operator is told about one provider's allowance."""
+    provider = (
+        f"{provider_subscription_description(agent)} allowance/policy state"
+        if agent is not None
+        else "subscription quota"
+    )
+    header = f"{provider} (scope: account, NOT the lab; provider-reported):"
     if headroom.availability != "observed":
         return "\n".join(
             [
@@ -415,32 +419,38 @@ class PolicyGate:
         repo_root: Path | None = None,
         registry: TaskRegistry | None = None,
         headroom: HeadroomReader | None = None,
+        headroom_by_agent: Callable[[str], Headroom] | None = None,
     ) -> None:
         self.policy = policy
         self.repo_root = repo_root.resolve() if repo_root else None
         self.registry = registry
         self._headroom_reader = headroom
-        self._headroom: Headroom | None = None
+        self._headroom_by_agent = headroom_by_agent
+        self._headroom: dict[str, Headroom] = {}
 
-    def headroom(self) -> Headroom:
-        """The provider's most recent quota reading, resolved at most once.
+    def headroom(self, agent: str | None = None) -> Headroom:
+        """Read one provider's allowance at most once per agent."""
+        key = agent or ""
+        if key not in self._headroom:
+            self._headroom[key] = self._read_headroom(agent)
+        return self._headroom[key]
 
-        Never raises. A gate that cannot read the quota reports `unavailable`
-        with the reason it failed, which the operator surfaces print as
-        UNKNOWN. It must never report a number it does not have.
-        """
-        if self._headroom is None:
-            self._headroom = self._read_headroom()
-        return self._headroom
+    def _read_headroom(self, agent: str | None = None) -> Headroom:
+        if self._headroom_by_agent is not None and agent is not None:
+            reader = self._headroom_by_agent
+        elif self._headroom_reader is not None:
+            base_reader = self._headroom_reader
 
-    def _read_headroom(self) -> Headroom:
-        if self._headroom_reader is None:
+            def reader(_agent: str) -> Headroom:
+                return base_reader()
+
+        else:
             return Headroom(
                 availability="unavailable",
                 reason=QUOTA_READER_UNCONFIGURED_REASON,
             )
         try:
-            return self._headroom_reader()
+            return reader(agent or "")
         except (OSError, ValueError) as exc:
             return Headroom(
                 availability="unavailable",
@@ -563,7 +573,7 @@ class PolicyGate:
                     reason_code="paid_run_unauthorized",
                     message=(
                         f"{authorization_required_message(spec)}\n"
-                        f"{render_headroom_notice(self.headroom())}"
+                        f"{render_headroom_notice(self.headroom(spec.agent), agent=spec.agent)}"
                     ),
                 )
             if spec.submitted_at is None:
@@ -594,7 +604,7 @@ class PolicyGate:
             # run. An unavailable or expired reading refuses nothing here — it
             # is not evidence of exhaustion — but it is never silent either:
             # every branch below carries `render_headroom_notice`.
-            headroom = self.headroom()
+            headroom = self.headroom(spec.agent)
             exhausted = provider_reported_exhaustion(headroom)
             if exhausted is not None and not authorization.quota_override:
                 return PolicyDecision(
@@ -604,7 +614,7 @@ class PolicyGate:
                         f"the provider reports the subscription exhausted: {exhausted}. "
                         "This is the provider's own account of its allowance, not a "
                         "threshold this lab invented.\n"
-                        f"{render_headroom_notice(headroom)}\n"
+                        f"{render_headroom_notice(headroom, agent=spec.agent)}\n"
                         "  override, only if you have reason to believe the reading is "
                         f"wrong: uv run evallab approve {spec.spec_id} --actor <you> "
                         "--despite-quota"
@@ -619,7 +629,7 @@ class PolicyGate:
                     reason_code="subscription_quota_ceiling",
                     message=(
                         f"{threshold_reached}.\n"
-                        f"{render_headroom_notice(headroom)}\n"
+                        f"{render_headroom_notice(headroom, agent=spec.agent)}\n"
                         f"  override: uv run evallab approve {spec.spec_id} "
                         "--actor <you> --despite-quota"
                     ),
@@ -660,8 +670,10 @@ class PolicyGate:
             if spec.billable:
                 # Whoever authorised this is entitled to see, in the admission
                 # itself, the allowance they just spent against.
-                admitted_headroom = self.headroom()
-                notes.append(render_headroom_notice(admitted_headroom))
+                admitted_headroom = self.headroom(spec.agent)
+                notes.append(
+                    render_headroom_notice(admitted_headroom, agent=spec.agent)
+                )
                 if authorization.quota_override and (
                     provider_reported_exhaustion(admitted_headroom)
                     or lab_threshold_reached(
@@ -1137,6 +1149,7 @@ IngestCallable = Callable[[Path], IngestProjectionResult | None]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
 Sleeper = Callable[[float], None]
+ProgressCallable = Callable[[str], None]
 
 MAX_TRANSIENT_RETRIES = 2
 TRANSIENT_BACKOFF_BASE_SECONDS = 5.0
@@ -1179,6 +1192,7 @@ class Executor:
         consecutive_harness_failures: FailureCallable | None = None,
         credential_probe: CredentialProbe | None = None,
         headroom: HeadroomReader | None = None,
+        progress: ProgressCallable | None = None,
         sleeper: Sleeper = time.sleep,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int = 1,
@@ -1188,12 +1202,14 @@ class Executor:
         self.gate = PolicyGate(
             policy,
             repo_root=self.repo_root,
-            headroom=headroom or self._repo_headroom,
+            headroom=headroom,
+            headroom_by_agent=None if headroom is not None else self._repo_headroom,
         )
         self._runner = runner or self._run_harbor
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
         self._credential_probe = credential_probe or available_credentials
+        self._progress = progress
         self._sleeper = sleeper
         if max_transient_retries < 0:
             raise ValueError("max_transient_retries cannot be negative")
@@ -1206,29 +1222,29 @@ class Executor:
         self.parallel = parallel
         self.last_tick_reason: str | None = None
 
-    def _repo_headroom(self) -> Headroom:
-        """The provider quota reading recovered from this checkout's own runs.
-
-        No network, no credential store, no API key: `quota.py` parses the
-        `rate_limits` block the agent CLI already wrote into a completed
-        trial's session rollout. A checkout with no paid trials therefore
-        reports `unavailable` — which is the truth, and is printed as UNKNOWN
-        rather than treated as headroom.
-        """
+    def _repo_headroom(self, agent: str) -> Headroom:
+        """Read only the quota evidence belonging to ``agent``."""
         return load_quota_report(
             default_roots(self.repo_root),
             now=datetime.now(UTC),
+            paid_agents=frozenset({agent}),
         ).headroom
 
     @classmethod
-    def from_repo(cls, root: Path, *, parallel: int = 1) -> Executor:
+    def from_repo(
+        cls,
+        root: Path,
+        *,
+        parallel: int = 1,
+        progress: ProgressCallable | None = None,
+    ) -> Executor:
         return cls(
             repo_root=root,
             queue=DirectoryQueue(root / "queue"),
             policy=load_policy(root / "policy/standing-approvals.yaml"),
             parallel=parallel,
+            progress=progress,
         )
-
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
         return self.queue.submit(
             spec,
@@ -1247,6 +1263,10 @@ class Executor:
                 return 0
             self.last_tick_reason = None
             return self._tick_locked(parallel=effective_parallel)
+
+    def _report_progress(self, message: str) -> None:
+        if self._progress is not None:
+            self._progress(message)
 
     def _dispatch_one(
         self,
@@ -1305,6 +1325,13 @@ class Executor:
         except (FileNotFoundError, FileExistsError, ValueError):
             self.queue.release_lease(spec)
             return False
+        self._report_progress(
+            f"dispatching {spec.name} (spec {spec.spec_id}, agent {spec.agent})"
+        )
+        self._report_progress(
+            f"child started for {spec.name}; progress log: "
+            f"{self.repo_root / spec.jobs_dir / '.executor' / (spec.name + '.log')}"
+        )
         try:
             try:
                 job_dir = self.execute_spec(spec)
@@ -1330,6 +1357,9 @@ class Executor:
                     reason_code=failure.reason_code,
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
+                self._report_progress(
+                    f"failed {spec.name} ({failure.reason_code}); state: failed"
+                )
             else:
                 try:
                     ingest_result = self._ingester(job_dir)
@@ -1350,6 +1380,9 @@ class Executor:
                         reason_code=failure.reason_code,
                     )
                     self.queue.write_reason(self.queue.load(failed), failure)
+                    self._report_progress(
+                        f"failed {spec.name} ({failure.reason_code}); state: failed"
+                    )
                 else:
                     if ingest_result is not None:
                         record_projection_failures(
@@ -1365,13 +1398,13 @@ class Executor:
                         event="dispatch_completed",
                         policy_rule=decision.policy_rule,
                     )
+                    self._report_progress(f"completed {spec.name}; state: done")
             return True
         finally:
             self.queue.release_lease(spec)
 
     def _tick_locked(self, parallel: int = 1) -> int:
         self.reconcile_running()
-        preflight_at_tick_start(self.repo_root)
         if self.queue.stop_path.exists():
             return 0
         if self.queue.list_specs("running"):
@@ -1693,8 +1726,36 @@ class Executor:
                 checks.append(("docker-daemon", completed.returncode == 0, detail))
         return checks
 
+    def _running_state_timed_out(self, spec: ExperimentSpec) -> bool:
+        state_path = (
+            self._safe_repo_path(spec.jobs_dir)
+            / ".executor"
+            / f"{spec.name}.state.json"
+        )
+        try:
+            state = json.loads(state_path.read_text())
+            started = datetime.fromisoformat(str(state["started_at"]))
+            timeout = float(state.get("job_timeout_seconds", spec.timeout_seconds))
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return False
+        if str(state.get("status")) != "running":
+            return False
+        return datetime.now(UTC) >= started + timedelta(seconds=timeout)
+
     def reconcile_running(self) -> None:
         for path, spec in self.queue.list_specs("running"):
+            if self._running_state_timed_out(spec):
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code="trial_wall_clock_timeout",
+                    message=(
+                        "executor state exceeded the spec timeout; the child was "
+                        "not observed to settle after restart. Inspect the progress "
+                        f"log under {self._safe_repo_path(spec.jobs_dir) / '.executor'}"
+                    ),
+                )
+                continue
             job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
             archive_root = (
                 self._safe_repo_path(spec.jobs_dir)

@@ -81,7 +81,12 @@ from evallab.queue import (
     record_projection_failures,
     render_headroom_notice,
 )
-from evallab.quota import Headroom, default_roots, load_quota_report
+from evallab.quota import (
+    Headroom,
+    default_roots,
+    load_quota_report,
+    provider_subscription_description,
+)
 from evallab.report import (
     build_eval_card,
     draft_eval_card,
@@ -123,15 +128,14 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _headroom_for(root: Path) -> Headroom:
-    """The provider quota reading for this checkout, or an honest unavailable.
-
-    `approve` must print the allowance even when the allowance cannot be read,
-    so a failed scan becomes an `unavailable` reading with its reason rather
-    than an exception or, worse, a blank.
-    """
+def _headroom_for(root: Path, *, agent: str) -> Headroom:
+    """Read only the allowance evidence belonging to ``agent``."""
     try:
-        return load_quota_report(default_roots(root), now=datetime.now(UTC)).headroom
+        return load_quota_report(
+            default_roots(root),
+            now=datetime.now(UTC),
+            paid_agents=frozenset({agent}),
+        ).headroom
     except (OSError, ValueError) as exc:
         return Headroom(
             availability="unavailable",
@@ -407,15 +411,11 @@ def _submit_command(
         print(f"next: uv run evallab approve {shlex.quote(str(submitted.spec_id))} --actor <you>")
     return 0
 
-
 def _tick_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    # if args.command == "tick":
-    # WS-E item 2: the preflight runs at tick start. This is the
-    # operator-facing tick; the library-level `Executor._tick_locked`
-    # takes the same call in one additive line, described in
-    # `agents/handoffs/preflight.md`.
+    # if args.command == "tick": the preflight is rendered exactly once here,
+    # before the guarded executor performs any dispatch.
     print(
         render_preflight(
             build_preflight_report(
@@ -426,7 +426,11 @@ def _tick_command(
             )
         )
     )
-    executor = Executor.from_repo(root, parallel=getattr(args, "parallel", 1))
+    executor = Executor.from_repo(
+        root,
+        parallel=getattr(args, "parallel", 1),
+        progress=print,
+    )
     result = GuardedTick(
         doctor=HeadlessDoctor(root, executor=executor),
         executor=executor,
@@ -453,13 +457,12 @@ def _approve_command(
         print(
             f"spend: {authorized.agent} x {authorized.attempts} attempt(s), "
             f"estimated {authorized.est_cost_usd:.2f} USD per job, billed to "
-            "Peter's ChatGPT subscription"
+            f"{provider_subscription_description(authorized.agent)}"
         )
-        # What the authorisation is actually spending against. The
-        # dollar figure above is an API-list-price equivalent and does
-        # not move; the subscription window does.
-        headroom = _headroom_for(root)
-        print(render_headroom_notice(headroom))
+        # The dollar figure is an API-list-price equivalent; the provider
+        # allowance or policy state is the binding account-side signal.
+        headroom = _headroom_for(root, agent=authorized.agent)
+        print(render_headroom_notice(headroom, agent=authorized.agent))
         # The threshold is policy, not code: `refuse_billable_at_used_percent`
         # in `policy/standing-approvals.yaml`, committed unset. Loaded
         # inline here, as `_digest_renderer` does at cli.py:1526.

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "event-summary",
+  "version": "1.0.0",
+  "task_path": "library/tasks/event-summary",
+  "digests": {
+    "task_toml": "sha256:9a9d26e2fc1235e9d45ae55836a34bb4b191509463cffac96ad8aad8f043a1a8",
+    "instruction": "sha256:4bc29dad530dd6db841d77bb342f19b3d2cfe3c16722bb84e4670b042025dd55",
+    "environment": "sha256:a647b33b303a1c7c3fe16507837e20885b7365c3f6c03836397350eb690bf46d",
+    "verifier": "sha256:1f499d550a3c39e1cb3e6ce9f88ac7afcd6ec2e1998bb46d3ce34d4c8e094a15",
+    "package": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d"
+  },
+  "source_uri": "local/event-summary@1.0.0",
+  "source_ref": null,
+  "license": "MIT",
+  "provenance_zone": "02-local-evidence",
+  "is_synthetic": false,
+  "limits": {
+    "timeout_seconds": 180,
+    "max_memory_mb": 512,
+    "max_cpus": 1.0
+  },
+  "control_evidence": {
+    "oracle": {
+      "job_name": "gymv0-oracle-event-summary",
+      "reward": 1.0,
+      "evidence_path": "runs/gymv0-oracle-event-summary/result.json",
+      "evidence_digest": "sha256:2a3ac14ca45085b81d4fac0679fdf9feb2106a3f371e1b968fb3094ae7e9ecb5",
+      "observed_at": "2026-08-19T11:31:53.936170"
+    },
+    "nop": {
+      "job_name": "gymv0-nop-event-summary",
+      "reward": 0.0,
+      "evidence_path": "runs/gymv0-nop-event-summary/result.json",
+      "evidence_digest": "sha256:db79bf4cf17bfc18b8d88f938cd5838a1d684a1c2c62a1a8fbf2884a0b85a1df",
+      "observed_at": "2026-08-19T11:32:17.779502"
+    }
+  },
+  "state": "registered",
+  "allowed_uses": [
+    "measurement",
+    "training"
+  ],
+  "contamination": null,
+  "human_minutes": null,
+  "approved_by": "Peter Makhnatch",
+  "approved_at": "2026-08-19T23:31:07.675598Z"
+}

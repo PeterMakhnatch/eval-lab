@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "transaction-reconciliation",
+  "version": "0.1.0",
+  "task_path": "library/tasks/transaction-reconciliation",
+  "digests": {
+    "task_toml": "sha256:e41321431aaa811dfb8ec15c4262f441aa4d6d7b32759485350771b1bfedae45",
+    "instruction": "sha256:b80061c213826ea3a292428e5f8830564e2dfe4b028a2cd435d9e3eddabcff7c",
+    "environment": "sha256:bc3e3dcd3140e0a900b952920acc21c70d5d43b38ecf94456c09bbd695742020",
+    "verifier": "sha256:980dc81c50f81116d31b73b8dca7d94c564b538a892871a53cea63d7a5991e03",
+    "package": "sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820"
+  },
+  "source_uri": "local/transaction-reconciliation@0.1.0",
+  "source_ref": null,
+  "license": "MIT",
+  "provenance_zone": "02-local-evidence",
+  "is_synthetic": false,
+  "limits": {
+    "timeout_seconds": 240,
+    "max_memory_mb": null,
+    "max_cpus": null
+  },
+  "control_evidence": {
+    "oracle": {
+      "job_name": "gymv0-oracle-transaction-reconciliation",
+      "reward": 1.0,
+      "evidence_path": "runs/gymv0-oracle-transaction-reconciliation/result.json",
+      "evidence_digest": "sha256:9d2913bd4a492c4067c9b3b790e525f1dee05460e12749cbf9bb4bf3c99f6eba",
+      "observed_at": "2026-08-19T11:51:15.845716"
+    },
+    "nop": {
+      "job_name": "gymv0-nop-transaction-reconciliation",
+      "reward": 0.0,
+      "evidence_path": "runs/gymv0-nop-transaction-reconciliation/result.json",
+      "evidence_digest": "sha256:887db418a793ce6d94ba5243295479b3f5d0b5616eabe46e6d1e4fab0309f115",
+      "observed_at": "2026-08-19T11:51:26.464256"
+    }
+  },
+  "state": "registered",
+  "allowed_uses": [
+    "measurement",
+    "training"
+  ],
+  "contamination": null,
+  "human_minutes": null,
+  "approved_by": "Peter Makhnatch",
+  "approved_at": "2026-08-19T23:31:08.831945Z"
+}

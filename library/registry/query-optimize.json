@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "query-optimize",
+  "version": "1.0.0",
+  "task_path": "library/tasks/query-optimize",
+  "digests": {
+    "task_toml": "sha256:6e88f2a86df699594bcb1bf81df4ed694505f79c9420f671335b02524bbe3868",
+    "instruction": "sha256:473e12d320d2732f679fb631c2a4dab4a01deea6775686718ae0c417b8a39447",
+    "environment": "sha256:8fc9d33afe67e94dc00f8e33f5268f66fb33d9b76c5c07d539814c77ffabe25f",
+    "verifier": "sha256:08daea3cce96fc772559c709419b5d2b52fb48c7f573cabf6d7786783727f343",
+    "package": "sha256:d593fa7d67498305ebcc32605455abd16e6d5495f6f455b458c024572617bad1"
+  },
+  "source_uri": "local/query-optimize@1.0.0",
+  "source_ref": null,
+  "license": "MIT",
+  "provenance_zone": "02-local-evidence",
+  "is_synthetic": false,
+  "limits": {
+    "timeout_seconds": 2700,
+    "max_memory_mb": 2048,
+    "max_cpus": 1.0
+  },
+  "control_evidence": {
+    "oracle": {
+      "job_name": "gymv0-oracle-query-optimize",
+      "reward": 1.0,
+      "evidence_path": "runs/gymv0-oracle-query-optimize/result.json",
+      "evidence_digest": "sha256:adcb8c0a4ec951b0f609ecc967c67343c29a5b5c5173d77cf5e547676a7976e3",
+      "observed_at": "2026-08-19T11:41:48.925683"
+    },
+    "nop": {
+      "job_name": "gymv0-nop-query-optimize",
+      "reward": 0.0,
+      "evidence_path": "runs/gymv0-nop-query-optimize/result.json",
+      "evidence_digest": "sha256:2792b96423c2e030b6d1c18cf6f81fdeb40401bedf69a1ade0b2307b5bb98bbb",
+      "observed_at": "2026-08-19T11:50:55.751763"
+    }
+  },
+  "state": "registered",
+  "allowed_uses": [
+    "measurement",
+    "training"
+  ],
+  "contamination": null,
+  "human_minutes": 60,
+  "approved_by": "Peter Makhnatch",
+  "approved_at": "2026-08-19T23:31:08.250668Z"
+}

@@ -8,10 +8,10 @@ import shlex
 from pathlib import Path
 from typing import Any, override
 
-from harbor.agents.installed.antigravity_cli import AntigravityCli
-from harbor.agents.installed.base import with_prompt_template
-from harbor.environments.base import BaseEnvironment
-from harbor.models.agent.context import AgentContext
+from harbor.agents.installed.antigravity_cli import AntigravityCli  # ty: ignore[unresolved-import]
+from harbor.agents.installed.base import with_prompt_template  # ty: ignore[unresolved-import]
+from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
+from harbor.models.agent.context import AgentContext  # ty: ignore[unresolved-import]
 
 from evallab.antigravity import (
     create_fallback_atif_for_print_mode,

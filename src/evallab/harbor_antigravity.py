@@ -42,7 +42,7 @@ class AntigravityCliCapture(AntigravityCli):
 
     @staticmethod
     def _stream_sanitizer() -> str:
-        return """import json,re,sys
+        return r"""import json,re,sys
 k=re.compile(r'(token|secret|password|credential|authorization|api[_-]?key)',re.I)
 b=re.compile(r'(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+')
 def clean(v,key=None):

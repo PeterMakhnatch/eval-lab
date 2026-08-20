@@ -89,6 +89,28 @@ def test_antigravity_routes_through_repo_owned_capture_and_keeps_harbor_models(
         "google/gemini-3.7-flash-high",
     }
 
+def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> None:
+    source_root = tmp_path / "src"
+    source_root.mkdir()
+    log_path = tmp_path / "harbor.log"
+    import_path = resolve_harbor_agent("antigravity-cli")
+    result = run_harbor_process(
+        [
+            sys.executable,
+            "-c",
+            "import os; print(os.environ.get('PYTHONPATH', ''))",
+            import_path,
+        ],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=log_path,
+    )
+
+    assert result.returncode == 0
+    pythonpath = log_path.read_text().strip().split(os.pathsep)
+    assert str(source_root) in pythonpath
+
+
 
 def test_non_control_agent_requires_billable_acknowledgement(tmp_path: Path) -> None:
     request = RunRequest(

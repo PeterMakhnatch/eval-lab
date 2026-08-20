@@ -59,7 +59,7 @@ inputs:
   - path: src/evallab/gc.py
     digest: sha256:f6c92c7d9b11214c4a0a6bda5cebe1c1c0eead8bfe4001d27982d967cb553814
   - path: src/evallab/harbor_antigravity.py
-    digest: sha256:0811abd3428194043a77ef21562b2b71b4897e50cae5713c8d2c4f6b8ee24e81
+    digest: sha256:145e238a64a1fcaf5abce0808a9da13959fbd4537a37c8f75940a1f5108360e8
   - path: src/evallab/ingest_verify.py
     digest: sha256:f7b13f7f04036437eeebc92800e68f7f844389f3abb1d9ce4cf70671f42a9acc
   - path: src/evallab/ladder.py

@@ -41,29 +41,54 @@ from evallab.schemas import (
     ProviderLimit,
     TaskSpec,
 )
+from evallab.screen import (
+    DifficultyVariantContract,
+    ModelLevelSpec,
+    ScreenAnalysisReport,
+    ScreenClassification,
+    ScreenDecisionRules,
+    ScreenSpec,
+    TaskScreenResult,
+    analyze_screen_results,
+    generate_stage1_screen,
+    generate_stage2_screen,
+    load_screen_spec,
+)
 
 # Re-export schema models for callers
 __all__ = [
     "AgentSpec",
     "CandidatePoint",
     "DedupeRecord",
+    "DifficultyVariantContract",
     "GridAxes",
     "GridGenerationResult",
     "GridLimits",
     "GridSpec",
     "LadderGridSpec",
+    "ModelLevelSpec",
     "ProviderLimit",
     "ProviderStats",
+    "ScreenAnalysisReport",
+    "ScreenClassification",
+    "ScreenDecisionRules",
+    "ScreenSpec",
     "SkippedSpec",
+    "TaskScreenResult",
     "TaskSpec",
+    "analyze_screen_results",
     "build_arg_parser",
     "find_existing_grid_points",
     "generate_grid",
     "generate_spec_name",
+    "generate_stage1_screen",
+    "generate_stage2_screen",
     "load_grid_spec",
+    "load_screen_spec",
     "main",
     "sanitize_slug",
 ]
+
 
 #: Default estimated cost per trial in USD when unspecified.
 DEFAULT_COST_PER_TRIAL_USD: dict[str, float] = {
@@ -846,6 +871,47 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Print generation summary and details in JSON format.",
     )
 
+    # screen subcommand
+    screen_parser = subparsers.add_parser(
+        "screen",
+        help="Staged difficulty screening and follow-up generation.",
+    )
+    screen_subparsers = screen_parser.add_subparsers(
+        dest="screen_command", help="Screen subcommands"
+    )
+
+    # screen stage1
+    s1_parser = screen_subparsers.add_parser(
+        "stage1",
+        help="Emit Stage 1 screening specs (k=1) across tasks and model levels.",
+    )
+    s1_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file.")
+    s1_parser.add_argument("-o", "--output-dir", type=Path, default=None)
+    s1_parser.add_argument("--submit", action="store_true")
+    s1_parser.add_argument("--dry-run", action="store_true", default=False)
+    s1_parser.add_argument("--json", action="store_true")
+
+    # screen analyze
+    sa_parser = screen_subparsers.add_parser(
+        "analyze",
+        help="Analyze completed Stage 1 results and classify task separation.",
+    )
+    sa_parser.add_argument("screen_id_or_spec", help="Screen ID or path to ScreenSpec file.")
+    sa_parser.add_argument("--jobs-dir", type=Path, default=None)
+    sa_parser.add_argument("--json", action="store_true")
+
+    # screen stage2
+    s2_parser = screen_subparsers.add_parser(
+        "stage2",
+        help="Emit Stage 2 follow-up specs (k=3) for separating tasks only.",
+    )
+    s2_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file.")
+    s2_parser.add_argument("-o", "--output-dir", type=Path, default=None)
+    s2_parser.add_argument("--submit", action="store_true")
+    s2_parser.add_argument("--dry-run", action="store_true", default=False)
+    s2_parser.add_argument("--jobs-dir", type=Path, default=None)
+    s2_parser.add_argument("--json", action="store_true")
+
     return parser
 
 
@@ -854,13 +920,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
+    if args.command == "screen":
+        if not getattr(args, "screen_command", None):
+            parser.parse_args(["screen", "--help"])
+            return 1
+        return _handle_screen_cli(args)
+
     if args.command != "generate":
         if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
             args = parser.parse_args(["generate", *sys.argv[1:]])
         else:
             parser.print_help()
             return 1
-
     try:
         grid_spec = load_grid_spec(args.grid_spec)
         if args.no_quota_check:
@@ -908,6 +979,123 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception as exc:
         print(f"Error generating grid: {exc}", file=sys.stderr)
         return 1
+
+
+def _handle_screen_cli(args: argparse.Namespace) -> int:
+    """Handle ladder screen subcommands."""
+    cmd = args.screen_command
+    if cmd == "stage1":
+        screen_spec = load_screen_spec(args.spec)
+        dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+        result = generate_stage1_screen(
+            screen_spec,
+            output_dir=args.output_dir,
+            submit=args.submit,
+            dry_run=dry_run,
+        )
+        if args.json:
+            out = {
+                "screen_id": result.grid_id,
+                "stage": 1,
+                "total_specs": result.total_specs,
+                "total_trials": result.total_trials,
+                "specs": [s.model_dump(mode="json") for s in result.specs],
+                "written_files": [str(p) for p in result.written_paths],
+            }
+            print(json.dumps(out, indent=2))
+        else:
+            print(f"LADDER Screen Stage 1 Generation: {result.grid_id}")
+            print(
+                f"Generated {result.total_specs} specs "
+                f"({result.total_trials} trials, k={screen_spec.initial_k})"
+            )
+            print(
+                f"Tasks: {len(screen_spec.tasks)} | "
+                f"Model levels: {len(screen_spec.model_levels)}"
+            )
+            if result.written_paths:
+                print(
+                    f"Written to: {result.written_paths[0].parent} "
+                    f"({len(result.written_paths)} files)"
+                )
+            elif dry_run:
+                print("Dry-run mode: no files written to disk.")
+            print("Human approval preserved (pending review before dispatch).")
+        return 0
+
+    elif cmd == "analyze":
+        target = args.screen_id_or_spec
+        target_path = Path(target)
+        screen_id = target
+        spec_obj = None
+        if target_path.is_file():
+            spec_obj = load_screen_spec(target_path)
+            screen_id = spec_obj.screen_id
+
+        report = analyze_screen_results(
+            screen_id,
+            spec=spec_obj,
+            jobs_dir=args.jobs_dir,
+        )
+        if args.json:
+            print(json.dumps(report.to_dict(), indent=2))
+        else:
+            print(report.summary())
+        return 0
+
+    elif cmd == "stage2":
+        screen_spec = load_screen_spec(args.spec)
+        report = analyze_screen_results(
+            screen_spec.screen_id,
+            spec=screen_spec,
+            jobs_dir=args.jobs_dir,
+        )
+        dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+        result = generate_stage2_screen(
+            report,
+            screen_spec,
+            output_dir=args.output_dir,
+            submit=args.submit,
+            dry_run=dry_run,
+        )
+        if args.json:
+            out = {
+                "screen_id": result.grid_id,
+                "stage": 2,
+                "separating_tasks": report.separating_tasks,
+                "stopped_tasks": report.stopped_tasks,
+                "total_specs": result.total_specs,
+                "total_trials": result.total_trials,
+                "specs": [s.model_dump(mode="json") for s in result.specs],
+                "written_files": [str(p) for p in result.written_paths],
+            }
+            print(json.dumps(out, indent=2))
+        else:
+            print(f"LADDER Screen Stage 2 Follow-Up Generation: {result.grid_id}")
+            sep_str = ", ".join(report.separating_tasks) or "none"
+
+            stop_str = ", ".join(report.stopped_tasks) or "none"
+            print(
+                f"Separating tasks selected for follow-up "
+                f"({len(report.separating_tasks)}): {sep_str}"
+            )
+            print(f"Stopped tasks ({len(report.stopped_tasks)}): {stop_str}")
+            print(
+                f"Generated {result.total_specs} follow-up specs "
+                f"({result.total_trials} trials, k={screen_spec.followup_k})"
+            )
+            if result.written_paths:
+                print(
+                    f"Written to: {result.written_paths[0].parent} "
+                    f"({len(result.written_paths)} files)"
+                )
+            elif dry_run:
+                print("Dry-run mode: no files written to disk.")
+            print("Human approval preserved (no automatic paid dispatch).")
+        return 0
+
+    return 1
+
 
 
 if __name__ == "__main__":

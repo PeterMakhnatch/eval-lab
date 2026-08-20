@@ -1449,6 +1449,155 @@ def _ladder_generate_command(
     return 0
 
 
+def _ladder_screen_stage1_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import generate_stage1_screen, load_screen_spec
+
+    spec_path = _resolve(root, args.spec)
+    screen_spec = load_screen_spec(spec_path)
+    dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+    output_dir = _resolve(root, args.output_dir) if args.output_dir else None
+
+    result = generate_stage1_screen(
+        screen_spec,
+        repo_root=root,
+        output_dir=output_dir,
+        submit=args.submit,
+        dry_run=dry_run,
+    )
+
+    if args.json:
+        out = {
+            "screen_id": result.grid_id,
+            "stage": 1,
+            "total_specs": result.total_specs,
+            "total_trials": result.total_trials,
+            "specs": [s.model_dump(mode="json") for s in result.specs],
+            "written_files": [str(p) for p in result.written_paths],
+        }
+        print(json.dumps(out, indent=2))
+    else:
+        print(f"LADDER Screen Stage 1 Generation: {result.grid_id}")
+        print(
+            f"Generated {result.total_specs} specs "
+            f"({result.total_trials} trials, k={screen_spec.initial_k})"
+        )
+        print(f"Tasks: {len(screen_spec.tasks)} | Model levels: {len(screen_spec.model_levels)}")
+        if result.written_paths:
+            print(
+                f"Written to: {result.written_paths[0].parent} ({len(result.written_paths)} files)"
+            )
+        elif dry_run:
+            print("Dry-run mode: no files written to disk.")
+        print("Human approval preserved (pending review before dispatch).")
+    return 0
+
+
+def _ladder_screen_analyze_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import analyze_screen_results, load_screen_spec
+
+    target = args.screen_id_or_spec
+    target_path = _resolve(root, Path(target))
+    screen_id = target
+    spec_obj = None
+    if target_path.is_file():
+        spec_obj = load_screen_spec(target_path)
+        screen_id = spec_obj.screen_id
+    jobs_dir = _resolve(root, args.jobs_dir) if args.jobs_dir else None
+
+    report = analyze_screen_results(
+        screen_id,
+        spec=spec_obj,
+        repo_root=root,
+        jobs_dir=jobs_dir,
+    )
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(report.summary())
+    return 0
+
+
+def _ladder_screen_stage2_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import (
+        analyze_screen_results,
+        generate_stage2_screen,
+        load_screen_spec,
+    )
+
+    spec_path = _resolve(root, args.spec)
+    screen_spec = load_screen_spec(spec_path)
+    jobs_dir = _resolve(root, args.jobs_dir) if args.jobs_dir else None
+
+    report = analyze_screen_results(
+        screen_spec.screen_id,
+        spec=screen_spec,
+        repo_root=root,
+        jobs_dir=jobs_dir,
+    )
+
+    dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+    output_dir = _resolve(root, args.output_dir) if args.output_dir else None
+
+    result = generate_stage2_screen(
+        report,
+        screen_spec,
+        repo_root=root,
+        output_dir=output_dir,
+        submit=args.submit,
+        dry_run=dry_run,
+    )
+
+    if args.json:
+        out = {
+            "screen_id": result.grid_id,
+            "stage": 2,
+            "separating_tasks": report.separating_tasks,
+            "stopped_tasks": report.stopped_tasks,
+            "total_specs": result.total_specs,
+            "total_trials": result.total_trials,
+            "specs": [s.model_dump(mode="json") for s in result.specs],
+            "written_files": [str(p) for p in result.written_paths],
+        }
+        print(json.dumps(out, indent=2))
+    else:
+        print(f"LADDER Screen Stage 2 Follow-Up Generation: {result.grid_id}")
+        sep_str = ", ".join(report.separating_tasks) or "none"
+        stop_str = ", ".join(report.stopped_tasks) or "none"
+        print(
+            f"Separating tasks selected for follow-up ({len(report.separating_tasks)}): {sep_str}"
+        )
+        print(f"Stopped tasks ({len(report.stopped_tasks)}): {stop_str}")
+        print("Task decisions:")
+        for task_result in report.tasks:
+            action = (
+                "SELECTED for Stage 2"
+                if task_result.selected_for_followup
+                else "STOPPED"
+            )
+            print(
+                f"  - {task_result.task_id}: {action} — "
+                f"{task_result.followup_reason}"
+            )
+        print(
+            f"Generated {result.total_specs} follow-up specs "
+            f"({result.total_trials} trials, k={screen_spec.followup_k})"
+        )
+        if result.written_paths:
+            print(
+                f"Written to: {result.written_paths[0].parent} ({len(result.written_paths)} files)"
+            )
+        elif dry_run:
+            print("Dry-run mode: no files written to disk.")
+        print("Human approval preserved (no automatic paid dispatch).")
+    return 0
+
+
 def _trace_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2451,6 +2600,88 @@ def parser() -> argparse.ArgumentParser:
     )
     ladder_generate.set_defaults(func=_ladder_generate_command)
 
+    ladder_screen = ladder_commands.add_parser(
+        "screen", help="Staged difficulty screening and follow-up generation"
+    )
+    screen_commands = ladder_screen.add_subparsers(dest="screen_command", required=True)
+
+    s1_parser = screen_commands.add_parser(
+        "stage1", help="Emit Stage 1 screening specs (k=1) across tasks and model levels"
+    )
+    s1_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file")
+    s1_parser.add_argument(
+        "-o",
+        "--output",
+        dest="output_dir",
+        type=Path,
+        default=None,
+        help="Directory to write generated ExperimentSpec JSON files",
+    )
+    s1_parser.add_argument(
+        "--submit",
+        action="store_true",
+        help="Submit generated ExperimentSpecs directly to the queue",
+    )
+    s1_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print expansion without writing to disk (default)",
+    )
+    s1_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print generation summary in JSON format",
+    )
+    s1_parser.set_defaults(func=_ladder_screen_stage1_command)
+
+    sa_parser = screen_commands.add_parser(
+        "analyze", help="Analyze completed Stage 1 results and classify task separation"
+    )
+    sa_parser.add_argument("screen_id_or_spec", help="Screen ID or path to ScreenSpec file")
+    sa_parser.add_argument(
+        "--jobs-dir", type=Path, default=None, help="Jobs directory to search for results"
+    )
+    sa_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print analysis report in JSON format",
+    )
+    sa_parser.set_defaults(func=_ladder_screen_analyze_command)
+
+    s2_parser = screen_commands.add_parser(
+        "stage2", help="Emit Stage 2 follow-up specs (k=3) for separating tasks only"
+    )
+    s2_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file")
+    s2_parser.add_argument(
+        "-o",
+        "--output",
+        dest="output_dir",
+        type=Path,
+        default=None,
+        help="Directory to write generated ExperimentSpec JSON files",
+    )
+    s2_parser.add_argument(
+        "--submit",
+        action="store_true",
+        help="Submit generated ExperimentSpecs directly to the queue",
+    )
+    s2_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print expansion without writing to disk (default)",
+    )
+    s2_parser.add_argument(
+        "--jobs-dir", type=Path, default=None, help="Jobs directory to search for results"
+    )
+    s2_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print generation summary in JSON format",
+    )
+    s2_parser.set_defaults(func=_ladder_screen_stage2_command)
+
     trace = commands.add_parser(
         "trace",
         help="Convert ATIF trajectories to OTel and ship them to Phoenix",
@@ -2806,8 +3037,8 @@ def run_cli(
         return 2
 
 
-def main() -> None:
-    raise SystemExit(run_cli())
+def main(argv: Sequence[str] | None = None) -> None:
+    raise SystemExit(run_cli(argv))
 
 
 def legacy_main() -> None:

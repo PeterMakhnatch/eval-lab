@@ -193,32 +193,19 @@ missions; every cycle boundary is merge-safe.
 
 | Mission | Loop | Lease (as written) | State |
 |---|---|---|---|
-| M032 | GYM-RUN — the first campaign: fill the lake, ship the experiments | `queue/**` submissions (through the CLI, never hand-written files), `library/frozen/gym-v0/**` (new manifest), one schema addition (`extra_instruction_path`), `research/cards/campaign-*.md` | **cycles 1–2 MERGED** (#129, #128); **cycle 3 recorded as zero-sized** (card `campaign-gym-v0.md`) |
+| M032 | GYM-RUN — the first campaign: fill the lake, ship the experiments | `queue/**` submissions (through the CLI, never hand-written files), `library/frozen/gym-v0/**` (new manifest), one schema addition (`extra_instruction_path`), `research/cards/campaign-*.md` | **cycles 1–2 MERGED** (#129, #128); cycle 3 registry blocker **CLOSED**; `gym-v1` frozen and baseline inputs staged, with no billable dispatch or comparative result |
 | M033 | GYM-DATA — more data than trajectories | `research/external/**` (new), `src/evallab/fetch.py` (extend), `sql/external_views.sql`; funnel/STATUS line via board-note to SURFACE | **cycle 1 MERGED** (#130) — corpus `pending`, acquisition path documented |
 | M034 | GYM-HARBOR — use the Harbor we already have | `docs/research/harbor-capability-audit.md` (new), `src/evallab/fetch.py`/`runner.py` touchpoints only with a board-row note | ready — unstarted |
 | M035 | GYM-UI — read every trajectory, and read the analyst's mind | `src/evallab/explorer.py` (extend), `tests/test_explorer*`; TRAJ consumed read-only via board-note dependency | ready — depends on M030 TRAJ for the outline function; may render raw ATIF with a built-in condenser first |
 
-**GYM-RUN cycle 3 (dispatch campaign wave 1) is blocked on two measured facts,
-not on effort.** Both were checked at registration time rather than assumed:
+**GYM-RUN cycle 3 status:** the registry blocker is closed. Four human-approved
+registered records now define `gym-v1`; `gym-v0` remains the immutable empty
+generation. The campaign card and candidate control inputs cite
+`library/frozen/gym-v1/manifest.json`.
 
-1. **The registry is empty.** `evallab registry list` → *"No task records found in
-   `library/registry/`"*; the directory holds only `.gitkeep`. `registry.py:370`
-   refuses any spec whose task is unregistered, so **no experiment can be
-   submitted at all**, and `gym-v0` would freeze as the empty set. Registry
-   promotion is human-only by the standing never-list, so this is Peter decision
-   #2 (register the curated-nominee slice, or reject the study) — already on the
-   escalation list, now load-bearing for the whole campaign.
-2. **codex has no headroom.** Preflight: `used_percent 92.0`, `remaining_percent
-   8.0`, `credits_balance 0`, `hard stop True`, window resets
-   `2026-08-20T18:32:49Z`, and the snapshot is **65h27m stale**. Preflight's own
-   words: *"UNKNOWN is not 'plenty left'."* A campaign of every gym-v0 task ×
-   codex × k=3 does not fit inside 8% of a weekly window with no overflow
-   credits, so preflight sizes wave 1 at **zero codex trials tonight**. The
-   free `oracle` control arm per task family remains available — but with zero
-   registered tasks there are also zero families to control.
-
-Recorded rather than worked around: the doc's own constraint is "do not work
-around ceilings or provision credentials."
+The Gemini Antigravity lane (`antigravity-cli`) is proven by M037/M041, and the
+staged Low/Medium screen is running. Queue inputs remain unapproved; no billable
+work has been dispatched and no comparative result is claimed.
 
 ### Context-supply program registered (M025–M028)
 

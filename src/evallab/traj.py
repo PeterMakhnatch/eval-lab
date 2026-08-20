@@ -1242,7 +1242,7 @@ def extract_features(outline: TrajectoryOutline) -> TrajectoryFeatures:
         primary_reward=outline.primary_reward,
         exception_class=outline.exception_class,
         duration_seconds=outline.duration_seconds,
-        created_at=outline.steps[0].timestamp if outline.steps else "",
+        created_at=(outline.steps[0].timestamp or "") if outline.steps else "",
     )
 
 
@@ -1322,7 +1322,7 @@ def render_outline(
         tag = f"[{step.source}]"
         detail = ""
         if step.is_redacted:
-            detail = f"(redacted prompt text, {step.redaction_digest[:16]}...)"
+            detail = f"(redacted prompt text, {(step.redaction_digest or '')[:16]}...)"
         elif step.tool_name:
             cmd_snippet = (step.tool_command or "")[:60].replace("\n", " ")
             status_txt = "error" if step.is_error else "ok"

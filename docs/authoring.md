@@ -56,6 +56,9 @@ python -m evallab.authoring propose --seed scenario --ref research/scenarios/gap
 python -m evallab.authoring propose --seed craft-gap
 python -m evallab.authoring propose --seed inversion --ref library/tasks/event-summary/environment/events.jsonl
 python -m evallab.authoring propose --via-harbor --seed craft-gap --agent oracle
+python -m evallab.authoring model-propose \
+  --topic incident-response --style formal \
+  --model gemini-3.7-flash-high --transport agy   # spends subscription quota
 python -m evallab.authoring harvest <job_id_or_path>
 python -m evallab.authoring battery <proposal_id>
 python -m evallab.authoring review <proposal_id>
@@ -99,7 +102,7 @@ Unlike the paper (arXiv:2607.27929) which samples the axis space randomly, this 
 
 1. **Primary — CRAFT Gap Queries**: Queries unexercised facet combinations (`verifier_type × env_multi_container × pinned_deps`) with zero coverage in `derived/parquet/craft/craft.parquet`. All available craft gaps are emitted first.
 2. **Secondary — Random Axis Product**: Samples uniformly from the Cartesian product of `category × scenario × difficulty` to fill the remaining requested batch count once gaps are exhausted.
-3. **Multi-Phase Novel-Spec Mode**: Lightweight designer pass that synthesizes new `(category, scenario)` pairs from topic seeds and style constraints. Offline runs and tests use a deterministic stub (`default_novel_designer`) requiring no external provider calls.
+3. **Multi-Phase Novel-Spec Mode**: The production CLI requires an explicitly pinned `--model` and `--transport`; model calls spend subscription quota. Tests and offline controls may inject the explicitly named `local_test_designer`, which never invokes a provider.
 
 ### 3. Ledger Deduplication and Lineage
 

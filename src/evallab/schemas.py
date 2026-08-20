@@ -1480,7 +1480,7 @@ class ProposalSpec(ContractModel):
     scenario: str = Field(min_length=1)
     difficulty: str = Field(min_length=1)
     summary: str | None = None
-    seed_class: str = "craft-gap"
+    seed_class: AuthoringSeedClass = "craft-gap"
     target_facets: dict[str, Any] | None = None
     scenario_path: str | None = None
     ref_task: str | None = None

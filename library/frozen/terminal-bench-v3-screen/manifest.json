@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "frozen": true,
+  "generation": "terminal-bench-v3-screen",
+  "benchmark": "terminal-bench",
+  "benchmark_version": "v3.0.0",
+  "source_uri": "https://github.com/harbor-framework/terminal-bench.git",
+  "source_ref": "harbor-framework/terminal-bench@4e77c91dc523107eedd9440b659159d470209188",
+  "source_commit": "4e77c91dc523107eedd9440b659159d470209188",
+  "license": "Apache-2.0",
+  "task_count": 5,
+  "selection_rule": "Five no-GPU tasks across Software, Operations, ML, Science, and Security, selected before campaign outcomes.",
+  "tasks": [
+    {
+      "task_id": "bun-sourcemap-leak",
+      "category": "Software",
+      "task_path": "library/external/terminal-bench-v3.0.0/tasks/bun-sourcemap-leak",
+      "task_digest": "sha256:7af8677f262c8f9e6d1726d51ff6c9cac98389e64a479a7c596ec429a8f2dccb",
+      "verifier_digest": "sha256:2c22df862d5caf295669a69373d379a2cbd76e20d40986c10f3c2c32a85e8fd0"
+    },
+    {
+      "task_id": "cargo-flight-dispatch",
+      "category": "Operations",
+      "task_path": "library/external/terminal-bench-v3.0.0/tasks/cargo-flight-dispatch",
+      "task_digest": "sha256:b276f279bccbd2182167f0e6d793c6685fd729f843f9aab7f045efcb716d9fd5",
+      "verifier_digest": "sha256:8828af2688bd73c78b380e6fe4e2a703b80ac899cea7472be2cac9b077437d4c"
+    },
+    {
+      "task_id": "embedding-drift-monitor",
+      "category": "ML",
+      "task_path": "library/external/terminal-bench-v3.0.0/tasks/embedding-drift-monitor",
+      "task_digest": "sha256:fb5a8ddf1ce4cf9e55256bc0064ddc9503da53dfe380d26bd1f991b0044267a4",
+      "verifier_digest": "sha256:c66c0e160c8d76bdc0ec7bec8610b3df43f4e8f0f8927a7526a9a751d09eeed4"
+    },
+    {
+      "task_id": "foodstuff-beta-activity",
+      "category": "Science",
+      "task_path": "library/external/terminal-bench-v3.0.0/tasks/foodstuff-beta-activity",
+      "task_digest": "sha256:c6b86f69a3a0c44cb2c7eaf6034fda99dfb481698fa00619d15e666cbee202bb",
+      "verifier_digest": "sha256:8cf6d818e1c1b77939bb9b922c0f83f72138ca4c1554f02904054eb30095aaa2"
+    },
+    {
+      "task_id": "ico-path-patch",
+      "category": "Security",
+      "task_path": "library/external/terminal-bench-v3.0.0/tasks/ico-path-patch",
+      "task_digest": "sha256:f918871d912b1239d7fcdbc28af5d836e7786314318af05a8f591e9fb964f984",
+      "verifier_digest": "sha256:2cbc9b96b961bcd21f4c400e84fed59cb08a92e1bb7dde34dee297fd68610379"
+    }
+  ]
+}

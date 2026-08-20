@@ -46,6 +46,8 @@ import pyarrow.parquet as pq
 import yaml
 from pydantic import Field
 
+from evallab.facts import AnalyzerCallable, AnalyzerCallResult
+from evallab.modeladapter import ModelAdapter, ModelAdapterError
 from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, PolicyGate, load_policy, new_ulid
 from evallab.schemas import (
@@ -57,6 +59,36 @@ from evallab.schemas import (
     PolicyDecision,
     ProposalSpec,
 )
+
+MODEL_PROVENANCE_SCHEMA_VERSION = "authoring-model/1"
+MODEL_TRANSPORTS: tuple[str, ...] = ("cursor-agent", "agy")
+MODEL_SPEC_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "schema_version",
+        "name",
+        "category",
+        "scenario",
+        "difficulty",
+        "summary",
+        "seed_class",
+    ],
+    "properties": {
+        "schema_version": {"const": "spec/1"},
+        "name": {"type": "string", "minLength": 1},
+        "category": {"type": "string", "minLength": 1},
+        "scenario": {"type": "string", "minLength": 1},
+        "difficulty": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "seed_class": {"const": "scenario"},
+        "target_facets": {"type": ["object", "null"]},
+        "scenario_path": {"type": ["string", "null"]},
+        "ref_task": {"type": ["string", "null"]},
+        "provenance": {"type": ["string", "null"]},
+        "axes": {"type": ["object", "null"]},
+    },
+}
 
 SCHEMA_VERSION = "authoring/1"
 PROPOSED_RELATIVE = Path("library/tasks/_proposed")
@@ -219,7 +251,7 @@ class Proposal:
     category: str | None = None
     scenario: str | None = None
     difficulty: str | None = None
-    provenance: str | None = None
+    provenance: dict[str, Any] | str | None = None
     axes: dict[str, Any] | None = None
     inversion_analysis: dict[str, Any] | None = None
 
@@ -639,12 +671,8 @@ def extract_ledger_coordinates(
     return coords
 
 
-def default_novel_designer(topic_seed: str, style_constraint: str) -> dict[str, Any]:
-    """Deterministic novel spec designer stub (SG-2).
-
-    Designs a new (category, scenario) pair from topic seed and style constraint
-    without invoking any external model or network provider.
-    """
+def local_test_designer(topic_seed: str, style_constraint: str) -> dict[str, Any]:
+    """Deterministic designer reserved for tests and offline controls."""
     clean_topic = topic_seed.strip().replace(" ", "-").lower()
     clean_style = style_constraint.strip().replace(" ", "-").lower()
     cat_name = f"novel-{clean_topic}"
@@ -668,14 +696,84 @@ def default_novel_designer(topic_seed: str, style_constraint: str) -> dict[str, 
     }
 
 
+def build_novel_spec_prompt(topic_seed: str, style_constraint: str) -> str:
+    """Build a JSON-only prompt; only its digest is retained as provenance."""
+    schema = json.dumps(MODEL_SPEC_RESPONSE_SCHEMA, sort_keys=True)
+    return (
+        "Design one novel evaluation task specification. Return exactly one JSON object, "
+        "with no markdown fences, commentary, chain-of-thought, or secret values. "
+        "The object must validate against this strict JSON Schema: "
+        f"{schema}\n"
+        f"Topic seed: {topic_seed}\n"
+        f"Style constraint: {style_constraint}\n"
+        'Set "schema_version" to "spec/1" and "seed_class" to "scenario".'
+    )
+
+
+@dataclass(frozen=True)
+class ModelDesign:
+    spec: dict[str, Any]
+    provenance: dict[str, str]
+
+
+class ModelBackedDesigner:
+    """Strict model-backed designer using an injected AnalyzerCallable."""
+
+    def __init__(self, adapter: AnalyzerCallable) -> None:
+        self.adapter = adapter
+
+    def design(self, topic_seed: str, style_constraint: str) -> ModelDesign:
+        prompt = build_novel_spec_prompt(topic_seed, style_constraint)
+        result: AnalyzerCallResult = self.adapter(prompt, MODEL_SPEC_RESPONSE_SCHEMA)
+        raw_output = result.raw_output
+        try:
+            parsed = json.loads(raw_output)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise AuthoringError("model designer returned malformed JSON") from exc
+        if not isinstance(parsed, dict):
+            raise AuthoringError("model designer returned a JSON value, not an object")
+        required = MODEL_SPEC_RESPONSE_SCHEMA["required"]
+        missing = [name for name in required if name not in parsed]
+        if missing or not isinstance(parsed.get("summary"), str) or not parsed["summary"].strip():
+            raise AuthoringError("model designer returned an incomplete proposal spec")
+        try:
+            validated = ProposalSpec.model_validate(parsed)
+        except Exception as exc:
+            raise AuthoringError("model designer returned an invalid proposal spec") from exc
+        spec = validated.model_dump(mode="json")
+        if spec["seed_class"] != "scenario":
+            raise AuthoringError("model designer returned unsupported seed_class")
+        provenance = {
+            "schema_version": MODEL_PROVENANCE_SCHEMA_VERSION,
+            "spec_schema_version": spec["schema_version"],
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "raw_output_sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest(),
+            "model": str(
+                getattr(result, "model", None)
+                or getattr(self.adapter, "model", None)
+                or "injected"
+            ),
+            "transport": str(
+                getattr(result, "transport", None)
+                or getattr(self.adapter, "transport", None)
+                or "injected"
+            ),
+        }
+        spec["provenance"] = "model-backed"
+        return ModelDesign(spec=spec, provenance=provenance)
+
+    def __call__(self, topic_seed: str, style_constraint: str) -> dict[str, Any]:
+        return self.design(topic_seed, style_constraint).spec
+
+
 def design_novel_spec(
     topic_seed: str,
     style_constraint: str,
     *,
     designer: Callable[[str, str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Generate a novel spec via an injected designer callable or deterministic default stub."""
-    fn = designer or default_novel_designer
+    """Design a spec with an injected designer; local fallback is test-only."""
+    fn = designer or local_test_designer
     return fn(topic_seed, style_constraint)
 
 
@@ -2093,10 +2191,15 @@ def generate_stub_task(
 ) -> Path:
     _ = exemplar_dir
     destination.mkdir(parents=True, exist_ok=True)
-    task_name = str(spec.get("name", "synthesized-task")).lower().replace(" ", "-")
+    task_name = re.sub(
+        r"[^a-z0-9-]+", "-", str(spec.get("name", "synthesized-task")).lower()
+    ).strip("-") or "synthesized-task"
     category = str(spec.get("category", "data-processing"))
     difficulty = str(spec.get("difficulty", "medium"))
     summary = str(spec.get("summary", "Process input data and generate summary report"))
+    toml_category = json.dumps(category)
+    toml_difficulty = json.dumps(difficulty)
+    toml_summary = json.dumps(summary)
 
     task_toml = f"""schema_version = "1.4"
 artifacts = [
@@ -2106,16 +2209,16 @@ artifacts = [
 [task]
 name = "local-lab/{task_name}"
 version = "0.1.0"
-description = "{summary}"
-keywords = ["python", "{category}", "separate-verifier"]
+description = {toml_summary}
+keywords = ["python", {toml_category}, "separate-verifier"]
 
 [[task.authors]]
 name = "Eval Lab Synthesizer"
 email = "p.makhnatch@gmail.com"
 
 [metadata]
-difficulty = "{difficulty}"
-category = "{category}"
+difficulty = {toml_difficulty}
+category = {toml_category}
 tags = ["synthetic", "authoring"]
 
 [verifier]
@@ -2291,6 +2394,7 @@ class AuthoringPipeline:
         *,
         derived_root: Path | None = None,
         runner: ControlRunner | None = None,
+        adapter: AnalyzerCallable | None = None,
         now: _CLOCK | None = None,
         new_id: _IDS | None = None,
     ) -> None:
@@ -2301,6 +2405,7 @@ class AuthoringPipeline:
             else derived_root_from_environment(self.repo_root)
         )
         self.runner = runner or StructuralControlRunner()
+        self.adapter = adapter
         self._now = now or now_utc
         self._new_id = new_id or new_ulid
 
@@ -2338,6 +2443,72 @@ class AuthoringPipeline:
             novel_designer=novel_designer,
             novel_count=novel_count,
         )
+
+    def propose_model(
+        self,
+        topic_seed: str,
+        style_constraint: str,
+        *,
+        adapter: AnalyzerCallable | None = None,
+    ) -> Proposal:
+        """Generate, validate, and quarantine one model-backed proposal."""
+        active_adapter = adapter or self.adapter
+        if active_adapter is None:
+            raise AuthoringError(
+                "model proposal requires an injected adapter with an explicit pinned model"
+            )
+        design = ModelBackedDesigner(active_adapter).design(topic_seed, style_constraint)
+        spec = design.spec
+        coordinate = spec_coordinate_key(spec)
+        existing = extract_ledger_coordinates(self.ledger, self.quarantine)
+        if coordinate in existing:
+            raise AuthoringError("model designer returned a duplicate proposal coordinate")
+
+        proposal_id = self._new_id()
+        destination = self.quarantine / proposal_id
+        if destination.exists():
+            raise AuthoringError(f"proposal id {proposal_id!r} already exists")
+        created = isoformat(self._now())
+        try:
+            generate_stub_task(destination, spec)
+            axes = spec.get("axes")
+            if not isinstance(axes, dict):
+                axes = {
+                    "category": spec["category"],
+                    "scenario": spec["scenario"],
+                    "difficulty": spec["difficulty"],
+                }
+            proposal = Proposal(
+                proposal_id=proposal_id,
+                seed_class="scenario",
+                ref_task=None,
+                path=destination,
+                outcome="proposed",
+                version="0.1.0",
+                category=spec["category"],
+                scenario=spec["scenario"],
+                difficulty=spec["difficulty"],
+                injected_spec=spec,
+                provenance=design.provenance,
+                axes=axes,
+                created_at=created,
+            )
+            _atomic_write_json(destination / "proposal.json", proposal.manifest())
+            upsert_ledger(
+                self.ledger,
+                QualificationRecord(
+                    proposal_id=proposal_id,
+                    seed_class="scenario",
+                    outcome="proposed",
+                    created_at=created,
+                    updated_at=created,
+                ),
+            )
+        except Exception:
+            if destination.exists():
+                shutil.rmtree(destination, ignore_errors=True)
+            raise
+        return proposal
 
     @overload
     def propose(
@@ -3200,6 +3371,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--analysis-code", default=None, help="custom Python analysis code for inversion"
     )
 
+    model_propose = subparsers.add_parser(
+        "model-propose",
+        help="model-design one quarantined proposal (spends subscription quota)",
+    )
+    model_propose.add_argument("--topic", required=True, help="topic seed for the designer")
+    model_propose.add_argument("--style", required=True, help="style constraint for the designer")
+    model_propose.add_argument(
+        "--model",
+        required=True,
+        help="explicit pinned model selector; this spends subscription quota",
+    )
+    model_propose.add_argument(
+        "--transport",
+        required=True,
+        choices=MODEL_TRANSPORTS,
+        help="model transport; explicit selection required and spends subscription quota",
+    )
+    model_propose.add_argument("--timeout", type=float, default=120.0)
+
+
     harvest = subparsers.add_parser(
         "harvest",
         help="harvest a verified task from completed Harbor job into _proposed/",
@@ -3217,10 +3408,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     register.add_argument("proposal_id")
 
-    sample = subparsers.add_parser("sample", help="sample task specs coverage-first (SG-2)")
+    sample = subparsers.add_parser(
+        "sample",
+        help="sample task specs coverage-first (model novel mode spends subscription quota)",
+    )
     sample.add_argument("--count", type=int, default=20, help="number of specs to sample")
     sample.add_argument("--seed", type=int, default=42, help="random seed for axis product")
     sample.add_argument("--novel", type=int, default=0, help="number of novel specs to design")
+    sample.add_argument("--model", default=None, help="explicit pinned model for --novel")
+    sample.add_argument(
+        "--transport",
+        default=None,
+        choices=MODEL_TRANSPORTS,
+        help="explicit transport for --novel; model calls spend subscription quota",
+    )
+    sample.add_argument("--timeout", type=float, default=120.0)
     batch = subparsers.add_parser("batch", help="propose → battery → review; halt at the gate")
     batch.add_argument("--count", type=int, default=5)
     return parser
@@ -3229,8 +3431,24 @@ def build_parser() -> argparse.ArgumentParser:
 def _pipeline_from_args(args: argparse.Namespace) -> AuthoringPipeline:
     root = args.root.resolve() if args.root is not None else repository_root()
     derived = args.out.resolve() if args.out is not None else None
-    return AuthoringPipeline(root, derived_root=derived)
-
+    adapter: AnalyzerCallable | None = None
+    needs_model = args.command == "model-propose" or (
+        args.command == "sample" and getattr(args, "novel", 0) > 0
+    )
+    if needs_model:
+        model = getattr(args, "model", None)
+        transport = getattr(args, "transport", None)
+        if not model or not transport:
+            raise AuthoringError(
+                "model-backed authoring requires explicit --model and --transport; "
+                "model calls spend subscription quota"
+            )
+        adapter = ModelAdapter(
+            model=model,
+            transport=transport,
+            timeout_seconds=float(getattr(args, "timeout", 120.0)),
+        )
+    return AuthoringPipeline(root, derived_root=derived, adapter=adapter)
 
 def _emit(payload: Any, *, as_json: bool, stream: Any = None) -> None:
     target = sys.stdout if stream is None else stream
@@ -3249,9 +3467,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         pipeline = _pipeline_from_args(args)
         if args.command == "sample":
+            designer = ModelBackedDesigner(pipeline.adapter) if pipeline.adapter else None
             specs = pipeline.sample_specs(
                 count=args.count,
                 seed=args.seed,
+                novel_designer=designer,
                 novel_count=args.novel,
             )
             gap_count = sum(1 for s in specs if s.get("provenance") == "craft-gap")
@@ -3279,6 +3499,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"  [{s.get('provenance')}] {s['name']} -> "
                         f"({s['category']}, {s['scenario']}, {s['difficulty']})"
                     )
+            return 0
+        if args.command == "model-propose":
+            proposal = pipeline.propose_model(args.topic, args.style)
+            _emit(
+                {
+                    "proposal_id": proposal.proposal_id,
+                    "seed_class": proposal.seed_class,
+                    "outcome": proposal.outcome,
+                    "path": _repo_relative(proposal.path, pipeline.repo_root),
+                    "provenance": proposal.provenance,
+                },
+                as_json=args.json,
+            )
             return 0
         if args.command == "propose":
             if args.via_harbor:
@@ -3376,6 +3609,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     except AuthoringError as exc:
         print(f"authoring: {exc}", file=sys.stderr)
+        return 2
+    except ModelAdapterError as exc:
+        print(f"authoring: model adapter failed closed: {exc}", file=sys.stderr)
         return 2
 
 

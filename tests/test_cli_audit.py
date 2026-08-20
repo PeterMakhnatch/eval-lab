@@ -46,6 +46,7 @@ TOP_LEVEL_COMMANDS = (
     "registry",
     "tidy",
     "verdict",
+    "traj",
 )
 NESTED_COMMANDS = (
     ("schedule", "install"),
@@ -66,9 +67,13 @@ NESTED_COMMANDS = (
     ("analyst", "show"),
     ("card", "generate"),
     ("ladder", "generate"),
+    ("traj", "outline"),
+    ("traj", "queue"),
+    ("traj", "label"),
+    ("traj", "project"),
+    ("traj", "report"),
 )
 HELP_PATHS = tuple((command,) for command in TOP_LEVEL_COMMANDS) + NESTED_COMMANDS
-
 
 def test_cli_inventory_matches_help_audit() -> None:
     command_action = next(

@@ -109,6 +109,14 @@ from evallab.tracing import (
     trace_completed_jobs,
     trace_path,
 )
+from evallab.traj import (
+    evaluate_heuristic_precision,
+    label_trajectory,
+    outline_trajectory,
+    project_trajectory_features,
+    render_outline,
+    select_review_queue,
+)
 
 
 def repo_root() -> Path:
@@ -396,10 +404,7 @@ def _submit_command(
     # A paid-authorization refusal already spells out both commands with
     # this spec's real id; repeating one of them here reads as noise.
     if path.parent.name == "waiting" and "evallab approve" not in decision.message:
-        print(
-            "next: uv run evallab approve "
-            f"{shlex.quote(str(submitted.spec_id))} --actor <you>"
-        )
+        print(f"next: uv run evallab approve {shlex.quote(str(submitted.spec_id))} --actor <you>")
     return 0
 
 
@@ -581,9 +586,7 @@ def _nightly_command(
         executor=executor,
         renderer=_digest_renderer(root),
         canary_enqueuer=CanaryEnqueuer.from_repo(root, executor).enqueue,
-        researcher_pass=lambda day: get_researcher_loop().run(
-            report_date=day
-        ).invocation_count,
+        researcher_pass=lambda day: get_researcher_loop().run(report_date=day).invocation_count,
         digest_enricher=_nightly_digest_enricher(root, get_researcher_loop),
         completed_job_ingester=lambda: ingest_and_project(
             database_url,
@@ -601,16 +604,10 @@ def _nightly_command(
         analysis_stager=_nightly_analysis_stager(root),
     ).run(report_date=args.report_date)
     print(f"digest: {result.digest_path}")
-    print(
-        "database backup: "
-        f"{getattr(result, 'backup_path', None) or 'not created'}"
-    )
+    print(f"database backup: {getattr(result, 'backup_path', None) or 'not created'}")
     print(f"enqueued: {result.enqueued}")
     print(f"dispatched: {result.dispatched}")
-    print(
-        "researcher invocations: "
-        f"{getattr(result, 'researcher_invocations', 0)}"
-    )
+    print(f"researcher invocations: {getattr(result, 'researcher_invocations', 0)}")
     print(f"quarantined: {'yes' if result.quarantined else 'no'}")
     try:
         print(
@@ -913,9 +910,7 @@ def _power_command(
         else:
             comparison_pass = pass_at_k_probability(args.baseline + effect, args.k)
             print(f"minimum detectable per-attempt difference: {effect:.4f}")
-            print(
-                f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}"
-            )
+            print(f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}")
         print(
             "Assumptions: independent attempts for the pass@k transformation and a normal "
             "approximation to paired task outcomes; "
@@ -1064,10 +1059,7 @@ def _analyze_stub_command(
         print(f"catalog: {database.identity(url)}")
     else:
         print("indexed: no (the catalog is a derived index, written on request)")
-        print(
-            "next: uv run evallab analyze ingest-sidecar "
-            f"{shlex.quote(str(sidecar_path))}"
-        )
+        print(f"next: uv run evallab analyze ingest-sidecar {shlex.quote(str(sidecar_path))}")
     return 0 if sidecar.validation_status == "valid" else 1
 
 
@@ -1162,10 +1154,7 @@ def _analyze_review_command(
         print(f"catalog: {database.identity(url)}")
     else:
         print("indexed: no (the catalog is a derived index, written on request)")
-        print(
-            "next: uv run evallab analyze ingest-sidecar "
-            f"{shlex.quote(str(sidecar_path))}"
-        )
+        print(f"next: uv run evallab analyze ingest-sidecar {shlex.quote(str(sidecar_path))}")
     return 0
 
 
@@ -1207,9 +1196,7 @@ def _db_list_command(
     print("| job | trial | task | agent | model | reward | exception | seconds |")
     print("|---|---|---|---|---|---:|---|---:|")
     for row in rows:
-        print(
-            "| " + " | ".join("" if value is None else str(value) for value in row) + " |"
-        )
+        print("| " + " | ".join("" if value is None else str(value) for value in row) + " |")
     return 0
 
 
@@ -1705,9 +1692,7 @@ def _verdict_command(
     if action == "list":
         status_filter = args.status or args.status_or_id
         try:
-            verdicts = list_current_verdicts_from_catalog(
-                database_url=db_url, status=status_filter
-            )
+            verdicts = list_current_verdicts_from_catalog(database_url=db_url, status=status_filter)
         except Exception:
             if db_url is not None:
                 raise
@@ -1767,6 +1752,116 @@ def _verdict_command(
             f"Recorded verdict for {verdict.discovery_id}: {verdict.status} "
             f"by {verdict.by}{note_suffix}"
         )
+    return 0
+
+
+def _traj_outline_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    try:
+        outline = outline_trajectory(args.target, repo_root=root)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(outline.to_dict(), indent=2))
+    else:
+        print(render_outline(outline, verbose=args.verbose))
+    return 0 if outline.status == "featured" else 1
+
+
+def _traj_queue_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    runs_roots = [_resolve(root, args.runs_dir)] if args.runs_dir else None
+    queue_items = select_review_queue(
+        limit=args.limit,
+        runs_roots=runs_roots,
+        repo_root=root,
+    )
+    if args.json:
+        print(json.dumps([asdict(item) for item in queue_items], indent=2))
+    else:
+        if not queue_items:
+            print("No unlabeled trajectories in review queue.")
+            return 0
+        print(f"TRAJECTORY REVIEW QUEUE ({len(queue_items)} items):")
+        print("=" * 80)
+        for idx, item in enumerate(queue_items, start=1):
+            print(
+                f"{idx}. [{item.task_name}] {item.trial_name} ({item.agent_name}/{item.model_name})"
+            )
+            print(f"   Signals:    {item.outline_preview}")
+            print(f"   Suggested:  {item.suggested_taxonomy} ({item.suggestion_reason})")
+            print(f"   Action:     {item.next_command}")
+            print("")
+    return 0
+
+
+def _traj_label_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    try:
+        label = label_trajectory(
+            args.trial,
+            taxonomy=args.taxonomy,
+            note=args.note,
+            proposed_by=args.proposed_by,
+            author=args.author,
+            repo_root=root,
+        )
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        print(json.dumps(label.to_dict(), indent=2))
+    else:
+        note_str = f" (note: {label.note})" if label.note else ""
+        print(
+            f"Recorded label: {label.trial_name} -> {label.taxonomy} "
+            f"by {label.author} [{label.proposed_by}]{note_str}"
+        )
+    return 0
+
+
+def _traj_project_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    runs_roots = [_resolve(root, r) for r in args.runs_dir] if args.runs_dir else None
+    out_dir = _resolve(root, args.output_dir) if args.output_dir else None
+    res = project_trajectory_features(runs_roots=runs_roots, output_root=out_dir, repo_root=root)
+    if args.json:
+        print(json.dumps(asdict(res), indent=2, default=str))
+    else:
+        print(f"Projected {res.table_rows} trajectory feature rows to {res.output_path}")
+        print(f"  Featured:    {res.featured_count}")
+        print(f"  Unavailable: {res.unavailable_count}")
+        print(f"  Digest:      {res.sha256[:16]}...")
+    return 0
+
+
+def _traj_report_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    report = evaluate_heuristic_precision(repo_root=root)
+    if args.json:
+        print(json.dumps(asdict(report), indent=2))
+    else:
+        print("HEURISTIC PRECISION REPORT:")
+        print(f"  Human Labels:        {report.human_label_count}")
+        print(f"  Heuristic Proposals: {report.heuristic_proposal_count}")
+        print(f"  Matched Trials:      {report.matched_trials_count}")
+        print(f"  Exact Matches:       {report.exact_taxonomy_matches}")
+        pct = f"{report.precision * 100:.1f}%" if report.matched_trials_count > 0 else "N/A"
+        print(f"  Precision:           {pct}")
+        if report.disagreements:
+            print(f"\nDISAGREEMENTS ({len(report.disagreements)}):")
+            for d in report.disagreements:
+                t_name = d["task_name"]
+                t_id = d["trial_id"]
+                h_tax = d["human_taxonomy"]
+                he_tax = d["heuristic_taxonomy"]
+                print(f"  - {t_name} ({t_id}): human={h_tax!r} vs heuristic={he_tax!r}")
     return 0
 
 
@@ -1942,9 +2037,7 @@ def parser() -> argparse.ArgumentParser:
     calibrate = commands.add_parser(
         "calibrate", help="Measure a judge against one sealed calibration family"
     )
-    calibrate.add_argument(
-        "family", choices=("checkout-pool-exhaustion", "retry-storm-backlog")
-    )
+    calibrate.add_argument("family", choices=("checkout-pool-exhaustion", "retry-storm-backlog"))
     calibration_mode = calibrate.add_mutually_exclusive_group()
     calibration_mode.add_argument("--predictions", type=Path)
     calibration_mode.add_argument("--stub", action="store_true")
@@ -2102,9 +2195,7 @@ def parser() -> argparse.ArgumentParser:
     analyze_plan_parser.add_argument("--agent", default="codex")
     analyze_plan_parser.add_argument("--agent-version", default="local")
     analyze_plan_parser.add_argument("--model", default="configured-by-queue")
-    analyze_plan_parser.add_argument(
-        "--output-dir", type=Path, default=Path("derived/analyses")
-    )
+    analyze_plan_parser.add_argument("--output-dir", type=Path, default=Path("derived/analyses"))
     analyze_plan_parser.set_defaults(func=_analyze_plan_command)
 
     analyze_worker_plan = analyze_commands.add_parser(
@@ -2128,9 +2219,7 @@ def parser() -> argparse.ArgumentParser:
         help="Explicitly retry or quarantine one possibly-paid ambiguous invocation",
     )
     analyze_worker_resolve.add_argument("request_id")
-    analyze_worker_resolve.add_argument(
-        "--action", choices=("retry", "quarantine"), required=True
-    )
+    analyze_worker_resolve.add_argument("--action", choices=("retry", "quarantine"), required=True)
     analyze_worker_resolve.add_argument("--actor", required=True)
     analyze_worker_resolve.set_defaults(func=_analyze_worker_resolve_ambiguous_command)
 
@@ -2199,10 +2288,20 @@ def parser() -> argparse.ArgumentParser:
     db_list.set_defaults(func=_db_list_command)
 
     db_attach = db_commands.add_parser("attach", help="Attach unified DuckDB surface (Z2+Z3+Z4)")
-    db_attach.add_argument("--zones", action="store_true", help="report zone status (exit non-zero if none attached)")  # noqa: E501
-    db_attach.add_argument("--print-sql", action="store_true", help="emit the attach + view DDL preamble to stdout")  # noqa: E501
-    db_attach.add_argument("--query", metavar="SQL", help="run query against the surface and print rows")  # noqa: E501
-    db_attach.add_argument("--derived-root", type=Path, help="override the shared Parquet root (same resolution as library)")  # noqa: E501
+    db_attach.add_argument(
+        "--zones", action="store_true", help="report zone status (exit non-zero if none attached)"
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--print-sql", action="store_true", help="emit the attach + view DDL preamble to stdout"
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--query", metavar="SQL", help="run query against the surface and print rows"
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )  # noqa: E501
     db_attach.set_defaults(func=_db_attach_command)
 
     lineage = commands.add_parser(
@@ -2245,9 +2344,7 @@ def parser() -> argparse.ArgumentParser:
     )
     analyst_run.set_defaults(func=_analyst_run_command)
 
-    analyst_list = analyst_commands.add_parser(
-        "list", help="List stored analysis conclusions"
-    )
+    analyst_list = analyst_commands.add_parser("list", help="List stored analysis conclusions")
     analyst_list.add_argument(
         "--trial",
         dest="trial_id",
@@ -2260,9 +2357,7 @@ def parser() -> argparse.ArgumentParser:
         "show", help="Show an analysis conclusion and its recorded trajectory"
     )
     analyst_show.add_argument("analysis_id", help="ULID of the analysis record to show")
-    analyst_show.add_argument(
-        "--json", action="store_true", help="emit raw structured JSON"
-    )
+    analyst_show.add_argument("--json", action="store_true", help="emit raw structured JSON")
     analyst_show.set_defaults(func=_analyst_show_command)
 
     card = commands.add_parser(
@@ -2308,12 +2403,8 @@ def parser() -> argparse.ArgumentParser:
     behavior.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON behavior report"
     )
-    behavior.add_argument(
-        "--task", help="filter analysis to one task name"
-    )
-    behavior.add_argument(
-        "--agent", help="filter analysis to one agent name"
-    )
+    behavior.add_argument("--task", help="filter analysis to one task name")
+    behavior.add_argument("--agent", help="filter analysis to one agent name")
     behavior.add_argument(
         "--derived-root",
         type=Path,
@@ -2637,6 +2728,61 @@ def parser() -> argparse.ArgumentParser:
         help="Override the shared Parquet root",
     )
     verdict.set_defaults(func=_verdict_command)
+    traj = commands.add_parser(
+        "traj", help="Analyze, feature-extract, outline, and label trajectories"
+    )
+    traj_commands = traj.add_subparsers(dest="traj_command", required=True)
+
+    traj_outline = traj_commands.add_parser(
+        "outline", help="Deterministic step outline of an ATIF trajectory"
+    )
+    traj_outline.add_argument(
+        "target", help="Trial ID, directory, result.json, or trajectory.json path"
+    )
+    traj_outline.add_argument(
+        "--verbose", "-v", action="store_true", help="Include detailed step snippets"
+    )
+    traj_outline.add_argument("--json", action="store_true", help="Emit outline as JSON")
+    traj_outline.set_defaults(func=_traj_outline_command)
+
+    traj_queue = traj_commands.add_parser("queue", help="Deterministic daily reading/review queue")
+    traj_queue.add_argument(
+        "--limit", type=int, default=3, help="Number of trajectories to select (default: 3)"
+    )
+    traj_queue.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
+    traj_queue.add_argument("--json", action="store_true", help="Emit queue as JSON")
+    traj_queue.set_defaults(func=_traj_queue_command)
+
+    traj_label = traj_commands.add_parser(
+        "label", help="Persist ground-truth or heuristic trajectory label"
+    )
+    traj_label.add_argument("trial", help="Trial identifier or directory")
+    traj_label.add_argument(
+        "taxonomy", help="Taxonomy category (e.g. tool_use, planning, loop, etc.)"
+    )
+    traj_label.add_argument("--note", help="Optional label explanation or observation")
+    traj_label.add_argument(
+        "--proposed-by", default="human", choices=["human", "heuristic", "model"]
+    )
+    traj_label.add_argument("--author", default="peter", help="Author of the label")
+    traj_label.add_argument("--json", action="store_true", help="Emit label as JSON")
+    traj_label.set_defaults(func=_traj_label_command)
+
+    traj_project = traj_commands.add_parser(
+        "project", help="Extract mechanical features to Parquet"
+    )
+    traj_project.add_argument("--output-dir", type=Path, help="Override output Parquet root")
+    traj_project.add_argument(
+        "--runs-dir", type=Path, action="append", help="Runs directory (repeatable)"
+    )
+    traj_project.add_argument("--json", action="store_true", help="Emit projection summary as JSON")
+    traj_project.set_defaults(func=_traj_project_command)
+
+    traj_report = traj_commands.add_parser(
+        "report", help="Precision report of heuristic labels vs human ground truth"
+    )
+    traj_report.add_argument("--json", action="store_true", help="Emit report as JSON")
+    traj_report.set_defaults(func=_traj_report_command)
     return root
 
 

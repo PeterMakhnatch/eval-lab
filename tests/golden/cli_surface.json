@@ -1995,6 +1995,274 @@
       }
     ]
   },
+  "ladder screen": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "ladder screen analyze": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "jobs_dir",
+        "flags": [
+          "--jobs-dir"
+        ],
+        "help": "Jobs directory to search for results",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Print analysis report in JSON format",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "screen_id_or_spec",
+        "flags": [],
+        "help": "Screen ID or path to ScreenSpec file",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "ladder screen stage1": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dry_run",
+        "flags": [
+          "--dry-run"
+        ],
+        "help": "Print expansion without writing to disk (default)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Print generation summary in JSON format",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Directory to write generated ExperimentSpec JSON files",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "spec",
+        "flags": [],
+        "help": "Path to ScreenSpec YAML/JSON file",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "submit",
+        "flags": [
+          "--submit"
+        ],
+        "help": "Submit generated ExperimentSpecs directly to the queue",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "ladder screen stage2": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dry_run",
+        "flags": [
+          "--dry-run"
+        ],
+        "help": "Print expansion without writing to disk (default)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "jobs_dir",
+        "flags": [
+          "--jobs-dir"
+        ],
+        "help": "Jobs directory to search for results",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Print generation summary in JSON format",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Directory to write generated ExperimentSpec JSON files",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "spec",
+        "flags": [],
+        "help": "Path to ScreenSpec YAML/JSON file",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "submit",
+        "flags": [
+          "--submit"
+        ],
+        "help": "Submit generated ExperimentSpecs directly to the queue",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
   "lineage": {
     "options": [
       {

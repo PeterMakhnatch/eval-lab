@@ -627,6 +627,41 @@ def _executor_log_path(request: RunRequest) -> Path:
         attempt += 1
 
 
+def executor_state_path(request: RunRequest) -> Path:
+    return request.jobs_dir / ".executor" / f"{request.name}.state.json"
+
+def _write_executor_state(
+    request: RunRequest,
+    *,
+    started_at: datetime,
+    status: str,
+    log_path: Path,
+    finished_at: datetime | None = None,
+    process: HarborProcessResult | None = None,
+) -> None:
+    path = executor_state_path(request)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "status": status,
+        "started_at": started_at.isoformat(),
+        "finished_at": finished_at.isoformat() if finished_at is not None else None,
+        "trial_timeout_seconds": request.timeout_seconds,
+        "job_timeout_seconds": request.job_timeout_seconds,
+        "log_path": str(log_path.relative_to(request.jobs_dir)),
+    }
+    if process is not None:
+        payload.update(
+            {
+                "exit_code": process.returncode,
+                "timed_out": process.timed_out,
+                "timed_out_trial": process.timed_out_trial,
+            }
+        )
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    temporary.replace(path)
+
 def _harbor_project_prefixes(job_dir: Path) -> frozenset[str]:
     if not job_dir.is_dir():
         return frozenset()
@@ -725,16 +760,40 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     executor_log = _executor_log_path(request)
     containers_before = harbor_container_ids(request.task)
     started = datetime.now(UTC)
-    process = run_harbor_process(
-        command,
-        cwd=repo_root,
-        timeout_seconds=request.job_timeout_seconds,
+    _write_executor_state(
+        request,
+        started_at=started,
+        status="running",
         log_path=executor_log,
-        job_dir=job_dir,
-        trial_timeout_seconds=request.timeout_seconds,
-        lease_path=request.lease_path,
     )
+    try:
+        process = run_harbor_process(
+            command,
+            cwd=repo_root,
+            timeout_seconds=request.job_timeout_seconds,
+            log_path=executor_log,
+            job_dir=job_dir,
+            trial_timeout_seconds=request.timeout_seconds,
+            lease_path=request.lease_path,
+        )
+    except BaseException:
+        _write_executor_state(
+            request,
+            started_at=started,
+            status="failed",
+            log_path=executor_log,
+            finished_at=datetime.now(UTC),
+        )
+        raise
     finished = datetime.now(UTC)
+    _write_executor_state(
+        request,
+        started_at=started,
+        status="failed" if process.timed_out or process.returncode != 0 else "completed",
+        log_path=executor_log,
+        finished_at=finished,
+        process=process,
+    )
     _write_run_metadata(
         request,
         repo_root=repo_root,

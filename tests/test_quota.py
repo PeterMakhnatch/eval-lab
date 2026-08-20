@@ -464,8 +464,8 @@ def test_headroom_is_unavailable_with_a_reason_when_no_snapshot_exists(tmp_path:
     assert headroom.reason and "unknown" in headroom.reason
 
 
-def test_cursor_and_antigravity_consumption_and_headroom(tmp_path: Path) -> None:
-    """Cursor-cli and antigravity-cli trials record consumption and headroom."""
+def test_cursor_and_antigravity_consumption_keep_quota_unknown(tmp_path: Path) -> None:
+    """Non-Codex usage is not mislabelled as a Codex-style rate-limit snapshot."""
     job = make_job(tmp_path)
     cursor_trial = add_trial(
         job,
@@ -500,9 +500,8 @@ def test_cursor_and_antigravity_consumption_and_headroom(tmp_path: Path) -> None
     assert len(cursor_report.consumed.trials) == 1
     assert cursor_report.consumed.trials[0].agent == "cursor-cli"
     assert cursor_report.consumed.totals().input_tokens == 5_000
-    assert cursor_report.headroom.availability == "observed"
-    assert cursor_report.headroom.used_percent == 45.0
-    assert cursor_report.headroom.remaining_percent == 55.0
+    assert cursor_report.headroom.availability == "unavailable"
+    assert cursor_report.headroom.remaining_percent is None
 
     agy_report = load_quota_report(
         [tmp_path], now=NOW, paid_agents=frozenset({"antigravity-cli"})
@@ -510,9 +509,8 @@ def test_cursor_and_antigravity_consumption_and_headroom(tmp_path: Path) -> None
     assert len(agy_report.consumed.trials) == 1
     assert agy_report.consumed.trials[0].agent == "antigravity-cli"
     assert agy_report.consumed.totals().input_tokens == 10_000
-    assert agy_report.headroom.availability == "observed"
-    assert agy_report.headroom.used_percent == 60.0
-    assert agy_report.headroom.remaining_percent == 40.0
+    assert agy_report.headroom.availability == "unavailable"
+    assert agy_report.headroom.remaining_percent is None
 
 
 def test_cursor_and_antigravity_unobserved_headroom_gives_honest_reason(tmp_path: Path) -> None:

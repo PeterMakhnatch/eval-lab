@@ -7,23 +7,18 @@ Contract for downstream UI (GYM-UI) and AGY capture:
 - Missing trajectory data is an explicit accounted/unavailable state,
   never a fabricated empty success.
 - Path traversal outside configured roots is prevented via strict path jail enforcement.
-- Human review queue selects diverse unlabeled real-agent trials deterministically
-  without recording labels.
-- Human labels are persisted idempotently as ground truth.
-- Model-assisted labeling callable signature is declared,
-  deferred behind LOOP-SEAM cycle 2 adapter.
+- Review selection and behavior labels are implemented in ``evallab.labels``.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -35,7 +30,6 @@ from evallab.results import sha256_file
 
 PhaseType = Literal["setup", "prompt", "work", "verifier", "unknown"]
 AvailabilityStatus = Literal["featured", "accounted_unavailable"]
-LabelProvenance = Literal["human", "heuristic", "model"]
 
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
 EDIT_TOOL_NAMES = frozenset(
@@ -233,50 +227,6 @@ class TrajectoryFeatures:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-@dataclass(frozen=True)
-class TrajectoryLabel:
-    """Ground truth or heuristic label for a trajectory."""
-
-    label_id: str
-    trial_id: str
-    trial_name: str
-    task_name: str
-    taxonomy: str
-    note: str | None
-    proposed_by: LabelProvenance
-    author: str
-    labeled_at: str
-    source_sha256: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass(frozen=True)
-class ReviewQueueItem:
-    """One candidate trajectory selected for Peter's reading review queue."""
-
-    trial_id: str
-    trial_name: str
-    job_id: str
-    job_name: str
-    task_name: str
-    agent_name: str
-    model_name: str
-    reward: float | None
-    duration_seconds: float | None
-    steps: int
-    tool_calls: int
-    errors: int
-    loop_score: float
-    suggested_taxonomy: str | None
-    suggestion_reason: str | None
-    outline_preview: str
-    next_command: str
-
-
 @dataclass(frozen=True)
 class TrajectoryProjectResult:
     """Result of projecting mechanical features to Parquet."""
@@ -289,16 +239,8 @@ class TrajectoryProjectResult:
     sha256: str
 
 
-@dataclass(frozen=True)
-class PrecisionReport:
-    """Comparison report of heuristic label proposals against human labels."""
 
-    human_label_count: int
-    heuristic_proposal_count: int
-    matched_trials_count: int
-    exact_taxonomy_matches: int
-    precision: float
-    disagreements: tuple[dict[str, Any], ...]
+
 
 
 TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
@@ -343,20 +285,6 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
     ]
 )
 
-TRAJ_LABELS_PARQUET_SCHEMA = pa.schema(
-    [
-        pa.field("label_id", pa.string(), nullable=False),
-        pa.field("trial_id", pa.string(), nullable=False),
-        pa.field("trial_name", pa.string(), nullable=False),
-        pa.field("task_name", pa.string(), nullable=False),
-        pa.field("taxonomy", pa.string(), nullable=False),
-        pa.field("note", pa.string(), nullable=True),
-        pa.field("proposed_by", pa.string(), nullable=False),
-        pa.field("author", pa.string(), nullable=False),
-        pa.field("labeled_at", pa.string(), nullable=False),
-        pa.field("source_sha256", pa.string(), nullable=True),
-    ]
-)
 
 
 def _check_path_jail(path: Path, roots: Sequence[Path]) -> Path:
@@ -1445,358 +1373,3 @@ def project_trajectory_features(
     )
 
 
-def load_trajectory_labels(
-    repo_root: Path | None = None,
-    derived_root: Path | None = None,
-) -> list[TrajectoryLabel]:
-    """Load all persisted trajectory labels from Parquet."""
-    root = (repo_root or Path.cwd()).resolve()
-    droot = derived_root or (derived_root_from_environment(root) / "traj_labels")
-    labels_file = droot / "traj_labels.parquet"
-    if not labels_file.is_file():
-        return []
-    try:
-        tbl = pq.read_table(labels_file)
-        rows = tbl.to_pylist()
-        return [
-            TrajectoryLabel(
-                label_id=str(r["label_id"]),
-                trial_id=str(r["trial_id"]),
-                trial_name=str(r["trial_name"]),
-                task_name=str(r["task_name"]),
-                taxonomy=str(r["taxonomy"]),
-                note=r.get("note"),
-                proposed_by=r.get("proposed_by") or "human",
-                author=str(r.get("author") or "peter"),
-                labeled_at=str(r["labeled_at"]),
-                source_sha256=r.get("source_sha256"),
-            )
-            for r in rows
-        ]
-    except Exception:
-        return []
-
-
-def label_trajectory(
-    trial: str | Path,
-    taxonomy: str,
-    note: str | None = None,
-    proposed_by: LabelProvenance = "human",
-    author: str = "peter",
-    repo_root: Path | None = None,
-    derived_root: Path | None = None,
-) -> TrajectoryLabel:
-    """Idempotently persist a human or heuristic label for a trajectory."""
-    root = (repo_root or Path.cwd()).resolve()
-    outline = outline_trajectory(trial, repo_root=root)
-    if outline.status != "featured":
-        raise TrajectoryError(
-            f"cannot label unavailable trajectory {outline.trial_name}: "
-            f"{outline.unavailable_reason}"
-        )
-    droot = derived_root or (derived_root_from_environment(root) / "traj_labels")
-    droot.mkdir(parents=True, exist_ok=True)
-    labels_file = droot / "traj_labels.parquet"
-
-    existing_labels = load_trajectory_labels(repo_root=root, derived_root=droot)
-
-    # The row key is stable; repeated identical submissions are true no-ops.
-    label_id = hashlib.sha256(f"{outline.trial_id}:{proposed_by}".encode()).hexdigest()[:16]
-    normalized_taxonomy = taxonomy.strip().lower()
-    if not normalized_taxonomy:
-        raise TrajectoryError("taxonomy must not be empty")
-    normalized_note = note.strip() if note else None
-    existing = next(
-        (
-            item
-            for item in existing_labels
-            if item.trial_id == outline.trial_id and item.proposed_by == proposed_by
-        ),
-        None,
-    )
-    if (
-        existing is not None
-        and existing.taxonomy == normalized_taxonomy
-        and existing.note == normalized_note
-        and existing.author == author
-        and existing.source_sha256 == (outline.source_sha256 or None)
-    ):
-        return existing
-
-    new_label = TrajectoryLabel(
-        label_id=label_id,
-        trial_id=outline.trial_id,
-        trial_name=outline.trial_name,
-        task_name=outline.task_name,
-        taxonomy=normalized_taxonomy,
-        note=normalized_note,
-        proposed_by=proposed_by,
-        author=author,
-        labeled_at=existing.labeled_at if existing is not None else datetime.now(UTC).isoformat(),
-        source_sha256=outline.source_sha256 or None,
-    )
-    # Idempotent replacement of matching (trial_id, proposed_by)
-    updated: list[TrajectoryLabel] = []
-    replaced = False
-    for ex in existing_labels:
-        if ex.trial_id == outline.trial_id and ex.proposed_by == proposed_by:
-            updated.append(new_label)
-            replaced = True
-        else:
-            updated.append(ex)
-    if not replaced:
-        updated.append(new_label)
-
-    rows = [item.to_dict() for item in updated]
-    table = pa.Table.from_pylist(rows, schema=TRAJ_LABELS_PARQUET_SCHEMA)
-    tmp_file = labels_file.with_suffix(".parquet.tmp")
-    pq.write_table(table, tmp_file, compression="zstd")
-    tmp_file.replace(labels_file)
-
-    return new_label
-
-
-def propose_heuristic_label(outline: TrajectoryOutline) -> TrajectoryLabel:
-    """Deterministic rule-based taxonomy label proposal."""
-    taxonomy = "unclassified"
-    note = "No specific heuristic triggered"
-
-    if outline.status != "featured":
-        taxonomy = "missing_data"
-        note = f"Trajectory unavailable: {outline.unavailable_reason}"
-    elif outline.loop_suspicion.detected:
-        taxonomy = "tool_use_loop"
-        signals = ", ".join(outline.loop_suspicion.reasons)
-        note = f"Loop suspicion detected ({outline.loop_suspicion.score:.2f}): {signals}"
-    elif outline.agent_steps == 0:
-        taxonomy = "setup_failure"
-        note = "Zero agent execution steps observed"
-    elif outline.step_to_first_edit is None and outline.total_tool_calls > 0:
-        taxonomy = "planning_no_edit"
-        note = "Tool calls occurred but zero file modifications were performed"
-    elif outline.total_errors > 0 and outline.recovery_count > 0 and outline.primary_reward == 1.0:
-        taxonomy = "recovered_success"
-        note = f"Recovered from {outline.total_errors} error(s) and completed task"
-    elif outline.total_errors > 0 and outline.primary_reward == 0.0:
-        taxonomy = "unrecovered_error"
-        note = f"Encountered {outline.total_errors} error(s) without successful completion"
-    elif outline.primary_reward == 1.0:
-        taxonomy = "clean_success"
-        note = "Task passed without notable errors or loops"
-    else:
-        taxonomy = "failed_verification"
-        note = "Execution completed but verifier scored zero"
-
-    label_id = hashlib.sha256(f"{outline.trial_id}:heuristic".encode()).hexdigest()[:16]
-    return TrajectoryLabel(
-        label_id=label_id,
-        trial_id=outline.trial_id,
-        trial_name=outline.trial_name,
-        task_name=outline.task_name,
-        taxonomy=taxonomy,
-        note=note,
-        proposed_by="heuristic",
-        author="evallab-heuristic-v1",
-        labeled_at=datetime.now(UTC).isoformat(),
-        source_sha256=outline.source_sha256 or None,
-    )
-
-
-def select_review_queue(
-    limit: int = 3,
-    runs_roots: Sequence[Path] | None = None,
-    repo_root: Path | None = None,
-    derived_root: Path | None = None,
-) -> list[ReviewQueueItem]:
-    """Deterministically select a small daily reading queue for human review.
-
-    Priorities:
-    1. Real agent trials (exclude oracle/nop controls).
-    2. Unlabeled trials (no human label recorded).
-    3. Family-diverse (rotate across distinct task families).
-    4. Deterministic order (prioritize high loop-suspicion or errors).
-    5. Records NO labels until Peter supplies one.
-    """
-    if limit <= 0:
-        return []
-    root = (repo_root or Path.cwd()).resolve()
-    candidate_roots = list(runs_roots) if runs_roots else _resolve_candidate_roots(root)
-
-    # 1. Load human labels to exclude already-labeled trials
-    existing_labels = load_trajectory_labels(repo_root=root, derived_root=derived_root)
-    human_labeled_trials = {
-        item.trial_id for item in existing_labels if item.proposed_by == "human"
-    }
-
-    # 2. Collect candidate trials
-    candidates: list[TrajectoryOutline] = []
-    discovered_dirs: set[Path] = set()
-
-    for c_root in candidate_roots:
-        if not c_root.exists():
-            continue
-        for job_dir in c_root.iterdir():
-            if not job_dir.is_dir() or job_dir.name.startswith("."):
-                continue
-            for trial_dir in job_dir.iterdir():
-                if trial_dir.is_dir() and not trial_dir.name.startswith("."):
-                    discovered_dirs.add(trial_dir)
-
-    for t_dir in sorted(discovered_dirs, key=lambda p: str(p)):
-        try:
-            outline = outline_trajectory(
-                t_dir, repo_root=root, explicit_runs_root=t_dir.parent.parent
-            )
-            if outline.status != "featured":
-                continue
-            # Exclude control agents
-            if outline.agent_name.lower() in CONTROL_AGENTS:
-                continue
-            # Exclude already labeled
-            if outline.trial_id in human_labeled_trials:
-                continue
-            candidates.append(outline)
-        except Exception:
-            continue
-
-    if not candidates:
-        return []
-
-    # 3. Sort deterministically by loop suspicion score desc, total errors desc, trial_id asc
-    sorted_candidates = sorted(
-        candidates,
-        key=lambda o: (
-            -o.loop_suspicion.score,
-            -o.total_errors,
-            o.task_name,
-            o.trial_id,
-        ),
-    )
-
-    # 4. Diversity selection: 1 per task family first
-    selected: list[TrajectoryOutline] = []
-    seen_tasks: set[str] = set()
-
-    # Pass 1: One per task
-    for cand in sorted_candidates:
-        if cand.task_name not in seen_tasks:
-            selected.append(cand)
-            seen_tasks.add(cand.task_name)
-            if len(selected) >= limit:
-                break
-
-    # Pass 2: Fill remaining slots if needed
-    if len(selected) < limit:
-        for cand in sorted_candidates:
-            if cand not in selected:
-                selected.append(cand)
-    queue_items: list[ReviewQueueItem] = []
-    for o in selected:
-        heuristic = propose_heuristic_label(o)
-        summary_txt = (
-            f"{o.total_steps} steps, {o.total_tool_calls} tools, "
-            f"{o.total_errors} errors, loop_score={o.loop_suspicion.score:.2f}"
-        )
-        preview_lines = [summary_txt]
-        if o.loop_suspicion.reasons:
-            preview_lines.append(f"Loop signals: {', '.join(o.loop_suspicion.reasons)}")
-        preview = " | ".join(preview_lines)
-
-        escaped_note = json.dumps(heuristic.note)
-        next_cmd = (
-            f"uv run evallab traj label {json.dumps(o.source_path)} "
-            f"{heuristic.taxonomy} --note {escaped_note}"
-        )
-        queue_items.append(
-            ReviewQueueItem(
-                trial_id=o.trial_id,
-                trial_name=o.trial_name,
-                job_id=o.job_id,
-                job_name=o.job_name,
-                task_name=o.task_name,
-                agent_name=o.agent_name,
-                model_name=o.model_name,
-                reward=o.primary_reward,
-                duration_seconds=o.duration_seconds,
-                steps=o.total_steps,
-                tool_calls=o.total_tool_calls,
-                errors=o.total_errors,
-                loop_score=o.loop_suspicion.score,
-                suggested_taxonomy=heuristic.taxonomy,
-                suggestion_reason=heuristic.note,
-                outline_preview=preview,
-                next_command=next_cmd,
-            )
-        )
-
-    return queue_items
-
-
-def evaluate_heuristic_precision(
-    repo_root: Path | None = None,
-    derived_root: Path | None = None,
-) -> PrecisionReport:
-    """Measure precision of heuristic label proposals against recorded human ground truth."""
-    root = (repo_root or Path.cwd()).resolve()
-    labels = load_trajectory_labels(repo_root=root, derived_root=derived_root)
-
-    human_labels = {item.trial_id: item for item in labels if item.proposed_by == "human"}
-    heuristic_labels = {item.trial_id: item for item in labels if item.proposed_by == "heuristic"}
-
-    # If no stored heuristic labels exist for the human trials, compute them on the fly
-    for trial_id, h_label in human_labels.items():
-        if trial_id not in heuristic_labels:
-            try:
-                target_ident = h_label.trial_name or trial_id
-                outline = outline_trajectory(target_ident, repo_root=root)
-                heuristic_labels[trial_id] = propose_heuristic_label(outline)
-            except Exception:
-                pass
-    matched = 0
-    exact = 0
-    disagreements: list[dict[str, Any]] = []
-
-    for trial_id, h_label in human_labels.items():
-        if trial_id in heuristic_labels:
-            matched += 1
-            prop = heuristic_labels[trial_id]
-            if h_label.taxonomy == prop.taxonomy:
-                exact += 1
-            else:
-                disagreements.append(
-                    {
-                        "trial_id": trial_id,
-                        "task_name": h_label.task_name,
-                        "human_taxonomy": h_label.taxonomy,
-                        "human_note": h_label.note,
-                        "heuristic_taxonomy": prop.taxonomy,
-                        "heuristic_note": prop.note,
-                    }
-                )
-
-    precision = round(exact / matched, 4) if matched > 0 else 0.0
-
-    return PrecisionReport(
-        human_label_count=len(human_labels),
-        heuristic_proposal_count=len(heuristic_labels),
-        matched_trials_count=matched,
-        exact_taxonomy_matches=exact,
-        precision=precision,
-        disagreements=tuple(disagreements),
-    )
-
-
-def label_trajectory_with_model(
-    outline: TrajectoryOutline,
-    *,
-    adapter: Any = None,
-    model: str | None = None,
-) -> TrajectoryLabel:
-    """Model-assisted labeling callable signature (deferred behind LOOP-SEAM cycle 2)."""
-    if adapter is None:
-        raise NotImplementedError(
-            "Model-assisted trajectory labeling is deferred behind LOOP-SEAM cycle 2 adapter."
-        )
-    # When SEAM adapter lands in cycle 2:
-    # response = adapter.complete(...)
-    raise NotImplementedError("LOOP-SEAM cycle 2 wiring not yet initialized")

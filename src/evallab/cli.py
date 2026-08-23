@@ -67,11 +67,17 @@ from evallab.gc import (
     nightly_gc_plan,
     run_gc,
 )
+from evallab.labels import (
+    evaluate_heuristic_precision,
+    label_trajectory,
+    select_review_queue,
+)
 from evallab.lineage import lineage_to_dict, render_lineage_tree, resolve_lineage
 from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import (
     DirectoryQueue,
+    DispatchCapacity,
     Executor,
     lab_threshold_reached,
     load_policy,
@@ -114,14 +120,7 @@ from evallab.tracing import (
     trace_completed_jobs,
     trace_path,
 )
-from evallab.traj import (
-    evaluate_heuristic_precision,
-    label_trajectory,
-    outline_trajectory,
-    project_trajectory_features,
-    render_outline,
-    select_review_queue,
-)
+from evallab.traj import outline_trajectory, project_trajectory_features, render_outline
 
 
 def repo_root() -> Path:
@@ -426,10 +425,25 @@ def _tick_command(
             )
         )
     )
+    agent_caps: dict[str, int] = {}
+    for raw in args.agent_capacity:
+        agent, separator, value = raw.partition("=")
+        if not separator or not agent or not value.isdigit() or int(value) < 1:
+            print(f"invalid --agent-capacity value: {raw!r}", file=sys.stderr)
+            return 2
+        agent_caps[agent] = int(value)
+    capacity = None
+    if args.max_specs is not None or args.max_active_trials is not None or agent_caps:
+        capacity = DispatchCapacity(
+            max_specs_per_tick=args.max_specs,
+            max_active_trials=args.max_active_trials,
+            per_agent_active_trials=agent_caps or None,
+        )
     executor = Executor.from_repo(
         root,
         parallel=getattr(args, "parallel", 1),
         progress=print,
+        capacity=capacity,
     )
     result = GuardedTick(
         doctor=HeadlessDoctor(root, executor=executor),
@@ -1090,8 +1104,26 @@ def _analyze_worker_run_one_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     from evallab.analysis_worker import default_worker
+    from evallab.facts import CodexExecAnalyzer
 
-    worker = default_worker(root)
+    adapter_factory = None
+    if args.adapter == "codex-exec":
+        if args.authorization is None:
+            print("error: --authorization is required for codex-exec", file=sys.stderr)
+            return 2
+        authorization_path = _resolve(root, args.authorization)
+        scratch_root = _resolve(root, args.scratch_dir)
+
+        def adapter_factory(job, trial, request):
+            return CodexExecAnalyzer(
+                repo_root=root,
+                trial=trial,
+                model=request.model,
+                authorization_path=authorization_path,
+                scratch_dir=scratch_root / request.request_id,
+            )
+
+    worker = default_worker(root, adapter_factory=adapter_factory)
     transition = worker.run_one(args.request_id)
     print(json.dumps({"state": transition.state, "reason": transition.reason}))
     return 0 if transition.state == "completed" else 1
@@ -1393,6 +1425,137 @@ def _behavior_command(
     return 0
 
 
+def _evidence_archive_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.evidence_store import archive_evidence
+
+    source = _resolve(root, args.source)
+    archive = archive_evidence(
+        source,
+        _resolve(root, args.store),
+        record_id=args.record_id or source.name,
+        kind=args.kind,
+    )
+    payload = {
+        "record_id": archive.record_id,
+        "kind": archive.kind,
+        "uri": archive.uri,
+        "content_digest": archive.content_digest,
+        "archive_digest": archive.archive_digest,
+        "blob_path": str(archive.blob_path),
+        "manifest_path": str(archive.manifest_path),
+        "file_count": archive.file_count,
+        "uncompressed_bytes": archive.uncompressed_bytes,
+    }
+    print(json.dumps(payload, indent=2) if args.json else archive.uri)
+    return 0
+
+
+def _evidence_restore_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.evidence_store import restore_evidence
+
+    destination = restore_evidence(
+        _resolve(root, args.store),
+        args.uri,
+        _resolve(root, args.destination),
+    )
+    print(destination)
+    return 0
+
+
+def _tasks_import_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_import import import_task_batch
+
+    report = import_task_batch(
+        _resolve(root, args.source),
+        _resolve(root, args.destination),
+        _resolve(root, args.ledger),
+        limit=args.limit,
+    )
+    payload = {
+        "discovered": report.discovered,
+        "imported": report.imported,
+        "skipped": report.skipped,
+        "failed": report.failed,
+        "items": [
+            {
+                "source": str(item.source),
+                "source_digest": item.source_digest,
+                "destination": str(item.destination) if item.destination else None,
+                "status": item.status,
+                "reason": item.reason,
+            }
+            for item in report.items
+        ],
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            f"tasks: {report.discovered} discovered, {report.imported} imported, "
+            f"{report.skipped} resumed, {report.failed} failed"
+        )
+    return 1 if report.failed else 0
+
+
+def _ladder_validate_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import generate_grid, load_grid_spec
+
+    try:
+        grid_spec = load_grid_spec(_resolve(root, args.grid_spec))
+        result = generate_grid(
+            grid_spec,
+            repo_root=root,
+            dry_run=True,
+            check_quota_headroom=False,
+        )
+    except Exception as exc:
+        if args.json:
+            print(json.dumps({"valid": False, "errors": [str(exc)]}, indent=2))
+        else:
+            print(f"invalid: {exc}")
+        return 1
+
+    remaining = result.total_specs
+    deduped = len(result.deduped)
+    skipped = len(result.skipped)
+    declared = remaining + deduped + skipped
+    payload = {
+        "valid": True,
+        "grid_id": result.grid_id,
+        "errors": [],
+        "declared": declared,
+        "remaining": remaining,
+        "deduped": deduped,
+        "skipped": skipped,
+        "declared_spec_count": declared,
+        "remaining_spec_count": remaining,
+        "deduped_spec_count": deduped,
+        "skipped_spec_count": skipped,
+        "spec_count": remaining,
+        "trial_count": result.total_trials,
+        "shard_count": len(result.shards),
+        "normalized_spec": grid_spec.model_dump(mode="json"),
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            f"valid: {result.grid_id} "
+            f"({declared} declared, {remaining} remaining, {deduped} deduped, "
+            f"{skipped} skipped; {result.total_trials} remaining trials, "
+            f"{len(result.shards)} shards)"
+        )
+    return 0
+
+
 def _ladder_generate_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1421,6 +1584,18 @@ def _ladder_generate_command(
             "total_trials": result.total_trials,
             "total_estimated_cost_usd": result.total_estimated_cost_usd,
             "specs": [s.model_dump(mode="json") for s in result.specs],
+            "shards": [
+                {
+                    "shard_id": shard.shard_id,
+                    "index": shard.index,
+                    "spec_names": list(shard.spec_names),
+                    "trial_count": shard.trial_count,
+                    "estimated_cost_usd": shard.estimated_cost_usd,
+                    "sha256": shard.sha256,
+                    "path": str(shard.path) if shard.path else None,
+                }
+                for shard in result.shards
+            ],
             "skipped": [
                 {
                     "name": sk.name,
@@ -1429,6 +1604,8 @@ def _ladder_generate_command(
                     "preamble": sk.preamble,
                     "attempts": sk.attempts,
                     "reason": sk.reason,
+                    "arm_id": sk.arm_id,
+                    "factor_values": sk.factor_values,
                 }
                 for sk in result.skipped
             ],
@@ -1440,6 +1617,8 @@ def _ladder_generate_command(
                     "preamble": d.preamble,
                     "attempts": d.attempts,
                     "reason": d.reason,
+                    "arm_id": d.arm_id,
+                    "factor_values": d.factor_values,
                 }
                 for d in result.deduped
             ],
@@ -1956,9 +2135,9 @@ def _traj_label_command(
     try:
         label = label_trajectory(
             args.trial,
-            taxonomy=args.taxonomy,
+            label=args.label,
             note=args.note,
-            proposed_by=args.proposed_by,
+            provenance=args.provenance,
             author=args.author,
             repo_root=root,
         )
@@ -1966,12 +2145,12 @@ def _traj_label_command(
         print(f"error: {exc}", file=sys.stderr)
         return 1
     if getattr(args, "json", False):
-        print(json.dumps(label.to_dict(), indent=2))
+        print(label.model_dump_json(indent=2))
     else:
-        note_str = f" (note: {label.note})" if label.note else ""
+        note_str = f" (note: {label.rationale})" if label.rationale else ""
         print(
-            f"Recorded label: {label.trial_name} -> {label.taxonomy} "
-            f"by {label.author} [{label.proposed_by}]{note_str}"
+            f"Recorded label: {label.trial_name} -> {label.label} "
+            f"by {label.author} [{label.provenance}]{note_str}"
         )
     return 0
 
@@ -2011,8 +2190,8 @@ def _traj_report_command(
             for d in report.disagreements:
                 t_name = d["task_name"]
                 t_id = d["trial_id"]
-                h_tax = d["human_taxonomy"]
-                he_tax = d["heuristic_taxonomy"]
+                h_tax = d["human_label"]
+                he_tax = d["heuristic_label"]
                 print(f"  - {t_name} ({t_id}): human={h_tax!r} vs heuristic={he_tax!r}")
     return 0
 
@@ -2117,6 +2296,23 @@ def parser() -> argparse.ArgumentParser:
         default=1,
         metavar="N",
         help="Bounded parallel dispatch worker count (default: 1)",
+    )
+    tick.add_argument(
+        "--max-specs",
+        type=int,
+        help="Maximum specs admitted to this dispatch batch",
+    )
+    tick.add_argument(
+        "--max-active-trials",
+        type=int,
+        help="Maximum sum of Harbor-internal concurrent trial slots",
+    )
+    tick.add_argument(
+        "--agent-capacity",
+        action="append",
+        default=[],
+        metavar="AGENT=N",
+        help="Per-agent concurrent trial slots (repeatable)",
     )
     tick.set_defaults(func=_tick_command)
 
@@ -2364,6 +2560,22 @@ def parser() -> argparse.ArgumentParser:
         "worker-run-one", help="Run ONE request through normal admission (never self-approves)"
     )
     analyze_worker_run.add_argument("request_id")
+    analyze_worker_run.add_argument(
+        "--adapter",
+        choices=("none", "codex-exec"),
+        default="none",
+        help="Explicit guarded model adapter; default performs no model call",
+    )
+    analyze_worker_run.add_argument(
+        "--authorization",
+        type=Path,
+        help="Queue authorization JSON required by codex-exec",
+    )
+    analyze_worker_run.add_argument(
+        "--scratch-dir",
+        type=Path,
+        default=Path("derived/analyses/scratch"),
+    )
     analyze_worker_run.set_defaults(func=_analyze_worker_run_one_command)
 
     analyze_worker_resolve = analyze_commands.add_parser(
@@ -2564,10 +2776,58 @@ def parser() -> argparse.ArgumentParser:
     )
     behavior.set_defaults(func=_behavior_command)
 
+    evidence_parser = commands.add_parser(
+        "evidence", help="Archive and restore content-addressed raw evidence"
+    )
+    evidence_commands = evidence_parser.add_subparsers(
+        dest="evidence_command", required=True
+    )
+    evidence_archive = evidence_commands.add_parser("archive")
+    evidence_archive.add_argument("source", type=Path)
+    evidence_archive.add_argument("--store", type=Path, required=True)
+    evidence_archive.add_argument("--record-id")
+    evidence_archive.add_argument("--kind", default="job")
+    evidence_archive.add_argument("--json", action="store_true")
+    evidence_archive.set_defaults(func=_evidence_archive_command)
+    evidence_restore = evidence_commands.add_parser("restore")
+    evidence_restore.add_argument("uri")
+    evidence_restore.add_argument("--store", type=Path, required=True)
+    evidence_restore.add_argument("--destination", type=Path, required=True)
+    evidence_restore.set_defaults(func=_evidence_restore_command)
+
+    tasks_parser = commands.add_parser(
+        "tasks", help="Import and manage task corpora"
+    )
+    tasks_commands = tasks_parser.add_subparsers(dest="tasks_command", required=True)
+    tasks_import = tasks_commands.add_parser(
+        "import", help="Restartable batch import of local Harbor task packages"
+    )
+    tasks_import.add_argument("source", type=Path)
+    tasks_import.add_argument(
+        "--destination",
+        type=Path,
+        default=Path("library/tasks/imported"),
+    )
+    tasks_import.add_argument(
+        "--ledger",
+        type=Path,
+        default=Path("derived/imports/tasks.sqlite3"),
+    )
+    tasks_import.add_argument("--limit", type=int)
+    tasks_import.add_argument("--json", action="store_true")
+    tasks_import.set_defaults(func=_tasks_import_command)
+
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"
     )
     ladder_commands = ladder.add_subparsers(dest="ladder_command", required=True)
+    ladder_validate = ladder_commands.add_parser(
+        "validate", help="Validate and cardinality-check a plan without writing or submitting"
+    )
+    ladder_validate.add_argument("grid_spec", type=Path)
+    ladder_validate.add_argument("--json", action="store_true")
+    ladder_validate.set_defaults(func=_ladder_validate_command)
+
     ladder_generate = ladder_commands.add_parser(
         "generate", help="Expand a grid specification into ExperimentSpec files"
     )
@@ -2988,15 +3248,13 @@ def parser() -> argparse.ArgumentParser:
     traj_queue.set_defaults(func=_traj_queue_command)
 
     traj_label = traj_commands.add_parser(
-        "label", help="Persist ground-truth or heuristic trajectory label"
+        "label", help="Persist a human or heuristic trajectory behavior label"
     )
     traj_label.add_argument("trial", help="Trial identifier or directory")
-    traj_label.add_argument(
-        "taxonomy", help="Taxonomy category (e.g. tool_use, planning, loop, etc.)"
-    )
+    traj_label.add_argument("label", help="Behavior label (e.g. tool_use_loop)")
     traj_label.add_argument("--note", help="Optional label explanation or observation")
     traj_label.add_argument(
-        "--proposed-by", default="human", choices=["human", "heuristic", "model"]
+        "--provenance", default="human", choices=["human", "heuristic"]
     )
     traj_label.add_argument("--author", default="peter", help="Author of the label")
     traj_label.add_argument("--json", action="store_true", help="Emit label as JSON")

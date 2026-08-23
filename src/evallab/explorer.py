@@ -47,14 +47,10 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from evallab.labels import ReviewQueueItem, select_review_queue
 from evallab.registry import TaskRegistry
 from evallab.schemas import ANALYSIS_SIDECAR_FILENAME, TrialAnalysisSidecar
-from evallab.traj import (
-    ReviewQueueItem,
-    TrajectoryOutline,
-    outline_trajectory,
-    select_review_queue,
-)
+from evallab.traj import TrajectoryOutline, outline_trajectory
 
 Provenance = Literal["observed", "derived", "draft", "withheld", "unavailable"]
 

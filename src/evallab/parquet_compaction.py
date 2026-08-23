@@ -26,6 +26,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.atif import PARQUET_SCHEMAS
+from evallab.event_mart import EVENT_MART_SCHEMAS
 from evallab.facts import FACT_SCHEMAS
 from evallab.paths import derived_root_from_environment
 
@@ -36,7 +37,11 @@ COMPACT_DIRNAME = "compact"
 # Schemas & Table Metadata
 # --------------------------------------------------------------------------- #
 
-TABLE_SCHEMAS: dict[str, pa.Schema] = {**PARQUET_SCHEMAS, **FACT_SCHEMAS}
+TABLE_SCHEMAS: dict[str, pa.Schema] = {
+    **PARQUET_SCHEMAS,
+    **FACT_SCHEMAS,
+    **EVENT_MART_SCHEMAS,
+}
 
 PROJECTED_TABLE_NAMES: tuple[str, ...] = (
     "jobs",
@@ -48,6 +53,12 @@ PROJECTED_TABLE_NAMES: tuple[str, ...] = (
     "reward_facts",
     "artifact_facts",
     "tool_usage",
+    "state_changes",
+    "trajectory_events",
+    "agent_actions",
+    "llm_calls",
+    "trajectory_phases",
+    "action_effects",
 )
 
 TRIAL_TABLE_NAMES: tuple[str, ...] = (
@@ -59,6 +70,12 @@ TRIAL_TABLE_NAMES: tuple[str, ...] = (
     "reward_facts",
     "artifact_facts",
     "tool_usage",
+    "state_changes",
+    "trajectory_events",
+    "agent_actions",
+    "llm_calls",
+    "trajectory_phases",
+    "action_effects",
 )
 
 PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
@@ -71,6 +88,12 @@ PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "reward_facts": ("job_id", "trial_id", "reward_name"),
     "artifact_facts": ("job_id", "trial_id", "source"),
     "tool_usage": ("job_id", "trial_id", "function_name"),
+    "state_changes": ("job_id", "trial_id", "path"),
+    "trajectory_events": ("job_id", "trial_id", "document_id", "step_id", "event_id"),
+    "agent_actions": ("job_id", "trial_id", "document_id", "step_id", "action_id"),
+    "llm_calls": ("job_id", "trial_id", "document_id", "step_id", "call_id"),
+    "trajectory_phases": ("job_id", "trial_id", "phase_id"),
+    "action_effects": ("job_id", "trial_id", "effect_id"),
 }
 
 
@@ -442,13 +465,20 @@ def deduplicate_and_sort(table: pa.Table, table_name: str) -> pa.Table:
 
     primary_keys = PRIMARY_KEYS[table_name]
     pk_cols = ", ".join(primary_keys)
+    # Conflicting rows with the same key can arrive from an existing compact file
+    # and a regenerated source partition. Select a canonical row rather than the
+    # first input row so retention is independent of batch collection order.
+    canonical_cols = ", ".join(f'"{name}"' for name in schema.names)
 
     con = duckdb.connect(database=":memory:")
     con.register("tbl", table)
     query = f"""
     SELECT *
     FROM tbl
-    QUALIFY row_number() OVER (PARTITION BY {pk_cols} ORDER BY {pk_cols}) = 1
+    QUALIFY row_number() OVER (
+        PARTITION BY {pk_cols}
+        ORDER BY {canonical_cols}
+    ) = 1
     ORDER BY {pk_cols}
     """
     res = con.execute(query).to_arrow_table()

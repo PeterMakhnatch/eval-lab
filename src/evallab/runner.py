@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -143,9 +144,7 @@ def subscription_environment(
     agents authenticate through their auth file or Keychain integration.
     """
     source = os.environ if environment is None else environment
-    sanitized = {
-        key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source
-    }
+    sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
     # These switches are routing metadata, not credentials. Force Harbor's
     # installed agents onto subscription authentication even when a caller did
     # not source the optional interactive helper. API-key variables are never
@@ -208,8 +207,7 @@ def _is_harbor_container(
     working_dir = labels.get(HARBOR_COMPOSE_WORKDIR_LABEL, "")
     project = labels.get(HARBOR_COMPOSE_PROJECT_LABEL, "")
     project_matches = project_prefixes is None or any(
-        project == prefix or project.startswith(prefix + "__")
-        for prefix in project_prefixes
+        project == prefix or project.startswith(prefix + "__") for prefix in project_prefixes
     )
     return bool(
         project
@@ -262,9 +260,7 @@ def harbor_container_ids(
                 env=environment,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise RuntimeError(
-                "cannot inspect Docker for Harbor-labeled containers"
-            ) from exc
+            raise RuntimeError("cannot inspect Docker for Harbor-labeled containers") from exc
         if inspected.returncode != 0:
             continue
         try:
@@ -429,8 +425,11 @@ LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
 }
 
 HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
+    "codex": "evallab.harbor_codex:PinnedCodex",
     "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
 }
+
+HARBOR_STATE_JOURNAL_PLUGIN = "evallab.harbor_state_journal:StateJournalPlugin"
 
 
 def resolve_harbor_agent(agent: str) -> str:
@@ -468,6 +467,7 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
+    command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])
@@ -537,9 +537,7 @@ def _active_trial_directories(job_dir: Path) -> tuple[Path, ...]:
     return tuple(
         candidate
         for candidate in job_dir.iterdir()
-        if candidate.is_dir()
-        and "__" in candidate.name
-        and not _trial_is_terminal(candidate)
+        if candidate.is_dir() and "__" in candidate.name and not _trial_is_terminal(candidate)
     )
 
 
@@ -557,7 +555,8 @@ def run_harbor_process(
     """Run Harbor under an aggregate fail-safe and a per-trial watchdog."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     runtime_environment = subscription_environment()
-    if any(import_path in command for import_path in HARBOR_AGENT_IMPORT_PATHS.values()):
+    repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
+    if any(import_path in command for import_path in repo_imports):
         source_root = cwd / "src"
         if source_root.is_dir():
             inherited_pythonpath = os.environ.get("PYTHONPATH")
@@ -603,9 +602,7 @@ def run_harbor_process(
             if timed_out_trial is not None or now - started >= timeout_seconds:
                 _terminate_process_group(process)
                 return HarborProcessResult(
-                    returncode=(
-                        process.returncode if process.returncode is not None else -1
-                    ),
+                    returncode=(process.returncode if process.returncode is not None else -1),
                     timed_out=True,
                     log_path=log_path,
                     timed_out_trial=timed_out_trial,
@@ -647,6 +644,7 @@ def _executor_log_path(request: RunRequest) -> Path:
 def executor_state_path(request: RunRequest) -> Path:
     return request.jobs_dir / ".executor" / f"{request.name}.state.json"
 
+
 def _write_executor_state(
     request: RunRequest,
     *,
@@ -678,6 +676,7 @@ def _write_executor_state(
     temporary = path.with_name(f".{path.name}.tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     temporary.replace(path)
+
 
 def _harbor_project_prefixes(job_dir: Path) -> frozenset[str]:
     if not job_dir.is_dir():
@@ -806,7 +805,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     _write_executor_state(
         request,
         started_at=started,
-        status="failed" if process.timed_out or process.returncode != 0 else "completed",
+        status="failed" if process.timed_out or process.returncode != 0 else "running",
         log_path=executor_log,
         finished_at=finished,
         process=process,
@@ -828,9 +827,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             else f"Harbor exceeded aggregate fail-safe {request.job_timeout_seconds}s"
         )
         cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
-        raise TrialTimeoutFailure(
-            f"{scope}; inspect {executor_log}{cleanup_detail}"
-        )
+        raise TrialTimeoutFailure(f"{scope}; inspect {executor_log}{cleanup_detail}")
     transient_reason = _transient_reason_from_job(job_dir)
     if process.returncode != 0:
         cleanup_failure = _cleanup_failure(request, containers_before, job_dir)
@@ -843,7 +840,15 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         raise ExecutionFailure(
             f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
         )
-    load_job(job_dir)
+    job = load_job(job_dir)
+    _write_executor_state(
+        request,
+        started_at=started,
+        status="failed" if transient_reason is not None else "completed",
+        log_path=executor_log,
+        finished_at=finished,
+        process=process,
+    )
     if transient_reason is not None:
         cleanup_failure = _cleanup_failure(request, containers_before, job_dir)
         cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
@@ -851,6 +856,22 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             transient_reason,
             message=transient_reason + cleanup_detail,
         )
+    evidence_root = os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
+    if evidence_root:
+        try:
+            from evallab.evidence_store import archive_evidence
+
+            archive_evidence(
+                job_dir,
+                Path(evidence_root),
+                record_id=str(job.id),
+                kind="job",
+            )
+        except Exception as exc:
+            with suppress(Exception):
+                (job_dir / "evidence-archive-error.txt").write_text(
+                    f"{type(exc).__name__}: {exc}\n"
+                )
     return job_dir
 
 
@@ -861,9 +882,7 @@ def load_matrix(path: Path) -> ExperimentMatrix:
         raise ValueError(f"Invalid experiment matrix {path}: {exc}") from exc
 
 
-def request_from_matrix(
-    matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: Path
-) -> RunRequest:
+def request_from_matrix(matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: Path) -> RunRequest:
     return RunRequest(
         task=(repo_root / matrix.task).resolve(),
         agent=run.agent,
@@ -944,9 +963,7 @@ def preflight_request(
             profile,
             home=home or Path.home(),
             security_runner=_security_status,
-            keychain_account=env.get(
-                "HARBOR_CLAUDE_KEYCHAIN_ACCOUNT", env.get("USER", "")
-            ),
+            keychain_account=env.get("HARBOR_CLAUDE_KEYCHAIN_ACCOUNT", env.get("USER", "")),
         )
     return profiles_module.preflight(profile, probe)
 

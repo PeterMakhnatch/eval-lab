@@ -52,7 +52,11 @@ from evallab import facts
 from evallab.facts import AnalyzerCallable, ingest_analysis_sidecar, run_trial_analysis
 from evallab.profiles import AgentProfile, PreflightDecision, ProbeFn, preflight
 from evallab.results import JobRecord, TrialRecord, load_jobs
-from evallab.schemas import StandingApprovalsPolicy, TrialAnalysisSidecar
+from evallab.schemas import (
+    JudgeCalibrationRecord,
+    StandingApprovalsPolicy,
+    TrialAnalysisSidecar,
+)
 
 State = Literal["pending", "admitted", "running", "completed", "deferred", "quarantined"]
 
@@ -138,6 +142,12 @@ class AnalysisRequest(BaseModel):
         payload.pop("request_id")
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+AnalyzerFactory = Callable[
+    [JobRecord, TrialRecord, AnalysisRequest],
+    AnalyzerCallable,
+]
+
+
 
 
 @dataclass(frozen=True)
@@ -669,6 +679,7 @@ class AnalysisWorker:
     adapter: AnalyzerCallable
     prompt_path: Path
     rubric_path: Path
+    adapter_factory: AnalyzerFactory | None = None
     indexer: IndexFn | None = None
     clock: Callable[[], datetime] = _utc_now
 
@@ -763,15 +774,24 @@ class AnalysisWorker:
             if match is None:
                 self.store.append(request_id, "quarantined", "trial_vanished")
                 return self.store.transitions(request_id)[-1]
-            if self.adapter is _no_adapter:
+            if self.adapter is _no_adapter and self.adapter_factory is None:
                 # Provably local: no adapter can reach a provider, so this is
-                # a misconfiguration and not a possibly-paid attempt. Recorded
-                # without arming the invocation journal, and after admission so
-                # a policy or evidence verdict keeps precedence over it.
+                # a misconfiguration and not a possibly-paid attempt.
                 self.store.append(request_id, "deferred", "adapter_not_wired")
                 return self.store.transitions(request_id)[-1]
             self.store.append(request_id, "admitted", None)
             job, trial = match
+            analyzer = self.adapter
+            if self.adapter_factory is not None:
+                try:
+                    analyzer = self.adapter_factory(job, trial, request)
+                except Exception as exc:
+                    self.store.append(
+                        request_id,
+                        "deferred",
+                        f"adapter_configuration_error:{type(exc).__name__}",
+                    )
+                    return self.store.transitions(request_id)[-1]
             attempt_id = self.store.begin_invocation(
                 request_id,
                 owner_token=lease.owner_token,
@@ -784,7 +804,7 @@ class AnalysisWorker:
             _durable_mkdir(sidecar_path.parent)
             written_path, _sidecar = run_trial_analysis(
                 job, trial,
-                analyzer=self.adapter,
+                analyzer=analyzer,
                 repo_root=self.repo_root,
                 destination_root=sidecar_path.parent,
                 prompt_path=self.prompt_path,
@@ -964,15 +984,39 @@ class AnalysisWorker:
 # ---------------------------------------------------------------------------
 
 
-def default_worker(root: Path, *, adapter: AnalyzerCallable | None = None) -> AnalysisWorker:
+def _has_calibrated_model(
+    root: Path, model: str | None, rubric_digest: str | None
+) -> bool:
+    if model is None or rubric_digest is None:
+        return False
+    records_root = root / "research/calibration/records"
+    if not records_root.is_dir():
+        return False
+    for path in sorted(records_root.rglob("*.json")):
+        try:
+            record = JudgeCalibrationRecord.model_validate_json(path.read_text())
+        except Exception:
+            continue
+        if (
+            record.status == "measured"
+            and record.meets_floor
+            and record.judge_model == model
+            and record.rubric_digest == rubric_digest
+        ):
+            return True
+    return False
+
+
+def default_worker(
+    root: Path,
+    *,
+    adapter: AnalyzerCallable | None = None,
+    adapter_factory: AnalyzerFactory | None = None,
+) -> AnalysisWorker:
     """Compose the worker from repository state with fail-closed defaults.
 
-    - profile: the proven codex profile from the M003 registry;
-    - probe: the real auth-file probe through injected seams;
-    - calibrated_judges_only: fails closed until a measured calibration
-      record meets the floor (JUDGE's current record does not) — real model
-      calls therefore stay deferred, by design, until calibration lands;
-    - adapter: absent by default; staging/plan/status never need one.
+    A model call requires both an explicitly wired adapter and a measured
+    calibration record for the exact configured model.
     """
     import yaml
 
@@ -999,7 +1043,9 @@ def default_worker(root: Path, *, adapter: AnalyzerCallable | None = None) -> An
         requirement_checks={
             "schema_valid": lambda: True,   # enforced structurally by the schema
             "dedup_pass": lambda: True,     # enforced structurally by identity
-            "calibrated_judges_only": lambda: False,  # fail closed: no measured pass
+            "calibrated_judges_only": lambda: _has_calibrated_model(
+                root, profile.model, _sha256_file(root / "research/analysis/stage5-rubric.json")
+            ),
         },
     )
     return AnalysisWorker(
@@ -1008,6 +1054,7 @@ def default_worker(root: Path, *, adapter: AnalyzerCallable | None = None) -> An
         context=context,
         adapter=adapter or _no_adapter,
         prompt_path=root / "research/analysis/stage5-prompt.md",
+        adapter_factory=adapter_factory,
         rubric_path=root / "research/analysis/stage5-rubric.json",
         indexer=_default_indexer(root),
     )
@@ -1022,11 +1069,20 @@ def _default_indexer(root: Path) -> IndexFn:
 
     def index(sidecar_path: Path) -> None:
         from evallab import database
+        from evallab.labels import label_from_analysis_sidecar, persist_behavior_label
+        from evallab.paths import derived_root_from_environment
         from evallab.runner import database_url_from_environment
 
         url = database_url_from_environment()
         database.initialize(url)
-        ingest_analysis_sidecar(url, sidecar_path, root=root)
+        sidecar = ingest_analysis_sidecar(url, sidecar_path, root=root)
+        if sidecar is None or sidecar.validation_status != "valid":
+            return
+        persist_behavior_label(
+            label_from_analysis_sidecar(sidecar),
+            repo_root=root,
+            derived_root=derived_root_from_environment(root) / "behavior_labels",
+        )
 
     return index
 

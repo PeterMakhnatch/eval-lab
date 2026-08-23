@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import date, datetime
 from typing import Any, Literal, cast, get_args
@@ -597,6 +598,45 @@ class TrialAnalysisSidecar(ContractModel):
             raise ValueError("valid analyses cannot carry validation errors")
         if self.validation_status == "invalid" and not self.validation_errors:
             raise ValueError("invalid analyses require validation errors")
+        return self
+
+
+class BehaviorLabel(ContractModel):
+    """Versioned semantic or mechanical label for any agent-behavior target."""
+
+    schema_version: Literal[1] = 1
+    label_id: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    target_type: Literal["trajectory", "trial", "event", "action"]
+    target_id: str = Field(min_length=1)
+    job_id: str | None = None
+    trial_id: str
+    trial_name: str
+    task_name: str
+    taxonomy: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    rationale: str | None = None
+    provenance: Literal["human", "heuristic", "model"]
+    author: str = Field(min_length=1)
+    created_at: datetime
+    confidence: Literal["low", "medium", "high"] | None = None
+    evidence: list[AnalysisEvidenceCitation] = Field(default_factory=list)
+    source_sha256: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    analysis_id: UUID | None = None
+    model_provenance: AnalysisProvenance | None = None
+
+    @model_validator(mode="after")
+    def provenance_fields_are_consistent(self) -> BehaviorLabel:
+        if self.provenance == "model":
+            if self.model_provenance is None:
+                raise ValueError("model labels require model_provenance")
+            if self.confidence is None:
+                raise ValueError("model labels require confidence")
+        elif self.model_provenance is not None:
+            raise ValueError("only model labels may carry model_provenance")
+        if self.target_type in {"trajectory", "trial"} and self.target_id != self.trial_id:
+            raise ValueError("trajectory/trial label target_id must equal trial_id")
         return self
 
 
@@ -1272,6 +1312,45 @@ class AgentSpec(ContractModel):
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"Control agent {self.agent!r} must not declare a model")
         return self
+FactorValue = str | int | float | bool
+
+
+class ExperimentArm(ContractModel):
+    """Named runnable treatment with fixed agent and factor coordinates."""
+
+    arm_id: str = Field(
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=80
+    )
+    agent: AgentSpec
+    preamble: str = "none"
+    factor_overrides: dict[str, FactorValue] = Field(default_factory=dict)
+
+    @field_validator("agent", mode="before")
+    @classmethod
+    def _normalize_agent(cls, value: Any) -> AgentSpec:
+        if isinstance(value, AgentSpec):
+            return value
+        if isinstance(value, str):
+            from evallab.profiles import builtin_profiles
+
+            profiles = builtin_profiles()
+            if value in profiles:
+                profile = profiles[value]
+                return AgentSpec(agent=profile.adapter, model=profile.model)
+            return AgentSpec(agent=value)
+        return AgentSpec.model_validate(value)
+
+    @field_validator("factor_overrides")
+    @classmethod
+    def _factor_names_are_identifiers(
+        cls, values: dict[str, FactorValue]
+    ) -> dict[str, FactorValue]:
+        for name in values:
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+                raise ValueError(f"invalid factor name {name!r}")
+        return values
+
+
 
 
 class ProviderLimit(ContractModel):
@@ -1292,13 +1371,14 @@ class GridLimits(ContractModel):
 
 
 class GridAxes(ContractModel):
-    """Experimental axes for Cartesian grid expansion: tasks x agents x preambles x k."""
+    """Tasks crossed with named arms or legacy agent/preamble axes and factors."""
 
     task_refs: list[TaskSpec] = Field(min_length=1)
-    agents: list[AgentSpec] = Field(min_length=1)
+    agents: list[AgentSpec] = Field(default_factory=list)
+    arms: list[ExperimentArm] = Field(default_factory=list)
     preamble: list[str] = Field(default_factory=lambda: ["none"])
+    factors: dict[str, list[FactorValue]] = Field(default_factory=dict)
     k: list[int] = Field(default_factory=lambda: [1])
-
     @field_validator("task_refs", mode="before")
     @classmethod
     def _normalize_task_refs(cls, value: Any) -> list[TaskSpec]:
@@ -1321,10 +1401,10 @@ class GridAxes(ContractModel):
     @field_validator("agents", mode="before")
     @classmethod
     def _normalize_agents(cls, value: Any) -> list[AgentSpec]:
+        if value is None:
+            return []
         if isinstance(value, (str, dict, AgentSpec)):
             value = [value]
-        if not value:
-            raise ValueError("agents must not be empty")
         from evallab.profiles import builtin_profiles
 
         builtins = builtin_profiles()
@@ -1343,6 +1423,59 @@ class GridAxes(ContractModel):
             else:
                 raise ValueError(f"Invalid agent item: {v}")
         return res
+    @field_validator("arms", mode="before")
+    @classmethod
+    def _normalize_arms(cls, value: Any) -> list[ExperimentArm]:
+        if value is None:
+            return []
+        if isinstance(value, (dict, ExperimentArm)):
+            value = [value]
+        return [
+            item if isinstance(item, ExperimentArm) else ExperimentArm.model_validate(item)
+            for item in value
+        ]
+
+    @field_validator("factors")
+    @classmethod
+    def _validate_factors(
+        cls, values: dict[str, list[FactorValue]]
+    ) -> dict[str, list[FactorValue]]:
+        for name, levels in values.items():
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+                raise ValueError(f"invalid factor name {name!r}")
+            if not levels:
+                raise ValueError(f"factor {name!r} must declare at least one level")
+            encoded = [json.dumps(level, sort_keys=True) for level in levels]
+            if len(encoded) != len(set(encoded)):
+                raise ValueError(f"factor {name!r} contains duplicate levels")
+        return values
+
+    @model_validator(mode="after")
+    def _one_arm_surface(self) -> GridAxes:
+        if bool(self.agents) == bool(self.arms):
+            raise ValueError("axes must declare exactly one of agents or arms")
+        if self.arms and "preamble" in self.model_fields_set:
+            raise ValueError("axes.preamble cannot be declared when axes.arms is used")
+        arm_ids = [arm.arm_id for arm in self.arms]
+        if len(arm_ids) != len(set(arm_ids)):
+            raise ValueError("arm_id values must be unique")
+        for arm in self.arms:
+            for name, value in arm.factor_overrides.items():
+                if name not in self.factors:
+                    raise ValueError(
+                        f"arm {arm.arm_id!r} overrides undeclared factor {name!r}"
+                    )
+                encoded = json.dumps(value, sort_keys=True)
+                declared = {
+                    json.dumps(level, sort_keys=True) for level in self.factors[name]
+                }
+                if encoded not in declared:
+                    raise ValueError(
+                        f"arm {arm.arm_id!r} override for factor {name!r} "
+                        f"uses undeclared level {value!r}"
+                    )
+        return self
+
 
     @field_validator("preamble", mode="before")
     @classmethod
@@ -1394,6 +1527,7 @@ class GridSpec(ContractModel):
     est_cost_per_trial_usd: dict[str, float] | float = Field(default_factory=dict)
     limits: GridLimits = Field(default_factory=GridLimits)
     check_quota_headroom: bool = True
+    shard_size: int = Field(default=50, ge=1, le=1000)
     policy_rule: str | None = None
     requires: list[str] = Field(default_factory=list)
 
@@ -1442,6 +1576,43 @@ class GridSpec(ContractModel):
         self.agents = cast(list[str | AgentSpec], list(self.axes.agents))
         self.preambles = self.axes.preamble
         self.attempts = self.axes.k
+        declared_factors = {
+            name: {json.dumps(level, sort_keys=True) for level in levels}
+            for name, levels in self.axes.factors.items()
+        }
+        declared_arms = {arm.arm_id for arm in self.axes.arms}
+        for constraint in self.constraints:
+            for coordinate, raw_value in constraint.items():
+                values = (
+                    raw_value
+                    if isinstance(raw_value, (list, tuple, set))
+                    else [raw_value]
+                )
+                if coordinate.startswith("factor."):
+                    factor_name = coordinate.removeprefix("factor.")
+                    if factor_name not in declared_factors:
+                        raise ValueError(
+                            f"constraint references undeclared factor {factor_name!r}"
+                        )
+                    undeclared = [
+                        value
+                        for value in values
+                        if json.dumps(value, sort_keys=True)
+                        not in declared_factors[factor_name]
+                    ]
+                    if undeclared:
+                        raise ValueError(
+                            f"constraint for factor {factor_name!r} uses "
+                            f"undeclared levels {undeclared!r}"
+                        )
+                elif coordinate in {"arm", "arm_id", "arms"} and declared_arms:
+                    undeclared = [
+                        value for value in values if value not in declared_arms
+                    ]
+                    if undeclared:
+                        raise ValueError(
+                            f"constraint references undeclared arms {undeclared!r}"
+                        )
         if not self.name and not self.grid_id:
             raise ValueError("grid specification must declare either grid_id or name")
         if not self.grid_id and self.name:

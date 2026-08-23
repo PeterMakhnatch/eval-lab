@@ -89,6 +89,23 @@ def test_antigravity_routes_through_repo_owned_capture_and_keeps_harbor_models(
         "google/gemini-3.7-flash-high",
     }
 
+def test_codex_routes_through_repo_owned_pinned_adapter(tmp_path: Path) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="codex",
+        model="gpt-5.6-luna",
+        name="codex-pinned-test",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    command = build_command(request)
+
+    assert resolve_harbor_agent("codex") == "evallab.harbor_codex:PinnedCodex"
+    assert command[command.index("--agent") + 1] == "evallab.harbor_codex:PinnedCodex"
+    assert command[command.index("--model") + 1] == "gpt-5.6-luna"
+
+
 def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> None:
     source_root = tmp_path / "src"
     source_root.mkdir()
@@ -475,6 +492,64 @@ def test_successful_harbor_process_with_transient_trial_is_retried(
         run_experiment(request, repo_root=tmp_path)
 
     assert cleaned == [request.jobs_dir / request.name]
+    state = json.loads(runner_module.executor_state_path(request).read_text())
+    assert state["status"] == "failed"
+
+
+@pytest.mark.parametrize("note_write_fails", [False, True])
+def test_completed_run_survives_evidence_archive_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    note_write_fails: bool,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="completed-with-archive-failure",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    def completed(*_args, **kwargs) -> HarborProcessResult:
+        kwargs["job_dir"].mkdir(parents=True)
+        return HarborProcessResult(
+            returncode=0,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    def archive_fails(*_args, **_kwargs) -> None:
+        raise OSError("evidence store unavailable")
+
+    original_write_text = Path.write_text
+
+    def write_text(path: Path, data: str, *args, **kwargs) -> int:
+        if note_write_fails and path.name == "evidence-archive-error.txt":
+            raise OSError("job directory became read-only")
+        return original_write_text(path, data, *args, **kwargs)
+
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence"))
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed)
+    monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        runner_module,
+        "load_job",
+        lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
+    )
+    monkeypatch.setattr("evallab.evidence_store.archive_evidence", archive_fails)
+    monkeypatch.setattr(Path, "write_text", write_text)
+
+    job_dir = run_experiment(request, repo_root=tmp_path)
+
+    assert job_dir == request.jobs_dir / request.name
+    state = json.loads(runner_module.executor_state_path(request).read_text())
+    assert state["status"] == "completed"
+    note = job_dir / "evidence-archive-error.txt"
+    if note_write_fails:
+        assert not note.exists()
+    else:
+        assert note.read_text() == "OSError: evidence store unavailable\n"
 
 
 def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:

@@ -4,58 +4,73 @@
       "additionalProperties": false,
       "properties": {
         "evidence_digest": {
-          "anyOf": [
-            {
-              "pattern": "^sha256:[0-9a-f]{64}$",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Evidence Digest"
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Evidence Digest",
+          "type": "string"
         },
         "evidence_path": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Evidence Path"
+          "minLength": 1,
+          "title": "Evidence Path",
+          "type": "string"
+        },
+        "harbor_task_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Harbor Task Digest",
+          "type": "string"
         },
         "job_name": {
           "minLength": 1,
           "title": "Job Name",
           "type": "string"
         },
+        "lock_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Lock Digest",
+          "type": "string"
+        },
         "observed_at": {
-          "anyOf": [
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Observed At"
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
         },
         "reward": {
           "maximum": 1.0,
           "minimum": 0.0,
           "title": "Reward",
           "type": "number"
+        },
+        "task_digests": {
+          "$ref": "#/$defs/TaskDigests"
+        },
+        "task_id": {
+          "minLength": 3,
+          "pattern": "^[a-z0-9][a-z0-9-]+$",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "task_version": {
+          "minLength": 1,
+          "title": "Task Version",
+          "type": "string"
+        },
+        "trial_name": {
+          "minLength": 1,
+          "title": "Trial Name",
+          "type": "string"
         }
       },
       "required": [
         "job_name",
-        "reward"
+        "trial_name",
+        "reward",
+        "evidence_path",
+        "evidence_digest",
+        "lock_digest",
+        "observed_at",
+        "task_id",
+        "task_version",
+        "task_digests",
+        "harbor_task_digest"
       ],
       "title": "ControlEvidenceRef",
       "type": "object"
@@ -251,7 +266,15 @@
       "description": "contamination assessment (public_since, in_pretrain, basis)"
     },
     "control_evidence": {
-      "$ref": "#/$defs/TaskControlEvidence"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TaskControlEvidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "digests": {
       "$ref": "#/$defs/TaskDigests"
@@ -331,6 +354,20 @@
       "title": "State",
       "type": "string"
     },
+    "state_reason": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "machine-readable reason for a non-registered admission state",
+      "title": "State Reason"
+    },
     "task_id": {
       "maxLength": 80,
       "minLength": 3,
@@ -357,7 +394,6 @@
     "source_uri",
     "provenance_zone",
     "is_synthetic",
-    "control_evidence",
     "state",
     "allowed_uses"
   ],

@@ -167,17 +167,19 @@ def test_roundtrip_all_models():
     )
     assert TaskContamination.model_validate(contamination.model_dump()) == contamination
 
+    registry_digests = TaskDigests(
+        task_toml="sha256:" + "1" * 64,
+        instruction="sha256:" + "2" * 64,
+        environment="sha256:" + "3" * 64,
+        verifier="sha256:" + "4" * 64,
+        package="sha256:" + "5" * 64,
+    )
+
     registry_record = TaskRegistryRecord(
         task_id="sample-task",
         version="1.0.0",
         task_path="library/tasks/sample-task",
-        digests=TaskDigests(
-            task_toml="sha256:" + "1" * 64,
-            instruction="sha256:" + "2" * 64,
-            environment="sha256:" + "3" * 64,
-            verifier="sha256:" + "4" * 64,
-            package="sha256:" + "5" * 64,
-        ),
+        digests=registry_digests,
         source_uri="https://github.com/example/sample-task",
         provenance_zone="02-local-evidence",
         is_synthetic=False,
@@ -185,17 +187,29 @@ def test_roundtrip_all_models():
         control_evidence=TaskControlEvidence(
             oracle=ControlEvidenceRef(
                 job_name="sample-task-oracle-evidence",
+                trial_name="sample-task__oracle",
                 reward=1.0,
                 evidence_path="research/evidence/runs/sample-task-oracle-evidence/result.json",
                 evidence_digest="sha256:" + "6" * 64,
                 observed_at=now,
+                lock_digest="sha256:" + "8" * 64,
+                task_id="sample-task",
+                task_version="1.0.0",
+                task_digests=registry_digests,
+                harbor_task_digest="sha256:" + "9" * 64,
             ),
             nop=ControlEvidenceRef(
                 job_name="sample-task-nop-evidence",
+                trial_name="sample-task__nop",
                 reward=0.0,
                 evidence_path="research/evidence/runs/sample-task-nop-evidence/result.json",
                 evidence_digest="sha256:" + "7" * 64,
                 observed_at=now,
+                lock_digest="sha256:" + "a" * 64,
+                task_id="sample-task",
+                task_version="1.0.0",
+                task_digests=registry_digests,
+                harbor_task_digest="sha256:" + "9" * 64,
             ),
         ),
         state="registered",
@@ -449,8 +463,8 @@ def test_spec_pre_dating_new_fields_loads_with_defaults():
     assert spec.attempts == 3
 
 
-def test_task_registry_record_pre_dating_new_fields_loads_with_defaults():
-    """A TaskRegistryRecord written before contamination/human_minutes loads with defaults."""
+def test_task_registry_record_pre_dating_optional_metadata_loads_with_defaults():
+    """A record written before contamination/human_minutes loads with defaults."""
     raw_record = {
         "schema_version": 1,
         "task_id": "legacy-task",
@@ -488,6 +502,19 @@ def test_task_registry_record_pre_dating_new_fields_loads_with_defaults():
         "approved_by": "peter",
         "approved_at": "2026-08-15T12:00:00Z",
     }
+    for agent in ("oracle", "nop"):
+        ref = raw_record["control_evidence"][agent]
+        ref.update(
+            {
+                "trial_name": f"legacy-task__{agent}",
+                "lock_digest": "sha256:" + "8" * 64,
+                "task_id": "legacy-task",
+                "task_version": "1.0.0",
+                "task_digests": raw_record["digests"],
+                "harbor_task_digest": "sha256:" + "9" * 64,
+            }
+        )
+
 
     record = TaskRegistryRecord.model_validate(raw_record)
     assert record.contamination is None

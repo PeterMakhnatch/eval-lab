@@ -69,13 +69,7 @@ inputs:
   - path: research/observations/reframe-post-move-oracle-20260814-1756/event-summary__BbbWLYW.md
     digest: sha256:6d860a550273904a9954c3b76a73285f4da27bfef1646dd4da05568dd73d54c1
   - path: sql/lessons.sql
-    digest: sha256:41d83749fdaa66fc5494393f785245dfdcb5b71b5bb681e01d07e2b52a99094b
-  - path: tests/fixtures/explorer/analyses/badstep/analysis.json
-    digest: sha256:f938ffe27d7ce6111eaa46fe5874a3913e240e3fb5de2e8991052523526f9b7b
-  - path: tests/fixtures/explorer/analyses/broken/analysis.json
-    digest: sha256:92072df399cb74703f8e86f450d552bc0bb01eeeb98a90985a1b7772c8fd0016
-  - path: tests/fixtures/explorer/analyses/valid/analysis.json
-    digest: sha256:772eff7472e786d53b3b2bee2367c511cc5faa30ea4cf0a00c3c1c5e68523499
+    digest: sha256:d34892d06e96c462404518926a25dfc70726c1dbc979e499165b7291e9797442
 ---
 
 <!-- generated-by: lessons v1 -->
@@ -83,66 +77,38 @@ inputs:
 
 - **Generated at:** 2026-08-17 19:24:32Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
-- **Corpus Summary:** 5 craft tasks, 25 trials, 25 observation records, 3 analysis sidecars
-- **Findings Gate:** 18 statistically powered finding(s), 14 observation row(s) gated with `insufficient n`
+- **Corpus Summary:** 5 craft tasks, 0 trials, 25 observation records, 0 analysis sidecars
+- **Findings Gate:** 0 statistically powered finding(s), 3 observation row(s) gated with `insufficient n`
 
 ---
 
 ## 1. Outcome by Verifier Type (`v_outcome_by_verifier_type`)
 
-Cross-tabulation of task verifier architecture against trial pass rates, exceptions, duration, and cost.
+Cross-tabulation of task verifier architecture against measured trial pass rates. Exception and never-measured trials are reported but excluded from the capability denominator.
 
-| Source Repo | Verifier Type | n | Passed | Pass Rate | Wilson 95% CI | Exceptions | Exception Rate | Status | Finding |
-|---|---|---:|---:|---:|---|---:|---:|---|---|
-| local-lab/library | golden_file | 12 | 7 | 58.3% | [32.0%, 80.7%] | 3 | 25.0% | `sufficient` | pass_rate=58.3% [95% CI: 32.0%-80.7%, n=12], exceptions=3 |
-| local-lab/library | pytest | 7 | 1 | 14.3% | [2.6%, 51.3%] | 3 | 42.9% | `sufficient` | pass_rate=14.3% [95% CI: 2.6%-51.3%, n=7], exceptions=3 |
-| local-lab/library | hybrid | 6 | 0 | 0.0% | [0.0%, 39.0%] | 3 | 50.0% | `sufficient` | pass_rate=0.0% [95% CI: 0.0%-39.0%, n=6], exceptions=3 |
+| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | Status | Finding |
+|---|---|---:|---:|---:|---:|---|---:|---:|---|---|
+| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | `insufficient n` | insufficient n |
 
 ## 2. Loop Rate by Environment Complexity (`v_loop_rate_by_env`)
 
-Analysis of repetitive tool loops vs multi-container and environment complexity.
+Observation-annotation loop rates by environment complexity. Markdown annotations remain identified and are not substituted for deterministic facts.
 
-| Source Repo | Services | Container Mode | Env Files | n | Loops | Loop Rate | Wilson 95% CI | Avg Steps | Avg Tool Errors | Status | Finding |
-|---|---:|---|---|---:|---:|---:|---|---:|---:|---|---|
-| local-lab/library | 1 | single | 1_to_5_files | 25 | 0 | 0.0% | [0.0%, 13.3%] | 1.2 | 0.0 | `sufficient` | loop_rate=0.0% [95% CI: 0.0%-13.3%, n=25] |
+| Source Repo | Annotation Source | Services | Container Mode | Env Files | Total Trials | Annotated | Unannotated | Eligible n | Loops | Loop Rate | Wilson 95% CI | Avg Annotated Steps | Avg Annotated Tool Errors | Status | Finding |
+|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---|---|
+| - | observation_markdown | 1 | single | unknown | 0 | 0 | 0 | 0 | 0 | 0.0% | n/a | n/a | n/a | `insufficient n` | insufficient n |
 
 ## 3. Failure by Craft Facet (`v_failure_by_facet`)
 
-Taxonomy breakdown of agent and infrastructure failures across structural task facets.
+Source-discriminated model diagnoses and mechanical trial-fact classifications across structural task facets. The two vocabularies are never merged.
 
-| Source Repo | Facet Name | Facet Value | Category | Validity | n | Failures | Failure Rate | Wilson 95% CI | Status | Finding |
-|---|---|---|---|---|---:|---:|---:|---|---|---|
-| local-lab/library | base_image_pin | tag | exception | harness_failure | 9 | 9 | 100.0% | [70.1%, 100.0%] | `sufficient` | failure_rate=100.0% [95% CI: 70.1%-100.0%, n=9] |
-| local-lab/library | base_image_pin | tag | unscored_failure | valid_agent_attempt | 8 | 8 | 100.0% | [67.6%, 100.0%] | `sufficient` | failure_rate=100.0% [95% CI: 67.6%-100.0%, n=8] |
-| local-lab/library | base_image_pin | tag | none | passed | 8 | 0 | 0.0% | [0.0%, 32.4%] | `sufficient` | failure_rate=0.0% [95% CI: 0.0%-32.4%, n=8] |
-| local-lab/library | dependency_pinning | unstated | none | passed | 7 | 0 | 0.0% | [0.0%, 35.4%] | `sufficient` | failure_rate=0.0% [95% CI: 0.0%-35.4%, n=7] |
-| local-lab/library | dependency_pinning | pinned | exception | harness_failure | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | dependency_pinning | pinned | unscored_failure | valid_agent_attempt | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | dependency_pinning | unpinned | unscored_failure | valid_agent_attempt | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | dependency_pinning | unpinned | exception | harness_failure | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | dependency_pinning | unstated | exception | harness_failure | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | dependency_pinning | unstated | unscored_failure | valid_agent_attempt | 2 | 2 | 100.0% | [34.2%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | dependency_pinning | unpinned | none | passed | 1 | 0 | 0.0% | [0.0%, 79.3%] | `insufficient n` | insufficient n |
-| local-lab/library | difficulty_mechanism | unclassified | exception | harness_failure | 9 | 9 | 100.0% | [70.1%, 100.0%] | `sufficient` | failure_rate=100.0% [95% CI: 70.1%-100.0%, n=9] |
-| local-lab/library | difficulty_mechanism | unclassified | unscored_failure | valid_agent_attempt | 8 | 8 | 100.0% | [67.6%, 100.0%] | `sufficient` | failure_rate=100.0% [95% CI: 67.6%-100.0%, n=8] |
-| local-lab/library | difficulty_mechanism | unclassified | none | passed | 8 | 0 | 0.0% | [0.0%, 32.4%] | `sufficient` | failure_rate=0.0% [95% CI: 0.0%-32.4%, n=8] |
-| local-lab/library | env_container_mode | single_container | exception | harness_failure | 9 | 9 | 100.0% | [70.1%, 100.0%] | `sufficient` | failure_rate=100.0% [95% CI: 70.1%-100.0%, n=9] |
-| local-lab/library | env_container_mode | single_container | unscored_failure | valid_agent_attempt | 8 | 8 | 100.0% | [67.6%, 100.0%] | `sufficient` | failure_rate=100.0% [95% CI: 67.6%-100.0%, n=8] |
-| local-lab/library | env_container_mode | single_container | none | passed | 8 | 0 | 0.0% | [0.0%, 32.4%] | `sufficient` | failure_rate=0.0% [95% CI: 0.0%-32.4%, n=8] |
-| local-lab/library | instruction_style | unclassified | exception | harness_failure | 9 | 9 | 100.0% | [70.1%, 100.0%] | `sufficient` | failure_rate=100.0% [95% CI: 70.1%-100.0%, n=9] |
-| local-lab/library | instruction_style | unclassified | unscored_failure | valid_agent_attempt | 8 | 8 | 100.0% | [67.6%, 100.0%] | `sufficient` | failure_rate=100.0% [95% CI: 67.6%-100.0%, n=8] |
-| local-lab/library | instruction_style | unclassified | none | passed | 8 | 0 | 0.0% | [0.0%, 32.4%] | `sufficient` | failure_rate=0.0% [95% CI: 0.0%-32.4%, n=8] |
-| local-lab/library | verifier_type | golden_file | none | passed | 7 | 0 | 0.0% | [0.0%, 35.4%] | `sufficient` | failure_rate=0.0% [95% CI: 0.0%-35.4%, n=7] |
-| local-lab/library | verifier_type | golden_file | exception | harness_failure | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | verifier_type | hybrid | unscored_failure | valid_agent_attempt | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | verifier_type | hybrid | exception | harness_failure | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | verifier_type | pytest | unscored_failure | valid_agent_attempt | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | verifier_type | pytest | exception | harness_failure | 3 | 3 | 100.0% | [43.9%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | verifier_type | golden_file | unscored_failure | valid_agent_attempt | 2 | 2 | 100.0% | [34.2%, 100.0%] | `insufficient n` | insufficient n |
-| local-lab/library | verifier_type | pytest | none | passed | 1 | 0 | 0.0% | [0.0%, 79.3%] | `insufficient n` | insufficient n |
+| Source Repo | Facet Name | Facet Value | Model Category | Model Validity | Model Source | Mechanical Category | Mechanical Validity | Mechanical Source | Total Trials | Eligible n | Exceptions | Never Measured | Excluded | Failures | Failure Rate | Wilson 95% CI | Status | Finding |
+|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|
+| - | none | none | none | none | none | none | none | trial_facts | 0 | 0 | 0 | 0 | 0 | 0 | 0.0% | n/a | `insufficient n` | insufficient n |
 
 ## Statistical Gating Rules
 
 1. **Sample Size Floor ($n \ge 5$):** Rows with sample count $n < 5$ carry status `insufficient n` and render findings as `insufficient n`. They are preserved for evidence tracking but never reported as generalized findings.
-2. **Confidence Intervals:** Every proportion is bounded by a two-sided 95% Wilson score interval with continuity correction.
-3. **Deterministic Regeneration:** This file is generated by `evallab.lessons`; hand-edits are prohibited.
+2. **Confidence Intervals:** Every proportion is bounded by a two-sided 95% Wilson score interval with continuity correction from `evallab.cohort`.
+3. **Refuse-to-Rank Propagation:** Comparative rankings propagate refusal (`not distinguishable / not comparable`) from `evallab.cohort` whenever sample sizes are underpowered, confidence intervals overlap, or metrics reflect uninformative instrumentation gaps.
+4. **Deterministic Regeneration:** This file is generated by `evallab.lessons`; hand-edits are prohibited.

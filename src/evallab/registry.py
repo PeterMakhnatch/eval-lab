@@ -91,6 +91,9 @@ class TaskComponentMissingError(RegistryError):
     """Raised when a registered task package is missing a required component."""
 
 
+class TaskInventoryPolicyError(RegistryError):
+    """Raised when the canary policy cannot support deterministic inventory."""
+
 def _should_ignore_file(path: Path) -> bool:
     if path.name in IGNORED_FILE_NAMES:
         return True
@@ -154,6 +157,39 @@ def compute_task_digests(task_dir: Path) -> TaskDigests:
         verifier=verifier_digest,
         package=package_digest,
     )
+
+def harbor_task_digest(task_dir: Path) -> str:
+    """Reproduce Harbor's default local-task package digest."""
+    files: list[Path] = []
+    for relative in ("task.toml", "instruction.md", "README.md"):
+        path = task_dir / relative
+        if path.is_file():
+            files.append(path)
+    for relative in ("environment", "tests", "solution", "steps"):
+        path = task_dir / relative
+        if path.exists():
+            files.extend(item for item in path.rglob("*") if item.is_file())
+
+    def ignored(path: Path) -> bool:
+        relative = path.relative_to(task_dir)
+        return bool(
+            "__pycache__" in relative.parts
+            or path.name == ".DS_Store"
+            or path.suffix in {".pyc", ".swp", ".swo"}
+            or path.name.endswith("~")
+        )
+
+    digest = hashlib.sha256()
+    for path in sorted(
+        (path for path in files if not ignored(path)),
+        key=lambda item: item.relative_to(task_dir).as_posix(),
+    ):
+        relative = path.relative_to(task_dir).as_posix()
+        file_digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        digest.update(f"{relative}\0{file_digest}\n".encode())
+    return f"sha256:{digest.hexdigest()}"
+
+
 
 
 def _extract_reward_and_agent(
@@ -229,257 +265,216 @@ def _extract_reward_and_agent(
 
 def _verify_control_result(
     data: dict[str, Any],
+    lock_data: dict[str, Any],
     *,
     expected_agent: str,
     expected_reward: float,
-    task_id: str,
+    record: TaskRegistryRecord,
+    evidence_ref: ControlEvidenceRef,
 ) -> None:
-    """Validate that parsed evidence JSON contains the expected agent and exact reward."""
-    # Format 1: Harbor JobResult with stats.evals
-    stats = data.get("stats")
-    if isinstance(stats, dict) and "evals" in stats:
-        evals = stats.get("evals", {})
-        matching_eval = None
-        for key, eval_data in evals.items():
-            if key.startswith(f"{expected_agent}__") or key == expected_agent:
-                matching_eval = eval_data
-                break
-        if matching_eval is None:
-            raise TaskControlEvidenceError(
-                f"control evidence missing eval entry for agent {expected_agent!r} "
-                f"(found keys: {list(evals.keys())})"
-            )
-        metrics = matching_eval.get("metrics", [])
-        if not metrics or not isinstance(metrics, list):
-            raise TaskControlEvidenceError(
-                f"control evidence has empty metrics for agent {expected_agent!r}"
-            )
-        observed_reward = metrics[0].get("reward")
-        if observed_reward is None:
-            observed_reward = metrics[0].get("mean")
-        if observed_reward is None:
-            observed_reward = metrics[0].get("correctness")
-        if observed_reward is None:
-            reward_stats = matching_eval.get("reward_stats", {}).get("reward", {})
-            if isinstance(reward_stats, dict) and reward_stats:
-                with contextlib.suppress(ValueError):
-                    observed_reward = float(next(iter(reward_stats.keys())))
-        if observed_reward != expected_reward:
-            raise TaskControlEvidenceError(
-                f"control evidence reward mismatch for {expected_agent!r}: "
-                f"expected {expected_reward}, got {observed_reward}"
-            )
-        return
-
-    # Format 2: Harbor TrialResult (id, task_name, config.agent, primary_reward / reward)
-    config = data.get("config", {})
-    agent_info = config.get("agent", {}) if isinstance(config, dict) else {}
-    agent_name = (
-        agent_info.get("name")
-        if isinstance(agent_info, dict)
-        else data.get("agent_name", data.get("agent"))
-    )
-
+    """Validate one Harbor trial and its lock against the registered package."""
+    if "stats" in data or not isinstance(data.get("trial_name"), str):
+        raise TaskControlEvidenceError(
+            "control evidence must cite a trial result, not a job-level result"
+        )
+    agent_info = data.get("agent_info")
+    agent_name = agent_info.get("name") if isinstance(agent_info, dict) else None
     if agent_name != expected_agent:
         raise TaskControlEvidenceError(
             f"control evidence agent mismatch: expected {expected_agent!r}, got {agent_name!r}"
         )
-
-    observed_reward = data.get("primary_reward", data.get("reward"))
-    if observed_reward is None:
-        verifier_result = data.get("verifier_result", {})
-        if isinstance(verifier_result, dict):
-            rewards = verifier_result.get("rewards", {})
-            if isinstance(rewards, dict) and "reward" in rewards:
-                observed_reward = rewards["reward"]
+    verifier_result = data.get("verifier_result")
+    rewards = verifier_result.get("rewards") if isinstance(verifier_result, dict) else None
+    observed_reward = rewards.get("reward") if isinstance(rewards, dict) else None
     if observed_reward != expected_reward:
         raise TaskControlEvidenceError(
             f"control evidence reward mismatch for {expected_agent!r}: "
             f"expected {expected_reward}, got {observed_reward}"
+        )
+    if data["trial_name"] != evidence_ref.trial_name:
+        raise TaskControlEvidenceError("control evidence trial_name does not match its reference")
+
+    task_lock = lock_data.get("task")
+    if not isinstance(task_lock, dict):
+        raise TaskControlEvidenceError("control evidence trial lock is missing task identity")
+    if (
+        task_lock.get("name") != record.task_id
+        or task_lock.get("version") != record.version
+        or task_lock.get("type") != "local"
+        or task_lock.get("digest") != evidence_ref.harbor_task_digest
+    ):
+        raise TaskControlEvidenceError(
+            f"control evidence task identity mismatch for {record.task_id!r}"
+        )
+    lock_agent = lock_data.get("agent")
+    if not isinstance(lock_agent, dict) or lock_agent.get("name") != expected_agent:
+        raise TaskControlEvidenceError("control evidence trial lock has the wrong agent")
+
+    task_name = data.get("task_name")
+    result_task_id = data.get("task_id")
+    result_config = data.get("config")
+    result_task = result_config.get("task") if isinstance(result_config, dict) else None
+    task_path = result_task_id.get("path") if isinstance(result_task_id, dict) else None
+    config_path = result_task.get("path") if isinstance(result_task, dict) else None
+    if (
+        not isinstance(task_name, str)
+        or task_name.rsplit("/", 1)[-1] != record.task_id
+        or not isinstance(task_path, str)
+        or Path(task_path).name != record.task_id
+        or not isinstance(config_path, str)
+        or Path(config_path).name != record.task_id
+    ):
+        raise TaskControlEvidenceError(
+            f"control evidence result identity mismatch for {record.task_id!r}"
         )
 
 def discover_control_evidence(
     task_dir: Path,
     repo_root: Path,
     jobs_roots: Sequence[Path] | None = None,
+    *,
+    task_version: str | None = None,
 ) -> TaskControlEvidence:
-    """Discover real oracle and nop control evidence from completed Harbor runs.
-
-    Refuses if either control evidence run is missing or contradictory.
-    """
+    """Discover committed trial-level oracle and nop evidence for a task package."""
     repo_root = repo_root.resolve()
     task_dir = task_dir.resolve()
     if not task_dir.is_dir():
         raise ValueError(f"task directory not found: {task_dir}")
 
     task_id = task_dir.name
-    try:
-        task_dir_rel = task_dir.relative_to(repo_root).as_posix()
-    except ValueError:
-        task_dir_rel = str(task_dir)
+    task_toml = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
+    task_table = task_toml.get("task")
+    task_version = task_version or str(
+        (task_table.get("version") if isinstance(task_table, dict) else None)
+        or task_toml.get("version")
+        or "1.0.0"
+    )
+    task_digests = compute_task_digests(task_dir)
+    harbor_digest = harbor_task_digest(task_dir)
+    durable_root = (repo_root / "research/evidence/runs").resolve()
+    roots = list(jobs_roots) if jobs_roots is not None else [durable_root]
 
-    primary = shared_checkout_root(repo_root)
-    if jobs_roots is None:
-        jobs_roots = [
-            repo_root / "runs",
-            repo_root / "research/evidence/runs",
-            repo_root / "evidence/runs",
-        ]
-        if primary != repo_root:
-            jobs_roots.extend(
-                [
-                    primary / "runs",
-                    primary / "research/evidence/runs",
-                    primary / "evidence/runs",
-                ]
-            )
-
-    oracle_matches: list[dict[str, Any]] = []
-    nop_matches: list[dict[str, Any]] = []
-    for jobs_root in jobs_roots:
+    matches: dict[str, list[tuple[datetime, ControlEvidenceRef]]] = {
+        "oracle": [],
+        "nop": [],
+    }
+    for jobs_root in roots:
+        jobs_root = jobs_root.resolve()
+        try:
+            jobs_root.relative_to(durable_root)
+        except ValueError as exc:
+            raise TaskControlEvidenceError(
+                f"control evidence root {jobs_root} is not durable; promotion requires "
+                "research/evidence/runs"
+            ) from exc
         if not jobs_root.is_dir():
             continue
-        for res_path in sorted(jobs_root.rglob("result.json")):
-            if any(part.startswith(".") for part in res_path.relative_to(jobs_root).parts):
+        for result_path in sorted(jobs_root.rglob("result.json")):
+            lock_path = result_path.with_name("lock.json")
+            if not lock_path.is_file():
                 continue
-            job_dir = res_path.parent
             try:
-                res_data = json.loads(res_path.read_text())
-            except Exception:
+                data = json.loads(result_path.read_text())
+                lock_data = json.loads(lock_path.read_text())
+            except (OSError, json.JSONDecodeError):
                 continue
-            if not isinstance(res_data, dict):
+            if (
+                not isinstance(data, dict)
+                or not isinstance(lock_data, dict)
+                or "stats" in data
+                or not isinstance(data.get("trial_name"), str)
+            ):
                 continue
-            if "n_total_trials" not in res_data or "stats" not in res_data:
+            task_lock = lock_data.get("task")
+            agent_lock = lock_data.get("agent")
+            if (
+                not isinstance(task_lock, dict)
+                or task_lock.get("name") != task_id
+                or task_lock.get("version") != task_version
+                or task_lock.get("type") != "local"
+                or task_lock.get("digest") != harbor_digest
+                or not isinstance(agent_lock, dict)
+            ):
                 continue
-
-            cfg_file = job_dir / "config.json"
-            cfg_data = json.loads(cfg_file.read_text()) if cfg_file.is_file() else {}
-            meta_file = job_dir / "lab-metadata.json"
-            meta_data = json.loads(meta_file.read_text()) if meta_file.is_file() else {}
-
-            matched = False
-            tasks = cfg_data.get("tasks", []) if isinstance(cfg_data, dict) else []
-            for t in tasks:
-                if isinstance(t, dict):
-                    t_path_str = t.get("path", "")
-                    if t_path_str and (
-                        t_path_str == str(task_dir)
-                        or t_path_str == task_dir_rel
-                        or t_path_str.endswith(task_dir_rel)
-                        or t_path_str.endswith(f"/{task_id}")
-                    ):
-                        matched = True
-                        break
-
-            if not matched and meta_data:
-                cmd = meta_data.get("command", [])
-                if isinstance(cmd, list) and "--path" in cmd:
-                    try:
-                        idx = cmd.index("--path")
-                        if idx + 1 < len(cmd):
-                            t_path_str = cmd[idx + 1]
-                            if (
-                                t_path_str == str(task_dir)
-                                or t_path_str == task_dir_rel
-                                or t_path_str.endswith(task_dir_rel)
-                                or t_path_str.endswith(f"/{task_id}")
-                            ):
-                                matched = True
-                    except (ValueError, IndexError):
-                        pass
-
-            if not matched:
-                for sub in job_dir.iterdir():
-                    if sub.is_dir() and (sub / "config.json").is_file():
-                        try:
-                            t_cfg = json.loads((sub / "config.json").read_text())
-                            t_path_str = t_cfg.get("task", {}).get("path", "")
-                            if t_path_str and (
-                                t_path_str == str(task_dir)
-                                or t_path_str == task_dir_rel
-                                or t_path_str.endswith(task_dir_rel)
-                                or t_path_str.endswith(f"/{task_id}")
-                            ):
-                                matched = True
-                                break
-                        except Exception:
-                            pass
-
-            if not matched:
+            agent_name = agent_lock.get("name")
+            if agent_name not in matches:
                 continue
-
-            agent_name, reward = _extract_reward_and_agent(res_data, meta_data)
-            if not agent_name or reward is None:
+            agent_info = data.get("agent_info")
+            if not isinstance(agent_info, dict) or agent_info.get("name") != agent_name:
                 continue
-
-            observed_at_str = (
-                res_data.get("finished_at")
-                or res_data.get("started_at")
-                or meta_data.get("finished_at")
-                or meta_data.get("started_at")
+            verifier_result = data.get("verifier_result")
+            rewards = (
+                verifier_result.get("rewards")
+                if isinstance(verifier_result, dict)
+                else None
             )
-            try:
-                observed_at = (
-                    datetime.fromisoformat(observed_at_str.replace("Z", "+00:00"))
-                    if observed_at_str
-                    else datetime.fromtimestamp(res_path.stat().st_mtime, tz=UTC)
+            reward = rewards.get("reward") if isinstance(rewards, dict) else None
+            if not isinstance(reward, (int, float)):
+                continue
+            result_task_id = data.get("task_id")
+            result_config = data.get("config")
+            result_task = (
+                result_config.get("task") if isinstance(result_config, dict) else None
+            )
+            identity_paths = (
+                result_task_id.get("path") if isinstance(result_task_id, dict) else None,
+                result_task.get("path") if isinstance(result_task, dict) else None,
+            )
+            if (
+                not isinstance(data.get("task_name"), str)
+                or data["task_name"].rsplit("/", 1)[-1] != task_id
+                or any(
+                    not isinstance(path, str) or Path(path).name != task_id
+                    for path in identity_paths
                 )
-            except Exception:
-                observed_at = datetime.fromtimestamp(res_path.stat().st_mtime, tz=UTC)
-
-            evidence_digest = f"sha256:{hashlib.sha256(res_path.read_bytes()).hexdigest()}"
+            ):
+                continue
+            observed_at_str = data.get("finished_at") or data.get("started_at")
             try:
-                evidence_rel_path = res_path.relative_to(repo_root).as_posix()
+                observed_at = datetime.fromisoformat(
+                    str(observed_at_str).replace("Z", "+00:00")
+                )
             except ValueError:
-                evidence_rel_path = res_path.relative_to(primary).as_posix()
-            job_name = cfg_data.get("job_name", job_dir.name)
-
+                continue
+            evidence_path = result_path.relative_to(repo_root).as_posix()
+            job_name = result_path.parent.parent.name
             ref = ControlEvidenceRef(
                 job_name=job_name,
-                reward=reward,
-                evidence_path=evidence_rel_path,
-                evidence_digest=evidence_digest,
+                trial_name=data["trial_name"],
+                reward=float(reward),
+                evidence_path=evidence_path,
+                evidence_digest=(
+                    f"sha256:{hashlib.sha256(result_path.read_bytes()).hexdigest()}"
+                ),
+                lock_digest=f"sha256:{hashlib.sha256(lock_path.read_bytes()).hexdigest()}",
                 observed_at=observed_at,
+                task_id=task_id,
+                task_version=task_version,
+                task_digests=task_digests,
+                harbor_task_digest=harbor_digest,
             )
-            if agent_name == "oracle":
-                oracle_matches.append({"ref": ref, "observed_at": observed_at})
-            elif agent_name == "nop":
-                nop_matches.append({"ref": ref, "observed_at": observed_at})
+            matches[agent_name].append((observed_at, ref))
 
-    oracle_matches.sort(key=lambda x: x["observed_at"], reverse=True)
-    nop_matches.sort(key=lambda x: x["observed_at"], reverse=True)
+    for agent_name in ("oracle", "nop"):
+        matches[agent_name].sort(key=lambda item: item[0], reverse=True)
+        if not matches[agent_name]:
+            raise TaskControlEvidenceError(
+                f"missing durable trial-level {agent_name} control evidence for "
+                f"task {task_id!r} under research/evidence/runs"
+            )
 
-    if not oracle_matches:
-        cmd = (
-            f"uv run python -m evallab.cli run --task {task_dir_rel} "
-            f"--agent oracle --name {task_id}-oracle --jobs-dir runs"
-        )
-        raise TaskControlEvidenceError(
-            f"missing oracle control evidence for task {task_id!r}; run: {cmd}"
-        )
-    if not nop_matches:
-        cmd = (
-            f"uv run python -m evallab.cli run --task {task_dir_rel} "
-            f"--agent nop --name {task_id}-nop --jobs-dir runs"
-        )
-        raise TaskControlEvidenceError(
-            f"missing nop control evidence for task {task_id!r}; run: {cmd}"
-        )
-
-    oracle_ref = oracle_matches[0]["ref"]
-    nop_ref = nop_matches[0]["ref"]
-
+    oracle_ref = matches["oracle"][0][1]
+    nop_ref = matches["nop"][0][1]
     if oracle_ref.reward != 1.0:
         raise TaskControlEvidenceError(
             f"oracle control evidence for {task_id!r} did not pass "
-            f"(reward: {oracle_ref.reward}, expected: 1.0); instrument is broken"
+            f"(reward: {oracle_ref.reward}, expected: 1.0)"
         )
     if nop_ref.reward != 0.0:
         raise TaskControlEvidenceError(
             f"nop control evidence for {task_id!r} did not fail "
-            f"(reward: {nop_ref.reward}, expected: 0.0); instrument is broken"
+            f"(reward: {nop_ref.reward}, expected: 0.0)"
         )
-
     return TaskControlEvidence(oracle=oracle_ref, nop=nop_ref)
 
 def promote_task(
@@ -640,10 +635,6 @@ def promote_task(
     # Compute digests
     digests = compute_task_digests(target_path)
 
-    # Discover control evidence
-    control_evidence = discover_control_evidence(
-        target_path, repo_root, jobs_roots=jobs_roots
-    )
 
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
     record_file = reg_dir / f"{task_id}.json"
@@ -692,6 +683,13 @@ def promote_task(
 
             return existing_record
 
+    # Discover control evidence
+    control_evidence = discover_control_evidence(
+        target_path,
+        repo_root,
+        jobs_roots=jobs_roots,
+        task_version=version,
+    )
     if state == "registered":
         if not actor or not actor.strip():
             raise ValueError(
@@ -799,79 +797,94 @@ def register_task(
 
 
 def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
-    """Verify that promoted oracle and nop control evidence files exist, match digests, and
-    prove exact 1.0/0.0 rewards.
-    """
+    """Verify committed trial evidence, lock identity, and registered package binding."""
     if record.state != "registered":
         return
+    if record.control_evidence is None:
+        raise TaskControlEvidenceError(
+            f"registered task {record.task_id!r} has no control evidence"
+        )
 
-    # 1. Oracle evidence
-    oracle_ref = record.control_evidence.oracle
-    if not oracle_ref.evidence_path or not oracle_ref.evidence_digest:
-        raise TaskControlEvidenceError(
-            f"registered task {record.task_id!r} oracle evidence missing path or digest"
-        )
-    oracle_path = (root / oracle_ref.evidence_path).resolve()
-    if not oracle_path.is_file():
-        primary = shared_checkout_root(root)
-        if primary != root and (primary / oracle_ref.evidence_path).is_file():
-            oracle_path = (primary / oracle_ref.evidence_path).resolve()
-        else:
+    task_dir = (root / record.task_path).resolve()
+    current_harbor_digest = harbor_task_digest(task_dir)
+    for agent_name, expected_reward, evidence_ref in (
+        ("oracle", 1.0, record.control_evidence.oracle),
+        ("nop", 0.0, record.control_evidence.nop),
+    ):
+        if (
+            evidence_ref.task_id != record.task_id
+            or evidence_ref.task_version != record.version
+            or evidence_ref.task_digests != record.digests
+            or evidence_ref.harbor_task_digest != current_harbor_digest
+        ):
             raise TaskControlEvidenceError(
-                f"oracle control evidence file missing on disk: {oracle_ref.evidence_path}"
+                f"{agent_name} control evidence identity or package digest mismatch "
+                f"for {record.task_id!r}"
             )
-    current_oracle_digest = f"sha256:{hashlib.sha256(oracle_path.read_bytes()).hexdigest()}"
-    if current_oracle_digest != oracle_ref.evidence_digest:
-        raise TaskControlEvidenceError(
-            f"oracle control evidence digest mismatch for {record.task_id!r}: "
-            f"expected {oracle_ref.evidence_digest}, got {current_oracle_digest}"
-        )
-    try:
-        oracle_data = json.loads(oracle_path.read_text())
-    except Exception as exc:
-        raise TaskControlEvidenceError(
-            f"failed to parse oracle control evidence JSON: {exc}"
-        ) from exc
-    _verify_control_result(
-        oracle_data,
-        expected_agent="oracle",
-        expected_reward=1.0,
-        task_id=record.task_id,
-    )
-
-    # 2. Nop evidence
-    nop_ref = record.control_evidence.nop
-    if not nop_ref.evidence_path or not nop_ref.evidence_digest:
-        raise TaskControlEvidenceError(
-            f"registered task {record.task_id!r} nop evidence missing path or digest"
-        )
-    nop_path = (root / nop_ref.evidence_path).resolve()
-    if not nop_path.is_file():
-        primary = shared_checkout_root(root)
-        if primary != root and (primary / nop_ref.evidence_path).is_file():
-            nop_path = (primary / nop_ref.evidence_path).resolve()
-        else:
+        evidence_path = (root / evidence_ref.evidence_path).resolve()
+        durable_root = (root / "research/evidence/runs").resolve()
+        try:
+            evidence_path.relative_to(durable_root)
+        except ValueError as exc:
             raise TaskControlEvidenceError(
-                f"nop control evidence file missing on disk: {nop_ref.evidence_path}"
+                f"{agent_name} control evidence is outside the durable owned root"
+            ) from exc
+        if not evidence_path.is_file():
+            raise TaskControlEvidenceError(
+                f"{agent_name} control evidence file missing on disk: "
+                f"{evidence_ref.evidence_path}"
             )
-    current_nop_digest = f"sha256:{hashlib.sha256(nop_path.read_bytes()).hexdigest()}"
-    if current_nop_digest != nop_ref.evidence_digest:
-        raise TaskControlEvidenceError(
-            f"nop control evidence digest mismatch for {record.task_id!r}: "
-            f"expected {nop_ref.evidence_digest}, got {current_nop_digest}"
+        if evidence_path.parent.parent.name != evidence_ref.job_name:
+            raise TaskControlEvidenceError(
+                f"{agent_name} control evidence job_name does not match its path"
+            )
+        lock_path = evidence_path.with_name("lock.json")
+        if not lock_path.is_file():
+            raise TaskControlEvidenceError(
+                f"{agent_name} control evidence trial lock missing on disk"
+            )
+        current_evidence_digest = (
+            f"sha256:{hashlib.sha256(evidence_path.read_bytes()).hexdigest()}"
         )
-    try:
-        nop_data = json.loads(nop_path.read_text())
-    except Exception as exc:
-        raise TaskControlEvidenceError(
-            f"failed to parse nop control evidence JSON: {exc}"
-        ) from exc
-    _verify_control_result(
-        nop_data,
-        expected_agent="nop",
-        expected_reward=0.0,
-        task_id=record.task_id,
-    )
+        current_lock_digest = (
+            f"sha256:{hashlib.sha256(lock_path.read_bytes()).hexdigest()}"
+        )
+        if current_evidence_digest != evidence_ref.evidence_digest:
+            raise TaskControlEvidenceError(
+                f"{agent_name} control evidence digest mismatch for {record.task_id!r}"
+            )
+        if current_lock_digest != evidence_ref.lock_digest:
+            raise TaskControlEvidenceError(
+                f"{agent_name} control evidence lock digest mismatch for {record.task_id!r}"
+            )
+        try:
+            data = json.loads(evidence_path.read_text())
+            lock_data = json.loads(lock_path.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise TaskControlEvidenceError(
+                f"failed to parse {agent_name} trial evidence JSON: {exc}"
+            ) from exc
+        observed_at_raw = data.get("finished_at") or data.get("started_at")
+        try:
+            observed_at = datetime.fromisoformat(
+                str(observed_at_raw).replace("Z", "+00:00")
+            )
+        except ValueError as exc:
+            raise TaskControlEvidenceError(
+                f"{agent_name} control evidence has no valid observation timestamp"
+            ) from exc
+        if observed_at != evidence_ref.observed_at:
+            raise TaskControlEvidenceError(
+                f"{agent_name} control evidence observed_at does not match the trial"
+            )
+        _verify_control_result(
+            data,
+            lock_data,
+            expected_agent=agent_name,
+            expected_reward=expected_reward,
+            record=record,
+            evidence_ref=evidence_ref,
+        )
 
 
 def verify_package_completeness(root: Path, record: TaskRegistryRecord) -> None:
@@ -1389,6 +1402,49 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                     )
                 )
 
+    # 4. The committed inventory is a deterministic projection of repository truth.
+    inventory_path = root / "research/registration/inventory.json"
+    registry_is_well_formed = not any(
+        finding.category == "malformed_registry_record" for finding in findings
+    )
+    if registry_is_well_formed:
+        try:
+            expected_inventory = inventory_tasks(root).to_dict()
+        except TaskInventoryPolicyError as exc:
+            findings.append(
+                AuditFinding(
+                    severity="error",
+                    category="registration_inventory_policy_invalid",
+                    target="policy/canary-suite.yaml",
+                    message=str(exc),
+                )
+            )
+        else:
+            try:
+                committed_inventory = json.loads(inventory_path.read_text())
+            except (OSError, json.JSONDecodeError) as exc:
+                findings.append(
+                    AuditFinding(
+                        severity="error",
+                        category="registration_inventory_missing_or_invalid",
+                        target="research/registration/inventory.json",
+                        message=f"registration inventory cannot be read: {exc}",
+                    )
+                )
+            else:
+                if committed_inventory != expected_inventory:
+                    findings.append(
+                        AuditFinding(
+                            severity="error",
+                            category="registration_inventory_drift",
+                            target="research/registration/inventory.json",
+                            message=(
+                                "committed registration inventory differs from the "
+                                "deterministic repository inventory"
+                            ),
+                        )
+                    )
+
     return RegistryAuditReport(
         total_records=len(reg.records),
         registered_count=len(registered_records),
@@ -1458,18 +1514,29 @@ def inventory_tasks(root: Path) -> TaskInventory:
     reg = TaskRegistry.from_repo(root)
     items: list[TaskInventoryItem] = []
 
-    # Canary tasks
-    canary_paths: set[str] = set()
+    # Canary membership is policy truth; malformed or missing policy cannot mean zero.
     canary_policy = root / "policy/canary-suite.yaml"
-    if canary_policy.is_file():
-        try:
-            import yaml
+    if not canary_policy.is_file():
+        raise TaskInventoryPolicyError(
+            "canary inventory requires policy/canary-suite.yaml"
+        )
+    import yaml
 
-            raw_suite = yaml.safe_load(canary_policy.read_text())
-            for member in raw_suite.get("canaries", []):
-                canary_paths.add(member.get("task_path", ""))
-        except Exception:
-            pass
+    try:
+        raw_suite = yaml.safe_load(canary_policy.read_text())
+    except (OSError, yaml.YAMLError) as exc:
+        raise TaskInventoryPolicyError(f"invalid canary policy: {exc}") from exc
+    members = raw_suite.get("members") if isinstance(raw_suite, dict) else None
+    if not isinstance(members, list):
+        raise TaskInventoryPolicyError("canary policy requires a members list")
+    canary_paths: set[str] = set()
+    for index, member in enumerate(members):
+        task_path = member.get("task_path") if isinstance(member, dict) else None
+        if not isinstance(task_path, str) or not task_path:
+            raise TaskInventoryPolicyError(
+                f"canary policy member {index} requires task_path"
+            )
+        canary_paths.add(task_path)
 
     # 1. Scan library/ for all task.toml packages
     library_dir = root / "library"

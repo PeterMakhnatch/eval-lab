@@ -99,41 +99,23 @@ def test_two_builds_agree_on_the_task_set() -> None:
     assert first["task_count"] == second["task_count"]
 
 
-def test_manifest_matches_exact_registry_digests_and_evidence() -> None:
-    """The manifest's digests and evidence must faithfully mirror the active TaskRegistry."""
+def test_manifest_frozen_packages_remain_registry_compatible() -> None:
+    """Historical freeze bytes stay compatible even when admission state changes."""
     from evallab.registry import TaskRegistry
 
     registry = TaskRegistry.from_repo(REPO_ROOT)
-    registered_map = {
-        record.task_id: record
-        for record in registry.list_records()
-        if record.state == "registered"
-    }
-
+    records = {record.task_id: record for record in registry.list_records()}
     manifest = json.loads(MANIFEST_V1_PATH.read_text(encoding="utf-8"))
-    assert manifest["task_count"] == len(registered_map)
 
+    assert manifest["task_count"] == len(manifest["tasks"]) == 4
     for entry in manifest["tasks"]:
         task_id = entry["task_id"]
-        assert task_id in registered_map
-        rec = registered_map[task_id]
-        assert entry["version"] == rec.version
-        assert entry["task_path"] == rec.task_path
-        assert entry["digests"]["package"] == rec.digests.package
-        assert entry["digests"]["task_toml"] == rec.digests.task_toml
-        assert entry["digests"]["instruction"] == rec.digests.instruction
-        assert entry["digests"]["environment"] == rec.digests.environment
-        assert entry["digests"]["verifier"] == rec.digests.verifier
-        assert entry["battery_evidence"]["oracle"]["reward"] == rec.control_evidence.oracle.reward
-        assert (
-            entry["battery_evidence"]["oracle"]["evidence_digest"]
-            == rec.control_evidence.oracle.evidence_digest
-        )
-        assert entry["battery_evidence"]["nop"]["reward"] == rec.control_evidence.nop.reward
-        assert (
-            entry["battery_evidence"]["nop"]["evidence_digest"]
-            == rec.control_evidence.nop.evidence_digest
-        )
+        assert task_id in records
+        record = records[task_id]
+        assert entry["version"] == record.version
+        assert entry["task_path"] == record.task_path
+        assert entry["digests"]["package"] == record.digests.package
+        assert entry["digests"]["verifier"] == record.digests.verifier
 
 
 def test_registry_digest_mismatch_is_refused_for_frozen_task_inputs(tmp_path: Path) -> None:
@@ -170,24 +152,51 @@ def test_registry_digest_mismatch_is_refused_for_frozen_task_inputs(tmp_path: Pa
         TaskRegistry.from_repo(tmp_path).resolve_spec(spec, tmp_path)
 
 
-def test_manifest_only_claims_tasks_the_registry_registers() -> None:
-    """The manifest may not out-claim the registry."""
+def test_manifest_only_claims_tasks_that_still_exist_in_registry() -> None:
+    """A historical frozen task must remain represented in the registry."""
     from evallab.registry import TaskRegistry
 
-    registered = {
-        record.task_id
-        for record in TaskRegistry.from_repo(REPO_ROOT).list_records()
-        if record.state == "registered"
+    registry_ids = {
+        record.task_id for record in TaskRegistry.from_repo(REPO_ROOT).list_records()
     }
     committed_v0 = {
-        entry["task_id"] for entry in json.loads(MANIFEST_V0_PATH.read_text())["tasks"]
+        entry["task_id"]
+        for entry in json.loads(MANIFEST_V0_PATH.read_text())["tasks"]
     }
     committed_v1 = {
-        entry["task_id"] for entry in json.loads(MANIFEST_V1_PATH.read_text())["tasks"]
+        entry["task_id"]
+        for entry in json.loads(MANIFEST_V1_PATH.read_text())["tasks"]
     }
 
-    assert committed_v0 <= registered
-    assert committed_v1 == registered
+    assert committed_v0 <= registry_ids
+    assert committed_v1 <= registry_ids
+
+
+def test_all_gym_v1_specs_resolve_frozen_local_packages() -> None:
+    from evallab.registry import TaskRegistry, compute_task_digests
+    from evallab.schemas import ExperimentSpec
+
+    manifest = json.loads(MANIFEST_V1_PATH.read_text(encoding="utf-8"))
+    frozen = {entry["task_id"]: entry for entry in manifest["tasks"]}
+    registry = TaskRegistry.from_repo(REPO_ROOT)
+    specs_dir = REPO_ROOT / "research/experiments/specs/gym-v1"
+    spec_paths = sorted(specs_dir.glob("*.json"))
+
+    assert len(spec_paths) == len(frozen) == 4
+    for spec_path in spec_paths:
+        spec = ExperimentSpec.model_validate_json(spec_path.read_text())
+        assert registry.resolve_spec(spec, REPO_ROOT) is None
+        assert spec.task == spec.task_path
+        task_path = REPO_ROOT / spec.executable_task_path
+        assert task_path.is_dir()
+        task_id = task_path.name
+        assert task_id in frozen
+        entry = frozen[task_id]
+        digests = compute_task_digests(task_path)
+        assert spec.task_version == entry["version"]
+        assert spec.verifier_digest == entry["digests"]["verifier"]
+        assert digests.package == entry["digests"]["package"]
+        assert digests.verifier == entry["digests"]["verifier"]
 
 
 def test_writing_over_a_frozen_manifest_is_refused(tmp_path: Path) -> None:

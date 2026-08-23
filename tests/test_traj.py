@@ -4,6 +4,7 @@ Trajectory analysis, mechanical features, loop detection, and review queue.
 from __future__ import annotations
 
 import json
+import multiprocessing
 import tempfile
 from pathlib import Path
 
@@ -12,6 +13,15 @@ import pyarrow.parquet as pq
 import pytest
 
 from evallab import cli
+from evallab.facts import AnalyzerCallResult
+from evallab.labels import (
+    evaluate_heuristic_precision,
+    label_trajectory,
+    label_trajectory_with_model,
+    load_behavior_labels,
+    persist_behavior_label,
+    select_review_queue,
+)
 from evallab.traj import (
     TRAJ_FEATURES_PARQUET_SCHEMA,
     LoopSuspicion,
@@ -19,15 +29,18 @@ from evallab.traj import (
     TrajectoryOutline,
     _analyze_loop_suspicion,
     _build_phases,
-    evaluate_heuristic_precision,
-    label_trajectory,
-    label_trajectory_with_model,
-    load_trajectory_labels,
     outline_trajectory,
     project_trajectory_features,
     render_outline,
-    select_review_queue,
 )
+
+
+def _persist_after_barrier(label, repo_root: Path, derived_root: Path, barrier) -> None:
+    barrier.wait()
+    persist_behavior_label(
+        label, repo_root=repo_root, derived_root=derived_root
+    )
+
 
 
 @pytest.fixture
@@ -338,37 +351,83 @@ def test_human_label_idempotence(repo_root: Path) -> None:
         )
         l1 = label_trajectory(
             trial_cand,
-            taxonomy="tool_use",
+            label="tool_use",
             note="Initial observation",
             author="peter",
             repo_root=repo_root,
-            derived_root=derived / "traj_labels",
+            derived_root=derived / "behavior_labels",
         )
 
-        assert l1.taxonomy == "tool_use"
-        assert l1.note == "Initial observation"
-        assert l1.proposed_by == "human"
+        assert l1.label == "tool_use"
+        assert l1.rationale == "Initial observation"
+        assert l1.provenance == "human"
 
-        labels = load_trajectory_labels(repo_root=repo_root, derived_root=derived / "traj_labels")
+        labels = load_behavior_labels(
+            repo_root=repo_root, derived_root=derived / "behavior_labels"
+        )
         assert len(labels) == 1
         assert labels[0].trial_id == l1.trial_id
 
         # Update note / taxonomy idempotently
         l2 = label_trajectory(
             trial_cand,
-            taxonomy="clean_success",
+            label="clean_success",
             note="Updated verdict after review",
             author="peter",
             repo_root=repo_root,
-            derived_root=derived / "traj_labels",
+            derived_root=derived / "behavior_labels",
         )
-        assert l2.taxonomy == "clean_success"
-        labels_after = load_trajectory_labels(
-            repo_root=repo_root, derived_root=derived / "traj_labels"
+        assert l2.label == "clean_success"
+        labels_after = load_behavior_labels(
+            repo_root=repo_root, derived_root=derived / "behavior_labels"
         )
         assert len(labels_after) == 1
-        assert labels_after[0].taxonomy == "clean_success"
-        assert labels_after[0].note == "Updated verdict after review"
+        assert labels_after[0].label == "clean_success"
+        assert labels_after[0].rationale == "Updated verdict after review"
+
+def test_label_persistence_preserves_noop_bytes_and_concurrent_writers(
+    repo_root: Path,
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        source = (
+            repo_root
+            / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
+        )
+        staging = root / "staging"
+        first = label_trajectory(
+            source, "clean_success", author="alice", repo_root=repo_root,
+            derived_root=staging,
+        )
+        second = label_trajectory(
+            source, "tool_use", author="bob", repo_root=repo_root,
+            derived_root=staging,
+        )
+        destination = root / "concurrent"
+        context = multiprocessing.get_context("spawn")
+        barrier = context.Barrier(2)
+        processes = [
+            context.Process(
+                target=_persist_after_barrier,
+                args=(label, repo_root, destination, barrier),
+            )
+            for label in (first, second)
+        ]
+        for process in processes:
+            process.start()
+        for process in processes:
+            process.join(20)
+            assert process.exitcode == 0
+
+        persisted = load_behavior_labels(repo_root, destination)
+        assert {item.author for item in persisted} == {"alice", "bob"}
+
+        parquet = destination / "behavior_labels.parquet"
+        before = parquet.read_bytes()
+        persist_behavior_label(first, repo_root=repo_root, derived_root=destination)
+        assert parquet.read_bytes() == before
+
+
 
 
 def test_heuristic_precision_evaluation(repo_root: Path) -> None:
@@ -382,15 +441,15 @@ def test_heuristic_precision_evaluation(repo_root: Path) -> None:
 
         label_trajectory(
             trial_cand,
-            taxonomy="clean_success",
+            label="clean_success",
             note="Ground truth",
             author="peter",
             repo_root=repo_root,
-            derived_root=derived / "traj_labels",
+            derived_root=derived / "behavior_labels",
         )
 
         report = evaluate_heuristic_precision(
-            repo_root=repo_root, derived_root=derived / "traj_labels"
+            repo_root=repo_root, derived_root=derived / "behavior_labels"
         )
 
         assert report.human_label_count == 1
@@ -398,9 +457,32 @@ def test_heuristic_precision_evaluation(repo_root: Path) -> None:
         assert report.exact_taxonomy_matches == 1
         assert report.precision == 1.0
 
+def test_heuristic_precision_counts_every_human_author(repo_root: Path) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        derived = Path(tmpdir) / "behavior_labels"
+        trial = (
+            repo_root
+            / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
+        )
+        label_trajectory(
+            trial, "clean_success", author="alice", repo_root=repo_root,
+            derived_root=derived,
+        )
+        label_trajectory(
+            trial, "tool_use", author="bob", repo_root=repo_root,
+            derived_root=derived,
+        )
 
-def test_model_labeler_signature_deferred() -> None:
-    """Model labeler raises NotImplementedError when no adapter is provided."""
+        report = evaluate_heuristic_precision(repo_root, derived)
+
+        assert report.human_label_count == 2
+        assert report.matched_trials_count == 2
+        assert report.exact_taxonomy_matches == 1
+        assert report.precision == 0.5
+        assert [item["human_author"] for item in report.disagreements] == ["bob"]
+
+
+def test_model_labeler_uses_guarded_adapter_and_validates_evidence() -> None:
     outline = TrajectoryOutline(
         trial_id="t1",
         job_id="j1",
@@ -413,7 +495,7 @@ def test_model_labeler_signature_deferred() -> None:
         status="featured",
         unavailable_reason=None,
         source_path="path",
-        source_sha256="sha",
+        source_sha256=f"sha256:{'a' * 64}",
         duration_seconds=10.0,
         primary_reward=1.0,
         exception_class=None,
@@ -434,12 +516,36 @@ def test_model_labeler_signature_deferred() -> None:
         total_cost_usd=0.001,
         loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
         phases=(),
-        steps=(),
+        steps=(StepOutline(
+            step_id=1, source="agent", timestamp=None, model_name="model-x",
+            tool_name=None, tool_command=None, exit_code=None, is_error=False,
+            error_message=None, prompt_tokens=10, completion_tokens=10,
+            cached_tokens=0, cost_usd=0.001, thought_snippet="inspected evidence",
+        ),),
         citations=(),
     )
 
-    with pytest.raises(NotImplementedError, match="deferred behind LOOP-SEAM"):
-        label_trajectory_with_model(outline, adapter=None)
+    def adapter(prompt: str, schema: dict[str, object]) -> AnalyzerCallResult:
+        assert "do not infer unobserved filesystem effects" in prompt
+        assert schema["type"] == "object"
+        return AnalyzerCallResult(raw_output=json.dumps({
+            "label": "evidence_driven",
+            "rationale": "The recorded step cites the inspected evidence.",
+            "confidence": "high",
+            "evidence": [{"step_id": 1, "supports": "Inspected evidence"}],
+        }))
+
+    label = label_trajectory_with_model(
+        outline,
+        adapter=adapter,
+        model="model-x",
+        agent="guarded-test",
+        agent_version="1",
+        rubric_digest=f"sha256:{'b' * 64}",
+    )
+    assert label.label == "evidence_driven"
+    assert label.provenance == "model"
+    assert label.evidence[0].step_id == 1
 
 
 def test_sql_traj_views_with_data() -> None:
@@ -462,9 +568,20 @@ def test_sql_traj_views_with_data() -> None:
         )
         con.execute(
             """
-            INSERT INTO traj_labels VALUES (
-                'lbl-001', 't-001', 'trial-001', 'task-a', 'tool_use',
-                'Human verified loop', 'human', 'peter', '2026-08-19', 'sha256:abc'
+            INSERT INTO behavior_labels (
+                schema_version, label_id, target_type, target_id, trial_id,
+                trial_name, task_name, taxonomy, label, rationale, provenance,
+                author, created_at, evidence_json, source_sha256, model_name
+            ) VALUES (
+                1, 'sha256:model-label', 'trajectory', 't-001', 't-001',
+                'trial-001', 'task-a', 'trajectory_behavior/v1', 'tool_use',
+                'Model identified tool use', 'model', 'analyzer', '2026-08-19',
+                '[]', 'sha256:abc', 'judge-model'
+            ), (
+                1, 'sha256:human-trial-label', 'trial', 't-001', 't-001',
+                'trial-001', 'task-a', 'trial_analysis/v1', 'correctness',
+                'Human reviewed the trial result', 'human', 'peter', '2026-08-19',
+                '[]', 'sha256:abc', NULL
             )
             """
         )
@@ -484,9 +601,18 @@ def test_sql_traj_views_with_data() -> None:
         assert len(recovery) == 1
         assert recovery[0][4] == 2  # total_recoveries = 2
         assert recovery[0][5] == 1.0  # recovery_rate = 2/2 = 1.0
-        labels = con.execute("SELECT * FROM v_traj_labels").fetchall()
-        assert len(labels) == 1
-        assert labels[0][4] == "tool_use"
+        labels = con.execute(
+            """
+            SELECT label, label_model_name, trajectory_model_name
+            FROM v_traj_labels
+            WHERE label_id = 'sha256:model-label'
+            """
+        ).fetchall()
+        assert labels == [("tool_use", "judge-model", "gpt-5.6")]
+        queue = con.execute(
+            "SELECT trial_id FROM v_traj_queue ORDER BY trial_id"
+        ).fetchall()
+        assert queue == [("t-001",)]
 
         summary = con.execute("SELECT * FROM v_traj_summary").fetchone()
         assert summary[0] == 1  # total_trials
@@ -587,7 +713,7 @@ def test_label_same_submission_is_a_true_noop(repo_root: Path) -> None:
             repo_root=repo_root,
             derived_root=labels_root,
         )
-        before = (labels_root / "traj_labels.parquet").read_bytes()
+        before = (labels_root / "behavior_labels.parquet").read_bytes()
         second = label_trajectory(
             trial,
             "clean_success",
@@ -597,7 +723,7 @@ def test_label_same_submission_is_a_true_noop(repo_root: Path) -> None:
         )
 
         assert second == first
-        assert (labels_root / "traj_labels.parquet").read_bytes() == before
+        assert (labels_root / "behavior_labels.parquet").read_bytes() == before
 
 
 def test_attach_surface_exposes_trajectory_features(repo_root: Path) -> None:

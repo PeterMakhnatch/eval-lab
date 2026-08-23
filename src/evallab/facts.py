@@ -154,6 +154,9 @@ class TrialFact:
     artifact_count: int
     missing_artifact_count: int
     artifact_set_digest: str
+    state_journal_status: str
+    state_journal_reason: str | None
+    state_change_count: int
 
 
 @dataclass(frozen=True)
@@ -188,25 +191,124 @@ class ToolUseFact:
 
 
 @dataclass(frozen=True)
+class StateJournalRecord:
+    status: str
+    reason: str | None
+    changes: tuple[JsonObject, ...]
+
+
+@dataclass(frozen=True)
+class StateChangeFact:
+    experiment_id: str | None
+    job_id: str
+    trial_id: str
+    path: str
+    change_type: str
+    before_sha256: str | None
+    after_sha256: str | None
+    before_size_bytes: int | None
+    after_size_bytes: int | None
+    event_count: int
+    first_event_at: str | None
+    last_event_at: str | None
+    journal_status: str
+
+
+@dataclass(frozen=True)
 class JobFacts:
     trials: tuple[TrialFact, ...]
     rewards: tuple[RewardFact, ...]
     artifacts: tuple[ArtifactFact, ...]
     tool_usage: tuple[ToolUseFact, ...]
+    state_changes: tuple[StateChangeFact, ...]
 
 
 @dataclass(frozen=True)
 class RebuildResult:
     trajectory_export: ExportResult
     fact_export: ExportResult
+    event_mart_export: ExportResult
 
     @property
     def tables(self) -> tuple[ExportedTable, ...]:
-        return self.trajectory_export.tables + self.fact_export.tables
+        return (
+            self.trajectory_export.tables
+            + self.fact_export.tables
+            + self.event_mart_export.tables
+        )
 
 
-def extract_trial_fact(job: JobRecord, trial: TrialRecord) -> TrialFact:
+def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
+    status_path = trial.path / "state-journal" / "status.json"
+    diff_path = trial.path / "state-journal" / "state-diff.json"
+    if not status_path.is_file():
+        return StateJournalRecord("absent", "not_recorded", ())
+    try:
+        status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return StateJournalRecord("invalid", f"status_unreadable:{type(exc).__name__}", ())
+    if not isinstance(status_payload, dict):
+        return StateJournalRecord("invalid", "status_invalid", ())
+    status_value = status_payload.get("status")
+    status = status_value if isinstance(status_value, str) and status_value else "invalid"
+    reason_value = status_payload.get("reason")
+    reason = reason_value if isinstance(reason_value, str) else None
+    if not diff_path.is_file():
+        return StateJournalRecord(status, reason or "state_diff_missing", ())
+    try:
+        diff_payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return StateJournalRecord(
+            status, reason or f"diff_unreadable:{type(exc).__name__}", ()
+        )
+    if not isinstance(diff_payload, dict):
+        return StateJournalRecord(status, reason or "state_diff_invalid", ())
+    changes = diff_payload.get("changes")
+    if not isinstance(changes, list) or not all(isinstance(item, dict) for item in changes):
+        return StateJournalRecord(status, reason or "changes_invalid", ())
+    return StateJournalRecord(status, reason, tuple(changes))
+
+
+def _state_change_fact(
+    *,
+    association: str | None,
+    job: JobRecord,
+    trial: TrialRecord,
+    change: JsonObject,
+    journal_status: str,
+) -> StateChangeFact | None:
+    path = _string(change.get("path"))
+    change_type = _string(change.get("change_type"))
+    if not path or not change_type:
+        return None
+    before_value = change.get("before")
+    after_value = change.get("after")
+    before: JsonObject = before_value if isinstance(before_value, dict) else {}
+    after: JsonObject = after_value if isinstance(after_value, dict) else {}
+    return StateChangeFact(
+        experiment_id=association,
+        job_id=job.id,
+        trial_id=trial.id,
+        path=path,
+        change_type=change_type,
+        before_sha256=_string(before.get("sha256")),
+        after_sha256=_string(after.get("sha256")),
+        before_size_bytes=_integer(before.get("size_bytes")),
+        after_size_bytes=_integer(after.get("size_bytes")),
+        event_count=_integer(change.get("event_count")) or 0,
+        first_event_at=_string(change.get("first_event_at")),
+        last_event_at=_string(change.get("last_event_at")),
+        journal_status=journal_status,
+    )
+
+
+def extract_trial_fact(
+    job: JobRecord,
+    trial: TrialRecord,
+    state_journal: StateJournalRecord | None = None,
+) -> TrialFact:
     projection = project_trial(job, trial)
+    journal = state_journal or load_state_journal(trial)
     result = trial.result
     agent_info = result.get("agent_info") if isinstance(result.get("agent_info"), dict) else {}
     model_info = (
@@ -295,6 +397,9 @@ def extract_trial_fact(job: JobRecord, trial: TrialRecord) -> TrialFact:
         artifact_count=len(trial.artifacts),
         missing_artifact_count=sum(not item.exists for item in trial.artifacts),
         artifact_set_digest=digest_json(artifact_inventory),
+        state_journal_status=journal.status,
+        state_journal_reason=journal.reason,
+        state_change_count=len(journal.changes),
     )
 
 
@@ -303,10 +408,12 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
     reward_facts: list[RewardFact] = []
     artifact_facts: list[ArtifactFact] = []
     tool_usage: list[ToolUseFact] = []
+    state_change_facts: list[StateChangeFact] = []
     association = experiment_id(job)
     for trial in sorted(job.trials, key=lambda item: item.id):
         projection = project_trial(job, trial)
-        trial_facts.append(extract_trial_fact(job, trial))
+        state_journal = load_state_journal(trial)
+        trial_facts.append(extract_trial_fact(job, trial, state_journal))
         reward_facts.extend(
             RewardFact(
                 experiment_id=association,
@@ -345,11 +452,22 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
             )
             for name, count in sorted(counts.items())
         )
+        for change in state_journal.changes:
+            fact = _state_change_fact(
+                association=association,
+                job=job,
+                trial=trial,
+                change=change,
+                journal_status=state_journal.status,
+            )
+            if fact is not None:
+                state_change_facts.append(fact)
     return JobFacts(
         trials=tuple(trial_facts),
         rewards=tuple(reward_facts),
         artifacts=tuple(artifact_facts),
         tool_usage=tuple(tool_usage),
+        state_changes=tuple(state_change_facts),
     )
 
 
@@ -390,6 +508,9 @@ TRIAL_FACT_SCHEMA = pa.schema(
         pa.field("artifact_count", pa.int64(), nullable=False),
         pa.field("missing_artifact_count", pa.int64(), nullable=False),
         pa.field("artifact_set_digest", pa.string(), nullable=False),
+        pa.field("state_journal_status", pa.string(), nullable=False),
+        pa.field("state_journal_reason", pa.string()),
+        pa.field("state_change_count", pa.int64(), nullable=False),
     ]
 )
 
@@ -425,6 +546,23 @@ FACT_SCHEMAS = {
             pa.field("trial_id", pa.string(), nullable=False),
             pa.field("function_name", pa.string(), nullable=False),
             pa.field("call_count", pa.int64(), nullable=False),
+        ]
+    ),
+    "state_changes": pa.schema(
+        [
+            pa.field("experiment_id", pa.string()),
+            pa.field("job_id", pa.string(), nullable=False),
+            pa.field("trial_id", pa.string(), nullable=False),
+            pa.field("path", pa.string(), nullable=False),
+            pa.field("change_type", pa.string(), nullable=False),
+            pa.field("before_sha256", pa.string()),
+            pa.field("after_sha256", pa.string()),
+            pa.field("before_size_bytes", pa.int64()),
+            pa.field("after_size_bytes", pa.int64()),
+            pa.field("event_count", pa.int64(), nullable=False),
+            pa.field("first_event_at", pa.string()),
+            pa.field("last_event_at", pa.string()),
+            pa.field("journal_status", pa.string(), nullable=False),
         ]
     ),
 }
@@ -469,6 +607,9 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
                 "tool_usage": [
                     asdict(item) for item in facts.tool_usage if item.trial_id == trial_id
                 ],
+                "state_changes": [
+                    asdict(item) for item in facts.state_changes if item.trial_id == trial_id
+                ],
             }
             for table_name, rows in rows_by_table.items():
                 exported.append(
@@ -478,9 +619,12 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
 
 
 def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
+    from evallab.event_mart import export_event_mart
+
     return RebuildResult(
         trajectory_export=export_trajectories(jobs, output_root),
         fact_export=export_facts(jobs, output_root),
+        event_mart_export=export_event_mart(jobs, output_root),
     )
 
 
@@ -759,9 +903,7 @@ def _source_digests(trial: TrialRecord, cited_paths: set[str]) -> AnalysisSource
     return AnalysisSourceDigests(
         result=_analysis_file_digest(result_path),
         task=_task_source_digest(trial),
-        trajectory=(
-            _analysis_file_digest(trajectory_path) if trajectory_path.is_file() else None
-        ),
+        trajectory=(_analysis_file_digest(trajectory_path) if trajectory_path.is_file() else None),
         files=files,
     )
 
@@ -808,9 +950,7 @@ def validate_analysis_evidence(
             None,
         )
         if step is None:
-            errors.append(
-                f"evidence[{index}] missing step {citation.step_id} in {citation.path}"
-            )
+            errors.append(f"evidence[{index}] missing step {citation.step_id} in {citation.path}")
             continue
         if citation.tool_call_id is not None:
             call_ids = {
@@ -1054,8 +1194,7 @@ class CodexExecAnalyzer:
         )
         if completed.returncode != 0:
             raise RuntimeError(
-                f"codex exec failed with {completed.returncode}: "
-                f"{completed.stderr.strip()[:500]}"
+                f"codex exec failed with {completed.returncode}: {completed.stderr.strip()[:500]}"
             )
         return AnalyzerCallResult(raw_output=output_path.read_text())
 

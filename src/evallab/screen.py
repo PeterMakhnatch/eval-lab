@@ -313,6 +313,7 @@ def generate_stage1_screen(
         DedupeRecord,
         GridGenerationResult,
         ProviderStats,
+        _point_id,
         find_existing_grid_points,
         generate_spec_name,
         sanitize_slug,
@@ -367,13 +368,23 @@ def generate_stage1_screen(
                 else level.agent
             )
 
-            # Deduplication check
-            if (task_id, agent_key, "none", screen_spec.initial_k) in existing_points or (
+            point_id = _point_id(
+                task_id,
+                agent_key,
+                "none",
+                screen_spec.initial_k,
+                arm_id=None,
+                factor_values={},
+            )
+            fallback_point_id = _point_id(
                 task_id,
                 level.agent,
                 "none",
                 screen_spec.initial_k,
-            ) in existing_points:
+                arm_id=None,
+                factor_values={},
+            )
+            if point_id in existing_points or fallback_point_id in existing_points:
                 deduped.append(
                     DedupeRecord(
                         grid_id=screen_spec.screen_id,
@@ -401,6 +412,7 @@ def generate_stage1_screen(
                 "agent": level.agent,
                 "model": level.model,
                 "k": screen_spec.initial_k,
+                "point_id": point_id,
             }
 
             if screen_spec.hypothesis_template:
@@ -899,6 +911,7 @@ def generate_stage2_screen(
         DedupeRecord,
         GridGenerationResult,
         ProviderStats,
+        _point_id,
         find_existing_grid_points,
         generate_spec_name,
         sanitize_slug,
@@ -968,13 +981,23 @@ def generate_stage2_screen(
                 else level.agent
             )
 
-            # Deduplication check for k=followup_k
-            if (task_id, agent_key, "none", screen_spec.followup_k) in existing_points or (
+            point_id = _point_id(
+                task_id,
+                agent_key,
+                "none",
+                screen_spec.followup_k,
+                arm_id=None,
+                factor_values={},
+            )
+            fallback_point_id = _point_id(
                 task_id,
                 level.agent,
                 "none",
                 screen_spec.followup_k,
-            ) in existing_points:
+                arm_id=None,
+                factor_values={},
+            )
+            if point_id in existing_points or fallback_point_id in existing_points:
                 deduped.append(
                     DedupeRecord(
                         grid_id=screen_spec.screen_id,
@@ -1002,6 +1025,7 @@ def generate_stage2_screen(
                 "agent": level.agent,
                 "model": level.model,
                 "k": screen_spec.followup_k,
+                "point_id": point_id,
             }
 
             hypothesis = (

@@ -703,6 +703,37 @@
   "analyze worker-run-one": {
     "options": [
       {
+        "action": "_StoreAction",
+        "choices": [
+          "codex-exec",
+          "none"
+        ],
+        "default": "none",
+        "dest": "adapter",
+        "flags": [
+          "--adapter"
+        ],
+        "help": "Explicit guarded model adapter; default performs no model call",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "authorization",
+        "flags": [
+          "--authorization"
+        ],
+        "help": "Queue authorization JSON required by codex-exec",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
         "action": "_HelpAction",
         "choices": null,
         "default": "==SUPPRESS==",
@@ -728,6 +759,20 @@
         "nargs": null,
         "required": true,
         "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/analyses/scratch",
+        "dest": "scratch_dir",
+        "flags": [
+          "--scratch-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
       }
     ]
   },
@@ -1695,6 +1740,171 @@
       }
     ]
   },
+  "evidence": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "evidence archive": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "job",
+        "dest": "kind",
+        "flags": [
+          "--kind"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "record_id",
+        "flags": [
+          "--record-id"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "source",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "store",
+        "flags": [
+          "--store"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "evidence restore": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "destination",
+        "flags": [
+          "--destination"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "store",
+        "flags": [
+          "--store"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "uri",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
   "fetch": {
     "options": [
       {
@@ -2256,6 +2466,51 @@
           "--submit"
         ],
         "help": "Submit generated ExperimentSpecs directly to the queue",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "ladder validate": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "grid_spec",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": null,
         "metavar": null,
         "nargs": 0,
         "required": false,
@@ -3675,7 +3930,7 @@
       }
     ]
   },
-  "tick": {
+  "tasks": {
     "options": [
       {
         "action": "_HelpAction",
@@ -3691,6 +3946,154 @@
         "nargs": 0,
         "required": false,
         "type": null
+      }
+    ]
+  },
+  "tasks import": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "library/tasks/imported",
+        "dest": "destination",
+        "flags": [
+          "--destination"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/imports/tasks.sqlite3",
+        "dest": "ledger",
+        "flags": [
+          "--ledger"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "limit",
+        "flags": [
+          "--limit"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "source",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "tick": {
+    "options": [
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": "[]",
+        "dest": "agent_capacity",
+        "flags": [
+          "--agent-capacity"
+        ],
+        "help": "Per-agent concurrent trial slots (repeatable)",
+        "metavar": "AGENT=N",
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_active_trials",
+        "flags": [
+          "--max-active-trials"
+        ],
+        "help": "Maximum sum of Harbor-internal concurrent trial slots",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_specs",
+        "flags": [
+          "--max-specs"
+        ],
+        "help": "Maximum specs admitted to this dispatch batch",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
       },
       {
         "action": "_StoreAction",
@@ -3896,6 +4299,18 @@
         "action": "_StoreAction",
         "choices": null,
         "default": null,
+        "dest": "label",
+        "flags": [],
+        "help": "Behavior label (e.g. tool_use_loop)",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
         "dest": "note",
         "flags": [
           "--note"
@@ -3910,30 +4325,17 @@
         "action": "_StoreAction",
         "choices": [
           "heuristic",
-          "human",
-          "model"
+          "human"
         ],
         "default": "human",
-        "dest": "proposed_by",
+        "dest": "provenance",
         "flags": [
-          "--proposed-by"
+          "--provenance"
         ],
         "help": null,
         "metavar": null,
         "nargs": null,
         "required": false,
-        "type": null
-      },
-      {
-        "action": "_StoreAction",
-        "choices": null,
-        "default": null,
-        "dest": "taxonomy",
-        "flags": [],
-        "help": "Taxonomy category (e.g. tool_use, planning, loop, etc.)",
-        "metavar": null,
-        "nargs": null,
-        "required": true,
         "type": null
       },
       {

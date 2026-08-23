@@ -2,7 +2,7 @@
 
 Tests cover:
 - Date resolution hierarchy (steps.parquet timestamp -> result.json -> mtime).
-- End-to-end compaction across all 9 Parquet tables.
+- End-to-end compaction across all 15 Parquet tables.
 - Zero row loss and exact Arrow schema preservation.
 - Idempotent re-runs and deduplication by primary key.
 - Granular partition retention (retaining trailing 7 days, pruning > 7 days).
@@ -160,6 +160,9 @@ def _make_table_row(table_name: str, job_id: str, trial_id: str, index: int = 1)
             "artifact_count": 1,
             "missing_artifact_count": 0,
             "artifact_set_digest": "sha256:artifacts",
+            "state_journal_status": "available",
+            "state_journal_reason": None,
+            "state_change_count": 1,
         }
     if table_name == "reward_facts":
         return {
@@ -188,6 +191,114 @@ def _make_table_row(table_name: str, job_id: str, trial_id: str, index: int = 1)
             "trial_id": trial_id,
             "function_name": "bash",
             "call_count": 1,
+        }
+    if table_name == "state_changes":
+        return {
+            "experiment_id": "exp-001",
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "path": f"output/result-{index}.txt",
+            "change_type": "added",
+            "before_sha256": None,
+            "after_sha256": "sha256:state123",
+            "before_size_bytes": None,
+            "after_size_bytes": 42,
+            "event_count": 2,
+            "first_event_at": "2026-08-10T14:30:01Z",
+            "last_event_at": "2026-08-10T14:30:02Z",
+            "journal_status": "available",
+        }
+    if table_name == "trajectory_events":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "event_id": f"event-{index}",
+            "parent_event_id": None,
+            "sequence": index,
+            "step_id": index,
+            "event_type": "tool_call",
+            "source": "agent",
+            "timestamp": "2026-08-10T14:30:00Z",
+            "model_name": None,
+            "tool_call_id": f"call-{index}",
+            "content_sha256": "sha256:event",
+            "content_size_bytes": 42,
+            "outcome": "success",
+            "exit_code": 0,
+            "source_path": f"/path/to/doc-{index}.json",
+        }
+    if table_name == "agent_actions":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "action_id": f"action-{index}",
+            "step_id": index,
+            "tool_call_id": f"call-{index}",
+            "timestamp": "2026-08-10T14:30:00Z",
+            "function_name": "bash",
+            "action_family": "execute",
+            "arguments_sha256": "sha256:input",
+            "observation_sha256": "sha256:output",
+            "observation_size_bytes": 42,
+            "exit_code": 0,
+            "outcome": "success",
+            "effect_count": 1,
+            "source_path": f"/path/to/doc-{index}.json",
+        }
+    if table_name == "llm_calls":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "call_id": f"llm-{index}",
+            "step_id": index,
+            "timestamp": "2026-08-10T14:30:00Z",
+            "model_name": "default",
+            "call_count": 1,
+            "prompt_tokens": 20,
+            "completion_tokens": 10,
+            "cached_tokens": 0,
+            "cost_usd": 0.002,
+            "projection_status": "projected",
+            "source_path": f"/path/to/doc-{index}.json",
+        }
+    if table_name == "trajectory_phases":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "phase_id": index,
+            "phase_type": "execution",
+            "name": "Execution",
+            "step_start": index,
+            "step_end": index,
+            "step_count": 1,
+            "tool_calls": 1,
+            "errors": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "cached_tokens": 0,
+            "cost_usd": 0.0,
+            "algorithm_version": "phase-v1",
+            "source_path": f"/path/to/doc-{index}.json",
+        }
+    if table_name == "action_effects":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "effect_id": f"effect-{index}",
+            "action_id": f"action-{index}",
+            "path": f"output/result-{index}.txt",
+            "change_type": "added",
+            "before_sha256": None,
+            "after_sha256": "sha256:state123",
+            "before_size_bytes": None,
+            "after_size_bytes": 42,
+            "first_event_at": "2026-08-10T14:30:01Z",
+            "last_event_at": "2026-08-10T14:30:02Z",
+            "link_status": "linked",
+            "link_method": "latest_preceding_action",
         }
     raise ValueError(f"Unknown table name: {table_name}")
 

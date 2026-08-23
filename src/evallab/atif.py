@@ -173,6 +173,12 @@ PROJECTED_TABLES = frozenset(
         "reward_facts.parquet",
         "artifact_facts.parquet",
         "tool_usage.parquet",
+        "state_changes.parquet",
+        "trajectory_events.parquet",
+        "agent_actions.parquet",
+        "llm_calls.parquet",
+        "trajectory_phases.parquet",
+        "action_effects.parquet",
     }
 )
 
@@ -223,15 +229,17 @@ class ProjectionInvariant:
             f"exceptions={len(self.excepted_job_ids)}"
         )
         if self.exceptions_by_reason:
-            breakdown = " (" + ", ".join(
-                f"{reason}={len(job_ids)}"
-                for reason, job_ids in sorted(self.exceptions_by_reason.items())
-            ) + ")"
+            breakdown = (
+                " ("
+                + ", ".join(
+                    f"{reason}={len(job_ids)}"
+                    for reason, job_ids in sorted(self.exceptions_by_reason.items())
+                )
+                + ")"
+            )
             base += breakdown
-        return (
-            f"{base} "
-            f"missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
-        )
+        return f"{base} missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
+
 
 CatalogRowsLoader = Callable[[str], list[tuple[str, str, str | None]]]
 
@@ -505,14 +513,10 @@ def _project_payload(
                 step_id=step_id,
                 source=str(raw_step.get("source", "")),
                 timestamp=(
-                    str(raw_step["timestamp"])
-                    if raw_step.get("timestamp") is not None
-                    else None
+                    str(raw_step["timestamp"]) if raw_step.get("timestamp") is not None else None
                 ),
                 model_name=(
-                    str(raw_step["model_name"])
-                    if raw_step.get("model_name") is not None
-                    else None
+                    str(raw_step["model_name"]) if raw_step.get("model_name") is not None else None
                 ),
                 is_copied_context=bool(raw_step.get("is_copied_context", False)),
                 llm_call_count=_optional_int(raw_step.get("llm_call_count")) or 0,
@@ -900,9 +904,7 @@ def _recorded_projection_exceptions_map(events_path: Path) -> dict[str, str]:
         except json.JSONDecodeError:
             continue
         reason = payload.get("reason_code") if isinstance(payload, dict) else None
-        if not isinstance(reason, str) or not reason.startswith(
-            f"{PROJECTION_FAILURE_REASON}:"
-        ):
+        if not isinstance(reason, str) or not reason.startswith(f"{PROJECTION_FAILURE_REASON}:"):
             continue
         parts = reason.split(":", 2)
         if len(parts) >= 3 and parts[1]:
@@ -914,6 +916,7 @@ def _recorded_projection_exceptions_map(events_path: Path) -> dict[str, str]:
 
 def _recorded_projection_exceptions(events_path: Path) -> frozenset[str]:
     return frozenset(_recorded_projection_exceptions_map(events_path).keys())
+
 
 def check_projection_invariant(
     database_url: str,
@@ -938,9 +941,7 @@ def check_projection_invariant(
 
     derived_root = output_root.resolve()
     present_job_ids = {
-        path.name.removeprefix("job_id=")
-        for path in derived_root.glob("job_id=*")
-        if path.is_dir()
+        path.name.removeprefix("job_id=") for path in derived_root.glob("job_id=*") if path.is_dir()
     }
     projected_job_ids: set[str] = set()
     for job_id, trial_ids in catalog_trials.items():
@@ -969,9 +970,7 @@ def check_projection_invariant(
     for job_id in excepted:
         reason = recorded_map.get(job_id, "unknown")
         exceptions_by_reason[reason].add(job_id)
-    frozen_exceptions = {
-        k: frozenset(v) for k, v in sorted(exceptions_by_reason.items())
-    }
+    frozen_exceptions = {k: frozenset(v) for k, v in sorted(exceptions_by_reason.items())}
     return ProjectionInvariant(
         catalog_job_ids=catalog_job_ids,
         projected_job_ids=frozenset(projected_job_ids),

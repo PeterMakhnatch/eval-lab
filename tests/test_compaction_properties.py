@@ -151,6 +151,9 @@ def _make_row(table_name: str, job_id: str, trial_id: str, index: int = 1) -> di
             "artifact_count": 1,
             "missing_artifact_count": 0,
             "artifact_set_digest": "sha256:artifacts",
+            "state_journal_status": "available",
+            "state_journal_reason": None,
+            "state_change_count": 1,
         }
     if table_name == "reward_facts":
         return {
@@ -179,6 +182,114 @@ def _make_row(table_name: str, job_id: str, trial_id: str, index: int = 1) -> di
             "trial_id": trial_id,
             "function_name": f"fn-{index}",
             "call_count": 1,
+        }
+    if table_name == "state_changes":
+        return {
+            "experiment_id": "exp-001",
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "path": f"output/result-{index}.txt",
+            "change_type": "added",
+            "before_sha256": None,
+            "after_sha256": "sha256:state123",
+            "before_size_bytes": None,
+            "after_size_bytes": 42,
+            "event_count": index,
+            "first_event_at": "2026-08-10T10:00:00Z",
+            "last_event_at": "2026-08-10T10:00:01Z",
+            "journal_status": "available",
+        }
+    if table_name == "trajectory_events":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "event_id": f"event-{index}",
+            "parent_event_id": None,
+            "sequence": index,
+            "step_id": index,
+            "event_type": "tool_call",
+            "source": "agent",
+            "timestamp": "2026-08-10T10:00:00Z",
+            "model_name": None,
+            "tool_call_id": f"call-{index}",
+            "content_sha256": "sha256:event",
+            "content_size_bytes": 42,
+            "outcome": "success",
+            "exit_code": 0,
+            "source_path": f"/path/to/doc-{index}.json",
+        }
+    if table_name == "agent_actions":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "action_id": f"action-{index}",
+            "step_id": index,
+            "tool_call_id": f"call-{index}",
+            "timestamp": "2026-08-10T10:00:00Z",
+            "function_name": "bash",
+            "action_family": "execute",
+            "arguments_sha256": "sha256:input",
+            "observation_sha256": "sha256:output",
+            "observation_size_bytes": 42,
+            "exit_code": 0,
+            "outcome": "success",
+            "effect_count": 1,
+            "source_path": f"/path/to/doc-{index}.json",
+        }
+    if table_name == "llm_calls":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "document_id": f"doc-{index}",
+            "call_id": f"llm-{index}",
+            "step_id": index,
+            "timestamp": "2026-08-10T10:00:00Z",
+            "model_name": "default",
+            "call_count": 1,
+            "prompt_tokens": 20,
+            "completion_tokens": 10,
+            "cached_tokens": 0,
+            "cost_usd": 0.002,
+            "projection_status": "projected",
+            "source_path": f"/path/to/doc-{index}.json",
+        }
+    if table_name == "trajectory_phases":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "phase_id": index,
+            "phase_type": "execution",
+            "name": "Execution",
+            "step_start": index,
+            "step_end": index,
+            "step_count": 1,
+            "tool_calls": 1,
+            "errors": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "cached_tokens": 0,
+            "cost_usd": 0.0,
+            "algorithm_version": "phase-v1",
+            "source_path": f"/path/to/doc-{index}.json",
+        }
+    if table_name == "action_effects":
+        return {
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "effect_id": f"effect-{index}",
+            "action_id": f"action-{index}",
+            "path": f"output/result-{index}.txt",
+            "change_type": "added",
+            "before_sha256": None,
+            "after_sha256": "sha256:state123",
+            "before_size_bytes": None,
+            "after_size_bytes": 42,
+            "first_event_at": "2026-08-10T10:00:00Z",
+            "last_event_at": "2026-08-10T10:00:01Z",
+            "link_status": "linked",
+            "link_method": "latest_preceding_action",
         }
     raise ValueError(f"Unknown table: {table_name}")
 
@@ -370,6 +481,21 @@ def test_property_deduplicate_and_sort_invariants(
     # Invariant 2: Idempotence: dedup(dedup(t)) == dedup(t)
     deduped_again = deduplicate_and_sort(deduped, table_name)
     assert deduped_again.equals(deduped)
+
+
+def test_deduplication_retains_the_same_conflicting_row_for_any_input_order() -> None:
+    first = _make_row("agent_actions", "job-1", "trial-1")
+    first["source_path"] = "z-source.json"
+    second = {**first, "source_path": "a-source.json"}
+
+    forward = pa.Table.from_pylist([first, second], schema=TABLE_SCHEMAS["agent_actions"])
+    reverse = pa.Table.from_pylist([second, first], schema=TABLE_SCHEMAS["agent_actions"])
+
+    forward_result = deduplicate_and_sort(forward, "agent_actions")
+    reverse_result = deduplicate_and_sort(reverse, "agent_actions")
+
+    assert forward_result.equals(reverse_result)
+    assert forward_result.to_pylist()[0]["source_path"] == "a-source.json"
 
 
 # --- Stateful Retention & Pruning Fuzz ---

@@ -255,6 +255,35 @@ def test_generate_grid_writes_valid_json_files(tmp_path: Path) -> None:
         assert loaded.grid_id == "write-grid"
 
 
+def test_generate_grid_does_not_publish_partial_spec_when_atomic_publish_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_dir = tmp_path / "queue" / "proposed"
+    grid = LadderGridSpec(
+        name="atomic-write-grid",
+        purpose="practice",
+        tasks=["tasks/event-summary"],
+        agents=["oracle"],
+        check_quota_headroom=False,
+    )
+    destination: Path | None = None
+
+    def fail_publish(source: Path, target: Path) -> None:
+        nonlocal destination
+        destination = Path(target)
+        assert not destination.exists()
+        raise OSError("simulated publish failure")
+
+    monkeypatch.setattr("evallab.ladder.os.link", fail_publish)
+    with pytest.raises(OSError, match="simulated publish failure"):
+        generate_grid(grid, output_dir=out_dir)
+
+    assert destination is not None
+    assert not destination.exists()
+    assert not list(out_dir.glob(".*.tmp"))
+
+
 def test_generate_grid_respects_global_max_specs() -> None:
     grid = LadderGridSpec(
         name="limit-specs-grid",
@@ -839,3 +868,379 @@ def test_grid_axes_differing_only_in_path_coordinate_produce_distinct_files(tmp_
     assert len(result.written_paths) == 2
     assert result.specs[0].name != result.specs[1].name
     assert len(list(out_dir.glob("*.json"))) == 2
+
+
+
+def test_named_arms_factors_compile_to_bounded_restartable_shards(tmp_path: Path) -> None:
+    grid = GridSpec.model_validate({
+        "schema_version": 1,
+        "grid_id": "agent-behavior-plan",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b"],
+            "arms": [
+                {
+                    "arm_id": "baseline",
+                    "agent": "oracle",
+                    "factor_overrides": {"context_budget": "small"},
+                },
+                {
+                    "arm_id": "treatment",
+                    "agent": {"agent": "nop"},
+                },
+            ],
+            "factors": {
+                "context_budget": ["small", "large"],
+                "feedback": [False, True],
+            },
+            "k": [1],
+        },
+        "shard_size": 3,
+        "check_quota_headroom": False,
+    })
+    output = tmp_path / "plans"
+
+    result = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+
+    # baseline fixes context_budget and crosses feedback: 2 tasks * 2 = 4.
+    # treatment crosses both factors: 2 tasks * 2 * 2 = 8.
+    assert result.total_specs == 12
+    assert len(result.shards) == 4
+    assert all(len(shard.spec_names) <= 3 for shard in result.shards)
+    assert sum(shard.trial_count for shard in result.shards) == 12
+    assert len({spec.grid_point["point_id"] for spec in result.specs}) == 12
+    assert {
+        spec.grid_point["arm_id"] for spec in result.specs
+    } == {"baseline", "treatment"}
+    manifest = json.loads(
+        (output / "_plan/manifest-agent-behavior-plan.json").read_text()
+    )
+    assert manifest["spec_count"] == 12
+    assert len(manifest["shards"]) == 4
+
+    resumed = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+    assert resumed.total_specs == 0
+    assert len(resumed.deduped) == 12
+
+
+def test_factor_constraints_and_validate_cli(tmp_path: Path, capsys) -> None:
+    plan = {
+        "schema_version": 1,
+        "grid_id": "factor-constraint-plan",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a"],
+            "arms": [
+                {"arm_id": "baseline", "agent": "oracle"},
+                {"arm_id": "treatment", "agent": "nop"},
+            ],
+            "factors": {"feedback": [False, True]},
+            "k": [1],
+        },
+        "constraints": [{"arm": "treatment", "factor.feedback": False}],
+        "shard_size": 2,
+        "check_quota_headroom": False,
+    }
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(plan))
+
+    result = generate_grid(plan, repo_root=tmp_path, dry_run=True)
+    assert result.total_specs == 3
+    assert len(result.shards) == 2
+
+    rc = cli.run_cli(["ladder", "validate", str(path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["valid"] is True
+    assert payload["spec_count"] == 3
+    assert payload["shard_count"] == 2
+
+
+def test_partial_resume_merges_manifest_with_continued_shard_indices(
+    tmp_path: Path,
+) -> None:
+    grid = GridSpec.model_validate({
+        "grid_id": "partial-plan",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b", "task/c", "task/d"],
+            "agents": ["oracle"],
+        },
+        "limits": {"max_specs": 2},
+        "shard_size": 1,
+        "check_quota_headroom": False,
+    })
+    output = tmp_path / "queue" / "proposed"
+
+    first = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+    second = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+
+    assert [shard.index for shard in first.shards] == [0, 1]
+    assert [shard.index for shard in second.shards] == [2, 3]
+    manifest = json.loads(
+        (output / "_plan" / "manifest-partial-plan.json").read_text()
+    )
+    assert manifest["spec_count"] == 4
+    assert [shard["index"] for shard in manifest["shards"]] == [0, 1, 2, 3]
+    assert {
+        path.name for path in (output / "_plan").glob("*.json")
+    } == {
+        "manifest-partial-plan.json",
+        *(shard["path"] for shard in manifest["shards"]),
+    }
+
+
+def test_partial_resume_rejects_incompatible_manifest(tmp_path: Path) -> None:
+    grid = GridSpec.model_validate({
+        "grid_id": "incompatible-plan",
+        "purpose": "elicitation",
+        "axes": {"task_refs": ["task/a"], "agents": ["oracle"]},
+        "shard_size": 1,
+        "check_quota_headroom": False,
+    })
+    output = tmp_path / "queue" / "proposed"
+    generate_grid(grid, output_dir=output, repo_root=tmp_path)
+    manifest_path = output / "_plan" / "manifest-incompatible-plan.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["shard_size"] = 2
+    manifest_path.write_text(json.dumps(manifest))
+
+    with pytest.raises(ValueError, match="incompatible plan manifest"):
+        generate_grid(grid, output_dir=output, repo_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "arm_id",
+    ["has.dot", "has_under", "Uppercase", "-leading", "trailing-", "two--hyphens"],
+)
+def test_arm_id_is_slug_stable(arm_id: str) -> None:
+    with pytest.raises(ValidationError):
+        GridSpec.model_validate({
+            "grid_id": "bad-arm",
+            "purpose": "elicitation",
+            "axes": {
+                "task_refs": ["task/a"],
+                "arms": [{"arm_id": arm_id, "agent": "oracle"}],
+            },
+        })
+
+
+@pytest.mark.parametrize(
+    "grid_order",
+    [
+        ("plan-a", "plan-a-stage2"),
+        ("plan-a-stage2", "plan-a"),
+    ],
+)
+def test_prefix_related_grids_share_plan_directory_in_both_orders(
+    tmp_path: Path,
+    grid_order: tuple[str, str],
+) -> None:
+    output = tmp_path / "queue" / "proposed"
+    shard_names: set[str] = set()
+    for grid_id in grid_order:
+        grid = GridSpec.model_validate({
+            "grid_id": grid_id,
+            "purpose": "elicitation",
+            "axes": {"task_refs": ["task/a"], "agents": ["oracle"]},
+            "shard_size": 1,
+            "check_quota_headroom": False,
+        })
+        result = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+        assert [shard.index for shard in result.shards] == [0]
+        assert result.shards[0].path is not None
+        shard_names.add(result.shards[0].path.name)
+
+    plan_dir = output / "_plan"
+    assert (plan_dir / "manifest-plan-a.json").is_file()
+    assert (plan_dir / "manifest-plan-a-stage2.json").is_file()
+    assert len(shard_names) == 2
+    assert len(list(plan_dir.glob("*.json"))) == 4
+
+
+def test_arms_reject_explicit_preamble_axis_and_invalid_factor_overrides() -> None:
+    base = {
+        "grid_id": "bad-axes",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a"],
+            "arms": [{"arm_id": "control", "agent": "oracle"}],
+        },
+    }
+    with pytest.raises(ValidationError, match="preamble cannot be declared"):
+        GridSpec.model_validate({
+            **base,
+            "axes": {**base["axes"], "preamble": ["none"]},
+        })
+    with pytest.raises(ValidationError, match="undeclared factor"):
+        GridSpec.model_validate({
+            **base,
+            "axes": {
+                **base["axes"],
+                "arms": [{
+                    "arm_id": "control",
+                    "agent": "oracle",
+                    "factor_overrides": {"missing": "value"},
+                }],
+            },
+        })
+    with pytest.raises(ValidationError, match="undeclared level"):
+        GridSpec.model_validate({
+            **base,
+            "axes": {
+                **base["axes"],
+                "arms": [{
+                    "arm_id": "control",
+                    "agent": "oracle",
+                    "factor_overrides": {"budget": "large"},
+                }],
+                "factors": {"budget": ["small"]},
+            },
+        })
+
+
+@pytest.mark.parametrize(
+    ("constraint", "message"),
+    [
+        ({"factor.missing": True}, "undeclared factor"),
+        ({"factor.feedback": "unknown"}, "undeclared levels"),
+        ({"arm": "unknown"}, "undeclared arms"),
+    ],
+)
+def test_constraints_reject_undeclared_arm_and_factor_coordinates(
+    constraint: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        GridSpec.model_validate({
+            "grid_id": "bad-constraint",
+            "purpose": "elicitation",
+            "axes": {
+                "task_refs": ["task/a"],
+                "arms": [
+                    {"arm_id": "control", "agent": "oracle"},
+                    {"arm_id": "treatment", "agent": "nop"},
+                ],
+                "factors": {"feedback": [False, True]},
+            },
+            "constraints": [constraint],
+        })
+
+
+def test_skipped_arm_coordinates_are_preserved_and_serialized(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = {
+        "grid_id": "withheld-coordinates",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b"],
+            "arms": [{
+                "arm_id": "treatment",
+                "agent": "oracle",
+                "factor_overrides": {"feedback": True},
+            }],
+            "factors": {"feedback": [False, True]},
+        },
+        "limits": {"max_specs": 1},
+        "check_quota_headroom": False,
+    }
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(plan))
+
+    rc = cli.run_cli(["ladder", "generate", str(path), "--json"], workspace=tmp_path)
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["skipped"] == [{
+        "name": payload["skipped"][0]["name"],
+        "task": "task/b",
+        "agent": "oracle",
+        "preamble": "none",
+        "attempts": 1,
+        "reason": "global max_specs limit (1) reached",
+        "arm_id": "treatment",
+        "factor_values": {"feedback": True},
+    }]
+
+
+def test_validate_json_reports_resume_counts_and_invalid_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = {
+        "grid_id": "validate-counts",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b"],
+            "agents": ["oracle"],
+        },
+        "limits": {"max_specs": 1},
+        "check_quota_headroom": False,
+    }
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(plan))
+    generate_grid(
+        plan,
+        output_dir=tmp_path / "queue" / "proposed",
+        repo_root=tmp_path,
+    )
+
+    rc = cli.run_cli(
+        ["ladder", "validate", str(path), "--json"], workspace=tmp_path
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["declared_spec_count"] == 2
+    assert payload["remaining_spec_count"] == 1
+    assert payload["deduped_spec_count"] == 1
+    assert payload["skipped_spec_count"] == 0
+
+    bad_path = tmp_path / "bad.yaml"
+    bad_path.write_text("purpose: elicitation\naxes: nope\n")
+    rc = cli.run_cli(
+        ["ladder", "validate", str(bad_path), "--json"], workspace=tmp_path
+    )
+    error_payload = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert error_payload["valid"] is False
+    assert error_payload["errors"]
+
+
+def test_module_entry_json_serializes_skipped_and_deduped_arm_coordinates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan = {
+        "grid_id": "module-coordinates",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b", "task/c"],
+            "arms": [{
+                "arm_id": "treatment",
+                "agent": "oracle",
+                "factor_overrides": {"feedback": True},
+            }],
+            "factors": {"feedback": [False, True]},
+        },
+        "limits": {"max_specs": 1},
+        "check_quota_headroom": False,
+    }
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(plan))
+    generate_grid(
+        plan,
+        output_dir=tmp_path / "queue" / "proposed",
+        repo_root=tmp_path,
+    )
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["generate", str(path), "--json", "--no-quota-check"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    for record in [*payload["skipped"], *payload["deduped"]]:
+        assert record["arm_id"] == "treatment"
+        assert record["factor_values"] == {"feedback": True}
+    assert len(payload["skipped"]) == 1
+    assert len(payload["deduped"]) == 1

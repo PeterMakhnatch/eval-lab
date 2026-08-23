@@ -5,7 +5,7 @@
 --   v_traj_loops: filtered view of loop-suspicious trials ordered by loop score
 --   v_traj_tool_mix: tool mix distributions across agents and task families
 --   v_traj_error_recovery: error counts, recoveries, and recovery rates by agent/task
---   v_traj_labels: human ground-truth and heuristic labels joined to trial metadata
+--   v_traj_labels: unified human, heuristic, and model behavior labels
 --   v_traj_queue: candidate review queue for unlabeled real-agent trials
 --   v_traj_summary: headline trajectory coverage and feature summary
 --
@@ -56,17 +56,35 @@ CREATE TABLE IF NOT EXISTS traj_features (
     created_at VARCHAR
 );
 
-CREATE TABLE IF NOT EXISTS traj_labels (
+CREATE TABLE IF NOT EXISTS behavior_labels (
+    schema_version BIGINT,
     label_id VARCHAR,
+    target_type VARCHAR,
+    target_id VARCHAR,
+    job_id VARCHAR,
     trial_id VARCHAR,
     trial_name VARCHAR,
     task_name VARCHAR,
     taxonomy VARCHAR,
-    note VARCHAR,
-    proposed_by VARCHAR,
+    label VARCHAR,
+    rationale VARCHAR,
+    provenance VARCHAR,
     author VARCHAR,
-    labeled_at VARCHAR,
-    source_sha256 VARCHAR
+    created_at VARCHAR,
+    confidence VARCHAR,
+    evidence_json VARCHAR,
+    source_sha256 VARCHAR,
+    analysis_id VARCHAR,
+    model_agent VARCHAR,
+    model_agent_version VARCHAR,
+    model_name VARCHAR,
+    prompt_digest VARCHAR,
+    rubric_digest VARCHAR,
+    output_schema_digest VARCHAR,
+    model_created_at VARCHAR,
+    input_tokens BIGINT,
+    output_tokens BIGINT,
+    cost_usd DOUBLE
 );
 
 CREATE TABLE IF NOT EXISTS trial_facts (
@@ -192,19 +210,24 @@ SELECT
     l.trial_id,
     l.trial_name,
     l.task_name,
-    l.taxonomy,
-    l.note,
-    l.proposed_by,
+    l.label,
+    l.rationale,
+    l.provenance,
     l.author,
-    l.labeled_at,
+    l.created_at,
+    l.taxonomy,
+    l.confidence,
+    l.analysis_id,
+    l.model_name AS label_model_name,
     f.agent_name,
-    f.model_name,
+    f.model_name AS trajectory_model_name,
     f.primary_reward,
     f.step_count,
     f.loop_suspicion_score,
     f.source_path
-FROM traj_labels l
-LEFT JOIN traj_features f ON l.trial_id = f.trial_id;
+FROM behavior_labels l
+LEFT JOIN traj_features f ON l.trial_id = f.trial_id
+WHERE l.target_type IN ('trajectory', 'trial');
 
 CREATE OR REPLACE VIEW v_traj_queue AS
 SELECT
@@ -226,7 +249,9 @@ FROM traj_features f
 WHERE f.status = 'featured'
   AND lower(f.agent_name) NOT IN ('oracle', 'nop')
   AND f.trial_id NOT IN (
-      SELECT trial_id FROM traj_labels WHERE proposed_by = 'human'
+      SELECT trial_id
+      FROM behavior_labels
+      WHERE provenance = 'human' AND target_type = 'trajectory'
   )
 ORDER BY f.loop_suspicion_score DESC, f.error_count DESC, f.task_name ASC, f.trial_id ASC;
 
@@ -241,6 +266,6 @@ SELECT
     sum(prompt_tokens) AS total_prompt_tokens,
     sum(completion_tokens) AS total_completion_tokens,
     round(sum(cost_usd), 4) AS total_cost_usd,
-    (SELECT count(*) FROM traj_labels WHERE proposed_by = 'human') AS human_labels_count,
-    (SELECT count(*) FROM traj_labels WHERE proposed_by = 'heuristic') AS heuristic_labels_count
+    (SELECT count(*) FROM behavior_labels WHERE provenance = 'human') AS human_labels_count,
+    (SELECT count(*) FROM behavior_labels WHERE provenance = 'heuristic') AS heuristic_labels_count
 FROM traj_features;

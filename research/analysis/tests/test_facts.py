@@ -79,6 +79,12 @@ def test_rebuild_from_raw_writes_joinable_fact_and_trajectory_tables(tmp_path: P
         "reward_facts",
         "artifact_facts",
         "tool_usage",
+        "state_changes",
+        "trajectory_events",
+        "agent_actions",
+        "llm_calls",
+        "trajectory_phases",
+        "action_effects",
     }
     assert [(table.table, table.rows, table.sha256) for table in first.tables] == [
         (table.table, table.rows, table.sha256) for table in second.tables

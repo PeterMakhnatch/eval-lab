@@ -1177,6 +1177,24 @@ def record_projection_failures(
         )
 
 
+@dataclass(frozen=True)
+class DispatchCapacity:
+    """Explicit global limits for one concurrent dispatch batch."""
+
+    max_specs_per_tick: int | None = None
+    max_active_trials: int | None = None
+    per_agent_active_trials: dict[str, int] | None = None
+
+    def __post_init__(self) -> None:
+        values = [
+            self.max_specs_per_tick,
+            self.max_active_trials,
+            *(self.per_agent_active_trials or {}).values(),
+        ]
+        if any(value is not None and value < 1 for value in values):
+            raise ValueError("dispatch capacity values must be positive")
+
+
 class Executor:
     """The sole application boundary allowed to start Harbor experiments."""
 
@@ -1196,6 +1214,7 @@ class Executor:
         sleeper: Sleeper = time.sleep,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int = 1,
+        capacity: DispatchCapacity | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -1220,6 +1239,7 @@ class Executor:
         if parallel < 1:
             raise ValueError("parallel must be at least 1")
         self.parallel = parallel
+        self.capacity = capacity
         self.last_tick_reason: str | None = None
 
     def _repo_headroom(self, agent: str) -> Headroom:
@@ -1237,12 +1257,14 @@ class Executor:
         *,
         parallel: int = 1,
         progress: ProgressCallable | None = None,
+        capacity: DispatchCapacity | None = None,
     ) -> Executor:
         return cls(
             repo_root=root,
             queue=DirectoryQueue(root / "queue"),
             policy=load_policy(root / "policy/standing-approvals.yaml"),
             parallel=parallel,
+            capacity=capacity,
             progress=progress,
         )
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
@@ -1403,6 +1425,36 @@ class Executor:
         finally:
             self.queue.release_lease(spec)
 
+    def _capacity_batch(
+        self,
+        approved_specs: list[tuple[Path, ExperimentSpec]],
+    ) -> list[tuple[Path, ExperimentSpec]]:
+        if self.capacity is None:
+            return approved_specs
+        limit = self.capacity.max_specs_per_tick
+        selected: list[tuple[Path, ExperimentSpec]] = []
+        active_trials = 0
+        by_agent: dict[str, int] = {}
+        for path, spec in approved_specs:
+            if limit is not None and len(selected) >= limit:
+                break
+            slots = min(spec.attempts, spec.concurrency)
+            if (
+                self.capacity.max_active_trials is not None
+                and active_trials + slots > self.capacity.max_active_trials
+            ):
+                continue
+            agent_limit = (self.capacity.per_agent_active_trials or {}).get(spec.agent)
+            if agent_limit is not None and by_agent.get(spec.agent, 0) + slots > agent_limit:
+                continue
+            selected.append((path, spec))
+            active_trials += slots
+            by_agent[spec.agent] = by_agent.get(spec.agent, 0) + slots
+        if not selected:
+            self.last_tick_reason = "capacity_no_approved_spec_fits"
+        return selected
+
+
     def _tick_locked(self, parallel: int = 1) -> int:
         self.reconcile_running()
         if self.queue.stop_path.exists():
@@ -1424,6 +1476,7 @@ class Executor:
             return 0
         credentials = self._credential_probe()
         approved_specs = self.queue.list_specs("approved")
+        approved_specs = self._capacity_batch(approved_specs)
         if not approved_specs:
             return 0
 

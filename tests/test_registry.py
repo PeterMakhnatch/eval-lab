@@ -239,6 +239,32 @@ def _make_registry_record(
     )
 
 
+def _write_downgraded_candidate(
+    task_dir: Path,
+    repo_root: Path,
+    *,
+    task_id: str,
+) -> TaskRegistryRecord:
+    raw = _make_registry_record(
+        task_dir,
+        repo_root,
+        task_id=task_id,
+        state="candidate",
+    ).model_dump(mode="json")
+    raw.update(
+        {
+            "control_evidence": None,
+            "state_reason": "durable_identity_bound_control_evidence_missing",
+        }
+    )
+    shutil.rmtree(repo_root / "research/evidence/runs")
+    record = TaskRegistryRecord.model_validate(raw)
+    registry_dir = repo_root / "library/registry"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+    (registry_dir / f"{task_id}.json").write_text(record.model_dump_json(indent=2))
+    return record
+
+
 def test_no_registry_present_means_zero_registered_tasks(tmp_path: Path) -> None:
     reg = TaskRegistry.from_repo(tmp_path)
     assert len(reg.records) == 0
@@ -936,6 +962,93 @@ def test_explicit_ephemeral_discovery_root_is_refused(tmp_path: Path) -> None:
     assert evidence.nop.reward == 0.0
     assert evidence.oracle.evidence_path.startswith("research/evidence/runs/")
     assert evidence.nop.evidence_path.startswith("research/evidence/runs/")
+
+
+def test_downgraded_candidate_requires_new_durable_evidence_for_promotion(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/downgraded-task")
+    _write_downgraded_candidate(
+        task_dir,
+        tmp_path,
+        task_id="downgraded-task",
+    )
+
+    with pytest.raises(TaskControlEvidenceError, match="missing durable trial-level"):
+        promote_task(
+            "library/tasks/downgraded-task",
+            tmp_path,
+            state="registered",
+            actor="Peter Makhnatch",
+        )
+
+    persisted = TaskRegistry.from_repo(tmp_path).get("downgraded-task")
+    assert persisted is not None
+    assert persisted.state == "candidate"
+    assert persisted.state_reason == "durable_identity_bound_control_evidence_missing"
+
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    promoted = promote_task(
+        "library/tasks/downgraded-task",
+        tmp_path,
+        state="registered",
+        actor="Peter Makhnatch",
+    )
+    assert promoted.state == "registered"
+    assert promoted.control_evidence is not None
+    assert promoted.state_reason is None
+
+
+def test_candidate_idempotence_refreshes_newly_available_durable_evidence(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/refreshed-task")
+    _write_downgraded_candidate(
+        task_dir,
+        tmp_path,
+        task_id="refreshed-task",
+    )
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    refreshed = promote_task("library/tasks/refreshed-task", tmp_path)
+
+    assert refreshed.state == "candidate"
+    assert refreshed.control_evidence is not None
+    assert refreshed.state_reason is None
+    persisted = TaskRegistry.from_repo(tmp_path).get("refreshed-task")
+    assert persisted == refreshed
+
+
+def test_register_task_clears_candidate_state_reason_before_persisting(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/reasoned-task")
+    record = _make_registry_record(
+        task_dir,
+        tmp_path,
+        task_id="reasoned-task",
+        state="candidate",
+    )
+    reasoned = TaskRegistryRecord.model_validate(
+        record.model_copy(update={"state_reason": "superseded_reason"}).model_dump()
+    )
+    registry_dir = tmp_path / "library/registry"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+    record_path = registry_dir / "reasoned-task.json"
+    record_path.write_text(reasoned.model_dump_json(indent=2))
+
+    registered = register_task(
+        "reasoned-task",
+        actor="Peter Makhnatch",
+        repo_root=tmp_path,
+    )
+
+    assert registered.state_reason is None
+    persisted = TaskRegistryRecord.model_validate_json(record_path.read_text())
+    assert persisted.state == "registered"
+    assert persisted.state_reason is None
 
 
 def test_evidence_cannot_be_replayed_against_another_package(tmp_path: Path) -> None:

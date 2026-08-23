@@ -369,5 +369,5 @@ JOIN trial_facts t
     ON c.task_digest IS NOT NULL
    AND t.task_digest IS NOT NULL
    AND c.task_digest = t.task_digest
-GROUP BY c.source_repo, c.verifier_type
+GROUP BY c.source_repo, coalesce(c.verifier_type, 'unclassified')
 ORDER BY c.source_repo, n DESC, verifier_type;

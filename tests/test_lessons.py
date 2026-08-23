@@ -485,6 +485,27 @@ def test_failure_diagnoses_keep_sources_distinct_and_deduplicate_valid_sidecars(
     )
 
 
+
+def test_verifier_outcomes_group_on_the_projected_unclassified_key() -> None:
+    craft = _make_mock_craft_records()
+    craft[0] = {**craft[0], "verifier_type": None}
+    craft[1] = {**craft[1], "verifier_type": "unclassified"}
+
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=craft,
+            trial_facts=_make_mock_trial_facts(),
+            analysis_sidecars=[],
+            observation_records=[],
+        )
+        rows = execute_lessons_views(con)["v_outcome_by_verifier_type"]
+
+    assert len(rows) == 1
+    assert rows[0]["verifier_type"] == "unclassified"
+    assert rows[0]["total_trials_n"] == 9
+
+
 def test_capability_denominator_reports_exception_and_never_measured_exclusions() -> None:
     facts = _make_mock_trial_facts()
     never_measured = {

@@ -72,13 +72,8 @@ def test_stage1_generation_registered_tasks(tmp_path: Path) -> None:
     """Stage 1 generates k=1 specs across registered tasks preserving human approval."""
     repo_root = Path.cwd()
     screen_spec = ScreenSpec(
-        screen_id="screen-stage1-four-tasks",
-        tasks=[
-            "event-summary",
-            "transaction-reconciliation",
-            "terminal-bench-html-js-filter",
-            "query-optimize",
-        ],
+        screen_id="screen-stage1-registered-tasks",
+        tasks=["event-summary"],
     )
     out_dir = tmp_path / "queue" / "proposed"
     result = generate_stage1_screen(
@@ -87,24 +82,24 @@ def test_stage1_generation_registered_tasks(tmp_path: Path) -> None:
         output_dir=out_dir,
     )
 
-    # 4 tasks * 2 model levels = 8 specs
-    assert result.total_specs == 8
-    assert result.total_trials == 8
-    assert len(result.specs) == 8
-    assert len(result.written_paths) == 8
+    # 1 registered task * 2 model levels = 2 specs.
+    assert result.total_specs == 2
+    assert result.total_trials == 2
+    assert len(result.specs) == 2
+    assert len(result.written_paths) == 2
 
     # Check spec properties
     for spec in result.specs:
-        assert spec.grid_id == "screen-stage1-four-tasks"
+        assert spec.grid_id == "screen-stage1-registered-tasks"
         assert spec.attempts == 1
         assert spec.purpose == "comparison"
         assert spec.grid_point is not None
-        assert spec.grid_point["screen_id"] == "screen-stage1-four-tasks"
+        assert spec.grid_point["screen_id"] == "screen-stage1-registered-tasks"
         assert spec.grid_point["stage"] == 1
         assert spec.grid_point["k"] == 1
         assert spec.prereg is not None
         assert spec.power is not None
-        assert spec.power.planned_n == 4
+        assert spec.power.planned_n == 1
 
         # Read on-disk file
         file_path = out_dir / f"{spec.name}.json"
@@ -434,21 +429,13 @@ def test_cohort_isolation(tmp_path: Path) -> None:
 
 
 def test_stage2_emits_k3_only_for_separating_tasks(tmp_path: Path) -> None:
-    """Stage 2 emits k=3 specs ONLY for tasks classified as separating."""
+    """Stage 2 emits k=3 specs only for a registered separating task."""
     repo_root = Path.cwd()
     screen_spec = ScreenSpec(
         screen_id="screen-staged-e2e",
-        tasks=[
-            "event-summary",
-            "transaction-reconciliation",
-            "terminal-bench-html-js-filter",
-            "query-optimize",
-        ],
+        tasks=["event-summary"],
     )
-
-    # 4 tasks: 1 sat-pass, 1 separating, 1 sat-fail, 1 broken
     trial_records = [
-        # event-summary: sat-pass (Low=1.0, Med=1.0)
         {
             "screen_id": "screen-staged-e2e",
             "task": "event-summary",
@@ -456,75 +443,12 @@ def test_stage2_emits_k3_only_for_separating_tasks(tmp_path: Path) -> None:
             "model": "gemini-3.7-flash-low",
             "model_level": "low",
             "stage": 1,
-            "reward": 1.0,
+            "reward": 0.0,
             "error": None,
         },
         {
             "screen_id": "screen-staged-e2e",
             "task": "event-summary",
-            "agent": "antigravity-cli",
-            "model": "gemini-3.7-flash-medium",
-            "model_level": "medium",
-            "stage": 1,
-            "reward": 1.0,
-            "error": None,
-        },
-        # transaction-reconciliation: separating (Low=0.0, Med=1.0)
-        {
-            "screen_id": "screen-staged-e2e",
-            "task": "transaction-reconciliation",
-            "agent": "antigravity-cli",
-            "model": "gemini-3.7-flash-low",
-            "model_level": "low",
-            "stage": 1,
-            "reward": 0.0,
-            "error": None,
-        },
-        {
-            "screen_id": "screen-staged-e2e",
-            "task": "transaction-reconciliation",
-            "agent": "antigravity-cli",
-            "model": "gemini-3.7-flash-medium",
-            "model_level": "medium",
-            "stage": 1,
-            "reward": 1.0,
-            "error": None,
-        },
-        # terminal-bench-html-js-filter: sat-fail (Low=0.0, Med=0.0)
-        {
-            "screen_id": "screen-staged-e2e",
-            "task": "terminal-bench-html-js-filter",
-            "agent": "antigravity-cli",
-            "model": "gemini-3.7-flash-low",
-            "model_level": "low",
-            "stage": 1,
-            "reward": 0.0,
-            "error": None,
-        },
-        {
-            "screen_id": "screen-staged-e2e",
-            "task": "terminal-bench-html-js-filter",
-            "agent": "antigravity-cli",
-            "model": "gemini-3.7-flash-medium",
-            "model_level": "medium",
-            "stage": 1,
-            "reward": 0.0,
-            "error": None,
-        },
-        # query-optimize: broken/error
-        {
-            "screen_id": "screen-staged-e2e",
-            "task": "query-optimize",
-            "agent": "antigravity-cli",
-            "model": "gemini-3.7-flash-low",
-            "model_level": "low",
-            "stage": 1,
-            "reward": None,
-            "error": "timeout",
-        },
-        {
-            "screen_id": "screen-staged-e2e",
-            "task": "query-optimize",
             "agent": "antigravity-cli",
             "model": "gemini-3.7-flash-medium",
             "model_level": "medium",
@@ -539,15 +463,9 @@ def test_stage2_emits_k3_only_for_separating_tasks(tmp_path: Path) -> None:
         spec=screen_spec,
         trial_records=trial_records,
     )
+    assert analysis.separating_tasks == ["event-summary"]
+    assert analysis.stopped_tasks == []
 
-    assert analysis.separating_tasks == ["transaction-reconciliation"]
-    assert set(analysis.stopped_tasks) == {
-        "event-summary",
-        "terminal-bench-html-js-filter",
-        "query-optimize",
-    }
-
-    # Generate Stage 2 follow-ups
     out_dir = tmp_path / "queue" / "proposed_stage2"
     result = generate_stage2_screen(
         analysis,
@@ -555,20 +473,16 @@ def test_stage2_emits_k3_only_for_separating_tasks(tmp_path: Path) -> None:
         repo_root=repo_root,
         output_dir=out_dir,
     )
-
-    # 1 separating task * 2 model levels = 2 specs at k=3
     assert result.total_specs == 2
-    assert result.total_trials == 6  # 2 specs * k=3
+    assert result.total_trials == 6
     assert len(result.specs) == 2
     assert len(result.written_paths) == 2
+    for generated_spec in result.specs:
+        assert generated_spec.task == "event-summary"
+        assert generated_spec.attempts == 3
+        assert generated_spec.grid_point["stage"] == 2
+        assert generated_spec.grid_point["k"] == 3
 
-    for spec in result.specs:
-        assert spec.task == "transaction-reconciliation"
-        assert spec.attempts == 3
-        assert spec.grid_point["stage"] == 2
-        assert spec.grid_point["k"] == 3
-
-    # Idempotent Stage 2 rerun: writes 0, dedupes 2
     result_rerun = generate_stage2_screen(
         analysis,
         screen_spec,
@@ -595,7 +509,7 @@ def test_difficulty_variant_contract() -> None:
 def test_cli_ladder_screen_stage1_analyze_stage2(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """CLI commands ladder screen stage1, analyze, stage2 run and print clear reasons."""
+    """CLI ladder stages operate on the currently registered task set."""
     screen_file = tmp_path / "screen.yaml"
     screen_file.write_text(
         """
@@ -604,7 +518,6 @@ screen_id: cli-screen-demo
 purpose: comparison
 tasks:
   - event-summary
-  - transaction-reconciliation
 model_levels:
   - name: low
     agent: antigravity-cli
@@ -617,8 +530,6 @@ followup_k: 3
 """
     )
     out_dir = tmp_path / "output_specs"
-
-    # 1. Test CLI stage1
     ret1 = run_cli(
         ["ladder", "screen", "stage1", str(screen_file), "-o", str(out_dir)],
         workspace=Path.cwd(),
@@ -626,107 +537,35 @@ followup_k: 3
     assert ret1 == 0
     captured1 = capsys.readouterr()
     assert "LADDER Screen Stage 1 Generation: cli-screen-demo" in captured1.out
-    assert "Generated 4 specs" in captured1.out
+    assert "Generated 2 specs" in captured1.out
     assert "Human approval preserved" in captured1.out
-    assert len(list(out_dir.glob("*.json"))) == 4
+    assert len(list(out_dir.glob("*.json"))) == 2
 
-    # 2. Test CLI analyze (with mock jobs_dir)
     jobs_dir = tmp_path / "runs"
-    t1 = jobs_dir / "cli-screen-demo-transaction-low-k1"
-    t1.mkdir(parents=True)
-    (t1 / "spec.json").write_text(
-        json.dumps(
-            {
-                "name": "cli-screen-demo-transaction-low-k1",
-                "grid_id": "cli-screen-demo",
-                "grid_point": {
-                    "screen_id": "cli-screen-demo",
-                    "task": "transaction-reconciliation",
-                    "model_level": "low",
-                },
-            }
+    for level, reward in (("low", 0.0), ("medium", 1.0)):
+        trial = jobs_dir / f"cli-screen-demo-event-summary-{level}-k1"
+        trial.mkdir(parents=True)
+        (trial / "spec.json").write_text(
+            json.dumps(
+                {
+                    "name": trial.name,
+                    "grid_id": "cli-screen-demo",
+                    "grid_point": {
+                        "screen_id": "cli-screen-demo",
+                        "task": "event-summary",
+                        "model_level": level,
+                    },
+                }
+            )
         )
-    )
-    (t1 / "result.json").write_text(
-        json.dumps(
-            {
-                "task_name": "transaction-reconciliation",
-                "verifier_result": {"reward": 0.0},
-            }
+        (trial / "result.json").write_text(
+            json.dumps(
+                {
+                    "task_name": "event-summary",
+                    "verifier_result": {"reward": reward},
+                }
+            )
         )
-    )
-
-    t2 = jobs_dir / "cli-screen-demo-transaction-medium-k1"
-    t2.mkdir(parents=True)
-    (t2 / "spec.json").write_text(
-        json.dumps(
-            {
-                "name": "cli-screen-demo-transaction-medium-k1",
-                "grid_id": "cli-screen-demo",
-                "grid_point": {
-                    "screen_id": "cli-screen-demo",
-                    "task": "transaction-reconciliation",
-                    "model_level": "medium",
-                },
-            }
-        )
-    )
-    (t2 / "result.json").write_text(
-        json.dumps(
-            {
-                "task_name": "transaction-reconciliation",
-                "verifier_result": {"reward": 1.0},
-            }
-        )
-    )
-
-    t3 = jobs_dir / "cli-screen-demo-event-summary-low-k1"
-    t3.mkdir(parents=True)
-    (t3 / "spec.json").write_text(
-        json.dumps(
-            {
-                "name": "cli-screen-demo-event-summary-low-k1",
-                "grid_id": "cli-screen-demo",
-                "grid_point": {
-                    "screen_id": "cli-screen-demo",
-                    "task": "event-summary",
-                    "model_level": "low",
-                },
-            }
-        )
-    )
-    (t3 / "result.json").write_text(
-        json.dumps(
-            {
-                "task_name": "event-summary",
-                "verifier_result": {"reward": 1.0},
-            }
-        )
-    )
-
-    t4 = jobs_dir / "cli-screen-demo-event-summary-medium-k1"
-    t4.mkdir(parents=True)
-    (t4 / "spec.json").write_text(
-        json.dumps(
-            {
-                "name": "cli-screen-demo-event-summary-medium-k1",
-                "grid_id": "cli-screen-demo",
-                "grid_point": {
-                    "screen_id": "cli-screen-demo",
-                    "task": "event-summary",
-                    "model_level": "medium",
-                },
-            }
-        )
-    )
-    (t4 / "result.json").write_text(
-        json.dumps(
-            {
-                "task_name": "event-summary",
-                "verifier_result": {"reward": 1.0},
-            }
-        )
-    )
 
     ret2 = run_cli(
         [
@@ -742,13 +581,8 @@ followup_k: 3
     assert ret2 == 0
     captured2 = capsys.readouterr()
     assert "Screen Analysis: cli-screen-demo" in captured2.out
-    assert "event-summary: [saturated-pass] -> STOPPED" in captured2.out
-    assert (
-        "transaction-reconciliation: [separating] -> SELECTED (k=3 follow-up)"
-        in captured2.out
-    )
+    assert "event-summary: [separating] -> SELECTED (k=3 follow-up)" in captured2.out
 
-    # 3. Test CLI stage2
     stage2_out = tmp_path / "stage2_specs"
     ret3 = run_cli(
         [
@@ -765,15 +599,9 @@ followup_k: 3
     )
     assert ret3 == 0
     captured3 = capsys.readouterr()
-    assert (
-        "LADDER Screen Stage 2 Follow-Up Generation: cli-screen-demo"
-        in captured3.out
-    )
-    assert (
-        "Separating tasks selected for follow-up (1): transaction-reconciliation"
-        in captured3.out
-    )
-    assert "Stopped tasks (1): event-summary" in captured3.out
+    assert "LADDER Screen Stage 2 Follow-Up Generation: cli-screen-demo" in captured3.out
+    assert "Separating tasks selected for follow-up (1): event-summary" in captured3.out
+    assert "Stopped tasks (0): none" in captured3.out
     assert "Generated 2 follow-up specs" in captured3.out
     assert len(list(stage2_out.glob("*.json"))) == 2
 

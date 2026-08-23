@@ -662,20 +662,40 @@ def promote_task(
                     "bump --version to register a new version"
                 )
 
-            if state == "registered" and existing_record.state == "candidate":
-                if not actor or not actor.strip():
-                    raise ValueError(
-                        "registered task records require approved_by / --actor"
+            if existing_record.state == "candidate":
+                try:
+                    discovered_evidence = discover_control_evidence(
+                        target_path,
+                        repo_root,
+                        jobs_roots=jobs_roots,
+                        task_version=version,
                     )
-                updated_record = existing_record.model_copy(
-                    update={
-                        "state": "registered",
-                        "approved_by": actor,
-                        "approved_at": approved_at or datetime.now(UTC),
-                    }
+                except TaskControlEvidenceError:
+                    if state == "registered":
+                        raise
+                    return existing_record
+
+                updates: dict[str, Any] = {
+                    "control_evidence": discovered_evidence,
+                    "state_reason": None,
+                }
+                if state == "registered":
+                    if not actor or not actor.strip():
+                        raise ValueError(
+                            "registered task records require approved_by / --actor"
+                        )
+                    updates.update(
+                        {
+                            "state": "registered",
+                            "approved_by": actor,
+                            "approved_at": approved_at or datetime.now(UTC),
+                        }
+                    )
+                updated_record = TaskRegistryRecord.model_validate(
+                    existing_record.model_copy(update=updates).model_dump()
                 )
-                TaskRegistryRecord.model_validate(updated_record.model_dump())
-                reg_dir.mkdir(parents=True, exist_ok=True)
+                if updated_record.state == "registered":
+                    verify_control_evidence(repo_root, updated_record)
                 record_file.write_text(
                     json.dumps(updated_record.model_dump(mode="json"), indent=2) + "\n"
                 )
@@ -779,21 +799,23 @@ def register_task(
             f"(expected {record.digests.package}, got {current_digests.package})"
         )
 
-    # Verify control evidence
-    temp_record = record.model_copy(
-        update={
-            "state": "registered",
-            "approved_by": actor,
-            "approved_at": approved_at or datetime.now(UTC),
-        }
+    final_record = TaskRegistryRecord.model_validate(
+        record.model_copy(
+            update={
+                "state": "registered",
+                "approved_by": actor,
+                "approved_at": approved_at or datetime.now(UTC),
+                "state_reason": None,
+            }
+        ).model_dump()
     )
-    verify_control_evidence(repo_root, temp_record)
+    verify_control_evidence(repo_root, final_record)
 
     reg_dir.mkdir(parents=True, exist_ok=True)
     record_file.write_text(
-        json.dumps(temp_record.model_dump(mode="json"), indent=2) + "\n"
+        json.dumps(final_record.model_dump(mode="json"), indent=2) + "\n"
     )
-    return temp_record
+    return final_record
 
 
 def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:

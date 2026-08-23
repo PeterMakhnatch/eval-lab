@@ -20,29 +20,15 @@
     "max_memory_mb": null,
     "max_cpus": null
   },
-  "control_evidence": {
-    "oracle": {
-      "job_name": "gymv0-oracle-transaction-reconciliation",
-      "reward": 1.0,
-      "evidence_path": "runs/gymv0-oracle-transaction-reconciliation/result.json",
-      "evidence_digest": "sha256:9d2913bd4a492c4067c9b3b790e525f1dee05460e12749cbf9bb4bf3c99f6eba",
-      "observed_at": "2026-08-19T11:51:15.845716"
-    },
-    "nop": {
-      "job_name": "gymv0-nop-transaction-reconciliation",
-      "reward": 0.0,
-      "evidence_path": "runs/gymv0-nop-transaction-reconciliation/result.json",
-      "evidence_digest": "sha256:887db418a793ce6d94ba5243295479b3f5d0b5616eabe46e6d1e4fab0309f115",
-      "observed_at": "2026-08-19T11:51:26.464256"
-    }
-  },
-  "state": "registered",
+  "control_evidence": null,
+  "state": "candidate",
   "allowed_uses": [
     "measurement",
     "training"
   ],
   "contamination": null,
   "human_minutes": null,
-  "approved_by": "Peter Makhnatch",
-  "approved_at": "2026-08-19T23:31:08.831945Z"
+  "approved_by": null,
+  "approved_at": null,
+  "state_reason": "durable_identity_bound_control_evidence_missing"
 }

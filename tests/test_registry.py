@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from evallab.registry import (
     TaskComponentMissingError,
     TaskControlEvidenceError,
     TaskDigestMismatchError,
+    TaskInventoryPolicyError,
     TaskNotRegisteredError,
     TaskPathRedirectionError,
     TaskRegistry,
@@ -22,6 +24,8 @@ from evallab.registry import (
     TaskVersionMismatchError,
     audit_registry,
     compute_task_digests,
+    discover_control_evidence,
+    harbor_task_digest,
     inventory_tasks,
     promote_task,
     register_task,
@@ -56,71 +60,102 @@ def _make_dummy_task(
     (tests_dir / "test_task.py").write_text(verifier)
     return task_dir
 
+def _make_canary_policy(root: Path, task_paths: list[str] | None = None) -> None:
+    members = task_paths or []
+    policy = root / "policy/canary-suite.yaml"
+    policy.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["version: 1", "members:"]
+    if members:
+        for index, task_path in enumerate(members):
+            lines.extend(
+                [
+                    f"  - name: canary-{index}",
+                    f"    task_path: {task_path}",
+                ]
+            )
+    else:
+        lines.append("  []")
+    policy.write_text("\n".join(lines) + "\n")
+
 
 def _make_control_evidence(
     root: Path,
+    task_dir: Path,
     task_id: str,
     *,
+    task_version: str = "1.0.0",
     oracle_reward: float = 1.0,
     nop_reward: float = 0.0,
     oracle_agent: str = "oracle",
     nop_agent: str = "nop",
 ) -> tuple[ControlEvidenceRef, ControlEvidenceRef]:
     runs_dir = root / "research/evidence/runs"
-    runs_dir.mkdir(parents=True, exist_ok=True)
+    task_digests = compute_task_digests(task_dir)
+    harbor_digest = harbor_task_digest(task_dir)
 
-    # Oracle evidence
-    oracle_job = f"{task_id}-oracle-evidence"
-    oracle_dir = runs_dir / oracle_job
-    oracle_dir.mkdir(parents=True, exist_ok=True)
-    oracle_payload = {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "started_at": "2026-08-15T12:00:00Z",
-        "stats": {
-            "evals": {
-                f"{oracle_agent}__adhoc": {
-                    "metrics": [{"reward": oracle_reward}],
-                }
-            }
-        },
-    }
-    oracle_file = oracle_dir / "result.json"
-    oracle_file.write_text(json.dumps(oracle_payload, indent=2))
-    oracle_digest = f"sha256:{hashlib.sha256(oracle_file.read_bytes()).hexdigest()}"
-    oracle_ref = ControlEvidenceRef(
-        job_name=oracle_job,
-        reward=oracle_reward,
-        evidence_path=oracle_file.relative_to(root).as_posix(),
-        evidence_digest=oracle_digest,
-        observed_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+    def make_ref(
+        agent: str,
+        reward: float,
+        observed_at: datetime,
+    ) -> ControlEvidenceRef:
+        job_name = f"{task_id}-{agent}-evidence"
+        trial_name = f"{task_id}__{agent}"
+        trial_dir = runs_dir / job_name / trial_name
+        trial_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "id": f"{agent}-trial",
+            "task_name": task_id,
+            "trial_name": trial_name,
+            "task_id": {"path": str(task_dir)},
+            "config": {
+                "task": {"path": str(task_dir)},
+                "agent": {"name": agent},
+            },
+            "agent_info": {"name": agent, "version": "1.0.0"},
+            "verifier_result": {"rewards": {"reward": reward}},
+            "finished_at": observed_at.isoformat(),
+        }
+        lock = {
+            "schema_version": 2,
+            "task": {
+                "name": task_id,
+                "version": task_version,
+                "type": "local",
+                "digest": harbor_digest,
+                "path": str(task_dir),
+            },
+            "agent": {"name": agent},
+        }
+        result_file = trial_dir / "result.json"
+        lock_file = trial_dir / "lock.json"
+        result_file.write_text(json.dumps(payload, indent=2))
+        lock_file.write_text(json.dumps(lock, indent=2))
+        return ControlEvidenceRef(
+            job_name=job_name,
+            trial_name=trial_name,
+            reward=reward,
+            evidence_path=result_file.relative_to(root).as_posix(),
+            evidence_digest=(
+                f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}"
+            ),
+            lock_digest=f"sha256:{hashlib.sha256(lock_file.read_bytes()).hexdigest()}",
+            observed_at=observed_at,
+            task_id=task_id,
+            task_version=task_version,
+            task_digests=task_digests,
+            harbor_task_digest=harbor_digest,
+        )
+
+    oracle_ref = make_ref(
+        oracle_agent,
+        oracle_reward,
+        datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
     )
-
-    # Nop evidence
-    nop_job = f"{task_id}-nop-evidence"
-    nop_dir = runs_dir / nop_job
-    nop_dir.mkdir(parents=True, exist_ok=True)
-    nop_payload = {
-        "id": "22222222-2222-2222-2222-222222222222",
-        "started_at": "2026-08-15T12:05:00Z",
-        "stats": {
-            "evals": {
-                f"{nop_agent}__adhoc": {
-                    "metrics": [{"reward": nop_reward}],
-                }
-            }
-        },
-    }
-    nop_file = nop_dir / "result.json"
-    nop_file.write_text(json.dumps(nop_payload, indent=2))
-    nop_digest = f"sha256:{hashlib.sha256(nop_file.read_bytes()).hexdigest()}"
-    nop_ref = ControlEvidenceRef(
-        job_name=nop_job,
-        reward=nop_reward,
-        evidence_path=nop_file.relative_to(root).as_posix(),
-        evidence_digest=nop_digest,
-        observed_at=datetime(2026, 8, 15, 12, 5, tzinfo=UTC),
+    nop_ref = make_ref(
+        nop_agent,
+        nop_reward,
+        datetime(2026, 8, 15, 12, 5, tzinfo=UTC),
     )
-
     return oracle_ref, nop_ref
 
 
@@ -147,17 +182,30 @@ def _make_registry_record(
     if create_control_evidence:
         oracle_ref, nop_ref = _make_control_evidence(
             repo_root,
+            task_dir,
             task_id,
+            task_version=version,
             oracle_reward=oracle_reward,
             nop_reward=nop_reward,
         )
     else:
+        missing_digests = compute_task_digests(task_dir)
+        harbor_digest = harbor_task_digest(task_dir)
+        common = {
+            "trial_name": f"{task_id}__missing",
+            "task_id": task_id,
+            "task_version": version,
+            "task_digests": missing_digests,
+            "harbor_task_digest": harbor_digest,
+            "lock_digest": "sha256:" + "0" * 64,
+        }
         oracle_ref = ControlEvidenceRef(
             job_name=f"{task_id}-oracle",
             reward=oracle_reward,
             evidence_path=f"research/evidence/runs/{task_id}-oracle/result.json",
             evidence_digest="sha256:" + "0" * 64,
             observed_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+            **common,
         )
         nop_ref = ControlEvidenceRef(
             job_name=f"{task_id}-nop",
@@ -165,6 +213,7 @@ def _make_registry_record(
             evidence_path=f"research/evidence/runs/{task_id}-nop/result.json",
             evidence_digest="sha256:" + "0" * 64,
             observed_at=datetime(2026, 8, 15, 12, 5, tzinfo=UTC),
+            **common,
         )
 
     return TaskRegistryRecord(
@@ -188,6 +237,32 @@ def _make_registry_record(
         approved_by=approved_by if state == "registered" else None,
         approved_at=approved_at if state == "registered" else None,
     )
+
+
+def _write_downgraded_candidate(
+    task_dir: Path,
+    repo_root: Path,
+    *,
+    task_id: str,
+) -> TaskRegistryRecord:
+    raw = _make_registry_record(
+        task_dir,
+        repo_root,
+        task_id=task_id,
+        state="candidate",
+    ).model_dump(mode="json")
+    raw.update(
+        {
+            "control_evidence": None,
+            "state_reason": "durable_identity_bound_control_evidence_missing",
+        }
+    )
+    shutil.rmtree(repo_root / "research/evidence/runs")
+    record = TaskRegistryRecord.model_validate(raw)
+    registry_dir = repo_root / "library/registry"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+    (registry_dir / f"{task_id}.json").write_text(record.model_dump_json(indent=2))
+    return record
 
 
 def test_no_registry_present_means_zero_registered_tasks(tmp_path: Path) -> None:
@@ -748,32 +823,21 @@ def test_audit_detects_false_registration_pattern(tmp_path: Path) -> None:
 
 def test_task_registry_schema_strictness(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/schema-test")
-    digests = compute_task_digests(task_dir)
+    valid_record = _make_registry_record(
+        task_dir,
+        tmp_path,
+        task_id="schema-test",
+        state="candidate",
+    )
 
-    # 1. Unknown fields fail
-    invalid_data = {
-        "schema_version": 1,
-        "task_id": "schema-test",
-        "version": "1.0.0",
-        "task_path": "library/tasks/schema-test",
-        "digests": digests.model_dump(mode="json"),
-        "source_uri": "local/schema-test@1.0.0",
-        "provenance_zone": "02-local-evidence",
-        "is_synthetic": False,
-        "control_evidence": {
-            "oracle": {"job_name": "oracle-job", "reward": 1.0},
-            "nop": {"job_name": "nop-job", "reward": 0.0},
-        },
-        "state": "candidate",
-        "allowed_uses": ["measurement"],
-        "unexpected_extra_field": "disallowed",
-    }
+    # 1. Unknown fields fail.
+    invalid_data = valid_record.model_dump(mode="json")
+    invalid_data["unexpected_extra_field"] = "disallowed"
     with pytest.raises(ValidationError):
         TaskRegistryRecord.model_validate(invalid_data)
 
-    # 2. Registered state requires approved_by and approved_at
-    unapproved_data = dict(invalid_data)
-    del unapproved_data["unexpected_extra_field"]
+    # 2. Registered state requires approved_by and approved_at.
+    unapproved_data = valid_record.model_dump(mode="json")
     unapproved_data["state"] = "registered"
     with pytest.raises(ValidationError) as exc_info:
         TaskRegistryRecord.model_validate(unapproved_data)
@@ -788,12 +852,26 @@ def test_inventory_tasks_categorization(tmp_path: Path) -> None:
     curated_dir = tmp_path / "library/curated/card-c"
     curated_dir.mkdir(parents=True, exist_ok=True)
     (curated_dir / "CARD.md").write_text("# Card C\n")
+    _make_canary_policy(tmp_path, ["library/tasks/task-a"])
 
     inv = inventory_tasks(tmp_path)
     assert inv.total_packages == 4
     assert inv.runnable_packages == 2
     assert inv.curated_cards_only == 1
     assert inv.template_packages == 1
+    assert inv.canary_tasks == 1
+
+
+def test_inventory_refuses_missing_or_malformed_canary_policy(tmp_path: Path) -> None:
+    _make_dummy_task(tmp_path, "library/tasks/task-a")
+    with pytest.raises(TaskInventoryPolicyError, match="requires policy"):
+        inventory_tasks(tmp_path)
+
+    policy = tmp_path / "policy/canary-suite.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("version: 1\ncanaries: []\n")
+    with pytest.raises(TaskInventoryPolicyError, match="members list"):
+        inventory_tasks(tmp_path)
 
 def _make_control_job(
     root: Path,
@@ -802,38 +880,252 @@ def _make_control_job(
     reward: float,
     *,
     job_name: str | None = None,
-    jobs_dir: str = "runs",
+    jobs_dir: str = "research/evidence/runs",
+    finished_at: str = "2026-08-19T12:01:00Z",
+    task_version: str = "1.0.0",
 ) -> Path:
     runs_dir = root / jobs_dir
-    runs_dir.mkdir(parents=True, exist_ok=True)
     task_id = task_dir.name
     job_name = job_name or f"gymv0-{agent}-{task_id}"
     job_dir = runs_dir / job_name
-    job_dir.mkdir(parents=True, exist_ok=True)
-
-    config = {
-        "job_name": job_name,
-        "jobs_dir": str(runs_dir),
-        "tasks": [{"path": str(task_dir.resolve())}],
-    }
-    (job_dir / "config.json").write_text(json.dumps(config, indent=2))
-
+    trial_name = f"{task_id}__{agent}"
+    trial_dir = job_dir / trial_name
+    trial_dir.mkdir(parents=True, exist_ok=True)
+    task_path = str(task_dir.resolve())
     payload = {
         "id": f"{agent}-id-12345",
-        "started_at": "2026-08-19T12:00:00Z",
-        "finished_at": "2026-08-19T12:01:00Z",
-        "n_total_trials": 1,
-        "stats": {
-            "n_completed_trials": 1,
-            "evals": {
-                f"{agent}__adhoc": {
-                    "metrics": [{"reward": reward}],
-                }
-            },
+        "task_name": task_id,
+        "trial_name": trial_name,
+        "task_id": {"path": task_path},
+        "config": {
+            "task": {"path": task_path},
+            "agent": {"name": agent},
         },
+        "agent_info": {"name": agent, "version": "1.0.0"},
+        "verifier_result": {"rewards": {"reward": reward}},
+        "started_at": "2026-08-19T12:00:00Z",
+        "finished_at": finished_at,
     }
-    (job_dir / "result.json").write_text(json.dumps(payload, indent=2))
+    lock = {
+        "schema_version": 2,
+        "task": {
+            "name": task_id,
+            "version": task_version,
+            "type": "local",
+            "digest": harbor_task_digest(task_dir),
+            "path": task_path,
+        },
+        "agent": {"name": agent},
+    }
+    (trial_dir / "result.json").write_text(json.dumps(payload, indent=2))
+    (trial_dir / "lock.json").write_text(json.dumps(lock, indent=2))
     return job_dir
+
+def test_registered_control_evidence_rejects_ignored_run_path(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/path-bound-task")
+    record = _make_registry_record(
+        task_dir,
+        tmp_path,
+        task_id="path-bound-task",
+        state="registered",
+    )
+    raw = record.model_dump(mode="json")
+    raw["control_evidence"]["oracle"]["evidence_path"] = "runs/replay/result.json"
+
+    with pytest.raises(ValidationError, match="durable owned root"):
+        TaskRegistryRecord.model_validate(raw)
+
+
+def test_explicit_ephemeral_discovery_root_is_refused(tmp_path: Path) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/durable-priority-task")
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "oracle",
+        0.0,
+        job_name="newer-local-oracle",
+        jobs_dir="runs",
+        finished_at="2026-08-20T12:01:00Z",
+    )
+
+    with pytest.raises(TaskControlEvidenceError, match="promotion requires"):
+        discover_control_evidence(
+            task_dir,
+            tmp_path,
+            jobs_roots=[tmp_path / "runs"],
+        )
+
+    evidence = discover_control_evidence(task_dir, tmp_path)
+    assert evidence.oracle.reward == 1.0
+    assert evidence.nop.reward == 0.0
+    assert evidence.oracle.evidence_path.startswith("research/evidence/runs/")
+    assert evidence.nop.evidence_path.startswith("research/evidence/runs/")
+
+
+def test_downgraded_candidate_requires_new_durable_evidence_for_promotion(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/downgraded-task")
+    _write_downgraded_candidate(
+        task_dir,
+        tmp_path,
+        task_id="downgraded-task",
+    )
+
+    with pytest.raises(TaskControlEvidenceError, match="missing durable trial-level"):
+        promote_task(
+            "library/tasks/downgraded-task",
+            tmp_path,
+            state="registered",
+            actor="Peter Makhnatch",
+        )
+
+    persisted = TaskRegistry.from_repo(tmp_path).get("downgraded-task")
+    assert persisted is not None
+    assert persisted.state == "candidate"
+    assert persisted.state_reason == "durable_identity_bound_control_evidence_missing"
+
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    promoted = promote_task(
+        "library/tasks/downgraded-task",
+        tmp_path,
+        state="registered",
+        actor="Peter Makhnatch",
+    )
+    assert promoted.state == "registered"
+    assert promoted.control_evidence is not None
+    assert promoted.state_reason is None
+
+
+def test_candidate_idempotence_refreshes_newly_available_durable_evidence(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/refreshed-task")
+    _write_downgraded_candidate(
+        task_dir,
+        tmp_path,
+        task_id="refreshed-task",
+    )
+    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
+    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+
+    refreshed = promote_task("library/tasks/refreshed-task", tmp_path)
+
+    assert refreshed.state == "candidate"
+    assert refreshed.control_evidence is not None
+    assert refreshed.state_reason is None
+    persisted = TaskRegistry.from_repo(tmp_path).get("refreshed-task")
+    assert persisted == refreshed
+
+
+def test_register_task_clears_candidate_state_reason_before_persisting(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/reasoned-task")
+    record = _make_registry_record(
+        task_dir,
+        tmp_path,
+        task_id="reasoned-task",
+        state="candidate",
+    )
+    reasoned = TaskRegistryRecord.model_validate(
+        record.model_copy(update={"state_reason": "superseded_reason"}).model_dump()
+    )
+    registry_dir = tmp_path / "library/registry"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+    record_path = registry_dir / "reasoned-task.json"
+    record_path.write_text(reasoned.model_dump_json(indent=2))
+
+    registered = register_task(
+        "reasoned-task",
+        actor="Peter Makhnatch",
+        repo_root=tmp_path,
+    )
+
+    assert registered.state_reason is None
+    persisted = TaskRegistryRecord.model_validate_json(record_path.read_text())
+    assert persisted.state == "registered"
+    assert persisted.state_reason is None
+
+
+def test_evidence_cannot_be_replayed_against_another_package(tmp_path: Path) -> None:
+    first_dir = _make_dummy_task(tmp_path, "library/tasks/first-package")
+    second_dir = _make_dummy_task(
+        tmp_path,
+        "library/tasks/second-package",
+        instruction="Different package bytes.",
+    )
+    first_record = _make_registry_record(
+        first_dir,
+        tmp_path,
+        task_id="first-package",
+        state="registered",
+    )
+    second_raw = _make_registry_record(
+        second_dir,
+        tmp_path,
+        task_id="second-package",
+        state="candidate",
+    ).model_dump(mode="json")
+    second_raw.update(
+        {
+            "state": "registered",
+            "approved_by": "Peter Makhnatch",
+            "approved_at": "2026-08-15T12:00:00Z",
+            "control_evidence": first_record.control_evidence.model_dump(mode="json"),
+        }
+    )
+
+    with pytest.raises(ValidationError, match="evidence identity does not match"):
+        TaskRegistryRecord.model_validate(second_raw)
+
+
+def test_real_repository_registry_audit_and_drift_detection(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+
+    report = audit_registry(repo_root)
+
+    assert report.passed, report.to_dict()
+
+    fixture_root = tmp_path / "repository-fixture"
+    shutil.copytree(repo_root / "library", fixture_root / "library")
+    shutil.copytree(
+        repo_root / "research/evidence",
+        fixture_root / "research/evidence",
+    )
+    shutil.copytree(
+        repo_root / "research/registration",
+        fixture_root / "research/registration",
+    )
+    (fixture_root / "policy").mkdir(parents=True)
+    shutil.copy2(
+        repo_root / "policy/canary-suite.yaml",
+        fixture_root / "policy/canary-suite.yaml",
+    )
+
+    record_path = fixture_root / "library/registry/event-summary.json"
+    record = json.loads(record_path.read_text())
+    record.update(
+        {
+            "state": "candidate",
+            "control_evidence": None,
+            "approved_by": None,
+            "approved_at": None,
+            "state_reason": "durable_identity_bound_control_evidence_missing",
+        }
+    )
+    record_path.write_text(json.dumps(record, indent=2) + "\n")
+
+    drifted_report = audit_registry(fixture_root)
+
+    assert not drifted_report.passed
+    assert any(
+        finding.category == "registration_inventory_drift"
+        for finding in drifted_report.findings
+    )
 
 
 def test_promote_task_discovers_control_evidence_and_creates_candidate(tmp_path: Path) -> None:
@@ -872,13 +1164,7 @@ def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> No
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/no-oracle-task", tmp_path)
 
-    err = str(exc_info.value)
-    assert "missing oracle control evidence" in err
-    cmd = (
-        "uv run python -m evallab.cli run --task library/tasks/no-oracle-task "
-        "--agent oracle --name no-oracle-task-oracle --jobs-dir runs"
-    )
-    assert cmd in err
+    assert "missing durable trial-level oracle control evidence" in str(exc_info.value)
 
 def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/no-nop-task")
@@ -887,13 +1173,7 @@ def test_promote_task_refuses_when_nop_evidence_missing(tmp_path: Path) -> None:
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/no-nop-task", tmp_path)
 
-    err = str(exc_info.value)
-    assert "missing nop control evidence" in err
-    cmd = (
-        "uv run python -m evallab.cli run --task library/tasks/no-nop-task "
-        "--agent nop --name no-nop-task-nop --jobs-dir runs"
-    )
-    assert cmd in err
+    assert "missing durable trial-level nop control evidence" in str(exc_info.value)
 
 def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/broken-oracle-task")
@@ -903,9 +1183,9 @@ def test_promote_task_refuses_contradictory_oracle_evidence(tmp_path: Path) -> N
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/broken-oracle-task", tmp_path)
 
-    err = str(exc_info.value)
-    assert "oracle control evidence for 'broken-oracle-task' did not pass" in err
-    assert "instrument is broken" in err
+    assert "oracle control evidence for 'broken-oracle-task' did not pass" in str(
+        exc_info.value
+    )
 
 
 def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None:
@@ -916,9 +1196,9 @@ def test_promote_task_refuses_contradictory_nop_evidence(tmp_path: Path) -> None
     with pytest.raises(TaskControlEvidenceError) as exc_info:
         promote_task("library/tasks/broken-nop-task", tmp_path)
 
-    err = str(exc_info.value)
-    assert "nop control evidence for 'broken-nop-task' did not fail" in err
-    assert "instrument is broken" in err
+    assert "nop control evidence for 'broken-nop-task' did not fail" in str(
+        exc_info.value
+    )
 
 
 def test_register_task_requires_actor_and_records_approval(tmp_path: Path) -> None:
@@ -998,8 +1278,26 @@ def test_promote_task_refuses_tampered_package_without_version_bump(tmp_path: Pa
     assert "task package bytes on disk have changed" in err
     assert "bump --version to register a new version" in err
 
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "oracle",
+        1.0,
+        job_name="gymv0-oracle-tampered-bump-task-v2",
+        task_version="1.0.1",
+    )
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "nop",
+        0.0,
+        job_name="gymv0-nop-tampered-bump-task-v2",
+        task_version="1.0.1",
+    )
     # Bumping version succeeds
-    record_v2 = promote_task("library/tasks/tampered-bump-task", tmp_path, version="1.0.1")
+    record_v2 = promote_task(
+        "library/tasks/tampered-bump-task", tmp_path, version="1.0.1"
+    )
     assert record_v2.version == "1.0.1"
 
 
@@ -1067,7 +1365,13 @@ def test_cli_registry_promote_and_register_e2e(
     out, _ = capsys.readouterr()
     assert "registered: cli-test-task@1.0.0 (state: registered)" in out
     assert "approved by: Peter Makhnatch" in out
+    _make_canary_policy(tmp_path)
 
+    inventory_path = tmp_path / "research/registration/inventory.json"
+    inventory_path.parent.mkdir(parents=True, exist_ok=True)
+    inventory_path.write_text(
+        json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n"
+    )
     # 4. Audit passes
     audit_args = argparse.Namespace(json=False)
     exit_code = _registry_audit_command(audit_args, tmp_path)
@@ -1076,7 +1380,7 @@ def test_cli_registry_promote_and_register_e2e(
     assert "PASS: zero audit findings" in out
 
 
-def test_cli_registry_promote_refuses_missing_evidence_with_exact_command(
+def test_cli_registry_promote_refuses_missing_durable_evidence(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     import argparse
@@ -1108,9 +1412,4 @@ def test_cli_registry_promote_refuses_missing_evidence_with_exact_command(
     exit_code = _registry_promote_command(promote_args, tmp_path)
     assert exit_code == 1
     _, err = capsys.readouterr()
-    assert "missing oracle control evidence" in err
-    cmd = (
-        "uv run python -m evallab.cli run --task library/tasks/missing-evidence "
-        "--agent oracle --name missing-evidence-oracle --jobs-dir runs"
-    )
-    assert cmd in err
+    assert "missing durable trial-level oracle control evidence" in err

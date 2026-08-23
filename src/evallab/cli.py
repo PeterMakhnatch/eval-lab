@@ -1912,12 +1912,10 @@ def _registry_promote_command(
         print(f"promoted: {record.task_id}@{record.version} (state: {record.state})")
         print(f"  path:     {record.task_path}")
         print(f"  package:  {record.digests.package}")
-        o_job = record.control_evidence.oracle.job_name
-        o_rew = record.control_evidence.oracle.reward
-        n_job = record.control_evidence.nop.job_name
-        n_rew = record.control_evidence.nop.reward
-        print(f"  oracle:   {o_job} ({o_rew})")
-        print(f"  nop:      {n_job} ({n_rew})")
+        evidence = record.control_evidence
+        if evidence is not None:
+            print(f"  oracle:   {evidence.oracle.job_name} ({evidence.oracle.reward})")
+            print(f"  nop:      {evidence.nop.job_name} ({evidence.nop.reward})")
         if record.approved_by:
             print(f"  approved: {record.approved_by} at {record.approved_at}")
     return 0

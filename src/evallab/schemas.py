@@ -888,18 +888,32 @@ class TaskLimits(ContractModel):
     max_cpus: float | None = Field(default=None, gt=0)
 
 
+DURABLE_CONTROL_EVIDENCE_PREFIX = "research/evidence/runs/"
+
+
 class ControlEvidenceRef(ContractModel):
     job_name: str = Field(min_length=1)
+    trial_name: str = Field(min_length=1)
     reward: float = Field(ge=0.0, le=1.0)
-    evidence_path: str | None = None
-    evidence_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
-    observed_at: datetime | None = None
+    evidence_path: str = Field(min_length=1)
+    evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    lock_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    observed_at: datetime
+    task_id: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    task_version: str = Field(min_length=1)
+    task_digests: TaskDigests
+    harbor_task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
     @field_validator("evidence_path")
     @classmethod
-    def evidence_path_is_relative(cls, value: str | None) -> str | None:
-        if value is not None and (value.startswith("/") or ".." in value.split("/")):
+    def evidence_path_is_durable_and_relative(cls, value: str) -> str:
+        if value.startswith("/") or ".." in value.split("/"):
             raise ValueError("evidence_path must stay relative to the repository")
+        if not value.startswith(DURABLE_CONTROL_EVIDENCE_PREFIX):
+            raise ValueError(
+                "control evidence must be under the durable owned root "
+                f"{DURABLE_CONTROL_EVIDENCE_PREFIX!r}"
+            )
         return value
 
 
@@ -967,7 +981,7 @@ class TaskRegistryRecord(ContractModel):
     ]
     is_synthetic: bool
     limits: TaskLimits = Field(default_factory=TaskLimits)
-    control_evidence: TaskControlEvidence
+    control_evidence: TaskControlEvidence | None = None
     state: TaskAdmissionState
     allowed_uses: list[TaskAllowedUse] = Field(min_length=1)
     contamination: TaskContamination | None = Field(
@@ -981,6 +995,11 @@ class TaskRegistryRecord(ContractModel):
     )
     approved_by: str | None = None
     approved_at: datetime | None = None
+    state_reason: str | None = Field(
+        default=None,
+        pattern=r"^[a-z0-9][a-z0-9_]*$",
+        description="machine-readable reason for a non-registered admission state",
+    )
 
     @field_validator("task_path")
     @classmethod
@@ -999,6 +1018,10 @@ class TaskRegistryRecord(ContractModel):
     @model_validator(mode="after")
     def validate_state_invariants(self) -> TaskRegistryRecord:
         if self.state == "registered":
+            if self.state_reason is not None:
+                raise ValueError("registered task records cannot carry state_reason")
+            if self.control_evidence is None:
+                raise ValueError("registered task records require control_evidence")
             if not self.approved_by or not self.approved_by.strip():
                 raise ValueError("registered task records require approved_by")
             if self.approved_at is None:
@@ -1013,36 +1036,36 @@ class TaskRegistryRecord(ContractModel):
                     "registered task requires nop reward 0.0 "
                     f"(got {self.control_evidence.nop.reward})"
                 )
-            oracle_ref = self.control_evidence.oracle
-            if (
-                not oracle_ref.evidence_path
-                or not oracle_ref.evidence_digest
-                or oracle_ref.observed_at is None
+            for label, ref in (
+                ("oracle", self.control_evidence.oracle),
+                ("nop", self.control_evidence.nop),
             ):
-                raise ValueError(
-                    "registered task oracle control requires evidence_path, "
-                    "evidence_digest, and observed_at"
-                )
-            nop_ref = self.control_evidence.nop
-            if (
-                not nop_ref.evidence_path
-                or not nop_ref.evidence_digest
-                or nop_ref.observed_at is None
-            ):
-                raise ValueError(
-                    "registered task nop control requires evidence_path, "
-                    "evidence_digest, and observed_at"
-                )
+                if ref.task_id != self.task_id or ref.task_version != self.version:
+                    raise ValueError(
+                        f"registered task {label} evidence identity does not match "
+                        "the registry record"
+                    )
+                if ref.task_digests != self.digests:
+                    raise ValueError(
+                        f"registered task {label} evidence digests do not match "
+                        "the registry record"
+                    )
             if self.provenance_zone == "01-external":
                 if not self.license or not self.license.strip():
                     raise ValueError("external registered task requires license")
                 if not self.source_ref or any(
-                    char in self.source_ref.lower() for char in ("latest", "head", "main", "master")
+                    char in self.source_ref.lower()
+                    for char in ("latest", "head", "main", "master")
                 ):
                     raise ValueError(
                         "external registered task requires immutable pinned source_ref "
                         "(commit SHA or release tag)"
                     )
+        elif self.state == "candidate" and self.control_evidence is None:
+            if self.state_reason is None:
+                raise ValueError(
+                    "candidate task without control_evidence requires state_reason"
+                )
         return self
 
 

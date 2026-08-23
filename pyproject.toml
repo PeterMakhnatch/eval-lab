@@ -63,6 +63,7 @@ target-version = "py312"
 extend-exclude = [
     "library/adapters/*/generated",
     "library/tasks/terminal-bench-html-js-filter", "library/curated",
+    "library/external/terminal-bench-v3.0.0",
     # Promoted evidence is a verbatim record of what an agent produced. Its
     # digests are pinned in each bundle's PROMOTION.json, so linting or
     # reformatting it would falsify the record rather than improve it.

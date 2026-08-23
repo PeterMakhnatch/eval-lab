@@ -189,7 +189,7 @@ def _label_from_row(row: dict[str, Any]) -> BehaviorLabel:
             output_tokens=row.get("output_tokens"),
             cost_usd=row.get("cost_usd"),
         )
-    return BehaviorLabel(
+    return BehaviorLabel.model_validate(dict(
         schema_version=int(row["schema_version"]),
         label_id=str(row["label_id"]),
         target_type=str(row["target_type"]),
@@ -212,7 +212,7 @@ def _label_from_row(row: dict[str, Any]) -> BehaviorLabel:
         source_sha256=_normalize_digest(row.get("source_sha256")),
         analysis_id=UUID(str(row["analysis_id"])) if row.get("analysis_id") else None,
         model_provenance=provenance,
-    )
+    ))
 
 
 @contextmanager
@@ -414,6 +414,16 @@ def _model_label_schema() -> dict[str, Any]:
     }
 
 
+def _model_confidence(value: object) -> Literal["low", "medium", "high"]:
+    if value == "low":
+        return "low"
+    if value == "medium":
+        return "medium"
+    if value == "high":
+        return "high"
+    raise TrajectoryError("model label confidence must be low, medium, or high")
+
+
 def label_trajectory_with_model(
     outline: TrajectoryOutline,
     *,
@@ -491,7 +501,7 @@ def label_trajectory_with_model(
         provenance="model",
         author=label_author,
         created_at=provenance.created_at,
-        confidence=str(response["confidence"]),
+        confidence=_model_confidence(response["confidence"]),
         evidence=evidence,
         source_sha256=_normalize_digest(outline.source_sha256),
         model_provenance=provenance,

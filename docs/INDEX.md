@@ -88,6 +88,8 @@ inputs:
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
     digest: sha256:15920beae543ae241d6c2f77dd43019d5d60b57d49fff6792a116e70029a6ae5
+  - path: docs/research/evaluation-factory-2026-08.md
+    digest: sha256:cc343700ce21d877f402e5440ac226ddb9804d877116a2c6b66b3e486f7ffafd
   - path: docs/research/external-datasets.md
     digest: sha256:f36f501ccc8d0fc121d12e8904b0f85ef83f51c64253aa282344b42f17fc602b
   - path: docs/research/literature-survey.md
@@ -154,6 +156,7 @@ an operator can see what is archived.
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/antigravity-lane.md` | Antigravity (AGY) Agent Lane Research & Architecture | `living` | `builder, runner` |
+| `docs/research/evaluation-factory-2026-08.md` | Evaluation-factory audit and build program (2026-08) | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
@@ -197,6 +200,7 @@ an operator can see what is archived.
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `living` | `builder, analyst, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
+| `docs/research/evaluation-factory-2026-08.md` | Evaluation-factory audit and build program (2026-08) | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |

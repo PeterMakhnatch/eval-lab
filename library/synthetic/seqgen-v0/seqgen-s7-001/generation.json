@@ -1,5 +1,11 @@
 {
   "batch": "seqgen-v0",
+  "certification": {
+    "admission_state": "unadmitted",
+    "evidence_packet": null,
+    "state": "uncertified",
+    "workbench_version": "m049-v1"
+  },
   "coverage_contribution": {
     "new_bigrams": [
       "dedupe_by->filter_eq",
@@ -15,12 +21,30 @@
   },
   "digests": {
     "expected_jsonl": "sha256:d059d20d96e497122ddc45efa5e1fde79384f380e2f0f38c81b175a6bf677c04",
+    "input_jsonl": "sha256:3c2ea8fd25cadba04a4de77864b3abf5b48ba84852c193d2dda072711d408914",
+    "instruction_md": "sha256:64456cc3869a100600300a22c6083715bc42f10ada9c1f80f9cc4fdc3c7b847d",
     "orders_jsonl": "sha256:3c2ea8fd25cadba04a4de77864b3abf5b48ba84852c193d2dda072711d408914",
+    "output_jsonl": "sha256:d059d20d96e497122ddc45efa5e1fde79384f380e2f0f38c81b175a6bf677c04",
     "rp": "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
-    "task_toml": "sha256:caf0b7e92f5cf0da1acc99c365ea09a5553baeee097541f5275b01d0fbd0c850"
+    "sequence": "sha256:66eca8468ecdcbbe30bf8c02de58c5f741579ff32a35fcf71d60a841a98afe60",
+    "task_toml": "sha256:9779b81131c1f5e8a4f215bd284d938250c41cdd69a4a635cfe453abdb7f6714",
+    "validator": "sha256:577ef789918e497ea49f692cc1aaf0ec0c0fd919e1482bb6d1eeea4a1a701630"
   },
   "generator": "seqgen@0.1.0",
+  "generator_identity": {
+    "code_digest": "sha256:c38b15c8cac2c3cb2e36dabf5e9cf0e1d63d7d0e048b5e56db3c9a60e21183a6",
+    "model_id": null,
+    "prompt_digest": null,
+    "transform": "seqgen@0.1.0"
+  },
   "instruction_style": "declarative",
+  "lineage": {
+    "candidate_seed": 70058,
+    "input_digest": "sha256:3c2ea8fd25cadba04a4de77864b3abf5b48ba84852c193d2dda072711d408914",
+    "master_seed": 7,
+    "output_digest": "sha256:d059d20d96e497122ddc45efa5e1fde79384f380e2f0f38c81b175a6bf677c04",
+    "sequence_digest": "sha256:66eca8468ecdcbbe30bf8c02de58c5f741579ff32a35fcf71d60a841a98afe60"
+  },
   "master_seed": 7,
   "row_counts": {
     "input": 43,
@@ -78,5 +102,11 @@
     }
   ],
   "slug": "seqgen-s7-001",
+  "validator_identity": {
+    "code_digest": "sha256:577ef789918e497ea49f692cc1aaf0ec0c0fd919e1482bb6d1eeea4a1a701630",
+    "model_id": null,
+    "prompt_digest": null,
+    "runtime": "tests/verify.py"
+  },
   "verifier_network": "no-network"
 }

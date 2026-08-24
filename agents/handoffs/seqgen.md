@@ -1,111 +1,115 @@
 Status: review-wanted
-Last: integrator pass complete — does-work guards, verifier-network parameter, batch regenerated at count 4, oracle/nop smoke green
-Next: PR review, then decide F-SEQGEN-1 (workbench gate vs local Docker) before running the full certification battery
-Blockers: none
+Last: rebased PR #152 onto PR #151 and aligned the generated packages with the M049 control and identity contracts
+Next: review PR #152; resolve F-SEQGEN-1; then execute and retain one supported `m049-v1` packet per exact package before any admission decision
+Blockers: F-SEQGEN-1 and absent supported M049 executable evidence packets
 
-# SEQGEN v0 — Sequence-First Synthetic Harbor Task Generator
+# M053 (G) — SEQGEN v0 sequence-first synthetic task candidates
 
-## Outcome & Summary
+## Outcome and boundary
 
-SEQGEN v0 (`evallab.seqgen`, transform `seqgen@0.1.0`) is a clean, sequence-first synthetic task generator implementing the published TASTE paradigm from scratch without external dependencies or third-party code. It generates valid tool sequences over a deterministic JSONL record-pipeline domain, selects sequences greedily for maximal op-bigram coverage, and instantiates self-contained Harbor task packages certified by `task_workbench`.
+`evallab.seqgen` (`seqgen@0.1.0`) deterministically emits four distinct Zone
+03 Harbor task packages from seed 7. They are **uncertified candidates**, not
+registered tasks: each package and `BATCH.json` explicitly records
+`state: uncertified`, an absent M049 packet, and `admission_state: unadmitted`.
+The deterministic inventory schema represents absence from the registry as
+`registration_state: null` for all four; no candidate packet, registry record,
+or admission exists.
 
-## Domain & Tool Schema
+The implementation is an independent reimplementation of the sequence-first
+idea from the TASTE paper-level description. A pinned restricted source
+snapshot was inspected for dependency and license assessment, so this handoff
+does not claim an implementation firewall. No TASTE source code, prompt, model
+output, or artifact was copied, adapted, or reused. Statements about that
+repository remain scoped to the inspected pin. SEQGEN uses stdlib-only,
+in-repository code and a deterministic declarative renderer with no generating
+model and no prompt.
 
-- **Domain:** Synthetic tabular records in `/app/data/orders.jsonl` (40–60 rows per task, seeded PRNG) with fields `id` (int), `region` (str in `{north, south, east, west}`), `status` (str in `{shipped, pending, cancelled, returned}`), `amount` (int 5..500), and `day` (int 1..28).
-- **Single Source of Truth (`RP_SOURCE`):** A self-contained, stdlib-only Python script (`/app/bin/rp`) implementing 7 pure operations + CLI subcommands + canonical writer. The generator's simulator dynamically loads `RP_SOURCE` via `exec()` to ensure zero divergence between simulation and runtime behavior.
-- **Operations:**
-  1. `filter_eq(field, value)` — filter rows by string equality (non-empty output).
-  2. `filter_ge(field, value)` — filter rows by integer threshold (strictly reducing, non-empty output).
-  3. `select(fields)` — project rows to proper subset of current fields ($\ge 2$ fields).
-  4. `sort_by(field, order)` — stable sort ascending or descending.
-  5. `dedupe_by(field)` — keep first occurrence per key value (strictly reducing).
-  6. `head(n)` — retain first $n \in \{3, 5, 10\}$ rows ($n < \text{len}(\text{rows})$).
-  7. `group_sum(group_field, value_field)` — aggregate into `[group_field, "total_" + value_field]` sorted ascending.
-  - Terminal: `write` — canonical compact JSONL serialization with sorted keys and trailing newline.
-- **Sequence Constraints:** 3–6 operations before terminal `write`; $\ge 2$ distinct op types; all typed preconditions verified along simulation trajectory; no consecutive duplicate `(op, args)`.
+## Deterministic package contract
 
-## Coverage Selection Algorithm
+- Domain: seeded JSONL order records and seven pure record-pipeline operations.
+- Selection: precondition-valid 3–6 operation sequences, each operation changes
+  state, followed by canonical JSONL output; greedy coverage selection has a
+  deterministic index tie-break.
+- Package identities: `seqgen-s7-000` through `seqgen-s7-003`, each with a
+  distinct sequence and package digest in `BATCH.json`.
+- Identity record: each `generation.json` binds generator transform and source
+  digest, validator code digest, explicit null model/prompt identities, master
+  and candidate seeds, sequence digest, input digest, output digest,
+  instruction digest, and task/verifier/tool digests.
+- Provenance: Zone `03-synthetic`, revision/transform `seqgen@0.1.0`,
+  package material digest, code/tool/domain/input/output parents, and
+  `license: NOASSERTION`. The repository does not grant a package license here;
+  admission must not infer one.
+- Isolation: the committed candidates retain the workbench-required separate
+  verifier and `network_mode = "no-network"`. The agent environment remains
+  public because the task's visible contract includes only the synthetic input
+  and bundled tool; no verifier fixture is exposed there.
+- Leakage boundary: expected bytes are retained only in the trusted verifier
+  fixture and the hidden reward-hack replay. Neither is copied into the agent
+  image or instruction; the environment contains only its Dockerfile, input,
+  and record-pipeline tool. Instructions describe outcomes rather than shell
+  commands.
 
-- **Bigram Reachability:** Statically enumerated across $7 \times 7$ op pairs plus 7 terminal transitions. 2 pairs are statically impossible (`group_sum` $\to$ `select`: group_sum produces 2 fields while select needs $\ge 3$; `group_sum` $\to$ `group_sum`: the first aggregation leaves one row per group, so a second never does work), yielding $47 + 7 = 54$ reachable bigrams.
-- **Greedy Coverage Selection:** From a candidate pool (default 40), sequences are selected iteratively to maximize newly covered op bigrams, tiebreaking by newly covered unigrams and candidate pool index.
-- **Does-work preconditions (integrator pass):** every op application must change state — filters/dedupe/group_sum strictly shrink, sorts must reorder, heads must truncate; same-field consecutive sorts are refused. Without these, generated sequences padded themselves with vacuous steps (observed: `sort desc` then `sort asc` on the same field, repeated `filter_eq` after dedupe, `group_sum` after `group_sum`).
-- **Batch Coverage (seed=7, count=4, pool=40):**
-  - Unigram coverage: 7/7 (100%)
-  - Bigram coverage: 22/54 reachable (40.7%)
+## M049 admission dependency
 
-## Package Structure & Standards
+The packages contain the complete `m049-v1` control surface: oracle ×3, nop ×2,
+at least three invalid controls, one fair alternative that directly implements
+the selected sequence without invoking the bundled `rp` oracle, and one
+reward-hack replay that embeds the expected bytes but creates a forbidden
+extra output artifact. Presence of those files is not executable evidence and
+does not certify a package.
 
-Generated tasks under `library/synthetic/<batch>/<slug>` mirror `library/tasks/event-summary` conventions:
-- `task.toml`: Harbor 1.4 schema, separate verifier; `--verifier-network no-network` (default, committed batch) declares `[verifier.environment] network_mode = "no-network"` for the workbench gate, `--verifier-network inherit` mirrors event-summary for hosts without Docker egress control; pinned base image `python:3.13-slim-bookworm@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251`.
-- `instruction.md`: Declarative English goal descriptions (e.g. folding consecutive filters into compound "where X and Y" clauses, folding sort_by + head into top-K clauses). No solution leak.
-- `environment/`: Dockerfile, `orders.jsonl`, executable `rp` tool (`0o755`).
-- `solution/solve.sh`: Executable shell script piping `/app/bin/rp` steps (`0o755`).
-- `tests/`: Dockerfile, `test.sh` (`0o755`), `verify.py` reporting checks, CTRF, and reward payloads.
-- `tests/fixtures/`: Trusted `orders.jsonl` and `expected.jsonl`.
-- `workbench/adversarial/`: `empty-output.sh`, `copy-input.sh`, `plausible-wrong.sh` (all executable `0o755`).
-- `generation.json`: Generator metadata, parameter seeds, step sequence, digests, row counts.
-- `provenance.json`: Validated against `evallab.schemas.ProvenanceMetadata` with content-addressed `material_digest` tree manifest and parent digests (RP_SOURCE and DOMAIN_SPEC).
+Before any of the four candidates may be registered or admitted, the supported
+M049 workbench must execute the fixed control plan against that exact package
+digest and retain a valid packet that binds task/version/path, package,
+candidate, generator, validator, control-plan, result, and replay identities.
+The packet must show deterministic oracle output, expected rewards for all
+controls, retained please-hack replay evidence, a clean leakage scan, and the
+declared isolation evidence. Tamper, replay, circular identity, missing
+evidence, or a package digest change requires refusal and a new packet.
 
-## Evidence & Verification
+Correctness, verifier soundness, verifier completeness, and solvability are
+packet axes. **Difficulty calibration and realism review remain separate
+axes**; neither may be inferred from sequence length, static inspection, or
+control success.
 
-All focused tests in `tests/test_seqgen.py` passed (10 tests, <2s, no Docker/network):
-```
-========================= 10 passed in ~0.9s =========================
-```
+## F-SEQGEN-1 — blocked follow-up
 
-### Covered Test Matrix:
-1. `test_a_determinism`: Byte-identical directory tree and identical sha256 digests across repeat runs with identical seed/args/now.
-2. `test_b_validity`: Replaying recorded sequences through step-by-step precondition enumerator passes all checks and yields non-empty output matching expected rows.
-3. `test_c_simulator_rp_equivalence`: Executing `solve.sh` commands as real subprocesses against `orders.jsonl` yields byte-identical output to `expected.jsonl`.
-4. `test_d_workbench_static_acceptance`: `task_workbench.inspect_candidate` passes with `static_passed=True` and 0 errors/warnings.
-5. `test_e_leakage_prevention`: No `solve.sh` line appears in `instruction.md`; `environment/` contains no verifier/golden files; `expected.jsonl` exists only in `tests/fixtures/`.
-6. `test_f_adversarial_wrongness`: `plausible-wrong.sh` outputs valid JSONL guaranteed not to match expected output.
-7. `test_g_coverage_correctness`: `BATCH.json` bigram set matches recomputed sequence bigrams; first selection pick is greedy-optimal.
-8. `test_h_provenance_integrity`: `provenance.json` passes `ProvenanceMetadata` validation and `material_digest` matches tree manifest sha256.
-9. `test_directory_immutability`: `generate_batch` refuses to overwrite non-empty directories.
-10. `test_i_verifier_network_variants`: default emits the gate-required no-network table; `inherit` omits it; both are recorded in `generation.json`/`BATCH.json`; invalid values refused.
+**Finding:** the committed no-network verifier declaration is required by the
+M049 static isolation contract, while the observed Harbor 0.21.0 Docker path
+on the inspected macOS workstation rejected that declaration before local
+control execution. The locally runnable `inherit` variant does not satisfy the
+no-network gate. These observations are machine/configuration scoped and do
+not establish behavior on a supported Linux executor.
 
-### Live control evidence (integrator, this workstation)
+**Reproduction procedure:** on the affected macOS/Harbor 0.21.0 path, retain
+the output from:
 
-Uncommitted `inherit` scratch batch (`runs/.seqgen-scratch/tasks`, same seed):
-
-| run | task | agent | reward |
-|---|---|---|---|
-| `runs/seqgen-smoke-oracle` | seqgen-s7-003 | oracle | **1.0** |
-| `runs/seqgen-smoke-oracle-b` | seqgen-s7-000 | oracle | **1.0** |
-| `runs/seqgen-smoke-nop` | seqgen-s7-003 | nop | **0.0** |
-
-Reward vector `{"reward","correctness","input_preservation","output_hygiene"}`;
-nop correctly preserves input (1.0) while reward stays 0.0.
-
-### Finding F-SEQGEN-1 (lab-wide, pre-existing)
-
-The workbench gate demands verifier `no-network`; Harbor 0.21.0 on this macOS
-workstation refuses to start such a verifier (`environments/base.py:777`,
-egress control kernel-gated in `docker.py:188-195`). `library/tasks/
-event-summary` sits on the other horn: it runs locally and fails today's
-static gate (5 errors, measured). No task.toml satisfies both contracts on
-this machine. Details and decision options:
-`docs/research/evaluation-factory-2026-08.md` §3.
-
-Ruff linting:
 ```bash
-uv run ruff check src/evallab/seqgen.py tests/test_seqgen.py library/synthetic
-# All checks passed!
+uv run python -m evallab.task_workbench check \
+  library/synthetic/seqgen-v0/seqgen-s7-000 \
+  --source-uri library/synthetic/seqgen-v0/seqgen-s7-000 \
+  --source-ref seqgen@0.1.0 --license NOASSERTION --zone 03-synthetic \
+  --run-controls
 ```
 
-## Generated Batch Artifacts
+The recorded failure is before the fixed control battery completes, at
+Harbor's verifier network-policy support check. Repeat on a supported executor
+for all four exact package digests; do not regenerate with `inherit`.
 
-Committed batch `library/synthetic/seqgen-v0` generated via:
-`uv run python -m evallab.seqgen --seed 7 --count 4 --pool 40 --out library/synthetic/seqgen-v0`
-- `library/synthetic/seqgen-v0/BATCH.json`
-- `seqgen-s7-000` (6 ops: filter_ge, sort_by, dedupe_by, sort_by, select, head)
-- `seqgen-s7-001` (6 ops: filter_ge, filter_ge, select, dedupe_by, filter_eq, select)
-- `seqgen-s7-002` (6 ops: sort_by, filter_ge, dedupe_by, select, sort_by, sort_by)
-- `seqgen-s7-003` (5 ops: select, filter_ge, group_sum, sort_by, head)
+**Evidence required to close:** retain either (a) an `m049-v1` packet produced
+by a supported executor that enforces and records verifier no-network
+isolation, or (b) an approved workbench/Harbor capability contract that still
+fails closed and records equivalent enforced isolation. In both cases, replay
+the exact fixed control set for all four package digests and retain the
+executor/capability evidence.
 
-## Proposed Board Row
+**Acceptance:** all four exact candidates have supported, digest-bound
+executable packets; no-network isolation is enforced rather than omitted; the
+fixed control set and replay evidence are complete; realism and difficulty
+remain separately unassessed or separately evidenced; registration remains a
+distinct human decision.
 
-| Mission | Lane | Role Branch | Status | Outcome |
-|---|---|---|---|---|
-| SEQGEN | Platform (src/, tests/) + Tasks (library/synthetic/) | role/seqgen | review-wanted | SEQGEN v0 generator + 10 unit tests + gate-clean batch (4 tasks) + oracle/nop smoke evidence + F-SEQGEN-1 finding |
+Weakening or removing the no-network gate, substituting an `inherit` run, or
+treating the earlier partial oracle/nop smoke observations as certification
+does not resolve F-SEQGEN-1.

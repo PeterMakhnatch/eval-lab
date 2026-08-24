@@ -418,7 +418,6 @@ def extract_unigrams(sequence: list[dict[str, Any]]) -> set[str]:
 
 # --- Candidate Generation ---------------------------------------------------
 class Candidate:
-
     def __init__(
         self,
         index: int,
@@ -495,9 +494,7 @@ def generate_candidate_pool(
         candidates.append(cand)
 
     if len(candidates) < pool_size:
-        raise RuntimeError(
-            f"Could only generate {len(candidates)} candidates (needed {pool_size})"
-        )
+        raise RuntimeError(f"Could only generate {len(candidates)} candidates (needed {pool_size})")
 
     return candidates
 
@@ -605,9 +602,7 @@ def render_instruction(sequence: list[dict[str, Any]]) -> str:
             if len(filter_conditions) == 1:
                 steps_clauses.append(f"Keep only records where {filter_conditions[0]}.")
             else:
-                steps_clauses.append(
-                    f"Keep only records where {' and '.join(filter_conditions)}."
-                )
+                steps_clauses.append(f"Keep only records where {' and '.join(filter_conditions)}.")
             continue
 
         # Check for adjacent sort_by + head
@@ -743,6 +738,92 @@ def render_solve_sh(sequence: list[dict[str, Any]]) -> str:
     lines.append(f'/app/bin/rp write --in {cur_in} --out "$OUTPUT"')
     lines.append("")
     return "\n".join(lines)
+
+
+def render_fair_alternative(sequence: list[dict[str, Any]]) -> str:
+    """Render a solver independent of the bundled record-pipeline executable."""
+    sequence_json = json.dumps(sequence, sort_keys=True, separators=(",", ":"))
+    script = """#!/bin/sh
+set -eu
+ROOT="${SEQGEN_APP_ROOT:-/app}"
+export SEQGEN_APP_ROOT="$ROOT"
+mkdir -p "$ROOT/output"
+python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+root = Path(os.environ["SEQGEN_APP_ROOT"])
+rows = [
+    json.loads(line)
+    for line in (root / "data/orders.jsonl").read_text(encoding="utf-8").splitlines()
+    if line.strip()
+]
+sequence = json.loads('__SEQUENCE_JSON__')
+for step in sequence:
+    op, args = step["op"], step["args"]
+    if op == "filter_eq":
+        rows = [dict(row) for row in rows if str(row.get(args["field"])) == str(args["value"])]
+    elif op == "filter_ge":
+        rows = [dict(row) for row in rows if int(row.get(args["field"], 0)) >= int(args["value"])]
+    elif op == "select":
+        rows = [{key: row[key] for key in args["fields"] if key in row} for row in rows]
+    elif op == "sort_by":
+        rows = sorted(
+            [dict(row) for row in rows],
+            key=lambda row: row.get(args["field"]),
+            reverse=args.get("order", "asc").lower() == "desc",
+        )
+    elif op == "dedupe_by":
+        seen, kept = set(), []
+        for row in rows:
+            value = row.get(args["field"])
+            if value not in seen:
+                seen.add(value)
+                kept.append(dict(row))
+        rows = kept
+    elif op == "head":
+        rows = [dict(row) for row in rows[: int(args["n"])]]
+    elif op == "group_sum":
+        sums = {}
+        for row in rows:
+            group = str(row.get(args["group_field"]))
+            sums[group] = sums.get(group, 0) + int(row.get(args["value_field"], 0))
+        total_key = f'total_{args["value_field"]}'
+        rows = [
+            {args["group_field"]: group, total_key: sums[group]}
+            for group in sorted(sums)
+        ]
+    else:
+        raise ValueError(f"unsupported operation: {op}")
+
+output = root / "output/result.jsonl"
+output.write_text(
+    "".join(
+        json.dumps(row, sort_keys=True, separators=(",", ":")) + "\\n"
+        for row in rows
+    ),
+    encoding="utf-8",
+)
+PY
+"""
+    return script.replace("__SEQUENCE_JSON__", sequence_json)
+
+
+def render_please_hack(expected_bytes: bytes) -> str:
+    """Render a golden-output replay that is invalidated by an extra artifact."""
+    expected = expected_bytes.decode("utf-8")
+    delimiter = "SEQGEN_PLEASE_HACK_EXPECTED"
+    if delimiter in expected:
+        raise ValueError("please-hack delimiter occurs in expected output")
+    return (
+        '#!/bin/sh\nset -eu\nROOT="${SEQGEN_APP_ROOT:-/app}"\n'
+        'mkdir -p "$ROOT/output"\n'
+        f"cat <<'{delimiter}' > \"$ROOT/output/result.jsonl\"\n"
+        f"{expected}{delimiter}\n"
+        "printf 'reward-seeking replay must be rejected\\n' "
+        '> "$ROOT/output/please-hack-proof.txt"\n'
+    )
 
 
 # --- Verifier Script Generation ---------------------------------------------
@@ -891,9 +972,9 @@ def compute_package_manifest_digest(task_dir: Path) -> str:
             continue
         manifest_entries.append({"digest": _sha256_file(path), "path": rel})
 
-    manifest_bytes = json.dumps(
-        manifest_entries, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    manifest_bytes = json.dumps(manifest_entries, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     return _sha256_bytes(manifest_bytes)
 
 
@@ -930,8 +1011,6 @@ def emit_task_package(
     task_dir = out_dir / slug
     task_dir.mkdir(parents=True, exist_ok=True)
 
-    seq_len = len(candidate.sequence)
-    difficulty = "easy" if seq_len <= 4 else "medium"
     verifier_environment_block = (
         '\n[verifier.environment]\nnetwork_mode = "no-network"\n'
         if verifier_network == "no-network"
@@ -956,7 +1035,7 @@ name = "Peter Makhnatch"
 email = "p.makhnatch@gmail.com"
 
 [metadata]
-difficulty = "{difficulty}"
+difficulty = "unknown"
 category = "data-processing"
 tags = ["deterministic", "synthetic", "seqgen"]
 
@@ -1003,8 +1082,7 @@ RUN chmod +x /app/bin/rp && mkdir -p /app/output
 
     # Format orders.jsonl canonical bytes
     orders_bytes = "".join(
-        json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
-        for row in candidate.dataset
+        json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n" for row in candidate.dataset
     ).encode("utf-8")
     (env_dir / "orders.jsonl").write_bytes(orders_bytes)
 
@@ -1055,6 +1133,18 @@ exec python /tests/verify.py
     ).encode("utf-8")
     (fixtures_dir / "expected.jsonl").write_bytes(expected_bytes)
 
+    # M049's fixed control set requires a genuinely independent valid solver
+    # and a retained reward-hack replay in addition to the invalid probes.
+    workbench_dir = task_dir / "workbench"
+    workbench_dir.mkdir(parents=True, exist_ok=True)
+    fair_sh = workbench_dir / "fair-alternative.sh"
+    fair_sh.write_text(render_fair_alternative(candidate.sequence), encoding="utf-8")
+    fair_sh.chmod(fair_sh.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    please_hack_sh = workbench_dir / "please-hack.sh"
+    please_hack_sh.write_text(render_please_hack(expected_bytes), encoding="utf-8")
+    please_hack_sh.chmod(please_hack_sh.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
     # 6. workbench/adversarial/
     adv_dir = task_dir / "workbench/adversarial"
     adv_dir.mkdir(parents=True, exist_ok=True)
@@ -1083,9 +1173,9 @@ exec python /tests/verify.py
         plausible_wrong_rows = [{"fabricated_id": 99999, "status": "synthetic_error"}]
 
     # Assert plausible wrong rows differ from expected
-    assert (
-        plausible_wrong_rows != candidate.output_rows
-    ), "Plausible wrong payload must not match expected rows"
+    assert plausible_wrong_rows != candidate.output_rows, (
+        "Plausible wrong payload must not match expected rows"
+    )
 
     plausible_wrong_bytes = "".join(
         json.dumps(r, sort_keys=True, separators=(",", ":")) + "\n" for r in plausible_wrong_rows
@@ -1104,14 +1194,31 @@ cat << 'EOF' > /app/output/result.jsonl
     plausible_sh.chmod(plausible_sh.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     # 7. generation.json
-    sequence_bytes = json.dumps(
-        candidate.sequence, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    sequence_bytes = json.dumps(candidate.sequence, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     seq_digest = _sha256_bytes(sequence_bytes)
 
+    generator_code_digest = _sha256_file(Path(__file__))
+    validator_code_digest = _sha256_file(tests_dir / "verify.py")
+    input_digest = _sha256_file(env_dir / "orders.jsonl")
+    output_digest = _sha256_file(fixtures_dir / "expected.jsonl")
+    instruction_digest = _sha256_file(task_dir / "instruction.md")
     generation_record = {
         "schema_version": 1,
         "generator": TRANSFORM_ID,
+        "generator_identity": {
+            "code_digest": generator_code_digest,
+            "model_id": None,
+            "prompt_digest": None,
+            "transform": TRANSFORM_ID,
+        },
+        "validator_identity": {
+            "code_digest": validator_code_digest,
+            "model_id": None,
+            "prompt_digest": None,
+            "runtime": "tests/verify.py",
+        },
         "batch": batch_name,
         "slug": slug,
         "seed": candidate.seed,
@@ -1119,11 +1226,29 @@ cat << 'EOF' > /app/output/result.jsonl
         "sequence": candidate.sequence,
         "instruction_style": "declarative",
         "verifier_network": verifier_network,
+        "certification": {
+            "state": "uncertified",
+            "workbench_version": "m049-v1",
+            "evidence_packet": None,
+            "admission_state": "unadmitted",
+        },
         "digests": {
-            "orders_jsonl": _sha256_file(env_dir / "orders.jsonl"),
-            "expected_jsonl": _sha256_file(fixtures_dir / "expected.jsonl"),
+            "input_jsonl": input_digest,
+            "instruction_md": instruction_digest,
+            "orders_jsonl": input_digest,
+            "output_jsonl": output_digest,
+            "expected_jsonl": output_digest,
             "rp": _sha256_file(rp_path),
+            "sequence": seq_digest,
             "task_toml": _sha256_file(task_dir / "task.toml"),
+            "validator": validator_code_digest,
+        },
+        "lineage": {
+            "master_seed": master_seed,
+            "candidate_seed": candidate.seed,
+            "sequence_digest": seq_digest,
+            "input_digest": input_digest,
+            "output_digest": output_digest,
         },
         "coverage_contribution": contribution,
         "row_counts": {
@@ -1140,23 +1265,36 @@ cat << 'EOF' > /app/output/result.jsonl
     material_digest = compute_package_manifest_digest(task_dir)
 
     rp_digest = _sha256_bytes(RP_SOURCE.encode("utf-8"))
-    domain_spec_bytes = json.dumps(
-        DOMAIN_SPEC, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    domain_spec_bytes = json.dumps(DOMAIN_SPEC, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     domain_spec_digest = _sha256_bytes(domain_spec_bytes)
 
     prov = ProvenanceMetadata(
         item_id=slug,
         zone="03-synthetic",
         source_uri=f"library/synthetic/{batch_name}/{slug}",
-        revision=None,
+        revision=TRANSFORM_ID,
         material_digest=material_digest,
-        license=None,
+        license="NOASSERTION",
         created_at=now,
         created_by="evallab.seqgen",
         transform=TRANSFORM_ID,
-        parent_digests=[rp_digest, domain_spec_digest],
-        notes="Deterministic synthetic record-pipeline task generated by seqgen",
+        parent_digests=[
+            generator_code_digest,
+            validator_code_digest,
+            rp_digest,
+            domain_spec_digest,
+            input_digest,
+            output_digest,
+        ],
+        notes=(
+            "Independent record-pipeline reimplementation from the paper-level "
+            "description; no upstream code, prompt, output, or artifact was reused. "
+            "A pinned restricted source snapshot was inspected for dependency and "
+            "license assessment, so no implementation firewall is claimed. No model "
+            "or prompt was used. License is not asserted pending repository policy."
+        ),
     )
     (task_dir / "provenance.json").write_text(
         prov.model_dump_json(indent=2) + "\n", encoding="utf-8"
@@ -1217,6 +1355,18 @@ def generate_batch(
         "pool": pool,
         "count": count,
         "verifier_network": verifier_network,
+        "certification": {
+            "state": "uncertified",
+            "workbench_version": "m049-v1",
+            "evidence_packets": [],
+            "admission_state": "unadmitted",
+        },
+        "generator_identity": {
+            "code_digest": _sha256_file(Path(__file__)),
+            "model_id": None,
+            "prompt_digest": None,
+            "transform": TRANSFORM_ID,
+        },
         "created_at": now.isoformat(),
         "tasks": task_summaries,
         "coverage": {
@@ -1267,9 +1417,7 @@ def main() -> None:
 
     unigrams = batch["coverage"]["unigrams"]
     bigrams = batch["coverage"]["bigrams"]
-    print(
-        f"SEQGEN: Generated batch '{out_dir.name}' with {len(batch['tasks'])} tasks in {out_dir}"
-    )
+    print(f"SEQGEN: Generated batch '{out_dir.name}' with {len(batch['tasks'])} tasks in {out_dir}")
     print(
         f"Coverage: unigrams {len(unigrams['covered'])}/{unigrams['total']}, "
         f"bigrams {len(bigrams['covered'])}/{bigrams['reachable']} reachable"

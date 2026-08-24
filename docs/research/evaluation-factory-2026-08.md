@@ -16,19 +16,19 @@ designs, the backlog, and every source pin. Companion docs:
 implementing), `docs/data-architecture.md` (binding zone rules),
 `docs/research-questions.md` (what the lab studies).
 
-Method note: upstream repositories were inspected read-only at pinned commits
-in ephemeral scratch clones (deleted after reading); nothing upstream was
-vendored. Eight bounded investigations (six upstream, Harbor 0.21.0, and the
-in-repo contract audit) produced the evidence below; implementation facts were
-verified against files in this repository and in the installed Harbor package.
+Method note: upstream repositories were inspected read-only at the pinned
+commits listed below; nothing upstream was vendored. The source-boundary
+statements below describe those inspected snapshots, not later revisions.
+Implementation statements are scoped to the named in-repository files and the
+inspected Harbor 0.21.0 installation.
 
 ## 1. Current-state architecture: the factory contracts already exist
 
 The brief asked which of eight abstract contracts exist, under their actual
-names. Verdict: **seven of eight are present**; the eighth (a deterministic,
-sequence-first task generator) was designed (`docs/research/synthetic-tasks.md`)
-but unimplemented, and is what this program builds first. Do not add parallel
-abstractions for the other seven.
+names. Seven already existed; the eighth, a deterministic sequence-first task
+generator, had a repository design but no implementation before this branch.
+`seqgen.py` fills that narrow gap. It does not add parallel abstractions for
+the other seven.
 
 | Brief contract | Actual implementation | Evidence | Coverage |
 |---|---|---|---|
@@ -51,7 +51,7 @@ inside that contract, not beside it.
 
 | Project | Pin (commit, date) | License | Decision | Reason |
 |---|---|---|---|---|
-| TASTE (`tomerkeren42/TASTE-task-synthesis-from-tool-sequence-evolution`, arXiv:2605.28556) | `d53da239`, 2026-05-31 | **Proprietary**: no redistribution/derivatives until paper release | **Re-implement the idea; zero code reuse** | License forbids adaptation; code is also hard-bound to tau2-bench (`sys.path` injection, tau2 DB models) and LLM validators. The durable ideas — sequence-first generation, validity gates before NL, coverage-driven selection, mutation lineage — are re-implemented deterministically in `src/evallab/seqgen.py`. Its Bayesian signed n-gram sampler and 7-operator adversarial catalog are candidates for a later version, from the paper, not the code. |
+| TASTE (`tomerkeren42/TASTE-task-synthesis-from-tool-sequence-evolution`, arXiv:2605.28556) | `d53da239`, 2026-05-31 | The inspected snapshot carried a restrictive notice that did not authorize redistribution or derivatives before paper release | **Independent reimplementation from the paper-level description; zero source reuse** | The authorization boundary ruled out adapting the inspected code. The pinned restricted snapshot was nevertheless inspected for dependency and license assessment, so no implementation firewall is claimed. That snapshot was coupled to tau2-bench through path injection, tau2 data models, and model validators. SEQGEN independently implements sequence-first generation, validity gates before instruction rendering, and coverage selection from the paper-level description. Upstream code, prompts, outputs, and artifacts are excluded; later reuse requires a fresh license review. |
 | Exgentic (`Exgentic/exgentic`, arXiv:2602.22953) | `ae8d10f7`, 2026-06-15 | MIT | **No adoption now; adapter later if ever** | Verified: zero Harbor/ATIF integration (repo-wide grep, no matches). It duplicates Harbor's execution role with a cloudpickle-over-HTTP RPC bus; per-benchmark adapters remain heavy (SWE-bench ≈1,057 LOC, BrowseComp+ ≈1,464 LOC — domain specialization displaced into adapters, now quantified). The one idea worth borrowing when needed: `PairableProxySession` (queue rendezvous inverting benchmark-driven loops). The board's M051 (file-only Exgentic ingest adapter behind `upstream_adapter.py`) is the same isolation posture and stays the canonical path for Exgentic-formatted data. |
 | CLEAR (`IBM/CLEAR`, arXiv:2605.22608) | `9a5367bd`, 2026-07-27 | Apache-2.0 | **Adapt: thin ATIF→IR converter + prompt/rubric assets; never a core dependency** | Its input IR is a flat CSV (`task_id`, `step_in_trace_general`, `model_input`, `response`, `api_spec`, `traj_score`) — ATIF maps onto it losslessly (~100 LOC). Verifier truth (`traj_score`) stays a separate column from judge outputs; upstream has no calibration machinery (temperature-0 only), so `calibrate.py`/`JudgeCalibrationRecord` remains the calibration layer. Heavy deps (watsonx, nicegui, streamlit, langchain) stay out. |
 | ADO (`IBM/ado`) | `3ad092c6`, 2026-08-19 | MIT | **Reject as engine; keep as conceptual reference** | Monolithic platform: owns Ray lifecycle, global SIGTERM handlers, 6+ tables per store. Disqualifying for evaluation work: memoization identity is `(actuator, experiment@MAJOR, constitutive values)` — minor/patch versions, code SHAs, and environment digests are **excluded** (`ado/schema/reference.py` ~236-255, ~387-410), so a changed verifier silently replays stale results. eval-lab keys every trial by content digests and never memoizes across versions; that property is non-negotiable. The constitutive-vs-observed property vocabulary is worth borrowing for future `GridSpec` extensions. |
@@ -59,13 +59,13 @@ inside that contract, not beside it.
 | KCIF (`IBM/KCIF`, arXiv:2410.12972) | `dfd7a872`, 2025-05-08 | Apache-2.0 | **Re-implement the composition idea for agents (slice C)** | Scripts, not a library. The durable idea: compose a base capability with a constraint operator and pre-compute *error candidate sets* so failures decompose into reasoning vs. instruction-following. Agentic translation: environment-state verifier for the base goal + trace-derived constraint checks, over paired isolated/composed task families. |
 | Harbor 0.21.0 (installed uv tool) | `harbor[modal]==0.21.0` | upstream | **Reuse as substrate (unchanged)** | `TaskConfig`/`TaskPaths`, `BaseAgent`, `BaseEnvironment`, `Verifier`, ATIF-v1.7 models, regrade, `init`/`compile`/`check`. Harbor has **no task synthesis** — generation is legitimately the lab's job. |
 
-Adjacent-stack conclusion (web survey; author claims unless verified in code):
-none of Inspect AI / BrowserGym / tau2 / BFCL / AppWorld / Terminal-Bench
-synthesize tasks; APIGen and ToolBench generate but prompt-first (query before
-validated execution), and APIGen is CC-BY-NC. Sequence-first generation with
-environment-grounded verification was not available to reuse under a
-compatible license — building it was the right call. Inspect AI remains the
-"only if leaving Harbor" alternative (`docs/research-questions.md`).
+Adjacent-stack note: the bounded survey found no reusable, license-compatible
+implementation of this exact sequence-first slice among the inspected
+versions. Claims about Inspect AI, BrowserGym, tau2, BFCL, AppWorld,
+Terminal-Bench, APIGen, and ToolBench remain project-author claims unless the
+table cites inspected code. That bounded result supports the independent
+reimplementation decision; it is not a claim that no such implementation
+exists elsewhere.
 
 The brief's caution held up in code: the IBM projects (CLEAR, ADO, Unitxt,
 KCIF) share no schemas, no imports, and no execution substrate with each other
@@ -96,45 +96,49 @@ Sequence-first pipeline, all deterministic, no model calls:
    the statically enumerated reachable-transition set (54 bigrams);
    `BATCH.json` reports covered/reachable and the uncovered remainder, so
    coverage is measured beyond task count.
-4. **Instantiation.** Each selected sequence becomes a full Harbor task
-   package mirroring `library/tasks/event-summary` (separate verifier image,
-   trusted fixtures, reward vector with primary `reward` key), plus three
-   adversarial probes (`workbench/adversarial/`), `generation.json` (seed,
-   generator version, sequence, digests, coverage contribution, verifier
-   network choice) and `provenance.json` (`ProvenanceMetadata`, zone
-   `03-synthetic`, `transform="seqgen@0.1.0"`, parent digests of the domain
-   spec and `RP_SOURCE`).
-5. **Certification is the existing gate, not new code.** Static acceptance is
-   proven in-tree by calling `task_workbench.inspect_candidate` inside the
-   unit tests; control runs use the existing runner/workbench machinery.
-   Zone 03 rule honoured: synthetic tasks never enter `registered/` without
-   the human gate.
+4. **Instantiation.** Each selected sequence becomes a Harbor candidate
+   package mirroring the existing `library/tasks/event-summary` layout
+   (separate verifier image, trusted fixtures, reward vector with primary
+   `reward` key). `generation.json` binds generator and validator code
+   digests, explicit null model/prompt identities, both seeds, the sequence,
+   input/output/instruction digests, coverage contribution, and verifier
+   network choice. `provenance.json` records Zone 03, transform/revision,
+   package digest, and code/tool/domain/input/output parents with
+   `license="NOASSERTION"`.
+5. **Admission reuses M049.** Each package includes the fixed `m049-v1`
+   control surface: oracle ×3, nop ×2, at least three invalid probes, a fair
+   alternative that implements the selected operations without `rp`, and a
+   hidden reward-hack replay that embeds the expected bytes but creates a
+   forbidden extra output artifact. Expected bytes are retained in the trusted
+   verifier fixture and this hidden replay; neither is copied into the agent
+   image or instruction.
+   File presence and static inspection are not certification. Each generation
+   record and `BATCH.json` explicitly says `uncertified`, missing packet, and
+   `unadmitted`; the inventory schema separately renders registry absence as
+   `registration_state: null`. Supported executable packets must bind each
+   exact package before a separate human admission decision.
 
-Verified (2026-08-24, this workstation): 10 focused tests green in <2 s
-(determinism, per-step validity, simulator↔`rp` subprocess equivalence,
-workbench static acceptance, leakage, adversarial wrongness, greedy-coverage
-correctness, provenance round-trip, immutability, verifier-network variants);
-`ruff` clean including generated task code; live local controls on the
-uncommitted `inherit` scratch batch: **oracle reward 1.0** on `seqgen-s7-000`
-and `seqgen-s7-003`, **nop reward 0.0** on `seqgen-s7-003`
-(`runs/seqgen-smoke-*` in the mission worktree; reward vector
-`{"reward","correctness","input_preservation","output_hygiene"}`).
+Branch history records focused unit/static checks and three partial local
+oracle/nop smoke observations from the pre-rebase mission worktree. Those
+observations did not execute the M049 fixed control set, are not packets for
+the rebased package digests, and do not certify or admit any candidate.
 
 Known, recorded limitations (v0): linear pipelines (no joins/DAGs yet); the
 instruction is a deterministic declarative rendering of the goal — filters are
 folded and sort+head collapse into "top-N", but instruction surface order
-still correlates with op order, so v0 measures *goal execution and tool
-sequencing*, not inference of underspecified intent (LLM intent rewriting is
-SG/SEAM-gated follow-up); the verifier golden is simulator-derived —
-independence comes from the oracle executing the same semantics in the
-container plus the adversarial probes, and any certification record must say
-so (`docs/research/synthetic-tasks.md` §3.C).
+still correlates with op order, so v0 measures a bounded record-transformation
+contract rather than inference of underspecified intent. The verifier golden
+and oracle both use the bundled record-pipeline semantics; this is consistency
+evidence, not an independent semantic oracle. M049's fair alternative
+reimplements the declared operations without invoking `rp`, while the
+reward-hack and invalid controls exercise rejection. These are bounded checks;
+difficulty and realism remain separate axes.
 
-### Finding F-SEQGEN-1: the certification gate and local execution contradict on this machine
+### F-SEQGEN-1 — blocked no-network execution follow-up
 
-Discovered by smoke-running the batch, then confirmed from both sides:
+The pre-rebase mission recorded the following workstation-scoped evidence:
 
-- `task_workbench` v1.1 requires a separate verifier to declare
+- `task_workbench` `m049-v1` requires a separate verifier to declare
   `[verifier.environment] network_mode = "no-network"`
   (`verifier_network_not_isolated`, `task_workbench.py`
   `_validate_network_and_isolation`), because Harbor drops compose overlays
@@ -152,16 +156,15 @@ Discovered by smoke-running the batch, then confirmed from both sides:
   unpinned `source_ref`, missing adversarial probes) — measured directly with
   `inspect_candidate` at `origin/main` `8ea9f8b`.
 
-Consequence: on this machine no task.toml spelling passes both the gate and a
-local control run; certification-by-local-controls is currently impossible
-for gate-clean tasks lab-wide, and the registered in-repo tasks predate the
-gate's current strictness. SEQGEN makes the tension explicit instead of
-hiding it: `--verifier-network no-network` (default, committed batch,
-gate-clean) vs `--verifier-network inherit` (event-summary parity, locally
-runnable), recorded per task and per batch. Resolving the contradiction is an
-integrator/Peter decision — candidates: run control batteries on a Linux
-executor; or teach the gate a machine-capability qualifier that records
-enforcement provenance instead of demanding an unenforceable declaration.
+Consequence on the inspected workstation/configuration: the committed
+no-network candidates could not complete the local executable battery, while
+an `inherit` variant would weaken the M049 isolation contract. SEQGEN retains
+the no-network declaration and records F-SEQGEN-1 as blocked. Closing it
+requires supported, retained isolation evidence—such as execution on a Linux
+executor that enforces the declaration, or an approved fail-closed capability
+contract with equivalent enforcement provenance—followed by exact-package
+`m049-v1` packets for all four candidates. Removing the gate or substituting
+the earlier partial smoke observations is not acceptance.
 
 ## 4. The other two slices (designed, not built here)
 
@@ -178,10 +181,10 @@ against `research/calibration/` answer keys before any use. Blocked today by
 the model seam being a refusing stub and by billable gating — correctly so.
 
 **Slice C — compositional perturbations (KCIF for agents).** Operators over a
-certified seqgen base family: distractor files in `/app/data`, instruction
-degradation levels, tool constraint (remove `/app/bin/rp`), pre-broken partial
-state in `/app/output`. Every variant is a new task version re-certified
-oracle==1.0 / nop==0.0 (`docs/research/synthetic-tasks.md` §4 rule verbatim);
+base family admitted from exact-package M049 evidence: distractor files in
+`/app/data`, instruction degradation levels, tool constraint (remove
+`/app/bin/rp`), pre-broken partial state in `/app/output`. Every variant is a
+new task version requiring its own M049 packet and admission decision;
 sidecar `transform` records `perturb-<op>@<ver>` with `parent_digests`
 linking the base. Analysis compares isolated vs. composed scores as paired
 families via `cohort.py`. Falsification: if composed scores equal the min of
@@ -194,29 +197,31 @@ the axis is dropped.
   verifier@digest)` (`docs/research-questions.md`); campaigns are spec'd trial
   sets; capability distributions are derived cohort statistics — never
   primary evidence.
-- **Solvability independent of the generating model:** seqgen has no
-  generating model — solvability is by construction (simulation) and
-  independently by containerized oracle execution; LLM-authored tasks (SG-1)
-  keep the battery + human gate.
-- **Ground truth vs. heuristic:** environment-grounded verifier checks (exact
-  artifact content vs. trusted fixtures, input preservation, output hygiene)
-  are ground truth; every LLM judgment is a provenance-bearing sidecar under
-  review.
+- **Solvability and generation:** seqgen has no generating model; construction
+  simulates the bundled task semantics. Oracle controls check the bundled tool,
+  and the fair alternative independently implements the declared operations
+  without invoking that tool. Agreement is stronger consistency evidence, but
+  neither solver alone establishes realism or difficulty.
+- **Verifier truth vs. heuristic:** deterministic verifier outcomes compare
+  artifacts with trusted fixtures and check input preservation/output hygiene.
+  Model judgments remain provenance-bearing sidecars and are not substituted
+  for those outcomes.
 - **Sequence coverage beyond task count:** op unigram/bigram coverage against
   the reachable transition set, per batch; the uncovered remainder is the
   next batch's target.
-- **Difficulty without ambiguity:** perturbed variants re-certify (oracle
-  exactly 1.0, nop exactly 0.0, probes 0.0); a variant that fails is rejected
-  lineage, not a "hard task".
+- **Difficulty remains separate:** passing oracle, nop, and invalid controls is
+  correctness/soundness evidence, not a difficulty estimate. Perturbation
+  families require a separate difficulty design and evidence.
 - **Generality vs. adapter engineering:** measure it — per-benchmark adapter
   LOC and injected domain knowledge are first-class numbers (Exgentic's own
   tree: ≈700–1,500 LOC per benchmark).
 - **Retries/loops/recovery:** raw ATIF steps are Zone 02 evidence; loop and
   recovery features are derived (`traj.py`, `behavior.py`); harness retries
   live in queue events and `.transient-attempts`, excluded from discovery.
-- **Exact replay:** immutable job dir (config, lock with task checksum,
-  result, ATIF, artifact digests) + task package digest + `generation.json`
-  (seed, generator version) + Harbor regrade for verifier re-runs.
+- **Exact replay identity:** immutable job dir (config, lock with task
+  checksum, result, ATIF, artifact digests) + task package digest +
+  `generation.json` (generator/validator code, seeds, input/output digests) +
+  Harbor regrade for verifier re-runs.
 - **Versions in cache identity:** the lab memoizes nothing across versions;
   identity is content digests everywhere (`TaskDigests`,
   `AnalysisSourceDigests`, provenance sidecars). ADO's major-version cache is
@@ -230,11 +235,11 @@ the axis is dropped.
 
 | # | Item | Depends on | Acceptance |
 |---|---|---|---|
-| 1 | SEQGEN v0 (this PR) | — | focused tests green; workbench static pass in-tree; oracle 1.0 / nop 0.0 local smoke |
-| 2 | Decide F-SEQGEN-1 (gate vs. local Docker) | Peter/integrator | recorded decision; either a Linux control executor or a capability-aware gate |
-| 3 | Certify `seqgen-v0` through the workbench battery (oracle ×3, nop, probes) and store packets | 2 | `check_candidate` pass for all 4 tasks; packets under `research/registration/` |
-| 4 | SEQGEN v1: multi-dataset joins (DAG sequences), arg-shape coverage, richer datasets | 1 | new op tests; certified batch; coverage report extends |
-| 5 | Slice C perturbation operators over a certified base family | 3 | every variant re-certified; paired isolated-vs-composed report via `cohort.py` |
+| 1 | Review SEQGEN v0 candidates (this PR) | — | deterministic code/seed/input/output identities and complete M049 control surfaces are present; inventory remains unregistered |
+| 2 | Close F-SEQGEN-1 without weakening no-network isolation | supported executor or approved fail-closed capability contract | retained executor/capability evidence demonstrates enforced verifier isolation |
+| 3 | Execute M049 for `seqgen-v0` and seek separate admission | 2 | one valid `m049-v1` packet per exact package covers oracle ×3, nop ×2, ≥3 invalid, fair-alt, and please-hack; difficulty and realism remain separate |
+| 4 | SEQGEN v1: multi-dataset joins (DAG sequences), arg-shape coverage, richer datasets | 1 | new op checks; separately evidenced candidate batch; coverage report extends |
+| 5 | Slice C perturbation operators over an admitted base family | 3 | every variant gets its own exact-package M049 packet and admission decision; paired isolated-vs-composed report via `cohort.py` |
 | 6 | Slice B: ATIF→CLEAR-IR converter + diagnosis sidecars | SEAM (M031), billable approval | fixture round-trip test; one diagnosed trial with full judge provenance; calibration ≥ floor before use |
 | 7 | LLM intent rewriting for seqgen instructions | SEAM, SG-lane handshake | leakage scan; oracle still 1.0; human review of N rewrites |
 | 8 | Exgentic-style bridge | only if a non-Harbor benchmark must run unchanged agents | decision first; adapter-LOC budget declared up front |

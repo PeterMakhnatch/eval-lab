@@ -83,13 +83,13 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:7f55fb22844acbc03c5fada386783e4664155be54b19e5fadc4f7a1b28abdafc
+    digest: sha256:6c05f104719126cce2d82f3b986331bc87c6ff86e794a7317791984f836a6070
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
     digest: sha256:15920beae543ae241d6c2f77dd43019d5d60b57d49fff6792a116e70029a6ae5
   - path: docs/research/evaluation-factory-2026-08.md
-    digest: sha256:cc343700ce21d877f402e5440ac226ddb9804d877116a2c6b66b3e486f7ffafd
+    digest: sha256:d81fb2be8a27b4d1eefa2428aa71eb5c480b813f574d67b2fc1dbc69d334334c
   - path: docs/research/external-datasets.md
     digest: sha256:f36f501ccc8d0fc121d12e8904b0f85ef83f51c64253aa282344b42f17fc602b
   - path: docs/research/literature-survey.md

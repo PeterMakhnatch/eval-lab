@@ -15,7 +15,7 @@ name = "Peter Makhnatch"
 email = "p.makhnatch@gmail.com"
 
 [metadata]
-difficulty = "medium"
+difficulty = "unknown"
 category = "data-processing"
 tags = ["deterministic", "synthetic", "seqgen"]
 

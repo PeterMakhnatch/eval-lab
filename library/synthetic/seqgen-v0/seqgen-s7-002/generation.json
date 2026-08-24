@@ -1,5 +1,11 @@
 {
   "batch": "seqgen-v0",
+  "certification": {
+    "admission_state": "unadmitted",
+    "evidence_packet": null,
+    "state": "uncertified",
+    "workbench_version": "m049-v1"
+  },
   "coverage_contribution": {
     "new_bigrams": [
       "dedupe_by->select",
@@ -13,12 +19,30 @@
   },
   "digests": {
     "expected_jsonl": "sha256:c2bb43af668e6fcb1093bb36042c21aead9f417095d0373fda26f5f38b0a8b79",
+    "input_jsonl": "sha256:a38ee32b0c3138c715a7af735604e601d3ac7dd2bf3b933562d553dfdcf4056a",
+    "instruction_md": "sha256:991a46144e12afce51266403ab3b9a6237ed3de75c64c505c941d53d6afa0029",
     "orders_jsonl": "sha256:a38ee32b0c3138c715a7af735604e601d3ac7dd2bf3b933562d553dfdcf4056a",
+    "output_jsonl": "sha256:c2bb43af668e6fcb1093bb36042c21aead9f417095d0373fda26f5f38b0a8b79",
     "rp": "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
-    "task_toml": "sha256:b06c3cb9d1bc6914be93e5fc7f53809d2355a06d94a83ea0caa0311c0e5422f1"
+    "sequence": "sha256:e1e60b5994a7358d3728b47915c15ff7f45c405e9cb171b0516658c8768d0091",
+    "task_toml": "sha256:065b79faf4e2a828f4457194a97a38994d0852f123aceea0a94889589fbf29d2",
+    "validator": "sha256:94e577a1b566cd679aad6b352ecc280c21cf685050acbc2f11c8537de6d9c764"
   },
   "generator": "seqgen@0.1.0",
+  "generator_identity": {
+    "code_digest": "sha256:c38b15c8cac2c3cb2e36dabf5e9cf0e1d63d7d0e048b5e56db3c9a60e21183a6",
+    "model_id": null,
+    "prompt_digest": null,
+    "transform": "seqgen@0.1.0"
+  },
   "instruction_style": "declarative",
+  "lineage": {
+    "candidate_seed": 70066,
+    "input_digest": "sha256:a38ee32b0c3138c715a7af735604e601d3ac7dd2bf3b933562d553dfdcf4056a",
+    "master_seed": 7,
+    "output_digest": "sha256:c2bb43af668e6fcb1093bb36042c21aead9f417095d0373fda26f5f38b0a8b79",
+    "sequence_digest": "sha256:e1e60b5994a7358d3728b47915c15ff7f45c405e9cb171b0516658c8768d0091"
+  },
   "master_seed": 7,
   "row_counts": {
     "input": 60,
@@ -73,5 +97,11 @@
     }
   ],
   "slug": "seqgen-s7-002",
+  "validator_identity": {
+    "code_digest": "sha256:94e577a1b566cd679aad6b352ecc280c21cf685050acbc2f11c8537de6d9c764",
+    "model_id": null,
+    "prompt_digest": null,
+    "runtime": "tests/verify.py"
+  },
   "verifier_network": "no-network"
 }

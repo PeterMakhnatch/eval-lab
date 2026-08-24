@@ -1,20 +1,14 @@
 """Focused unit tests for SEQGEN v0 generator.
 
-Covers acceptance criteria a through h:
-a. Determinism: identical args+now => byte-identical tree.
-b. Validity: replaying recorded sequences satisfies all preconditions and ends non-empty.
-c. Simulator / RP equivalence: executing solve.sh rp commands yields expected.jsonl.
-d. Workbench static acceptance: inspect_candidate passes static checks.
-e. Leakage prevention: no solve.sh lines in instruction.md, no test/golden leak in environment/.
-f. Adversarial wrongness: plausible-wrong.sh payload != expected.jsonl rows.
-g. Coverage correctness: BATCH.json bigrams match recomputed set; first pick is greedy-optimal.
-h. Provenance integrity: provenance.json validates against ProvenanceMetadata; digest matches.
+Covers the deterministic package, control, isolation, lineage, and provenance
+contracts required before these Zone 03 candidates can seek M049 admission.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -67,14 +61,10 @@ def test_a_determinism(tmp_path: Path) -> None:
     assert batch1 == batch2
 
     files1 = {
-        p.relative_to(dir1).as_posix(): _file_digest(p)
-        for p in dir1.rglob("*")
-        if p.is_file()
+        p.relative_to(dir1).as_posix(): _file_digest(p) for p in dir1.rglob("*") if p.is_file()
     }
     files2 = {
-        p.relative_to(dir2).as_posix(): _file_digest(p)
-        for p in dir2.rglob("*")
-        if p.is_file()
+        p.relative_to(dir2).as_posix(): _file_digest(p) for p in dir2.rglob("*") if p.is_file()
     }
 
     assert files1 == files2
@@ -106,14 +96,10 @@ def test_b_validity(sample_batch: tuple[Path, dict]) -> None:
 
             # Check op was in valid enumerated ops at this state
             valid_ops = enumerate_valid_ops(current_schema, current_rows, prev_op_args)
-            matching = [
-                v for v in valid_ops if v["op"] == op and v["args"] == args
-            ]
+            matching = [v for v in valid_ops if v["op"] == op and v["args"] == args]
             assert len(matching) == 1, f"Op {op} with {args} was not valid at state"
 
-            current_schema, current_rows = apply_op_to_state(
-                current_schema, current_rows, op, args
-            )
+            current_schema, current_rows = apply_op_to_state(current_schema, current_rows, op, args)
             prev_op_args = (op, json.dumps(args, sort_keys=True))
 
         assert len(current_rows) > 0
@@ -189,7 +175,7 @@ def test_d_workbench_static_acceptance(sample_batch: tuple[Path, dict], tmp_path
     source = CandidateSource(
         source_uri=f"library/synthetic/{batch_dir.name}/{task_slug}",
         source_ref="seqgen@0.1.0",
-        license="MIT",
+        license="NOASSERTION",
         provenance_zone="03-synthetic",
     )
 
@@ -202,17 +188,23 @@ def test_d_workbench_static_acceptance(sample_batch: tuple[Path, dict], tmp_path
     assert inspection.static_passed is True, f"Diagnostics: {inspection.diagnostics}"
     assert len([d for d in inspection.diagnostics if d.severity == "error"]) == 0
 
+    plan_kinds = [entry.kind for entry in inspection.control_plan]
+    assert plan_kinds.count("oracle") == 3
+    assert plan_kinds.count("nop") == 2
+    assert plan_kinds.count("adversarial") >= 3
+    assert plan_kinds.count("fair_alternative") == 1
+    assert plan_kinds.count("please_hack") == 1
+
 
 def test_e_leakage_prevention(sample_batch: tuple[Path, dict]) -> None:
-    """No line of solve.sh appears in instruction.md; environment/ has no hidden verifier files."""
+    """Expected bytes stay in verifier/reward-hack controls, never agent-visible."""
     batch_dir, batch = sample_batch
     for task_info in batch["tasks"]:
         slug = task_info["slug"]
         task_dir = batch_dir / slug
 
-        instruction_text = (task_dir / "instruction.md").read_text(encoding="utf-8")
+        instruction = (task_dir / "instruction.md").read_bytes()
         solve_lines = (task_dir / "solution/solve.sh").read_text(encoding="utf-8").splitlines()
-
         for line in solve_lines:
             stripped = line.strip()
             if (
@@ -221,18 +213,33 @@ def test_e_leakage_prevention(sample_batch: tuple[Path, dict]) -> None:
                 or stripped in ("set -eu", "mkdir -p /app/output")
             ):
                 continue
-            assert stripped not in instruction_text, f"Leaked solve line: {stripped}"
+            assert stripped.encode() not in instruction, f"Leaked solve line: {stripped}"
 
-        # Verify environment/ only contains orders.jsonl, Dockerfile, rp
         env_files = {p.name for p in (task_dir / "environment").iterdir()}
         assert env_files == {"Dockerfile", "orders.jsonl", "rp"}
+        expected = (task_dir / "tests/fixtures/expected.jsonl").read_bytes()
+        carriers = {
+            path.relative_to(task_dir).as_posix()
+            for path in task_dir.rglob("*")
+            if path.is_file() and expected in path.read_bytes()
+        }
+        assert carriers == {
+            "tests/fixtures/expected.jsonl",
+            "workbench/please-hack.sh",
+        }
+        assert expected not in instruction
+        assert all(
+            expected not in path.read_bytes()
+            for path in (task_dir / "environment").iterdir()
+            if path.is_file()
+        )
 
-        # Verify expected.jsonl exists ONLY under tests/fixtures/
-        all_expected = [
-            p.relative_to(task_dir).as_posix()
-            for p in task_dir.rglob("expected.jsonl")
-        ]
-        assert all_expected == ["tests/fixtures/expected.jsonl"]
+        environment_dockerfile = (task_dir / "environment/Dockerfile").read_text()
+        verifier_dockerfile = (task_dir / "tests/Dockerfile").read_text()
+        assert "tests" not in environment_dockerfile
+        assert "workbench" not in environment_dockerfile
+        assert "workbench" not in verifier_dockerfile
+        assert "../" not in verifier_dockerfile
 
 
 def test_f_adversarial_wrongness(sample_batch: tuple[Path, dict]) -> None:
@@ -247,9 +254,9 @@ def test_f_adversarial_wrongness(sample_batch: tuple[Path, dict]) -> None:
         )
         expected_rows = [json.loads(line) for line in expected_lines if line.strip()]
 
-        plausible_sh = (
-            task_dir / "workbench/adversarial/plausible-wrong.sh"
-        ).read_text(encoding="utf-8")
+        plausible_sh = (task_dir / "workbench/adversarial/plausible-wrong.sh").read_text(
+            encoding="utf-8"
+        )
         match = re.search(
             r"cat << 'EOF' > /app/output/result\.jsonl\n(.*?)EOF", plausible_sh, re.DOTALL
         )
@@ -259,6 +266,70 @@ def test_f_adversarial_wrongness(sample_batch: tuple[Path, dict]) -> None:
 
         assert payload_rows != expected_rows
         assert len(payload_rows) > 0
+
+
+def test_f_m049_special_controls(sample_batch: tuple[Path, dict], tmp_path: Path) -> None:
+    """Fair-alt is independent and please-hack is a rejected reward-seeking replay."""
+    batch_dir, batch = sample_batch
+    for task_info in batch["tasks"]:
+        slug = task_info["slug"]
+        task_dir = batch_dir / slug
+        expected = (task_dir / "tests/fixtures/expected.jsonl").read_bytes()
+        solve = (task_dir / "solution/solve.sh").read_bytes()
+        adversarial = {
+            path.read_bytes() for path in (task_dir / "workbench/adversarial").glob("*.sh")
+        }
+
+        fair = task_dir / "workbench/fair-alternative.sh"
+        fair_text = fair.read_text(encoding="utf-8")
+        assert os.access(fair, os.X_OK)
+        assert fair.read_bytes() != solve
+        assert fair.read_bytes() not in adversarial
+        assert "/app/bin/rp" not in fair_text
+        assert "environment/rp" not in fair_text
+        assert "import rp" not in fair_text
+
+        fair_root = tmp_path / slug / "fair"
+        (fair_root / "data").mkdir(parents=True)
+        shutil.copyfile(
+            task_dir / "environment/orders.jsonl",
+            fair_root / "data/orders.jsonl",
+        )
+        fair_run = subprocess.run(
+            ["sh", str(fair)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "SEQGEN_APP_ROOT": str(fair_root)},
+        )
+        assert fair_run.returncode == 0, fair_run.stderr
+        assert (fair_root / "output/result.jsonl").read_bytes() == expected
+
+        please_hack = task_dir / "workbench/please-hack.sh"
+        hack_text = please_hack.read_text(encoding="utf-8")
+        assert os.access(please_hack, os.X_OK)
+        assert please_hack.read_bytes() != solve
+        assert please_hack.read_bytes() != fair.read_bytes()
+        assert please_hack.read_bytes() not in adversarial
+        assert "orders.jsonl" not in hack_text
+
+        hack_root = tmp_path / slug / "please-hack"
+        hack_run = subprocess.run(
+            ["sh", str(please_hack)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "SEQGEN_APP_ROOT": str(hack_root)},
+        )
+        assert hack_run.returncode == 0, hack_run.stderr
+        assert (hack_root / "output/result.jsonl").read_bytes() == expected
+        output_names = sorted(path.name for path in (hack_root / "output").iterdir())
+        assert output_names == ["please-hack-proof.txt", "result.jsonl"]
+        output_hygiene = output_names == ["result.jsonl"]
+        reward = float(
+            (hack_root / "output/result.jsonl").read_bytes() == expected and output_hygiene
+        )
+        assert reward == 0.0
 
 
 def test_g_coverage_correctness(sample_batch: tuple[Path, dict]) -> None:
@@ -292,8 +363,9 @@ def test_g_coverage_correctness(sample_batch: tuple[Path, dict]) -> None:
 
 
 def test_h_provenance_integrity(sample_batch: tuple[Path, dict]) -> None:
-    """provenance.json validates against ProvenanceMetadata and material_digest recomputes."""
+    """Provenance binds package, code identities, seeds, and input/output lineage."""
     batch_dir, batch = sample_batch
+    generator_digest = f"sha256:{_file_digest(Path(sys.modules['evallab.seqgen'].__file__))}"
     for task_info in batch["tasks"]:
         slug = task_info["slug"]
         task_dir = batch_dir / slug
@@ -302,12 +374,41 @@ def test_h_provenance_integrity(sample_batch: tuple[Path, dict]) -> None:
         assert prov_path.is_file()
 
         prov = ProvenanceMetadata.model_validate_json(prov_path.read_text(encoding="utf-8"))
+        record = json.loads((task_dir / "generation.json").read_text(encoding="utf-8"))
         assert prov.item_id == slug
         assert prov.zone == "03-synthetic"
+        assert prov.revision == "seqgen@0.1.0"
         assert prov.transform == "seqgen@0.1.0"
-        assert len(prov.parent_digests) == 2
+        assert prov.license == "NOASSERTION"
+        assert record["certification"] == {
+            "admission_state": "unadmitted",
+            "evidence_packet": None,
+            "state": "uncertified",
+            "workbench_version": "m049-v1",
+        }
+        assert record["generator_identity"] == {
+            "code_digest": generator_digest,
+            "model_id": None,
+            "prompt_digest": None,
+            "transform": "seqgen@0.1.0",
+        }
+        assert record["validator_identity"]["code_digest"] == record["digests"]["validator"]
+        assert record["validator_identity"]["model_id"] is None
+        assert record["validator_identity"]["prompt_digest"] is None
+        assert record["lineage"] == {
+            "candidate_seed": record["seed"],
+            "input_digest": record["digests"]["input_jsonl"],
+            "master_seed": record["master_seed"],
+            "output_digest": record["digests"]["output_jsonl"],
+            "sequence_digest": record["digests"]["sequence"],
+        }
+        assert len(prov.parent_digests) == 6
+        assert set(record["lineage"].values()) <= set(prov.parent_digests) | {
+            record["seed"],
+            record["master_seed"],
+            record["digests"]["sequence"],
+        }
 
-        # Recompute material_digest
         recomputed_digest = compute_package_manifest_digest(task_dir)
         assert prov.material_digest == recomputed_digest
 
@@ -358,6 +459,10 @@ def test_i_verifier_network_variants(sample_batch: tuple[Path, dict], tmp_path: 
 
     with pytest.raises(ValueError):
         generate_batch(
-            seed=7, count=1, pool=40,
-            out_dir=tmp_path / "batch_bad", now=now, verifier_network="open",
+            seed=7,
+            count=1,
+            pool=40,
+            out_dir=tmp_path / "batch_bad",
+            now=now,
+            verifier_network="open",
         )

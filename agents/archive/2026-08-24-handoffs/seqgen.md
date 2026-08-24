@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: rebased PR #152 onto PR #151 and aligned the generated packages with the M049 control and identity contracts
-Next: review PR #152; resolve F-SEQGEN-1; then execute and retain one supported `m049-v1` packet per exact package before any admission decision
+Status: done
+Last: merged the deterministic uncertified SEQGEN v0 candidate batch in PR #152 (`45516f8`)
+Next: resolve F-SEQGEN-1, then execute and retain one supported `m049-v1` packet per exact package before any admission decision
 Blockers: F-SEQGEN-1 and absent supported M049 executable evidence packets
 
 # M053 (G) — SEQGEN v0 sequence-first synthetic task candidates

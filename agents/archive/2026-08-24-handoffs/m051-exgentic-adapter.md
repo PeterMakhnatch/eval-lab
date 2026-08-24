@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: implemented one strict manifest contract and offline file adapters for Exgentic and Recovery-Bench constructed fixtures
-Next: review the manifest boundary, field mapping, and refusal coverage; do not acquire or register upstream corpora
+Status: done
+Last: merged strict offline Exgentic and Recovery-Bench adapters in PR #154 (`dade163`)
+Next: none; lease spent
 Blockers: none
 
 # M051 (E) — File-only upstream result adapters
@@ -10,7 +10,7 @@ Blockers: none
 - **Outcome:** bind local Exgentic trajectory JSONL and Recovery-Bench result JSON to immutable upstream revisions; emit validator-conformant ATIF only when trajectory evidence exists, alongside external evidence, without importing or executing upstream code.
 - **Lane / owner:** Tasks / Tasks lane owner.
 - **Exclusive lease:** `src/evallab/upstream_adapter.py`, `library/adapters/exgentic/**`, `library/adapters/recovery-bench/**`, `tests/test_upstream_adapter.py`, and `tests/fixtures/upstream_adapters/**`.
-- **Status:** review-wanted. The implementation is file-only; it does not vendor, install, fetch, register, or execute either upstream project.
+- **Status:** merged via PR #154; lease spent. The implementation is file-only; it does not vendor, install, fetch, register, or execute either upstream project.
 - **Acceptance:** repeated offline imports are byte-identical and independent of process cwd; raw input bytes, digest, canonical source URL, immutable revision, license status, manifest version, and adapter code digest remain bound; roots/destination and manifest are absolute, relative source children resolve only beneath the declared source root, and incompatible schema/revision/license/symlink/path inputs are refused.
 
 ## Mapping notes

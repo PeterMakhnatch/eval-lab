@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: repaired the state hard gate, including baseline/revert evidence, typed operations, invalid sentinels, and golden table contracts
-Next: independent diff review of the repaired implementation
+Status: done
+Last: merged the repaired append-only state-event evidence in PR #153 (`4f7ebdd`)
+Next: none; lease spent
 Blockers: none
 
 # M048 (B) — State event facts
@@ -10,13 +10,13 @@ Blockers: none
 - **Outcome:** make `StateEventFact` ingestible, compactable, temporally queryable, and explicitly non-causal.
 - **Lane / owner:** Platform / Platform lane owner.
 - **Exclusive lease:** `containers/state-journal/{Dockerfile,producer.py,watch.py}`, additive `src/evallab/harbor_state_journal.py`, `src/evallab/state_events.py`, `src/evallab/schemas.py`, `src/evallab/facts.py`, `src/evallab/atif.py`, `src/evallab/attach.py`, `src/evallab/parquet_compaction.py`, focused compaction fixtures, `tests/test_state_events.py`, and `tests/fixtures/state_events/**`.
-- **Status:** review-wanted; focused and full local validation are recorded below.
+- **Status:** merged via PR #153; lease spent.
 - **Acceptance:** the committed golden stream and final net diff are regenerated through the runner image's producer module. Existing baseline→write-one→baseline(revert)→write-two projects as three valid facts with sequence/predecessor, typed multi-operations, bounded before/after values, explicit known-state/known-absent/unknown baseline status, and producer/source identity; the final diff honestly retains only baseline→write-two. Available streams require valid unambiguous state-diff evidence. Direct malformed, duplicate, conflicting, gapped, or non-append evidence fails closed. Job-fact extraction retains sibling facts and emits one deterministic invalid sentinel. Repeat projection overwrites rather than duplicates; semantics are temporal and explicitly non-causal.
-- **Next executable step:** independent diff review.
+- **Next executable step:** none.
 
 ## Source evidence and dependencies
 
-PR #146 added the state journal, event mart, and compaction surfaces, but `origin/main` has no `StateEventFact` contract. This mission consumes PLATFORM-146 and is independent of M047, M049, M050, and M051.
+PR #146 added the state journal, event mart, and compaction surfaces. PR #153 merged the `StateEventFact` contract as an independent follow-on; M052/#155 later consumed the state facts without changing their explicitly non-causal semantics.
 
 ## Implementation note
 

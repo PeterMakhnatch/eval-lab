@@ -1,6 +1,6 @@
-Status: review-wanted
-Last: implemented the typed, byte-bound P/R/U/C/Y contract and screen admission guard
-Next: review the contract and free integrated workflow together; validation is intentionally unclaimed
+Status: done
+Last: merged the typed P/R/U/C/Y contract and free integrated workflow in PR #155 (`7a02fde`)
+Next: none; lease spent
 Blockers: none
 
 # M052 (F) — Typed P/R/U/C/Y capability contract
@@ -10,9 +10,9 @@ Blockers: none
 - **Outcome:** enforce independent typed P/R/U/C/Y capability contracts at harness, policy, freeze, and heldout boundaries without a scalar score.
 - **Lane / owner:** Research / Research lane owner, with Platform review at execution boundaries.
 - **Exclusive lease:** `src/evallab/capability_contract.py`, `src/evallab/capability_workflow.py`, their focused tests and workflow fixtures, `research/experiments/capability-contracts/**`, and additive integration in `src/evallab/screen.py` plus policy-admission tests.
-- **Status:** review-wanted; implementation is present and validation is intentionally unclaimed.
+- **Status:** merged via PR #155; lease spent.
 - **Acceptance represented:** every report preserves the complete P/R/U/C/Y vector with explicit unavailable/insufficient/invalid/satisfied states; current evidence bytes and path/kind identities are re-read without symlink or repository escape; typed admission rejects invalid reports while accepting honest `valid_insufficient` evidence; the free workflow executes M047/M049/M048/M051 APIs while refusing to turn their component evidence into generality; no model exposes a scalar generality or integration score.
-- **Next executable step:** review the contract and free integrated fixture together, then run the focused and repository validation once after lane integration.
+- **Next executable step:** none.
 
 ## Independent claim boundaries
 

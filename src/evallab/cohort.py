@@ -648,6 +648,16 @@ def _budget_exhaustion(member: CohortMember) -> bool:
     return member.exception_class in TIMEOUT_BUDGET_EXCEPTION_CLASSES
 
 
+def _effective_reward(
+    member: CohortMember, *, budget_exhaustion_is_failure: bool
+) -> float | None:
+    if member.exception_class is not None:
+        if budget_exhaustion_is_failure and _budget_exhaustion(member):
+            return 0.0
+        return None
+    return float(member.reward) if member.reward is not None else None
+
+
 def _task_evidence(
     members: list[CohortMember],
     *,
@@ -677,12 +687,15 @@ def _task_evidence(
             continue
         selected = attempts[:k]
         rewards = [
-            0.0
-            if budget_exhaustion_is_failure and _budget_exhaustion(item)
-            else float(item.reward)
+            reward
             for item in selected
-            if item.reward is not None
-            or (budget_exhaustion_is_failure and _budget_exhaustion(item))
+            if (
+                reward := _effective_reward(
+                    item,
+                    budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+                )
+            )
+            is not None
         ]
         passed = [reward >= threshold for reward in rewards]
         evidence[key] = {
@@ -772,14 +785,6 @@ def _pass_power_k(
     )
 
 
-def _effective_reward(
-    member: CohortMember, *, budget_exhaustion_is_failure: bool
-) -> float | None:
-    if member.exception_class is not None:
-        if budget_exhaustion_is_failure and _budget_exhaustion(member):
-            return 0.0
-        return None
-    return float(member.reward) if member.reward is not None else None
 
 
 def _summarize_cohort(

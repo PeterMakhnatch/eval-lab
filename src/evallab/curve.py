@@ -15,6 +15,7 @@ from evallab.schemas import (
     CapabilityCurveSpec,
     CurveComparisonSource,
     CurveContrastReport,
+    CurveExceptionReport,
     CurveLevelReport,
     CurveMetricReport,
 )
@@ -259,8 +260,8 @@ def _control_fingerprint(
 
 def _exclusions(
     members: list[JsonObject], *, budget_exhaustion_is_failure: bool
-) -> tuple[list[JsonObject], list[str], list[str]]:
-    exceptions: list[JsonObject] = []
+) -> tuple[list[CurveExceptionReport], list[str], list[str]]:
+    exceptions: list[CurveExceptionReport] = []
     missing_rewards: list[str] = []
     censored: set[str] = set()
     for member in members:
@@ -268,15 +269,15 @@ def _exclusions(
         is_budget_failure = _budget_failure(member, budget_exhaustion_is_failure)
         if exception is not None and not is_budget_failure:
             exceptions.append(
-                {
-                    "trial_id": str(member["trial_id"]),
-                    "task_block_id": (
+                CurveExceptionReport(
+                    trial_id=str(member["trial_id"]),
+                    task_block_id=(
                         str(member["task_block_id"])
                         if member.get("task_block_id") is not None
                         else None
                     ),
-                    "exception_class": str(exception),
-                }
+                    exception_class=str(exception),
+                )
             )
             if member.get("task_block_id") is not None:
                 censored.add(str(member["task_block_id"]))
@@ -285,11 +286,10 @@ def _exclusions(
             if member.get("task_block_id") is not None:
                 censored.add(str(member["task_block_id"]))
     return (
-        sorted(exceptions, key=lambda item: str(item["trial_id"])),
+        sorted(exceptions, key=lambda item: item.trial_id),
         sorted(missing_rewards),
         sorted(censored),
     )
-
 
 def _contrast(
     paired: JsonObject, *, primary: bool, integrity_reasons: list[str]
@@ -340,7 +340,9 @@ def build_curve(
     expected_pair_set: list[str] | None = None
     expected_control: str | None = None
     reference_metrics: tuple[list[CurveMetricReport], list[CurveMetricReport]] | None = None
-    reference_exclusions: tuple[list[str], list[str], list[str]] | None = None
+    reference_exclusions: (
+        tuple[list[CurveExceptionReport], list[str], list[str]] | None
+    ) = None
     reference_unpaired: set[str] = set()
     built_levels: dict[str, CurveLevelReport] = {}
 

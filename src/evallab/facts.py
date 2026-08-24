@@ -85,6 +85,83 @@ def experiment_id(job: JobRecord) -> str | None:
     value = experiment.get("spec_id")
     return str(value) if value else None
 
+def _experiment_provenance(job: JobRecord) -> JsonObject:
+    value = job.metadata.get("experiment")
+    return value if isinstance(value, dict) else {}
+
+
+def _coordinate_json(value: Any) -> str | None:
+    return (
+        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        if isinstance(value, dict)
+        else None
+    )
+
+
+def _task_identity(
+    job: JobRecord,
+    trial: TrialRecord,
+    *,
+    task_digest: str | None,
+    verifier_digest: str,
+    environment_digest: str,
+) -> tuple[
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+]:
+    provenance = _experiment_provenance(job)
+    task_lock = trial.lock.get("task")
+    observed_task = task_lock if isinstance(task_lock, dict) else {}
+    task_id = _string(provenance.get("task_id") or observed_task.get("name"))
+    task_family = _string(provenance.get("task_family") or observed_task.get("family"))
+    instance_id = _string(
+        provenance.get("task_instance_id") or observed_task.get("instance_id")
+    )
+    generator_seed = (
+        provenance["generator_seed"]
+        if provenance.get("generator_seed") is not None
+        else observed_task.get("generator_seed")
+    )
+    generator_seed_json = (
+        json.dumps(
+            generator_seed, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
+        if generator_seed is not None
+        else None
+    )
+    package_identity = task_digest or _string(provenance.get("package_digest"))
+    if package_identity is None:
+        return (
+            task_family,
+            task_id,
+            instance_id,
+            generator_seed_json,
+            None,
+            None,
+        )
+    inputs = {
+        "task_package_digest": package_identity,
+        "instance_id": instance_id,
+        "generator_seed": generator_seed,
+        "verifier_base_digest": verifier_digest,
+        "environment_base_digest": environment_digest,
+    }
+    inputs_json = json.dumps(
+        inputs, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return (
+        task_family,
+        task_id,
+        instance_id,
+        generator_seed_json,
+        inputs_json,
+        digest_json(inputs),
+    )
+
 
 def _task_digest(trial: TrialRecord) -> str | None:
     task = trial.lock.get("task")
@@ -128,6 +205,23 @@ class TrialFact:
     task_digest: str | None
     verifier_digest: str
     environment_digest: str
+    grid_id: str | None
+    point_id: str | None
+    arm_id: str | None
+    factor_values_json: str | None
+    factor_values_digest: str | None
+    factor_bindings_json: str | None
+    factor_bindings_digest: str | None
+    bound_execution_values_json: str | None
+    bound_execution_values_digest: str | None
+    preamble_path: str | None
+    preamble_content_sha256: str | None
+    task_family: str | None
+    task_id: str | None
+    task_instance_id: str | None
+    generator_seed_json: str | None
+    task_block_inputs_json: str | None
+    task_block_id: str | None
     agent_config_digest: str
     agent_name: str | None
     agent_version: str | None
@@ -355,6 +449,27 @@ def extract_trial_fact(
             key=lambda item: (item.source, item.destination or ""),
         )
     ]
+    provenance = _experiment_provenance(job)
+    factor_values_json = _coordinate_json(provenance.get("factor_values"))
+    bound_values_json = _coordinate_json(provenance.get("bound_execution_values"))
+    factor_bindings_json = _coordinate_json(provenance.get("factor_bindings"))
+    verifier_digest = _verifier_digest(job, trial)
+    environment_digest = digest_json(trial.lock.get("environment") or {})
+    task_digest = _task_digest(trial)
+    (
+        task_family,
+        task_id,
+        task_instance_id,
+        generator_seed_json,
+        task_block_inputs_json,
+        task_block_id,
+    ) = _task_identity(
+        job,
+        trial,
+        task_digest=task_digest,
+        verifier_digest=verifier_digest,
+        environment_digest=environment_digest,
+    )
     return TrialFact(
         experiment_id=experiment_id(job),
         job_id=job.id,
@@ -362,10 +477,39 @@ def extract_trial_fact(
         job_name=job.name,
         trial_name=trial.name,
         task_name=_string(result.get("task_name")),
-        task_digest=_task_digest(trial),
-        verifier_digest=_verifier_digest(job, trial),
-        environment_digest=digest_json(trial.lock.get("environment") or {}),
+        task_digest=task_digest,
+        verifier_digest=verifier_digest,
+        environment_digest=environment_digest,
         agent_config_digest=digest_json(trial.lock.get("agent") or {}),
+        grid_id=_string(provenance.get("grid_id")),
+        point_id=_string(provenance.get("point_id")),
+        arm_id=_string(provenance.get("arm_id")),
+        factor_values_json=factor_values_json,
+        factor_values_digest=(
+            digest_json(provenance["factor_values"])
+            if factor_values_json is not None
+            else None
+        ),
+        factor_bindings_json=factor_bindings_json,
+        factor_bindings_digest=(
+            digest_json(provenance["factor_bindings"])
+            if factor_bindings_json is not None
+            else None
+        ),
+        bound_execution_values_json=bound_values_json,
+        bound_execution_values_digest=(
+            digest_json(provenance["bound_execution_values"])
+            if bound_values_json is not None
+            else None
+        ),
+        preamble_path=_string(provenance.get("preamble_path")),
+        preamble_content_sha256=_string(provenance.get("preamble_sha256")),
+        task_family=task_family,
+        task_id=task_id,
+        task_instance_id=task_instance_id,
+        generator_seed_json=generator_seed_json,
+        task_block_inputs_json=task_block_inputs_json,
+        task_block_id=task_block_id,
         agent_name=_string(agent_info.get("name")),
         agent_version=_string(agent_info.get("version")),
         model_name=_string(model_info.get("name") or model_info.get("model_name")),
@@ -482,6 +626,23 @@ TRIAL_FACT_SCHEMA = pa.schema(
         pa.field("task_digest", pa.string()),
         pa.field("verifier_digest", pa.string(), nullable=False),
         pa.field("environment_digest", pa.string(), nullable=False),
+        pa.field("grid_id", pa.string()),
+        pa.field("point_id", pa.string()),
+        pa.field("arm_id", pa.string()),
+        pa.field("factor_values_json", pa.string()),
+        pa.field("factor_values_digest", pa.string()),
+        pa.field("factor_bindings_json", pa.string()),
+        pa.field("factor_bindings_digest", pa.string()),
+        pa.field("bound_execution_values_json", pa.string()),
+        pa.field("bound_execution_values_digest", pa.string()),
+        pa.field("preamble_path", pa.string()),
+        pa.field("preamble_content_sha256", pa.string()),
+        pa.field("task_family", pa.string()),
+        pa.field("task_id", pa.string()),
+        pa.field("task_instance_id", pa.string()),
+        pa.field("generator_seed_json", pa.string()),
+        pa.field("task_block_inputs_json", pa.string()),
+        pa.field("task_block_id", pa.string()),
         pa.field("agent_config_digest", pa.string(), nullable=False),
         pa.field("agent_name", pa.string()),
         pa.field("agent_version", pa.string()),
@@ -722,7 +883,13 @@ def ingest_catalog(
                     """
                     INSERT INTO deterministic_trial_facts (
                         trial_id, verifier_digest, environment_digest,
-                        agent_config_digest, exception_phase,
+                        agent_config_digest, grid_id, point_id, arm_id,
+                        factor_values_json, factor_values_digest,
+                        factor_bindings_json, factor_bindings_digest,
+                        bound_execution_values_json, bound_execution_values_digest,
+                        preamble_path, preamble_content_sha256, task_family, task_id,
+                        task_instance_id, generator_seed_json,
+                        task_block_inputs_json, task_block_id, exception_phase,
                         environment_setup_seconds, agent_setup_seconds,
                         agent_execution_seconds, verifier_seconds,
                         trajectory_count, invalid_trajectory_count, step_count,
@@ -732,7 +899,14 @@ def ingest_catalog(
                         updated_at
                     ) VALUES (
                         %(trial_id)s, %(verifier_digest)s, %(environment_digest)s,
-                        %(agent_config_digest)s, %(exception_phase)s,
+                        %(agent_config_digest)s, %(grid_id)s, %(point_id)s, %(arm_id)s,
+                        %(factor_values_json)s, %(factor_values_digest)s,
+                        %(factor_bindings_json)s, %(factor_bindings_digest)s,
+                        %(bound_execution_values_json)s,
+                        %(bound_execution_values_digest)s,
+                        %(preamble_path)s, %(preamble_content_sha256)s, %(task_family)s,
+                        %(task_id)s, %(task_instance_id)s, %(generator_seed_json)s,
+                        %(task_block_inputs_json)s, %(task_block_id)s, %(exception_phase)s,
                         %(environment_setup_seconds)s, %(agent_setup_seconds)s,
                         %(agent_execution_seconds)s, %(verifier_seconds)s,
                         %(trajectory_count)s, %(invalid_trajectory_count)s,
@@ -745,6 +919,23 @@ def ingest_catalog(
                         verifier_digest = EXCLUDED.verifier_digest,
                         environment_digest = EXCLUDED.environment_digest,
                         agent_config_digest = EXCLUDED.agent_config_digest,
+                        grid_id = EXCLUDED.grid_id,
+                        point_id = EXCLUDED.point_id,
+                        arm_id = EXCLUDED.arm_id,
+                        factor_values_json = EXCLUDED.factor_values_json,
+                        factor_values_digest = EXCLUDED.factor_values_digest,
+                        factor_bindings_json = EXCLUDED.factor_bindings_json,
+                        factor_bindings_digest = EXCLUDED.factor_bindings_digest,
+                        bound_execution_values_json = EXCLUDED.bound_execution_values_json,
+                        bound_execution_values_digest = EXCLUDED.bound_execution_values_digest,
+                        preamble_path = EXCLUDED.preamble_path,
+                        preamble_content_sha256 = EXCLUDED.preamble_content_sha256,
+                        task_family = EXCLUDED.task_family,
+                        task_id = EXCLUDED.task_id,
+                        task_instance_id = EXCLUDED.task_instance_id,
+                        generator_seed_json = EXCLUDED.generator_seed_json,
+                        task_block_inputs_json = EXCLUDED.task_block_inputs_json,
+                        task_block_id = EXCLUDED.task_block_id,
                         exception_phase = EXCLUDED.exception_phase,
                         environment_setup_seconds = EXCLUDED.environment_setup_seconds,
                         agent_setup_seconds = EXCLUDED.agent_setup_seconds,

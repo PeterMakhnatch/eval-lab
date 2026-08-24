@@ -21,8 +21,19 @@ from evallab.queue import (
     PolicyGate,
     load_events,
 )
-from evallab.runner import RunRequest, TransientHarnessFailure, TrialTimeoutFailure
-from evallab.schemas import AutoRunRule, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
+from evallab.runner import (
+    ExecutionFailure,
+    RunRequest,
+    TransientHarnessFailure,
+    TrialTimeoutFailure,
+)
+from evallab.schemas import (
+    AutoRunRule,
+    ExperimentSpec,
+    QueueEvent,
+    StandingApprovalsPolicy,
+    canonical_grid_point_id,
+)
 
 
 def policy() -> StandingApprovalsPolicy:
@@ -1119,3 +1130,115 @@ def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> Non
     assert order == ["seq-spec-1", "seq-spec-2", "seq-spec-3"]
     assert len(service.queue.list_specs("done")) == 3
     assert len(service.queue.list_leases()) == 0
+
+
+def test_dispatch_preserves_bound_factor_execution_values(tmp_path: Path) -> None:
+    requests: list[RunRequest] = []
+    service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
+    item = spec("bound-factor", concurrency=2).model_copy(update={
+        "timeout_seconds": 60,
+        "grid_id": "grid-1",
+        "grid_point": {
+            "point_id": canonical_grid_point_id(
+                task_ref="library/tasks/event-summary",
+                agent_key="oracle",
+                preamble=None,
+                k=1,
+                arm_id=None,
+                factor_values={"parallelism": 2, "wall_clock": 60},
+                factor_bindings={
+                    "parallelism": "concurrency",
+                    "wall_clock": "timeout_seconds",
+                },
+            ),
+            "task_ref": "library/tasks/event-summary",
+            "agent": "oracle",
+            "preamble": None,
+            "k": 1,
+            "factors": {"parallelism": 2, "wall_clock": 60},
+            "factor_bindings": {
+                "parallelism": "concurrency",
+                "wall_clock": "timeout_seconds",
+            },
+            "bindings": {"concurrency": 2, "timeout_seconds": 60},
+        },
+    })
+
+    service.execute_spec(item)
+
+    assert requests[0].concurrency == 2
+    assert requests[0].timeout_seconds == 60
+    assert requests[0].provenance is not None
+    assert requests[0].provenance.factor_bindings == {
+        "parallelism": "concurrency",
+        "wall_clock": "timeout_seconds",
+    }
+
+
+def test_dispatch_refuses_unhonored_and_tampered_factor_bindings(tmp_path: Path) -> None:
+    service = executor(tmp_path)
+    unhonored = spec("unhonored-factor").model_copy(update={
+        "timeout_seconds": 120,
+        "grid_point": {
+            "factors": {"wall_clock": 60},
+            "factor_bindings": {"wall_clock": "timeout_seconds"},
+            "bindings": {"timeout_seconds": 60},
+        },
+    })
+    with pytest.raises(ExecutionFailure, match="requested 60"):
+        service.execute_spec(unhonored)
+
+    tampered = spec("tampered-factor").model_copy(update={
+        "timeout_seconds": 60,
+        "grid_point": {
+            "factors": {"wall_clock": 60},
+            "factor_bindings": {"wall_clock": "concurrency"},
+            "bindings": {"timeout_seconds": 60},
+        },
+    })
+    with pytest.raises(ExecutionFailure, match="does not match bound execution"):
+        service.execute_spec(tampered)
+
+
+
+def test_dispatch_refuses_stale_point_identity_after_consistent_edit(
+    tmp_path: Path,
+) -> None:
+    service = executor(tmp_path)
+    stale_point = canonical_grid_point_id(
+        task_ref="library/tasks/event-summary",
+        agent_key="oracle",
+        preamble=None,
+        k=1,
+        arm_id=None,
+        factor_values={"wall_clock": 60},
+        factor_bindings={"wall_clock": "timeout_seconds"},
+    )
+    consistently_edited = spec("stale-point").model_copy(update={
+        "timeout_seconds": 120,
+        "grid_point": {
+            "point_id": stale_point,
+            "task_ref": "library/tasks/event-summary",
+            "agent": "oracle",
+            "preamble": None,
+            "k": 1,
+            "factors": {"wall_clock": 120},
+            "factor_bindings": {"wall_clock": "timeout_seconds"},
+            "bindings": {"timeout_seconds": 120},
+        },
+    })
+    with pytest.raises(ExecutionFailure, match="stored point_id"):
+        service.execute_spec(consistently_edited)
+
+
+
+def test_dispatch_refuses_preamble_digest_mismatch(tmp_path: Path) -> None:
+    preamble = tmp_path / "instructions.txt"
+    preamble.write_text("changed after generation\n")
+    item = spec("preamble-drift").model_copy(update={
+        "extra_instruction_path": "instructions.txt",
+        "extra_instruction_sha256": "sha256:" + "0" * 64,
+    })
+
+    with pytest.raises(ExecutionFailure, match="no longer matches"):
+        executor(tmp_path).execute_spec(item)

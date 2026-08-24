@@ -39,11 +39,14 @@ from evallab.schemas import (
     ExperimentArm,
     ExperimentSpec,
     GridAxes,
+    GridFactor,
     GridLimits,
     GridSpec,
     LadderGridSpec,
     ProviderLimit,
     TaskSpec,
+    canonical_grid_point_id,
+    canonical_preamble_path,
 )
 from evallab.screen import (
     DifficultyVariantContract,
@@ -67,6 +70,7 @@ __all__ = [
     "ExperimentArm",
     "DifficultyVariantContract",
     "GridAxes",
+    "GridFactor",
     "GridGenerationResult",
     "GridLimits",
     "GridSpec",
@@ -170,6 +174,8 @@ class CandidatePoint:
     preamble: str
     arm_id: str | None
     factor_values: dict[str, Any]
+    factor_bindings: dict[str, str]
+    bound_execution_values: dict[str, int]
     point_id: str
     k: int
 
@@ -377,21 +383,21 @@ def _point_id(
     *,
     arm_id: str | None,
     factor_values: dict[str, Any],
+    factor_bindings: dict[str, str] | None = None,
 ) -> str:
-    payload = {
-        "task_ref": task_ref,
-        "agent_key": agent_key,
-        "preamble": preamble,
-        "k": k,
-        "arm_id": arm_id,
-        "factors": factor_values,
-    }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+    return canonical_grid_point_id(
+        task_ref=task_ref,
+        agent_key=agent_key,
+        preamble=preamble,
+        k=k,
+        arm_id=arm_id,
+        factor_values=factor_values,
+        factor_bindings=factor_bindings or {},
+    )
 
 
 def _factor_combinations(
-    factors: dict[str, list[Any]],
+    factors: dict[str, Any],
     overrides: dict[str, Any],
 ) -> list[dict[str, Any]]:
     names = sorted(name for name in factors if name not in overrides)
@@ -399,15 +405,47 @@ def _factor_combinations(
         return [dict(sorted(overrides.items()))]
     return [
         dict(sorted({**dict(zip(names, levels, strict=True)), **overrides}.items()))
-        for levels in product(*(factors[name] for name in names))
+        for levels in product(*(factors[name].levels for name in names))
     ]
+
+def _factor_bindings(factors: dict[str, Any]) -> dict[str, str]:
+    return {
+        name: factor.binding for name, factor in sorted(factors.items())
+    }
+
+
+def _bound_execution_values(
+    factors: dict[str, Any], values: dict[str, Any]
+) -> dict[str, int]:
+    return {
+        factor.binding: int(values[name])
+        for name, factor in sorted(factors.items())
+    }
+
+def _preamble_provenance(
+    repo_root: Path, preamble: str
+) -> tuple[str | None, str | None]:
+    normalized = canonical_preamble_path(preamble)
+    if normalized is None:
+        return None, None
+    path = Path(normalized)
+    candidate = repo_root / path
+    if not candidate.is_file():
+        raise ValueError(f"preamble file does not exist: {preamble!r}")
+    digest = f"sha256:{hashlib.sha256(candidate.read_bytes()).hexdigest()}"
+    return path.as_posix(), digest
 
 
 def _candidate_spec_name(grid_name: str, candidate: CandidatePoint) -> str:
     coordinate = candidate.preamble
     if candidate.factor_values:
         encoded = json.dumps(
-            candidate.factor_values, sort_keys=True, separators=(",", ":")
+            {
+                "factor_values": candidate.factor_values,
+                "factor_bindings": candidate.factor_bindings,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
         ).encode()
         factor_slug = f"f{hashlib.sha256(encoded).hexdigest()[:8]}"
         coordinate = (
@@ -671,10 +709,6 @@ def find_existing_grid_points(
                 continue
             grid_point = data.get("grid_point")
             point = grid_point if isinstance(grid_point, dict) else {}
-            stored_id = point.get("point_id")
-            if isinstance(stored_id, str):
-                points.add(stored_id)
-                continue
             task_ref = str(point.get("task_ref") or data.get("task") or "")
             agent = str(point.get("agent") or data.get("agent") or "")
             model = point.get("model") or data.get("model")
@@ -686,13 +720,19 @@ def find_existing_grid_points(
             arm_id = str(point["arm_id"]) if point.get("arm_id") else None
             factor_values = point.get("factors")
             factors = factor_values if isinstance(factor_values, dict) else {}
+            raw_factor_bindings = point.get("factor_bindings")
+            factor_bindings = (
+                raw_factor_bindings if isinstance(raw_factor_bindings, dict) else {}
+            )
             points.add(_point_id(
                 task_ref, agent_key, preamble, attempts,
                 arm_id=arm_id, factor_values=factors,
+                factor_bindings=factor_bindings,
             ))
             points.add(_point_id(
                 task_ref, agent, preamble, attempts,
                 arm_id=arm_id, factor_values=factors,
+                factor_bindings=factor_bindings,
             ))
     return points
 
@@ -807,6 +847,10 @@ def generate_grid(
             for preamble in grid_spec.axes.preamble:
                 treatments.append((None, agent_spec, preamble, {}))
 
+    preamble_by_value = {
+        preamble: _preamble_provenance(root, preamble)
+        for _, _, preamble, _ in treatments
+    }
     candidates: list[CandidatePoint] = []
     deduped: list[DedupeRecord] = []
     for task_spec in tasks:
@@ -816,11 +860,16 @@ def generate_grid(
                 if agent_spec.model and agent_spec.agent not in CONTROL_ADAPTERS
                 else agent_spec.agent
             )
+            factor_bindings = _factor_bindings(grid_spec.axes.factors)
             for factor_values in _factor_combinations(grid_spec.axes.factors, overrides):
+                bound_execution_values = _bound_execution_values(
+                    grid_spec.axes.factors, factor_values
+                )
                 for k in attempts:
                     point_id = _point_id(
                         task_spec.task, agent_key, preamble, k,
                         arm_id=arm_id, factor_values=factor_values,
+                        factor_bindings=factor_bindings,
                     )
                     if any(
                         _point_matches_constraint(
@@ -849,6 +898,8 @@ def generate_grid(
                         preamble=preamble,
                         arm_id=arm_id,
                         factor_values=factor_values,
+                        factor_bindings=factor_bindings,
+                        bound_execution_values=bound_execution_values,
                         point_id=point_id,
                         k=k,
                     ))
@@ -1061,20 +1112,23 @@ def generate_grid(
             arm_id=cand.arm_id, factor_values=cand.factor_values,
         )
         environment = agent_spec.environment or grid_spec.environment
-
+        preamble_path, preamble_sha256 = preamble_by_value[preamble]
+        bound = cand.bound_execution_values
         spec = ExperimentSpec(
             name=spec_name,
             hypothesis=hypothesis,
             purpose=grid_spec.purpose,
             task=task_spec.task,
             task_path=task_spec.task_path,
+            extra_instruction_path=preamble_path,
+            extra_instruction_sha256=preamble_sha256,
             agent=agent_spec.agent,
             model=agent_spec.model,
             environment=environment,
             jobs_dir=grid_spec.jobs_dir,
             attempts=k,
-            concurrency=grid_spec.concurrency,
-            timeout_seconds=grid_spec.timeout_seconds,
+            concurrency=bound.get("concurrency", grid_spec.concurrency),
+            timeout_seconds=bound.get("timeout_seconds", grid_spec.timeout_seconds),
             submitted_by=grid_spec.submitted_by,
             priority=grid_spec.priority,
             est_cost_usd=spec_cost,
@@ -1083,6 +1137,10 @@ def generate_grid(
             expected_reward=task_spec.expected_reward,
             task_version=task_spec.task_version,
             verifier_digest=task_spec.verifier_digest,
+            task_family=task_spec.task_family,
+            task_id=task_spec.task_id,
+            task_instance_id=task_spec.instance_id,
+            generator_seed=task_spec.generator_seed,
             grid_id=grid_id,
             grid_point={
                 "point_id": cand.point_id,
@@ -1090,8 +1148,14 @@ def generate_grid(
                 "arm_id": cand.arm_id,
                 "agent": agent_spec.agent,
                 "model": agent_spec.model,
-                "preamble": preamble,
+                "preamble": preamble_path,
+                "preamble_sha256": preamble_sha256,
                 "factors": cand.factor_values,
+                "factor_bindings": cand.factor_bindings,
+                "factor_bindings_digest": (
+                    f"sha256:{hashlib.sha256(_canonical_json(cand.factor_bindings).encode()).hexdigest()}"
+                ),
+                "bindings": bound,
                 "k": k,
             },
         )

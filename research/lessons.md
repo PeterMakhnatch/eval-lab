@@ -69,7 +69,7 @@ inputs:
   - path: research/observations/reframe-post-move-oracle-20260814-1756/event-summary__BbbWLYW.md
     digest: sha256:6d860a550273904a9954c3b76a73285f4da27bfef1646dd4da05568dd73d54c1
   - path: sql/lessons.sql
-    digest: sha256:bb35b93c4e176be0c41fa1ed4667c121a09714745a85db2b006ca87cdf1666fb
+    digest: sha256:2d332605e899ed6a6a00fb46ac21019320bcaa5a7e3b6a2666851d7a429b8213
 ---
 
 <!-- generated-by: lessons v1 -->

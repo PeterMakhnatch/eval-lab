@@ -166,6 +166,36 @@
       "description": "repo-relative path to an extra instruction file appended to the task instruction (Harbor's --extra-instruction-path). This is the elicitation lever: the preamble is part of the measured tuple, not neutral background, so EXP-S03's treatment arm varies it while the control leaves it unset.",
       "title": "Extra Instruction Path"
     },
+    "extra_instruction_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "content digest of extra_instruction_path at spec generation",
+      "title": "Extra Instruction Sha256"
+    },
+    "generator_seed": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "task-generator seed only; model-sampling seed is uncontrolled and absent",
+      "title": "Generator Seed"
+    },
     "grid_id": {
       "anyOf": [
         {
@@ -336,6 +366,42 @@
       "minLength": 1,
       "title": "Task",
       "type": "string"
+    },
+    "task_family": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Family"
+    },
+    "task_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Id"
+    },
+    "task_instance_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Instance Id"
     },
     "task_path": {
       "anyOf": [

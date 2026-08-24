@@ -157,6 +157,23 @@ CREATE TABLE IF NOT EXISTS deterministic_trial_facts (
     verifier_digest text NOT NULL,
     environment_digest text NOT NULL,
     agent_config_digest text NOT NULL,
+    grid_id text,
+    point_id text,
+    arm_id text,
+    factor_values_json text,
+    factor_values_digest text,
+    factor_bindings_json text,
+    factor_bindings_digest text,
+    bound_execution_values_json text,
+    bound_execution_values_digest text,
+    preamble_path text,
+    preamble_content_sha256 text,
+    task_family text,
+    task_id text,
+    task_instance_id text,
+    generator_seed_json text,
+    task_block_inputs_json text,
+    task_block_id text,
     exception_phase text,
     environment_setup_seconds double precision,
     agent_setup_seconds double precision,
@@ -175,6 +192,26 @@ CREATE TABLE IF NOT EXISTS deterministic_trial_facts (
     raw_facts jsonb NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Additive migration for catalogs created before factor provenance existed.
+-- Columns remain nullable because legacy rows have no source-grounded coordinates.
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS grid_id text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS point_id text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS arm_id text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS factor_values_json text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS factor_values_digest text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS factor_bindings_json text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS factor_bindings_digest text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS bound_execution_values_json text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS bound_execution_values_digest text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS preamble_path text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS preamble_content_sha256 text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS task_family text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS task_id text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS task_instance_id text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS generator_seed_json text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS task_block_inputs_json text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS task_block_id text;
 
 CREATE TABLE IF NOT EXISTS analysis_invocations (
     id uuid PRIMARY KEY,

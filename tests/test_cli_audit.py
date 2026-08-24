@@ -31,6 +31,7 @@ TOP_LEVEL_COMMANDS = (
     "ingest",
     "trajectories",
     "compare",
+    "curve",
     "power",
     "report",
     "analyze",
@@ -53,6 +54,9 @@ TOP_LEVEL_COMMANDS = (
 NESTED_COMMANDS = (
     ("schedule", "install"),
     ("canary", "import-terminal-bench"),
+    ("curve", "validate"),
+    ("curve", "build"),
+    ("curve", "report"),
     ("registry", "list"),
     ("registry", "audit"),
     ("report", "family"),

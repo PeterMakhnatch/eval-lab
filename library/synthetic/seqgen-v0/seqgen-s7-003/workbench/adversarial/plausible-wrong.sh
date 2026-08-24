@@ -2,6 +2,6 @@
 set -eu
 mkdir -p /app/output
 cat << 'EOF' > /app/output/result.jsonl
-{"amount":419,"day":27}
-{"amount":499,"day":26}
+{"status":"cancelled","total_amount":488}
+{"status":"pending","total_amount":988}
 EOF

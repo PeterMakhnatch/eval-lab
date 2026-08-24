@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "item_id": "seqgen-s7-002",
+  "item_id": "seqgen-s7-003",
   "zone": "03-synthetic",
-  "source_uri": "library/synthetic/seqgen-v0/seqgen-s7-002",
+  "source_uri": "library/synthetic/seqgen-v0/seqgen-s7-003",
   "revision": null,
-  "material_digest": "sha256:39bf6fd3e2adf486802472e12a5d9c7fbe20443489fdb8a5267f47fc925e51a0",
+  "material_digest": "sha256:791588db222dbdde7f2d3d475b2feb5bb84b86a915b6d0cd7ddc2d383cbd7228",
   "license": null,
   "created_at": "2026-08-24T04:01:50.514047Z",
   "created_by": "evallab.seqgen",

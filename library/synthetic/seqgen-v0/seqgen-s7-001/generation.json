@@ -2,19 +2,19 @@
   "batch": "seqgen-v0",
   "coverage_contribution": {
     "new_bigrams": [
-      "filter_eq->write",
+      "dedupe_by->filter_eq",
+      "filter_eq->select",
       "filter_ge->filter_ge",
-      "filter_ge->group_sum",
-      "group_sum->sort_by",
-      "sort_by->filter_eq"
+      "filter_ge->select",
+      "select->dedupe_by",
+      "select->write"
     ],
     "new_unigrams": [
-      "filter_ge",
-      "group_sum"
+      "filter_eq"
     ]
   },
   "digests": {
-    "expected_jsonl": "sha256:69409d8b658e03bfaa3f7124d7d6c87f5fedd298edd0faddc233a74f840e32b5",
+    "expected_jsonl": "sha256:d059d20d96e497122ddc45efa5e1fde79384f380e2f0f38c81b175a6bf677c04",
     "orders_jsonl": "sha256:3c2ea8fd25cadba04a4de77864b3abf5b48ba84852c193d2dda072711d408914",
     "rp": "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
     "task_toml": "sha256:6866e27631cb9380cb437007987f8f052eef9bdd0336dec68fe7c50fbd141344"
@@ -45,31 +45,36 @@
     },
     {
       "args": {
-        "group_field": "status",
-        "value_field": "amount"
+        "fields": [
+          "region",
+          "status",
+          "amount",
+          "day"
+        ]
       },
-      "op": "group_sum"
+      "op": "select"
     },
     {
       "args": {
-        "field": "total_amount",
-        "order": "desc"
+        "field": "region"
       },
-      "op": "sort_by"
-    },
-    {
-      "args": {
-        "field": "status",
-        "order": "desc"
-      },
-      "op": "sort_by"
+      "op": "dedupe_by"
     },
     {
       "args": {
         "field": "status",
-        "value": "returned"
+        "value": "cancelled"
       },
       "op": "filter_eq"
+    },
+    {
+      "args": {
+        "fields": [
+          "region",
+          "status"
+        ]
+      },
+      "op": "select"
     }
   ],
   "slug": "seqgen-s7-001"

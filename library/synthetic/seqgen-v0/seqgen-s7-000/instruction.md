@@ -4,12 +4,12 @@ Transform the newline-delimited JSON records in `/app/data/orders.jsonl` into `/
 
 ## Required transformations
 
-1. Keep the first 3 records.
-2. Project each record to retain only the fields: `id`, `region`.
-3. Deduplicate records by `region`, retaining only the first record seen for each distinct value.
-4. Keep only records where `region` is `west`.
-5. Sort records by `id` in descending order (stable sort).
-6. Sort records by `id` in ascending order (stable sort).
+1. Keep only records where `day` is at least 20.
+2. Sort records by `day` in descending order (stable sort).
+3. Deduplicate records by `status`, retaining only the first record seen for each distinct value.
+4. Sort records by `day` in ascending order (stable sort).
+5. Project each record to retain only the fields: `amount`, `day`.
+6. Keep the first 3 records.
 
 ## Output requirements
 

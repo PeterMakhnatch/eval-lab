@@ -2,16 +2,18 @@
   "batch": "seqgen-v0",
   "coverage_contribution": {
     "new_bigrams": [
-      "filter_ge->filter_eq",
-      "filter_ge->sort_by",
-      "select->filter_ge",
-      "sort_by->select"
+      "dedupe_by->select",
+      "filter_ge->dedupe_by",
+      "select->sort_by",
+      "sort_by->filter_ge",
+      "sort_by->sort_by",
+      "sort_by->write"
     ],
     "new_unigrams": []
   },
   "digests": {
-    "expected_jsonl": "sha256:2650b35a173c818ab9429ec63b6ce0095933c48d0490fcfce7e4989aa9a79aa0",
-    "orders_jsonl": "sha256:b7e620829d8a08a164c1fe98c48786affa68a9af09fa867f4eb0494d846bd5c4",
+    "expected_jsonl": "sha256:c2bb43af668e6fcb1093bb36042c21aead9f417095d0373fda26f5f38b0a8b79",
+    "orders_jsonl": "sha256:a38ee32b0c3138c715a7af735604e601d3ac7dd2bf3b933562d553dfdcf4056a",
     "rp": "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
     "task_toml": "sha256:f1e5d120c7f43a235feeb08bb53057729b6b326efa0b74c99127ff698150960a"
   },
@@ -19,48 +21,55 @@
   "instruction_style": "declarative",
   "master_seed": 7,
   "row_counts": {
-    "input": 52,
-    "output": 1
+    "input": 60,
+    "output": 3
   },
   "schema_version": 1,
-  "seed": 70051,
+  "seed": 70066,
   "sequence": [
     {
       "args": {
-        "field": "amount",
-        "value": 54
-      },
-      "op": "filter_ge"
-    },
-    {
-      "args": {
-        "field": "day",
+        "field": "region",
         "order": "asc"
       },
       "op": "sort_by"
     },
     {
       "args": {
+        "field": "amount",
+        "value": 444
+      },
+      "op": "filter_ge"
+    },
+    {
+      "args": {
+        "field": "status"
+      },
+      "op": "dedupe_by"
+    },
+    {
+      "args": {
         "fields": [
-          "region",
-          "day"
+          "id",
+          "status",
+          "amount"
         ]
       },
       "op": "select"
     },
     {
       "args": {
-        "field": "day",
-        "value": 27
+        "field": "id",
+        "order": "asc"
       },
-      "op": "filter_ge"
+      "op": "sort_by"
     },
     {
       "args": {
-        "field": "region",
-        "value": "east"
+        "field": "status",
+        "order": "desc"
       },
-      "op": "filter_eq"
+      "op": "sort_by"
     }
   ],
   "slug": "seqgen-s7-002"

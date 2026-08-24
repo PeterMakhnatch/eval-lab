@@ -266,12 +266,14 @@ def enumerate_valid_ops(
     int_fields_not_id = [f for f, t in schema.items() if t == "int" and f != "id"]
     current_fields = list(schema.keys())
 
-    # 1. filter_eq
+    # 1. filter_eq — must strictly shrink: a filter that keeps every row (for
+    # example repeating a value the rows were already filtered or deduped to)
+    # is a vacuous step.
     for f in str_fields:
         vals = sorted({str(r[f]) for r in rows if f in r})
         for v in vals:
             res = _RP["apply_filter_eq"](rows, f, v)
-            if len(res) > 0:
+            if 0 < len(res) < len(rows):
                 valid.append({"op": "filter_eq", "args": {"field": f, "value": v}})
 
     # 2. filter_ge
@@ -288,10 +290,13 @@ def enumerate_valid_ops(
             for subset in itertools.combinations(current_fields, k):
                 valid.append({"op": "select", "args": {"fields": list(subset)}})
 
-    # 4. sort_by
+    # 4. sort_by — only when it changes the row order; sorting rows that are
+    # already in the target order is a vacuous step.
     for f in current_fields:
         for order in ("asc", "desc"):
-            valid.append({"op": "sort_by", "args": {"field": f, "order": order}})
+            res = _RP["apply_sort_by"](rows, f, order)
+            if res != rows:
+                valid.append({"op": "sort_by", "args": {"field": f, "order": order}})
 
     # 5. dedupe_by
     for f in current_fields:
@@ -304,22 +309,35 @@ def enumerate_valid_ops(
         if n < len(rows):
             valid.append({"op": "head", "args": {"n": n}})
 
-    # 7. group_sum
+    # 7. group_sum — only when it actually aggregates: if the rows are already
+    # unique per group value, the op is an identity modulo a field rename.
     for g in str_fields:
         for v in int_fields_not_id:
-            valid.append({"op": "group_sum", "args": {"group_field": g, "value_field": v}})
+            res = _RP["apply_group_sum"](rows, g, v)
+            if 0 < len(res) < len(rows):
+                valid.append({"op": "group_sum", "args": {"group_field": g, "value_field": v}})
 
-    # Filter out consecutive duplicate (op, args)
+    # Filter out consecutive duplicate (op, args), and forbid a sort_by that
+    # immediately follows a sort_by on the same field: with a stable sort the
+    # second ordering fully overrides the first, so the pair is a no-op
+    # composition that pads sequence length without adding verifiable work.
     if prev_op_args is not None:
         prev_op, prev_args_json = prev_op_args
-        valid = [
-            op_dict
-            for op_dict in valid
-            if not (
+        prev_args = json.loads(prev_args_json)
+
+        def _degenerate(op_dict: dict[str, Any]) -> bool:
+            same_op_args = (
                 op_dict["op"] == prev_op
                 and json.dumps(op_dict["args"], sort_keys=True) == prev_args_json
             )
-        ]
+            same_field_resort = (
+                prev_op == "sort_by"
+                and op_dict["op"] == "sort_by"
+                and op_dict["args"]["field"] == prev_args.get("field")
+            )
+            return same_op_args or same_field_resort
+
+        valid = [op_dict for op_dict in valid if not _degenerate(op_dict)]
 
     return valid
 
@@ -366,18 +384,22 @@ def compute_reachable_bigrams() -> set[tuple[str, str]]:
 
     Rule:
     - Every op can transition to 'write' (terminal).
-    - Between the 7 ops: any op can follow any op EXCEPT 'select' cannot follow
-      'group_sum', because group_sum produces exactly 2 fields (group_field and total_value),
-      while select requires a proper subset of length >= 2 (which requires >= 3 fields).
-    Total reachable: 7*7 - 1 + 7 = 55 bigrams.
+    - Between the 7 ops: any op can follow any op EXCEPT:
+      * 'select' cannot follow 'group_sum' — group_sum produces exactly 2
+        fields, while select requires a proper subset of length >= 2 (which
+        requires >= 3 fields);
+      * 'group_sum' cannot follow 'group_sum' — the first leaves one row per
+        group value, so a second aggregation over the only remaining str field
+        never does work (the does-work precondition refuses it).
+    Total reachable: 7*7 - 2 + 7 = 54 bigrams.
     """
     reachable: set[tuple[str, str]] = set()
+    excluded = {("group_sum", "select"), ("group_sum", "group_sum")}
     for op1 in ALL_OPS:
         # Terminal transition
         reachable.add((op1, "write"))
         for op2 in ALL_OPS:
-            if op1 == "group_sum" and op2 == "select":
-                # Impossible: group_sum yields 2 fields, select requires proper subset >= 2
+            if (op1, op2) in excluded:
                 continue
             reachable.add((op1, op2))
     return reachable

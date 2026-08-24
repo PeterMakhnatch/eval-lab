@@ -4,11 +4,10 @@ Transform the newline-delimited JSON records in `/app/data/orders.jsonl` into `/
 
 ## Required transformations
 
-1. Keep only records where `amount` is at least 111 and `day` is at least 25.
-2. Project each record to retain only the fields: `region`, `status`, `amount`, `day`.
-3. Deduplicate records by `region`, retaining only the first record seen for each distinct value.
-4. Keep only records where `status` is `cancelled`.
-5. Project each record to retain only the fields: `region`, `status`.
+1. Project each record to retain only the fields: `id`, `status`, `amount`.
+2. Keep only records where `amount` is at least 476.
+3. Group records by `status` and compute the sum of `amount` as `total_amount`. The resulting records must have fields `status` and `total_amount`, sorted ascending by `status`.
+4. Keep the 3 records with the largest `total_amount` values (stable ties).
 
 ## Output requirements
 

@@ -2,5 +2,6 @@
 set -eu
 mkdir -p /app/output
 cat << 'EOF' > /app/output/result.jsonl
-{"fabricated_id":99999,"status":"synthetic_error"}
+{"amount":444,"id":29,"status":"pending"}
+{"amount":491,"id":14,"status":"shipped"}
 EOF

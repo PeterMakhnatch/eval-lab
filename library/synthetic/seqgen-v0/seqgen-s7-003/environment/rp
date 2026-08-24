@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""Self-contained record-pipeline tool for linear JSONL tasks."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+def apply_filter_eq(rows: list[dict[str, Any]], field: str, value: str) -> list[dict[str, Any]]:
+    return [dict(row) for row in rows if str(row.get(field)) == str(value)]
+
+
+def apply_filter_ge(rows: list[dict[str, Any]], field: str, value: int) -> list[dict[str, Any]]:
+    return [dict(row) for row in rows if int(row.get(field, 0)) >= int(value)]
+
+
+def apply_select(rows: list[dict[str, Any]], fields: list[str]) -> list[dict[str, Any]]:
+    return [{k: row[k] for k in fields if k in row} for row in rows]
+
+
+def apply_sort_by(
+    rows: list[dict[str, Any]], field: str, order: str = "asc"
+) -> list[dict[str, Any]]:
+    descending = order.lower() == "desc"
+    return sorted([dict(r) for r in rows], key=lambda r: r.get(field), reverse=descending)
+
+
+def apply_dedupe_by(rows: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
+    seen: set[Any] = set()
+    result: list[dict[str, Any]] = []
+    for r in rows:
+        val = r.get(field)
+        if val not in seen:
+            seen.add(val)
+            result.append(dict(r))
+    return result
+
+
+def apply_head(rows: list[dict[str, Any]], n: int) -> list[dict[str, Any]]:
+    return [dict(r) for r in rows[:n]]
+
+
+def apply_group_sum(
+    rows: list[dict[str, Any]], group_field: str, value_field: str
+) -> list[dict[str, Any]]:
+    sums: dict[str, int] = {}
+    for r in rows:
+        g = str(r.get(group_field))
+        v = int(r.get(value_field, 0))
+        sums[g] = sums.get(g, 0) + v
+    total_key = f"total_{value_field}"
+    return [{group_field: g, total_key: sums[g]} for g in sorted(sums.keys())]
+
+
+def apply_write(rows: list[dict[str, Any]], out_path: str | Path) -> None:
+    path = Path(out_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            line = json.dumps(row, sort_keys=True, separators=(",", ":"))
+            f.write(line + "\n")
+
+
+def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(f"Input file not found: {path}")
+    rows: list[dict[str, Any]] = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
+    return rows
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Record pipeline tool")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # filter-eq
+    p_feq = subparsers.add_parser("filter-eq", help="Filter rows where field equals value")
+    p_feq.add_argument("--in", dest="in_path", required=True, help="Input JSONL path")
+    p_feq.add_argument("--out", dest="out_path", required=True, help="Output JSONL path")
+    p_feq.add_argument("--field", required=True, help="Field name")
+    p_feq.add_argument("--value", required=True, help="Value to match")
+
+    # filter-ge
+    p_fge = subparsers.add_parser("filter-ge", help="Filter rows where field >= value")
+    p_fge.add_argument("--in", dest="in_path", required=True, help="Input JSONL path")
+    p_fge.add_argument("--out", dest="out_path", required=True, help="Output JSONL path")
+    p_fge.add_argument("--field", required=True, help="Field name")
+    p_fge.add_argument("--value", type=int, required=True, help="Integer threshold")
+
+    # select
+    p_sel = subparsers.add_parser("select", help="Select and order fields")
+    p_sel.add_argument("--in", dest="in_path", required=True, help="Input JSONL path")
+    p_sel.add_argument("--out", dest="out_path", required=True, help="Output JSONL path")
+    p_sel.add_argument("--fields", nargs="+", required=True, help="Fields to keep")
+
+    # sort-by
+    p_srt = subparsers.add_parser("sort-by", help="Sort rows by field")
+    p_srt.add_argument("--in", dest="in_path", required=True, help="Input JSONL path")
+    p_srt.add_argument("--out", dest="out_path", required=True, help="Output JSONL path")
+    p_srt.add_argument("--field", required=True, help="Field name")
+    p_srt.add_argument("--order", choices=["asc", "desc"], default="asc", help="Sort order")
+
+    # dedupe-by
+    p_ddp = subparsers.add_parser("dedupe-by", help="Deduplicate rows by first seen field value")
+    p_ddp.add_argument("--in", dest="in_path", required=True, help="Input JSONL path")
+    p_ddp.add_argument("--out", dest="out_path", required=True, help="Output JSONL path")
+    p_ddp.add_argument("--field", required=True, help="Field name")
+
+    # head
+    p_hd = subparsers.add_parser("head", help="Keep first N rows")
+    p_hd.add_argument("--in", dest="in_path", required=True, help="Input JSONL path")
+    p_hd.add_argument("--out", dest="out_path", required=True, help="Output JSONL path")
+    p_hd.add_argument("-n", "--n", type=int, required=True, help="Number of rows")
+
+    # group-sum
+    p_grp = subparsers.add_parser("group-sum", help="Group by string field and sum integer field")
+    p_grp.add_argument("--in", dest="in_path", required=True, help="Input JSONL path")
+    p_grp.add_argument("--out", dest="out_path", required=True, help="Output JSONL path")
+    p_grp.add_argument("--group-field", required=True, help="Group key field")
+    p_grp.add_argument("--value-field", required=True, help="Value field to sum")
+
+    # write
+    p_wrt = subparsers.add_parser("write", help="Write rows to output path in canonical form")
+    p_wrt.add_argument("--in", dest="in_path", required=True, help="Input JSONL path")
+    p_wrt.add_argument("--out", dest="out_path", required=True, help="Output JSONL path")
+
+    args = parser.parse_args()
+    rows = read_jsonl(args.in_path)
+
+    if args.command == "filter-eq":
+        out_rows = apply_filter_eq(rows, args.field, args.value)
+    elif args.command == "filter-ge":
+        out_rows = apply_filter_ge(rows, args.field, args.value)
+    elif args.command == "select":
+        fields = args.fields
+        if len(fields) == 1 and "," in fields[0]:
+            fields = [f.strip() for f in fields[0].split(",") if f.strip()]
+        out_rows = apply_select(rows, fields)
+    elif args.command == "sort-by":
+        out_rows = apply_sort_by(rows, args.field, args.order)
+    elif args.command == "dedupe-by":
+        out_rows = apply_dedupe_by(rows, args.field)
+    elif args.command == "head":
+        out_rows = apply_head(rows, args.n)
+    elif args.command == "group-sum":
+        out_rows = apply_group_sum(rows, args.group_field, args.value_field)
+    elif args.command == "write":
+        out_rows = rows
+    else:
+        sys.exit(f"Unknown command: {args.command}")
+
+    apply_write(out_rows, args.out_path)
+
+
+if __name__ == "__main__":
+    main()

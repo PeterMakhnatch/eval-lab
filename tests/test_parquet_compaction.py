@@ -227,6 +227,7 @@ def _make_table_row(table_name: str, job_id: str, trial_id: str, index: int = 1)
             "after_content_sha256": "sha256:content",
             "before_size_bytes": None,
             "after_size_bytes": 42,
+            "before_evidence_status": "known_absent",
             "producer": "evallab-state-journal",
             "producer_schema_version": 1,
             "fact_schema_version": "state-event-fact-v1",

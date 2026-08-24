@@ -165,6 +165,11 @@ def test_write_revert_rewrite_survives_as_ordered_temporal_facts(tmp_path: Path)
     assert facts[0].before_content_sha256 == (
         "sha256:4b654bd1437066b13498661f3ca14774daf1066d072036beffaf06f0c014250e"
     )
+    assert [fact.before_evidence_status for fact in facts] == [
+        "known_state",
+        "known_state",
+        "known_state",
+    ]
     assert [fact.after_content_sha256 for fact in facts] == [
         "sha256:33e157704c501c62e86a5324f7954e4d7a007587a5cc9d5cde11556ed5c9ec47",
         "sha256:4b654bd1437066b13498661f3ca14774daf1066d072036beffaf06f0c014250e",
@@ -329,6 +334,91 @@ def test_available_missing_stream_fails_but_unavailable_is_explicit_empty(
     status["status"] = "unavailable"
     _write_json(status_path, status)
     assert load_state_event_facts(trial, job_id=job.id, experiment_id=None) == ()
+
+
+@pytest.mark.parametrize(
+    ("case", "reason"),
+    [
+        ("missing", "state-diff.json missing"),
+        ("unreadable", "state-diff.json is unreadable or malformed"),
+        ("malformed", "state-diff.json is unreadable or malformed"),
+        ("invalid_before", "before metadata is invalid"),
+        ("invalid_after", "after metadata is invalid"),
+        ("invalid_path", "path is invalid"),
+        ("duplicate_path", "duplicate or conflicting path"),
+    ],
+)
+def test_available_stream_requires_valid_unambiguous_state_diff(
+    tmp_path: Path,
+    case: str,
+    reason: str,
+) -> None:
+    job = load_job(_job(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    if case == "missing":
+        diff_path.unlink()
+    elif case == "unreadable":
+        diff_path.unlink()
+        diff_path.mkdir()
+    elif case == "malformed":
+        diff_path.write_text("not-json", encoding="utf-8")
+    else:
+        diff = json.loads(diff_path.read_text(encoding="utf-8"))
+        if case == "invalid_before":
+            diff["changes"][0]["before"]["sha256"] = "invalid"
+        elif case == "invalid_after":
+            diff["changes"][0]["after"]["sha256"] = "invalid"
+        elif case == "invalid_path":
+            diff["changes"][0]["path"] = None
+        elif case == "duplicate_path":
+            diff["changes"].append(dict(diff["changes"][0]))
+        _write_json(diff_path, diff)
+
+    with pytest.raises(StateEventValidationError, match=reason):
+        load_state_event_facts(trial, job_id=job.id, experiment_id=None)
+
+
+def test_missing_diff_path_is_unknown_while_null_before_is_known_absent(
+    tmp_path: Path,
+) -> None:
+    job = load_job(_job(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    diff = json.loads(diff_path.read_text(encoding="utf-8"))
+    diff["changes"] = []
+    diff["change_count"] = 0
+    _write_json(diff_path, diff)
+    facts = load_state_event_facts(trial, job_id=job.id, experiment_id=None)
+    assert facts[0].before_evidence_status == "unknown_not_in_diff"
+
+    diff = json.loads((FIXTURE / "state-diff.json").read_text(encoding="utf-8"))
+    diff["changes"][0]["before"] = None
+    _write_json(diff_path, diff)
+    facts = load_state_event_facts(trial, job_id=job.id, experiment_id=None)
+    assert facts[0].before_evidence_status == "known_absent"
+
+
+def test_invalid_state_diff_emits_sentinel_without_erasing_sibling_facts(
+    tmp_path: Path,
+) -> None:
+    job = load_job(_job(tmp_path))
+    trial = job.trials[0]
+    (trial.path / "state-journal/state-diff.json").write_text(
+        "not-json", encoding="utf-8"
+    )
+
+    facts = extract_job_facts(job)
+
+    assert len(facts.trials) == 1
+    assert len(facts.rewards) == 1
+    assert len(facts.state_changes) == 0
+    assert len(facts.state_events) == 1
+    invalid = facts.state_events[0]
+    assert invalid.evidence_status == "invalid"
+    assert invalid.before_evidence_status == "invalid"
+    assert invalid.invalid_reason is not None
+    assert "state-diff.json is unreadable or malformed" in invalid.invalid_reason
 
 
 def test_invalid_stream_emits_sentinel_without_erasing_sibling_facts(

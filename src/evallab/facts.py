@@ -771,6 +771,7 @@ FACT_SCHEMAS = {
             pa.field("after_content_sha256", pa.string()),
             pa.field("before_size_bytes", pa.int64()),
             pa.field("after_size_bytes", pa.int64()),
+            pa.field("before_evidence_status", pa.string(), nullable=False),
             pa.field("producer", pa.string(), nullable=False),
             pa.field("producer_schema_version", pa.int64()),
             pa.field("fact_schema_version", pa.string(), nullable=False),

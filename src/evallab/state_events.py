@@ -62,6 +62,7 @@ class StateEventFact:
     after_content_sha256: str | None
     before_size_bytes: int | None
     after_size_bytes: int | None
+    before_evidence_status: str
     producer: str
     producer_schema_version: int | None
     fact_schema_version: str
@@ -125,26 +126,59 @@ def _producer_status(journal_dir: Path) -> tuple[int, str]:
 
 def _initial_states(journal_dir: Path) -> dict[str, StateEventMetadata | None]:
     diff_path = journal_dir / "state-diff.json"
-    if not diff_path.is_file():
-        return {}
+    if not diff_path.exists():
+        raise StateEventValidationError("state-diff.json missing for available event stream")
     try:
         payload: Any = json.loads(diff_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return {}
-    if not isinstance(payload, dict) or not isinstance(payload.get("changes"), list):
-        return {}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise StateEventValidationError(
+            f"state-diff.json is unreadable or malformed: {type(exc).__name__}"
+        ) from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != 1
+        or not isinstance(payload.get("changes"), list)
+    ):
+        raise StateEventValidationError(
+            "state-diff.json must be a schema_version 1 object with changes"
+        )
     states: dict[str, StateEventMetadata | None] = {}
-    for change in payload["changes"]:
-        if not isinstance(change, dict) or not isinstance(change.get("path"), str):
-            continue
-        before = change.get("before")
-        if before is None:
-            states[change["path"]] = None
-            continue
-        try:
-            states[change["path"]] = StateEventMetadata.model_validate(before)
-        except ValidationError:
-            continue
+    for index, change in enumerate(payload["changes"]):
+        if not isinstance(change, dict):
+            raise StateEventValidationError(
+                f"state-diff.json change {index}: change must be an object"
+            )
+        path = change.get("path")
+        if not isinstance(path, str) or not path:
+            raise StateEventValidationError(
+                f"state-diff.json change {index}: path is invalid"
+            )
+        if path in states:
+            raise StateEventValidationError(
+                f"state-diff.json change {index}: duplicate or conflicting path {path!r}"
+            )
+        for side in ("before", "after"):
+            if side not in change:
+                raise StateEventValidationError(
+                    f"state-diff.json change {index}: {side} evidence is missing"
+                )
+            value = change[side]
+            if value is None:
+                if side == "before":
+                    states[path] = None
+                continue
+            try:
+                metadata = StateEventMetadata.model_validate(value)
+            except ValidationError as exc:
+                raise StateEventValidationError(
+                    f"state-diff.json change {index}: {side} metadata is invalid"
+                ) from exc
+            if metadata.path != path:
+                raise StateEventValidationError(
+                    f"state-diff.json change {index}: {side} path conflicts with change path"
+                )
+            if side == "before":
+                states[path] = metadata
     return states
 
 
@@ -186,6 +220,7 @@ def invalid_state_event_fact(
         before_size_bytes=None,
         after_size_bytes=None,
         producer=PRODUCER,
+        before_evidence_status="invalid",
         producer_schema_version=producer_version,
         fact_schema_version=FACT_SCHEMA_VERSION,
         source_digest=source_digest,
@@ -283,7 +318,15 @@ def load_state_event_facts(
     state_by_path = _initial_states(journal_dir)
     absence_operations = {"delete", "delete_self", "moved_from"}
     for event, record_digest in parsed_events:
+        has_before_evidence = event.path in state_by_path
         before = state_by_path.get(event.path)
+        before_evidence_status = (
+            "known_state"
+            if has_before_evidence and before is not None
+            else "known_absent"
+            if has_before_evidence
+            else "unknown_not_in_diff"
+        )
         after = event.state
         if event.state is not None:
             state_by_path[event.path] = event.state
@@ -308,6 +351,7 @@ def load_state_event_facts(
                 after_content_sha256=after.sha256 if after else None,
                 before_size_bytes=before.size_bytes if before else None,
                 after_size_bytes=after.size_bytes if after else None,
+                before_evidence_status=before_evidence_status,
                 producer=PRODUCER,
                 producer_schema_version=producer_schema_version,
                 fact_schema_version=FACT_SCHEMA_VERSION,

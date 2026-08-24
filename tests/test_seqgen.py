@@ -21,8 +21,10 @@ import pytest
 from evallab.schemas import ProvenanceMetadata
 from evallab.seqgen import (
     DOMAIN_SPEC,
+    TASTE_RESEARCH_INFLUENCE,
     apply_op_to_state,
     compute_package_manifest_digest,
+    compute_syntactic_candidate_upper_bound,
     enumerate_valid_ops,
     extract_bigrams,
     generate_batch,
@@ -347,11 +349,21 @@ def test_g_coverage_correctness(sample_batch: tuple[Path, dict]) -> None:
         for a, b in bgs:
             recomputed_bigrams.add(f"{a}->{b}")
 
-    batch_covered_bigrams = set(batch["coverage"]["bigrams"]["covered"])
-    assert batch_covered_bigrams == recomputed_bigrams
+    bigram_coverage = batch["coverage"]["bigrams"]
+    assert set(bigram_coverage["covered"]) == recomputed_bigrams
 
     # Verify first selection is greedy optimal across the pool
     pool = generate_candidate_pool(master_seed=batch["seed"], pool_size=batch["pool"])
+    valid_pool_bigrams = {
+        f"{left}->{right}" for candidate in pool for left, right in candidate.bigrams
+    }
+    assert bigram_coverage["observed_in_valid_pool"] == len(valid_pool_bigrams)
+    assert set(bigram_coverage["missing_from_valid_pool"]) == (
+        valid_pool_bigrams - recomputed_bigrams
+    )
+    upper_bound = bigram_coverage["syntactic_candidate_upper_bound"]
+    assert upper_bound["count"] == len(compute_syntactic_candidate_upper_bound()) == 54
+    assert "not an enforceable" in upper_bound["calibration"]
     max_bg_count = max(len(set(c.bigrams)) for c in pool)
     first_slug = tasks_info[0]["slug"]
     first_task_dir = batch_dir / first_slug
@@ -392,6 +404,22 @@ def test_h_provenance_integrity(sample_batch: tuple[Path, dict]) -> None:
             "prompt_digest": None,
             "transform": "seqgen@0.1.0",
         }
+        influences = record["research_influences"]
+        assert influences == batch["research_influences"]
+        assert len(influences) == 1
+        influence = influences[0]
+        influence_identity = {
+            key: value for key, value in influence.items() if key != "identity_digest"
+        }
+        assert influence_identity == TASTE_RESEARCH_INFLUENCE
+        influence_digest = (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(influence_identity, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+        )
+        assert influence["identity_digest"] == influence_digest
+        assert influence_digest in prov.parent_digests
         assert record["validator_identity"]["code_digest"] == record["digests"]["validator"]
         assert record["validator_identity"]["model_id"] is None
         assert record["validator_identity"]["prompt_digest"] is None
@@ -402,7 +430,7 @@ def test_h_provenance_integrity(sample_batch: tuple[Path, dict]) -> None:
             "output_digest": record["digests"]["output_jsonl"],
             "sequence_digest": record["digests"]["sequence"],
         }
-        assert len(prov.parent_digests) == 6
+        assert len(prov.parent_digests) == 7
         assert set(record["lineage"].values()) <= set(prov.parent_digests) | {
             record["seed"],
             record["master_seed"],

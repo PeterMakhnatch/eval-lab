@@ -30,7 +30,7 @@
   },
   "generator": "seqgen@0.1.0",
   "generator_identity": {
-    "code_digest": "sha256:c38b15c8cac2c3cb2e36dabf5e9cf0e1d63d7d0e048b5e56db3c9a60e21183a6",
+    "code_digest": "sha256:534e56741597871d1c3fb0674580f520fcc6442b5ac587f79786c3b970c3aef2",
     "model_id": null,
     "prompt_digest": null,
     "transform": "seqgen@0.1.0"
@@ -44,6 +44,23 @@
     "sequence_digest": "sha256:542a89a7494e1efbb799d03dbde7de72bc57cb5cc1f4e045a59e18a1f5fe7b44"
   },
   "master_seed": 7,
+  "research_influences": [
+    {
+      "identity_digest": "sha256:e1c3a3423504c814addfe10e1f0ba8f49dceda0e0722d48f8a2966ecf2f0e170",
+      "implementation_firewall_claimed": false,
+      "license_status": "restricted/NOASSERTION",
+      "reuse": {
+        "artifact": false,
+        "code": false,
+        "output": false,
+        "prompt": false
+      },
+      "role": "paper-level design + dependency/license assessment",
+      "snapshot_bytes_ingested": false,
+      "source_revision": "d53da23956d63e2e6d9f6f5ba77fc5d0eca6b173",
+      "source_url": "https://github.com/tomerkeren42/TASTE-task-synthesis-from-tool-sequence-evolution"
+    }
+  ],
   "row_counts": {
     "input": 59,
     "output": 3

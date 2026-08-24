@@ -37,9 +37,14 @@ model and no prompt.
   and candidate seeds, sequence digest, input digest, output digest,
   instruction digest, and task/verifier/tool digests.
 - Provenance: Zone `03-synthetic`, revision/transform `seqgen@0.1.0`,
-  package material digest, code/tool/domain/input/output parents, and
+  package material digest, code/tool/domain/input/output/influence parents, and
   `license: NOASSERTION`. The repository does not grant a package license here;
   admission must not infer one.
+- Research influence identity: `BATCH.json`, every `generation.json`, and each
+  provenance parent bind the canonical upstream URL, full pinned revision,
+  paper-level design plus dependency/license-assessment role,
+  `restricted/NOASSERTION` status, zero code/prompt/output/artifact reuse,
+  `snapshot_bytes_ingested: false`, and no implementation-firewall claim.
 - Isolation: the committed candidates retain the workbench-required separate
   verifier and `network_mode = "no-network"`. The agent environment remains
   public because the task's visible contract includes only the synthetic input

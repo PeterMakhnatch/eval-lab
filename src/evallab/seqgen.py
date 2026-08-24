@@ -24,6 +24,23 @@ BASE_IMAGE = (
     "python:3.13-slim-bookworm@"
     "sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
 )
+TASTE_RESEARCH_INFLUENCE: dict[str, Any] = {
+    "source_url": (
+        "https://github.com/tomerkeren42/TASTE-task-synthesis-from-tool-sequence-evolution"
+    ),
+    "source_revision": "d53da23956d63e2e6d9f6f5ba77fc5d0eca6b173",
+    "role": "paper-level design + dependency/license assessment",
+    "license_status": "restricted/NOASSERTION",
+    "reuse": {
+        "code": False,
+        "prompt": False,
+        "output": False,
+        "artifact": False,
+    },
+    "implementation_firewall_claimed": False,
+    "snapshot_bytes_ingested": False,
+}
+
 
 # --- Domain Specification ---------------------------------------------------
 DOMAIN_SPEC: dict[str, Any] = {
@@ -375,34 +392,27 @@ def apply_op_to_state(
     return next_schema, next_rows
 
 
-# --- Reachability & Bigram Coverage -----------------------------------------
+# --- Bigram Coverage --------------------------------------------------------
 ALL_OPS = DOMAIN_SPEC["ops"]  # 7 ops
 
 
-def compute_reachable_bigrams() -> set[tuple[str, str]]:
-    """Compute the statically reachable op-type bigrams.
+def compute_syntactic_candidate_upper_bound() -> set[tuple[str, str]]:
+    """Enumerate a syntactic candidate upper bound for op-type bigrams.
 
-    Rule:
-    - Every op can transition to 'write' (terminal).
-    - Between the 7 ops: any op can follow any op EXCEPT:
-      * 'select' cannot follow 'group_sum' — group_sum produces exactly 2
-        fields, while select requires a proper subset of length >= 2 (which
-        requires >= 3 fields);
-      * 'group_sum' cannot follow 'group_sum' — the first leaves one row per
-        group value, so a second aggregation over the only remaining str field
-        never does work (the does-work precondition refuses it).
-    Total reachable: 7*7 - 2 + 7 = 54 bigrams.
+    Every operation may terminate in ``write``. Between operations, this
+    static enumeration excludes only the two pairs ruled out by schema shape.
+    It deliberately ignores data-dependent preconditions and does-work
+    filtering, so its 54 pairs are not an enforceable or empirically reachable
+    coverage calibration.
     """
-    reachable: set[tuple[str, str]] = set()
+    candidates: set[tuple[str, str]] = set()
     excluded = {("group_sum", "select"), ("group_sum", "group_sum")}
     for op1 in ALL_OPS:
-        # Terminal transition
-        reachable.add((op1, "write"))
+        candidates.add((op1, "write"))
         for op2 in ALL_OPS:
-            if (op1, op2) in excluded:
-                continue
-            reachable.add((op1, op2))
-    return reachable
+            if (op1, op2) not in excluded:
+                candidates.add((op1, op2))
+    return candidates
 
 
 def extract_bigrams(sequence: list[dict[str, Any]]) -> list[tuple[str, str]]:
@@ -507,7 +517,8 @@ def select_candidates_by_coverage(
     selected: list[Candidate] = []
     covered_bigrams: set[tuple[str, str]] = set()
     covered_unigrams: set[str] = set()
-    reachable_bigrams = compute_reachable_bigrams()
+    valid_pool_bigrams = {bigram for candidate in candidates for bigram in candidate.bigrams}
+    syntactic_upper_bound = compute_syntactic_candidate_upper_bound()
 
     remaining = list(candidates)
     coverage_contributions: list[dict[str, list[Any]]] = []
@@ -555,7 +566,7 @@ def select_candidates_by_coverage(
 
     all_unigrams_set = set(ALL_OPS)
     missing_unigrams = sorted(all_unigrams_set - covered_unigrams)
-    missing_bigrams = sorted(f"{a}->{b}" for a, b in (reachable_bigrams - covered_bigrams))
+    missing_from_valid_pool = sorted(f"{a}->{b}" for a, b in (valid_pool_bigrams - covered_bigrams))
 
     coverage_summary = {
         "unigrams": {
@@ -565,8 +576,15 @@ def select_candidates_by_coverage(
         },
         "bigrams": {
             "covered": sorted(f"{a}->{b}" for a, b in covered_bigrams),
-            "reachable": len(reachable_bigrams),
-            "missing": missing_bigrams,
+            "observed_in_valid_pool": len(valid_pool_bigrams),
+            "missing_from_valid_pool": missing_from_valid_pool,
+            "syntactic_candidate_upper_bound": {
+                "count": len(syntactic_upper_bound),
+                "calibration": (
+                    "static schema-shape enumeration; not an enforceable or "
+                    "empirically reachable coverage target"
+                ),
+            },
         },
         "contributions": coverage_contributions,
     }
@@ -953,6 +971,17 @@ def _sha256_file(path: Path) -> str:
     return _sha256_bytes(path.read_bytes())
 
 
+def _research_influence_record() -> dict[str, Any]:
+    """Return the canonical paper-level research influence identity."""
+    identity_bytes = json.dumps(
+        TASTE_RESEARCH_INFLUENCE, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return {
+        **TASTE_RESEARCH_INFLUENCE,
+        "identity_digest": _sha256_bytes(identity_bytes),
+    }
+
+
 def compute_package_manifest_digest(task_dir: Path) -> str:
     """Compute the canonical tree manifest digest over all files except provenance.json.
 
@@ -993,18 +1022,19 @@ def emit_task_package(
 
     ``verifier_network`` selects the separate verifier's network declaration:
 
-    * ``"no-network"`` (default) — emits ``[verifier.environment]
-      network_mode = "no-network"``, the isolation the workbench gate requires
-      (``task_workbench._validate_network_and_isolation``). Harbor's Docker
-      provider enforces it only where egress control is available
-      (``docker.py:188-195``): Linux, or a Docker Desktop kernel that passes
-      ``_egress_control_kernel_support()``. On this lab's macOS workstation it
-      is rejected at trial start (``harbor/environments/base.py:777``).
-    * ``"inherit"`` — omits the table, matching ``library/tasks/event-summary``;
-      runnable on macOS Docker Desktop but refused by the workbench gate.
+    * ``"no-network"`` (default) emits the isolation declaration required by
+      ``task_workbench._validate_network_and_isolation``. Harbor 0.21.0
+      enforces it only where
+      ``DockerEnvironment._egress_control_kernel_support`` succeeds; the
+      inspected macOS path is refused by
+      ``BaseEnvironment.validate_network_policy_support``. See F-SEQGEN-1 in
+      ``agents/handoffs/seqgen.md`` for the reproduction and acceptance.
+    * ``"inherit"`` omits the declaration, matching
+      ``library/tasks/event-summary``; it is runnable on the inspected macOS
+      Docker path but refused by the workbench gate.
 
-    The contradiction is the machine's, not the package's; both spellings are
-    recorded in ``generation.json`` so a batch states which contract it serves.
+    Both spellings are recorded in ``generation.json``. ``inherit`` is not a
+    certification fallback and does not resolve F-SEQGEN-1.
     """
     if verifier_network not in {"no-network", "inherit"}:
         raise ValueError(f"unsupported verifier_network: {verifier_network!r}")
@@ -1219,6 +1249,7 @@ cat << 'EOF' > /app/output/result.jsonl
             "prompt_digest": None,
             "runtime": "tests/verify.py",
         },
+        "research_influences": [_research_influence_record()],
         "batch": batch_name,
         "slug": slug,
         "seed": candidate.seed,
@@ -1281,6 +1312,7 @@ cat << 'EOF' > /app/output/result.jsonl
         created_by="evallab.seqgen",
         transform=TRANSFORM_ID,
         parent_digests=[
+            _research_influence_record()["identity_digest"],
             generator_code_digest,
             validator_code_digest,
             rp_digest,
@@ -1367,6 +1399,7 @@ def generate_batch(
             "prompt_digest": None,
             "transform": TRANSFORM_ID,
         },
+        "research_influences": [_research_influence_record()],
         "created_at": now.isoformat(),
         "tasks": task_summaries,
         "coverage": {
@@ -1420,7 +1453,8 @@ def main() -> None:
     print(f"SEQGEN: Generated batch '{out_dir.name}' with {len(batch['tasks'])} tasks in {out_dir}")
     print(
         f"Coverage: unigrams {len(unigrams['covered'])}/{unigrams['total']}, "
-        f"bigrams {len(bigrams['covered'])}/{bigrams['reachable']} reachable"
+        f"bigrams {len(bigrams['covered'])}/"
+        f"{bigrams['observed_in_valid_pool']} observed in valid pool"
     )
 
 

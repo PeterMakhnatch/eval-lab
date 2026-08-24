@@ -92,10 +92,12 @@ Sequence-first pipeline, all deterministic, no model calls:
    (filters/dedupe/group_sum strictly shrink, sorts must reorder, heads must
    truncate) — the guard that keeps generated difficulty from degenerating
    into vacuous padding.
-3. **Coverage selection.** Greedy maximization of op-bigram coverage against
-   the statically enumerated reachable-transition set (54 bigrams);
-   `BATCH.json` reports covered/reachable and the uncovered remainder, so
-   coverage is measured beyond task count.
+3. **Coverage selection.** Greedy maximization of op-bigram coverage is
+   calibrated against bigrams actually observed in the deterministic valid
+   candidate pool after data-dependent preconditions and does-work filtering.
+   `BATCH.json` reports the exact observed-pool denominator and missing list.
+   It separately records a 54-pair `syntactic_candidate_upper_bound`, which
+   ignores those dynamic filters and is not an enforceable coverage target.
 4. **Instantiation.** Each selected sequence becomes a Harbor candidate
    package mirroring the existing `library/tasks/event-summary` layout
    (separate verifier image, trusted fixtures, reward vector with primary
@@ -105,6 +107,12 @@ Sequence-first pipeline, all deterministic, no model calls:
    network choice. `provenance.json` records Zone 03, transform/revision,
    package digest, and code/tool/domain/input/output parents with
    `license="NOASSERTION"`.
+   `research_influences` binds the canonical TASTE URL, full pinned revision,
+   paper-level design plus dependency/license-assessment role,
+   `restricted/NOASSERTION` status, zero code/prompt/output/artifact reuse,
+   `snapshot_bytes_ingested: false`, and no implementation-firewall claim; its
+   canonical descriptor digest is a provenance parent, not a claim that source
+   snapshot bytes were ingested.
 5. **Admission reuses M049.** Each package includes the fixed `m049-v1`
    control surface: oracle ×3, nop ×2, at least three invalid probes, a fair
    alternative that implements the selected operations without `rp`, and a
@@ -207,8 +215,8 @@ the axis is dropped.
   Model judgments remain provenance-bearing sidecars and are not substituted
   for those outcomes.
 - **Sequence coverage beyond task count:** op unigram/bigram coverage against
-  the reachable transition set, per batch; the uncovered remainder is the
-  next batch's target.
+  the deterministic valid pool, including the exact uncovered pool
+  transitions. The separate syntactic upper bound is descriptive only.
 - **Difficulty remains separate:** passing oracle, nop, and invalid controls is
   correctness/soundness evidence, not a difficulty estimate. Perturbation
   families require a separate difficulty design and evidence.

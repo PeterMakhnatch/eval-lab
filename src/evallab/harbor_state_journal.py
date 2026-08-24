@@ -136,11 +136,14 @@ class StateJournalPlugin:
     async def _ensure_image(self) -> str:
         dockerfile = self.context_dir / "Dockerfile"
         watcher = self.context_dir / "watch.py"
-        if not dockerfile.is_file() or not watcher.is_file():
+        producer = self.context_dir / "producer.py"
+        if not dockerfile.is_file() or not watcher.is_file() or not producer.is_file():
             raise FileNotFoundError(
                 f"state journal image context is incomplete: {self.context_dir}"
             )
-        content_digest = hashlib.sha256(dockerfile.read_bytes() + watcher.read_bytes()).hexdigest()
+        content_digest = hashlib.sha256(
+            dockerfile.read_bytes() + watcher.read_bytes() + producer.read_bytes()
+        ).hexdigest()
         image = f"evallab-state-journal:{content_digest[:16]}"
         code, _, _ = await _command("docker", "image", "inspect", image, timeout=15)
         if code == 0:

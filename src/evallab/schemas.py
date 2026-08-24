@@ -2214,3 +2214,29 @@ class InversionSpec(ContractModel):
     category: str = "data-processing"
     difficulty: str = "medium"
     summary: str = Field(min_length=1)
+
+
+
+class StateEventMetadata(ContractModel):
+    """Bounded filesystem metadata emitted by the state-journal producer."""
+
+    path: str = Field(min_length=1, max_length=4096)
+    mode: str = Field(min_length=1, max_length=16)
+    size_bytes: int = Field(ge=0)
+    mtime_ns: int
+    type: Literal["file", "directory", "symlink", "other"]
+    sha256: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    hash_status: Literal["complete", "size_limit", "unreadable"] | None = None
+    target: str | None = Field(default=None, max_length=4096)
+
+
+class StateJournalEvent(ContractModel):
+    """One append-only record from ``state-journal/state-events.jsonl``."""
+
+    sequence: int = Field(ge=1)
+    timestamp: str = Field(min_length=1, max_length=64)
+    path: str = Field(min_length=1, max_length=4096)
+    operations: list[str] = Field(min_length=1, max_length=16)
+    cookie: int | None = Field(default=None, ge=0)
+    is_directory: bool
+    state: StateEventMetadata | None = None

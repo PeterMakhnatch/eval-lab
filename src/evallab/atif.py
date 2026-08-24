@@ -174,6 +174,7 @@ PROJECTED_TABLES = frozenset(
         "artifact_facts.parquet",
         "tool_usage.parquet",
         "state_changes.parquet",
+        "state_events.parquet",
         "trajectory_events.parquet",
         "agent_actions.parquet",
         "llm_calls.parquet",

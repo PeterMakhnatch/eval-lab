@@ -326,6 +326,7 @@ def _verify(root: Path, ref: BoundArtifactRef) -> tuple[bytes | None, str | None
     current = _digest(raw)
     if current != ref.sha256:
         return raw, f"artifact bytes changed after binding: {ref.path}"
+    # model_copy skips Pydantic validators, so recheck forged in-memory refs here.
     if _identity(ref.path, current, ref.kind) != ref.identity:
         return raw, f"artifact replay/identity mismatch: {ref.path}"
     return raw, None

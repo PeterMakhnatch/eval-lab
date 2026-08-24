@@ -32,6 +32,8 @@ jobs:
       - run: uv run ruff check .
       - name: Documentation front-matter and index freshness
         run: uv run python -m evallab.docindex check
+      - name: Governance contracts and frozen root
+        run: uv run python -m evallab.governance check
       - name: Clean-checkout task registry and inventory audit
         run: uv run evallab registry audit --json
       - name: Statistical lessons freshness and lineage

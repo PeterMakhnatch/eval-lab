@@ -124,12 +124,11 @@ nightly schedule.
 
 ## Now
 
-`origin/main` is `68a21d3` (**40 PRs merged**). Full suite **1427 passed, 1 skipped,
-1 xfailed** (up from 1321), ruff clean, `ty` down to **27** diagnostics — the premerge
-script now emits `notice: ty is down to 27; lower the baseline from 28`, which is a
-one-line change nobody should make as a side effect of another mission. Zero open PRs,
-zero worktrees, `.worktrees/` swept from 2.4 GB to empty. `cli.py` is 2,463 lines with
-52 registry handlers and zero dispatch-chain comparisons.
+`origin/main` is `0ad6446` (merged PR #147, 2026-08-23). GitHub records
+**143 merged PRs and zero open PRs**. PR #147 repaired the portable registry
+and lessons truth boundary; M049 retains only the broader named workbench
+certification cases it did not claim. The type-check ratchet is **28
+diagnostics** in `scripts/premerge.sh` and CI.
 
 ### Five build missions, all merged (M020–M024)
 
@@ -159,30 +158,18 @@ the test failing, restore, show it passing — because the recurring finding all
 week has been tests that pass while reality disagrees. `scripts/premerge.sh`
 gates every push; no mission merges its own PR.
 
-### Phase-1 DATA TRUTH registered (M029–M031) — TOP BUILD PRIORITY
+### Phase-1 DATA TRUTH result (M029–M031)
 
-Spec: `docs/prompts/build-program.md` Phase 1. These were "registered intent"
-in prose but had **no board rows and no modules on disk** — confirmed by
-`ls src/evallab/{ingest_verify,traj,modeladapter}.py` → all absent, and no
-handoff under `agents/handoffs/`. Registered here so the priority rule has
-something to point at.
+The three Phase-1 missions are merged, not unstarted.
 
-| Mission | Loop | Lease (as written) | State |
+| Mission | Outcome | Merge evidence | State |
 |---|---|---|---|
-| M029 | INGEST — completeness as an invariant | `src/evallab/ingest_verify.py` (new; or extend `facts.py`, declared in this row), `tests/test_ingest_verify*`, `sql/ingest_views.sql` | ready — unstarted |
-| M030 | TRAJ — trajectory analysis as a capability | `src/evallab/traj.py` (new), `atif.py` (extend, additive), `tests/test_traj*`, `sql/traj_views.sql`, `derived/parquet/traj_features/`; lessons join via board-note only | ready — unstarted |
-| M031 | SEAM — the model adapter | `src/evallab/modeladapter.py` (new), `tests/test_modeladapter.py`, injection-point wiring in `analyst.py` and `analysis_worker.py` | ready — unstarted |
+| M029 | INGEST completeness verification and projection reconciliation | PR #138, merge `55cb9ee` | merged |
+| M030 | deterministic trajectory outline, queue, facts, and SQL views | PR #142, merge `bd819b1` | merged |
+| M031 | pinned subscription-CLI model adapter with fail-closed injection | PR #134, merge `64e1e96` | merged |
 
-**These three keep top build priority**, per both `build-program.md` and
-`gym-campaign.md`: GYM-UI's analyst panel and every model-assisted analysis
-depend on SEAM, and GYM-DATA's external corpora enter INGEST's verify scope.
-When subagent slots are scarce, M029–M031 win them; context-supply (M025–M028)
-and the gym lanes yield.
-
-M031 SEAM is also the mission that would close the gap recorded under
-`Needs Peter`: all three model seams (`analyst.py:150`, `analysis_worker.py:657`,
-`authoring.py:642`) are refusing stubs, so nothing in the lab can call a model
-today regardless of spend authorisation.
+Their completed leases are recorded in the completed ledger below. Follow-on
+gaps use new mission IDs rather than reopening these spent branches.
 
 ### Gym campaign registered (M032–M035)
 
@@ -193,10 +180,10 @@ missions; every cycle boundary is merge-safe.
 
 | Mission | Loop | Lease (as written) | State |
 |---|---|---|---|
-| M032 | GYM-RUN — the first campaign: fill the lake, ship the experiments | `queue/**` submissions (through the CLI, never hand-written files), `library/frozen/gym-v0/**` (new manifest), one schema addition (`extra_instruction_path`), `research/cards/campaign-*.md` | **cycles 1–2 MERGED** (#129, #128); cycle 3 registry blocker **CLOSED**; `gym-v1` frozen and baseline inputs staged, with no billable dispatch or comparative result |
-| M033 | GYM-DATA — more data than trajectories | `research/external/**` (new), `src/evallab/fetch.py` (extend), `sql/external_views.sql`; funnel/STATUS line via board-note to SURFACE | **cycle 1 MERGED** (#130) — corpus `pending`, acquisition path documented |
-| M034 | GYM-HARBOR — use the Harbor we already have | `docs/research/harbor-capability-audit.md` (new), `src/evallab/fetch.py`/`runner.py` touchpoints only with a board-row note | ready — unstarted |
-| M035 | GYM-UI — read every trajectory, and read the analyst's mind | `src/evallab/explorer.py` (extend), `tests/test_explorer*`; TRAJ consumed read-only via board-note dependency | ready — depends on M030 TRAJ for the outline function; may render raw ATIF with a built-in condenser first |
+| M032 | GYM-RUN — the first campaign: fill the lake, ship the experiments | `queue/**` submissions (through the CLI, never hand-written files), `library/frozen/gym-v0/**` (new manifest), one schema addition (`extra_instruction_path`), `research/cards/campaign-*.md` | merged — cycles 1–2 (#129, #128); M046 froze non-empty `gym-v1` in #139; no comparative result claimed |
+| M033 | GYM-DATA — more data than trajectories | `research/external/**` (new), `src/evallab/fetch.py` (extend), `sql/external_views.sql`; funnel/STATUS line via board-note to SURFACE | merged — cycle 1 (#130); corpus `pending`, acquisition path documented |
+| M034 | GYM-HARBOR — use the Harbor we already have | `docs/research/harbor-capability-audit.md` (new), `src/evallab/fetch.py`/`runner.py` touchpoints only with a board-row note | candidate — unassigned; no live handoff |
+| M035 | GYM-UI — trajectory truth and analyst explorer | `src/evallab/explorer.py`, `dashboard/explorer.py`, `tests/test_m035_ui.py` | merged (#145, `fcefae5`) |
 
 **GYM-RUN cycle 3 status:** the registry blocker is closed. Four human-approved
 registered records now define `gym-v1`; `gym-v0` remains the immutable empty
@@ -224,19 +211,16 @@ verification know-how ──VERIFIER──▶ corpus + experiments + SG-4 feed
 
 | Mission | Loop | Lease (as written in the spec) | State |
 |---|---|---|---|
-| M025 | HARVEST — raw sources into distillable inbox notes | `research/inbox/**` (append and edit its own notes only), `tests/test_inbox_conformance.py` | **cycle 1 MERGED** (#127); cycle 2 `blocked` — provider quota |
-| M026 | STANDARDS — inbox notes into the versioned craft corpus | `library/curated/standards/**`, `tests/test_standards_conformance.py`, `_proposed_templates/` staging; SG-owned `authoring/templates/` only via board-note handshake | dispatched, `blocked` — provider quota; dependency satisfied |
-| M027 | VERIFIER — absorb verification practice for a no-logprob lab | `library/curated/standards/verification/**`, `research/experiments/verifier/**`, `tests/test_verifier_corpus.py`; TRAJ/SEAM/calibrate touchpoints via board-note only | `blocked` — needs HARVEST queue item 2 (llm-as-a-verifier) |
-| M028 | PACK — corpus into compiled, budgeted, measured context | `src/evallab/contextpack.py`, `tests/test_contextpack*`, `docs/` front-matter fields it needs; digest/STATUS surface via board-note to the SURFACE owner | `blocked` — needs the first two STANDARDS corpus files |
+| M025 | HARVEST — raw sources into distillable inbox notes | `research/inbox/**` (append and edit its own notes only), `tests/test_inbox_conformance.py` | merged — cycle 1 landed in #127; cycle 2 is an unassigned candidate with no live handoff |
+| M026 | STANDARDS — inbox notes into the versioned craft corpus | `library/curated/standards/**`, `tests/test_standards_conformance.py`, `_proposed_templates/` staging; SG-owned `authoring/templates/` only via board-note handshake | candidate — unassigned; prior quota attempt produced no worktree or work product |
+| M027 | VERIFIER — absorb verification practice for a no-logprob lab | `library/curated/standards/verification/**`, `research/experiments/verifier/**`, `tests/test_verifier_corpus.py`; TRAJ/SEAM/calibrate touchpoints via board-note only | candidate — unassigned; depends on HARVEST queue item 2 |
+| M028 | PACK — corpus into compiled, budgeted, measured context | `src/evallab/contextpack.py`, `tests/test_contextpack*`, `docs/` front-matter fields it needs; digest/STATUS surface via board-note to the SURFACE owner | candidate — unassigned; depends on the first two STANDARDS files |
 
-**Night 1 result: HARVEST cycle 1 merged; the two dispatched follow-on cycles died on
-provider quota with zero work product.** M025 cycle 2 (llm-as-a-verifier intake) and
-M026 cycle 1 (EX-MT) were dispatched onto `google-antigravity/gemini-3.7-flash:high`
-after a probe returned clean; both agents were killed by `resource_exhausted` at ~10
-minutes, before either created a worktree, so nothing was lost and nothing was
-half-landed. The program's blocked-handling rule covers exactly this: *"A loop blocked
-on quota defers to the next night."* Both are deferred, not abandoned, and their state
-fields above are the truth per the resumption rule.
+**Historical quota attempt:** M025 cycle 2 and M026 cycle 1 were dispatched
+after a clean probe, but both processes were killed by provider quota before
+creating a worktree or producing work. They are not assigned blocked missions.
+Any retry requires a fresh owner, live handoff, and board lease; until then the
+follow-ups remain unassigned candidates.
 
 **Escalation counter: night 1 of 2.** The rule is *"two consecutive blocked nights on
 the same item → escalate to Peter's morning read via STATUS open-decisions."* This is
@@ -252,15 +236,9 @@ naming convention to respect is that VERIFIER's eval card is
 `research/cards/verifier-*.md`, file-disjoint from LOOP-CARDS by the
 `experience-*` / `verifier-*` split.
 
-**Phase-1 priority, recorded because the rule only bites when slots are scarce.**
-The protocol says Phase-1 missions (INGEST, TRAJ, SEAM from
-`docs/prompts/build-program.md`) win any slot contest. Measured state right now:
-**Phase 1 is not registered on this board and none of its modules exist** — no
-`ingest_verify.py`, no `traj.py`, no `modeladapter.py`, and no handoff under
-`agents/handoffs/`. So there is no contest tonight and context-supply took the
-free slots. The moment Phase 1 is dispatched, M026–M028 yield slots to it; M025
-is cheap enough to keep running either way. Registering Phase 1 is a separate
-dispatch prompt and deliberately not done here.
+Phase-1 priority is satisfied: M029, M030, and M031 are merged as PRs #138,
+#142, and #134. Context-supply dependencies remain governed by their own rows;
+none may claim those Phase-1 modules are absent.
 
 Cadence: nightly cycles under the shared `night-loops.md` protocol (RECHECK →
 EXTEND → PROVE → HARDEN → RECORD, max 6 cycles, one commit and one push per
@@ -327,24 +305,66 @@ mission. A single green CI run on a first head has not once been sufficient. And
 a module's tests passing says nothing about whether anything calls it — which is
 the entire premise of M015.
 
+### Completed mission ledger: M029–M046 and platform buildout
+
+The merge commit is the source of truth. Acceptance below is limited to the
+observable outcome recorded by the merged handoff and diff; it does not promote
+follow-on work into a completed claim.
+
+| ID | Outcome | Lane / owner | Completed lease | Deps | Source evidence | Observable acceptance | PR | Status | Next executable step |
+|---|---|---|---|---|---|---|---|---|---|
+| M029 | Account every catalog/disk trial as projected or by named reason | Platform | `ingest_verify.py`, `atif.py`, `sql/ingest_views.sql`, ingest tests | existing catalog/Parquet | archived M029 handoff; `55cb9ee` | completeness report exposes named gaps/reasons and reconciliation views exist | #138 | merged | use M047+ follow-ons; never reuse branch |
+| M030 | Deterministic trajectory outline, review queue, features, and views | Research + Platform | `traj.py`, `atif.py`, `attach.py`, `sql/traj_views.sql`, trajectory tests | M029 data surface | archived M030 handoff; `bd819b1` | real ATIF paths render deterministic outlines and the review queue emits candidates without persisting labels | #142 | merged | consume through new mission leases only |
+| M031 | Pinned local subscription-CLI model adapter with fail-closed injection | Platform | `modeladapter.py`, analyst injection, adapter tests | existing analyst/worker seams | archived M031 handoff; `64e1e96` | explicit pinned transports capture raw output/provenance; no adapter remains a refusal | #134 | merged | use fresh branches for adapter follow-ons |
+| M035 | Show trajectory truth separately from analyst inference | Platform | explorer modules and `tests/test_m035_ui.py` | M030 | archived M035 handoff; `fcefae5` | explorer exposes trajectory, truth, and analyst surfaces with unavailable/redacted states | #145 | merged | no branch reuse |
+| M036 | Add authenticated Cursor subscription lane and pinned profiles | Platform | `profiles.py`, `credentials.py`, profile tests | M031 | archived M036 handoff; `3fe5916` | `cursor-cli` has a CLI-session probe and explicit default profile | #132 | merged | no branch reuse |
+| M037 | Add authenticated Antigravity subscription lane and pinned profiles | Platform | profiles, credentials, Antigravity lane docs/tests | M031 | archived M037 handoff; `a814d72` | `antigravity-cli` is registered separately from API-key transport | #135 | merged | policy/spend remains Peter-owned |
+| M038 | Promote/register tasks only from digest-bound control evidence | Tasks | registry implementation, CLI surface, registry tests | existing control runs | archived M038 handoff; `5564fd2` | promotion refuses missing/contradictory controls and registration remains explicit | #133 | merged | M049 repairs durable evidence binding in #147 |
+| M039 | Replace live-corpus snapshot equality with corpus invariants | Research | evidence-query tests | growing corpus | archived M039 handoff; `bf1c931` | corpus growth no longer fails a frozen count while accounting/disappearance invariants remain | #131 | merged | no branch reuse |
+| M040 | Account for Cursor and Antigravity as distinct quota lanes | Platform | `quota.py`, quota/preflight tests | M036, M037 | archived M040 handoff; `12c9afb` | both lanes render explicit observed or unknown headroom instead of inheriting another provider | #136 | merged | policy ceilings remain Peter-owned |
+| M041 | Translate local Antigravity model IDs at the Harbor boundary | Platform | `runner.py`, runner tests | M037 | archived M041 handoff; `c8e1803` | local and Harbor model namespaces remain distinct and mapped at command construction | #137 | merged | no branch reuse |
+| M042 | Capture Antigravity structured output as sanitized ATIF | Platform | Antigravity capture modules, runner wiring/tests | M041 | archived M042 handoff; `c4eac8e` | structured events convert to ATIF and fallback is explicitly final-response-only | #141 | merged | live paid smoke remains separately authorized |
+| M043 | Replace production authoring stub with injected model-backed proposal seam | Tasks + Platform | `authoring.py`, schema/tests, authoring docs | M031 | archived M043 handoff; `b568243` | strict `spec/1` validation precedes quarantined proposal creation; nothing self-registers | #143 | merged | live paid smoke remains separately authorized |
+| M044 | Repair queue progress, restart reconciliation, and provider attribution | Platform | queue, runner, quota, CLI and focused tests | M040–M042 | archived M044 handoff; `58880a9` | operator progress names the spec/log; expired launches fail; quota readings stay per-agent | #144 | merged | no branch reuse |
+| M045 | Stage ladder screening and separating-task follow-up | Research + Platform | `screen.py`, `ladder.py`, `power.py`, CLI/tests | registered tasks | archived M045 handoff; `1064a31` | stage 1 classifies explicit cohorts and stage 2 proposes follow-up only for separating tasks | #140 | merged | M047 adds executed-factor provenance and an empirical curve |
+| M046 | Preserve empty gym-v0 and freeze non-empty gym-v1 | Tasks + Research | frozen gym-v1 manifest/card/specs and freeze tests | registered task records | archived M046 handoff; `527efb6` | gym-v1 contains four frozen records while gym-v0 bytes remain historical evidence | #139 | merged | registry repairs proceed in M049/#147 |
+| PLATFORM-146 | Land the platform buildout represented by the exact PR diff | Platform | paths changed by PR #146, including `containers/state-journal/`, event mart/evidence/state-journal/import modules, cohort data, and focused tests | merged M029–M046 surfaces | PR #146; merge `2178311` | the named files are present on `origin/main`; no stronger runtime claim is made here | #146 | merged | execute gaps M047, M048, M051 independently |
+
+#### Completed repair record
+
+| ID | Outcome | Lane / owner | Completed lease | Deps | Source evidence | Observable acceptance | PR | Status | Next executable step |
+|---|---|---|---|---|---|---|---|---|---|
+| REPAIR-147 | Repair portable registry evidence binding and lessons truth boundaries | Tasks + Research | exact PR #147 paths in registry/schema/registry records and lessons SQL/generator/report/tests/CI | PLATFORM-146; existing registry and lessons surfaces | PR #147; merge `0ad6446` | durable evidence is identity-bound in the committed registry and lessons eligibility/lineage/freshness repairs are on `origin/main`; broader M049 workbench fixtures remain unclaimed | #147 | merged | continue only M049's named workbench fixture acceptance on a fresh lease |
+
+### Owned acceptance contracts (M047–M052)
+
+These are executable owner contracts, not roadmap prose. Leases are exclusive
+while their status is `ready` or `active`.
+
+| ID | Handoff | Exact outcome | Lane / owner | Exclusive path lease | Dependencies | Source evidence | Observable acceptance | Status | Next executable step |
+|---|---|---|---|---|---|---|---|---|---|
+| M047 (A) | `agents/handoffs/m047-factor-curve.md` | Execute declared factor points with identity/provenance, then produce an empirical paired curve | Research / Research lane owner | `src/evallab/factor_curve.py` (new), `tests/test_factor_curve.py` (new), `research/experiments/factor-curves/**`, additive factor-provenance fields in `ladder.py`, `schemas.py`, and their focused tests | factor execution/provenance first; curve second; consumes M030, M045, PLATFORM-146 | PR #146 `ladder.py` emits factor coordinates but no committed paired curve; M045 handoff | every executed trial is joinable to grid/point/arm/factor identity and immutable input digests; a fixture with paired levels renders per-level counts, estimates, uncertainty, and paired deltas from those facts; missing pairs are excluded and reported, never imputed | ready | implement the provenance-bearing execution record and fixture before any curve renderer |
+| M048 (B) | `agents/handoffs/m048-state-events.md` | Make `StateEventFact` ingestible, compactable, temporally queryable, and explicitly non-causal | Platform / Platform lane owner | `src/evallab/state_events.py` (new), additive `schemas.py`, `event_mart.py`, `parquet_compaction.py`, `tests/test_state_events.py` (new), `tests/fixtures/state_events/**` | independent follow-on to PLATFORM-146 | PR #146 added state journal/event mart/compaction surfaces; no `StateEventFact` contract exists on `origin/main` | fixture events survive ingest and compaction byte-for-field, query by entity and event/observed time, and expose a typed temporal link labelled non-causal; late/duplicate events have deterministic retained identities | ready | define the fact schema and ingest the smallest out-of-order fixture |
+| M049 (C) | `agents/handoffs/m049-workbench-certification.md` | Bind portable workbench certification to exact task bytes and prove fair-alt, nop-repeat, and please-hack evidence cases | Tasks / Tasks lane owner | `src/evallab/task_workbench.py`, `tests/test_task_workbench.py`, `tests/fixtures/task_workbench/**`, `research/registration/**`; registry surfaces from #147 are read-only unless a new lease is registered | merged PR #147 supplies durable registry binding; F waits for this broader certification contract | M007/#49 workbench; M038/#133 registry; PR #147 merge `0ad6446` repaired portable identity-bound registry evidence but did not claim the three named workbench cases | a clean checkout certifies only evidence bound to exact task/version/package/verifier digests; named fair-alt succeeds, nop-repeat proves repeatability without promotion, and please-hack is refused with a recorded reason; swapping task bytes or evidence fails closed | active — registry repair merged; named fixture acceptance remains | demonstrate the three named fixtures and exact-byte swap refusal on a fresh branch; record any unmet case rather than claiming it |
+| M050 (D) | `agents/archive/2026-08-23-handoffs/m050-lessons-repair.md` | Repair lessons eligibility, optional annotation boundary, lineage, and deterministic freshness | Research | completed PR #147 lease: `src/evallab/lessons.py`, `sql/lessons.sql`, `research/lessons.md`, `tests/test_lessons.py`, additive CI freshness gate | PLATFORM-146 | PR #147 body/diff and merge `0ad6446` | exception trials are excluded and counted, unannotated eligible trials remain in cohorts, excluded rows cannot receive powered intervals, and regeneration from resolved lineage is byte-identical | merged | none; spent lease archived |
+| M051 (E) | `agents/handoffs/m051-exgentic-adapter.md` | Define `UpstreamSource`/`AdapterManifest` and prove a file-only Exgentic adapter that preserves nulls, raw bytes, and revision | Tasks / Tasks lane owner | `src/evallab/upstream_adapter.py` (new), `library/adapters/exgentic/**`, `tests/test_upstream_adapter.py` (new), `tests/fixtures/exgentic/**` | independent follow-on to PLATFORM-146 | PR #146 imports a pinned external cohort through `task_import.py` but has no typed upstream-source/adapter-manifest record | an offline fixture converts without network or provider calls; source revision and manifest digest are recorded; absent values remain null (not empty/default); raw source bytes are retained and digest-verifiable; replay is byte-identical | ready — partial import surface exists | freeze one minimal raw Exgentic file and write the source/manifest schemas before conversion logic |
+| M052 (F) | `agents/handoffs/m052-capability-contract.md` | Enforce typed P/R/U/C/Y capability contracts at harness, policy, and heldout boundaries without a scalar score | Research / Research lane owner, Platform review | `src/evallab/capability_contract.py` (new), `tests/test_capability_contract.py` (new), `research/experiments/capability-contracts/**`, additive integration in `screen.py` and policy admission tests | blocked on M047 + M049 | M045/#140 supplies staged cohorts; M049 supplies byte-bound certification; neither defines typed P/R/U/C/Y enforcement | each dimension is a typed value with provenance and explicit unavailable state; harness and policy reject undeclared/mismatched contracts before execution; heldout identities cannot enter authoring/tuning inputs; reports preserve the vector and never emit or rank by a scalar aggregate | blocked | after M047 and M049 merge, freeze one heldout fixture and implement pre-execution rejection |
+
+#### Source evidence and dependency order
+
+- PR #147 merged M049's portable registry prerequisite and completed M050's
+  lessons repair at `0ad6446`; M049's named workbench cases remain active.
+- Factor execution and provenance precede M047's curve. M047 and M049 precede
+  M052. M048 state events and M051's file-only adapter are independent follow-on
+  PRs.
+
 ## Ready
 
-- **M026 STANDARDS: dependency satisfied, deferred on quota.** HARVEST cycle 1 is
-  MERGED (`5068b4d`, PR #127), so EX-MT's five source notes are on `main` and its
-  lease (`library/curated/standards/**`) is still unoccupied — the directory does
-  not exist yet. First thing next night, no re-planning needed: the brief is
-  written in `docs/prompts/context-supply-program.md` EX-MT, including the full
-  F.1 adaptation mapping.
-- **M025 HARVEST cycle 2 is the highest-value next intake** because queue item 2
-  (llm-as-a-verifier) is what unblocks M027. Also deferred on quota.
-- **M027 VERIFIER and M028 PACK stay blocked on dependencies, not capacity.**
-  VERIFIER needs HARVEST queue item 2; PACK needs the first two STANDARDS files.
-- **Phase-1 (INGEST, TRAJ, SEAM) remains unregistered**, which is why
-  context-supply holds slots at all — see the priority note above. Registering it
-  is `docs/prompts/build-program.md`'s dispatch prompt, not this one.
-- M009–M025 are merged; `.worktrees/` is empty and `evallab tidy` reports clean.
-  The items under `Next` are what the v2 architecture audit left standing plus the
-  follow-ups tonight's work created, and each needs an M number and a brief.
+- M047, M048, and M051 are ready under the exclusive leases above.
+- M049 is active after its PR #147 prerequisite merged; M050 is merged.
+- M052 is blocked on M047 and the remaining M049 acceptance.
+- M025 cycle 1 is merged; M025 cycle 2 and M026–M028 are unassigned
+  candidates with no live handoff. M029–M031 are merged, not absent.
 
 ## Next
 
@@ -376,10 +396,9 @@ Ranked by what actually blocks the lab, from the v2 architecture audit:
   tie-break rules were measured (helper recursion 25 shifts, first-reference 20, body
   frequency 11 — the last was kept). An exact answer means attributing from the import
   graph rather than counting names.
-- **Lower the `ty` baseline from 28 to 27 (unassigned, trivial).** `scripts/premerge.sh`
-  now prints `notice: ty is down to 27; lower the baseline from 28`. Deliberately not
-  done inside another mission: a ratchet should move in its own commit so the reason is
-  legible in `git log`.
+- **Type ratchet is 28, not a follow-up.** `scripts/premerge.sh` and
+  `.github/workflows/typecheck.yml` both enforce 28 diagnostics. Move it only
+  when the exact-head count supplies new evidence.
 - **Profiles CLI cutover and credential unification (E01, unassigned).** Two
   credential paths still coexist (`credentials.py` and `quota.py`), with a
   single `AgentProfile` specified but not cut over. Held back from tonight's batch
@@ -577,5 +596,5 @@ kind of Integration bookkeeping mission.
 | COORD-GC | The coordination layer describes the repository that exists: spent handoffs archived, board factually correct, structure map true, stale CLI claims retired | Integration | Claude Opus 4.5, Oh My Pi | worktree removed; branch `role/coord-gc` still present locally and on `origin` (squash-merged, spent — do not reuse) | `agents/handoffs/`, `agents/archive/`, `agents/missions/ACTIVE.md`, `agents/STRUCTURE.md`, `docs/prompts/README.md`, `docs/checkpoints/2026-08-14.md` | none | met; merged at head `a41266e` as `2173268`. Archived 34 handoffs 1:1; found and fixed an already-merged root-freeze violation (`dashboard/` absent from `STRUCTURE.md`) | #54 | merged | integrator |
 | PERF-REBASELINE | The `ingest` CI perf budget is calibrated to measured CI reality instead of a laptop capture, so the gate fails on regressions rather than on runner noise | Platform | **not recorded** — the archived handoff names no agent or model anywhere, so this mission's executing identity is unrecoverable from the repository | worktree removed; branch `role/perf-rebaseline` still present locally and on `origin` (squash-merged, spent — do not reuse) | `scripts/profile/budgets.json`, `docs/engineering.md` (one appended dated subsection), archived handoff | none | met; merged at head `a12ea3c` as `e080dd0`. Budget set to 115.0 ms from 14 CI artifact samples. Left the measurement-region cause open — now a mission candidate above | #53 | merged | integrator |
 | SYSTEM-CARTOGRAPHER | The evaluation R&D platform is mapped as it exists, with corrected component cards and closed status labels | Integration | Grok 4.6 (xAI), Grok Build TUI | worktree removed; branch `role/system-cartographer` still present locally and on `origin` (squash-merged, spent — do not reuse) | `docs/system-cartography.html`, `docs/checkpoints/2026-08-15-system-cartography.md`, archived handoff | none | met; merged at head `a408881` as `1471f41`. 19 cards and 29 CLI groups corrected | #52 | merged | integrator |
-| M009 | The merged lab is proven as one local, restartable Harbor-to-analysis product, with exact recorded evidence and every failure turned into a narrowly scoped follow-up | Integration (integrator-run acceptance exercise) | integrator session; recorded in its handoff | `.worktrees/m009-flight` / `role/m009-flight` | its own flight record and handoff; no feature lease — it consumes the merged system rather than changing it | M006, M007 | a real free control run, an indexed saved-response analysis, explorer inspection, and a proven recovery — all from current `origin/main`, not from fixtures | — | active | integrator |
-| BOARD-REFRESH | `agents/handoffs/` holds only live missions, and the board states current truth with recorded follow-ups that cannot vanish with an archived file | Integration | Claude Opus 4.5, Oh My Pi | `.worktrees/board-refresh` / `role/board-refresh` | `agents/missions/ACTIVE.md`, `agents/handoffs/`, `agents/archive/`, `agents/handoffs/board-refresh.md` | none | every archived file reachable from `agents/archive/` with `git log --follow` intact; PR numbers, head SHAs, and merge states verified against `git log origin/main` and `gh pr list` | #55 | review | integrator |
+| M009 | The merged lab is proven as one local, restartable Harbor-to-analysis product, with exact recorded evidence and every failure turned into a narrowly scoped follow-up | Integration (integrator-run acceptance exercise) | integrator session; recorded in its archived handoff | worktree removed; branch `role/m009-flight` is squash-merged and spent | flight record plus `agents/archive/2026-08-23-handoffs/m009-flight.md`; no feature lease | M006, M007 | met; free control run, indexed saved-response analysis, explorer inspection, and recovery evidence merged as `ad67126` | #56 | merged | integrator |
+| BOARD-REFRESH | `agents/handoffs/` holds only live missions, and the board states current truth with recorded follow-ups that cannot vanish with an archived file | Integration | Claude Opus 4.5, Oh My Pi | worktree removed; branch `role/board-refresh` is squash-merged and spent | `agents/missions/ACTIVE.md`, `agents/handoffs/`, `agents/archive/`, `agents/archive/2026-08-23-handoffs/board-refresh.md` | none | met; archival and board refresh merged as `510713b` | #55 | merged | integrator |

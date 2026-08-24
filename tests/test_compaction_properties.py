@@ -199,6 +199,36 @@ def _make_row(table_name: str, job_id: str, trial_id: str, index: int = 1) -> di
             "last_event_at": "2026-08-10T10:00:01Z",
             "journal_status": "available",
         }
+    if table_name == "state_events":
+        return {
+            "experiment_id": "exp-001",
+            "job_id": job_id,
+            "trial_id": trial_id,
+            "sequence": index,
+            "precedence": index,
+            "event_at": "2026-08-10T10:00:00Z",
+            "predecessor_sequence": index - 1 if index > 1 else None,
+            "operations": ["close_write"],
+            "path": f"output/result-{index}.txt",
+            "is_directory": False,
+            "cookie": None,
+            "before_state_digest": None,
+            "after_state_digest": "sha256:state",
+            "before_content_sha256": None,
+            "after_content_sha256": "sha256:content",
+            "before_size_bytes": None,
+            "after_size_bytes": 42,
+            "before_evidence_status": "known_absent",
+            "producer": "evallab-state-journal",
+            "producer_schema_version": 1,
+            "fact_schema_version": "state-event-fact-v1",
+            "source_digest": "sha256:source",
+            "source_record_digest": "sha256:record",
+            "temporal_semantics": "sequence_precedence_non_causal",
+            "evidence_status": "valid",
+            "invalid_reason": None,
+            "invalid_error_digest": None,
+        }
     if table_name == "trajectory_events":
         return {
             "job_id": job_id,

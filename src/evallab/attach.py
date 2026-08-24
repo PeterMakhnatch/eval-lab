@@ -48,6 +48,7 @@ TABLES = (
     "tool_usage",
     "observations",
     "state_changes",
+    "state_events",
     "trajectory_events",
     "agent_actions",
     "llm_calls",

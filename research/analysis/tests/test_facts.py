@@ -80,6 +80,7 @@ def test_rebuild_from_raw_writes_joinable_fact_and_trajectory_tables(tmp_path: P
         "artifact_facts",
         "tool_usage",
         "state_changes",
+        "state_events",
         "trajectory_events",
         "agent_actions",
         "llm_calls",

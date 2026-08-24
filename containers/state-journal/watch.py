@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
-import datetime as dt
-import hashlib
 import json
 import os
 import select
 import signal
-import stat
 import struct
 import sys
 from pathlib import Path
 from typing import Any
+
+from producer import append_event, build_diff, build_event, now
+from producer import describe as describe_path
 
 SCHEMA_VERSION = 1
 MAX_HASH_BYTES = int(os.environ.get("MAX_HASH_BYTES", str(8 * 1024 * 1024)))
@@ -75,8 +75,8 @@ libc.inotify_add_watch.restype = ctypes.c_int
 running = True
 
 
-def now() -> str:
-    return dt.datetime.now(dt.UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+def describe(path: Path) -> dict[str, Any] | None:
+    return describe_path(path, root=ROOT, max_hash_bytes=MAX_HASH_BYTES)
 
 
 def atomic_json(path: Path, value: Any) -> None:
@@ -86,47 +86,6 @@ def atomic_json(path: Path, value: Any) -> None:
         encoding="utf-8",
     )
     temporary.replace(path)
-
-
-def digest(path: Path, size: int) -> tuple[str | None, str]:
-    if size > MAX_HASH_BYTES:
-        return None, "size_limit"
-    try:
-        value = hashlib.sha256()
-        with path.open("rb") as source:
-            while chunk := source.read(1024 * 1024):
-                value.update(chunk)
-        return f"sha256:{value.hexdigest()}", "complete"
-    except (OSError, PermissionError):
-        return None, "unreadable"
-
-
-def describe(path: Path) -> dict[str, Any] | None:
-    try:
-        info = path.lstat()
-    except (FileNotFoundError, OSError):
-        return None
-    relative = "." if path == ROOT else path.relative_to(ROOT).as_posix()
-    base: dict[str, Any] = {
-        "path": relative,
-        "mode": stat.filemode(info.st_mode),
-        "size_bytes": info.st_size,
-        "mtime_ns": info.st_mtime_ns,
-    }
-    if stat.S_ISREG(info.st_mode):
-        base["type"] = "file"
-        base["sha256"], base["hash_status"] = digest(path, info.st_size)
-    elif stat.S_ISDIR(info.st_mode):
-        base["type"] = "directory"
-    elif stat.S_ISLNK(info.st_mode):
-        base["type"] = "symlink"
-        try:
-            base["target"] = os.readlink(path)
-        except OSError:
-            base["target"] = None
-    else:
-        base["type"] = "other"
-    return base
 
 
 def snapshot(label: str) -> dict[str, Any]:
@@ -162,51 +121,6 @@ def snapshot(label: str) -> dict[str, Any]:
     return result
 
 
-def change_record(
-    path: str,
-    change_type: str,
-    before: dict[str, Any] | None,
-    after: dict[str, Any] | None,
-    events: list[dict[str, Any]],
-) -> dict[str, Any]:
-    matching = [event for event in events if event.get("path") == path]
-    return {
-        "path": path,
-        "change_type": change_type,
-        "before": before,
-        "after": after,
-        "event_count": len(matching),
-        "first_event_at": matching[0]["timestamp"] if matching else None,
-        "last_event_at": matching[-1]["timestamp"] if matching else None,
-    }
-
-
-def build_diff(
-    before: dict[str, Any], after: dict[str, Any], events: list[dict[str, Any]]
-) -> dict[str, Any]:
-    before_by_path = {item["path"]: item for item in before["entries"]}
-    after_by_path = {item["path"]: item for item in after["entries"]}
-    changes: list[dict[str, Any]] = []
-    for path in sorted(before_by_path.keys() | after_by_path.keys()):
-        old = before_by_path.get(path)
-        new = after_by_path.get(path)
-        if old is None:
-            changes.append(change_record(path, "added", old, new, events))
-        elif new is None:
-            changes.append(change_record(path, "deleted", old, new, events))
-        elif old != new:
-            changes.append(change_record(path, "modified", old, new, events))
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "status": "partial" if before["truncated"] or after["truncated"] else "available",
-        "reason": "snapshot_entry_limit" if before["truncated"] or after["truncated"] else None,
-        "root": WATCH_ROOT,
-        "before_captured_at": before["captured_at"],
-        "after_captured_at": after["captured_at"],
-        "event_count": len(events),
-        "change_count": len(changes),
-        "changes": changes,
-    }
 
 
 def add_watch(fd: int, path: Path, watches: dict[int, Path]) -> None:
@@ -299,22 +213,32 @@ def main() -> int:
                     relative = "." if path == ROOT else path.relative_to(ROOT).as_posix()
                 except ValueError:
                     relative = path.as_posix()
-                record: dict[str, Any] = {
-                    "sequence": len(events) + 1,
-                    "timestamp": now(),
-                    "path": relative,
-                    "operations": [name for bit, name in EVENT_NAMES if mask & bit],
-                    "cookie": cookie or None,
-                    "is_directory": bool(mask & IN_ISDIR),
-                }
-                if not record["is_directory"] and mask & (IN_CLOSE_WRITE | IN_MOVED_TO):
-                    record["state"] = describe(path)
+                state = (
+                    describe(path)
+                    if not (mask & IN_ISDIR) and mask & (IN_CLOSE_WRITE | IN_MOVED_TO)
+                    else None
+                )
+                record = build_event(
+                    sequence=len(events) + 1,
+                    timestamp=now(),
+                    path=relative,
+                    operations=[name for bit, name in EVENT_NAMES if mask & bit],
+                    cookie=cookie or None,
+                    is_directory=bool(mask & IN_ISDIR),
+                    state=state,
+                )
                 events.append(record)
-                stream.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+                append_event(stream, record)
 
     os.close(fd)
     after = snapshot("after")
-    diff = build_diff(before, after, events)
+    diff = build_diff(
+        before,
+        after,
+        events,
+        schema_version=SCHEMA_VERSION,
+        watch_root=WATCH_ROOT,
+    )
     diff["dropped_event_count"] = dropped_events
     atomic_json(OUTPUT / "state-diff.json", diff)
     atomic_json(

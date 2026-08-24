@@ -1,0 +1,37 @@
+{
+  "after_captured_at": "2026-08-24T12:00:00.400000Z",
+  "before_captured_at": "2026-08-24T12:00:00.000000Z",
+  "change_count": 1,
+  "changes": [
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1787572800300000000,
+        "path": "output/answer.txt",
+        "sha256": "sha256:b21ca99d5990b5c9c2621b537974ca060b8722f5ca3120e592065fb8600ab87a",
+        "size_bytes": 10,
+        "type": "file"
+      },
+      "before": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1787572800000000000,
+        "path": "output/answer.txt",
+        "sha256": "sha256:4b654bd1437066b13498661f3ca14774daf1066d072036beffaf06f0c014250e",
+        "size_bytes": 9,
+        "type": "file"
+      },
+      "change_type": "modified",
+      "event_count": 3,
+      "first_event_at": "2026-08-24T12:00:00.100000Z",
+      "last_event_at": "2026-08-24T12:00:00.300000Z",
+      "path": "output/answer.txt"
+    }
+  ],
+  "event_count": 3,
+  "reason": null,
+  "root": "/app",
+  "schema_version": 1,
+  "status": "available"
+}

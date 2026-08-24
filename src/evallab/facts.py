@@ -30,6 +30,12 @@ from evallab.schemas import (
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
 )
+from evallab.state_events import (
+    StateEventFact,
+    StateEventValidationError,
+    invalid_state_event_fact,
+    load_state_event_facts,
+)
 
 JsonObject = dict[str, Any]
 
@@ -315,6 +321,7 @@ class JobFacts:
     artifacts: tuple[ArtifactFact, ...]
     tool_usage: tuple[ToolUseFact, ...]
     state_changes: tuple[StateChangeFact, ...]
+    state_events: tuple[StateEventFact, ...]
 
 
 @dataclass(frozen=True)
@@ -553,11 +560,29 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
     artifact_facts: list[ArtifactFact] = []
     tool_usage: list[ToolUseFact] = []
     state_change_facts: list[StateChangeFact] = []
+    state_event_facts: list[StateEventFact] = []
     association = experiment_id(job)
     for trial in sorted(job.trials, key=lambda item: item.id):
         projection = project_trial(job, trial)
         state_journal = load_state_journal(trial)
         trial_facts.append(extract_trial_fact(job, trial, state_journal))
+        try:
+            state_event_facts.extend(
+                load_state_event_facts(
+                    trial,
+                    job_id=str(job.id),
+                    experiment_id=association,
+                )
+            )
+        except StateEventValidationError as exc:
+            state_event_facts.append(
+                invalid_state_event_fact(
+                    trial,
+                    job_id=str(job.id),
+                    experiment_id=association,
+                    error=exc,
+                )
+            )
         reward_facts.extend(
             RewardFact(
                 experiment_id=association,
@@ -612,6 +637,7 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
         artifacts=tuple(artifact_facts),
         tool_usage=tuple(tool_usage),
         state_changes=tuple(state_change_facts),
+        state_events=tuple(state_event_facts),
     )
 
 
@@ -726,6 +752,37 @@ FACT_SCHEMAS = {
             pa.field("journal_status", pa.string(), nullable=False),
         ]
     ),
+    "state_events": pa.schema(
+        [
+            pa.field("experiment_id", pa.string()),
+            pa.field("job_id", pa.string(), nullable=False),
+            pa.field("trial_id", pa.string(), nullable=False),
+            pa.field("sequence", pa.int64(), nullable=False),
+            pa.field("precedence", pa.int64(), nullable=False),
+            pa.field("predecessor_sequence", pa.int64()),
+            pa.field("event_at", pa.string()),
+            pa.field("operations", pa.list_(pa.string()), nullable=False),
+            pa.field("path", pa.string()),
+            pa.field("is_directory", pa.bool_()),
+            pa.field("cookie", pa.int64()),
+            pa.field("before_state_digest", pa.string()),
+            pa.field("after_state_digest", pa.string()),
+            pa.field("before_content_sha256", pa.string()),
+            pa.field("after_content_sha256", pa.string()),
+            pa.field("before_size_bytes", pa.int64()),
+            pa.field("after_size_bytes", pa.int64()),
+            pa.field("before_evidence_status", pa.string(), nullable=False),
+            pa.field("producer", pa.string(), nullable=False),
+            pa.field("producer_schema_version", pa.int64()),
+            pa.field("fact_schema_version", pa.string(), nullable=False),
+            pa.field("source_digest", pa.string(), nullable=False),
+            pa.field("source_record_digest", pa.string()),
+            pa.field("temporal_semantics", pa.string(), nullable=False),
+            pa.field("evidence_status", pa.string(), nullable=False),
+            pa.field("invalid_reason", pa.string()),
+            pa.field("invalid_error_digest", pa.string()),
+        ]
+    ),
 }
 
 
@@ -770,6 +827,9 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
                 ],
                 "state_changes": [
                     asdict(item) for item in facts.state_changes if item.trial_id == trial_id
+                ],
+                "state_events": [
+                    asdict(item) for item in facts.state_events if item.trial_id == trial_id
                 ],
             }
             for table_name, rows in rows_by_table.items():

@@ -11,11 +11,11 @@ Blockers: none
 - **Lane / owner:** Tasks / Tasks lane owner.
 - **Exclusive lease:** `src/evallab/upstream_adapter.py`, `library/adapters/exgentic/**`, `library/adapters/recovery-bench/**`, `tests/test_upstream_adapter.py`, and `tests/fixtures/upstream_adapters/**`.
 - **Status:** review-wanted. The implementation is file-only; it does not vendor, install, fetch, register, or execute either upstream project.
-- **Acceptance:** repeated offline imports are byte-identical; raw input bytes, digest, canonical source URL, immutable revision, license status, manifest version, and adapter code digest remain bound; incompatible schema/revision/license and unsafe paths are refused.
+- **Acceptance:** repeated offline imports are byte-identical and independent of process cwd; raw input bytes, digest, canonical source URL, immutable revision, license status, manifest version, and adapter code digest remain bound; roots/destination and manifest are absolute, relative source children resolve only beneath the declared source root, and incompatible schema/revision/license/symlink/path inputs are refused.
 
 ## Mapping notes
 
-- Exgentic `trajectory.jsonl`: `session_id` becomes the ATIF session; observed upstream steps determine grouping and are reindexed to ATIF's required one-based sequence. Action `name` and `arguments` become a tool call. Observation values are retained without normalization, including nulls. Required ATIF agent, message, and source-call identity fields use explicit `[unavailable]` markers because the source fixture does not contain them.
+- Exgentic `trajectory.jsonl`: `session_id` becomes the ATIF session; events group by observed numeric upstream step and groups are sorted by that key before reindexing to ATIF's required one-based sequence. Action `name` and `arguments` become a tool call. Observation values are retained without normalization, including nulls. Required ATIF agent, message, and source-call identity fields use explicit `[unavailable]` markers because the source fixture does not contain them.
 - Recovery-Bench `result.json`: no ATIF document or trajectory step is emitted. The output contract is external-evidence-only and records `trajectory: null`; the full observed result, including verifier rewards, remains external evidence.
 - Fields outside each declared input vocabulary are retained under `mapping.unknown_fields_by_record` and in `observed_records`, but are explicitly excluded from ATIF mapping. Role, capabilities, isolation, and output claims must exactly match the selected versioned input contract.
 - Compatibility fixtures are lab-constructed and contain no copied upstream bytes. `tests/fixtures/upstream_adapters/PROVENANCE.json` records this boundary.

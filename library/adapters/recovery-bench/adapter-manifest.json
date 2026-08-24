@@ -26,6 +26,6 @@
     "path": "tests/fixtures/upstream_adapters/recovery_bench/result.json",
     "digest": "sha256:778b0933b4d49b695d82b1f00d5735afbe0a7e824c32e5a8b7b5ae9fc55393ed"
   },
-  "adapter_code_digest": "sha256:2a7ff06441d71d8a390aa2e07e38b879ba3d00c82af8369af3c15e18ebfac889",
+  "adapter_code_digest": "sha256:7d8b78107ba2c741e0219cce6ee4f3500404b693d0feeff27363711145ac584a",
   "last_verified": "2026-08-24"
 }

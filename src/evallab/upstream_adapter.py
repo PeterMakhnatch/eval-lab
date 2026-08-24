@@ -134,11 +134,14 @@ def _safe_relative(value: str, label: str) -> PurePosixPath:
 
 
 def _source_file(path: Path, source_root: Path) -> Path:
+    if not source_root.is_absolute():
+        raise AdapterRefusal("source root must be absolute")
     root = source_root.resolve(strict=True)
-    if path.is_symlink():
+    candidate = path if path.is_absolute() else root / path
+    if candidate.is_symlink():
         raise AdapterRefusal("source path must not be a symlink")
     try:
-        resolved = path.resolve(strict=True)
+        resolved = candidate.resolve(strict=True)
     except FileNotFoundError as exc:
         raise AdapterRefusal(f"source file does not exist: {path}") from exc
     try:
@@ -289,6 +292,10 @@ def _parse_manifest(payload: dict[str, Any]) -> AdapterManifest:
 
 def load_adapter_manifest(manifest_path: Path, repo_root: Path) -> AdapterManifest:
     """Load a manifest and bind it to its fixture and the exact adapter code bytes."""
+    if not repo_root.is_absolute():
+        raise AdapterRefusal("repository root must be absolute")
+    if not manifest_path.is_absolute():
+        raise AdapterRefusal("manifest path must be absolute")
     manifest_file = _source_file(manifest_path, repo_root)
     try:
         payload = _object(json.loads(manifest_file.read_bytes()), "adapter manifest")
@@ -379,7 +386,7 @@ def _exgentic(raw: bytes) -> tuple[dict[str, Any], list[dict[str, Any]]]:
             step["observation"] = {
                 "results": [{"source_call_id": None, "content": record.get("observation")}]
             }
-    steps = list(steps_by_id.values())
+    steps = [step for _, step in sorted(steps_by_id.items())]
     for step_id, step in enumerate(steps, start=1):
         step["step_id"] = step_id
     trajectory = {
@@ -433,6 +440,8 @@ def import_upstream_file(
     accepted_licenses: frozenset[str],
 ) -> ImportResult:
     """Convert a pinned local result without importing or executing upstream code."""
+    if not destination.is_absolute():
+        raise AdapterRefusal("destination root must be absolute")
     manifest = load_adapter_manifest(manifest_path, repo_root)
     if manifest.isolation != "file":
         raise AdapterRefusal("this importer accepts file-isolated adapters only")

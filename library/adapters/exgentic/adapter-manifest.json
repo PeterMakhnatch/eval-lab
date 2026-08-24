@@ -25,6 +25,6 @@
     "path": "tests/fixtures/upstream_adapters/exgentic/trajectory.jsonl",
     "digest": "sha256:4a6537147b5d9fe00dedd395c8cb947cbf227e679ed8d4c2d9cac6112cb6d62b"
   },
-  "adapter_code_digest": "sha256:2a7ff06441d71d8a390aa2e07e38b879ba3d00c82af8369af3c15e18ebfac889",
+  "adapter_code_digest": "sha256:7d8b78107ba2c741e0219cce6ee4f3500404b693d0feeff27363711145ac584a",
   "last_verified": "2026-08-24"
 }

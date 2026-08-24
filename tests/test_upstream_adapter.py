@@ -272,3 +272,115 @@ def test_role_and_capabilities_must_match_the_input_contract(tmp_path: Path) -> 
     )
     with pytest.raises(AdapterRefusal, match="claims do not match"):
         load_adapter_manifest(manifest, root)
+
+
+def test_exgentic_chronology_sorts_numeric_upstream_steps(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    source = source_root / "shuffled.jsonl"
+    records = [
+        {
+            "event": "action",
+            "step": 20,
+            "session_id": "shuffled",
+            "task_id": "task",
+            "action": {"name": "later", "arguments": {}},
+        },
+        {
+            "event": "observation",
+            "step": 10,
+            "session_id": "shuffled",
+            "task_id": "task",
+            "observation": "earlier observation",
+        },
+        {
+            "event": "observation",
+            "step": 20,
+            "session_id": "shuffled",
+            "task_id": "task",
+            "observation": "later observation",
+        },
+        {
+            "event": "action",
+            "step": 10,
+            "session_id": "shuffled",
+            "task_id": "task",
+            "action": {"name": "earlier", "arguments": {}},
+        },
+    ]
+    source.write_text("".join(json.dumps(record) + "\n" for record in records))
+    manifest = ADAPTERS / "exgentic" / "adapter-manifest.json"
+    result = import_upstream_file(
+        Path("shuffled.jsonl"),
+        tmp_path / "out",
+        manifest,
+        REPO_ROOT,
+        source_root=source_root,
+        source_revision=_revision(manifest),
+        accepted_licenses=frozenset({"Apache-2.0"}),
+    )
+    assert result.atif_path is not None
+    trajectory = json.loads(result.atif_path.read_bytes())
+    assert [step["step_id"] for step in trajectory["steps"]] == [1, 2]
+    assert [
+        step["tool_calls"][0]["function_name"] for step in trajectory["steps"]
+    ] == ["earlier", "later"]
+    assert [
+        step["observation"]["results"][0]["content"] for step in trajectory["steps"]
+    ] == ["earlier observation", "later observation"]
+    assert _validate_fallback(trajectory) is None
+
+
+def test_file_boundary_is_independent_of_process_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_root = tmp_path / "source"
+    nested = source_root / "nested"
+    nested.mkdir(parents=True)
+    source = nested / "trajectory.jsonl"
+    source.write_bytes((FIXTURES / "exgentic" / "trajectory.jsonl").read_bytes())
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    manifest = ADAPTERS / "exgentic" / "adapter-manifest.json"
+    result = import_upstream_file(
+        Path("nested/trajectory.jsonl"),
+        tmp_path / "out",
+        manifest,
+        REPO_ROOT,
+        source_root=source_root,
+        source_revision=_revision(manifest),
+        accepted_licenses=frozenset({"Apache-2.0"}),
+    )
+    assert result.raw_path.read_bytes() == source.read_bytes()
+
+
+def test_relative_declared_roots_and_manifest_are_refused(tmp_path: Path) -> None:
+    manifest = ADAPTERS / "exgentic" / "adapter-manifest.json"
+    fixture = FIXTURES / "exgentic" / "trajectory.jsonl"
+    kwargs = {
+        "source_revision": _revision(manifest),
+        "accepted_licenses": frozenset({"Apache-2.0"}),
+    }
+    with pytest.raises(AdapterRefusal, match="destination root must be absolute"):
+        import_upstream_file(
+            fixture,
+            Path("relative-output"),
+            manifest,
+            REPO_ROOT,
+            source_root=FIXTURES,
+            **kwargs,
+        )
+    with pytest.raises(AdapterRefusal, match="source root must be absolute"):
+        import_upstream_file(
+            fixture,
+            tmp_path / "out",
+            manifest,
+            REPO_ROOT,
+            source_root=Path("relative-source"),
+            **kwargs,
+        )
+    with pytest.raises(AdapterRefusal, match="manifest path must be absolute"):
+        load_adapter_manifest(Path("adapter-manifest.json"), REPO_ROOT)
+    with pytest.raises(AdapterRefusal, match="repository root must be absolute"):
+        load_adapter_manifest(manifest, Path("relative-repo"))

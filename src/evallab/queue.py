@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fcntl
 import fnmatch
+import hashlib
 import json
 import os
 import platform
@@ -30,6 +31,7 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.paths import derived_root_from_environment
+from evallab.profiles import CONTROL_ADAPTERS
 from evallab.quota import (
     Headroom,
     default_roots,
@@ -72,6 +74,7 @@ from evallab.schemas import (
     QueueState,
     RunProvenance,
     StandingApprovalsPolicy,
+    canonical_grid_point_id,
 )
 
 QUEUE_STATES: tuple[QueueState, ...] = (
@@ -1507,6 +1510,7 @@ class Executor:
         package_digest = None
         timeout_seconds = spec.timeout_seconds
         canonical_task_path = spec.executable_task_path
+        task_id = spec.task_id
 
         if spec.task.startswith("registered/"):
             reg = TaskRegistry.from_repo(self.repo_root)
@@ -1521,7 +1525,100 @@ class Executor:
             task_version = resolved.version
             verifier_digest = resolved.digests.verifier
             package_digest = resolved.digests.package
+            task_id = resolved.task_id
             timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
+        grid_point = spec.grid_point if isinstance(spec.grid_point, dict) else {}
+        bound_values = (
+            dict(grid_point["bindings"])
+            if isinstance(grid_point.get("bindings"), dict)
+            else {}
+        )
+        factor_values = (
+            dict(grid_point["factors"])
+            if isinstance(grid_point.get("factors"), dict)
+            else {}
+        )
+        factor_bindings = (
+            dict(grid_point["factor_bindings"])
+            if isinstance(grid_point.get("factor_bindings"), dict)
+            else {}
+        )
+        factor_bindings_digest = "sha256:" + hashlib.sha256(
+            json.dumps(
+                factor_bindings, sort_keys=True, separators=(",", ":")
+            ).encode()
+        ).hexdigest()
+        declared_binding_digest = grid_point.get("factor_bindings_digest")
+        if (
+            declared_binding_digest is not None
+            and declared_binding_digest != factor_bindings_digest
+        ):
+            raise ExecutionFailure(
+                "factor_binding_unhonored",
+                "factor-name binding map does not match its declared digest",
+            )
+        if set(factor_values) != set(factor_bindings):
+            raise ExecutionFailure(
+                "factor_binding_unhonored",
+                "factor values and factor-name bindings do not name the same coordinates",
+            )
+        for factor_name, level in factor_values.items():
+            binding = factor_bindings[factor_name]
+            if bound_values.get(binding) != level:
+                raise ExecutionFailure(
+                    "factor_binding_unhonored",
+                    f"factor {factor_name!r} level {level!r} does not match "
+                    f"bound execution value {binding!r}={bound_values.get(binding)!r}",
+                )
+        resolved_execution_values = {
+            "concurrency": spec.concurrency,
+            "timeout_seconds": timeout_seconds,
+        }
+        for binding, expected in bound_values.items():
+            if (
+                binding not in resolved_execution_values
+                or resolved_execution_values[binding] != expected
+            ):
+                raise ExecutionFailure(
+                    "factor_binding_unhonored",
+                    f"factor binding {binding!r} requested {expected!r} but execution "
+                    f"resolved {resolved_execution_values.get(binding)!r}",
+                )
+        stored_point_id = grid_point.get("point_id")
+        if stored_point_id is not None:
+            point_agent = str(grid_point.get("agent") or spec.agent)
+            point_model = grid_point.get("model") or spec.model
+            point_agent_key = (
+                f"{point_agent}-{point_model}"
+                if point_model and point_agent not in CONTROL_ADAPTERS
+                else point_agent
+            )
+            expected_point_id = canonical_grid_point_id(
+                task_ref=str(
+                    grid_point.get("task_ref")
+                    or grid_point.get("task")
+                    or spec.task
+                ),
+                agent_key=point_agent_key,
+                preamble=(
+                    str(grid_point["preamble"])
+                    if grid_point.get("preamble") is not None
+                    else None
+                ),
+                k=int(grid_point.get("k") or spec.attempts),
+                arm_id=(
+                    str(grid_point["arm_id"])
+                    if grid_point.get("arm_id")
+                    else None
+                ),
+                factor_values=factor_values,
+                factor_bindings=factor_bindings,
+            )
+            if stored_point_id != expected_point_id:
+                raise ExecutionFailure(
+                    "grid_point_identity_mismatch",
+                    "stored point_id does not match canonical runnable coordinates",
+                )
 
         jobs_dir = self._safe_repo_path(spec.jobs_dir)
         # A field the dispatcher never forwards is the defect class this repo keeps
@@ -1531,6 +1628,27 @@ class Executor:
             if spec.extra_instruction_path
             else None
         )
+        actual_preamble_hash = (
+            f"sha256:{hashlib.sha256(extra_instruction_path.read_bytes()).hexdigest()}"
+            if extra_instruction_path is not None and extra_instruction_path.is_file()
+            else None
+        )
+        declared_preamble_hash = spec.extra_instruction_sha256 or (
+            str(grid_point["preamble_sha256"])
+            if grid_point.get("preamble_sha256")
+            else None
+        )
+        if extra_instruction_path is not None and actual_preamble_hash is None:
+            raise ExecutionFailure(
+                "preamble_missing",
+                f"preamble file does not exist: {spec.extra_instruction_path!r}",
+            )
+        if declared_preamble_hash and actual_preamble_hash != declared_preamble_hash:
+            raise ExecutionFailure(
+                "preamble_provenance_mismatch",
+                f"preamble {spec.extra_instruction_path!r} no longer matches "
+                f"declared digest {declared_preamble_hash}",
+            )
         request = RunRequest(
             task=task_path,
             extra_instruction_path=extra_instruction_path,
@@ -1554,6 +1672,23 @@ class Executor:
                 policy_rule=spec.policy_rule,
                 package_digest=package_digest,
                 task_path=canonical_task_path,
+                grid_id=spec.grid_id,
+                point_id=(
+                    str(grid_point["point_id"]) if grid_point.get("point_id") else None
+                ),
+                arm_id=str(grid_point["arm_id"]) if grid_point.get("arm_id") else None,
+                factor_values=factor_values or None,
+                factor_bindings=factor_bindings or None,
+                factor_bindings_digest=(
+                    factor_bindings_digest if factor_bindings else None
+                ),
+                bound_execution_values=bound_values or None,
+                preamble_path=spec.extra_instruction_path,
+                preamble_sha256=actual_preamble_hash,
+                task_family=spec.task_family,
+                task_id=task_id,
+                task_instance_id=spec.task_instance_id,
+                generator_seed=spec.generator_seed,
             ),
         )
         return self._run_with_transient_retries(spec, request)

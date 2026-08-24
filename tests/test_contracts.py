@@ -654,3 +654,32 @@ def test_extra_instruction_path_cannot_escape_the_repository(escape):
     fenced by the same repo-relative rule as task_path and jobs_dir."""
     with pytest.raises(ValidationError):
         _s03_spec(extra_instruction_path=escape)
+
+
+def test_factor_provenance_schema_migrates_preexisting_fact_table_additively() -> None:
+    schema = (Path(__file__).parents[1] / "sql" / "schema.sql").read_text()
+    columns = (
+        "grid_id",
+        "point_id",
+        "arm_id",
+        "factor_values_json",
+        "factor_values_digest",
+        "factor_bindings_json",
+        "factor_bindings_digest",
+        "bound_execution_values_json",
+        "bound_execution_values_digest",
+        "preamble_path",
+        "preamble_content_sha256",
+        "task_family",
+        "task_id",
+        "task_instance_id",
+        "generator_seed_json",
+        "task_block_inputs_json",
+        "task_block_id",
+    )
+    for column in columns:
+        assert (
+            "ALTER TABLE deterministic_trial_facts "
+            f"ADD COLUMN IF NOT EXISTS {column} text;"
+        ) in schema
+        assert f"{column} text NOT NULL" not in schema

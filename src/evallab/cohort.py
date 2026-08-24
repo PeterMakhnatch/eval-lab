@@ -27,7 +27,11 @@ CONSEQUENTIAL_FIELDS = (
     "model_name",
     "model_settings_digest",
     "preamble_hash",
+    "preamble_content_sha256",
     "toolset_digest",
+    "factor_values_digest",
+    "factor_bindings_digest",
+    "bound_execution_values_digest",
 )
 
 BOOTSTRAP_RESAMPLES = 4_000
@@ -46,6 +50,23 @@ class CohortMember:
     task_digest: str | None
     verifier_digest: str
     environment_digest: str
+    grid_id: str | None
+    point_id: str | None
+    arm_id: str | None
+    factor_values_json: str | None
+    factor_values_digest: str | None
+    factor_bindings_json: str | None
+    factor_bindings_digest: str | None
+    bound_execution_values_json: str | None
+    bound_execution_values_digest: str | None
+    preamble_path: str | None
+    preamble_content_sha256: str | None
+    task_family: str | None
+    task_id: str | None
+    task_instance_id: str | None
+    generator_seed_json: str | None
+    task_block_inputs_json: str | None
+    task_block_id: str | None
     agent_name: str | None
     agent_version: str | None
     model_name: str | None
@@ -266,6 +287,23 @@ def _member(
         task_digest=fact.task_digest,
         verifier_digest=fact.verifier_digest,
         environment_digest=fact.environment_digest,
+        grid_id=fact.grid_id,
+        point_id=fact.point_id,
+        arm_id=fact.arm_id,
+        factor_values_json=fact.factor_values_json,
+        factor_values_digest=fact.factor_values_digest,
+        factor_bindings_json=fact.factor_bindings_json,
+        factor_bindings_digest=fact.factor_bindings_digest,
+        bound_execution_values_json=fact.bound_execution_values_json,
+        bound_execution_values_digest=fact.bound_execution_values_digest,
+        preamble_path=fact.preamble_path,
+        preamble_content_sha256=fact.preamble_content_sha256,
+        task_family=fact.task_family,
+        task_id=fact.task_id,
+        task_instance_id=fact.task_instance_id,
+        generator_seed_json=fact.generator_seed_json,
+        task_block_inputs_json=fact.task_block_inputs_json,
+        task_block_id=fact.task_block_id,
         agent_name=agent_name,
         agent_version=agent_version,
         model_name=model_name,
@@ -325,11 +363,38 @@ def _validate_comparability(
         "environment_digest",
         "preamble_hash",
         "toolset_digest",
+        "factor_values_digest",
+        "bound_execution_values_digest",
+        "factor_bindings_digest",
+        "preamble_content_sha256",
     }
     differing_fields = [
         field for field in treatment_fields if len(observed[field]) > 1
     ]
     warnings: list[str] = []
+    if spec.declared_variable in {
+        "factor_values_digest",
+        "bound_execution_values_digest",
+    }:
+        required = (
+            "factor_values_digest",
+            "factor_bindings_digest",
+            "bound_execution_values_digest",
+        )
+        for field in required:
+            if any(member.condition(field) is None for member in members):
+                warnings.append(
+                    f"controlled factor provenance is missing {field!r}"
+                )
+    if (
+        spec.declared_variable in {"preamble_hash", "preamble_content_sha256"}
+        and any(
+            member.preamble_path is not None
+            and member.preamble_content_sha256 is None
+            for member in members
+        )
+    ):
+        warnings.append("controlled preamble provenance is missing content sha256")
     for field, expected in spec.constraints.items():
         actual = set(observed[field])
         if actual != {expected}:
@@ -344,6 +409,14 @@ def _validate_comparability(
         )
     elif spec.declared_variable == "model_name":
         allowed_differences.add("model_settings_digest")
+    elif spec.declared_variable == "factor_values_digest":
+        allowed_differences.add("bound_execution_values_digest")
+    elif spec.declared_variable == "bound_execution_values_digest":
+        allowed_differences.add("factor_values_digest")
+    elif spec.declared_variable == "preamble_hash":
+        allowed_differences.add("preamble_content_sha256")
+    elif spec.declared_variable == "preamble_content_sha256":
+        allowed_differences.add("preamble_hash")
     undeclared = [field for field in differing_fields if field not in allowed_differences]
     if spec.declared_variable not in differing_fields:
         warnings.append(f"declared variable {spec.declared_variable!r} does not differ")
@@ -791,7 +864,7 @@ def _paired_results(
             )
             unpaired = sorted(set(baseline_tasks) ^ set(comparison_tasks))
             reasons: list[str] = []
-            if spec.pairing_key not in {"task_digest", "task_name"}:
+            if spec.pairing_key not in {"task_block_id", "task_digest", "task_name"}:
                 reasons.append(f"pairing key {spec.pairing_key!r} is not a task identity")
             if warnings:
                 reasons.extend(warnings)

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import posixpath
 import re
 from datetime import date, datetime
 from typing import Any, Literal, cast, get_args
@@ -75,6 +77,48 @@ def validated_jobs_dir(value: str) -> str:
         "<spec.json>`"
     )
 
+
+def canonical_preamble_path(value: str | None) -> str | None:
+    """Normalize a repo-relative preamble coordinate; ``none`` is absence."""
+    if value in (None, "none"):
+        return None
+    normalized = posixpath.normpath(value)
+    if normalized in ("", ".") or normalized.startswith("/") or normalized == "..":
+        raise ValueError(f"invalid preamble path {value!r}")
+    if normalized.startswith("../"):
+        raise ValueError(f"preamble path must stay relative to the repository: {value!r}")
+    return normalized
+
+def canonical_grid_point_id(
+    *,
+    task_ref: str,
+    agent_key: str,
+    preamble: str | None,
+    k: int,
+    arm_id: str | None,
+    factor_values: dict[str, Any],
+    factor_bindings: dict[str, str],
+) -> str:
+    """Hash the complete runnable grid coordinate without name parsing."""
+    bindings_json = json.dumps(
+        factor_bindings, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    payload = {
+        "task_ref": task_ref,
+        "agent_key": agent_key,
+        "preamble": canonical_preamble_path(preamble),
+        "k": k,
+        "arm_id": arm_id,
+        "factors": factor_values,
+        "factor_bindings": factor_bindings,
+        "factor_bindings_digest": (
+            f"sha256:{hashlib.sha256(bindings_json.encode()).hexdigest()}"
+        ),
+    }
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 #: Why a spec exists. Required on every ``ExperimentSpec``, because until now
 #: nothing recorded *intent*: the queue could be listed but never grouped,
@@ -202,6 +246,11 @@ class ExperimentSpec(ContractModel):
             "so EXP-S03's treatment arm varies it while the control leaves it unset."
         ),
     )
+    extra_instruction_sha256: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+        description="content digest of extra_instruction_path at spec generation",
+    )
     agent: str = Field(min_length=1)
     model: str | None = None
     environment: str = "docker"
@@ -220,6 +269,15 @@ class ExperimentSpec(ContractModel):
     submitted_at: datetime | None = None
     grid_id: str | None = None
     grid_point: dict[str, Any] | None = None
+    task_family: str | None = None
+    task_id: str | None = None
+    task_instance_id: str | None = None
+    generator_seed: int | str | None = Field(
+        default=None,
+        description=(
+            "task-generator seed only; model-sampling seed is uncontrolled and absent"
+        ),
+    )
 
     @field_validator("task", "task_path", "jobs_dir", "extra_instruction_path")
     @classmethod
@@ -239,6 +297,10 @@ class ExperimentSpec(ContractModel):
     def controls_do_not_name_models(self) -> ExperimentSpec:
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"the {self.agent} control does not accept a model")
+        if self.extra_instruction_sha256 and not self.extra_instruction_path:
+            raise ValueError(
+                "extra_instruction_sha256 requires extra_instruction_path"
+            )
         return self
 
     @property
@@ -443,6 +505,28 @@ class RunProvenance(ContractModel):
     policy_rule: str | None = None
     package_digest: str | None = None
     task_path: str | None = None
+    grid_id: str | None = None
+    point_id: str | None = None
+    arm_id: str | None = None
+    factor_values: dict[str, str | int | float | bool] | None = None
+    factor_bindings: dict[
+        str, Literal["concurrency", "timeout_seconds"]
+    ] | None = None
+    factor_bindings_digest: str | None = None
+    bound_execution_values: dict[
+        Literal["concurrency", "timeout_seconds"], int
+    ] | None = None
+    preamble_path: str | None = None
+    preamble_sha256: str | None = None
+    task_family: str | None = None
+    task_id: str | None = None
+    task_instance_id: str | None = None
+    generator_seed: int | str | None = Field(
+        default=None,
+        description=(
+            "task-generator seed only; model-sampling seed is uncontrolled and absent"
+        ),
+    )
 
 
 class CohortSelector(ContractModel):
@@ -470,13 +554,19 @@ class CohortComparisonSpec(ContractModel):
         "model_settings_digest",
         "environment_digest",
         "preamble_hash",
+        "preamble_content_sha256",
         "toolset_digest",
+        "factor_values_digest",
+        "factor_bindings_digest",
+        "bound_execution_values_digest",
     ]
     mode: Literal["causal", "exploratory"] = "causal"
     reward_name: str = "reward"
     pass_threshold: float = 1.0
     pass_k: list[int] = Field(default_factory=lambda: [1], min_length=1)
-    pairing_key: Literal["task_digest", "task_name", "trial_name"] = "task_digest"
+    pairing_key: Literal[
+        "task_block_id", "task_digest", "task_name", "trial_name"
+    ] = "task_digest"
     constraints: dict[Literal["task_digest", "verifier_digest", "environment_digest"], str] = Field(
         default_factory=dict
     )
@@ -1320,6 +1410,15 @@ class TaskSpec(ContractModel):
     expected_reward: float | None = None
     task_version: str | None = None
     verifier_digest: str | None = None
+    task_family: str | None = None
+    task_id: str | None = None
+    instance_id: str | None = None
+    generator_seed: int | str | None = Field(
+        default=None,
+        description=(
+            "task-generator seed only; model-sampling seed is uncontrolled and absent"
+        ),
+    )
 
 
 class AgentSpec(ContractModel):
@@ -1336,6 +1435,30 @@ class AgentSpec(ContractModel):
             raise ValueError(f"Control agent {self.agent!r} must not declare a model")
         return self
 FactorValue = str | int | float | bool
+FactorBinding = Literal["concurrency", "timeout_seconds"]
+
+
+class GridFactor(ContractModel):
+    """A declared treatment coordinate bound to a runner execution lever."""
+
+    binding: FactorBinding
+    levels: list[FactorValue] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _levels_match_binding(self) -> GridFactor:
+        encoded = [json.dumps(level, sort_keys=True) for level in self.levels]
+        if len(encoded) != len(set(encoded)):
+            raise ValueError("factor contains duplicate levels")
+        for level in self.levels:
+            if not isinstance(level, int) or isinstance(level, bool):
+                raise ValueError(
+                    f"binding {self.binding!r} requires integer levels, got {level!r}"
+                )
+            if level < 1:
+                raise ValueError(f"binding {self.binding!r} requires levels >= 1")
+            if self.binding == "timeout_seconds" and level > 21_600:
+                raise ValueError("timeout_seconds factor levels must be <= 21600")
+        return self
 
 
 class ExperimentArm(ContractModel):
@@ -1347,6 +1470,11 @@ class ExperimentArm(ContractModel):
     agent: AgentSpec
     preamble: str = "none"
     factor_overrides: dict[str, FactorValue] = Field(default_factory=dict)
+
+    @field_validator("preamble", mode="before")
+    @classmethod
+    def _canonical_preamble(cls, value: Any) -> str:
+        return canonical_preamble_path(str(value)) or "none"
 
     @field_validator("agent", mode="before")
     @classmethod
@@ -1400,7 +1528,7 @@ class GridAxes(ContractModel):
     agents: list[AgentSpec] = Field(default_factory=list)
     arms: list[ExperimentArm] = Field(default_factory=list)
     preamble: list[str] = Field(default_factory=lambda: ["none"])
-    factors: dict[str, list[FactorValue]] = Field(default_factory=dict)
+    factors: dict[str, GridFactor] = Field(default_factory=dict)
     k: list[int] = Field(default_factory=lambda: [1])
     @field_validator("task_refs", mode="before")
     @classmethod
@@ -1461,16 +1589,18 @@ class GridAxes(ContractModel):
     @field_validator("factors")
     @classmethod
     def _validate_factors(
-        cls, values: dict[str, list[FactorValue]]
-    ) -> dict[str, list[FactorValue]]:
-        for name, levels in values.items():
+        cls, values: dict[str, GridFactor]
+    ) -> dict[str, GridFactor]:
+        bindings: dict[FactorBinding, str] = {}
+        for name, factor in values.items():
             if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
                 raise ValueError(f"invalid factor name {name!r}")
-            if not levels:
-                raise ValueError(f"factor {name!r} must declare at least one level")
-            encoded = [json.dumps(level, sort_keys=True) for level in levels]
-            if len(encoded) != len(set(encoded)):
-                raise ValueError(f"factor {name!r} contains duplicate levels")
+            previous = bindings.get(factor.binding)
+            if previous is not None:
+                raise ValueError(
+                    f"factors {previous!r} and {name!r} both bind {factor.binding!r}"
+                )
+            bindings[factor.binding] = name
         return values
 
     @model_validator(mode="after")
@@ -1490,7 +1620,8 @@ class GridAxes(ContractModel):
                     )
                 encoded = json.dumps(value, sort_keys=True)
                 declared = {
-                    json.dumps(level, sort_keys=True) for level in self.factors[name]
+                    json.dumps(level, sort_keys=True)
+                    for level in self.factors[name].levels
                 }
                 if encoded not in declared:
                     raise ValueError(
@@ -1499,7 +1630,6 @@ class GridAxes(ContractModel):
                     )
         return self
 
-
     @field_validator("preamble", mode="before")
     @classmethod
     def _normalize_preamble(cls, value: Any) -> list[str]:
@@ -1507,7 +1637,12 @@ class GridAxes(ContractModel):
             value = [value]
         if not value:
             return ["none"]
-        return list(value)
+        normalized = [
+            canonical_preamble_path(str(item)) or "none" for item in value
+        ]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("preamble levels must be unique")
+        return normalized
 
     @field_validator("k", mode="before")
     @classmethod
@@ -1524,6 +1659,8 @@ class GridAxes(ContractModel):
             if int_val < 1:
                 raise ValueError(f"k value {int_val} must be >= 1")
             res.append(int_val)
+        if len(res) != len(set(res)):
+            raise ValueError("k values must be unique")
         return res
 
 
@@ -1600,8 +1737,10 @@ class GridSpec(ContractModel):
         self.preambles = self.axes.preamble
         self.attempts = self.axes.k
         declared_factors = {
-            name: {json.dumps(level, sort_keys=True) for level in levels}
-            for name, levels in self.axes.factors.items()
+            name: {
+                json.dumps(level, sort_keys=True) for level in factor.levels
+            }
+            for name, factor in self.axes.factors.items()
         }
         declared_arms = {arm.arm_id for arm in self.axes.arms}
         for constraint in self.constraints:

@@ -28,6 +28,10 @@ if TYPE_CHECKING:
         DedupeRecord,
         GridGenerationResult,
     )
+from evallab.capability_contract import (
+    CapabilityContractReport,
+    ClaimKind,
+)
 from evallab.power import plan_power_spec
 from evallab.profiles import CONTROL_ADAPTERS, builtin_profiles
 from evallab.registry import TaskNotRegisteredError, TaskRegistry
@@ -46,6 +50,17 @@ ScreenClassification = Literal[
     "broken/error",
     "insufficient",
 ]
+# M052-INTEGRATION-BEGIN
+def validate_capability_admission(
+    report: CapabilityContractReport,
+) -> CapabilityContractReport:
+    """Admit validated evidence, including honest insufficiency, but never invalid evidence."""
+    if report.status == "invalid":
+        raise ValueError("invalid capability contract cannot enter screen or policy admission")
+    return report
+# M052-INTEGRATION-END
+
+
 
 
 class ModelLevelSpec(ContractModel):
@@ -121,6 +136,10 @@ class ScreenSpec(ContractModel):
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     submitted_by: str = Field(default="ladder-screen", min_length=1)
     hypothesis_template: str | None = None
+    # M052-INTEGRATION-BEGIN
+    capability_claim: ClaimKind | None = None
+    capability_contract: CapabilityContractReport | None = None
+    # M052-INTEGRATION-END
 
     @field_validator("model_levels", mode="before")
     @classmethod
@@ -161,6 +180,12 @@ class ScreenSpec(ContractModel):
     def _screen_has_comparable_levels(self) -> ScreenSpec:
         if len(self.model_levels) < 2:
             raise ValueError("a screen requires at least two ordered model levels")
+        # M052-INTEGRATION-BEGIN
+        if self.capability_claim is not None and self.capability_contract is None:
+            raise ValueError("typed capability claim requires a validated capability contract")
+        if self.capability_contract is not None:
+            validate_capability_admission(self.capability_contract)
+        # M052-INTEGRATION-END
         return self
 
 

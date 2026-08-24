@@ -16,4 +16,4 @@ Blockers: none
 
 ## Source evidence and dependencies
 
-PR #146's `ladder.py` carries factor coordinates into generated specs. M045/#140 supplies staged cohorts and M030/#142 supplies trajectory facts. PRs #149 and #150 merged factor provenance and the empirical curve before M052/#155 consumed them; M048 and M051 remain independent evidence sources. The committed depth fixture is `task_generator`-kind contract-enforcement evidence only: no execution-bound Grid has produced a curve.
+PR #146's `ladder.py` carries factor coordinates into generated specs. M045/#140 supplies staged cohorts and M030/#142 supplies trajectory facts. PRs #149 and #150 merged factor provenance and the empirical curve before M052/#155 consumed them; M048 and M051 remain independent evidence sources. Runtime contracts bind declared execution levers or fail closed, but the only committed curve spec is `task_generator`-kind: no `factor_kind: execution` experiment or execution-bound Grid has produced a curve.

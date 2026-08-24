@@ -1,0 +1,80 @@
+{
+  "batch": "seqgen-v0",
+  "coverage_contribution": {
+    "new_bigrams": [
+      "dedupe_by->filter_eq",
+      "filter_eq->sort_by",
+      "head->select",
+      "select->dedupe_by",
+      "sort_by->sort_by",
+      "sort_by->write"
+    ],
+    "new_unigrams": [
+      "dedupe_by",
+      "filter_eq",
+      "head",
+      "select",
+      "sort_by"
+    ]
+  },
+  "digests": {
+    "expected_jsonl": "sha256:ed0eb8911e2671641b01ec856f54d13ef49a5bd2ba3598baedb6ab08d7c370f1",
+    "orders_jsonl": "sha256:5e66eb7517ca931db44dfc992a639f54c8e8c609b6b6b6d85b438e882f6adb07",
+    "rp": "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
+    "task_toml": "sha256:da873ad01bf8031ecfa32077cb80e8c64b4f4d0e713d627fdbb93f89916a9dc1"
+  },
+  "generator": "seqgen@0.1.0",
+  "instruction_style": "declarative",
+  "master_seed": 7,
+  "row_counts": {
+    "input": 45,
+    "output": 1
+  },
+  "schema_version": 1,
+  "seed": 70064,
+  "sequence": [
+    {
+      "args": {
+        "n": 3
+      },
+      "op": "head"
+    },
+    {
+      "args": {
+        "fields": [
+          "id",
+          "region"
+        ]
+      },
+      "op": "select"
+    },
+    {
+      "args": {
+        "field": "region"
+      },
+      "op": "dedupe_by"
+    },
+    {
+      "args": {
+        "field": "region",
+        "value": "west"
+      },
+      "op": "filter_eq"
+    },
+    {
+      "args": {
+        "field": "id",
+        "order": "desc"
+      },
+      "op": "sort_by"
+    },
+    {
+      "args": {
+        "field": "id",
+        "order": "asc"
+      },
+      "op": "sort_by"
+    }
+  ],
+  "slug": "seqgen-s7-000"
+}

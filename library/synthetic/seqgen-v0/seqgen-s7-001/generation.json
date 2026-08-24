@@ -1,0 +1,76 @@
+{
+  "batch": "seqgen-v0",
+  "coverage_contribution": {
+    "new_bigrams": [
+      "filter_eq->write",
+      "filter_ge->filter_ge",
+      "filter_ge->group_sum",
+      "group_sum->sort_by",
+      "sort_by->filter_eq"
+    ],
+    "new_unigrams": [
+      "filter_ge",
+      "group_sum"
+    ]
+  },
+  "digests": {
+    "expected_jsonl": "sha256:69409d8b658e03bfaa3f7124d7d6c87f5fedd298edd0faddc233a74f840e32b5",
+    "orders_jsonl": "sha256:3c2ea8fd25cadba04a4de77864b3abf5b48ba84852c193d2dda072711d408914",
+    "rp": "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
+    "task_toml": "sha256:6866e27631cb9380cb437007987f8f052eef9bdd0336dec68fe7c50fbd141344"
+  },
+  "generator": "seqgen@0.1.0",
+  "instruction_style": "declarative",
+  "master_seed": 7,
+  "row_counts": {
+    "input": 43,
+    "output": 1
+  },
+  "schema_version": 1,
+  "seed": 70058,
+  "sequence": [
+    {
+      "args": {
+        "field": "amount",
+        "value": 111
+      },
+      "op": "filter_ge"
+    },
+    {
+      "args": {
+        "field": "day",
+        "value": 25
+      },
+      "op": "filter_ge"
+    },
+    {
+      "args": {
+        "group_field": "status",
+        "value_field": "amount"
+      },
+      "op": "group_sum"
+    },
+    {
+      "args": {
+        "field": "total_amount",
+        "order": "desc"
+      },
+      "op": "sort_by"
+    },
+    {
+      "args": {
+        "field": "status",
+        "order": "desc"
+      },
+      "op": "sort_by"
+    },
+    {
+      "args": {
+        "field": "status",
+        "value": "returned"
+      },
+      "op": "filter_eq"
+    }
+  ],
+  "slug": "seqgen-s7-001"
+}

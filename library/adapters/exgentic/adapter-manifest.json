@@ -1,0 +1,30 @@
+{
+  "schema_version": "adapter-manifest/v1",
+  "adapter_id": "exgentic-trajectory-file/v1",
+  "upstream": {
+    "canonical_url": "https://github.com/Exgentic/exgentic",
+    "revision": "ae8d10f7f1e29d2b08d8a5d41bafa16836004998",
+    "license": "Apache-2.0",
+    "license_status": "verified",
+    "status": "active"
+  },
+  "role": "trajectory",
+  "capabilities": [
+    "trajectory-events"
+  ],
+  "isolation": "file",
+  "input": {
+    "format": "exgentic-trajectory-jsonl",
+    "version": "v1"
+  },
+  "output": {
+    "format": "atif+external-evidence",
+    "version": "external-evidence/v1"
+  },
+  "compatibility_fixture": {
+    "path": "tests/fixtures/upstream_adapters/exgentic/trajectory.jsonl",
+    "digest": "sha256:4a6537147b5d9fe00dedd395c8cb947cbf227e679ed8d4c2d9cac6112cb6d62b"
+  },
+  "adapter_code_digest": "sha256:2a7ff06441d71d8a390aa2e07e38b879ba3d00c82af8369af3c15e18ebfac889",
+  "last_verified": "2026-08-24"
+}

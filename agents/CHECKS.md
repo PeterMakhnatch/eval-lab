@@ -14,9 +14,10 @@ lint floor; CI also exercises Python 3.14.
 | Locked install | `uv sync --locked` | uv 0.9.24; Python 3.12 and 3.14 |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
 | Tests | `uv run pytest` | locked pytest; Python 3.12 and 3.14 |
-| Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; ratchet at 33 diagnostics |
+| Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; ratchet at 28 diagnostics |
+| Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze |
 
-The ty job passes at or below 33 diagnostics and fails above 33. Lower the ratchet
+The ty job passes at or below 28 diagnostics and fails above 28. Lower the ratchet
 when diagnostics are removed; never raise it without rationale in the PR.
 
 Run `make premerge` before pushing. `scripts/premerge.sh` pins Python 3.12, checks

@@ -47,13 +47,16 @@ gitignored). Never point `jobs_dir` outside your worktree.
 lines are machine-parsed by `scripts/fleet-status.sh` / `evallab fleet`:
 
 ```
-Status: building | blocked | review-wanted | done
+Status: ready | building | blocked | review-wanted | done
 Last: <one line — most recent completed step>
 Next: <one line>
 Blockers: <one line or "none">
 ```
 
-Free prose below. A stale header is treated as "unknown — investigate."
+`ready` means registered and pending execution; `building` means execution has
+started. `done` is transitional: normalize the header, then move the handoff
+1:1 into a dated `agents/archive/*-handoffs/` directory. Archived handoffs are
+frozen after the move; only that directory's `INDEX.md` may be updated.
 
 ## Work loop
 
@@ -81,10 +84,13 @@ Free prose below. A stale header is treated as "unknown — investigate."
   number and head SHA in the merge commit body. An integrator may commit
   *finished-but-uncommitted* work on a role's branch with `(integrated by
   <name>)` in the message only when the role's session is inactive.
-- When a role's mission completes: final PR, handoff `Status: done`, then the
-  integrator runs `git worktree remove .worktrees/<role>` and deletes or
-  keeps the branch per the mission's board row. Worktrees are workspaces,
-  not archives. Only the integrator edits the board, merges, and sunsets.
+- When a role finishes implementation, its final PR handoff remains
+  `Status: review-wanted`. After merge, the integrator changes it to
+  `Status: done` immediately before the same archive commit moves it 1:1 into a
+  dated `agents/archive/*-handoffs/` directory. `done` is therefore forbidden
+  in `agents/handoffs/`. The integrator then removes the worktree and deletes or
+  keeps the branch per the board row. Only the integrator edits the board,
+  merges, archives, and sunsets.
 - Stale branches with zero commits ahead of `main` are deleted on sight.
 
 ## Shared resources

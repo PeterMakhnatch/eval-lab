@@ -25,15 +25,21 @@ from evallab.schemas import (
     ExperimentSpec,
     TaskAdmissionState,
     TaskAllowedUse,
+    TaskCertificationEnvelope,
     TaskContamination,
     TaskControlEvidence,
     TaskDigests,
     TaskLimits,
     TaskRegistryRecord,
 )
+from evallab.task_workbench import (
+    ISOLATION_DIAGNOSTIC_CODES,
+    LEAKAGE_DIAGNOSTIC_CODES,
+)
 
 IGNORED_FILE_NAMES = {".DS_Store", ".git", "__pycache__", ".pytest_cache"}
 IGNORED_EXTENSIONS = {".pyc", ".pyo", ".tmp"}
+SUPPORTED_TASK_WORKBENCH_VERSIONS = frozenset({"m049-v1"})
 
 
 def task_directory_digest(path: Path) -> str:
@@ -81,6 +87,10 @@ class TaskVersionMismatchError(RegistryError):
 
 class TaskControlEvidenceError(RegistryError):
     """Raised when control evidence files are missing, unparseable, tampered, or invalid."""
+
+
+class TaskCertificationError(RegistryError):
+    """Raised when a bound workbench certificate is missing, replayed, or tampered."""
 
 
 class TaskUsageNotAllowedError(RegistryError):
@@ -188,6 +198,365 @@ def harbor_task_digest(task_dir: Path) -> str:
         file_digest = hashlib.sha256(path.read_bytes()).hexdigest()
         digest.update(f"{relative}\0{file_digest}\n".encode())
     return f"sha256:{digest.hexdigest()}"
+
+
+def _canonical_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n"
+    ).encode()
+
+
+def _digest_bytes(value: bytes) -> str:
+    return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def _packet_mapping(value: Any, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise TaskCertificationError(f"{label} must be an object")
+    return value
+
+
+def _verify_packet_artifacts(
+    repo_root: Path, packet_dir: Path, items: Any, label: str
+) -> None:
+    if not isinstance(items, list):
+        raise TaskCertificationError(f"{label} must be a list")
+    for raw in items:
+        item = _packet_mapping(raw, f"{label} item")
+        relative = item.get("path")
+        digest = item.get("digest")
+        if not isinstance(relative, str) or not isinstance(digest, str):
+            raise TaskCertificationError(f"{label} item requires path and digest")
+        artifact = (repo_root / relative).resolve()
+        try:
+            artifact.relative_to(packet_dir)
+        except ValueError as exc:
+            raise TaskCertificationError(
+                f"{label} artifact escapes its certificate packet"
+            ) from exc
+        if not artifact.is_file() or _digest_bytes(artifact.read_bytes()) != digest:
+            raise TaskCertificationError(f"{label} artifact is missing or tampered: {relative}")
+
+
+def certification_envelope_from_packet(
+    repo_root: Path,
+    packet_path: Path | str,
+    *,
+    task_id: str,
+    task_version: str,
+    task_path: str,
+    package_digest: str,
+) -> TaskCertificationEnvelope:
+    """Read and validate a durable workbench packet against one exact task identity."""
+    repo_root = repo_root.resolve()
+    packet = (
+        (repo_root / packet_path).resolve()
+        if not Path(packet_path).is_absolute()
+        else Path(packet_path).resolve()
+    )
+    try:
+        relative = packet.relative_to(repo_root).as_posix()
+    except ValueError as exc:
+        raise TaskCertificationError("certificate packet escapes the repository") from exc
+    expected_root = (repo_root / "research/registration/candidates").resolve()
+    try:
+        packet.relative_to(expected_root)
+    except ValueError as exc:
+        raise TaskCertificationError(
+            "certificate packet is outside research/registration/candidates"
+        ) from exc
+    if packet.name != "certification.json" or not packet.is_file():
+        raise TaskCertificationError("certificate packet must name an existing certification.json")
+    raw_bytes = packet.read_bytes()
+    try:
+        body = _packet_mapping(json.loads(raw_bytes), "certificate packet")
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise TaskCertificationError("certificate packet is not valid UTF-8 JSON") from exc
+    if body.get("kind") != "task_workbench_certification" or body.get("certified") is not True:
+        raise TaskCertificationError("packet is not a certified task_workbench certificate")
+    if body.get("status") != "certified_for_review":
+        raise TaskCertificationError("certificate packet disposition is not certified_for_review")
+    if body.get("workbench_version") not in SUPPORTED_TASK_WORKBENCH_VERSIONS:
+        raise TaskCertificationError(
+            f"unsupported task workbench version: {body.get('workbench_version')!r}"
+        )
+    certification_id = body.get("certification_id")
+    unsigned_body = dict(body)
+    unsigned_body.pop("certification_id", None)
+    expected_id = "cert-" + hashlib.sha256(_canonical_bytes(unsigned_body)).hexdigest()[:24]
+    if certification_id != expected_id:
+        raise TaskCertificationError("certificate certification_id is invalid")
+
+    candidate_path = packet.parent / "candidate.json"
+    if not candidate_path.is_file():
+        raise TaskCertificationError("certificate candidate.json is missing")
+    try:
+        candidate = _packet_mapping(json.loads(candidate_path.read_bytes()), "candidate packet")
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise TaskCertificationError("candidate packet is not valid UTF-8 JSON") from exc
+    candidate_digest = candidate.get("candidate_record_digest")
+    candidate_unsigned = dict(candidate)
+    candidate_unsigned.pop("candidate_record_digest", None)
+    if candidate_digest != _digest_bytes(_canonical_bytes(candidate_unsigned)):
+        raise TaskCertificationError("candidate record digest is invalid")
+    if (
+        body.get("candidate_id") != candidate.get("candidate_id")
+        or body.get("candidate_record_digest") != candidate_digest
+        or body.get("workbench_version") != candidate.get("workbench_version")
+    ):
+        raise TaskCertificationError("certificate and candidate identities do not match")
+
+    binding = _packet_mapping(body.get("task_binding"), "task_binding")
+    exact_identity = {
+        "task_id": task_id,
+        "task_version": task_version,
+        "task_path": task_path,
+        "package_digest": package_digest,
+    }
+    for key, expected in exact_identity.items():
+        if binding.get(key) != expected:
+            raise TaskCertificationError(
+                f"certificate replay/identity mismatch for {key}: "
+                f"expected {expected!r}, got {binding.get(key)!r}"
+            )
+    if (
+        candidate.get("task_id") != task_id
+        or candidate.get("task_version") != task_version
+        or candidate.get("task_path") != task_path
+    ):
+        raise TaskCertificationError("candidate packet was created for another task")
+    candidate_digests = _packet_mapping(candidate.get("digests"), "candidate digests")
+    if (
+        binding.get("candidate_package_digest") != candidate_digests.get("package")
+        or binding.get("package_digest") != candidate_digests.get("registry_package")
+    ):
+        raise TaskCertificationError("certificate package digest lineage is inconsistent")
+
+    generator = _packet_mapping(body.get("generator_identity"), "generator_identity")
+    validator = _packet_mapping(body.get("validator_identity"), "validator_identity")
+    if generator == validator:
+        raise TaskCertificationError("circular generator/validator self-check is not admissible")
+    if (
+        generator.get("model") is not None
+        and generator.get("model") == validator.get("model")
+    ):
+        raise TaskCertificationError("same-model generator/validator claims are circular")
+
+    retained_evidence = body.get("retained_evidence")
+    retained_replays = body.get("retained_replays")
+    _verify_packet_artifacts(
+        repo_root, packet.parent, retained_evidence, "retained evidence"
+    )
+    _verify_packet_artifacts(
+        repo_root, packet.parent, retained_replays, "retained replay"
+    )
+    if not isinstance(retained_evidence, list) or not isinstance(retained_replays, list):
+        raise TaskCertificationError("retained evidence and replay claims must be lists")
+    evidence_ids = {
+        _packet_mapping(item, "retained evidence item").get("control_id")
+        for item in retained_evidence
+    }
+    replay_ids = {
+        _packet_mapping(item, "retained replay item").get("control_id")
+        for item in retained_replays
+    }
+    if "please-hack" not in evidence_ids or {
+        "fair-alternative",
+        "please-hack",
+    } - replay_ids:
+        raise TaskCertificationError(
+            "certificate lacks replayable fair-alternative or please-hack evidence"
+        )
+    bundle = _packet_mapping(body.get("control_bundle"), "control_bundle")
+    observations = bundle.get("observations")
+    plan = body.get("control_plan")
+    if not isinstance(observations, list) or not isinstance(plan, list):
+        raise TaskCertificationError("control plan and observations must be lists")
+    observation_by_id = {
+        _packet_mapping(item, "control observation").get("control_id"): item
+        for item in observations
+    }
+    if (
+        len(observation_by_id) != len(observations)
+        or len(observations) != len(plan)
+    ):
+        raise TaskCertificationError("control observations are duplicate or incomplete")
+
+    def controls(kind: str) -> list[dict[str, Any]]:
+        ids = [
+            _packet_mapping(item, "control plan entry").get("control_id")
+            for item in plan
+            if _packet_mapping(item, "control plan entry").get("kind") == kind
+        ]
+        try:
+            return [
+                _packet_mapping(observation_by_id[control_id], "control observation")
+                for control_id in ids
+            ]
+        except KeyError as exc:
+            raise TaskCertificationError("control plan observation is missing") from exc
+
+    oracle = controls("oracle")
+    nop = controls("nop")
+    invalid = controls("adversarial")
+    fair = controls("fair_alternative")
+    hack = controls("please_hack")
+
+    def exact(values: list[dict[str, Any]], count: int, reward: float) -> bool:
+        return len(values) == count and all(
+            item.get("status") == "completed"
+            and item.get("exception_type") is None
+            and item.get("reward") == reward
+            and isinstance(item.get("verifier_output_digest"), str)
+            and isinstance(item.get("evidence_digest"), str)
+            for item in values
+        )
+
+    oracle_exact = exact(oracle, 3, 1.0)
+    oracle_outputs = [item.get("verifier_output_digest") for item in oracle]
+    diagnostics = body.get("diagnostics")
+    if not isinstance(diagnostics, list):
+        raise TaskCertificationError("certificate diagnostics must be a list")
+    normalized_diagnostics: list[dict[str, Any]] = []
+    diagnostic_fields = {"severity", "code", "classification", "path", "message"}
+    for raw_diagnostic in diagnostics:
+        diagnostic = _packet_mapping(raw_diagnostic, "certificate diagnostic")
+        if set(diagnostic) != diagnostic_fields:
+            raise TaskCertificationError("certificate diagnostic fields are invalid")
+        if (
+            diagnostic.get("severity") not in {"error", "warning", "info"}
+            or diagnostic.get("classification")
+            not in {"task_defect", "harness_defect", "agent_failure", "expected"}
+            or any(
+                not isinstance(diagnostic.get(key), str)
+                for key in ("code", "path", "message")
+            )
+        ):
+            raise TaskCertificationError("certificate diagnostic values are invalid")
+        normalized_diagnostics.append(diagnostic)
+    plan_ids = {
+        _packet_mapping(item, "control plan entry").get("control_id") for item in plan
+    }
+    bundle_valid = not any(
+        item["severity"] == "error" and item["path"] == "$controls"
+        for item in normalized_diagnostics
+    )
+    static = not any(
+        item["severity"] == "error"
+        and item["path"] not in plan_ids
+        and item["path"] != "$controls"
+        for item in normalized_diagnostics
+    )
+    all_controls_completed = bundle_valid and bool(observations) and all(
+        _packet_mapping(item, "control observation").get("status") == "completed"
+        and _packet_mapping(item, "control observation").get("exception_type") is None
+        for item in observations
+    )
+    derived = {
+        "all_controls_completed": all_controls_completed,
+        "oracle_exact_1_x3": oracle_exact,
+        "oracle_stable_output": oracle_exact
+        and len(set(oracle_outputs)) == 1
+        and oracle_outputs[0] is not None,
+        "nop_exact_0_x2": exact(nop, 2, 0.0),
+        "invalid_outputs_rejected": len(invalid) >= 3
+        and exact(invalid, len(invalid), 0.0),
+        "fair_alternative_exact_1": exact(fair, 1, 1.0),
+        "please_hack_executed": exact(hack, 1, 0.0),
+        "hack_detected": False,
+        "static": bundle_valid and static,
+        "leakage_scan_clean": bundle_valid
+        and static
+        and not any(
+            item["code"] in LEAKAGE_DIAGNOSTIC_CODES
+            for item in normalized_diagnostics
+        ),
+        "isolation": static
+        and all_controls_completed
+        and not any(
+            item["code"] in ISOLATION_DIAGNOSTIC_CODES
+            for item in normalized_diagnostics
+        ),
+    }
+    summary = _packet_mapping(body.get("control_summary"), "control_summary")
+    expected_summary = {
+        "oracle_runs": len(oracle),
+        "nop_runs": len(nop),
+        "invalid_probe_runs": len(invalid),
+        "fair_alternative_runs": len(fair),
+        "please_hack_runs": len(hack),
+        "result_digests": [
+            _digest_bytes(_canonical_bytes(item)) for item in observations
+        ],
+    }
+    if summary != expected_summary:
+        raise TaskCertificationError("control summary contradicts digest-verified observations")
+    vector = _packet_mapping(body.get("check_vector"), "check_vector")
+    if any(vector.get(key) != value for key, value in derived.items()):
+        raise TaskCertificationError("check vector contradicts digest-verified observations")
+    required_true = {
+        "all_controls_completed",
+        "static",
+        "oracle_exact_1_x3",
+        "oracle_stable_output",
+        "nop_exact_0_x2",
+        "invalid_outputs_rejected",
+        "fair_alternative_exact_1",
+        "please_hack_executed",
+        "leakage_scan_clean",
+        "isolation",
+    }
+    if any(vector.get(key) is not True for key in required_true):
+        raise TaskCertificationError("certificate required check vector is not fully satisfied")
+    if vector.get("hack_detected") is not False:
+        raise TaskCertificationError("certificate reports an accepted please-hack exploit")
+    axes = _packet_mapping(body.get("axes"), "axes")
+    for axis in (
+        "task_correctness",
+        "verifier_soundness",
+        "verifier_completeness",
+        "solvability",
+    ):
+        if _packet_mapping(axes.get(axis), axis).get("status") != "passed":
+            raise TaskCertificationError(f"certificate required axis {axis} did not pass")
+
+    envelope_data = {
+        "state": "bound",
+        "reason": "bound_workbench_certificate_packet",
+        "certification_id": certification_id,
+        "packet_path": relative,
+        "packet_sha256": _digest_bytes(raw_bytes),
+        "candidate_id": body.get("candidate_id"),
+        "candidate_record_digest": candidate_digest,
+        "candidate_package_digest": binding.get("candidate_package_digest"),
+        "package_digest": binding.get("package_digest"),
+        "workbench_version": body.get("workbench_version"),
+        "check_vector": vector,
+        "control_summary": body.get("control_summary"),
+        "axes": axes,
+        "generator_identity": generator,
+        "validator_identity": validator,
+    }
+    try:
+        return TaskCertificationEnvelope.model_validate(envelope_data)
+    except ValidationError as exc:
+        raise TaskCertificationError(f"certificate envelope is invalid: {exc}") from exc
+
+
+def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> None:
+    """Re-read a bound packet and require its strict envelope to match the registry."""
+    if record.certification.state == "legacy_missing":
+        return
+    rebuilt = certification_envelope_from_packet(
+        repo_root,
+        record.certification.packet_path or "",
+        task_id=record.task_id,
+        task_version=record.version,
+        task_path=record.task_path,
+        package_digest=record.digests.package,
+    )
+    if rebuilt != record.certification:
+        raise TaskCertificationError("stored certification envelope does not match packet bytes")
 
 
 
@@ -501,6 +870,7 @@ def promote_task(
     actor: str | None = None,
     approved_at: datetime | None = None,
     jobs_roots: Sequence[Path] | None = None,
+    certification_path: Path | str | None = None,
 ) -> TaskRegistryRecord:
     """Promote a task package on disk into the explicit task registry."""
     repo_root = repo_root.resolve()
@@ -634,6 +1004,18 @@ def promote_task(
 
     # Compute digests
     digests = compute_task_digests(target_path)
+    certification = (
+        certification_envelope_from_packet(
+            repo_root,
+            certification_path,
+            task_id=task_id,
+            task_version=version,
+            task_path=rel_task_path,
+            package_digest=digests.package,
+        )
+        if certification_path is not None
+        else TaskCertificationEnvelope()
+    )
 
 
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
@@ -679,10 +1061,17 @@ def promote_task(
                     "control_evidence": discovered_evidence,
                     "state_reason": None,
                 }
+                if certification_path is not None:
+                    updates["certification"] = certification
                 if state == "registered":
                     if not actor or not actor.strip():
                         raise ValueError(
                             "registered task records require approved_by / --actor"
+                        )
+                    if certification.state != "bound":
+                        raise TaskCertificationError(
+                            "new registered promotion requires a valid "
+                            "--certification-packet"
                         )
                     updates.update(
                         {
@@ -696,6 +1085,7 @@ def promote_task(
                 )
                 if updated_record.state == "registered":
                     verify_control_evidence(repo_root, updated_record)
+                    verify_certification_packet(repo_root, updated_record)
                 record_file.write_text(
                     json.dumps(updated_record.model_dump(mode="json"), indent=2) + "\n"
                 )
@@ -714,6 +1104,10 @@ def promote_task(
         if not actor or not actor.strip():
             raise ValueError(
                 "registered task records require approved_by / --actor"
+            )
+        if certification.state != "bound":
+            raise TaskCertificationError(
+                "new registered promotion requires a valid --certification-packet"
             )
         approved_by = actor
         approved_timestamp = approved_at or datetime.now(UTC)
@@ -737,6 +1131,7 @@ def promote_task(
             max_cpus=max_cpus,
         ),
         control_evidence=control_evidence,
+        certification=certification,
         state=state,
         allowed_uses=allowed_uses,
         contamination=contamination,
@@ -759,6 +1154,7 @@ def register_task(
     *,
     registry_dir: Path | None = None,
     approved_at: datetime | None = None,
+    certification_path: Path | str | None = None,
 ) -> TaskRegistryRecord:
     """Explicitly register a candidate task in the task registry with human approval."""
     if not actor or not actor.strip():
@@ -774,8 +1170,29 @@ def register_task(
 
     raw = json.loads(record_file.read_text())
     record = TaskRegistryRecord.model_validate(raw)
+    if certification_path is not None:
+        certification = certification_envelope_from_packet(
+            repo_root,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
+        record = TaskRegistryRecord.model_validate(
+            record.model_copy(update={"certification": certification}).model_dump()
+        )
+    if record.state != "registered" and record.certification.state != "bound":
+        raise TaskCertificationError(
+            "new registration requires a valid --certification-packet"
+        )
 
     if record.state == "registered" and record.approved_by == actor:
+        verify_certification_packet(repo_root, record)
+        if certification_path is not None:
+            record_file.write_text(
+                json.dumps(record.model_dump(mode="json"), indent=2) + "\n"
+            )
         return record
 
     target_path = (repo_root / record.task_path).resolve()
@@ -810,6 +1227,7 @@ def register_task(
         ).model_dump()
     )
     verify_control_evidence(repo_root, final_record)
+    verify_certification_packet(repo_root, final_record)
 
     reg_dir.mkdir(parents=True, exist_ok=True)
     record_file.write_text(
@@ -1075,6 +1493,7 @@ class TaskRegistry:
             )
 
         verify_control_evidence(repo_root, record)
+        verify_certification_packet(repo_root, record)
 
         return record
 
@@ -1287,6 +1706,28 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                         category="missing_approval",
                         target=record.task_id,
                         message="registered task requires approved_by and approved_at",
+                    )
+                )
+
+        if record.certification.state == "legacy_missing":
+            findings.append(
+                AuditFinding(
+                    severity="warning",
+                    category="legacy_missing_certification",
+                    target=record.task_id,
+                    message=record.certification.reason,
+                )
+            )
+        else:
+            try:
+                verify_certification_packet(root, record)
+            except TaskCertificationError as exc:
+                findings.append(
+                    AuditFinding(
+                        severity="error",
+                        category="invalid_certification_packet",
+                        target=record.task_id,
+                        message=str(exc),
                     )
                 )
 

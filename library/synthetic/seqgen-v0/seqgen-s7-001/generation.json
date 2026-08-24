@@ -17,7 +17,7 @@
     "expected_jsonl": "sha256:d059d20d96e497122ddc45efa5e1fde79384f380e2f0f38c81b175a6bf677c04",
     "orders_jsonl": "sha256:3c2ea8fd25cadba04a4de77864b3abf5b48ba84852c193d2dda072711d408914",
     "rp": "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
-    "task_toml": "sha256:6866e27631cb9380cb437007987f8f052eef9bdd0336dec68fe7c50fbd141344"
+    "task_toml": "sha256:caf0b7e92f5cf0da1acc99c365ea09a5553baeee097541f5275b01d0fbd0c850"
   },
   "generator": "seqgen@0.1.0",
   "instruction_style": "declarative",
@@ -77,5 +77,6 @@
       "op": "select"
     }
   ],
-  "slug": "seqgen-s7-001"
+  "slug": "seqgen-s7-001",
+  "verifier_network": "no-network"
 }

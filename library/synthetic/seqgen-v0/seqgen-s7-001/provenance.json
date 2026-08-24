@@ -4,9 +4,9 @@
   "zone": "03-synthetic",
   "source_uri": "library/synthetic/seqgen-v0/seqgen-s7-001",
   "revision": null,
-  "material_digest": "sha256:4c8599394d357db3cba0c6c24897a76785e4c6364441d43d981231b9379568ff",
+  "material_digest": "sha256:20fe42ec4243621226638abd9f2ae097a642c03cefdd062cf636c9baaa5f0e5d",
   "license": null,
-  "created_at": "2026-08-24T04:01:50.514047Z",
+  "created_at": "2026-08-24T04:07:40.219390Z",
   "created_by": "evallab.seqgen",
   "transform": "seqgen@0.1.0",
   "parent_digests": [

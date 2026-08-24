@@ -906,13 +906,37 @@ def emit_task_package(
     master_seed: int,
     contribution: dict[str, list[Any]],
     now: datetime,
+    verifier_network: str = "no-network",
 ) -> dict[str, Any]:
-    """Emit a complete, self-contained Harbor task package."""
+    """Emit a complete, self-contained Harbor task package.
+
+    ``verifier_network`` selects the separate verifier's network declaration:
+
+    * ``"no-network"`` (default) — emits ``[verifier.environment]
+      network_mode = "no-network"``, the isolation the workbench gate requires
+      (``task_workbench._validate_network_and_isolation``). Harbor's Docker
+      provider enforces it only where egress control is available
+      (``docker.py:188-195``): Linux, or a Docker Desktop kernel that passes
+      ``_egress_control_kernel_support()``. On this lab's macOS workstation it
+      is rejected at trial start (``harbor/environments/base.py:777``).
+    * ``"inherit"`` — omits the table, matching ``library/tasks/event-summary``;
+      runnable on macOS Docker Desktop but refused by the workbench gate.
+
+    The contradiction is the machine's, not the package's; both spellings are
+    recorded in ``generation.json`` so a batch states which contract it serves.
+    """
+    if verifier_network not in {"no-network", "inherit"}:
+        raise ValueError(f"unsupported verifier_network: {verifier_network!r}")
     task_dir = out_dir / slug
     task_dir.mkdir(parents=True, exist_ok=True)
 
     seq_len = len(candidate.sequence)
     difficulty = "easy" if seq_len <= 4 else "medium"
+    verifier_environment_block = (
+        '\n[verifier.environment]\nnetwork_mode = "no-network"\n'
+        if verifier_network == "no-network"
+        else ""
+    )
 
     # 1. task.toml
     task_toml_content = f"""schema_version = "1.4"
@@ -940,9 +964,7 @@ tags = ["deterministic", "synthetic", "seqgen"]
 timeout_sec = 60.0
 environment_mode = "separate"
 collect = []
-
-[verifier.environment]
-network_mode = "no-network"
+{verifier_environment_block}
 
 [agent]
 timeout_sec = 120.0
@@ -1096,6 +1118,7 @@ cat << 'EOF' > /app/output/result.jsonl
         "master_seed": master_seed,
         "sequence": candidate.sequence,
         "instruction_style": "declarative",
+        "verifier_network": verifier_network,
         "digests": {
             "orders_jsonl": _sha256_file(env_dir / "orders.jsonl"),
             "expected_jsonl": _sha256_file(fixtures_dir / "expected.jsonl"),
@@ -1154,6 +1177,7 @@ def generate_batch(
     pool: int,
     out_dir: Path,
     now: datetime,
+    verifier_network: str = "no-network",
 ) -> dict[str, Any]:
     """Generate a deterministic batch of synthetic Harbor tasks."""
     out_dir = Path(out_dir)
@@ -1182,6 +1206,7 @@ def generate_batch(
             master_seed=seed,
             contribution=contrib,
             now=now,
+            verifier_network=verifier_network,
         )
         task_summaries.append(task_summary)
 
@@ -1191,6 +1216,7 @@ def generate_batch(
         "seed": seed,
         "pool": pool,
         "count": count,
+        "verifier_network": verifier_network,
         "created_at": now.isoformat(),
         "tasks": task_summaries,
         "coverage": {
@@ -1214,6 +1240,17 @@ def main() -> None:
     parser.add_argument("--count", type=int, default=3, help="Number of tasks to select and emit")
     parser.add_argument("--pool", type=int, default=40, help="Candidate sequence pool size")
     parser.add_argument("--out", type=str, required=True, help="Output batch directory")
+    parser.add_argument(
+        "--verifier-network",
+        choices=("no-network", "inherit"),
+        default="no-network",
+        help=(
+            "Separate-verifier network declaration: 'no-network' satisfies the "
+            "workbench isolation gate (default); 'inherit' omits the table so the "
+            "package can execute on Docker hosts without egress-control support "
+            "(for example this lab's macOS workstation)."
+        ),
+    )
 
     args = parser.parse_args()
     now = datetime.now(UTC)
@@ -1225,6 +1262,7 @@ def main() -> None:
         pool=args.pool,
         out_dir=out_dir,
         now=now,
+        verifier_network=args.verifier_network,
     )
 
     unigrams = batch["coverage"]["unigrams"]

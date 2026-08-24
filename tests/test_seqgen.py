@@ -326,3 +326,38 @@ def test_directory_immutability(tmp_path: Path) -> None:
             out_dir=out_dir,
             now=datetime.now(UTC),
         )
+
+
+def test_i_verifier_network_variants(sample_batch: tuple[Path, dict], tmp_path: Path) -> None:
+    """Default batches declare verifier no-network; 'inherit' omits the table.
+
+    The two spellings serve two contracts that cannot both hold on a Docker
+    host without egress-control support: the workbench gate demands the
+    declaration, Harbor refuses to start such a verifier there. The choice
+    must therefore be explicit and recorded per task.
+    """
+    default_dir, default_batch = sample_batch
+    assert default_batch["verifier_network"] == "no-network"
+    for task in default_batch["tasks"]:
+        toml_text = (default_dir / task["slug"] / "task.toml").read_text()
+        assert '[verifier.environment]\nnetwork_mode = "no-network"' in toml_text
+        record = json.loads((default_dir / task["slug"] / "generation.json").read_text())
+        assert record["verifier_network"] == "no-network"
+
+    now = datetime(2026, 8, 23, 12, 0, 0, tzinfo=UTC)
+    inherit_dir = tmp_path / "batch_inherit"
+    inherit_batch = generate_batch(
+        seed=7, count=1, pool=40, out_dir=inherit_dir, now=now, verifier_network="inherit"
+    )
+    assert inherit_batch["verifier_network"] == "inherit"
+    slug = inherit_batch["tasks"][0]["slug"]
+    toml_text = (inherit_dir / slug / "task.toml").read_text()
+    assert "[verifier.environment]" not in toml_text
+    record = json.loads((inherit_dir / slug / "generation.json").read_text())
+    assert record["verifier_network"] == "inherit"
+
+    with pytest.raises(ValueError):
+        generate_batch(
+            seed=7, count=1, pool=40,
+            out_dir=tmp_path / "batch_bad", now=now, verifier_network="open",
+        )

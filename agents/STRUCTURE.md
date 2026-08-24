@@ -70,6 +70,7 @@ eval-lab/
 │   ├── tasks/                 lab-authored tasks
 │   ├── benchmarks/            pinned frontier benchmark ingests (INGEST)
 │   ├── adapters/              benchmark → Harbor converters
+│   ├── synthetic/             Zone 03 generated task sources (docs/data-architecture.md)
 │   └── registry/              task admission and execution trust records (REGISTER)
 │
 ├── research/                  WHAT WE LEARN — produced knowledge
@@ -211,3 +212,8 @@ for today).
   `containers/state-journal/` runtime. Bucket: Platform-owned service container
   definitions and entrypoints; unlike `runs/` or `derived/`, these sources are
   committed and reviewed.
+- 2026-08-24 — `library/synthetic/` named in the library submap (SEQGEN).
+  Bucket rule: evaluable task supply; the path was already the normative Zone
+  03 storage boundary in `docs/data-architecture.md` and the blueprint's
+  disposition target in `docs/research/synthetic-tasks.md`; the first
+  committed batch is `library/synthetic/seqgen-v0/`.

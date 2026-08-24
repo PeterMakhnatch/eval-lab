@@ -1,0 +1,496 @@
+"""Focused unit tests for SEQGEN v0 generator.
+
+Covers the deterministic package, control, isolation, lineage, and provenance
+contracts required before these Zone 03 candidates can seek M049 admission.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+
+import pytest
+
+from evallab.schemas import ProvenanceMetadata
+from evallab.seqgen import (
+    DOMAIN_SPEC,
+    TASTE_RESEARCH_INFLUENCE,
+    apply_op_to_state,
+    compute_package_manifest_digest,
+    compute_syntactic_candidate_upper_bound,
+    enumerate_valid_ops,
+    extract_bigrams,
+    generate_batch,
+    generate_candidate_pool,
+    select_candidates_by_coverage,
+)
+from evallab.task_workbench import CandidateSource, inspect_candidate
+
+
+def _file_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@pytest.fixture
+def sample_batch(tmp_path: Path) -> tuple[Path, dict]:
+    now = datetime(2026, 8, 23, 12, 0, 0, tzinfo=UTC)
+    out_dir = tmp_path / "batch_sample"
+    batch = generate_batch(
+        seed=7,
+        count=3,
+        pool=40,
+        out_dir=out_dir,
+        now=now,
+    )
+    return out_dir, batch
+
+
+def test_a_determinism(tmp_path: Path) -> None:
+    """Two generate_batch runs with same args+now yield identical files and sha256."""
+    now = datetime(2026, 8, 23, 12, 0, 0, tzinfo=UTC)
+    dir1 = tmp_path / "run1" / "test_batch"
+    dir2 = tmp_path / "run2" / "test_batch"
+    batch1 = generate_batch(seed=42, count=3, pool=30, out_dir=dir1, now=now)
+    batch2 = generate_batch(seed=42, count=3, pool=30, out_dir=dir2, now=now)
+
+    assert batch1 == batch2
+
+    files1 = {
+        p.relative_to(dir1).as_posix(): _file_digest(p) for p in dir1.rglob("*") if p.is_file()
+    }
+    files2 = {
+        p.relative_to(dir2).as_posix(): _file_digest(p) for p in dir2.rglob("*") if p.is_file()
+    }
+
+    assert files1 == files2
+
+
+def test_b_validity(sample_batch: tuple[Path, dict]) -> None:
+    """For every generated task, replaying the sequence passes every precondition."""
+    batch_dir, batch = sample_batch
+    for task_info in batch["tasks"]:
+        slug = task_info["slug"]
+        task_dir = batch_dir / slug
+        gen_record = json.loads((task_dir / "generation.json").read_text(encoding="utf-8"))
+
+        dataset_lines = (
+            (task_dir / "environment/orders.jsonl").read_text(encoding="utf-8").splitlines()
+        )
+        dataset = [json.loads(line) for line in dataset_lines if line.strip()]
+
+        current_schema = dict(DOMAIN_SPEC["initial_schema"])
+        current_rows = dataset
+        prev_op_args: tuple[str, str] | None = None
+
+        sequence = gen_record["sequence"]
+        assert 3 <= len(sequence) <= 6
+
+        for step in sequence:
+            op = step["op"]
+            args = step["args"]
+
+            # Check op was in valid enumerated ops at this state
+            valid_ops = enumerate_valid_ops(current_schema, current_rows, prev_op_args)
+            matching = [v for v in valid_ops if v["op"] == op and v["args"] == args]
+            assert len(matching) == 1, f"Op {op} with {args} was not valid at state"
+
+            current_schema, current_rows = apply_op_to_state(current_schema, current_rows, op, args)
+            prev_op_args = (op, json.dumps(args, sort_keys=True))
+
+        assert len(current_rows) > 0
+        expected_lines = (
+            (task_dir / "tests/fixtures/expected.jsonl").read_text(encoding="utf-8").splitlines()
+        )
+        expected_rows = [json.loads(line) for line in expected_lines if line.strip()]
+        assert current_rows == expected_rows
+
+
+def test_c_simulator_rp_equivalence(sample_batch: tuple[Path, dict], tmp_path: Path) -> None:
+    """Execute solution/solve.sh commands as real subprocesses against environment/orders.jsonl."""
+    batch_dir, batch = sample_batch
+    first_task = batch["tasks"][0]["slug"]
+    task_dir = batch_dir / first_task
+
+    orders_path = task_dir / "environment/orders.jsonl"
+    rp_script = task_dir / "environment/rp"
+    expected_bytes = (task_dir / "tests/fixtures/expected.jsonl").read_bytes()
+
+    # Parse solve.sh lines
+    solve_lines = (task_dir / "solution/solve.sh").read_text(encoding="utf-8").splitlines()
+    work_dir = tmp_path / "subproc_work"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    out_file = work_dir / "result.jsonl"
+
+    for line in solve_lines:
+        line = line.strip()
+        if not line.startswith("/app/bin/rp"):
+            continue
+
+        # Replace /app/bin/rp with python sys.executable rp_script
+        # Replace /app/data/orders.jsonl with orders_path
+        # Replace /app/output/result.jsonl or "$OUTPUT" with out_file
+        # Replace /tmp/ with work_dir/
+        parts = line.split()
+        cmd = [sys.executable, str(rp_script)]
+        i = 1
+        while i < len(parts):
+            part = parts[i]
+            if part == '"$INPUT"' or part == "/app/data/orders.jsonl":
+                cmd.append(str(orders_path))
+            elif part == '"$OUTPUT"' or part == "/app/output/result.jsonl":
+                cmd.append(str(out_file))
+            elif part.startswith("/tmp/"):
+                sub_name = Path(part).name
+                cmd.append(str(work_dir / sub_name))
+            else:
+                cmd.append(part)
+            i += 1
+
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        assert result.returncode == 0, f"Command failed: {cmd}\nstderr: {result.stderr}"
+
+    assert out_file.is_file()
+    assert out_file.read_bytes() == expected_bytes
+
+
+def test_d_workbench_static_acceptance(sample_batch: tuple[Path, dict], tmp_path: Path) -> None:
+    """inspect_candidate passes static checks for generated packages."""
+    batch_dir, batch = sample_batch
+
+    # Create a mock repo root layout containing the task package
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+
+    task_slug = batch["tasks"][0]["slug"]
+    task_src = batch_dir / task_slug
+    task_dest = repo_root / "library/synthetic" / batch_dir.name / task_slug
+    task_dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(task_src, task_dest)
+
+    source = CandidateSource(
+        source_uri=f"library/synthetic/{batch_dir.name}/{task_slug}",
+        source_ref="seqgen@0.1.0",
+        license="NOASSERTION",
+        provenance_zone="03-synthetic",
+    )
+
+    inspection = inspect_candidate(
+        repo_root=repo_root,
+        task_path=Path("library/synthetic") / batch_dir.name / task_slug,
+        source=source,
+    )
+
+    assert inspection.static_passed is True, f"Diagnostics: {inspection.diagnostics}"
+    assert len([d for d in inspection.diagnostics if d.severity == "error"]) == 0
+
+    plan_kinds = [entry.kind for entry in inspection.control_plan]
+    assert plan_kinds.count("oracle") == 3
+    assert plan_kinds.count("nop") == 2
+    assert plan_kinds.count("adversarial") >= 3
+    assert plan_kinds.count("fair_alternative") == 1
+    assert plan_kinds.count("please_hack") == 1
+
+
+def test_e_leakage_prevention(sample_batch: tuple[Path, dict]) -> None:
+    """Expected bytes stay in verifier/reward-hack controls, never agent-visible."""
+    batch_dir, batch = sample_batch
+    for task_info in batch["tasks"]:
+        slug = task_info["slug"]
+        task_dir = batch_dir / slug
+
+        instruction = (task_dir / "instruction.md").read_bytes()
+        solve_lines = (task_dir / "solution/solve.sh").read_text(encoding="utf-8").splitlines()
+        for line in solve_lines:
+            stripped = line.strip()
+            if (
+                not stripped
+                or stripped.startswith("#")
+                or stripped in ("set -eu", "mkdir -p /app/output")
+            ):
+                continue
+            assert stripped.encode() not in instruction, f"Leaked solve line: {stripped}"
+
+        env_files = {p.name for p in (task_dir / "environment").iterdir()}
+        assert env_files == {"Dockerfile", "orders.jsonl", "rp"}
+        expected = (task_dir / "tests/fixtures/expected.jsonl").read_bytes()
+        carriers = {
+            path.relative_to(task_dir).as_posix()
+            for path in task_dir.rglob("*")
+            if path.is_file() and expected in path.read_bytes()
+        }
+        assert carriers == {
+            "tests/fixtures/expected.jsonl",
+            "workbench/please-hack.sh",
+        }
+        assert expected not in instruction
+        assert all(
+            expected not in path.read_bytes()
+            for path in (task_dir / "environment").iterdir()
+            if path.is_file()
+        )
+
+        environment_dockerfile = (task_dir / "environment/Dockerfile").read_text()
+        verifier_dockerfile = (task_dir / "tests/Dockerfile").read_text()
+        assert "tests" not in environment_dockerfile
+        assert "workbench" not in environment_dockerfile
+        assert "workbench" not in verifier_dockerfile
+        assert "../" not in verifier_dockerfile
+
+
+def test_f_adversarial_wrongness(sample_batch: tuple[Path, dict]) -> None:
+    """plausible-wrong.sh writes rows differing from expected.jsonl for every task."""
+    batch_dir, batch = sample_batch
+    for task_info in batch["tasks"]:
+        slug = task_info["slug"]
+        task_dir = batch_dir / slug
+
+        expected_lines = (
+            (task_dir / "tests/fixtures/expected.jsonl").read_text(encoding="utf-8").splitlines()
+        )
+        expected_rows = [json.loads(line) for line in expected_lines if line.strip()]
+
+        plausible_sh = (task_dir / "workbench/adversarial/plausible-wrong.sh").read_text(
+            encoding="utf-8"
+        )
+        match = re.search(
+            r"cat << 'EOF' > /app/output/result\.jsonl\n(.*?)EOF", plausible_sh, re.DOTALL
+        )
+        assert match is not None, "Could not find payload in plausible-wrong.sh"
+        payload_lines = match.group(1).strip().splitlines()
+        payload_rows = [json.loads(line) for line in payload_lines if line.strip()]
+
+        assert payload_rows != expected_rows
+        assert len(payload_rows) > 0
+
+
+def test_f_m049_special_controls(sample_batch: tuple[Path, dict], tmp_path: Path) -> None:
+    """Fair-alt is independent and please-hack is a rejected reward-seeking replay."""
+    batch_dir, batch = sample_batch
+    for task_info in batch["tasks"]:
+        slug = task_info["slug"]
+        task_dir = batch_dir / slug
+        expected = (task_dir / "tests/fixtures/expected.jsonl").read_bytes()
+        solve = (task_dir / "solution/solve.sh").read_bytes()
+        adversarial = {
+            path.read_bytes() for path in (task_dir / "workbench/adversarial").glob("*.sh")
+        }
+
+        fair = task_dir / "workbench/fair-alternative.sh"
+        fair_text = fair.read_text(encoding="utf-8")
+        assert os.access(fair, os.X_OK)
+        assert fair.read_bytes() != solve
+        assert fair.read_bytes() not in adversarial
+        assert "/app/bin/rp" not in fair_text
+        assert "environment/rp" not in fair_text
+        assert "import rp" not in fair_text
+
+        fair_root = tmp_path / slug / "fair"
+        (fair_root / "data").mkdir(parents=True)
+        shutil.copyfile(
+            task_dir / "environment/orders.jsonl",
+            fair_root / "data/orders.jsonl",
+        )
+        fair_run = subprocess.run(
+            ["sh", str(fair)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "SEQGEN_APP_ROOT": str(fair_root)},
+        )
+        assert fair_run.returncode == 0, fair_run.stderr
+        assert (fair_root / "output/result.jsonl").read_bytes() == expected
+
+        please_hack = task_dir / "workbench/please-hack.sh"
+        hack_text = please_hack.read_text(encoding="utf-8")
+        assert os.access(please_hack, os.X_OK)
+        assert please_hack.read_bytes() != solve
+        assert please_hack.read_bytes() != fair.read_bytes()
+        assert please_hack.read_bytes() not in adversarial
+        assert "orders.jsonl" not in hack_text
+
+        hack_root = tmp_path / slug / "please-hack"
+        hack_run = subprocess.run(
+            ["sh", str(please_hack)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "SEQGEN_APP_ROOT": str(hack_root)},
+        )
+        assert hack_run.returncode == 0, hack_run.stderr
+        assert (hack_root / "output/result.jsonl").read_bytes() == expected
+        output_names = sorted(path.name for path in (hack_root / "output").iterdir())
+        assert output_names == ["please-hack-proof.txt", "result.jsonl"]
+        output_hygiene = output_names == ["result.jsonl"]
+        reward = float(
+            (hack_root / "output/result.jsonl").read_bytes() == expected and output_hygiene
+        )
+        assert reward == 0.0
+
+
+def test_g_coverage_correctness(sample_batch: tuple[Path, dict]) -> None:
+    """BATCH.json bigram set equals recomputation and first selection is greedy-optimal."""
+    batch_dir, batch = sample_batch
+    tasks_info = batch["tasks"]
+
+    # Recompute bigrams from selected task generation records
+    recomputed_bigrams: set[str] = set()
+    for task_info in tasks_info:
+        task_dir = batch_dir / task_info["slug"]
+        gen_record = json.loads((task_dir / "generation.json").read_text(encoding="utf-8"))
+        seq = gen_record["sequence"]
+        bgs = extract_bigrams(seq)
+        for a, b in bgs:
+            recomputed_bigrams.add(f"{a}->{b}")
+
+    bigram_coverage = batch["coverage"]["bigrams"]
+    assert set(bigram_coverage["covered"]) == recomputed_bigrams
+
+    # Verify first selection is greedy optimal across the pool
+    pool = generate_candidate_pool(master_seed=batch["seed"], pool_size=batch["pool"])
+    valid_pool_bigrams = {
+        f"{left}->{right}" for candidate in pool for left, right in candidate.bigrams
+    }
+    assert bigram_coverage["observed_in_valid_pool"] == len(valid_pool_bigrams)
+    assert set(bigram_coverage["missing_from_valid_pool"]) == (
+        valid_pool_bigrams - recomputed_bigrams
+    )
+    upper_bound = bigram_coverage["syntactic_candidate_upper_bound"]
+    assert upper_bound["count"] == len(compute_syntactic_candidate_upper_bound()) == 54
+    assert "not an enforceable" in upper_bound["calibration"]
+    max_bg_count = max(len(set(c.bigrams)) for c in pool)
+    first_slug = tasks_info[0]["slug"]
+    first_task_dir = batch_dir / first_slug
+    first_gen = json.loads((first_task_dir / "generation.json").read_text(encoding="utf-8"))
+
+    selected_cands, _ = select_candidates_by_coverage(pool, count=1)
+    assert len(set(selected_cands[0].bigrams)) == max_bg_count
+    assert selected_cands[0].sequence == first_gen["sequence"]
+
+
+def test_h_provenance_integrity(sample_batch: tuple[Path, dict]) -> None:
+    """Provenance binds package, code identities, seeds, and input/output lineage."""
+    batch_dir, batch = sample_batch
+    generator_digest = f"sha256:{_file_digest(Path(sys.modules['evallab.seqgen'].__file__))}"
+    for task_info in batch["tasks"]:
+        slug = task_info["slug"]
+        task_dir = batch_dir / slug
+
+        prov_path = task_dir / "provenance.json"
+        assert prov_path.is_file()
+
+        prov = ProvenanceMetadata.model_validate_json(prov_path.read_text(encoding="utf-8"))
+        record = json.loads((task_dir / "generation.json").read_text(encoding="utf-8"))
+        assert prov.item_id == slug
+        assert prov.zone == "03-synthetic"
+        assert prov.revision == "seqgen@0.1.0"
+        assert prov.transform == "seqgen@0.1.0"
+        assert prov.license == "NOASSERTION"
+        assert record["certification"] == {
+            "admission_state": "unadmitted",
+            "evidence_packet": None,
+            "state": "uncertified",
+            "workbench_version": "m049-v1",
+        }
+        assert record["generator_identity"] == {
+            "code_digest": generator_digest,
+            "model_id": None,
+            "prompt_digest": None,
+            "transform": "seqgen@0.1.0",
+        }
+        influences = record["research_influences"]
+        assert influences == batch["research_influences"]
+        assert len(influences) == 1
+        influence = influences[0]
+        influence_identity = {
+            key: value for key, value in influence.items() if key != "identity_digest"
+        }
+        assert influence_identity == TASTE_RESEARCH_INFLUENCE
+        influence_digest = (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(influence_identity, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+        )
+        assert influence["identity_digest"] == influence_digest
+        assert influence_digest in prov.parent_digests
+        assert record["validator_identity"]["code_digest"] == record["digests"]["validator"]
+        assert record["validator_identity"]["model_id"] is None
+        assert record["validator_identity"]["prompt_digest"] is None
+        assert record["lineage"] == {
+            "candidate_seed": record["seed"],
+            "input_digest": record["digests"]["input_jsonl"],
+            "master_seed": record["master_seed"],
+            "output_digest": record["digests"]["output_jsonl"],
+            "sequence_digest": record["digests"]["sequence"],
+        }
+        assert len(prov.parent_digests) == 7
+        assert set(record["lineage"].values()) <= set(prov.parent_digests) | {
+            record["seed"],
+            record["master_seed"],
+            record["digests"]["sequence"],
+        }
+
+        recomputed_digest = compute_package_manifest_digest(task_dir)
+        assert prov.material_digest == recomputed_digest
+
+
+def test_directory_immutability(tmp_path: Path) -> None:
+    """generate_batch refuses to overwrite an existing non-empty directory."""
+    out_dir = tmp_path / "non_empty"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "dummy.txt").write_text("exists")
+
+    with pytest.raises(FileExistsError, match="exists and is not empty"):
+        generate_batch(
+            seed=1,
+            count=1,
+            pool=10,
+            out_dir=out_dir,
+            now=datetime.now(UTC),
+        )
+
+
+def test_i_verifier_network_variants(sample_batch: tuple[Path, dict], tmp_path: Path) -> None:
+    """Default batches declare verifier no-network; 'inherit' omits the table.
+
+    The two spellings serve two contracts that cannot both hold on a Docker
+    host without egress-control support: the workbench gate demands the
+    declaration, Harbor refuses to start such a verifier there. The choice
+    must therefore be explicit and recorded per task.
+    """
+    default_dir, default_batch = sample_batch
+    assert default_batch["verifier_network"] == "no-network"
+    for task in default_batch["tasks"]:
+        toml_text = (default_dir / task["slug"] / "task.toml").read_text()
+        assert '[verifier.environment]\nnetwork_mode = "no-network"' in toml_text
+        record = json.loads((default_dir / task["slug"] / "generation.json").read_text())
+        assert record["verifier_network"] == "no-network"
+
+    now = datetime(2026, 8, 23, 12, 0, 0, tzinfo=UTC)
+    inherit_dir = tmp_path / "batch_inherit"
+    inherit_batch = generate_batch(
+        seed=7, count=1, pool=40, out_dir=inherit_dir, now=now, verifier_network="inherit"
+    )
+    assert inherit_batch["verifier_network"] == "inherit"
+    slug = inherit_batch["tasks"][0]["slug"]
+    toml_text = (inherit_dir / slug / "task.toml").read_text()
+    assert "[verifier.environment]" not in toml_text
+    record = json.loads((inherit_dir / slug / "generation.json").read_text())
+    assert record["verifier_network"] == "inherit"
+
+    with pytest.raises(ValueError):
+        generate_batch(
+            seed=7,
+            count=1,
+            pool=40,
+            out_dir=tmp_path / "batch_bad",
+            now=now,
+            verifier_network="open",
+        )

@@ -1,0 +1,124 @@
+{
+  "batch": "seqgen-v0",
+  "certification": {
+    "admission_state": "unadmitted",
+    "evidence_packet": null,
+    "state": "uncertified",
+    "workbench_version": "m049-v1"
+  },
+  "coverage_contribution": {
+    "new_bigrams": [
+      "dedupe_by->select",
+      "filter_ge->dedupe_by",
+      "select->sort_by",
+      "sort_by->filter_ge",
+      "sort_by->sort_by",
+      "sort_by->write"
+    ],
+    "new_unigrams": []
+  },
+  "digests": {
+    "expected_jsonl": "sha256:c2bb43af668e6fcb1093bb36042c21aead9f417095d0373fda26f5f38b0a8b79",
+    "input_jsonl": "sha256:a38ee32b0c3138c715a7af735604e601d3ac7dd2bf3b933562d553dfdcf4056a",
+    "instruction_md": "sha256:991a46144e12afce51266403ab3b9a6237ed3de75c64c505c941d53d6afa0029",
+    "orders_jsonl": "sha256:a38ee32b0c3138c715a7af735604e601d3ac7dd2bf3b933562d553dfdcf4056a",
+    "output_jsonl": "sha256:c2bb43af668e6fcb1093bb36042c21aead9f417095d0373fda26f5f38b0a8b79",
+    "rp": "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
+    "sequence": "sha256:e1e60b5994a7358d3728b47915c15ff7f45c405e9cb171b0516658c8768d0091",
+    "task_toml": "sha256:065b79faf4e2a828f4457194a97a38994d0852f123aceea0a94889589fbf29d2",
+    "validator": "sha256:94e577a1b566cd679aad6b352ecc280c21cf685050acbc2f11c8537de6d9c764"
+  },
+  "generator": "seqgen@0.1.0",
+  "generator_identity": {
+    "code_digest": "sha256:534e56741597871d1c3fb0674580f520fcc6442b5ac587f79786c3b970c3aef2",
+    "model_id": null,
+    "prompt_digest": null,
+    "transform": "seqgen@0.1.0"
+  },
+  "instruction_style": "declarative",
+  "lineage": {
+    "candidate_seed": 70066,
+    "input_digest": "sha256:a38ee32b0c3138c715a7af735604e601d3ac7dd2bf3b933562d553dfdcf4056a",
+    "master_seed": 7,
+    "output_digest": "sha256:c2bb43af668e6fcb1093bb36042c21aead9f417095d0373fda26f5f38b0a8b79",
+    "sequence_digest": "sha256:e1e60b5994a7358d3728b47915c15ff7f45c405e9cb171b0516658c8768d0091"
+  },
+  "master_seed": 7,
+  "research_influences": [
+    {
+      "identity_digest": "sha256:e1c3a3423504c814addfe10e1f0ba8f49dceda0e0722d48f8a2966ecf2f0e170",
+      "implementation_firewall_claimed": false,
+      "license_status": "restricted/NOASSERTION",
+      "reuse": {
+        "artifact": false,
+        "code": false,
+        "output": false,
+        "prompt": false
+      },
+      "role": "paper-level design + dependency/license assessment",
+      "snapshot_bytes_ingested": false,
+      "source_revision": "d53da23956d63e2e6d9f6f5ba77fc5d0eca6b173",
+      "source_url": "https://github.com/tomerkeren42/TASTE-task-synthesis-from-tool-sequence-evolution"
+    }
+  ],
+  "row_counts": {
+    "input": 60,
+    "output": 3
+  },
+  "schema_version": 1,
+  "seed": 70066,
+  "sequence": [
+    {
+      "args": {
+        "field": "region",
+        "order": "asc"
+      },
+      "op": "sort_by"
+    },
+    {
+      "args": {
+        "field": "amount",
+        "value": 444
+      },
+      "op": "filter_ge"
+    },
+    {
+      "args": {
+        "field": "status"
+      },
+      "op": "dedupe_by"
+    },
+    {
+      "args": {
+        "fields": [
+          "id",
+          "status",
+          "amount"
+        ]
+      },
+      "op": "select"
+    },
+    {
+      "args": {
+        "field": "id",
+        "order": "asc"
+      },
+      "op": "sort_by"
+    },
+    {
+      "args": {
+        "field": "status",
+        "order": "desc"
+      },
+      "op": "sort_by"
+    }
+  ],
+  "slug": "seqgen-s7-002",
+  "validator_identity": {
+    "code_digest": "sha256:94e577a1b566cd679aad6b352ecc280c21cf685050acbc2f11c8537de6d9c764",
+    "model_id": null,
+    "prompt_digest": null,
+    "runtime": "tests/verify.py"
+  },
+  "verifier_network": "no-network"
+}

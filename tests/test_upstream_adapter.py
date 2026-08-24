@@ -384,3 +384,29 @@ def test_relative_declared_roots_and_manifest_are_refused(tmp_path: Path) -> Non
         load_adapter_manifest(Path("adapter-manifest.json"), REPO_ROOT)
     with pytest.raises(AdapterRefusal, match="repository root must be absolute"):
         load_adapter_manifest(manifest, Path("relative-repo"))
+
+
+@pytest.mark.parametrize("child", ("raw", "atif"))
+def test_destination_child_symlink_cannot_write_outside(
+    tmp_path: Path, child: str
+) -> None:
+    source = FIXTURES / "exgentic" / "trajectory.jsonl"
+    manifest = ADAPTERS / "exgentic" / "adapter-manifest.json"
+    destination = tmp_path / "out"
+    outside = tmp_path / "outside"
+    destination.mkdir()
+    outside.mkdir()
+    (destination / child).symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(AdapterRefusal, match=f"destination {child} path must not be a symlink"):
+        import_upstream_file(
+            source,
+            destination,
+            manifest,
+            REPO_ROOT,
+            source_root=FIXTURES,
+            source_revision=_revision(manifest),
+            accepted_licenses=frozenset({"Apache-2.0"}),
+        )
+
+    assert list(outside.iterdir()) == []

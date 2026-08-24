@@ -1,0 +1,535 @@
+{
+  "$defs": {
+    "CurveContrastReport": {
+      "additionalProperties": false,
+      "properties": {
+        "k": {
+          "minimum": 1,
+          "title": "K",
+          "type": "integer"
+        },
+        "losses": {
+          "minimum": 0,
+          "title": "Losses",
+          "type": "integer"
+        },
+        "n_pairs": {
+          "minimum": 0,
+          "title": "N Pairs",
+          "type": "integer"
+        },
+        "paired_delta": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paired Delta"
+        },
+        "paired_interval_95": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paired Interval 95"
+        },
+        "pass_power_k_delta": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pass Power K Delta"
+        },
+        "pass_power_k_interval_95": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pass Power K Interval 95"
+        },
+        "pass_power_k_losses": {
+          "minimum": 0,
+          "title": "Pass Power K Losses",
+          "type": "integer"
+        },
+        "pass_power_k_ties": {
+          "minimum": 0,
+          "title": "Pass Power K Ties",
+          "type": "integer"
+        },
+        "pass_power_k_wins": {
+          "minimum": 0,
+          "title": "Pass Power K Wins",
+          "type": "integer"
+        },
+        "rankable": {
+          "title": "Rankable",
+          "type": "boolean"
+        },
+        "refusal_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Refusal Reasons",
+          "type": "array"
+        },
+        "ties": {
+          "minimum": 0,
+          "title": "Ties",
+          "type": "integer"
+        },
+        "wins": {
+          "minimum": 0,
+          "title": "Wins",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "k",
+        "pass_power_k_wins",
+        "pass_power_k_ties",
+        "pass_power_k_losses",
+        "n_pairs",
+        "wins",
+        "ties",
+        "losses",
+        "rankable",
+        "refusal_reasons"
+      ],
+      "title": "CurveContrastReport",
+      "type": "object"
+    },
+    "CurveExceptionReport": {
+      "additionalProperties": false,
+      "properties": {
+        "exception_class": {
+          "title": "Exception Class",
+          "type": "string"
+        },
+        "task_block_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Task Block Id"
+        },
+        "trial_id": {
+          "title": "Trial Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "trial_id",
+        "task_block_id",
+        "exception_class"
+      ],
+      "title": "CurveExceptionReport",
+      "type": "object"
+    },
+    "CurveLevelReport": {
+      "additionalProperties": false,
+      "properties": {
+        "censored_task_blocks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Censored Task Blocks",
+          "type": "array"
+        },
+        "contrasts": {
+          "items": {
+            "$ref": "#/$defs/CurveContrastReport"
+          },
+          "title": "Contrasts",
+          "type": "array"
+        },
+        "exact_pair_set": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exact Pair Set",
+          "type": "array"
+        },
+        "exception_trials": {
+          "items": {
+            "$ref": "#/$defs/CurveExceptionReport"
+          },
+          "title": "Exception Trials",
+          "type": "array"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Level"
+        },
+        "missing_reward_trials": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Reward Trials",
+          "type": "array"
+        },
+        "pass_at_k": {
+          "items": {
+            "$ref": "#/$defs/CurveMetricReport"
+          },
+          "title": "Pass At K",
+          "type": "array"
+        },
+        "pass_power_k": {
+          "items": {
+            "$ref": "#/$defs/CurveMetricReport"
+          },
+          "title": "Pass Power K",
+          "type": "array"
+        },
+        "role": {
+          "enum": [
+            "reference",
+            "primary",
+            "descriptive"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "unpaired_task_blocks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unpaired Task Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "level",
+        "role",
+        "exact_pair_set",
+        "unpaired_task_blocks",
+        "censored_task_blocks",
+        "exception_trials",
+        "missing_reward_trials",
+        "pass_at_k",
+        "pass_power_k",
+        "contrasts"
+      ],
+      "title": "CurveLevelReport",
+      "type": "object"
+    },
+    "CurveMetricReport": {
+      "additionalProperties": false,
+      "properties": {
+        "insufficient_task_blocks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Insufficient Task Blocks",
+          "type": "array"
+        },
+        "k": {
+          "minimum": 1,
+          "title": "K",
+          "type": "integer"
+        },
+        "n_tasks": {
+          "minimum": 0,
+          "title": "N Tasks",
+          "type": "integer"
+        },
+        "passes": {
+          "minimum": 0,
+          "title": "Passes",
+          "type": "integer"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate"
+        },
+        "selected_task_blocks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Selected Task Blocks",
+          "type": "array"
+        },
+        "task_interval_95": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Interval 95"
+        }
+      },
+      "required": [
+        "k",
+        "n_tasks",
+        "passes",
+        "selected_task_blocks",
+        "insufficient_task_blocks"
+      ],
+      "title": "CurveMetricReport",
+      "type": "object"
+    },
+    "CurvePrimaryContrast": {
+      "additionalProperties": false,
+      "description": "The single preregistered inferential contrast on an empirical curve.",
+      "properties": {
+        "k": {
+          "minimum": 1,
+          "title": "K",
+          "type": "integer"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Level"
+        }
+      },
+      "required": [
+        "level",
+        "k"
+      ],
+      "title": "CurvePrimaryContrast",
+      "type": "object"
+    },
+    "PreregSpec": {
+      "additionalProperties": false,
+      "description": "\u00a72.1 / \u00a74 Preregistration block for comparison experiments.\n\nStored verbatim and quoted by the eval card to prevent post-hoc goalpost moving.\nBoth expected outcome and decision rule survive round-tripping unmodified.",
+      "properties": {
+        "decision_rule": {
+          "description": "pre-agreed decision rule for hypothesis acceptance verbatim",
+          "minLength": 1,
+          "title": "Decision Rule",
+          "type": "string"
+        },
+        "expected": {
+          "description": "expected result or hypothesis outcome statement verbatim",
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected",
+        "decision_rule"
+      ],
+      "title": "PreregSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A provenance-backed empirical curve, never a scalar capability score.",
+  "properties": {
+    "common_controlled_fingerprint": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Common Controlled Fingerprint"
+    },
+    "contract_note": {
+      "const": "empirical paired contract enforcement; not substantive generality evidence",
+      "default": "empirical paired contract enforcement; not substantive generality evidence",
+      "title": "Contract Note",
+      "type": "string"
+    },
+    "curve_id": {
+      "title": "Curve Id",
+      "type": "string"
+    },
+    "factor_kind": {
+      "enum": [
+        "execution",
+        "task_generator"
+      ],
+      "title": "Factor Kind",
+      "type": "string"
+    },
+    "factor_name": {
+      "title": "Factor Name",
+      "type": "string"
+    },
+    "factor_unit": {
+      "title": "Factor Unit",
+      "type": "string"
+    },
+    "input_digests": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Input Digests",
+      "type": "object"
+    },
+    "levels": {
+      "items": {
+        "$ref": "#/$defs/CurveLevelReport"
+      },
+      "title": "Levels",
+      "type": "array"
+    },
+    "ordered_levels": {
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "title": "Ordered Levels",
+      "type": "array"
+    },
+    "prereg": {
+      "$ref": "#/$defs/PreregSpec"
+    },
+    "primary_contrast": {
+      "$ref": "#/$defs/CurvePrimaryContrast"
+    },
+    "produced_at": {
+      "format": "date-time",
+      "title": "Produced At",
+      "type": "string"
+    },
+    "produced_by": {
+      "minLength": 1,
+      "title": "Produced By",
+      "type": "string"
+    },
+    "rankable": {
+      "title": "Rankable",
+      "type": "boolean"
+    },
+    "reference_level": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "title": "Reference Level"
+    },
+    "refuse_to_rank_reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Refuse To Rank Reasons",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "curve_id",
+    "factor_name",
+    "factor_unit",
+    "factor_kind",
+    "ordered_levels",
+    "reference_level",
+    "primary_contrast",
+    "prereg",
+    "input_digests",
+    "produced_at",
+    "produced_by",
+    "rankable",
+    "refuse_to_rank_reasons",
+    "levels"
+  ],
+  "title": "CapabilityCurveReport",
+  "type": "object"
+}

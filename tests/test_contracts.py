@@ -16,6 +16,8 @@ from pydantic import ValidationError
 from evallab.schemas import (
     AnalysisRecord,
     CalibrationRecord,
+    CapabilityCurveReport,
+    CapabilityCurveSpec,
     ConfidenceClaim,
     ControlEvidenceRef,
     CriterionAgreement,
@@ -51,6 +53,8 @@ def test_golden_schemas_match_live():
         (Verdict, "Verdict"),
         (ExperimentSpec, "ExperimentSpec"),
         (TaskRegistryRecord, "TaskRegistryRecord"),
+        (CapabilityCurveSpec, "CapabilityCurveSpec"),
+        (CapabilityCurveReport, "CapabilityCurveReport"),
     ]:
         live = Model.model_json_schema()
         committed = _load_golden(golden_name)

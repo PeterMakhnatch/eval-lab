@@ -901,6 +901,68 @@ def _compare_command(
     return 0
 
 
+def _curve_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.curve import build_curve, load_curve_report, load_curve_spec, write_curve
+
+    try:
+        if args.curve_command == "report":
+            report = load_curve_report(_resolve(root, args.path))
+            print(report.model_dump_json(indent=2))
+            return 0
+
+        spec_path = _resolve(root, args.path)
+        spec = load_curve_spec(spec_path)
+        if args.curve_command == "validate":
+            report = build_curve(spec, repo_root=root, produced_by=args.produced_by)
+            print(report.model_dump_json(indent=2))
+            return 0
+
+        output = (
+            _resolve(root, args.output)
+            if args.output is not None
+            else root / "derived" / "curves" / f"{spec.curve_id}.json"
+        )
+        path, report = write_curve(
+            spec_path,
+            repo_root=root,
+            output_path=output,
+            produced_by=args.produced_by,
+        )
+        try:
+            artifact = path.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            artifact = path.resolve().as_posix()
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "curve_id": report.curve_id,
+                    "artifact": artifact,
+                    "rankable": report.rankable,
+                    "refuse_to_rank_reasons": report.refuse_to_rank_reasons,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (FileExistsError, OSError, RuntimeError, ValueError) as exc:
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "valid": False,
+                    "error": str(exc),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def _power_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2476,6 +2538,29 @@ def parser() -> argparse.ArgumentParser:
     compare.add_argument("--index", action="store_true")
     compare.add_argument("--database-url")
     compare.set_defaults(func=_compare_command)
+
+    curve = commands.add_parser(
+        "curve", help="Validate, build, or read an empirical paired capability curve"
+    )
+    curve_commands = curve.add_subparsers(dest="curve_command", required=True)
+    curve_validate = curve_commands.add_parser(
+        "validate", help="Validate a curve spec and its paired cohort inputs as JSON"
+    )
+    curve_validate.add_argument("path", type=Path)
+    curve_validate.add_argument("--produced-by", default="evallab")
+    curve_validate.set_defaults(func=_curve_command)
+    curve_build = curve_commands.add_parser(
+        "build", help="Build a provenance-backed empirical curve artifact"
+    )
+    curve_build.add_argument("path", type=Path)
+    curve_build.add_argument("--output", type=Path)
+    curve_build.add_argument("--produced-by", default="evallab")
+    curve_build.set_defaults(func=_curve_command)
+    curve_report = curve_commands.add_parser(
+        "report", help="Validate and emit a frozen curve artifact as JSON"
+    )
+    curve_report.add_argument("path", type=Path)
+    curve_report.set_defaults(func=_curve_command)
 
     power = commands.add_parser("power", help="Plan task-paired pass@k comparison power")
     power_mode = power.add_mutually_exclusive_group(required=True)

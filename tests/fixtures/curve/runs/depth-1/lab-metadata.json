@@ -1,0 +1,23 @@
+{
+  "experiment": {
+    "arm_id": "depth-1",
+    "bound_execution_values": {
+      "concurrency": 1,
+      "timeout_seconds": 60
+    },
+    "factor_bindings": {},
+    "factor_values": {
+      "depth": 1
+    },
+    "fixture_contract": {
+      "executable_grid_binding": false,
+      "interpretation": "contract enforcement only; not substantive generality evidence",
+      "outcome_source": "oracle"
+    },
+    "grid_id": "m047-depth-contract-grid",
+    "point_id": "depth-1",
+    "schema_version": 1,
+    "spec_id": "m047-depth-contract",
+    "task_family": "m047-depth-contract"
+  }
+}

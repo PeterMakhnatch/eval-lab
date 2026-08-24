@@ -1,0 +1,27 @@
+{
+  "agent": {
+    "kwargs": {},
+    "mcp_servers": [],
+    "model_name": "deterministic-fixture",
+    "name": "fixture-agent",
+    "skills": [],
+    "version": "1.0.0"
+  },
+  "environment": {
+    "image": "m047-free-fixture",
+    "type": "docker"
+  },
+  "schema_version": 2,
+  "skills": [],
+  "task": {
+    "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "family": "m047-depth-contract",
+    "generator_seed": "block-b",
+    "instance_id": "block-b",
+    "name": "block-b"
+  },
+  "verifier": {
+    "environment_mode": "separate",
+    "name": "deterministic"
+  }
+}

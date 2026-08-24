@@ -1,0 +1,112 @@
+{
+  "comparisons": [
+    {
+      "comparison_spec": {
+        "budget_exhaustion_is_failure": false,
+        "cohorts": [
+          {
+            "label": "reference",
+            "paths": [
+              "tests/fixtures/curve/runs/depth-1"
+            ],
+            "trial_names": [
+              "block-a__01",
+              "block-a__02",
+              "block-b__01",
+              "block-b__02"
+            ]
+          },
+          {
+            "label": "depth-2",
+            "paths": [
+              "tests/fixtures/curve/runs/depth-2"
+            ],
+            "trial_names": [
+              "block-a__01",
+              "block-a__02",
+              "block-b__01",
+              "block-b__02"
+            ]
+          }
+        ],
+        "comparison_id": "m047-depth-1-v-2",
+        "constraints": {},
+        "declared_variable": "factor_values_digest",
+        "experiment_id": "m047-depth-contract",
+        "mode": "causal",
+        "pairing_key": "task_block_id",
+        "pass_k": [
+          2
+        ],
+        "pass_threshold": 1.0,
+        "reward_name": "reward",
+        "schema_version": 1
+      },
+      "level": 2
+    },
+    {
+      "comparison_spec": {
+        "budget_exhaustion_is_failure": false,
+        "cohorts": [
+          {
+            "label": "reference",
+            "paths": [
+              "tests/fixtures/curve/runs/depth-1"
+            ],
+            "trial_names": [
+              "block-a__01",
+              "block-a__02",
+              "block-b__01",
+              "block-b__02"
+            ]
+          },
+          {
+            "label": "depth-3",
+            "paths": [
+              "tests/fixtures/curve/runs/depth-3"
+            ],
+            "trial_names": [
+              "block-a__01",
+              "block-a__02",
+              "block-b__01",
+              "block-b__02"
+            ]
+          }
+        ],
+        "comparison_id": "m047-depth-1-v-3",
+        "constraints": {},
+        "declared_variable": "factor_values_digest",
+        "experiment_id": "m047-depth-contract",
+        "mode": "causal",
+        "pairing_key": "task_block_id",
+        "pass_k": [
+          2
+        ],
+        "pass_threshold": 1.0,
+        "reward_name": "reward",
+        "schema_version": 1
+      },
+      "level": 3
+    }
+  ],
+  "curve_id": "m047-depth-contract",
+  "factor_name": "depth",
+  "factor_kind": "task_generator",
+  "factor_unit": "steps",
+  "ordered_levels": [
+    1,
+    2,
+    3
+  ],
+  "prereg": {
+    "decision_rule": "Rank only the depth 1 versus depth 3 paired task contrast at k=2 when n_pairs >= 2 and the paired interval excludes zero.",
+    "expected": "Depth 3 is less reliable than depth 1 in the deterministic fixture."
+  },
+  "primary_contrast": {
+    "k": 2,
+    "level": 3
+  },
+  "reference_level": 1,
+  "schema_version": 1,
+  "treatment_binding": null
+}

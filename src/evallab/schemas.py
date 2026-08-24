@@ -564,6 +564,7 @@ class CohortComparisonSpec(ContractModel):
     reward_name: str = "reward"
     pass_threshold: float = 1.0
     pass_k: list[int] = Field(default_factory=lambda: [1], min_length=1)
+    budget_exhaustion_is_failure: bool = False
     pairing_key: Literal[
         "task_block_id", "task_digest", "task_name", "trial_name"
     ] = "task_digest"
@@ -588,6 +589,219 @@ class CohortComparisonSpec(ContractModel):
             raise ValueError("cohort labels must be unique")
         return self
 
+
+
+CurveFactorValue = str | int | float | bool
+
+
+class CurvePrimaryContrast(ContractModel):
+    """The single preregistered inferential contrast on an empirical curve."""
+
+    level: CurveFactorValue
+    k: int = Field(ge=1)
+
+
+class CurveComparisonSource(ContractModel):
+    """One reference-versus-level comparison, either live or already frozen."""
+
+    level: CurveFactorValue
+    comparison_spec: CohortComparisonSpec | None = None
+    comparison_artifact: str | None = None
+    comparison_artifact_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+
+    @model_validator(mode="after")
+    def exactly_one_source(self) -> CurveComparisonSource:
+        if (self.comparison_spec is None) == (self.comparison_artifact is None):
+            raise ValueError(
+                "curve comparison source requires exactly one of comparison_spec "
+                "or comparison_artifact"
+            )
+        if self.comparison_artifact is not None:
+            if self.comparison_artifact.startswith("/") or ".." in self.comparison_artifact.split(
+                "/"
+            ):
+                raise ValueError("curve comparison artifacts must stay relative to the repository")
+            if self.comparison_artifact_digest is None:
+                raise ValueError("frozen comparison artifacts require a sha256 digest")
+        elif self.comparison_artifact_digest is not None:
+            raise ValueError("comparison_artifact_digest requires comparison_artifact")
+        return self
+
+
+class CapabilityCurveSpec(ContractModel):
+    """Strict empirical curve contract; it intentionally has no fitted-model fields."""
+
+    schema_version: Literal[1] = 1
+    curve_id: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    factor_name: str = Field(min_length=1)
+    factor_unit: str = Field(min_length=1)
+    factor_kind: Literal["execution", "task_generator"]
+    ordered_levels: list[CurveFactorValue] = Field(min_length=2)
+    reference_level: CurveFactorValue
+    primary_contrast: CurvePrimaryContrast
+    prereg: PreregSpec
+    treatment_binding: Literal["concurrency", "timeout_seconds"] | None = None
+    comparisons: list[CurveComparisonSource] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def coherent_curve(self) -> CapabilityCurveSpec:
+        if self.factor_kind == "execution" and self.treatment_binding is None:
+            raise ValueError(
+                "execution capability curves require an explicit treatment_binding"
+            )
+        if self.factor_kind == "task_generator" and self.treatment_binding is not None:
+            raise ValueError(
+                "task_generator capability curves must not declare a harness treatment_binding"
+            )
+        identities = [json.dumps(value, sort_keys=True) for value in self.ordered_levels]
+        if len(identities) != len(set(identities)):
+            raise ValueError("curve ordered_levels must be unique")
+        reference = json.dumps(self.reference_level, sort_keys=True)
+        primary = json.dumps(self.primary_contrast.level, sort_keys=True)
+        if reference not in identities:
+            raise ValueError("curve reference_level must occur in ordered_levels")
+        if primary not in identities or primary == reference:
+            raise ValueError(
+                "curve primary contrast level must be a non-reference ordered level"
+            )
+        source_levels = [json.dumps(item.level, sort_keys=True) for item in self.comparisons]
+        expected_levels = [item for item in identities if item != reference]
+        if source_levels != expected_levels:
+            raise ValueError(
+                "curve comparisons must occur once in ordered non-reference level order"
+            )
+        for source in self.comparisons:
+            comparison = source.comparison_spec
+            if comparison is None:
+                continue
+            if comparison.pairing_key != "task_block_id":
+                raise ValueError("curve comparisons require pairing_key='task_block_id'")
+            if len(comparison.cohorts) != 2:
+                raise ValueError("curve comparisons require exactly two cohorts")
+            if comparison.declared_variable != "factor_values_digest":
+                raise ValueError(
+                    "curve comparisons require declared_variable='factor_values_digest'"
+                )
+        primary_source = next(
+            item
+            for item in self.comparisons
+            if json.dumps(item.level, sort_keys=True) == primary
+        )
+        if (
+            primary_source.comparison_spec is not None
+            and self.primary_contrast.k not in primary_source.comparison_spec.pass_k
+        ):
+            raise ValueError("primary contrast k must be requested by its comparison spec")
+        return self
+
+
+class CurveMetricReport(ContractModel):
+    k: int = Field(ge=1)
+    n_tasks: int = Field(ge=0)
+    rate: float | None = Field(default=None, ge=0, le=1)
+    task_interval_95: list[float] | None = None
+    passes: int = Field(ge=0)
+    selected_task_blocks: list[str]
+    insufficient_task_blocks: list[str]
+
+    @field_validator("task_interval_95")
+    @classmethod
+    def interval_is_ordered_pair(cls, value: list[float] | None) -> list[float] | None:
+        if value is not None and (len(value) != 2 or value[0] > value[1]):
+            raise ValueError("curve task intervals must be ordered [lower, upper] pairs")
+        return value
+
+
+class CurveContrastReport(ContractModel):
+    k: int = Field(ge=1)
+    pass_power_k_delta: float | None = None
+    pass_power_k_interval_95: list[float] | None = None
+    pass_power_k_wins: int = Field(ge=0)
+    pass_power_k_ties: int = Field(ge=0)
+    pass_power_k_losses: int = Field(ge=0)
+    n_pairs: int = Field(ge=0)
+    paired_delta: float | None = None
+    paired_interval_95: list[float] | None = None
+    wins: int = Field(ge=0)
+    ties: int = Field(ge=0)
+    losses: int = Field(ge=0)
+    rankable: bool
+    refusal_reasons: list[str]
+
+    @field_validator("paired_interval_95", "pass_power_k_interval_95")
+    @classmethod
+    def intervals_are_ordered_pairs(
+        cls, value: list[float] | None
+    ) -> list[float] | None:
+        if value is not None and (len(value) != 2 or value[0] > value[1]):
+            raise ValueError("curve paired intervals must be ordered [lower, upper] pairs")
+        return value
+
+
+class CurveExceptionReport(ContractModel):
+    trial_id: str
+    task_block_id: str | None
+    exception_class: str
+
+
+class CurveLevelReport(ContractModel):
+    level: CurveFactorValue
+    role: Literal["reference", "primary", "descriptive"]
+    exact_pair_set: list[str]
+    unpaired_task_blocks: list[str]
+    censored_task_blocks: list[str]
+    exception_trials: list[CurveExceptionReport]
+    missing_reward_trials: list[str]
+    pass_at_k: list[CurveMetricReport]
+    pass_power_k: list[CurveMetricReport]
+    contrasts: list[CurveContrastReport]
+
+
+class CapabilityCurveReport(ContractModel):
+    """A provenance-backed empirical curve, never a scalar capability score."""
+
+    schema_version: Literal[1] = 1
+    curve_id: str
+    factor_name: str
+    factor_unit: str
+    factor_kind: Literal["execution", "task_generator"]
+    ordered_levels: list[CurveFactorValue]
+    reference_level: CurveFactorValue
+    primary_contrast: CurvePrimaryContrast
+    prereg: PreregSpec
+    common_controlled_fingerprint: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    input_digests: dict[str, str]
+    produced_at: datetime
+    produced_by: str = Field(min_length=1)
+    rankable: bool
+    refuse_to_rank_reasons: list[str]
+    levels: list[CurveLevelReport]
+    contract_note: Literal[
+        "empirical paired contract enforcement; not substantive generality evidence"
+    ] = "empirical paired contract enforcement; not substantive generality evidence"
+
+    @field_validator("input_digests")
+    @classmethod
+    def inputs_are_sha256_digests(cls, values: dict[str, str]) -> dict[str, str]:
+        if not values or any(
+            not re.fullmatch(r"sha256:[0-9a-f]{64}", value) for value in values.values()
+        ):
+            raise ValueError("curve input_digests must be a non-empty sha256 manifest")
+        return values
+
+    @model_validator(mode="after")
+    def rank_and_level_contract_is_coherent(self) -> CapabilityCurveReport:
+        identities = [json.dumps(value, sort_keys=True) for value in self.ordered_levels]
+        reported = [json.dumps(item.level, sort_keys=True) for item in self.levels]
+        if reported != identities:
+            raise ValueError("curve report levels must preserve ordered_levels exactly")
+        if self.rankable == bool(self.refuse_to_rank_reasons):
+            raise ValueError("rankable curves require no refusal reasons and vice versa")
+        return self
 
 FailureCategory = Literal[
     "task_invalid",

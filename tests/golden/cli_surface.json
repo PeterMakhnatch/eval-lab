@@ -1439,6 +1439,160 @@
       }
     ]
   },
+  "curve": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "curve build": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output",
+        "flags": [
+          "--output"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "evallab",
+        "dest": "produced_by",
+        "flags": [
+          "--produced-by"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "curve report": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "curve validate": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "evallab",
+        "dest": "produced_by",
+        "flags": [
+          "--produced-by"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
   "dashboard": {
     "options": [
       {

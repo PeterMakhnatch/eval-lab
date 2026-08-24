@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "experiment_id": "m052-free-integrated",
+  "description": "Offline integration fixture that binds four bounded component evidence kinds without making a substantive generality claim.",
+  "curve_spec": "tests/fixtures/curve/curve-spec.json",
+  "workbench_task": "tests/fixtures/task_workbench/valid",
+  "workbench_backend": "tests/fixtures/capability_workflow/free_backend.py",
+  "state_journal": "tests/fixtures/state_events/free-producer",
+  "upstream_imports": [
+    {
+      "name": "exgentic",
+      "source": "tests/fixtures/upstream_adapters/exgentic/trajectory.jsonl",
+      "source_root": "tests/fixtures/upstream_adapters",
+      "manifest": "library/adapters/exgentic/adapter-manifest.json",
+      "accepted_license": "Apache-2.0"
+    },
+    {
+      "name": "recovery-bench",
+      "source": "tests/fixtures/upstream_adapters/recovery_bench/result.json",
+      "source_root": "tests/fixtures/upstream_adapters",
+      "manifest": "library/adapters/recovery-bench/adapter-manifest.json",
+      "accepted_license": "MIT"
+    }
+  ],
+  "claim_kinds": ["P", "R", "U", "C", "Y"],
+  "declared_limitations": [
+    "component evidence is bounded",
+    "no substantive generality",
+    "generated tasks remain uncertified (F-SEQGEN-1)"
+  ]
+}

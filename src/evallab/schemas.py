@@ -1226,6 +1226,143 @@ class TaskControlEvidence(ContractModel):
     nop: ControlEvidenceRef
 
 
+DURABLE_TASK_CERTIFICATION_PREFIX = "research/registration/candidates/"
+CertificationAxisStatus = Literal["passed", "failed", "not_assessed", "not_applicable"]
+
+
+class CertificationCheckVector(ContractModel):
+    all_controls_completed: bool
+    static: bool
+    oracle_exact_1_x3: bool
+    oracle_stable_output: bool
+    nop_exact_0_x2: bool
+    invalid_outputs_rejected: bool
+    fair_alternative_exact_1: bool
+    please_hack_executed: bool
+    hack_detected: bool
+    leakage_scan_clean: bool
+    isolation: bool
+
+
+class CertificationControlSummary(ContractModel):
+    oracle_runs: int = Field(ge=0)
+    nop_runs: int = Field(ge=0)
+    invalid_probe_runs: int = Field(ge=0)
+    fair_alternative_runs: int = Field(ge=0)
+    please_hack_runs: int = Field(ge=0)
+    result_digests: list[str]
+
+    @field_validator("result_digests")
+    @classmethod
+    def result_digests_are_sha256(cls, values: list[str]) -> list[str]:
+        if any(not re.fullmatch(r"sha256:[0-9a-f]{64}", value) for value in values):
+            raise ValueError("control result digests must be sha256 values")
+        return values
+
+
+class CertificationAxis(ContractModel):
+    status: CertificationAxisStatus
+    reason: str = Field(min_length=1)
+    evidence: list[str] = Field(default_factory=list)
+
+
+class CertificationAxes(ContractModel):
+    task_correctness: CertificationAxis
+    verifier_soundness: CertificationAxis
+    verifier_completeness: CertificationAxis
+    solvability: CertificationAxis
+    difficulty_calibration: CertificationAxis
+    realism_review: CertificationAxis
+
+
+class CertificationIdentity(ContractModel):
+    code_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    execution: Literal["local"]
+    model: str | None
+    prompt_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+
+
+class TaskCertificationEnvelope(ContractModel):
+    """Digest-bound workbench packet reference; legacy absence stays explicit."""
+
+    state: Literal["bound", "legacy_missing"] = "legacy_missing"
+    reason: str = Field(default="legacy_record_has_no_certificate_packet", min_length=1)
+    certification_id: str | None = Field(
+        default=None, pattern=r"^cert-[0-9a-f]{24}$"
+    )
+    packet_path: str | None = None
+    packet_sha256: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    candidate_id: str | None = Field(
+        default=None, pattern=r"^candidate-[0-9a-f]{24}$"
+    )
+    candidate_record_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    candidate_package_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    package_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    workbench_version: str | None = None
+    check_vector: CertificationCheckVector | None = None
+    control_summary: CertificationControlSummary | None = None
+    axes: CertificationAxes | None = None
+    generator_identity: CertificationIdentity | None = None
+    validator_identity: CertificationIdentity | None = None
+
+    @field_validator("packet_path")
+    @classmethod
+    def packet_path_is_durable(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value.startswith("/") or ".." in value.split("/"):
+            raise ValueError("certificate packet path must stay repository-relative")
+        if not value.startswith(DURABLE_TASK_CERTIFICATION_PREFIX):
+            raise ValueError(
+                "certificate packet must be under "
+                f"{DURABLE_TASK_CERTIFICATION_PREFIX!r}"
+            )
+        if not value.endswith("/certification.json"):
+            raise ValueError("certificate packet path must end in certification.json")
+        return value
+
+    @model_validator(mode="after")
+    def validate_state(self) -> TaskCertificationEnvelope:
+        bound_fields = (
+            "certification_id",
+            "packet_path",
+            "packet_sha256",
+            "candidate_id",
+            "candidate_record_digest",
+            "candidate_package_digest",
+            "package_digest",
+            "workbench_version",
+            "check_vector",
+            "control_summary",
+            "axes",
+            "generator_identity",
+            "validator_identity",
+        )
+        if self.state == "bound":
+            missing = [name for name in bound_fields if getattr(self, name) is None]
+            if missing:
+                raise ValueError(
+                    f"bound certification is missing fields: {', '.join(missing)}"
+                )
+            if self.generator_identity == self.validator_identity:
+                raise ValueError(
+                    "generator and validator identities cannot be the same self-check"
+                )
+        elif any(getattr(self, name) is not None for name in bound_fields):
+            raise ValueError("legacy_missing certification cannot carry packet claims")
+        return self
+
+
 TaskAdmissionState = Literal["candidate", "registered", "retired"]
 TaskAllowedUse = Literal[
     "canary",
@@ -1286,6 +1423,9 @@ class TaskRegistryRecord(ContractModel):
     is_synthetic: bool
     limits: TaskLimits = Field(default_factory=TaskLimits)
     control_evidence: TaskControlEvidence | None = None
+    certification: TaskCertificationEnvelope = Field(
+        default_factory=TaskCertificationEnvelope
+    )
     state: TaskAdmissionState
     allowed_uses: list[TaskAllowedUse] = Field(min_length=1)
     contamination: TaskContamination | None = Field(

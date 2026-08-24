@@ -60,6 +60,10 @@
       "harbor_task_digest": "sha256:2c16dfb286d74d3ba9069ea19f436d3754887df8cac9613947a20e1b60cebdb3"
     }
   },
+  "certification": {
+    "state": "legacy_missing",
+    "reason": "legacy_record_has_no_certificate_packet"
+  },
   "state": "registered",
   "allowed_uses": [
     "measurement",

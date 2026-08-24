@@ -33,13 +33,35 @@ from evallab.results import load_job
 from evallab.runner import subscription_environment
 
 SCHEMA_VERSION = 1
-WORKBENCH_VERSION = "m007-v1.1"
+WORKBENCH_VERSION = "m049-v1"
 ORACLE_REPETITIONS = 3
+NOP_REPETITIONS = 2
 MIN_ADVERSARIAL_CASES = 3
 SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 FLOATING_REFS = {"head", "latest", "main", "master", "trunk", "tip"}
 FORBIDDEN_AGENT_IMAGE_PARTS = {"solution", "tests", "verifier", "workbench"}
+LEAKAGE_DIAGNOSTIC_CODES = frozenset(
+    {"agent_image_hidden_leak", "golden_data_leak", "hidden_artifact_exposure"}
+)
+ISOLATION_DIAGNOSTIC_CODES = frozenset(
+    {
+        "build_context_unreadable",
+        "build_network_use",
+        "path_escape",
+        "prebuilt_image_unsupported",
+        "symlink_unsupported",
+        "verifier_not_isolated",
+        "verifier_network_not_isolated",
+        "verifier_phase_network_not_isolated",
+        "control_network_binding_mismatch",
+        "control_network_isolation_missing",
+        "control_stage_tampered",
+        "control_task_digest_mismatch",
+        "control_task_identity_mismatch",
+        "control_verifier_not_isolated",
+    }
+)
 
 # --- The task.toml surface this workbench version claims to understand -------
 # The workbench proves network isolation by reproducing Harbor's configuration
@@ -365,12 +387,39 @@ def _tree_entries(root: Path) -> list[tuple[str, str, int, str]]:
     return entries
 
 
-def _tree_digest(root: Path) -> str:
+def _tree_digest_from_entries(entries: Sequence[tuple[str, str, int, str]]) -> str:
     payload = [
         {"path": path, "type": entry_type, "size_bytes": size, "digest": digest}
-        for path, entry_type, size, digest in _tree_entries(root)
+        for path, entry_type, size, digest in entries
     ]
     return _sha256_bytes(_canonical_bytes(payload))
+
+
+def _tree_digest(root: Path) -> str:
+    return _tree_digest_from_entries(_tree_entries(root))
+
+
+def _registry_package_digest_from_entries(
+    entries: Sequence[tuple[str, str, int, str]],
+) -> str:
+    """Match registry.task_directory_digest from an already-hashed manifest."""
+    aggregate = hashlib.sha256()
+    ignored_names = {".DS_Store", ".git", "__pycache__", ".pytest_cache"}
+    ignored_extensions = {".pyc", ".pyo", ".tmp"}
+    for relative, entry_type, _size, digest in entries:
+        pure = PurePosixPath(relative)
+        if (
+            entry_type != "file"
+            or pure.name in ignored_names
+            or pure.suffix in ignored_extensions
+        ):
+            continue
+        aggregate.update(f"{digest.removeprefix('sha256:')}  ./{relative}\n".encode())
+    return f"sha256:{aggregate.hexdigest()}"
+
+
+def _registry_package_digest(root: Path) -> str:
+    return _registry_package_digest_from_entries(_tree_entries(root))
 
 
 def _verifier_output_digest(trial_dir: Path) -> str | None:
@@ -459,7 +508,7 @@ class CandidateSource:
 @dataclass(frozen=True)
 class ControlPlanEntry:
     control_id: str
-    kind: Literal["oracle", "nop", "adversarial"]
+    kind: Literal["oracle", "nop", "adversarial", "fair_alternative", "please_hack"]
     agent: Literal["oracle", "nop"]
     expected_reward: float
     mutation_path: str | None
@@ -1704,6 +1753,60 @@ def _adversarial_scripts(task_dir: Path, diagnostics: list[Diagnostic]) -> list[
     return scripts
 
 
+def _special_control_scripts(
+    task_dir: Path, diagnostics: list[Diagnostic]
+) -> tuple[Path, Path]:
+    oracle = task_dir / "solution/solve.sh"
+    fair = task_dir / "workbench/fair-alternative.sh"
+    please_hack = task_dir / "workbench/please-hack.sh"
+    for label, path in (("fair alternative", fair), ("please-hack replay", please_hack)):
+        relative = path.relative_to(task_dir).as_posix()
+        if not path.is_file():
+            diagnostics.append(
+                _diag(
+                    "required_control_missing",
+                    relative,
+                    f"executable {label} solver is required",
+                )
+            )
+        elif not os.access(path, os.X_OK):
+            diagnostics.append(
+                _diag("script_not_executable", relative, f"{label} solver must be executable")
+            )
+    if fair.is_file() and oracle.is_file():
+        if fair.read_bytes() == oracle.read_bytes():
+            diagnostics.append(
+                _diag(
+                    "fair_alternative_not_distinct",
+                    "workbench/fair-alternative.sh",
+                    "fair alternative must be byte-distinct from the oracle",
+                )
+            )
+        forbidden = re.compile(r"(?:^|[/ ])(?:tests|solution|workbench)(?:[/ ]|$)|golden", re.I)
+        if forbidden.search(_read_text(fair)):
+            diagnostics.append(
+                _diag(
+                    "fair_alternative_hidden_dependency",
+                    "workbench/fair-alternative.sh",
+                    "fair alternative may use only the instruction and "
+                    "environment-visible contract",
+                )
+            )
+    if (
+        please_hack.is_file()
+        and oracle.is_file()
+        and please_hack.read_bytes() == oracle.read_bytes()
+    ):
+        diagnostics.append(
+            _diag(
+                "please_hack_not_invalid",
+                "workbench/please-hack.sh",
+                "please-hack replay must be byte-distinct from the valid oracle",
+            )
+        )
+    return fair, please_hack
+
+
 def _detect_forged_registration(
     repo_root: Path,
     task_dir: Path,
@@ -1793,12 +1896,17 @@ def _control_command(candidate_id: str, task_id: str, entry_id: str, agent: str)
 
 
 def _build_control_plan(
-    candidate_id: str, task_id: str, task_dir: Path, adversarial: Sequence[Path]
+    candidate_id: str,
+    task_id: str,
+    task_dir: Path,
+    adversarial: Sequence[Path],
+    fair_alternative: Path,
+    please_hack: Path,
 ) -> tuple[ControlPlanEntry, ...]:
     specs: list[
         tuple[
             str,
-            Literal["oracle", "nop", "adversarial"],
+            Literal["oracle", "nop", "adversarial", "fair_alternative", "please_hack"],
             Literal["oracle", "nop"],
             float,
             str | None,
@@ -1806,10 +1914,29 @@ def _build_control_plan(
     ] = []
     for index in range(1, ORACLE_REPETITIONS + 1):
         specs.append((f"oracle-{index}", "oracle", "oracle", 1.0, None))
-    specs.append(("nop-1", "nop", "nop", 0.0, None))
+    specs.append(
+        (
+            "fair-alternative",
+            "fair_alternative",
+            "oracle",
+            1.0,
+            fair_alternative.relative_to(task_dir).as_posix(),
+        )
+    )
+    for index in range(1, NOP_REPETITIONS + 1):
+        specs.append((f"nop-{index}", "nop", "nop", 0.0, None))
     for path in adversarial:
         relative = path.relative_to(task_dir).as_posix()
         specs.append((f"adversarial-{path.stem}", "adversarial", "oracle", 0.0, relative))
+    specs.append(
+        (
+            "please-hack",
+            "please_hack",
+            "oracle",
+            0.0,
+            please_hack.relative_to(task_dir).as_posix(),
+        )
+    )
     entries: list[ControlPlanEntry] = []
     for control_id, kind, agent, expected, mutation_path in specs:
         command = _control_command(candidate_id, task_id, control_id, agent)
@@ -1847,9 +1974,11 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     _validate_build_context_contents(task_dir, diagnostics)
     _validate_verifier_image(task_dir, diagnostics)
     _validate_network_and_isolation(config, task_dir, diagnostics)
+    verifier_baseline, verifier_phase, _verifier_origin = _effective_verifier_network(config)
     _validate_golden_leak(task_dir, diagnostics)
     _validate_test_contract(task_dir, diagnostics)
     adversarial = _adversarial_scripts(task_dir, diagnostics)
+    fair_alternative, please_hack = _special_control_scripts(task_dir, diagnostics)
 
     task_id = task_name.rsplit("/", 1)[-1]
     if not SAFE_SLUG.fullmatch(task_id):
@@ -1859,6 +1988,7 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
         task_id = re.sub(r"[^a-z0-9-]+", "-", task_dir.name.lower()).strip("-") or "task"
     registration = _detect_forged_registration(repo_root, task_dir, task_id, config, diagnostics)
 
+    package_entries = _tree_entries(task_dir)
     files = [
         {
             "path": path,
@@ -1867,16 +1997,24 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
             "size_bytes": size,
             "digest": digest,
         }
-        for path, entry_type, size, digest in _tree_entries(task_dir)
+        for path, entry_type, size, digest in package_entries
+    ]
+    leakage_scan = [
+        {"path": path, "line_digest": _sha256_bytes(line.encode())}
+        for path, line in _sensitive_lines(task_dir)
     ]
     digests = {
-        "package": _tree_digest(task_dir),
+        "package": _tree_digest_from_entries(package_entries),
+        "registry_package": _registry_package_digest_from_entries(package_entries),
         "task_toml": _subpath_digest(task_dir / "task.toml"),
         "instruction": _subpath_digest(task_dir / "instruction.md"),
         "image_definition": _subpath_digest(task_dir / "environment"),
         "solution": _subpath_digest(task_dir / "solution"),
         "verifier": _subpath_digest(task_dir / "tests"),
         "adversarial_controls": _subpath_digest(task_dir / "workbench/adversarial"),
+        "fair_alternative": _subpath_digest(fair_alternative),
+        "please_hack": _subpath_digest(please_hack),
+        "leakage_scan": _sha256_bytes(_canonical_bytes(leakage_scan)),
         "artifact_config": _sha256_bytes(_canonical_bytes(artifacts)),
         "source_metadata": _sha256_bytes(_canonical_bytes(source.to_dict())),
     }
@@ -1889,8 +2027,14 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
         "package_digest": digests["package"],
     }
     candidate_id = "candidate-" + hashlib.sha256(_canonical_bytes(identity)).hexdigest()[:24]
-    plan = _build_control_plan(candidate_id, task_id, task_dir, adversarial)
-    verifier_baseline, verifier_phase, _ = _effective_verifier_network(config)
+    plan = _build_control_plan(
+        candidate_id,
+        task_id,
+        task_dir,
+        adversarial,
+        fair_alternative,
+        please_hack,
+    )
     candidate: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "task_workbench_candidate",
@@ -1928,6 +2072,22 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
         "artifacts": artifacts,
         "digests": digests,
         "files": files,
+        "generator_identity": {
+            "code_digest": digests["solution"],
+            "execution": "local",
+            "model": None,
+            "prompt_digest": None,
+        },
+        "validator_identity": {
+            "code_digest": digests["verifier"],
+            "execution": "local",
+            "model": None,
+            "prompt_digest": None,
+        },
+        "leakage_scan": {
+            "digest": digests["leakage_scan"],
+            "scanned_span_count": len(leakage_scan),
+        },
         "registration_observation": registration,
         "admission_boundary": {
             "candidate_only": True,
@@ -2066,7 +2226,14 @@ def _validate_backend_plan(candidate: Mapping[str, Any], plan: ControlPlanEntry)
             1.0,
             None,
         )
-    elif plan.control_id == "nop-1":
+    elif plan.control_id == "fair-alternative":
+        expected_kind, expected_agent, expected_reward, expected_mutation = (
+            "fair_alternative",
+            "oracle",
+            1.0,
+            "workbench/fair-alternative.sh",
+        )
+    elif plan.control_id in {f"nop-{index}" for index in range(1, NOP_REPETITIONS + 1)}:
         expected_kind, expected_agent, expected_reward, expected_mutation = (
             "nop",
             "nop",
@@ -2081,17 +2248,24 @@ def _validate_backend_plan(candidate: Mapping[str, Any], plan: ControlPlanEntry)
             0.0,
             f"workbench/adversarial/{stem}.sh",
         )
+    elif plan.control_id == "please-hack":
+        expected_kind, expected_agent, expected_reward, expected_mutation = (
+            "please_hack",
+            "oracle",
+            0.0,
+            "workbench/please-hack.sh",
+        )
+    else:
+        raise WorkbenchError("control plan id is outside the fixed control set")
+    if expected_mutation is not None:
         raw_files = candidate.get("files")
         if not isinstance(raw_files, list) or not any(
             isinstance(item, Mapping)
             and item.get("path") == expected_mutation
-            and item.get("role") == "adversarial-control"
             and item.get("type") == "file"
             for item in raw_files
         ):
-            raise WorkbenchError("adversarial plan does not name a frozen candidate file")
-    else:
-        raise WorkbenchError("control plan id is outside the fixed control set")
+            raise WorkbenchError("control mutation does not name a frozen candidate file")
 
     if (
         plan.kind != expected_kind
@@ -2152,7 +2326,7 @@ def _runner_failure_classification(message: str) -> Classification:
 
 
 class HarborControlBackend:
-    """Fixed-command local Harbor backend; only oracle and nop are accepted."""
+    """Fixed-command local backend for oracle, nop, and script-replay controls."""
 
     def __init__(
         self,
@@ -3058,27 +3232,26 @@ def _certification_record(
     report: CheckReport,
     *,
     retained_evidence: Sequence[Mapping[str, str]] = (),
+    retained_replays: Sequence[Mapping[str, str]] = (),
 ) -> dict[str, Any]:
+    candidate = report.inspection.candidate
+    digests = _required_mapping(candidate.get("digests"), "digests")
     observations = (
         {item.control_id: item for item in report.controls.observations}
         if report.controls is not None
         else {}
     )
-    plan_ids = {item.control_id for item in report.inspection.control_plan}
-    recomputed_evidence_failed = any(
-        item.severity == "error" and (item.path in plan_ids or item.path == "$controls")
-        for item in report.diagnostics
-    )
-    verified_controls = (
-        report.inspection.static_passed
-        and report.controls is not None
-        and not recomputed_evidence_failed
-    )
+    error_paths = {
+        item.path for item in report.diagnostics if item.severity == "error"
+    }
+    bundle_valid = "$controls" not in error_paths
 
     def control_matches(plan: ControlPlanEntry) -> bool:
         observation = observations.get(plan.control_id)
         return bool(
-            verified_controls
+            bundle_valid
+            and report.inspection.static_passed
+            and plan.control_id not in error_paths
             and observation is not None
             and observation.status == "completed"
             and observation.exception_type is None
@@ -3087,11 +3260,15 @@ def _certification_record(
             and observation.evidence_digest is not None
         )
 
-    oracle_plan = [item for item in report.inspection.control_plan if item.kind == "oracle"]
-    nop_plan = [item for item in report.inspection.control_plan if item.kind == "nop"]
-    adversarial_plan = [
-        item for item in report.inspection.control_plan if item.kind == "adversarial"
-    ]
+    plans_by_kind = {
+        kind: [item for item in report.inspection.control_plan if item.kind == kind]
+        for kind in ("oracle", "nop", "adversarial", "fair_alternative", "please_hack")
+    }
+    oracle_plan = plans_by_kind["oracle"]
+    nop_plan = plans_by_kind["nop"]
+    adversarial_plan = plans_by_kind["adversarial"]
+    fair_plan = plans_by_kind["fair_alternative"]
+    hack_plan = plans_by_kind["please_hack"]
     oracle_exact = len(oracle_plan) == ORACLE_REPETITIONS and all(
         control_matches(item) for item in oracle_plan
     )
@@ -3100,59 +3277,182 @@ def _certification_record(
         for item in oracle_plan
         if item.control_id in observations
     ]
+    oracle_stable = (
+        oracle_exact
+        and len(oracle_outputs) == ORACLE_REPETITIONS
+        and len(set(oracle_outputs)) == 1
+    )
+    nop_exact = len(nop_plan) == NOP_REPETITIONS and all(
+        control_matches(item) for item in nop_plan
+    )
+    invalid_rejected = (
+        len(adversarial_plan) >= MIN_ADVERSARIAL_CASES
+        and all(control_matches(item) for item in adversarial_plan)
+    )
+    fair_exact = len(fair_plan) == 1 and all(control_matches(item) for item in fair_plan)
+    please_hack_executed = (
+        bundle_valid
+        and len(hack_plan) == 1
+        and hack_plan[0].control_id in observations
+        and observations[hack_plan[0].control_id].status == "completed"
+        and observations[hack_plan[0].control_id].exception_type is None
+    )
+    retained_ids = {item.get("control_id") for item in retained_evidence}
+    replay_ids = {item.get("control_id") for item in retained_replays}
+    hack_detected = bool(
+        please_hack_executed
+        and hack_plan[0].mutation_path == "workbench/please-hack.sh"
+        and hack_plan[0].control_id in retained_ids
+        and hack_plan[0].control_id in replay_ids
+        and observations[hack_plan[0].control_id].reward == 1.0
+    )
+    all_completed = bundle_valid and bool(observations) and all(
+        item.status == "completed" and item.exception_type is None
+        for item in observations.values()
+    )
+    leakage_clean = bundle_valid and report.inspection.static_passed and not any(
+        item.code in LEAKAGE_DIAGNOSTIC_CODES for item in report.diagnostics
+    )
+    isolation = report.inspection.static_passed and all_completed and not any(
+        item.code in ISOLATION_DIAGNOSTIC_CODES for item in report.diagnostics
+    )
+    check_vector = {
+        "all_controls_completed": all_completed,
+        "static": bundle_valid and report.inspection.static_passed,
+        "oracle_exact_1_x3": oracle_exact,
+        "oracle_stable_output": oracle_stable,
+        "nop_exact_0_x2": nop_exact,
+        "invalid_outputs_rejected": invalid_rejected,
+        "fair_alternative_exact_1": fair_exact,
+        "please_hack_executed": please_hack_executed,
+        "hack_detected": hack_detected,
+        "leakage_scan_clean": leakage_clean,
+        "isolation": isolation,
+    }
+    task_correct = (
+        check_vector["all_controls_completed"]
+        and check_vector["static"]
+        and check_vector["oracle_exact_1_x3"]
+        and check_vector["oracle_stable_output"]
+    )
+    sound = (
+        check_vector["nop_exact_0_x2"]
+        and check_vector["invalid_outputs_rejected"]
+        and check_vector["please_hack_executed"]
+        and not check_vector["hack_detected"]
+    )
+    axes = {
+        "task_correctness": {
+            "status": "passed" if task_correct else "failed",
+            "reason": (
+                "all control jobs completed after backend environment setup; "
+                "this is not an independent image-build attestation"
+            )
+            if task_correct
+            else "static/control/oracle evidence is incomplete or contradictory",
+            "evidence": [item.control_id for item in oracle_plan] if bundle_valid else [],
+        },
+        "verifier_soundness": {
+            "status": "passed" if sound else "failed",
+            "reason": (
+                "executed nop, invalid, and please-hack probes were rejected; "
+                "this bounded probe set does not prove security"
+                if sound
+                else "one or more executed invalid controls were not cleanly rejected"
+            ),
+            "evidence": (
+                [item.control_id for item in nop_plan + adversarial_plan + hack_plan]
+                if bundle_valid
+                else []
+            ),
+        },
+        "verifier_completeness": {
+            "status": "passed" if fair_exact else "failed",
+            "reason": "byte-distinct fair alternative scored 1"
+            if fair_exact
+            else "executed fair alternative did not score 1",
+            "evidence": [item.control_id for item in fair_plan] if bundle_valid else [],
+        },
+        "solvability": {
+            "status": "passed" if oracle_exact and fair_exact else "failed",
+            "reason": "oracle and independent fair alternative both succeeded"
+            if oracle_exact and fair_exact
+            else "valid-solver evidence is incomplete",
+            "evidence": (
+                [item.control_id for item in oracle_plan + fair_plan]
+                if bundle_valid
+                else []
+            ),
+        },
+        "difficulty_calibration": {
+            "status": "not_applicable",
+            "reason": "local certificate controls do not measure task difficulty",
+            "evidence": [],
+        },
+        "realism_review": {
+            "status": "not_assessed",
+            "reason": "realism requires separate human or domain review",
+            "evidence": [],
+        },
+    }
+    result_digests = [
+        _sha256_bytes(_canonical_bytes(observations[plan.control_id].to_dict()))
+        for plan in report.inspection.control_plan
+        if plan.control_id in observations
+    ]
+    control_summary = {
+        "oracle_runs": sum(item.control_id in observations for item in oracle_plan),
+        "nop_runs": sum(item.control_id in observations for item in nop_plan),
+        "invalid_probe_runs": sum(item.control_id in observations for item in adversarial_plan),
+        "fair_alternative_runs": sum(item.control_id in observations for item in fair_plan),
+        "please_hack_runs": sum(item.control_id in observations for item in hack_plan),
+        "result_digests": result_digests,
+    }
     body: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "task_workbench_certification",
         "workbench_version": WORKBENCH_VERSION,
-        "candidate_id": report.inspection.candidate["candidate_id"],
-        "candidate_record_digest": report.inspection.candidate["candidate_record_digest"],
+        "candidate_id": candidate["candidate_id"],
+        "candidate_record_digest": candidate["candidate_record_digest"],
+        "task_binding": {
+            "task_id": candidate["task_id"],
+            "task_version": candidate["task_version"],
+            "task_path": candidate["task_path"],
+            "candidate_package_digest": digests["package"],
+            "package_digest": digests["registry_package"],
+        },
+        "digest_lineage": {
+            name: digests[name]
+            for name in (
+                "package",
+                "registry_package",
+                "task_toml",
+                "instruction",
+                "image_definition",
+                "solution",
+                "verifier",
+                "adversarial_controls",
+                "fair_alternative",
+                "please_hack",
+                "leakage_scan",
+            )
+        },
+        "generator_identity": candidate["generator_identity"],
+        "validator_identity": candidate["validator_identity"],
         "status": report.disposition,
         "certified": report.passed,
         "admission_granted": False,
         "diagnostics": [item.to_dict() for item in report.diagnostics],
-        "check_vector": {
-            "static": report.inspection.static_passed,
-            "oracle_exact_1": oracle_exact,
-            "nop_exact_0": len(nop_plan) == 1 and all(
-                control_matches(item) for item in nop_plan
-            ),
-            "invalid_outputs_rejected": len(adversarial_plan) >= MIN_ADVERSARIAL_CASES
-            and all(control_matches(item) for item in adversarial_plan),
-            "verifier_deterministic": oracle_exact
-            and len(oracle_outputs) == ORACLE_REPETITIONS
-            and len(set(oracle_outputs)) == 1,
-            "isolation": report.inspection.static_passed
-            and verified_controls
-            and not any(
-                item.code
-                in {
-                    "agent_image_hidden_leak",
-                    "build_context_unreadable",
-                    "build_network_use",
-                    "golden_data_leak",
-                    "hidden_artifact_exposure",
-                    "path_escape",
-                    "prebuilt_image_unsupported",
-                    "symlink_unsupported",
-                    "verifier_not_isolated",
-                    "verifier_network_not_isolated",
-                    "verifier_phase_network_not_isolated",
-                    "control_network_binding_mismatch",
-                    "control_network_isolation_missing",
-                    "control_stage_tampered",
-                    "control_task_digest_mismatch",
-                    "control_task_identity_mismatch",
-                    "control_verifier_not_isolated",
-                }
-                for item in report.diagnostics
-            ),
-        },
+        "check_vector": check_vector,
+        "control_summary": control_summary,
+        "axes": axes,
         "control_plan": [item.to_dict() for item in report.inspection.control_plan],
         "control_bundle": report.controls.to_dict() if report.controls else None,
         "retained_evidence": [dict(item) for item in retained_evidence],
+        "retained_replays": [dict(item) for item in retained_replays],
         "human_action_required": (
-            "Review this candidate packet; admission requires a separate human-created "
-            "library/registry record."
+            "Review this candidate packet; admission policy may require a preregistered "
+            "subset of axes, and realism/difficulty remain separate."
         ),
     }
     body["certification_id"] = "cert-" + hashlib.sha256(_canonical_bytes(body)).hexdigest()[:24]
@@ -3291,9 +3591,36 @@ def write_packet(
                     "digest": _sha256_bytes(content),
                 }
             )
+    retained_replays: list[dict[str, str]] = []
+    task_dir = _candidate_task_dir(repo_root, report.inspection.candidate)
+    for plan in report.inspection.control_plan:
+        if plan.kind not in {"fair_alternative", "please_hack"}:
+            continue
+        if plan.mutation_path is None:
+            raise WorkbenchError(f"{plan.control_id} has no replayable solver path")
+        source = (task_dir / plan.mutation_path).resolve()
+        if not source.is_file() or not _is_under(source, task_dir):
+            raise WorkbenchError(f"{plan.control_id} replay script is missing or unsafe")
+        replay_path = packet_dir / "replays" / f"{plan.control_id}.sh"
+        content = source.read_bytes()
+        _atomic_create_or_verify(replay_path, content)
+        retained_replays.append(
+            {
+                "control_id": plan.control_id,
+                "kind": plan.kind,
+                "path": _repo_relative(replay_path, repo_root),
+                "digest": _sha256_bytes(content),
+            }
+        )
     _atomic_create_or_verify(
         certification_path,
-        _canonical_bytes(_certification_record(report, retained_evidence=retained)),
+        _canonical_bytes(
+            _certification_record(
+                report,
+                retained_evidence=retained,
+                retained_replays=retained_replays,
+            )
+        ),
     )
     return candidate_path, certification_path
 

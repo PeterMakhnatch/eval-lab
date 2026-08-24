@@ -21,6 +21,10 @@
     "max_cpus": null
   },
   "control_evidence": null,
+  "certification": {
+    "state": "legacy_missing",
+    "reason": "legacy_record_has_no_certificate_packet"
+  },
   "state": "candidate",
   "allowed_uses": [
     "measurement",

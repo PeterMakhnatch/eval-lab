@@ -1963,6 +1963,7 @@ def _registry_promote_command(
             state=state,
             actor=args.actor,
             jobs_roots=jobs_roots,
+            certification_path=getattr(args, "certification_packet", None),
         )
     except (RegistryError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -2000,6 +2001,7 @@ def _registry_register_command(
             actor=args.actor,
             repo_root=root,
             registry_dir=registry_dir,
+            certification_path=getattr(args, "certification_packet", None),
         )
     except (RegistryError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -3218,6 +3220,10 @@ def parser() -> argparse.ArgumentParser:
         help="Override destination registry directory",
     )
     registry_promote.add_argument(
+        "--certification-packet",
+        help="Durable task_workbench certification.json to bind",
+    )
+    registry_promote.add_argument(
         "--json",
         action="store_true",
         help="Emit promoted record as JSON",
@@ -3240,6 +3246,10 @@ def parser() -> argparse.ArgumentParser:
     registry_register.add_argument(
         "--registry-dir",
         help="Override registry directory",
+    )
+    registry_register.add_argument(
+        "--certification-packet",
+        help="Durable task_workbench certification.json required for new registration",
     )
     registry_register.add_argument(
         "--json",

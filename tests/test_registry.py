@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from evallab.canary import load_canary_suite
 from evallab.queue import DirectoryQueue, Executor, PaidRunAuthorization, PolicyGate
 from evallab.registry import (
+    TaskCertificationError,
     TaskComponentMissingError,
     TaskControlEvidenceError,
     TaskDigestMismatchError,
@@ -989,15 +990,13 @@ def test_downgraded_candidate_requires_new_durable_evidence_for_promotion(
 
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
-    promoted = promote_task(
-        "library/tasks/downgraded-task",
-        tmp_path,
-        state="registered",
-        actor="Peter Makhnatch",
-    )
-    assert promoted.state == "registered"
-    assert promoted.control_evidence is not None
-    assert promoted.state_reason is None
+    with pytest.raises(TaskCertificationError, match="certification-packet"):
+        promote_task(
+            "library/tasks/downgraded-task",
+            tmp_path,
+            state="registered",
+            actor="Peter Makhnatch",
+        )
 
 
 def test_candidate_idempotence_refreshes_newly_available_durable_evidence(
@@ -1039,16 +1038,15 @@ def test_register_task_clears_candidate_state_reason_before_persisting(
     record_path = registry_dir / "reasoned-task.json"
     record_path.write_text(reasoned.model_dump_json(indent=2))
 
-    registered = register_task(
-        "reasoned-task",
-        actor="Peter Makhnatch",
-        repo_root=tmp_path,
-    )
-
-    assert registered.state_reason is None
+    with pytest.raises(TaskCertificationError, match="certification-packet"):
+        register_task(
+            "reasoned-task",
+            actor="Peter Makhnatch",
+            repo_root=tmp_path,
+        )
     persisted = TaskRegistryRecord.model_validate_json(record_path.read_text())
-    assert persisted.state == "registered"
-    assert persisted.state_reason is None
+    assert persisted.state == "candidate"
+    assert persisted.state_reason == "superseded_reason"
 
 
 def test_evidence_cannot_be_replayed_against_another_package(tmp_path: Path) -> None:
@@ -1222,18 +1220,13 @@ def test_register_task_requires_actor_and_records_approval(tmp_path: Path) -> No
     with pytest.raises(TaskStateInvalidError):
         reg.resolve_spec(spec, tmp_path)
 
-    # Now register with actor
-    registered = register_task("promoted-task", actor="Peter Makhnatch", repo_root=tmp_path)
-    assert registered.state == "registered"
-    assert registered.approved_by == "Peter Makhnatch"
-    assert registered.approved_at is not None
+    with pytest.raises(TaskCertificationError, match="certification-packet"):
+        register_task("promoted-task", actor="Peter Makhnatch", repo_root=tmp_path)
 
-    # Now resolve_spec succeeds
-    reg_reloaded = TaskRegistry.from_repo(tmp_path)
-    resolved = reg_reloaded.resolve_spec(spec, tmp_path)
-    assert resolved is not None
-    assert resolved.state == "registered"
-    assert resolved.approved_by == "Peter Makhnatch"
+    persisted = TaskRegistry.from_repo(tmp_path).get("promoted-task")
+    assert persisted is not None
+    assert persisted.state == "candidate"
+    assert persisted.certification.state == "legacy_missing"
 
 
 def test_register_task_without_actor_refuses(tmp_path: Path) -> None:
@@ -1361,10 +1354,9 @@ def test_cli_registry_promote_and_register_e2e(
         json=False,
     )
     exit_code = _registry_register_command(reg_args, tmp_path)
-    assert exit_code == 0
-    out, _ = capsys.readouterr()
-    assert "registered: cli-test-task@1.0.0 (state: registered)" in out
-    assert "approved by: Peter Makhnatch" in out
+    assert exit_code == 1
+    _, err = capsys.readouterr()
+    assert "certification-packet" in err
     _make_canary_policy(tmp_path)
 
     inventory_path = tmp_path / "research/registration/inventory.json"
@@ -1372,12 +1364,12 @@ def test_cli_registry_promote_and_register_e2e(
     inventory_path.write_text(
         json.dumps(inventory_tasks(tmp_path).to_dict(), indent=2) + "\n"
     )
-    # 4. Audit passes
+    # 4. Audit passes with an explicit legacy-certificate warning.
     audit_args = argparse.Namespace(json=False)
     exit_code = _registry_audit_command(audit_args, tmp_path)
     assert exit_code == 0
     out, _ = capsys.readouterr()
-    assert "PASS: zero audit findings" in out
+    assert "legacy_missing_certification" in out
 
 
 def test_cli_registry_promote_refuses_missing_durable_evidence(

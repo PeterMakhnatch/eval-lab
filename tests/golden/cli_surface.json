@@ -3121,6 +3121,20 @@
         "type": null
       },
       {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "certification_packet",
+        "flags": [
+          "--certification-packet"
+        ],
+        "help": "Durable task_workbench certification.json to bind",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
         "action": "_HelpAction",
         "choices": null,
         "default": "==SUPPRESS==",
@@ -3395,6 +3409,20 @@
         "metavar": null,
         "nargs": null,
         "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "certification_packet",
+        "flags": [
+          "--certification-packet"
+        ],
+        "help": "Durable task_workbench certification.json required for new registration",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
         "type": null
       },
       {

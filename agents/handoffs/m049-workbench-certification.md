@@ -1,6 +1,6 @@
-Status: building
-Last: PR #147 merged the portable identity-bound registry prerequisite as `0ad6446`
-Next: demonstrate fair-alt, nop-repeat, please-hack, and exact-byte swap refusal on a fresh branch
+Status: review-wanted
+Last: implemented packet-bound registry certification plus fair-alt, nop-repeat, invalid, and replayable please-hack fixture contracts
+Next: review the exact diff and run the repository validation gates outside this no-validation task
 Blockers: none
 
 # M049 (C) — Portable workbench certification
@@ -9,10 +9,10 @@ Blockers: none
 
 - **Outcome:** bind portable workbench certification to exact task bytes and prove fair-alt, nop-repeat, and please-hack evidence cases.
 - **Lane / owner:** Tasks / Tasks lane owner.
-- **Exclusive lease:** `src/evallab/task_workbench.py`, `tests/test_task_workbench.py`, `tests/fixtures/task_workbench/**`, and `research/registration/**`; the registry surfaces merged in #147 are read-only unless a new lease is registered.
-- **Status:** active; PR #147 merged the durable registry prerequisite, but did not claim the three named workbench cases.
-- **Acceptance:** a clean checkout certifies only evidence bound to exact task id/version/package/verifier digests. Named fair-alt succeeds, nop-repeat proves repeatability without promotion, and please-hack is refused with a recorded reason. Swapping task bytes or evidence fails closed.
-- **Next executable step:** demonstrate all three named fixtures and exact-byte swap refusal on a fresh branch; record any unmet case rather than claiming it.
+- **Exclusive lease:** workbench, registry/schema/CLI binding, focused tests and fixtures, durable `research/registration/candidates/**`, and M049 board/handoff surfaces.
+- **Status:** review-wanted; implementation is complete, but this handoff makes no unexecuted validation claim.
+- **Acceptance:** a certificate is a SHA-bound evidence packet with separate correctness, soundness, completeness, solvability, difficulty, and realism axes. The local uppercase fixture defines oracle ×3, nop ×2, three invalid probes, a byte-distinct fair alternative, and a retained please-hack replay. Registry binding re-reads packet and candidate bytes and rejects tamper, task replay, circular identities, and missing replay evidence. Legacy records explicitly say `legacy_missing` and retain their portable oracle/nop interpretation.
+- **Next executable step:** independent review and validation; record the observed result rather than inferring it from implementation.
 
 ## Source evidence and dependencies
 

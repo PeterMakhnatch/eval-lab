@@ -124,11 +124,11 @@ nightly schedule.
 
 ## Now
 
-`origin/main` is `0ad6446` (merged PR #147, 2026-08-23). GitHub records
-**143 merged PRs and zero open PRs**. PR #147 repaired the portable registry
-and lessons truth boundary; M049 retains only the broader named workbench
-certification cases it did not claim. The type-check ratchet is **28
-diagnostics** in `scripts/premerge.sh` and CI.
+`origin/main` is `7a02fde` (merged PR #155, 2026-08-24). PRs #149–#155
+merged the M047–M053 implementation wave; M053's four candidates remain
+uncertified and unregistered because F-SEQGEN-1 and exact executable M049
+packets are still open. The type-check ratchet is **28 diagnostics** in
+`scripts/premerge.sh` and CI.
 
 ### Five build missions, all merged (M020–M024)
 

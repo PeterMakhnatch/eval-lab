@@ -2291,6 +2291,28 @@ def _traj_report_command(
 # ---------------------------------------------------------------------------
 
 
+def _claims_pack_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.trajectory_context import build_durable_trajectory_context
+
+    pack = build_durable_trajectory_context(
+        trial_id=args.trial,
+        repo_root=root,
+        derived_root=args.derived_root,
+        database_url=args.database_url,
+        sidecar_roots=tuple(args.analysis_root or ()),
+        semantic_root=args.semantic_root,
+        max_bytes=args.max_bytes,
+        max_entries=args.max_entries,
+    )
+    if args.json:
+        print(json.dumps(pack.to_dict(), sort_keys=True, indent=2))
+    else:
+        print(pack.to_markdown(), end="")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="evallab",
@@ -2298,6 +2320,27 @@ def parser() -> argparse.ArgumentParser:
     )
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
+    claims = commands.add_parser(
+        "claims", help="Compile durable, provenance-backed claims context"
+    )
+    claims_commands = claims.add_subparsers(dest="claims_command", required=True)
+    claims_pack = claims_commands.add_parser(
+        "pack", help="Compile one trial's accepted/current claims"
+    )
+    claims_pack.add_argument("--trial", required=True, help="Trial identifier")
+    claims_pack.add_argument("--max-bytes", type=int, help="Exact UTF-8 output byte bound")
+    claims_pack.add_argument("--max-entries", type=int, help="Maximum complete claims")
+    claims_pack.add_argument("--database-url", help="PostgreSQL catalog URL override")
+    claims_pack.add_argument("--derived-root", type=Path, help="Shared Parquet root override")
+    claims_pack.add_argument(
+        "--analysis-root",
+        type=Path,
+        action="append",
+        help="Analysis sidecar root (repeatable)",
+    )
+    claims_pack.add_argument("--semantic-root", type=Path, help="Semantic Parquet root")
+    claims_pack.add_argument("--json", action="store_true", help="Emit the typed pack as JSON")
+    claims_pack.set_defaults(func=_claims_pack_command)
 
     doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
     doctor.add_argument(

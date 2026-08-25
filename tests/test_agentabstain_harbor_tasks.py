@@ -234,3 +234,33 @@ def test_missing_state_reseeds_from_initial_not_empty_world(monkeypatch) -> None
         loaded = env.load()
         assert loaded["gmail"]["drafts"]["draft_katie_001"]["draft_id"] == "draft_katie_001"
         assert loaded["spotify"]["liked_songs"]
+
+
+def test_fair_alternative_is_distinct_and_environment_only() -> None:
+    oracle = (ACT_TASK_DIR / "solution/solve.sh").read_bytes()
+    fair = (ACT_TASK_DIR / "workbench/fair-alternative.sh").read_bytes()
+    assert fair != oracle
+    fair_text = fair.decode()
+    assert "handle_tool_call" in fair_text
+    assert "full_title" in fair_text
+    assert not __import__("re").search(r"(?:^|[/ ])(?:tests|solution|workbench)(?:[/ ]|$)|golden", fair_text, __import__("re").I)
+    abstain_oracle = (ABSTAIN_TASK_DIR / "solution/solve.sh").read_bytes()
+    abstain_fair = (ABSTAIN_TASK_DIR / "workbench/fair-alternative.sh").read_bytes()
+    assert abstain_fair != abstain_oracle
+
+
+def test_verifier_seed_is_hidden_and_build_contexts_have_no_pycache() -> None:
+    for task_dir in (ACT_TASK_DIR, ABSTAIN_TASK_DIR):
+        verify = (task_dir / "tests/verify.py").read_text(encoding="utf-8")
+        assert "/app/initial_state.json" not in verify
+        assert "fixtures" in verify
+        for path in task_dir.rglob("*"):
+            if path.is_dir() and path.name == "__pycache__":
+                raise AssertionError(f"pycache in build tree: {path}")
+            if path.suffix == ".pyc":
+                raise AssertionError(f"pyc in build tree: {path}")
+        assert (task_dir / ".gitignore").is_file()
+        ignore = (task_dir / ".gitignore").read_text(encoding="utf-8")
+        assert "__pycache__/" in ignore
+        assert not (task_dir / "environment/.dockerignore").exists()
+        assert not (task_dir / "tests/.dockerignore").exists()

@@ -16,27 +16,29 @@ def digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
-def main() -> int:
-    init_paths = [
-        Path("/tests/fixtures/initial_state.json"),
-        Path("/tests/initial_state.json"),
-        Path("/app/initial_state.json"),
-        Path("initial_state.json"),
-    ]
-    final_paths = [
-        Path("/app/state/state.json"),
-        Path("state/state.json"),
-        Path("state.json"),
-    ]
-    calls_paths = [
-        Path("/app/state/calls.jsonl"),
-        Path("state/calls.jsonl"),
-        Path("calls.jsonl"),
-    ]
+def _first_file(parts: tuple[tuple[str, ...], ...]) -> Path | None:
+    for chunks in parts:
+        candidate = Path(*chunks)
+        if candidate.is_file():
+            return candidate
+    return None
 
-    init_path = next((p for p in init_paths if p.is_file()), None)
-    final_path = next((p for p in final_paths if p.is_file()), None)
-    calls_path = next((p for p in calls_paths if p.is_file()), None)
+
+def main() -> int:
+    init_path = _first_file((
+        ("/", "tests", "fixtures", "initial_state.json"),
+        ("/", "tests", "initial_state.json"),
+    ))
+    final_path = _first_file((
+        ("/", "app", "state", "state.json"),
+        ("state", "state.json"),
+        ("state.json",),
+    ))
+    calls_path = _first_file((
+        ("/", "app", "state", "calls.jsonl"),
+        ("state", "calls.jsonl"),
+        ("calls.jsonl",),
+    ))
 
     if not init_path or not final_path:
         print("ERROR: initial or final state file missing", file=sys.stderr)

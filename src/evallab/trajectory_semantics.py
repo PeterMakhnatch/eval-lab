@@ -187,9 +187,9 @@ def default_outcome_resolver(
     if code is not None:
         return "error", f"exit_code_{code}"
     if observation.get("error") or observation.get("is_error"):
-        return "error", str(observation.get("error") or "error_flag_set")
+        return "error", "observation_error_flag"
     if observation.get("status") in ("failed", "error"):
-        return "error", str(observation.get("status"))
+        return "error", "observation_error_status"
     return "success", None
 
 
@@ -259,8 +259,8 @@ def bash_command_outcome_resolver(
             return "error", f"system_error_exit_code_{code}"
         return "error", f"exit_code_{code}"
     if observation.get("error") or observation.get("is_error"):
-        return "error", str(observation.get("error") or "error_flag_set")
-    return "success", None
+        return "error", "observation_error_flag"
+    return "unknown_semantics", "exit_code_missing"
 
 
 def structured_search_outcome_resolver(
@@ -272,9 +272,9 @@ def structured_search_outcome_resolver(
     if observation is None:
         return "neutral", "no_observation"
     if observation.get("error") or observation.get("is_error"):
-        return "error", str(observation.get("error") or "error_flag_set")
+        return "error", "observation_error_flag"
     if observation.get("status") in ("failed", "error"):
-        return "error", str(observation.get("status"))
+        return "error", "observation_error_status"
     for key in ("match_count", "result_count", "total_count", "count"):
         value = observation.get(key)
         if isinstance(value, int) and not isinstance(value, bool):
@@ -290,8 +290,8 @@ def structured_search_outcome_resolver(
                 ("success", "match_found") if value else ("expected_negative", "pattern_not_found")
             )
     content = observation.get("content")
-    if isinstance(content, str):
-        return ("success", "match_found") if content else ("expected_negative", "pattern_not_found")
+    if content == "":
+        return "expected_negative", "pattern_not_found"
     return "unknown_semantics", "structured_search_result_shape_unknown"
 
 

@@ -12,17 +12,23 @@ inventory-only and are not copied here.
 must be source-digest addressed. No generated task tree belongs in Git. The canary is
 8k/seed 42; no fixture is committed because deterministic generation needs no fixture.
 
-`source.py` validates the MIT license and immutable upstream/sandbox commits. With a
-cache, `--verify-sources --cache-dir CACHE` requires every pinned file and license to
-be named `<pin>.<sha256>` and match SHA-256. Downloads are HTTPS-only, hash-checked,
-and atomically installed; offline cache misses and mismatches fail closed.
+`source.py` validates the MIT license and immutable upstream/sandbox commits. The
+production materializer is cache-first and SHA-fetches every pinned license, config,
+generator, and tool-schema file from HTTPS when absent. Entries are atomically
+installed as `<pin>.<sha256>` and rehashed; mismatches and cache misses fail closed.
+`--cache-dir CACHE` selects the cache. The pinned 8k config is checked for the
+ABTestingS2LEnv seed-42 parameters before generation.
 
-`state.py` uses `random.Random('loca-bench:<size>:<seed>')`, canonical sorted UTF-8
-JSON, and LF CSV. The manifest hashes clickstream plus environment description.
+`state.py` dynamically loads the SHA-verified upstream `generate_ab_data.py`; it
+uses the official 8k parameters, trims serialized state at exactly 8192*4 bytes,
+and reproduces the old context byte and state digest, failing closed on drift.
+Canonical sorted UTF-8 JSON and the upstream CSV CRLF serialization are used. The
+preserved old database digest is recorded in the manifest; the lean metadata DB is
+intentionally not claimed as an exact vendored database reproduction.
 `templates.py` contains the sole oracle, NOP, and swap/drop mutant templates;
 `verifier.py` checks the manifest digest, non-empty state, exact oracle record, and
-conditional marker. `context_curve.py` records only mechanical serialized-state
-bytes/4 under its explicit contract; model/scaffold tokens remain unknown.
+conditional marker. `context_curve.py` validates rows through the repository's typed
+`ContextOperationFact` model; model/scaffold tokens remain unknown.
 
 CI runs `ci_contract.py` to reject tracked old/new task corpora, regenerate twice,
 and exercise oracle, NOP, and mutants. `evidence.json` preserves old head, source

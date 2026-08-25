@@ -24,9 +24,15 @@ def snapshot(root: Path) -> dict[str, str]:
 
 def main() -> None:
     reject_committed_corpora()
-    tracked = subprocess.check_output(["git", "ls-files", "library/benchmarks/loca-bench/tasks"], text=True).splitlines()
+    forbidden = ("tasks", "vendor", "source_configs")
+    tracked = [
+        path
+        for suffix in forbidden
+        for prefix in ("library/benchmarks/loca-bench", "library/benchmarks/loca-lean-v1")
+        for path in subprocess.check_output(["git", "ls-files", f"{prefix}/{suffix}"], text=True).splitlines()
+    ]
     if tracked:
-        raise AssertionError(f"generated LOCA corpus is tracked: {tracked[:3]}")
+        raise AssertionError(f"generated/vendor LOCA corpus is tracked: {tracked[:3]}")
     target = output_path()
     materialize(target)
     first = snapshot(target)

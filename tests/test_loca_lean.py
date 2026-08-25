@@ -53,18 +53,18 @@ def test_materializer_oracle_nop_and_mutants(tmp_path):
     verifier.oracle_bytes = templates.oracle_bytes
     materializer.DERIVED = tmp_path / "derived"
     target = materializer.output_path()
-    materializer.materialize(target)
+    materializer.materialize(target, verify_sources=False)
     first = {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}
-    materializer.materialize(target)
+    materializer.materialize(target, verify_sources=False)
     second = {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}
     assert first == second
     templates.nop(target, target / "agent_workspace")
     assert verifier.verify(target)["reward"] == 0.0
-    materializer.materialize(target)
+    materializer.materialize(target, verify_sources=False)
     templates.oracle(target)
     assert verifier.verify(target)["reward"] == 1.0
     for mutant in templates.mutants().values():
-        materializer.materialize(target)
+        materializer.materialize(target, verify_sources=False)
         mutant(target, target / "agent_workspace")
         assert verifier.verify(target)["reward"] == 0.0
 
@@ -74,7 +74,7 @@ def test_context_curve_contract_rejects_drift(tmp_path):
     curve = load("context_curve")
     materializer.DERIVED = tmp_path / "derived"
     target = materializer.output_path()
-    materializer.materialize(target)
+    materializer.materialize(target, verify_sources=False)
     rows_path = tmp_path / "rows.jsonl"
     curve.emit(target, "canary", rows_path)
     projected = curve.project(rows_path)

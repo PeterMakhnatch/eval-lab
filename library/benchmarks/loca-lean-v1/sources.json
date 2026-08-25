@@ -35,6 +35,11 @@
       "name": "generate_ab_data.py",
       "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/gem/envs/ab_testing_s2l/generate_ab_data.py",
       "sha256": "sha256:fc9a8aef8294326866ae69cf6d70cd60bbc3daf7dab1408c1a7eb2b59078eaa9"
+    },
+    {
+      "name": "mcp_tool_schemas.json",
+      "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/scripts/mcp_tool_schemas.json",
+      "sha256": "sha256:0205b4ddb5f7a45fe2bc240983bc592be02446e8e3043cb9ba0fddf9187bbd3a"
     }
   ]
 }

@@ -22,8 +22,8 @@
   "new_source": {
     "path": "library/benchmarks/loca-lean-v1",
     "file_count": 13,
-    "bytes": 33365,
-    "source_digest": "9553463c9b2da4f851f702554a5a973292eeb1eaedb2aa2725ae290c15264ab2",
+    "bytes": 40227,
+    "source_digest": "30ef47ff3b8a55f285bd2855d80efdace998d2884eab0cddb4034f0b9d7e4e8a",
     "generated_output": "derived/harbor-tasks/loca/<source-digest>/",
     "committed_generated_corpora": false,
     "excluded": ["nine materialized task trees", "vendored upstream payload", "repeated runtime/verifier copies", "large source-config payloads"],
@@ -44,8 +44,19 @@
       "final_8k_set_config.json": "sha256:34c8bfa3c2d28fd1cee8e76e1a9a498a9f5ad57956232a8a2237a97cf52c2e8a",
       "final_64k_set_config.json": "sha256:67336686488ea40bd4f385b5f89c826168fda5ec5f8fd9dd5454f7b1fb2d75a8",
       "final_128k_set_config.json": "sha256:1ccd198f280ebfb5958c96a44cde2417195c210edb485ec715f55d1065bddffc",
-      "generate_ab_data.py": "sha256:fc9a8aef8294326866ae69cf6d70cd60bbc3daf7dab1408c1a7eb2b59078eaa9"
+      "generate_ab_data.py": "sha256:fc9a8aef8294326866ae69cf6d70cd60bbc3daf7dab1408c1a7eb2b59078eaa9",
+      "mcp_tool_schemas.json": "sha256:0205b4ddb5f7a45fe2bc240983bc592be02446e8e3043cb9ba0fddf9187bbd3a"
     }
+  },
+  "canary_reproduction": {
+    "size": "8k",
+    "seed": 42,
+    "expected_environment_description_bytes": 32674,
+    "expected_realized_context_tokens": 8168,
+    "expected_state_digest": "sha256:829bba54bad9ca179d3fc3c03f2d6737dfc4e1fc91f22c94cef73d7f4f4b2d9d",
+    "expected_database_digest": "sha256:38060fd9580ad0fc08069d01e442807f984405fa0ee7f8a2b363da5b5a5aeb02",
+    "database_digest_status": "preserved CAS reference only; exact upstream local_db reproduction is unavailable without the excluded vendored mcp_convert payload",
+    "state_digest_policy": "materializer fails closed if pinned generator/config/schema output differs from expected state digest"
   },
   "preserved_cas_references": [
     {"size": "8k", "seed": 42, "state": "sha256:829bba54bad9ca179d3fc3c03f2d6737dfc4e1fc91f22c94cef73d7f4f4b2d9d", "database": "sha256:38060fd9580ad0fc08069d01e442807f984405fa0ee7f8a2b363da5b5a5aeb02"},

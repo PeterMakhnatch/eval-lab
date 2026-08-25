@@ -35,17 +35,25 @@ def emit(task_dir: Path, trial_id: str, output: Path) -> list[dict]:
     }
     rows = [
         {**base, "operation_id": "initial_context", "operation": "memory_read", "before_token_count": 0, "after_token_count": manifest["realized_context_tokens"]},
-        {**base, "operation_id": "mcp_query_result", "operation": "mcp_query", "before_token_count": manifest["realized_context_tokens"], "after_token_count": manifest["realized_context_tokens"]},
+        {**base, "operation_id": "mcp_query_result", "operation": "compaction", "before_token_count": manifest["realized_context_tokens"], "after_token_count": manifest["realized_context_tokens"]},
     ]
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8")
     return rows
 
 
-def project(rows_path: Path) -> dict:
+def project(rows_path: Path, output_dir: Path | None = None) -> dict:
     rows = [json.loads(line) for line in rows_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if any(row.get("contract") != CONTEXT_CONTRACT for row in rows):
         raise ValueError("context rows do not satisfy LOCA context-curve contract")
+    # Validate and project through the repository's typed semantic model.
+    import sys
+    repo = Path(__file__).resolve().parents[3]
+    sys.path.insert(0, str(repo / "src"))
+    from evallab.semantic_facts import ContextOperationFact, project_fact_bundle, query_scorecard
+    facts = [ContextOperationFact.model_validate(row) for row in rows]
+    destination = output_dir or rows_path.parent / "semantic-projection"
+    project_fact_bundle({"context_operation_facts": facts}, destination)
     grouped: dict[int, list[dict]] = {}
     for row in rows:
         grouped.setdefault(row["configured_size"], []).append(row)
@@ -56,4 +64,5 @@ def project(rows_path: Path) -> dict:
             {"configured_size": configured, "realized_sizes": sorted({row["realized_size"] for row in facts}), "before_tokens": sorted({row["before_token_count"] for row in facts}), "after_tokens": sorted({row["after_token_count"] for row in facts})}
             for configured, facts in sorted(grouped.items())
         ],
+        "scorecard": query_scorecard(destination, benchmark="LOCA-bench"),
     }

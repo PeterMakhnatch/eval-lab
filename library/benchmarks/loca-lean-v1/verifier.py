@@ -10,8 +10,16 @@ from pathlib import Path
 from templates import oracle_bytes
 
 
-def _sha(data: bytes) -> str:
-    return "sha256:" + hashlib.sha256(data).hexdigest()
+def _state_digest(clickstream: bytes, environment: bytes) -> str:
+    digest = hashlib.sha256()
+    digest.update(b"clickstream.csv")
+    digest.update(clickstream)
+    digest.update(b"environment_description.json")
+    try:
+        digest.update(json.dumps(json.loads(environment), sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        digest.update(environment)
+    return "sha256:" + digest.hexdigest()
 
 
 def _csv_rows(path: Path) -> list[list[str]]:
@@ -28,9 +36,9 @@ def verify(task_dir: Path, workspace: Path | None = None) -> dict:
     manifest_path = task_dir / "state_manifest.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        actual_state = _sha(
-            (task_dir / "files" / "clickstream.csv").read_bytes()
-            + (task_dir / "files" / "environment_description.json").read_bytes()
+        actual_state = _state_digest(
+            (task_dir / "files" / "clickstream.csv").read_bytes(),
+            (task_dir / "files" / "environment_description.json").read_bytes(),
         )
         assertions["state_digest_matches"] = actual_state == manifest.get("state_digest")
         assertions["state_is_nonempty"] = manifest.get("row_count", 0) > 0 and manifest.get("padding_only") is False

@@ -28,6 +28,7 @@ def source_id() -> str:
     template_names = (
         "COMMON", "INSTRUCTION_SUFFIX", "TOOLS", "DOCKERFILE", "ENTRYPOINT",
         "ACT_SOLUTION", "ABSTAIN_SOLUTION", "TEST_DOCKERFILE", "VERIFY",
+        "TEST_SCRIPT",
     )
     material = {
         "materializer_version": MATERIALIZER_VERSION,
@@ -68,11 +69,7 @@ def _package(root: Path, variant: dict, pair_id: str) -> None:
     solution = templates.ACT_SOLUTION if task_type == "act" else templates.ABSTAIN_SOLUTION
     _write(package / "solution/solve.sh", solution)
     _write(package / "tests/Dockerfile", templates.TEST_DOCKERFILE)
-    test_script = (
-        "#!/bin/sh\nset -eu\n"
-        f"AGENTABSTAIN_TASK_TYPE={task_type} python3 /app/verify.py\n"
-    )
-    _write(package / "tests/test.sh", test_script)
+    _write(package / "tests/test.sh", templates.TEST_SCRIPT.format(task_type=task_type))
     _write(package / "tests/verify.py", templates.VERIFY)
     _write(package / "tests/fixtures/initial_state.json", SEED.read_bytes())
     _write(package / "workbench/nop.sh", "#!/bin/sh\nset -eu\nexit 0\n")

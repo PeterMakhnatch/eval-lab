@@ -60,6 +60,10 @@ def test_materializer_emits_variant_solutions_and_executable_scripts(tmp_path: P
         assert config["verifier"]["environment_mode"] == "separate"
         assert config["verifier"]["environment"]["network_mode"] == "no-network"
         assert (package / "tests/test.sh").stat().st_mode & stat.S_IXUSR
+        verifier_docker = (package / "tests/Dockerfile").read_text()
+        assert "WORKDIR /tests" in verifier_docker
+        assert "COPY fixtures/initial_state.json /tests/fixtures/initial_state.json" in verifier_docker
+        assert "reward.txt" in (package / "tests/test.sh").read_text()
 
 
 def test_reward_assertion_reads_persisted_harbor_result(tmp_path: Path) -> None:

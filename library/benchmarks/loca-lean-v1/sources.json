@@ -1,0 +1,45 @@
+{
+  "benchmark": "LOCA-bench",
+  "license": {
+    "spdx": "MIT",
+    "sha256": "sha256:2bb75401bf1c737039d17c6defda15c2f37eb2b5eb62facbf6dea50bf72811c2",
+    "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/LICENSE"
+  },
+  "upstream": {
+    "repository": "https://github.com/hkust-nlp/LOCA-bench",
+    "commit": "8b6fac49d9edd92922593e703b74ea255357c3ec",
+    "sandbox_commit": "2b4a1c77bd65d83750372ee079a2e5c5d13cb27c",
+    "git_blobs": {
+      "final_8k_set_config.json": "402d407fccc844d76de0b5c3bea36ba27d9868b8",
+      "final_64k_set_config.json": "079a7ece036e367954355fac33b4130b4244f9b9",
+      "final_128k_set_config.json": "298a3901be6ed75e242c26a6560b36790a3eceeb"
+    }
+  },
+  "files": [
+    {
+      "name": "final_8k_set_config.json",
+      "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/task-configs/final_8k_set_config.json",
+      "sha256": "sha256:34c8bfa3c2d28fd1cee8e76e1a9a498a9f5ad57956232a8a2237a97cf52c2e8a"
+    },
+    {
+      "name": "final_64k_set_config.json",
+      "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/task-configs/final_64k_set_config.json",
+      "sha256": "sha256:67336686488ea40bd4f385b5f89c826168fda5ec5f8fd9dd5454f7b1fb2d75a8"
+    },
+    {
+      "name": "final_128k_set_config.json",
+      "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/task-configs/final_128k_set_config.json",
+      "sha256": "sha256:1ccd198f280ebfb5958c96a44cde2417195c210edb485ec715f55d1065bddffc"
+    },
+    {
+      "name": "generate_ab_data.py",
+      "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/gem/envs/ab_testing_s2l/generate_ab_data.py",
+      "sha256": "sha256:fc9a8aef8294326866ae69cf6d70cd60bbc3daf7dab1408c1a7eb2b59078eaa9"
+    },
+    {
+      "name": "mcp_tool_schemas.json",
+      "url": "https://raw.githubusercontent.com/PeterMakhnatch/eval-lab/b29e3d0057a4289d567acd6106c0da42fcea15c4/library/benchmarks/loca-bench/vendor/loca_upstream/scripts/mcp_tool_schemas.json",
+      "sha256": "sha256:0205b4ddb5f7a45fe2bc240983bc592be02446e8e3043cb9ba0fddf9187bbd3a"
+    }
+  ]
+}

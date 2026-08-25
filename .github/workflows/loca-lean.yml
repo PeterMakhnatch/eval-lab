@@ -1,0 +1,44 @@
+name: loca-lean
+
+on:
+  push:
+    paths:
+      - "library/benchmarks/loca-lean-v1/**"
+      - "tests/test_loca_lean.py"
+      - ".github/workflows/loca-lean.yml"
+  pull_request:
+    paths:
+      - "library/benchmarks/loca-lean-v1/**"
+      - "tests/test_loca_lean.py"
+      - ".github/workflows/loca-lean.yml"
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Exercise lean LOCA contract
+        run: python3 library/benchmarks/loca-lean-v1/ci_contract.py
+      - name: Install Harbor 0.21.0
+        run: python3 -m pip install --disable-pip-version-check harbor==0.21.0
+      - name: Run generated package through Harbor oracle and NOP
+        run: |
+          task="$(python3 -c 'from pathlib import Path; print(next(Path("derived/harbor-tasks/loca").glob("*/*/task.toml")).parent)')"
+          harbor run --path "$task" --agent oracle --env docker --n-concurrent 1 --n-tasks 1 --jobs-dir runs/loca-harbor-oracle --yes
+          harbor run --path "$task" --agent nop --env docker --n-concurrent 1 --n-tasks 1 --jobs-dir runs/loca-harbor-nop --yes
+          python3 library/benchmarks/loca-lean-v1/ci_contract.py --assert-harbor-reward runs/loca-harbor-oracle 1.0
+          python3 library/benchmarks/loca-lean-v1/ci_contract.py --assert-harbor-reward runs/loca-harbor-nop 0.0
+      - name: Upload Harbor diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: loca-harbor-diagnostics
+          path: runs/loca-harbor-*
+          if-no-files-found: ignore
+      - name: Reject committed generated output
+        run: |
+          test -z "$(git ls-files 'library/benchmarks/loca-bench/tasks/*')"
+          test -z "$(git ls-files 'library/benchmarks/loca-lean-v1/tasks/*')"

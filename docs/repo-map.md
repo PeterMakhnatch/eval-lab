@@ -177,7 +177,7 @@ inputs:
   - path: src/evallab/trajectory_semantics.py
     digest: sha256:e89b6a25b90af441f80a7a2515f8233d1b6e84bbeca5517d6ac8ddd0c6c7e09d
   - path: src/evallab/trajectory_sequence.py
-    digest: sha256:13bcd6b40432d0e867d63792d7941a0f99594193b1c5df370eb1e188e9c82ff8
+    digest: sha256:5df3f286fb835da8d16afa65867f9d9dc6b311bc1f56dd512344613b78771756
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7d8b78107ba2c741e0219cce6ee4f3500404b693d0feeff27363711145ac584a
   - path: src/evallab/verdicts.py

@@ -2,28 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import random
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import pyarrow as pa
 import pytest
 
 from evallab.trajectory_sequence import (
     TRAJECTORY_SEQUENCE_SCHEMAS,
-    MotifSummary,
-    NormalizedAction,
-    ObservableMotif,
     TrajectorySequenceError,
-    TransitionAggregation,
     TransitionEdge,
     aggregate_transitions,
+    detect_observable_motifs,
     deterministic_edge_id,
     deterministic_motif_id,
     deterministic_summary_id,
-    detect_observable_motifs,
     extract_transition_edges,
     load_trajectory_sequence_table,
     order_actions,

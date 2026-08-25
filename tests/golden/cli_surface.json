@@ -4064,6 +4064,173 @@
       }
     ]
   },
+  "semantics": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "semantics coverage": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_dir",
+        "flags": [
+          "--derived-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "threshold",
+        "flags": [
+          "--threshold"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "float"
+      }
+    ]
+  },
+  "semantics project": {
+    "options": [
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": null,
+        "dest": "bind",
+        "flags": [
+          "--bind"
+        ],
+        "help": null,
+        "metavar": "TASK_ID=PROFILE_ID",
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "coverage_threshold",
+        "flags": [
+          "--coverage-threshold"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "float"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "paths",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": "+",
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "permissive",
+        "flags": [
+          "--permissive"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
   "status": {
     "options": [
       {

@@ -12,7 +12,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.attach import attach
+from evallab.attach import SEMANTIC_COMPARISON_COLUMNS, attach
 from evallab.cli import run_cli
 from evallab.runner import database_url_from_environment
 
@@ -125,7 +125,10 @@ def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
         "semantic_action_facts",
         [
             {
+                "job_id": "job-1",
                 "trial_id": "trial-1",
+                "document_id": "document-1",
+                "action_id": "action-1",
                 "tool_call_id": "call-1",
                 "task_id": "task-1",
                 "binding_digest": "sha256:" + "b" * 64,
@@ -134,7 +137,9 @@ def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
                 "profile_digest": "sha256:" + "c" * 64,
                 "role": "search",
                 "outcome": "expected_negative",
-                "outcome_detail": "pattern_not_found",
+                "reason_code": "pattern_not_found",
+                "detail_digest": "sha256:" + "d" * 64,
+                "detail_size": 16,
                 "observation_correlation": "matched_call_id",
                 "correlation_reason": None,
                 "intervention_provenance": "autonomous",
@@ -147,7 +152,8 @@ def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
     result = attach(repo_root=tmp_path, explicit_derived=derived)
     try:
         row = result.connection.execute(
-            "SELECT mechanical_outcome, semantic_outcome, semantic_role, profile_id "
+            "SELECT mechanical_outcome, semantic_outcome, semantic_role, profile_id, "
+            "reason_code, detail_digest, detail_size "
             "FROM v_semantic_vs_mechanical"
         ).fetchone()
         assert row == (
@@ -155,10 +161,162 @@ def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
             "expected_negative",
             "search",
             "posix-generic",
+            "pattern_not_found",
+            "sha256:" + "d" * 64,
+            16,
         )
+        columns = tuple(
+            item[0]
+            for item in result.connection.execute(
+                "DESCRIBE v_semantic_vs_mechanical"
+            ).fetchall()
+        )
+        assert columns == SEMANTIC_COMPARISON_COLUMNS
+        assert "mechanical.*" not in result.sql_preamble
+        assert "semantic.outcome_detail" not in result.sql_preamble
+        assert "semantic.reason_code" in result.sql_preamble
+        assert "mechanical.document_id = semantic.document_id" in result.sql_preamble
         assert result.connection.execute(
-            "SELECT count(*) FROM z3.v_semantic_vs_mechanical"
-        ).fetchone() == (1,)
+            "SELECT * FROM v_semantic_vs_mechanical"
+        ).fetchall() == result.connection.execute(
+            "SELECT * FROM z3.v_semantic_vs_mechanical"
+        ).fetchall()
+    finally:
+        result.connection.close()
+
+
+def test_semantic_comparison_uses_document_identity(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    _write_parquet_tree(
+        derived,
+        "agent_actions",
+        [
+            {
+                "job_id": "job-1",
+                "trial_id": "trial-1",
+                "document_id": "document-a",
+                "tool_call_id": "same-call",
+                "action_id": "action-a",
+                "function_name": "bash",
+                "outcome": "success",
+                "exit_code": 0,
+                "arguments_sha256": "sha256:" + "a" * 64,
+            },
+            {
+                "job_id": "job-1",
+                "trial_id": "trial-1",
+                "document_id": "document-b",
+                "tool_call_id": "same-call",
+                "action_id": "action-b",
+                "function_name": "bash",
+                "outcome": "error",
+                "exit_code": 1,
+                "arguments_sha256": "sha256:" + "b" * 64,
+            },
+        ],
+    )
+    _write_parquet_tree(
+        derived,
+        "semantic_action_facts",
+        [
+            {
+                "job_id": "job-1",
+                "trial_id": "trial-1",
+                "document_id": "document-a",
+                "action_id": "action-a",
+                "tool_call_id": "same-call",
+                "task_id": "task-1",
+                "binding_digest": "sha256:" + "c" * 64,
+                "profile_id": "profile",
+                "profile_version": "1",
+                "profile_digest": "sha256:" + "d" * 64,
+                "role": "search",
+                "outcome": "expected_positive",
+                "reason_code": None,
+                "detail_digest": None,
+                "detail_size": None,
+                "observation_correlation": "matched_call_id",
+                "correlation_reason": None,
+                "intervention_provenance": "autonomous",
+                "intervention_sha256": None,
+                "intervention_length": None,
+                "intervention_reason": None,
+            }
+        ],
+    )
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        rows = result.connection.execute(
+            "SELECT document_id, semantic_outcome "
+            "FROM v_semantic_vs_mechanical ORDER BY document_id"
+        ).fetchall()
+        assert rows == [
+            ("document-a", "expected_positive"),
+            ("document-b", None),
+        ]
+    finally:
+        result.connection.close()
+
+
+def test_semantic_comparison_matches_null_tool_ids_by_action_identity(
+    tmp_path: Path,
+) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    _write_parquet_tree(
+        derived,
+        "agent_actions",
+        [
+            {
+                "job_id": "job-1",
+                "trial_id": "trial-1",
+                "document_id": "document-1",
+                "tool_call_id": None,
+                "action_id": "action-1",
+                "function_name": "bash",
+                "outcome": "success",
+                "exit_code": 0,
+                "arguments_sha256": "sha256:" + "a" * 64,
+            }
+        ],
+    )
+    _write_parquet_tree(
+        derived,
+        "semantic_action_facts",
+        [
+            {
+                "job_id": "job-1",
+                "trial_id": "trial-1",
+                "document_id": "document-1",
+                "action_id": "action-1",
+                "tool_call_id": None,
+                "task_id": "task-1",
+                "binding_digest": "sha256:" + "b" * 64,
+                "profile_id": "profile",
+                "profile_version": "1",
+                "profile_digest": "sha256:" + "c" * 64,
+                "role": "search",
+                "outcome": "unknown_semantics",
+                "reason_code": "missing_call_id",
+                "detail_digest": None,
+                "detail_size": None,
+                "observation_correlation": "unavailable",
+                "correlation_reason": "nullable tool identity",
+                "intervention_provenance": "autonomous",
+                "intervention_sha256": None,
+                "intervention_length": None,
+                "intervention_reason": None,
+            }
+        ],
+    )
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        row = result.connection.execute(
+            "SELECT tool_call_id, semantic_outcome, reason_code "
+            "FROM v_semantic_vs_mechanical"
+        ).fetchone()
+        assert row == (None, "unknown_semantics", "missing_call_id")
     finally:
         result.connection.close()
 
@@ -595,6 +753,16 @@ def test_honest_missing_semantic_tables_and_empty_views(tmp_path: Path) -> None:
             "SELECT COUNT(*) FROM z3.session_dependency_facts"
         ).fetchone()
         assert missing_count_z3 == (0,)
+        assert result.connection.execute(
+            "SELECT COUNT(*) FROM v_semantic_vs_mechanical"
+        ).fetchone() == (0,)
+        comparison_columns = tuple(
+            item[0]
+            for item in result.connection.execute(
+                "DESCRIBE v_semantic_vs_mechanical"
+            ).fetchall()
+        )
+        assert comparison_columns == SEMANTIC_COMPARISON_COLUMNS
 
         # Present semantic table returns its data
         present_rows = result.connection.execute(

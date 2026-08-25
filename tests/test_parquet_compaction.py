@@ -942,3 +942,29 @@ def test_behavior_episodes_not_compacted() -> None:
     assert "behavior_episodes" not in PROJECTED_TABLE_NAMES
     assert "behavior_episodes" not in TRIAL_TABLE_NAMES
     assert "behavior_episodes" not in PRIMARY_KEYS
+
+
+def test_retrieval_facts_not_compacted_without_immutable_identity() -> None:
+    from evallab.parquet_compaction import (
+        PRIMARY_KEYS,
+        PROJECTED_TABLE_NAMES,
+        TRIAL_TABLE_NAMES,
+    )
+    from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
+
+    assert "retrieval_facts" not in PROJECTED_TABLE_NAMES
+    assert "retrieval_facts" not in TRIAL_TABLE_NAMES
+    assert "retrieval_facts" not in PRIMARY_KEYS
+    retrieval_schema = SEMANTIC_FACT_SCHEMAS["retrieval_facts"]
+    assert retrieval_schema.get_field_index("retrieval_id") == -1
+    assert all(
+        retrieval_schema.field(name).nullable
+        for name in (
+            "query_id",
+            "call_id",
+            "result_id",
+            "document_id",
+            "file_id",
+            "block_id",
+            "line_id",
+        )

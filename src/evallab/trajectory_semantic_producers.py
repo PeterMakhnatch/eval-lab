@@ -165,8 +165,9 @@ def _read_verdict_artifact(artifact: Any) -> tuple[str, str | None, str | None]:
             return "unknown", "missing_verdict_artifact", None
         else:
             value = artifact
-    if hasattr(value, "model_dump"):
-        value = value.model_dump(mode="python")
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        value = model_dump(mode="python")
     if isinstance(value, Mapping):
         raw = value.get("verdict", value.get("primary_verdict", value.get("status")))
         if raw is None:
@@ -416,7 +417,9 @@ def project_recovery(
             else ("fault_exposure", "recovery_outcome", *mode_evidence)
         )
         if not exposed:
-            missing_coverage = required_coverage
+            missing_coverage = tuple(
+                evidence for evidence in required_coverage if evidence not in observed
+            )
             eligible_coverage: bool | None = None
             ready: bool | None = None
         else:

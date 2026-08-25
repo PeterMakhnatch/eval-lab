@@ -1485,6 +1485,34 @@ def _behavior_command(
     else:
         print(render_behavior_report(report))
     return 0
+def _semantic_facts_project_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.semantic_facts import load_fact_bundle, project_fact_bundle
+
+    bundle = load_fact_bundle(_resolve(root, args.bundle))
+    paths = project_fact_bundle(bundle, _resolve(root, args.output_dir))
+    if args.json:
+        print(json.dumps({name: str(path) for name, path in paths.items()}, sort_keys=True))
+    else:
+        print(f"Projected {len(paths)} semantic fact tables to {args.output_dir}")
+    return 0
+
+
+def _semantic_facts_query_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.semantic_facts import query_scorecard
+
+    rows = query_scorecard(
+        _resolve(root, args.output_dir),
+        benchmark=args.benchmark,
+        construct=args.construct,
+    )
+    print(json.dumps(rows, indent=2, sort_keys=True))
+    return 0
+
+
 
 
 def _evidence_archive_command(
@@ -2860,6 +2888,27 @@ def parser() -> argparse.ArgumentParser:
         help="override the shared Parquet root (same resolution as library)",
     )
     behavior.set_defaults(func=_behavior_command)
+
+    semantic_facts = commands.add_parser(
+        "semantic-facts", help="Project and query typed benchmark analysis facts"
+    )
+    semantic_facts_commands = semantic_facts.add_subparsers(
+        dest="semantic_facts_command", required=True
+    )
+    semantic_facts_project = semantic_facts_commands.add_parser(
+        "project", help="Project a normalized JSON fact bundle to typed Parquet"
+    )
+    semantic_facts_project.add_argument("bundle", type=Path)
+    semantic_facts_project.add_argument("--output-dir", type=Path, required=True)
+    semantic_facts_project.add_argument("--json", action="store_true")
+    semantic_facts_project.set_defaults(func=_semantic_facts_project_command)
+    semantic_facts_query = semantic_facts_commands.add_parser(
+        "query", help="Query benchmark×construct analysis-readiness scorecards"
+    )
+    semantic_facts_query.add_argument("output_dir", type=Path)
+    semantic_facts_query.add_argument("--benchmark")
+    semantic_facts_query.add_argument("--construct")
+    semantic_facts_query.set_defaults(func=_semantic_facts_query_command)
 
     evidence_parser = commands.add_parser(
         "evidence", help="Archive and restore content-addressed raw evidence"

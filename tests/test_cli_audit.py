@@ -40,6 +40,7 @@ TOP_LEVEL_COMMANDS = (
     "analyst",
     "card",
     "behavior",
+    "semantic-facts",
     "evidence",
     "tasks",
     "ladder",
@@ -83,6 +84,8 @@ NESTED_COMMANDS = (
     ("traj", "label"),
     ("traj", "project"),
     ("traj", "report"),
+    ("semantic-facts", "project"),
+    ("semantic-facts", "query"),
 )
 HELP_PATHS = tuple((command,) for command in TOP_LEVEL_COMMANDS) + NESTED_COMMANDS
 

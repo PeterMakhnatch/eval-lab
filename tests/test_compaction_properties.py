@@ -321,6 +321,110 @@ def _make_row(table_name: str, job_id: str, trial_id: str, index: int = 1) -> di
             "link_status": "linked",
             "link_method": "latest_preceding_action",
         }
+    if table_name == "capability_opportunities":
+        return {
+            "source_ref": f"ref-{index}",
+            "source_digest": "sha256:" + "0" * 64,
+            "provenance_kind": "canonical_cohort",
+            "opportunity_id": f"opp-{index}",
+            "trial_id": trial_id,
+            "benchmark": "bench1",
+            "construct": "construct1",
+            "start_step": index,
+            "end_step": index + 1,
+            "eligible": True,
+            "required_evidence": ["ev1"],
+            "missing_evidence": [],
+        }
+    if table_name == "process_step_facts":
+        return {
+            "source_ref": f"ref-{index}",
+            "source_digest": "sha256:" + "0" * 64,
+            "provenance_kind": "canonical_cohort",
+            "trial_id": trial_id,
+            "source_trajectory_id": f"traj-{index}",
+            "source_step_id": f"step-{index}",
+            "label": "correct",
+            "original_label": "correct",
+            "propagated_from_step": None,
+            "first_error": False,
+        }
+    if table_name == "constraint_facts":
+        return {
+            "source_ref": f"ref-{index}",
+            "source_digest": "sha256:" + "0" * 64,
+            "provenance_kind": "canonical_cohort",
+            "trial_id": trial_id,
+            "plan_id": f"plan-{index}",
+            "action_id": f"act-{index}",
+            "constraint_id": f"const-{index}",
+            "constraint_scope": "local",
+            "required": True,
+            "verdict": "pass",
+            "verifier_evidence": None,
+        }
+    if table_name == "context_operation_facts":
+        return {
+            "source_ref": f"ref-{index}",
+            "source_digest": "sha256:" + "0" * 64,
+            "provenance_kind": "canonical_cohort",
+            "trial_id": trial_id,
+            "operation_id": f"op-{index}",
+            "operation": "compaction",
+            "configured_size": 100,
+            "realized_size": 90,
+            "prompt_tokens": 50,
+            "before_token_count": 100,
+            "after_token_count": 90,
+            "content_digest": "sha256:" + "0" * 64,
+        }
+    if table_name == "paired_condition_facts":
+        return {
+            "source_ref": f"ref-{index}",
+            "source_digest": "sha256:" + "0" * 64,
+            "provenance_kind": "canonical_cohort",
+            "trial_id": trial_id,
+            "pair_id": f"pair-{index}",
+            "session_id": None,
+            "task_id": f"task-{index}",
+            "variant": "v1",
+            "condition": f"cond-{index}",
+            "trigger": "trig1",
+            "critical_action": None,
+            "state_diff": None,
+            "primary_verdict": "pass",
+            "secondary_verdict": "pass",
+        }
+    if table_name == "session_dependency_facts":
+        return {
+            "source_ref": f"ref-{index}",
+            "source_digest": "sha256:" + "0" * 64,
+            "provenance_kind": "canonical_cohort",
+            "trial_id": trial_id,
+            "episode_id": f"ep-{index}",
+            "session_id": f"sess-{index}",
+            "subtask_id": f"sub-{index}",
+            "dependency_edge": f"edge-{index}",
+            "required_prior_fact": "fact1",
+            "observed_memory_reference": None,
+            "progress": None,
+            "outcome": "success",
+        }
+    if table_name == "evidence_coverage":
+        return {
+            "source_ref": f"ref-{index}",
+            "source_digest": "sha256:" + "0" * 64,
+            "provenance_kind": "canonical_cohort",
+            "trial_id": trial_id,
+            "benchmark": "bench1",
+            "construct": f"construct-{index}",
+            "exposed": True,
+            "eligible": True,
+            "required_evidence": ["ev1"],
+            "observed_evidence": ["ev1"],
+            "missing_evidence": [],
+            "analysis_ready": True,
+        }
     raise ValueError(f"Unknown table: {table_name}")
 
 

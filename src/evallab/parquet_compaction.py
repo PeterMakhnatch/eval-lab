@@ -30,6 +30,7 @@ from evallab.event_mart import EVENT_MART_SCHEMAS
 from evallab.facts import FACT_SCHEMAS
 from evallab.paths import derived_root_from_environment
 from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
+
 DEFAULT_RETENTION_DAYS = 7
 COMPACT_DIRNAME = "compact"
 

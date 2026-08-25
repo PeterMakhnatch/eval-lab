@@ -57,6 +57,7 @@ TABLES = (
     "jobs",
     "traj_features",
     "behavior_labels",
+    "behavior_episodes",
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"

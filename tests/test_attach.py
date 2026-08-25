@@ -62,6 +62,16 @@ def test_z3_views_return_written_rows(tmp_path: Path) -> None:
             "model_name": "judge-model",
         }],
     )
+    _write_parquet_tree(
+        derived,
+        "behavior_episodes",
+        [{
+            "episode_id": "episode-1",
+            "trial_id": "t1",
+            "document_id": "document-1",
+            "label": "tool_error",
+        }],
+    )
     result = attach(repo_root=tmp_path, explicit_derived=derived)
     try:
         rows = result.connection.execute("SELECT COUNT(*) FROM trial_facts").fetchone()
@@ -80,6 +90,10 @@ def test_z3_views_return_written_rows(tmp_path: Path) -> None:
             "SELECT target_type, model_name FROM behavior_labels"
         ).fetchall()
         assert label_rows == [("trajectory", "judge-model")]
+        episode_rows = result.connection.execute(
+            "SELECT episode_id, document_id, label FROM z3.behavior_episodes"
+        ).fetchall()
+        assert episode_rows == [("episode-1", "document-1", "tool_error")]
     finally:
         result.connection.close()
 
@@ -172,7 +186,7 @@ def test_cli_zones_reports_z3_with_row_counts(tmp_path: Path, capsys: pytest.Cap
     out, _ = capsys.readouterr()
     assert code == 0
     assert "z3: attached" in out
-    assert "10/18 tables" in out
+    assert "10/19 tables" in out
 
 
 def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501

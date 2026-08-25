@@ -6,10 +6,17 @@ import hashlib
 import json
 import random
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID, uuid4
 
+import pytest
+
+from evallab import trajectory_context as trajectory_context_module
 from evallab.behavior_episodes import BehaviorEpisode
+from evallab.cli import run_cli
 from evallab.schemas import (
+    ANALYSIS_REVIEWS_DIRNAME,
+    ANALYSIS_SIDECAR_FILENAME,
     AnalysisEvidenceCitation,
     AnalysisProvenance,
     AnalysisReview,
@@ -23,6 +30,7 @@ from evallab.semantic_facts import (
     NormalizedFactBundle,
 )
 from evallab.trajectory_context import (
+    build_durable_trajectory_context,
     build_trajectory_context,
     latest_review,
     reviews_by_analysis,
@@ -429,9 +437,7 @@ def test_candidate_opt_in_is_labeled() -> None:
     assert ep_cand_entry.label == "candidate"
     assert ep_cand_entry.status == "candidate"
 
-    a_unrev_entry = next(
-        e for e in pack_opt.entries if e.entry_id == str(a_unreviewed.analysis_id)
-    )
+    a_unrev_entry = next(e for e in pack_opt.entries if e.entry_id == str(a_unreviewed.analysis_id))
     assert a_unrev_entry.label == "candidate"
     assert a_unrev_entry.status == "unreviewed"
 
@@ -835,6 +841,7 @@ def test_rejected_opt_in_is_labeled() -> None:
     assert a_sup_entry.label == "superseded"
     assert a_sup_entry.status == "superseded"
 
+
 def test_hard_deterministic_max_bytes_truncation() -> None:
     """Exact max_bytes limit truncates entries atomically without splitting citations."""
     from evallab.trajectory_context import compile_context_pack
@@ -854,10 +861,7 @@ def test_hard_deterministic_max_bytes_truncation() -> None:
         )
         for i in range(1, 6)
     ]
-    reviews = [
-        _make_review(analysis_id=a.analysis_id, disposition="accepted")
-        for a in analyses
-    ]
+    reviews = [_make_review(analysis_id=a.analysis_id, disposition="accepted") for a in analyses]
 
     # 1. Unbounded compilation includes all 5 entries
     full_pack = compile_context_pack(
@@ -892,3 +896,191 @@ def test_hard_deterministic_max_bytes_truncation() -> None:
     assert "## Truncation" in md
     for omitted_id in bounded_pack.truncation.omitted_entry_ids:
         assert omitted_id in md
+
+
+def test_unknown_only_pack_obeys_exact_byte_bound() -> None:
+    trial_id = "00000000-0000-0000-0000-000000000001"
+    unknown = _make_opportunity(
+        opportunity_id="unknown-opportunity",
+        trial_id=trial_id,
+        required_evidence=("x" * 1200,),
+        missing_evidence=("x" * 1200,),
+    )
+    pack = build_trajectory_context(
+        trial_id=trial_id,
+        facts=NormalizedFactBundle(capability_opportunities=(unknown,)),
+        max_bytes=180,
+    )
+    rendered = pack.to_markdown()
+    assert len(rendered.encode()) <= 180
+    assert pack.unknowns == ()
+    assert pack.truncation.truncated
+    assert pack.truncation.omitted_entry_ids == ("unknown-opportunity",)
+    assert "## Truncation" in rendered
+
+
+def test_json_budget_measures_exact_emitted_serialization() -> None:
+    trial_uuid = UUID("00000000-0000-0000-0000-000000000001")
+    analyses = [
+        _make_sidecar(
+            analysis_id=UUID(f"00000000-0000-0000-0000-0000000000{i:02d}"),
+            trial_uuid=trial_uuid,
+            summary="claim " + "x" * 200,
+        )
+        for i in range(1, 6)
+    ]
+    reviews = [_make_review(analysis_id=analysis.analysis_id) for analysis in analyses]
+    pack = build_trajectory_context(
+        trial_id=str(trial_uuid),
+        analyses=analyses,
+        reviews=reviews,
+        max_bytes=1200,
+        output_format="json",
+    )
+    rendered = pack.to_json()
+    assert len(rendered.encode()) <= 1200
+    assert pack.truncation.total_bytes == len(rendered.encode())
+    assert pack.truncation.truncated
+    assert json.loads(rendered)["truncation"]["total_bytes"] == len(rendered.encode())
+
+
+def test_token_budget_requires_and_uses_explicit_tokenizer() -> None:
+    trial_uuid = UUID("00000000-0000-0000-0000-000000000001")
+    analysis = _make_sidecar(trial_uuid=trial_uuid, summary="x " * 200)
+    review = _make_review(analysis_id=analysis.analysis_id)
+    with pytest.raises(ValueError, match="requires an explicit tokenizer"):
+        build_trajectory_context(
+            trial_id=str(trial_uuid),
+            analyses=[analysis],
+            reviews=[review],
+            max_tokens=100,
+        )
+
+    def tokenizer(text: str) -> int:
+        return len(text.split())
+
+    pack = build_trajectory_context(
+        trial_id=str(trial_uuid),
+        analyses=[analysis],
+        reviews=[review],
+        max_tokens=80,
+        tokenizer=tokenizer,
+    )
+    assert tokenizer(pack.to_markdown()) <= 80
+    assert pack.truncation.tokenizer_bound
+
+
+def test_durable_pack_loads_real_sidecar_file_and_changes_on_supersession(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    trial_uuid = UUID("00000000-0000-0000-0000-000000000001")
+    trial_id = str(trial_uuid)
+    evidence_path = tmp_path / "runs" / trial_id / "result.json"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_bytes(b"result")
+
+    sidecar = _make_sidecar(
+        analysis_id=UUID("00000000-0000-0000-0000-000000000091"),
+        trial_uuid=trial_uuid,
+    )
+    accepted = _make_review(
+        review_id=UUID("00000000-0000-0000-0000-000000000092"),
+        analysis_id=sidecar.analysis_id,
+        disposition="accepted",
+        reviewed_at=datetime(2026, 8, 2, 12, 0, tzinfo=UTC),
+    )
+    store = tmp_path / "analysis-store" / str(sidecar.analysis_id)
+    store.mkdir(parents=True)
+    (store / ANALYSIS_SIDECAR_FILENAME).write_text(sidecar.model_dump_json())
+    reviews_dir = store / ANALYSIS_REVIEWS_DIRNAME
+    reviews_dir.mkdir()
+    (reviews_dir / f"{accepted.review_id}.json").write_text(accepted.model_dump_json())
+
+    first = build_durable_trajectory_context(
+        trial_id=trial_id,
+        repo_root=tmp_path,
+        derived_root=tmp_path / "derived",
+        sidecar_roots=(tmp_path / "analysis-store",),
+    )
+    assert [entry.entry_id for entry in first.entries] == [str(sidecar.analysis_id)]
+
+    superseded = _make_review(
+        review_id=UUID("00000000-0000-0000-0000-000000000093"),
+        analysis_id=sidecar.analysis_id,
+        disposition="superseded",
+        reviewed_at=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
+        superseded_by=UUID("00000000-0000-0000-0000-000000000094"),
+    )
+    (reviews_dir / f"{superseded.review_id}.json").write_text(superseded.model_dump_json())
+    second = build_durable_trajectory_context(
+        trial_id=trial_id,
+        repo_root=tmp_path,
+        derived_root=tmp_path / "derived",
+        sidecar_roots=(tmp_path / "analysis-store",),
+    )
+    repeated = build_durable_trajectory_context(
+        trial_id=trial_id,
+        repo_root=tmp_path,
+        derived_root=tmp_path / "derived",
+        sidecar_roots=(tmp_path / "analysis-store",),
+    )
+    assert second.entries == ()
+    assert second.to_json() == repeated.to_json()
+    assert first.to_json() != second.to_json()
+
+
+def test_durable_pack_uses_configured_database_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setenv("DATABASE_URL", "postgresql://configured/catalog")
+    monkeypatch.setattr(
+        trajectory_context_module,
+        "_load_postgres_analysis",
+        lambda database_url, trial_id: calls.append((database_url, trial_id)) or ([], []),
+    )
+    monkeypatch.setattr(
+        trajectory_context_module,
+        "load_behavior_episodes",
+        lambda **kwargs: [],
+    )
+    build_durable_trajectory_context(
+        trial_id="trial",
+        repo_root=tmp_path,
+        derived_root=tmp_path / "derived",
+    )
+    assert calls == [("postgresql://configured/catalog", "trial")]
+
+
+def test_claims_cli_json_reports_exact_output_size(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    result = run_cli(
+        [
+            "claims",
+            "pack",
+            "--trial",
+            "trial",
+            "--derived-root",
+            str(tmp_path / "derived"),
+            "--json",
+            "--max-bytes",
+            "1000",
+            "--max-tokens",
+            "1000",
+            "--tokenizer",
+            "builtins:len",
+        ],
+        workspace=tmp_path,
+    )
+    assert result == 0
+    rendered = capsys.readouterr().out
+    payload = json.loads(rendered)
+    assert len(rendered.encode()) <= 1000
+    assert payload["truncation"]["total_bytes"] == len(rendered.encode())

@@ -9,6 +9,7 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import UTC, date, datetime
+from importlib import import_module
 from pathlib import Path
 from uuid import UUID
 
@@ -1598,7 +1599,6 @@ def _semantics_coverage_command(
     )
     return 0
 
-
 def _evidence_archive_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2368,11 +2368,25 @@ def _traj_report_command(
 # ---------------------------------------------------------------------------
 
 
+def _load_claims_tokenizer(selector: str) -> Callable[[str], int] | object:
+    module_name, separator, attribute = selector.partition(":")
+    if not separator or not module_name or not attribute:
+        raise ValueError("tokenizer must be MODULE:ATTRIBUTE")
+    target: object = import_module(module_name)
+    for component in attribute.split("."):
+        target = getattr(target, component)
+    if callable(target) or callable(getattr(target, "encode", None)):
+        return target
+    raise TypeError("tokenizer target must be callable or provide encode()")
+
+
 def _claims_pack_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     from evallab.trajectory_context import build_durable_trajectory_context
 
+    output_format = "json" if args.json else "markdown"
+    tokenizer = _load_claims_tokenizer(args.tokenizer) if args.tokenizer is not None else None
     pack = build_durable_trajectory_context(
         trial_id=args.trial,
         repo_root=root,
@@ -2382,11 +2396,11 @@ def _claims_pack_command(
         semantic_root=args.semantic_root,
         max_bytes=args.max_bytes,
         max_entries=args.max_entries,
+        max_tokens=args.max_tokens,
+        tokenizer=tokenizer,
+        output_format=output_format,
     )
-    if args.json:
-        print(json.dumps(pack.to_dict(), sort_keys=True, indent=2))
-    else:
-        print(pack.to_markdown(), end="")
+    print(pack.render(output_format), end="")
     return 0
 
 
@@ -2397,9 +2411,7 @@ def parser() -> argparse.ArgumentParser:
     )
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
-    claims = commands.add_parser(
-        "claims", help="Compile durable, provenance-backed claims context"
-    )
+    claims = commands.add_parser("claims", help="Compile durable, provenance-backed claims context")
     claims_commands = claims.add_subparsers(dest="claims_command", required=True)
     claims_pack = claims_commands.add_parser(
         "pack", help="Compile one trial's accepted/current claims"
@@ -2407,6 +2419,15 @@ def parser() -> argparse.ArgumentParser:
     claims_pack.add_argument("--trial", required=True, help="Trial identifier")
     claims_pack.add_argument("--max-bytes", type=int, help="Exact UTF-8 output byte bound")
     claims_pack.add_argument("--max-entries", type=int, help="Maximum complete claims")
+    claims_pack.add_argument(
+        "--max-tokens",
+        type=int,
+        help="Exact token bound; requires --tokenizer",
+    )
+    claims_pack.add_argument(
+        "--tokenizer",
+        help="Explicit tokenizer as MODULE:ATTRIBUTE callable or encode()-provider",
+    )
     claims_pack.add_argument("--database-url", help="PostgreSQL catalog URL override")
     claims_pack.add_argument("--derived-root", type=Path, help="Shared Parquet root override")
     claims_pack.add_argument(

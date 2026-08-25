@@ -29,6 +29,7 @@ def test_pins_are_immutable_and_digest_addressed():
         "final_64k_set_config.json",
         "final_128k_set_config.json",
         "generate_ab_data.py",
+        "mcp_tool_schemas.json",
     }
 
 
@@ -77,7 +78,6 @@ def test_materializer_oracle_nop_and_mutants(tmp_path):
     assert (target / "tests" / "test.sh").is_file()
     templates.nop(target, target / "agent_workspace")
     assert verifier.verify(target)["reward"] == 0.0
-    materializer.materialize(target, verify_sources=False)
     templates.oracle(target)
     assert verifier.verify(target)["reward"] == 1.0
     for mutant in templates.mutants().values():
@@ -96,6 +96,8 @@ def test_context_curve_contract_rejects_drift(tmp_path):
     curve.emit(target, "canary", rows_path)
     projected = curve.project(rows_path)
     assert projected["contract"] == curve.CONTEXT_CONTRACT
+    assert projected["curve"][0]["after_tokens"]
+    assert (tmp_path / "semantic-projection" / "context_operation_facts.parquet").is_file()
     lines = rows_path.read_text().splitlines()
     row = json.loads(lines[0])
     row["contract"]["measurement"] = "padding"

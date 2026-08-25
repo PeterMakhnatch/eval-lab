@@ -51,7 +51,8 @@ def project(rows_path: Path, output_dir: Path | None = None) -> dict:
     repo = Path(__file__).resolve().parents[3]
     sys.path.insert(0, str(repo / "src"))
     from evallab.semantic_facts import ContextOperationFact, project_fact_bundle, query_scorecard
-    facts = [ContextOperationFact.model_validate(row) for row in rows]
+    schema_fields = set(ContextOperationFact.model_fields)
+    facts = [ContextOperationFact.model_validate({key: row[key] for key in schema_fields if key in row}) for row in rows]
     destination = output_dir or rows_path.parent / "semantic-projection"
     project_fact_bundle({"context_operation_facts": facts}, destination)
     grouped: dict[int, list[dict]] = {}

@@ -9,6 +9,7 @@ import argparse
 import datetime
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -53,23 +54,24 @@ class EnvironmentState:
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         self.calls_log_file.parent.mkdir(parents=True, exist_ok=True)
         if not self.state_file.exists():
-            self._init_empty_state()
+            self._seed_state()
 
-    def _init_empty_state(self) -> None:
-        empty = {
-            "gmail": {"threads": {}, "drafts": {}},
-            "spotify": {
-                "liked_songs": [],
-                "saved_tracks": [],
-                "saved_albums": [],
-                "playlists": [],
-            },
-        }
-        self.save(empty)
+    def _seed_state(self) -> None:
+        seed = Path(os.environ.get("AGENTABSTAIN_INITIAL_STATE", "")).resolve() if os.environ.get("AGENTABSTAIN_INITIAL_STATE") else None
+        candidates = [
+            seed,
+            Path("/app/initial_state.json"),
+            Path("initial_state.json"),
+        ]
+        for cand in candidates:
+            if cand is not None and cand.is_file():
+                shutil.copy2(cand, self.state_file)
+                return
+        raise FileNotFoundError("missing initial state seed")
 
     def load(self) -> dict[str, Any]:
         if not self.state_file.exists():
-            self._init_empty_state()
+            self._seed_state()
         return json.loads(self.state_file.read_text(encoding="utf-8"))
 
     def save(self, data: dict[str, Any]) -> None:
@@ -205,9 +207,12 @@ def handle_tool_call(
             return res, True
 
         if action == "save":
-            if draft_id in drafts:
-                drafts[draft_id]["status"] = "saved_draft"
-                env.save(state)
+            if draft_id not in drafts:
+                err = {"error": f"draft not found: {draft_id}"}
+                env.log_call(canonical_name, arguments, err, success=False, error="draft_not_found")
+                return err, False
+            drafts[draft_id]["status"] = "saved_draft"
+            env.save(state)
             res = {"status": "updated", "draft_id": draft_id}
             env.log_call(canonical_name, arguments, res, success=True)
             return res, True
@@ -228,25 +233,31 @@ def handle_tool_call(
         drafts = gmail.setdefault("drafts", {})
 
         if action == "send":
-            if draft_id in drafts:
-                drafts[draft_id]["status"] = "sent"
-                if body:
-                    drafts[draft_id]["body"] = body
-                if subject:
-                    drafts[draft_id]["subject"] = subject
-                env.save(state)
+            if draft_id not in drafts:
+                err = {"error": f"draft not found: {draft_id}"}
+                env.log_call(canonical_name, arguments, err, success=False, error="draft_not_found")
+                return err, False
+            drafts[draft_id]["status"] = "sent"
+            if body:
+                drafts[draft_id]["body"] = body
+            if subject:
+                drafts[draft_id]["subject"] = subject
+            env.save(state)
             res = {"status": "sent", "draft_id": draft_id}
             env.log_call(canonical_name, arguments, res, success=True)
             return res, True
 
         if action == "update":
-            if draft_id in drafts:
-                if body:
-                    drafts[draft_id]["body"] = body
-                if subject:
-                    drafts[draft_id]["subject"] = subject
-                drafts[draft_id]["status"] = "updated"
-                env.save(state)
+            if draft_id not in drafts:
+                err = {"error": f"draft not found: {draft_id}"}
+                env.log_call(canonical_name, arguments, err, success=False, error="draft_not_found")
+                return err, False
+            if body:
+                drafts[draft_id]["body"] = body
+            if subject:
+                drafts[draft_id]["subject"] = subject
+            drafts[draft_id]["status"] = "updated"
+            env.save(state)
             res = {"status": "updated", "draft_id": draft_id}
             env.log_call(canonical_name, arguments, res, success=True)
             return res, True
@@ -363,6 +374,13 @@ def main() -> None:
     reset_parser.add_argument("initial_state", type=Path)
 
     args = parser.parse_args()
+
+    if args.command == "reset":
+        from .reset_state import reset_trial
+        reset_trial(args.trial_root, args.initial_state)
+        print("state reset successfully")
+        return
+
     env = EnvironmentState(args.state, args.calls)
 
     if args.command == "server":
@@ -377,11 +395,6 @@ def main() -> None:
         print(json.dumps(res, ensure_ascii=False))
         if not ok:
             sys.exit(1)
-    elif args.command == "reset":
-        from .reset_state import reset_trial
-        reset_trial(args.trial_root, args.initial_state)
-        print("state reset successfully")
-
 
 if __name__ == "__main__":
     main()

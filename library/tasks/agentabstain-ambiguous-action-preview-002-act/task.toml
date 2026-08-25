@@ -1,5 +1,5 @@
 schema_version = "1.4"
-artifacts = ["/app/state/state.json"]
+artifacts = ["/app/state/state.json", "/app/state/calls.jsonl"]
 
 [task]
 name = "agentabstain/ambiguous-action-preview-002-act"

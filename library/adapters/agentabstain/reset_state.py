@@ -17,7 +17,8 @@ def reset_trial(trial_root: str | Path, initial_state: str | Path) -> Path:
     if state.exists():
         shutil.rmtree(state)
     state.mkdir(parents=True)
-    shutil.copy2(source, state / source.name)
+    shutil.copy2(source, state / "state.json")
+    (state / "calls.jsonl").write_text("", encoding="utf-8")
     return state
 
 

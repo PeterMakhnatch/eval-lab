@@ -5,6 +5,7 @@ import argparse
 import datetime
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,36 @@ def default_calls_log_path() -> Path:
     return candidates[0].resolve()
 
 
+def default_initial_state_path() -> Path:
+    env_path = os.environ.get("AGENTABSTAIN_INITIAL_STATE")
+    if env_path:
+        return Path(env_path).resolve()
+    candidates = [
+        Path("/app/initial_state.json"),
+        Path("initial_state.json"),
+    ]
+    for cand in candidates:
+        if cand.is_file():
+            return cand.resolve()
+    return candidates[0].resolve()
+
+
+def reset_live_state(
+    state_file: Path | None = None,
+    calls_log_file: Path | None = None,
+    initial_state: Path | None = None,
+) -> None:
+    state_path = (state_file or default_state_path()).resolve()
+    calls_path = (calls_log_file or default_calls_log_path()).resolve()
+    seed = (initial_state or default_initial_state_path()).resolve()
+    if not seed.is_file():
+        raise FileNotFoundError(seed)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    calls_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(seed, state_path)
+    calls_path.write_text("", encoding="utf-8")
+
+
 class EnvironmentState:
     def __init__(self, state_file: Path | None = None, calls_log_file: Path | None = None) -> None:
         self.state_file = (state_file or default_state_path()).resolve()
@@ -47,23 +78,17 @@ class EnvironmentState:
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         self.calls_log_file.parent.mkdir(parents=True, exist_ok=True)
         if not self.state_file.exists():
-            self._init_empty_state()
+            self._seed_state()
 
-    def _init_empty_state(self) -> None:
-        empty = {
-            "gmail": {"threads": {}, "drafts": {}},
-            "spotify": {
-                "liked_songs": [],
-                "saved_tracks": [],
-                "saved_albums": [],
-                "playlists": [],
-            },
-        }
-        self.save(empty)
+    def _seed_state(self) -> None:
+        seed = default_initial_state_path()
+        if not seed.is_file():
+            raise FileNotFoundError(f"missing initial state seed: {seed}")
+        shutil.copy2(seed, self.state_file)
 
     def load(self) -> dict[str, Any]:
         if not self.state_file.exists():
-            self._init_empty_state()
+            self._seed_state()
         return json.loads(self.state_file.read_text(encoding="utf-8"))
 
     def save(self, data: dict[str, Any]) -> None:
@@ -199,9 +224,12 @@ def handle_tool_call(
             return res, True
 
         if action == "save":
-            if draft_id in drafts:
-                drafts[draft_id]["status"] = "saved_draft"
-                env.save(state)
+            if draft_id not in drafts:
+                err = {"error": f"draft not found: {draft_id}"}
+                env.log_call(canonical_name, arguments, err, success=False, error="draft_not_found")
+                return err, False
+            drafts[draft_id]["status"] = "saved_draft"
+            env.save(state)
             res = {"status": "updated", "draft_id": draft_id}
             env.log_call(canonical_name, arguments, res, success=True)
             return res, True
@@ -222,25 +250,31 @@ def handle_tool_call(
         drafts = gmail.setdefault("drafts", {})
 
         if action == "send":
-            if draft_id in drafts:
-                drafts[draft_id]["status"] = "sent"
-                if body:
-                    drafts[draft_id]["body"] = body
-                if subject:
-                    drafts[draft_id]["subject"] = subject
-                env.save(state)
+            if draft_id not in drafts:
+                err = {"error": f"draft not found: {draft_id}"}
+                env.log_call(canonical_name, arguments, err, success=False, error="draft_not_found")
+                return err, False
+            drafts[draft_id]["status"] = "sent"
+            if body:
+                drafts[draft_id]["body"] = body
+            if subject:
+                drafts[draft_id]["subject"] = subject
+            env.save(state)
             res = {"status": "sent", "draft_id": draft_id}
             env.log_call(canonical_name, arguments, res, success=True)
             return res, True
 
         if action == "update":
-            if draft_id in drafts:
-                if body:
-                    drafts[draft_id]["body"] = body
-                if subject:
-                    drafts[draft_id]["subject"] = subject
-                drafts[draft_id]["status"] = "updated"
-                env.save(state)
+            if draft_id not in drafts:
+                err = {"error": f"draft not found: {draft_id}"}
+                env.log_call(canonical_name, arguments, err, success=False, error="draft_not_found")
+                return err, False
+            if body:
+                drafts[draft_id]["body"] = body
+            if subject:
+                drafts[draft_id]["subject"] = subject
+            drafts[draft_id]["status"] = "updated"
+            env.save(state)
             res = {"status": "updated", "draft_id": draft_id}
             env.log_call(canonical_name, arguments, res, success=True)
             return res, True
@@ -315,7 +349,18 @@ def main() -> None:
     call_parser.add_argument("--state", type=Path, default=None)
     call_parser.add_argument("--calls", type=Path, default=None)
 
+    reset_parser = subparsers.add_parser("reset", help="Reset live state from the immutable seed")
+    reset_parser.add_argument("--state", type=Path, default=None)
+    reset_parser.add_argument("--calls", type=Path, default=None)
+    reset_parser.add_argument("--initial-state", type=Path, default=None)
+
     args = parser.parse_args()
+
+    if args.command == "reset":
+        reset_live_state(args.state, args.calls, args.initial_state)
+        print("state reset successfully")
+        return
+
     env = EnvironmentState(args.state, args.calls)
 
     if args.command == "server":

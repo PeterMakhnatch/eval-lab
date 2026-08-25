@@ -4,9 +4,16 @@ WORKDIR /app
 
 COPY initial_state.json /app/initial_state.json
 COPY runtime.py /app/runtime.py
+COPY TOOLS.md /app/TOOLS.md
+COPY entrypoint.sh /app/entrypoint.sh
 
-RUN mkdir -p /app/state && cp /app/initial_state.json /app/state/state.json && touch /app/state/calls.jsonl
+RUN mkdir -p /app/state \
+    && cp /app/initial_state.json /app/state/state.json \
+    && : > /app/state/calls.jsonl \
+    && chmod +x /app/entrypoint.sh /app/runtime.py
 
 ENV AGENTABSTAIN_STATE_FILE=/app/state/state.json
 ENV AGENTABSTAIN_CALLS_LOG=/app/state/calls.jsonl
 ENV AGENTABSTAIN_INITIAL_STATE=/app/initial_state.json
+
+ENTRYPOINT ["/app/entrypoint.sh"]

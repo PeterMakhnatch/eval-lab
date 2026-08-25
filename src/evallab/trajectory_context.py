@@ -18,16 +18,8 @@ from uuid import UUID
 from evallab.behavior_episodes import BehaviorEpisode
 from evallab.schemas import AnalysisReview, AnalysisSourceDigests, TrialAnalysisSidecar
 from evallab.semantic_facts import (
-    CapabilityOpportunity,
-    ConstraintFact,
-    ContextOperationFact,
-    EvidenceCoverage,
     FactRow,
     NormalizedFactBundle,
-    PairedConditionFact,
-    ProcessStepFact,
-    RetrievalFact,
-    SessionDependencyFact,
 )
 
 EntryKind = Literal["analysis", "episode", "semantic_fact", "unknown"]

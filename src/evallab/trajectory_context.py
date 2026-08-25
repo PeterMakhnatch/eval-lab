@@ -69,9 +69,11 @@ class ContextEntry:
 class TruncationMetadata:
     truncated: bool
     max_entries: int | None
-    included_count: int
-    omitted_count: int
-    omitted_entry_ids: tuple[str, ...]
+    max_bytes: int | None = None
+    included_count: int = 0
+    omitted_count: int = 0
+    omitted_entry_ids: tuple[str, ...] = ()
+    total_bytes: int = 0
 
 
 def _to_json_compatible(obj: Any) -> Any:
@@ -98,9 +100,11 @@ def _to_json_compatible(obj: Any) -> Any:
         return {
             "truncated": obj.truncated,
             "max_entries": obj.max_entries,
+            "max_bytes": obj.max_bytes,
             "included_count": obj.included_count,
             "omitted_count": obj.omitted_count,
             "omitted_entry_ids": list(obj.omitted_entry_ids),
+            "total_bytes": obj.total_bytes,
         }
     if isinstance(obj, TrajectoryContextPack):
         return {
@@ -250,8 +254,9 @@ def build_trajectory_context(
     include_candidates: bool = False,
     include_rejected: bool = False,
     max_entries: int | None = None,
+    max_bytes: int | None = None,
 ) -> TrajectoryContextPack:
-    """Compile one trial's agent-facing context pack."""
+    """Compile one trial's agent-facing context pack with hard max_bytes / max_entries bounds."""
     includable_entries: list[ContextEntry] = []
     unknown_entries: list[ContextEntry] = []
 
@@ -431,27 +436,20 @@ def build_trajectory_context(
             )
             opp_prov = _fact_row_provenance(opp)
             if opp.eligible is not True or bool(opp.missing_evidence):
-                if opp.eligible is False:
-                    f_status = "ineligible"
-                elif opp.missing_evidence:
-                    f_status = "missing_evidence"
-                else:
-                    f_status = "unknown_eligibility"
-                if opp.missing_evidence:
-                    f_claim = (
-                        f"Opportunity {opp.opportunity_id} for construct {opp.construct} "
-                        f"is missing evidence: {', '.join(sorted(opp.missing_evidence))}."
+                f_status = (
+                    "ineligible"
+                    if opp.eligible is False
+                    else ("missing_evidence" if opp.missing_evidence else "unknown_eligibility")
+                )
+                f_claim = (
+                    f"Opportunity {opp.opportunity_id} for construct {opp.construct} is missing evidence: {', '.join(sorted(opp.missing_evidence))}."
+                    if opp.missing_evidence
+                    else (
+                        f"Opportunity {opp.opportunity_id} for construct {opp.construct} is ineligible."
+                        if opp.eligible is False
+                        else f"Opportunity {opp.opportunity_id} for construct {opp.construct} has unknown eligibility."
                     )
-                elif opp.eligible is False:
-                    f_claim = (
-                        f"Opportunity {opp.opportunity_id} for construct {opp.construct} "
-                        "is ineligible."
-                    )
-                else:
-                    f_claim = (
-                        f"Opportunity {opp.opportunity_id} for construct {opp.construct} "
-                        "has unknown eligibility."
-                    )
+                )
                 unknown_entries.append(
                     ContextEntry(
                         kind="unknown",
@@ -465,17 +463,12 @@ def build_trajectory_context(
                     )
                 )
             else:
-                f_status = "eligible"
-                f_claim = (
-                    f"Opportunity {opp.opportunity_id} for construct {opp.construct} "
-                    "is eligible with complete evidence."
-                )
                 includable_entries.append(
                     ContextEntry(
                         kind="semantic_fact",
                         entry_id=opp.opportunity_id,
-                        claim=f_claim,
-                        status=f_status,
+                        claim=f"Opportunity {opp.opportunity_id} for construct {opp.construct} is eligible with complete evidence.",
+                        status="eligible",
                         label=None,
                         citations=(opp_citation,),
                         provenance=opp_prov,
@@ -496,29 +489,24 @@ def build_trajectory_context(
             cov_prov = _fact_row_provenance(cov)
             entry_id = f"{cov.benchmark}:{cov.construct}"
             if cov.analysis_ready is not True or not cov.exposed or bool(cov.missing_evidence):
-                if not cov.exposed:
-                    c_status = "unexposed"
-                elif cov.missing_evidence:
-                    c_status = "missing_evidence"
-                elif cov.analysis_ready is False:
-                    c_status = "not_ready"
-                else:
-                    c_status = "unknown_readiness"
-                if not cov.exposed:
-                    c_claim = f"Evidence coverage for construct {cov.construct} is unexposed."
-                elif cov.missing_evidence:
-                    c_claim = (
-                        f"Evidence coverage for construct {cov.construct} is missing evidence: "
-                        f"{', '.join(sorted(cov.missing_evidence))}."
+                c_status = (
+                    "unexposed"
+                    if not cov.exposed
+                    else ("missing_evidence" if cov.missing_evidence else ("not_ready" if cov.analysis_ready is False else "unknown_readiness"))
+                )
+                c_claim = (
+                    f"Evidence coverage for construct {cov.construct} is unexposed."
+                    if not cov.exposed
+                    else (
+                        f"Evidence coverage for construct {cov.construct} is missing evidence: {', '.join(sorted(cov.missing_evidence))}."
+                        if cov.missing_evidence
+                        else (
+                            f"Evidence coverage for construct {cov.construct} is not analysis ready."
+                            if cov.analysis_ready is False
+                            else f"Evidence coverage for construct {cov.construct} has unknown readiness."
+                        )
                     )
-                elif cov.analysis_ready is False:
-                    c_claim = (
-                        f"Evidence coverage for construct {cov.construct} is not analysis ready."
-                    )
-                else:
-                    c_claim = (
-                        f"Evidence coverage for construct {cov.construct} has unknown readiness."
-                    )
+                )
                 unknown_entries.append(
                     ContextEntry(
                         kind="unknown",
@@ -532,14 +520,12 @@ def build_trajectory_context(
                     )
                 )
             else:
-                c_status = "analysis_ready"
-                c_claim = f"Evidence coverage for construct {cov.construct} is analysis ready."
                 includable_entries.append(
                     ContextEntry(
                         kind="semantic_fact",
                         entry_id=entry_id,
-                        claim=c_claim,
-                        status=c_status,
+                        claim=f"Evidence coverage for construct {cov.construct} is analysis ready.",
+                        status="ready",
                         label=None,
                         citations=(cov_citation,),
                         provenance=cov_prov,
@@ -555,16 +541,14 @@ def build_trajectory_context(
                 digest=step_fact.source_digest,
                 step_id=None,
                 tool_call_id=None,
-                supports="process_step",
+                supports=step_fact.source_step_id,
             )
+            entry_id = f"{step_fact.source_trajectory_id}:{step_fact.source_step_id}"
             includable_entries.append(
                 ContextEntry(
                     kind="semantic_fact",
-                    entry_id=f"{step_fact.source_trajectory_id}:{step_fact.source_step_id}",
-                    claim=(
-                        f"Step {step_fact.source_step_id} in {step_fact.source_trajectory_id} "
-                        f"is labeled {step_fact.label}."
-                    ),
+                    entry_id=entry_id,
+                    claim=f"Process step {step_fact.source_step_id} is {step_fact.label}.",
                     status=step_fact.label,
                     label=None,
                     citations=(cit,),
@@ -576,44 +560,62 @@ def build_trajectory_context(
         for ret_fact in facts.retrieval_facts:
             if str(ret_fact.trial_id) != trial_id:
                 continue
+            doc_or_file = ret_fact.document_id or ret_fact.file_id or ret_fact.block_id or ret_fact.line_id or "unknown"
             cit = ContextCitation(
                 path=ret_fact.source_ref,
                 digest=ret_fact.source_digest,
                 step_id=None,
-                tool_call_id=None,
-                supports="retrieval",
+                tool_call_id=ret_fact.call_id,
+                supports=doc_or_file,
             )
-            ref = ret_fact.cited_evidence_ref or ret_fact.source_ref
-            includable_entries.append(
-                ContextEntry(
-                    kind="semantic_fact",
-                    entry_id=ref,
-                    claim=f"Retrieval fact for {ref}.",
-                    status="utilized" if ret_fact.utilized_status else "retrieved",
-                    label=None,
-                    citations=(cit,),
-                    provenance=_fact_row_provenance(ret_fact),
-                    source="RetrievalFact",
-                )
-            )
-
-        for c_fact in facts.constraint_facts:
-            if str(c_fact.trial_id) != trial_id:
-                continue
-            cit = ContextCitation(
-                path=c_fact.source_ref,
-                digest=c_fact.source_digest,
-                step_id=None,
-                tool_call_id=None,
-                supports=c_fact.constraint_scope,
-            )
-            claim = f"Constraint {c_fact.constraint_id} has verdict {c_fact.verdict}."
-            prov = _fact_row_provenance(c_fact)
-            if c_fact.verdict == "unknown":
+            entry_id = f"{ret_fact.query_id or 'q'}:{doc_or_file}"
+            prov = _fact_row_provenance(ret_fact)
+            if ret_fact.utilized_status is None:
                 unknown_entries.append(
                     ContextEntry(
                         kind="unknown",
-                        entry_id=c_fact.constraint_id,
+                        entry_id=entry_id,
+                        claim=f"Retrieval for query {ret_fact.query_id or 'unknown'} on {doc_or_file} has unrecorded utilization.",
+                        status="unknown_utilization",
+                        label="unknown",
+                        citations=(cit,),
+                        provenance=prov,
+                        source="RetrievalFact",
+                    )
+                )
+            else:
+                util_label = "utilized" if ret_fact.utilized_status else "not_utilized"
+                includable_entries.append(
+                    ContextEntry(
+                        kind="semantic_fact",
+                        entry_id=entry_id,
+                        claim=f"Retrieval for query {ret_fact.query_id or 'unknown'} on {doc_or_file} was {util_label}.",
+                        status=util_label,
+                        label=None,
+                        citations=(cit,),
+                        provenance=prov,
+                        source="RetrievalFact",
+                    )
+                )
+
+        for const_fact in facts.constraint_facts:
+            if str(const_fact.trial_id) != trial_id:
+                continue
+            cit = ContextCitation(
+                path=const_fact.source_ref,
+                digest=const_fact.source_digest,
+                step_id=None,
+                tool_call_id=const_fact.action_id,
+                supports=const_fact.constraint_id,
+            )
+            entry_id = f"{const_fact.plan_id}:{const_fact.constraint_id}"
+            prov = _fact_row_provenance(const_fact)
+            claim = f"Constraint {const_fact.constraint_id} in {const_fact.plan_id} has verdict {const_fact.verdict}."
+            if const_fact.verdict == "unknown":
+                unknown_entries.append(
+                    ContextEntry(
+                        kind="unknown",
+                        entry_id=entry_id,
                         claim=claim,
                         status="unknown",
                         label="unknown",
@@ -626,9 +628,9 @@ def build_trajectory_context(
                 includable_entries.append(
                     ContextEntry(
                         kind="semantic_fact",
-                        entry_id=c_fact.constraint_id,
+                        entry_id=entry_id,
                         claim=claim,
-                        status=c_fact.verdict,
+                        status=const_fact.verdict,
                         label=None,
                         citations=(cit,),
                         provenance=prov,
@@ -636,30 +638,43 @@ def build_trajectory_context(
                     )
                 )
 
-        for op_fact in facts.context_operation_facts:
-            if str(op_fact.trial_id) != trial_id:
+        for ctx_fact in facts.context_operation_facts:
+            if str(ctx_fact.trial_id) != trial_id:
                 continue
             cit = ContextCitation(
-                path=op_fact.source_ref,
-                digest=op_fact.source_digest,
+                path=ctx_fact.source_ref,
+                digest=ctx_fact.source_digest,
                 step_id=None,
                 tool_call_id=None,
-                supports=op_fact.operation,
+                supports=ctx_fact.operation,
             )
-            includable_entries.append(
-                ContextEntry(
-                    kind="semantic_fact",
-                    entry_id=op_fact.operation_id,
-                    claim=(
-                        f"Context operation {op_fact.operation_id} performed {op_fact.operation}."
-                    ),
-                    status=op_fact.operation,
-                    label=None,
-                    citations=(cit,),
-                    provenance=_fact_row_provenance(op_fact),
-                    source="ContextOperationFact",
+            prov = _fact_row_provenance(ctx_fact)
+            if ctx_fact.realized_size is None:
+                unknown_entries.append(
+                    ContextEntry(
+                        kind="unknown",
+                        entry_id=ctx_fact.operation_id,
+                        claim=f"Context operation {ctx_fact.operation_id} ({ctx_fact.operation}) has unknown realized size.",
+                        status="unknown_size",
+                        label="unknown",
+                        citations=(cit,),
+                        provenance=prov,
+                        source="ContextOperationFact",
+                    )
                 )
-            )
+            else:
+                includable_entries.append(
+                    ContextEntry(
+                        kind="semantic_fact",
+                        entry_id=ctx_fact.operation_id,
+                        claim=f"Context operation {ctx_fact.operation_id} ({ctx_fact.operation}) realized {ctx_fact.realized_size} units.",
+                        status="recorded",
+                        label=None,
+                        citations=(cit,),
+                        provenance=prov,
+                        source="ContextOperationFact",
+                    )
+                )
 
         for pair_fact in facts.paired_condition_facts:
             if str(pair_fact.trial_id) != trial_id:
@@ -671,10 +686,7 @@ def build_trajectory_context(
                 tool_call_id=None,
                 supports="paired_condition",
             )
-            claim = (
-                f"Paired condition {pair_fact.pair_id} for {pair_fact.task_id} "
-                f"has verdict {pair_fact.primary_verdict}."
-            )
+            claim = f"Paired condition {pair_fact.pair_id} for {pair_fact.task_id} has verdict {pair_fact.primary_verdict}."
             prov = _fact_row_provenance(pair_fact)
             if pair_fact.primary_verdict == "unknown":
                 unknown_entries.append(
@@ -732,27 +744,42 @@ def build_trajectory_context(
         key=lambda e: (_KIND_ORDER[e.kind], e.entry_id),
     )
 
-    if max_entries is None:
-        kept_entries = all_entries
-        omitted_ids: tuple[str, ...] = ()
-    else:
-        limit = max(0, max_entries)
-        kept_entries = all_entries[:limit]
-        omitted_ids = tuple(e.entry_id for e in all_entries[limit:])
-
-    truncation = TruncationMetadata(
-        truncated=len(omitted_ids) > 0,
-        max_entries=max_entries,
-        included_count=len(kept_entries),
-        omitted_count=len(omitted_ids),
-        omitted_entry_ids=omitted_ids,
-    )
-
     unknowns = tuple(
         sorted(
             unknown_entries,
             key=lambda u: (u.source, u.entry_id),
         )
+    )
+
+    kept_entries: list[ContextEntry] = []
+    omitted_ids: list[str] = []
+
+    header_bytes = len(f"# Trajectory context — {trial_id}\n\n".encode())
+    accumulated_bytes = header_bytes
+
+    for entry in all_entries:
+        if max_entries is not None and len(kept_entries) >= max(0, max_entries):
+            omitted_ids.append(entry.entry_id)
+            continue
+
+        if max_bytes is not None:
+            entry_text = "\n".join(_format_markdown_entry(entry)) + "\n"
+            entry_bytes = len(entry_text.encode("utf-8"))
+            if kept_entries and (accumulated_bytes + entry_bytes > max_bytes):
+                omitted_ids.append(entry.entry_id)
+                continue
+            accumulated_bytes += entry_bytes
+
+        kept_entries.append(entry)
+
+    truncation = TruncationMetadata(
+        truncated=len(omitted_ids) > 0,
+        max_entries=max_entries,
+        max_bytes=max_bytes,
+        included_count=len(kept_entries),
+        omitted_count=len(omitted_ids),
+        omitted_entry_ids=tuple(omitted_ids),
+        total_bytes=accumulated_bytes if kept_entries else 0,
     )
 
     return TrajectoryContextPack(
@@ -761,3 +788,7 @@ def build_trajectory_context(
         unknowns=unknowns,
         truncation=truncation,
     )
+
+
+# Functional alias
+compile_context_pack = build_trajectory_context

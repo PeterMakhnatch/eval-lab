@@ -1,0 +1,34 @@
+{
+  "spec_version": "synthetic/v1",
+  "spec_id": "sha256:f7492c3fce119c6c73f7f7d730294e81440ffe1e9577d26274706c16a29fe8b5",
+  "construct_name": "function_dag_dependency_resolution",
+  "family": "function_dag",
+  "perturbation_type": "dependency_graph_medium",
+  "seed": 101,
+  "source_task_ref": "eval-lab/synthetic/funcdag/medium",
+  "source_failure_evidence": [
+    "docs/research/synthetic-tasks.md#function-dag",
+    "research/literature-survey.md#dag-reasoning-failures"
+  ],
+  "base_task_digest": "sha256:ced8b9435045c312cff98a2096522c800e30d69c61dca21ad3c15ad34f31f995",
+  "generated_task_digest": "sha256:ced8b9435045c312cff98a2096522c800e30d69c61dca21ad3c15ad34f31f995",
+  "expected_behavior": "Correctly resolve the dependency chain for target node n_4_0 across 4 layers while ignoring 2 distractor nodes.",
+  "capability_opportunity": "Evaluates model capability to trace topological dependency paths in code, filter irrelevant dead-end computations, and execute composite arithmetic accurately.",
+  "required_evidence": [
+    "/app/output/result.json"
+  ],
+  "license_provenance": "Apache-2.0 (Cleanroom Synthetic Generation)",
+  "partition": "dev",
+  "family_id": "syn-funcdag",
+  "lineage_id": "lineage-funcdag-medium-101",
+  "parameters": {
+    "depth": 4,
+    "width": 3,
+    "connected_distractors": 2,
+    "disconnected_distractors": 0,
+    "total_nodes": 14,
+    "target_node_id": "n_4_0",
+    "difficulty": "medium",
+    "seed": 101
+  }
+}

@@ -1,25 +1,25 @@
-from __future__ import annotations
-
 """Typed, provenance-preserving semantic facts for benchmark analysis.
 
 This module is deliberately a small boundary: normalized benchmark facts enter as
-Pydantic rows, and leave as deterministic typed Parquet tables.  It does not infer
+Pydantic rows, and leave as deterministic typed Parquet tables. It does not infer
 labels or provide a universal score.
 """
+
+from __future__ import annotations
 
 import hashlib
 import json
 import re
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal, Mapping, Sequence, TypeVar, get_args, get_type_hints
+from typing import Any, Literal, TypeVar, get_args, get_type_hints
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import Field, field_validator, model_validator
 
 from evallab.schemas import ContractModel
-
 
 Digest = str
 ProvenanceKind = Literal["mechanical", "benchmark_verifier", "human", "model", "derived"]
@@ -68,7 +68,11 @@ class CapabilityOpportunity(FactRow):
 
     @model_validator(mode="after")
     def _step_order(self) -> CapabilityOpportunity:
-        if self.start_step is not None and self.end_step is not None and self.end_step < self.start_step:
+        if (
+            self.start_step is not None
+            and self.end_step is not None
+            and self.end_step < self.start_step
+        ):
             raise ValueError("end_step must not precede start_step")
         if not set(self.missing_evidence).issubset(self.required_evidence):
             raise ValueError("missing_evidence must be a subset of required_evidence")
@@ -247,14 +251,22 @@ class NormalizedFactBundle(ContractModel):
 def _coverage_rows(bundle: NormalizedFactBundle) -> tuple[EvidenceCoverage, ...]:
     grouped: dict[tuple[str, str, str], list[CapabilityOpportunity]] = defaultdict(list)
     for opportunity in bundle.capability_opportunities:
-        grouped[(opportunity.trial_id, opportunity.benchmark, opportunity.construct)].append(opportunity)
+        grouped[(opportunity.trial_id, opportunity.benchmark, opportunity.construct)].append(
+            opportunity
+        )
     rows: list[EvidenceCoverage] = []
     for (trial_id, benchmark, construct), opportunities in sorted(grouped.items()):
         required = tuple(sorted({item for row in opportunities for item in row.required_evidence}))
         missing = tuple(sorted({item for row in opportunities for item in row.missing_evidence}))
         observed = tuple(item for item in required if item not in missing)
         eligibility = [row.eligible for row in opportunities]
-        eligible = True if any(value is True for value in eligibility) else False if all(value is False for value in eligibility) else None
+        eligible = (
+            True
+            if any(value is True for value in eligibility)
+            else False
+            if all(value is False for value in eligibility)
+            else None
+        )
         rows.append(
             EvidenceCoverage(
                 trial_id=trial_id,
@@ -265,7 +277,13 @@ def _coverage_rows(bundle: NormalizedFactBundle) -> tuple[EvidenceCoverage, ...]
                 required_evidence=required,
                 observed_evidence=observed,
                 missing_evidence=missing,
-                analysis_ready=(True if eligible is True and not missing else False if eligible is False else None),
+                analysis_ready=(
+                    True
+                    if eligible is True and not missing
+                    else False
+                    if eligible is False
+                    else None
+                ),
                 source_ref=f"derived:evidence_coverage/{trial_id}/{construct}",
                 source_digest=_digest([row.model_dump(mode="json") for row in opportunities]),
                 provenance_kind="derived",
@@ -274,13 +292,33 @@ def _coverage_rows(bundle: NormalizedFactBundle) -> tuple[EvidenceCoverage, ...]
     return tuple(rows)
 
 
+def _coverage_key(row: EvidenceCoverage) -> tuple[str, str, str]:
+    return row.trial_id, row.benchmark, row.construct
+
+
 def normalize_bundle(value: NormalizedFactBundle | Mapping[str, Any]) -> NormalizedFactBundle:
     if isinstance(value, NormalizedFactBundle):
         bundle = value
     else:
         bundle = NormalizedFactBundle.model_validate(value)
-    computed = _coverage_rows(bundle)
-    return bundle.model_copy(update={"evidence_coverage": computed})
+    computed = {_coverage_key(row): row for row in _coverage_rows(bundle)}
+    explicit: dict[tuple[str, str, str], EvidenceCoverage] = {}
+    for row in bundle.evidence_coverage:
+        key = _coverage_key(row)
+        previous = explicit.get(key)
+        if previous is not None and previous != row:
+            raise ValueError(f"conflicting duplicate evidence_coverage row for {key!r}")
+        explicit[key] = row
+    for key in computed.keys() & explicit.keys():
+        if computed[key] != explicit[key]:
+            raise ValueError(
+                f"evidence_coverage conflicts with computed opportunity row for {key!r}"
+            )
+        explicit.pop(key)
+    merged = tuple(
+        row for _, row in sorted((*computed.items(), *explicit.items()), key=lambda item: item[0])
+    )
+    return bundle.model_copy(update={"evidence_coverage": merged})
 
 
 T = TypeVar("T", bound=FactRow)
@@ -294,18 +332,24 @@ def _row(model: FactRow) -> dict[str, Any]:
     return value
 
 
-def project_fact_bundle(bundle: NormalizedFactBundle | Mapping[str, Any], output_dir: str | Path) -> dict[str, Path]:
+def project_fact_bundle(
+    bundle: NormalizedFactBundle | Mapping[str, Any], output_dir: str | Path
+) -> dict[str, Path]:
     """Write all named fact tables, including derived trial×construct coverage."""
     normalized = normalize_bundle(bundle)
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
-    for name, model in FACT_TYPES.items():
+    for name in FACT_TYPES:
         rows = getattr(normalized, name)
-        table = pa.Table.from_pylist([_row(item) for item in rows], schema=SEMANTIC_FACT_SCHEMAS[name])
+        table = pa.Table.from_pylist(
+            [_row(item) for item in rows], schema=SEMANTIC_FACT_SCHEMAS[name]
+        )
         path = destination / f"{name}.parquet"
         temporary = path.with_suffix(".parquet.tmp")
-        pq.write_table(table, temporary, compression="zstd", use_dictionary=False, write_statistics=True)
+        pq.write_table(
+            table, temporary, compression="zstd", use_dictionary=False, write_statistics=True
+        )
         temporary.replace(path)
         paths[name] = path
     return paths
@@ -317,7 +361,9 @@ def load_fact_bundle(path: str | Path) -> NormalizedFactBundle:
     text = source.read_text(encoding="utf-8")
     payload: Any
     if source.suffix == ".jsonl":
-        payload = json.loads("[" + ",".join(line for line in text.splitlines() if line.strip()) + "]")
+        payload = json.loads(
+            "[" + ",".join(line for line in text.splitlines() if line.strip()) + "]"
+        )
     else:
         payload = json.loads(text)
     if isinstance(payload, list):
@@ -336,14 +382,21 @@ def query_scorecard(
 ) -> list[dict[str, Any]]:
     """Return benchmark×construct readiness counts; reject unsupported aggregates."""
     if tuple(group_by) != ("benchmark", "construct"):
-        raise ValueError("only benchmark×construct scorecards are supported; universal aggregates are rejected")
+        raise ValueError(
+            "only benchmark×construct scorecards are supported; universal aggregates are rejected"
+        )
     root = Path(output_dir)
     coverage_path = root / "evidence_coverage.parquet"
     opportunity_path = root / "capability_opportunities.parquet"
     if not coverage_path.is_file() or not opportunity_path.is_file():
         raise ValueError("projected fact bundle is missing required coverage/opportunity tables")
-    coverage = [EvidenceCoverage.model_validate(row) for row in pq.read_table(coverage_path).to_pylist()]
-    opportunities = [CapabilityOpportunity.model_validate(row) for row in pq.read_table(opportunity_path).to_pylist()]
+    coverage = [
+        EvidenceCoverage.model_validate(row) for row in pq.read_table(coverage_path).to_pylist()
+    ]
+    opportunities = [
+        CapabilityOpportunity.model_validate(row)
+        for row in pq.read_table(opportunity_path).to_pylist()
+    ]
     groups: dict[tuple[str, str], list[CapabilityOpportunity]] = defaultdict(list)
     for row in opportunities:
         if benchmark is not None and row.benchmark != benchmark:
@@ -351,27 +404,46 @@ def query_scorecard(
         if construct is not None and row.construct != construct:
             continue
         groups[(row.benchmark, row.construct)].append(row)
-    by_key = {(row.benchmark, row.construct): row for row in coverage}
+    coverage_groups: dict[tuple[str, str], list[EvidenceCoverage]] = defaultdict(list)
+    for row in coverage:
+        if benchmark is not None and row.benchmark != benchmark:
+            continue
+        if construct is not None and row.construct != construct:
+            continue
+        coverage_groups[(row.benchmark, row.construct)].append(row)
     result: list[dict[str, Any]] = []
-    for key in sorted(groups):
+    for key in sorted(set(groups) | set(coverage_groups)):
         rows = groups[key]
-        ready_opportunities = [row for row in rows if row.eligible is True and not row.missing_evidence]
-        coverage_row = by_key[key]
-        result.append({
-            "benchmark": key[0],
-            "construct": key[1],
-            "opportunity_count": len(rows),
-            "eligible_analysis_ready_opportunities": len(ready_opportunities),
-            "analysis_ready_trials": sum(
-                1 for row in coverage
-                if (row.benchmark, row.construct) == key and row.analysis_ready is True
-            ),
-            "exposed_trials": sum(
-                1 for row in coverage
-                if (row.benchmark, row.construct) == key and row.exposed
-            ),
-            "analysis_ready": coverage_row.analysis_ready,
-        })
+        coverage_rows = coverage_groups[key]
+        ready_opportunities = [
+            row for row in rows if row.eligible is True and not row.missing_evidence
+        ]
+        ready_trials = sum(row.analysis_ready is True for row in coverage_rows)
+        not_ready_trials = sum(row.analysis_ready is False for row in coverage_rows)
+        unknown_trials = sum(row.analysis_ready is None for row in coverage_rows)
+        support = len(coverage_rows)
+        overall_ready = (
+            True
+            if support and ready_trials == support
+            else False
+            if support and not_ready_trials == support
+            else None
+        )
+        result.append(
+            {
+                "benchmark": key[0],
+                "construct": key[1],
+                "opportunity_count": len(rows),
+                "eligible_analysis_ready_opportunities": len(ready_opportunities),
+                "coverage_trials": support,
+                "eligible_trials": sum(row.eligible is True for row in coverage_rows),
+                "analysis_ready_trials": ready_trials,
+                "not_analysis_ready_trials": not_ready_trials,
+                "unknown_analysis_readiness_trials": unknown_trials,
+                "exposed_trials": sum(row.exposed for row in coverage_rows),
+                "analysis_ready": overall_ready,
+            }
+        )
     return result
 
 
@@ -380,10 +452,25 @@ project_normalized_fact_bundle = project_fact_bundle
 query_semantic_scorecard = query_scorecard
 
 __all__ = [
-    "FactRow", "Digest", "ProvenanceKind", "Verdict",
-    "CapabilityOpportunity", "ProcessStepFact", "RetrievalFact", "ConstraintFact",
-    "ContextOperationFact", "PairedConditionFact", "SessionDependencyFact", "EvidenceCoverage",
-    "NormalizedFactBundle", "SEMANTIC_FACT_SCHEMAS", "FACT_SCHEMAS", "normalize_bundle",
-    "load_fact_bundle", "project_fact_bundle", "project_normalized_fact_bundle", "query_scorecard",
+    "FactRow",
+    "Digest",
+    "ProvenanceKind",
+    "Verdict",
+    "CapabilityOpportunity",
+    "ProcessStepFact",
+    "RetrievalFact",
+    "ConstraintFact",
+    "ContextOperationFact",
+    "PairedConditionFact",
+    "SessionDependencyFact",
+    "EvidenceCoverage",
+    "NormalizedFactBundle",
+    "SEMANTIC_FACT_SCHEMAS",
+    "FACT_SCHEMAS",
+    "normalize_bundle",
+    "load_fact_bundle",
+    "project_fact_bundle",
+    "project_normalized_fact_bundle",
+    "query_scorecard",
     "query_semantic_scorecard",
 ]

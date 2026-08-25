@@ -1,6 +1,6 @@
 {
-  "total_packages": 512,
-  "runnable_packages": 492,
+  "total_packages": 521,
+  "runnable_packages": 501,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -4630,6 +4630,96 @@
     {
       "task_id": "python-99",
       "path": "library/benchmarks/humanevalfix/humanevalfix/python-99",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-123-128k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-123-128k",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-123-64k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-123-64k",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-123-8k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-123-8k",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-42-128k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-42-128k",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-42-64k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-42-64k",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-42-8k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-42-8k",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-456-128k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-456-128k",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-456-64k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-456-64k",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "ab-testing-seed-456-8k",
+      "path": "library/benchmarks/loca-bench/tasks/ab-testing-seed-456-8k",
       "category": "benchmark_task",
       "has_task_toml": true,
       "has_environment": true,

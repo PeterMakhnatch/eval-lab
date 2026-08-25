@@ -259,8 +259,6 @@ def test_verifier_seed_is_hidden_and_build_contexts_have_no_pycache() -> None:
                 raise AssertionError(f"pycache in build tree: {path}")
             if path.suffix == ".pyc":
                 raise AssertionError(f"pyc in build tree: {path}")
-        assert (task_dir / ".gitignore").is_file()
-        ignore = (task_dir / ".gitignore").read_text(encoding="utf-8")
-        assert "__pycache__/" in ignore
+        assert not (task_dir / ".gitignore").exists()
         assert not (task_dir / "environment/.dockerignore").exists()
         assert not (task_dir / "tests/.dockerignore").exists()

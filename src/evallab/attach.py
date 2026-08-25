@@ -185,11 +185,15 @@ def _semantic_comparison_sql(
          AND mechanical.trial_id = semantic.trial_id
          AND mechanical.document_id = semantic.document_id
          AND (
-              mechanical.tool_call_id = semantic.tool_call_id
+              mechanical.tool_call_id IS NOT NULL
+              AND semantic.tool_call_id IS NOT NULL
+              AND mechanical.tool_call_id = semantic.tool_call_id
               OR (
-                  mechanical.tool_call_id IS NULL
-                  AND semantic.tool_call_id IS NULL
-                  AND mechanical.action_id = semantic.action_id
+                  mechanical.action_id = semantic.action_id
+                  AND (
+                      mechanical.tool_call_id IS NULL
+                      OR semantic.tool_call_id IS NULL
+                  )
               )
          )
     """

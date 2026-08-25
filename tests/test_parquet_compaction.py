@@ -968,3 +968,4 @@ def test_retrieval_facts_not_compacted_without_immutable_identity() -> None:
             "block_id",
             "line_id",
         )
+    )

@@ -13,11 +13,15 @@ from evallab.atif import project_jobs
 from evallab.cli import run_cli
 from evallab.results import load_job
 from evallab.trajectory_semantics import (
+    BASH_RESOLVER_SPEC,
     GENERIC_POSIX_PROFILE,
     SEMANTIC_ACTION_FACT_SCHEMA,
-    ResolverDefinition,
+    ResolverConformanceVector,
     ResolverRef,
     ResolverRegistry,
+    ResolverResult,
+    ResolverSpec,
+    SemanticReasonCode,
     TaskProfileBinding,
     ToolMappingRule,
     TrajectorySemanticsProfile,
@@ -26,6 +30,7 @@ from evallab.trajectory_semantics import (
     project_job_semantics,
     project_semantic_actions_parquet,
     query_semantic_coverage,
+    semantic_coverage,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "explorer" / "jobs"
@@ -53,101 +58,109 @@ def _extract(
 
 def test_structured_vs_bash_equivalent_profile() -> None:
     """A structured read tool and a bash cat command map to equivalent read roles."""
-    profile = GENERIC_POSIX_PROFILE
-
-    # Structured tool invocation
-    role_struct, out_struct, _ = profile.resolve_action(
+    structured = GENERIC_POSIX_PROFILE.resolve_action(
         "read",
         {"path": "/app/config.py"},
         {"content": "API_KEY=123", "status": "ok"},
     )
-    assert role_struct == "read"
-    assert out_struct == "success"
+    assert structured.role == "read"
+    assert structured.outcome == "success"
 
-    # Bash equivalent invocation
-    role_bash, out_bash, _ = profile.resolve_action(
+    bash = GENERIC_POSIX_PROFILE.resolve_action(
         "bash",
         {"command": "cat /app/config.py"},
         {"output": "API_KEY=123", "exit_code": 0},
     )
-    assert role_bash == "inspect"
-    assert out_bash == "success"
+    assert bash.role == "inspect"
+    assert bash.outcome == "success"
 
 
-def test_grep_diff_expected_negative_vs_real_failure() -> None:
-    """Grep exit code 1 is expected-negative, exit code 2 is an error."""
-    profile = GENERIC_POSIX_PROFILE
-
-    # 1. Grep match found (0)
-    r_found, out_found, detail_found = profile.resolve_action(
+def test_grep_diff_cmp_expected_negative_vs_real_failure() -> None:
+    """Status-owning search and comparison commands distinguish negatives from errors."""
+    grep_found = GENERIC_POSIX_PROFILE.resolve_action(
         "bash",
         {"command": "grep -rn 'TODO' src/"},
         {"exit_code": 0, "output": "src/main.py:10: TODO"},
     )
-    assert r_found == "search"
-    assert out_found == "success"
-    assert detail_found == "match_found"
+    assert grep_found.role == "search"
+    assert grep_found.outcome == "success"
+    assert grep_found.reason_code is SemanticReasonCode.MATCH_FOUND
 
-    # 2. Grep no match found (1) -> Expected negative, not a tool failure
-    r_none, out_none, detail_none = profile.resolve_action(
+    grep_none = GENERIC_POSIX_PROFILE.resolve_action(
         "bash",
         {"command": "grep -rn 'NONEXISTENT_SYMBOL' src/"},
         {"exit_code": 1, "output": ""},
     )
-    assert r_none == "search"
-    assert out_none == "expected_negative"
-    assert detail_none == "pattern_not_found"
+    assert grep_none.outcome == "expected_negative"
+    assert grep_none.reason_code is SemanticReasonCode.PATTERN_NOT_FOUND
 
-    # 3. Grep syntax error or missing dir (2) -> Real error
-    r_err, out_err, detail_err = profile.resolve_action(
+    grep_error = GENERIC_POSIX_PROFILE.resolve_action(
         "bash",
         {"command": "grep --invalid-flag"},
         {"exit_code": 2, "output": "grep: unrecognized option"},
     )
-    assert r_err == "search"
-    assert out_err == "error"
-    assert detail_err == "grep_error_exit_code_2"
+    assert grep_error.outcome == "error"
+    assert grep_error.reason_code is SemanticReasonCode.GREP_ERROR_EXIT_CODE
+    assert grep_error.detail_digest is not None
+    assert grep_error.detail_size is not None
 
-    # 4. Diff identical (0) vs differences (1) vs error (2)
-    _, out_diff_0, det_diff_0 = profile.resolve_action(
+    diff_identical = GENERIC_POSIX_PROFILE.resolve_action(
         "bash",
         {"command": "diff a.txt b.txt"},
         {"exit_code": 0, "output": ""},
     )
-    assert out_diff_0 == "success"
-    assert det_diff_0 == "identical"
+    assert diff_identical.outcome == "success"
+    assert diff_identical.reason_code is SemanticReasonCode.IDENTICAL
 
-    _, out_diff_1, det_diff_1 = profile.resolve_action(
+    diff_different = GENERIC_POSIX_PROFILE.resolve_action(
         "bash",
         {"command": "diff a.txt b.txt"},
         {"exit_code": 1, "output": "1c1\n< a\n---\n> b"},
     )
-    assert out_diff_1 == "expected_negative"
-    assert det_diff_1 == "differences_found"
+    assert diff_different.outcome == "expected_negative"
+    assert diff_different.reason_code is SemanticReasonCode.DIFFERENCES_FOUND
 
-    _, out_diff_2, det_diff_2 = profile.resolve_action(
+    cmp_different = GENERIC_POSIX_PROFILE.resolve_action(
+        "bash",
+        {"command": "cmp a.bin b.bin"},
+        {"exit_code": 1, "output": "a.bin b.bin differ"},
+    )
+    assert cmp_different.outcome == "expected_negative"
+    assert cmp_different.reason_code is SemanticReasonCode.DIFFERENCES_FOUND
+
+    diff_error = GENERIC_POSIX_PROFILE.resolve_action(
         "bash",
         {"command": "diff nonexistent1 nonexistent2"},
-        {"exit_code": 2, "output": "diff: nonexistent1: No such file or directory"},
+        {"exit_code": 2, "output": "diff: missing"},
     )
-    assert out_diff_2 == "error"
-    assert det_diff_2 == "diff_error_exit_code_2"
+    assert diff_error.outcome == "error"
+    assert diff_error.reason_code is SemanticReasonCode.DIFF_ERROR_EXIT_CODE
+    assert diff_error.detail_digest is not None
 
 
-def test_structured_search_expected_negative_matches_bash() -> None:
-    profile = GENERIC_POSIX_PROFILE
-    structured_role, structured_outcome, _ = profile.resolve_action(
+def test_structured_search_requires_declared_cardinality_for_expected_negative() -> None:
+    structured = GENERIC_POSIX_PROFILE.resolve_action(
         "grep",
         {"pattern": "absent"},
         {"matches": []},
     )
-    bash_role, bash_outcome, _ = profile.resolve_action(
+    bash = GENERIC_POSIX_PROFILE.resolve_action(
         "bash",
         {"command": "LC_ALL=C grep absent file.txt"},
         {"exit_code": 1, "output": ""},
     )
-    assert structured_role == bash_role == "search"
-    assert structured_outcome == bash_outcome == "expected_negative"
+    undeclared_empty_content = GENERIC_POSIX_PROFILE.resolve_action(
+        "grep",
+        {"pattern": "absent"},
+        {"content": ""},
+    )
+    assert structured.role == bash.role == "search"
+    assert structured.outcome == bash.outcome == "expected_negative"
+    assert undeclared_empty_content.outcome == "unknown_semantics"
+    assert (
+        undeclared_empty_content.reason_code
+        is SemanticReasonCode.STRUCTURED_SEARCH_RESULT_SHAPE_UNKNOWN
+    )
 
 
 def test_user_assisted_vs_autonomous_recovery_intervention() -> None:
@@ -326,7 +339,8 @@ def test_unmatched_observation_is_reason_coded_unknown() -> None:
     assert facts[0].observation_correlation == "unknown_unmatched"
     assert facts[0].correlation_reason == "tool_call_id_not_found"
     assert facts[0].outcome == "unknown_semantics"
-    assert facts[0].outcome_detail == ("observation_correlation_unknown:tool_call_id_not_found")
+    assert facts[0].reason_code is SemanticReasonCode.OBSERVATION_CORRELATION_UNKNOWN
+    assert facts[0].detail_digest is None
 
 
 def test_canonical_atif_nested_observation_results() -> None:
@@ -396,7 +410,8 @@ def test_unknown_tool_strict_vs_permissive() -> None:
     fact = facts[0]
     assert fact.role == "other"
     assert fact.outcome == "unknown_semantics"
-    assert fact.outcome_detail == "unmapped_tool:unregistered_custom_tool"
+    assert fact.reason_code is SemanticReasonCode.UNMAPPED_TOOL
+    assert fact.detail_digest is None
 
 
 def test_profile_version_digest_change() -> None:
@@ -431,37 +446,197 @@ def test_profile_version_digest_change() -> None:
     assert p2.digest != p3.digest
 
 
-def test_resolver_behavior_change_changes_profile_digest() -> None:
-    def first_resolver(arguments, observation):
-        del arguments, observation
-        return "success", None
+def test_resolver_conformance_vectors_cover_transitive_helper_paths() -> None:
+    vector_ids = {vector.vector_id for vector in BASH_RESOLVER_SPEC.conformance_vectors}
+    assert {
+        "environment_assignment_no_match",
+        "pipeline_status_owner",
+        "nested_exit_code",
+        "shell_parse_error",
+        "empty_command",
+        "incomplete_pipeline",
+        "missing_shell_program",
+    } <= vector_ids
 
-    def second_resolver(arguments, observation):
-        del arguments, observation
-        return "expected_negative", "not_found"
 
+def test_helper_behavior_change_changes_behavior_and_profile_digests() -> None:
+    vector = ResolverConformanceVector.from_inputs(
+        "nested_exit_code",
+        {},
+        {"extra": {"exit_code": 7}},
+    )
+
+    def nested_exit(observation):
+        return observation["extra"]["exit_code"]
+
+    def ignored_exit(observation):
+        del observation
+        return 0
+
+    def resolver_using(helper):
+        def resolve(arguments, observation):
+            del arguments
+            assert observation is not None
+            code = helper(observation)
+            if code == 0:
+                return ResolverResult("success")
+            return ResolverResult(
+                "error",
+                SemanticReasonCode.EXIT_CODE_ERROR,
+                {"exit_code": code},
+            )
+
+        return resolve
+
+    first_spec = ResolverSpec(
+        "test-resolver",
+        "1.0.0",
+        resolver_using(nested_exit),
+        (vector,),
+    )
+    second_spec = ResolverSpec(
+        "test-resolver",
+        "1.0.0",
+        resolver_using(ignored_exit),
+        (vector,),
+    )
     reference = ResolverRef("test-resolver", "1.0.0")
-    first_registry = ResolverRegistry(
-        [ResolverDefinition("test-resolver", "1.0.0", first_resolver)]
-    )
-    second_registry = ResolverRegistry(
-        [ResolverDefinition("test-resolver", "1.0.0", second_resolver)]
-    )
     first_profile = TrajectorySemanticsProfile(
         profile_id="digest-test",
         version="1.0.0",
         description="digest test",
         tool_rules=(ToolMappingRule("search", "search", reference),),
-        resolver_registry=first_registry,
+        resolver_registry=ResolverRegistry((first_spec,)),
     )
     second_profile = TrajectorySemanticsProfile(
         profile_id="digest-test",
         version="1.0.0",
         description="digest test",
         tool_rules=(ToolMappingRule("search", "search", reference),),
-        resolver_registry=second_registry,
+        resolver_registry=ResolverRegistry((second_spec,)),
+    )
+    assert first_spec.behavior_digest != second_spec.behavior_digest
+    assert first_profile.digest != second_profile.digest
+
+
+def test_behavior_identical_refactor_keeps_behavior_digest_stable() -> None:
+    first_vector = ResolverConformanceVector.from_inputs(
+        "canonical_input",
+        {"b": 2, "a": 1},
+        {"status": "ok"},
+    )
+    second_vector = ResolverConformanceVector.from_inputs(
+        "canonical_input",
+        {"a": 1, "b": 2},
+        {"status": "ok"},
+    )
+
+    def direct(arguments, observation):
+        del arguments, observation
+        return ResolverResult("success")
+
+    def refactored(arguments, observation):
+        del observation
+        if arguments:
+            return ResolverResult(outcome="success")
+        return ResolverResult("success")
+
+    direct_spec = ResolverSpec(
+        "test-resolver",
+        "1.0.0",
+        direct,
+        (first_vector,),
+    )
+    refactored_spec = ResolverSpec(
+        "test-resolver",
+        "1.0.0",
+        refactored,
+        (second_vector,),
+    )
+    assert direct_spec.behavior_digest == refactored_spec.behavior_digest
+
+
+def test_profile_digest_includes_resolver_identity_and_version() -> None:
+    vector = ResolverConformanceVector.from_inputs("success", {}, None)
+
+    def resolve(arguments, observation):
+        del arguments, observation
+        return ResolverResult("success")
+
+    first_spec = ResolverSpec("resolver-a", "1.0.0", resolve, (vector,))
+    second_spec = ResolverSpec("resolver-b", "2.0.0", resolve, (vector,))
+    assert first_spec.behavior_digest == second_spec.behavior_digest
+    first_profile = TrajectorySemanticsProfile(
+        "digest-test",
+        "1.0.0",
+        "digest test",
+        (ToolMappingRule("search", "search", ResolverRef("resolver-a", "1.0.0")),),
+        ResolverRegistry((first_spec,)),
+    )
+    second_profile = TrajectorySemanticsProfile(
+        "digest-test",
+        "1.0.0",
+        "digest test",
+        (ToolMappingRule("search", "search", ResolverRef("resolver-b", "2.0.0")),),
+        ResolverRegistry((second_spec,)),
     )
     assert first_profile.digest != second_profile.digest
+
+
+def test_custom_resolver_detail_is_digested_and_invalid_payloads_are_rejected(
+    tmp_path: Path,
+) -> None:
+    secret = "TOP-SECRET resolver path=/private/hidden"
+    vector = ResolverConformanceVector.from_inputs("error", {}, {"status": "failed"})
+
+    def custom_resolver(arguments, observation):
+        del arguments, observation
+        return ResolverResult(
+            "error",
+            SemanticReasonCode.OBSERVATION_ERROR_STATUS,
+            secret,
+        )
+
+    spec = ResolverSpec("custom", "1.0.0", custom_resolver, (vector,))
+    profile = TrajectorySemanticsProfile(
+        "custom",
+        "1.0.0",
+        "custom",
+        (ToolMappingRule("custom", "execute", ResolverRef("custom", "1.0.0")),),
+        ResolverRegistry((spec,)),
+    )
+    facts = _extract(
+        {
+            "steps": [
+                {
+                    "step_id": 0,
+                    "source": "agent",
+                    "tool_calls": [{"tool_name": "custom"}],
+                    "observations": [{"status": "failed"}],
+                }
+            ]
+        },
+        profile,
+    )
+    assert facts[0].reason_code is SemanticReasonCode.OBSERVATION_ERROR_STATUS
+    assert facts[0].detail_digest is not None
+    assert facts[0].detail_size == len(secret.encode())
+    output = project_semantic_actions_parquet(facts, tmp_path / "custom.parquet")
+    assert secret.encode() not in output.read_bytes()
+
+    def tuple_resolver(arguments, observation):
+        del arguments, observation
+        return "error", secret
+
+    with pytest.raises(TypeError, match="must return ResolverResult"):
+        ResolverSpec("tuple", "1.0.0", tuple_resolver, (vector,))  # type: ignore[arg-type]
+
+    def freeform_reason(arguments, observation):
+        del arguments, observation
+        return ResolverResult("error", "raw secret reason")  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="SemanticReasonCode"):
+        ResolverSpec("freeform", "1.0.0", freeform_reason, (vector,))
 
 
 def test_real_atif_projection_preserves_mechanical_bytes_and_queries_coverage(
@@ -492,6 +667,33 @@ def test_real_atif_projection_preserves_mechanical_bytes_and_queries_coverage(
     assert queried[0].query_threshold == 0.75
     assert queried[0].coverage_fraction == 1.0
     assert queried[0].status == "analysis_ready"
+
+
+def test_unknown_semantics_below_threshold_is_screening_only() -> None:
+    facts = _extract(
+        {
+            "steps": [
+                {
+                    "step_id": 0,
+                    "source": "agent",
+                    "tool_calls": [{"tool_name": "unknown-tool"}],
+                    "observations": [{"status": "ok"}],
+                }
+            ]
+        },
+        GENERIC_POSIX_PROFILE,
+        strict=False,
+    )
+    binding = TaskProfileBinding.from_profile("task-1", GENERIC_POSIX_PROFILE)
+    coverage = semantic_coverage(
+        facts,
+        job_id="job-1",
+        trial_id="trial-1",
+        binding=binding,
+        query_threshold=0.5,
+    )
+    assert coverage.coverage_fraction == 0.0
+    assert coverage.status == "screening_only"
 
 
 def test_projection_requires_explicit_task_binding(tmp_path: Path) -> None:

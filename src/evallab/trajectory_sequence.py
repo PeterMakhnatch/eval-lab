@@ -2,7 +2,7 @@
 
 Provides ordering, typed transition edge extraction, exact observable motif
 detection (repeated tool failure, recovery after failure, verification after action,
-post-terminal action), cohort-keyed aggregation with strict opportunity denominators,
+post-terminal action leakage), cohort-keyed aggregation with strict opportunity denominators,
 and explicit preservation of unknown/unexposed evidence.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
@@ -30,6 +30,10 @@ TERMINAL_FUNCTIONS = frozenset({
 })
 
 
+class TrajectorySequenceError(ValueError):
+    """Raised when sequence rows violate schema invariants or trial isolation constraints."""
+
+
 def _parse_timestamp(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
@@ -39,13 +43,6 @@ def _parse_timestamp(value: Any) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return None
-
-
-def _clean_str(val: Any) -> str | None:
-    if val is None:
-        return None
-    s = str(val).strip()
-    return s if s else None
 
 
 @dataclass(frozen=True)
@@ -75,26 +72,42 @@ class NormalizedAction:
         cohort_fields: Sequence[str] = (),
         provenance_fields: Sequence[str] = ("document_id", "source_path", "job_id"),
     ) -> NormalizedAction:
-        """Create a NormalizedAction from any dict/row mapping."""
-        trial_id = str(data.get("trial_id") or data.get("trial") or "unknown_trial")
-        action_id = str(
-            data.get("action_id")
-            or data.get("event_id")
-            or data.get("tool_call_id")
-            or f"act_{data.get('step_id', 0)}"
-        )
+        """Create a NormalizedAction from any dict/row mapping, enforcing strict identity validation."""
+        raw_trial = data.get("trial_id") if "trial_id" in data else data.get("trial")
+        if raw_trial is None or not str(raw_trial).strip():
+            raise TrajectorySequenceError("Row is missing required trial identity ('trial_id' or 'trial').")
+        trial_id = str(raw_trial).strip()
 
         step_id_raw = data.get("step_id")
         step_id = int(step_id_raw) if step_id_raw is not None else None
+
+        raw_action_id = (
+            data.get("action_id")
+            if "action_id" in data and data["action_id"] is not None
+            else data.get("event_id")
+            if "event_id" in data and data["event_id"] is not None
+            else data.get("tool_call_id")
+            if "tool_call_id" in data and data["tool_call_id"] is not None
+            else None
+        )
+
+        if raw_action_id is not None and str(raw_action_id).strip():
+            action_id = str(raw_action_id).strip()
+        elif step_id is not None:
+            action_id = f"step_{step_id}"
+        else:
+            raise TrajectorySequenceError(
+                f"Row in trial '{trial_id}' lacks action identity (action_id/event_id/tool_call_id or explicit step_id)."
+            )
 
         seq_raw = data.get("ordinal") if "ordinal" in data else data.get("sequence")
         ordinal = int(seq_raw) if seq_raw is not None else None
 
         ts = _parse_timestamp(data.get("timestamp") or data.get("time"))
 
-        function_name = str(data.get("function_name") or data.get("tool_name") or "unknown")
-        action_family = str(data.get("action_family") or data.get("family") or "other")
-        action_type = str(data.get("action_type") or action_family or function_name or "other")
+        function_name = str(data.get("function_name") or data.get("tool_name") or "unknown").strip() or "unknown"
+        action_family = str(data.get("action_family") or data.get("family") or "other").strip() or "other"
+        action_type = str(data.get("action_type") or action_family or function_name or "other").strip() or "other"
 
         raw_outcome = data.get("outcome")
         outcome: Outcome
@@ -170,35 +183,76 @@ class NormalizedAction:
         )
 
 
-def order_actions(actions: Iterable[NormalizedAction | Mapping[str, Any]]) -> list[NormalizedAction]:
-    """Order actions deterministically within each trial by explicit ordinal, sequence, step_id, or timestamp.
+def order_actions(
+    actions: Iterable[NormalizedAction | Mapping[str, Any]],
+    *,
+    cohort_fields: Sequence[str] = (),
+) -> list[NormalizedAction]:
+    """Order actions deterministically within each trial.
 
-    Guarantees stable deterministic tie-breaking and strict trial isolation.
+    Enforces:
+    1. Rejection of missing trial identity.
+    2. Strict action identity uniqueness per trial.
+    3. Deterministic ordering by explicit (ordinal/step_id, timestamp, action_id); input position is NOT used.
+    4. Rejection of conflicting duplicate order keys.
+    5. Rejection of inconsistent cohort_keys within a trial.
     """
     normalized: list[NormalizedAction] = [
-        a if isinstance(a, NormalizedAction) else NormalizedAction.from_dict(a)
+        a if isinstance(a, NormalizedAction) else NormalizedAction.from_dict(a, cohort_fields=cohort_fields)
         for a in actions
     ]
 
-    # Group by trial_id to ensure strict trial boundary isolation
-    by_trial: dict[str, list[tuple[int, NormalizedAction]]] = defaultdict(list)
-    for idx, act in enumerate(normalized):
-        by_trial[act.trial_id].append((idx, act))
+    by_trial: dict[str, list[NormalizedAction]] = defaultdict(list)
+    for act in normalized:
+        by_trial[act.trial_id].append(act)
 
     ordered_result: list[NormalizedAction] = []
-    # Sort trial IDs deterministically
     for trial_id in sorted(by_trial.keys()):
         trial_actions = by_trial[trial_id]
 
-        def sort_key(item: tuple[int, NormalizedAction]) -> tuple[int, int, str, int, str]:
-            input_idx, act = item
-            has_ord = 0 if act.ordinal is not None else 1
+        # 1. Action identity uniqueness per trial
+        seen_action_ids: set[str] = set()
+        for act in trial_actions:
+            if act.action_id in seen_action_ids:
+                raise TrajectorySequenceError(
+                    f"Duplicate action_id '{act.action_id}' in trial '{trial_id}'."
+                )
+            seen_action_ids.add(act.action_id)
+
+        # 2. Consistency of cohort_keys within a trial
+        first_cohort = trial_actions[0].cohort_keys
+        for act in trial_actions[1:]:
+            if act.cohort_keys != first_cohort:
+                raise TrajectorySequenceError(
+                    f"Inconsistent cohort_keys within trial '{trial_id}': expected {first_cohort}, got {act.cohort_keys}."
+                )
+
+        # 3. Deterministic order key resolution
+        seen_order_keys: set[tuple[int, int, str]] = set()
+
+        def sort_key(act: NormalizedAction) -> tuple[int, int, str, str]:
+            has_ord = 0 if act.ordinal is not None else (1 if act.step_id is not None else 2)
             ord_val = act.ordinal if act.ordinal is not None else (act.step_id if act.step_id is not None else 0)
             ts_val = act.timestamp.isoformat() if act.timestamp is not None else ""
-            return (has_ord, ord_val, ts_val, input_idx, act.action_id)
+            # Check for duplicate order keys before action_id tie-breaking if both explicit indices collide
+            order_prefix = (has_ord, ord_val, ts_val)
+            return (has_ord, ord_val, ts_val, act.action_id)
+
+        # Detect conflicting duplicate explicit order keys
+        for act in trial_actions:
+            if act.ordinal is not None or act.step_id is not None:
+                has_ord = 0 if act.ordinal is not None else 1
+                ord_val = act.ordinal if act.ordinal is not None else (act.step_id or 0)
+                ts_val = act.timestamp.isoformat() if act.timestamp is not None else ""
+                key = (has_ord, ord_val, ts_val)
+                if key in seen_order_keys:
+                    raise TrajectorySequenceError(
+                        f"Conflicting duplicate order key {key} in trial '{trial_id}' for action '{act.action_id}'."
+                    )
+                seen_order_keys.add(key)
 
         sorted_trial = sorted(trial_actions, key=sort_key)
-        ordered_result.extend(act for _, act in sorted_trial)
+        ordered_result.extend(sorted_trial)
 
     return ordered_result
 
@@ -224,13 +278,11 @@ class TransitionEdge:
 def extract_transition_edges(
     actions: Iterable[NormalizedAction | Mapping[str, Any]],
     *,
+    cohort_fields: Sequence[str] = (),
     type_field: Literal["action_type", "action_family", "function_name"] = "action_family",
 ) -> list[TransitionEdge]:
-    """Extract transition edges between consecutive actions strictly within the same trial.
-
-    Trial boundaries are never crossed.
-    """
-    ordered = order_actions(actions)
+    """Extract transition edges between consecutive actions strictly within the same trial."""
+    ordered = order_actions(actions, cohort_fields=cohort_fields)
     by_trial: dict[str, list[NormalizedAction]] = defaultdict(list)
     for act in ordered:
         by_trial[act.trial_id].append(act)
@@ -246,7 +298,6 @@ def extract_transition_edges(
             to_type = getattr(tgt, type_field, tgt.action_family)
             transition_type = f"{from_type}->{to_type}"
 
-            # Merge provenance keys
             prov_dict = dict(src.provenance)
             for k, v in tgt.provenance:
                 if k not in prov_dict:
@@ -290,14 +341,8 @@ class TransitionAggregation:
 def aggregate_transitions(
     edges: Iterable[TransitionEdge],
 ) -> list[TransitionAggregation]:
-    """Aggregate transition counts, eligible opportunities, and rates grouped by cohort and from_type.
-
-    Rate is count / opportunities (where opportunities = sum of all outgoing transitions from from_type).
-    If opportunities == 0, rate is None (unexposed/undefined, not fabricated 0.0).
-    """
-    # Count transitions per (cohort, from_type, to_type)
+    """Aggregate transition counts, eligible opportunities, and rates grouped by cohort and from_type."""
     trans_counts: dict[tuple[tuple[tuple[str, str], ...], str, str], int] = defaultdict(int)
-    # Total opportunities per (cohort, from_type)
     from_opportunities: dict[tuple[tuple[tuple[str, str], ...], str], int] = defaultdict(int)
     unexposed_source: dict[tuple[tuple[tuple[str, str], ...], str, str], int] = defaultdict(int)
     unexposed_target: dict[tuple[tuple[tuple[str, str], ...], str, str], int] = defaultdict(int)
@@ -372,10 +417,12 @@ class MotifSummary:
 
 def detect_observable_motifs(
     actions: Iterable[NormalizedAction | Mapping[str, Any]],
+    *,
+    cohort_fields: Sequence[str] = (),
 ) -> tuple[list[ObservableMotif], list[MotifSummary]]:
-    """Detect exact observable motifs and compute eligible opportunity denominators per cohort.
+    """Detect exact observable motifs and compute non-tautological opportunity denominators.
 
-    Motifs detected:
+    Semantics:
     1. repeated_tool_failure: consecutive error outcomes on the same tool/function within a trial.
        Opportunity: every action that had an error outcome and was followed by another action with the same tool.
     2. recovery_after_failure: an error outcome followed immediately by a success outcome within a trial.
@@ -383,17 +430,17 @@ def detect_observable_motifs(
     3. verification_after_action: a mutation action (intent="mutation" or family in edit/write) followed
        immediately by a verification action (intent="verification" or family in test/inspect/search).
        Opportunity: every mutation action that was followed by another action.
-    4. post_terminal_action: any action occurring strictly after a terminal action in the trial.
-       Opportunity: total actions occurring across trials that contain a terminal action.
+    4. post_terminal_action: one leakage episode per observed terminal boundary.
+       Opportunity: each observed terminal boundary (1 per trial containing a terminal action).
+       Occurrence: 1 per terminal boundary if ANY action exists strictly after it, spanning all leaked actions.
     """
-    ordered = order_actions(actions)
+    ordered = order_actions(actions, cohort_fields=cohort_fields)
     by_trial: dict[str, list[NormalizedAction]] = defaultdict(list)
     for act in ordered:
         by_trial[act.trial_id].append(act)
 
     motifs: list[ObservableMotif] = []
 
-    # Opportunities tracking per (cohort_keys, motif_type)
     cohort_opps: dict[tuple[tuple[tuple[str, str], ...], MotifType], int] = defaultdict(int)
     cohort_occs: dict[tuple[tuple[tuple[str, str], ...], MotifType], int] = defaultdict(int)
     cohort_unknowns: dict[tuple[tuple[tuple[str, str], ...], MotifType], int] = defaultdict(int)
@@ -408,34 +455,34 @@ def detect_observable_motifs(
         trial_cohort = trial_acts[0].cohort_keys
         seen_cohorts.add(trial_cohort)
 
-        # Track terminal boundary
+        # Track first terminal action
         first_terminal_idx: int | None = None
         for idx, act in enumerate(trial_acts):
             if act.is_terminal:
                 first_terminal_idx = idx
                 break
 
-        # If trial has a terminal action, all actions after terminal index are post-terminal opportunities
+        # Post-terminal leakage episode:
+        # Opportunity is the presence of an observed terminal boundary in the trial (1 per trial with terminal action).
+        # Occurrence is 1 if any subsequent action occurred after the terminal boundary.
         if first_terminal_idx is not None:
+            cohort_opps[(trial_cohort, "post_terminal_action")] += 1
             post_term_acts = trial_acts[first_terminal_idx + 1 :]
-            # Denominator for post-terminal action is number of steps following terminal action (or trials with terminal)
-            # We define opportunities as total steps after terminal action, or 1 if evaluating at trial boundary
-            # Standard step-level denominator: number of steps after terminal step
-            cohort_opps[(trial_cohort, "post_terminal_action")] += len(post_term_acts)
-            for p_act in post_term_acts:
+            if post_term_acts:
                 cohort_occs[(trial_cohort, "post_terminal_action")] += 1
                 motifs.append(
                     ObservableMotif(
                         motif_type="post_terminal_action",
                         trial_id=trial_id,
-                        step_ids=(p_act.step_id,),
-                        action_ids=(p_act.action_id,),
+                        step_ids=tuple(p.step_id for p in post_term_acts),
+                        action_ids=tuple(p.action_id for p in post_term_acts),
                         details=(
-                            ("function_name", p_act.function_name),
+                            ("terminal_action_id", trial_acts[first_terminal_idx].action_id),
                             ("terminal_step_id", str(trial_acts[first_terminal_idx].step_id)),
+                            ("leaked_action_count", str(len(post_term_acts))),
                         ),
                         cohort_keys=trial_cohort,
-                        provenance=p_act.provenance,
+                        provenance=trial_acts[first_terminal_idx].provenance,
                     )
                 )
 
@@ -448,10 +495,8 @@ def detect_observable_motifs(
             if i + 1 < n:
                 next_act = trial_acts[i + 1]
 
-                # 1. Repeated tool failure
-                # Opportunity: whenever an error occurs on a tool and the next action uses the same tool
+                # 1 & 2: Error-based motifs
                 if act.outcome == "error":
-                    # Recovery opportunity: any error followed by a next action
                     cohort_opps[(trial_cohort, "recovery_after_failure")] += 1
 
                     if next_act.outcome == "success":
@@ -471,7 +516,6 @@ def detect_observable_motifs(
                             )
                         )
 
-                    # Check repeated tool failure
                     if act.function_name == next_act.function_name and act.function_name != "unknown":
                         cohort_opps[(trial_cohort, "repeated_tool_failure")] += 1
                         if next_act.outcome == "error":
@@ -492,7 +536,7 @@ def detect_observable_motifs(
                                 )
                             )
 
-                # 3. Verification after action (mutation -> verification)
+                # 3. Verification after action
                 is_mutation = (
                     act.intent == "mutation"
                     or act.action_family in MUTATION_FAMILIES
@@ -522,7 +566,6 @@ def detect_observable_motifs(
                             )
                         )
 
-    # Build motif summaries
     all_motif_types: tuple[MotifType, ...] = (
         "repeated_tool_failure",
         "recovery_after_failure",

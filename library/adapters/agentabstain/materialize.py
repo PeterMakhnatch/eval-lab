@@ -21,7 +21,7 @@ COMMITTED_CORPUS_PATTERNS = (
     "library/tasks/agentabstain-*/**",
 )
 RUNTIME = Path(__file__).parent / "runtime.py"
-MATERIALIZER_VERSION = "agentabstain-materializer/v4"
+MATERIALIZER_VERSION = "agentabstain-materializer/v5"
 
 
 def source_id() -> str:

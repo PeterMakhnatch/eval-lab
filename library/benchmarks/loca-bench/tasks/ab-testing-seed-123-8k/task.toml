@@ -1,5 +1,10 @@
 schema_version = "1.4"
 
+artifacts = [
+  "/app/task_state/agent_workspace/record.csv",
+  "/app/task_state/agent_workspace/promo-assets-for-b.marker",
+]
+
 [task]
 version = "1.0.0"
 name = "loca-bench/ab-testing-seed-123-8k"

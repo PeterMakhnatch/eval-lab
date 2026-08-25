@@ -1,28 +1,28 @@
 {
-  "benchmark": "LOCA-bench",
-  "benchmark_version": "8b6fac49d9edd92922593e703b74ea255357c3ec",
-  "sandbox_commit": "2b4a1c77bd65d83750372ee079a2e5c5d13cb27c",
-  "official_task": "ABTestingS2LEnv",
-  "official_seed": 42,
-  "context_size": "128k",
-  "mcp_servers": {
-    "google_cloud": {
-      "type": "vendored-upstream-mcp_convert",
-      "command": "python3 -m mcps.google_cloud.server",
-      "data_dir": "{task_workspace}/local_db/google_cloud"
-    }
-  },
   "backend": {
     "kind": "native-m4",
     "proof": "../../native_backend.json"
   },
-  "verifier": {
-    "command": "python3 /adapter/verify.py",
-    "deterministic": true
+  "benchmark": "LOCA-bench",
+  "benchmark_version": "8b6fac49d9edd92922593e703b74ea255357c3ec",
+  "context_size": "128k",
+  "mcp_servers": {
+    "google_cloud": {
+      "command": "python3 -m mcps.google_cloud.server",
+      "data_dir": "{task_workspace}/local_db/google_cloud",
+      "type": "vendored-upstream-mcp_convert"
+    }
   },
+  "official_seed": 42,
+  "official_task": "ABTestingS2LEnv",
+  "sandbox_commit": "2b4a1c77bd65d83750372ee079a2e5c5d13cb27c",
   "state": {
-    "strategy": "upstream_generator_parameters",
     "configured_tokens": 131072,
-    "padding_only": false
+    "padding_only": false,
+    "strategy": "upstream_generator_parameters"
+  },
+  "verifier": {
+    "command": "python3 /tests/verify.py",
+    "deterministic": true
   }
 }

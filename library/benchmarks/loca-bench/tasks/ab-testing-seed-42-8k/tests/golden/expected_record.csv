@@ -1,0 +1,12 @@
+scenario,A_conversion %,B_conversion %
+Sauces,71.857%,75.938%
+Movies,71.085%,71.997%
+Education,72.330%,71.444%
+Repair,70.652%,70.768%
+Fitness,78.794%,76.951%
+Printers,75.097%,73.314%
+Laptops,75.188%,76.950%
+Cosmetics,71.364%,71.457%
+Maintenance,70.317%,71.144%
+Industrial,74.853%,77.722%
+overall (total_store_views/total_clicks),73.183%,73.817%

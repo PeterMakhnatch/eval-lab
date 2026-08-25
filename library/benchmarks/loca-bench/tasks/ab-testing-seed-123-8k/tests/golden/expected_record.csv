@@ -1,0 +1,12 @@
+scenario,A_conversion %,B_conversion %
+Hospitality,71.541%,72.529%
+DJEquipment,76.113%,73.682%
+Jewelry,73.668%,70.818%
+Accounting,71.410%,69.760%
+CraftSupplies,75.363%,78.271%
+Software,69.148%,69.748%
+Barbershop,72.488%,72.197%
+Woodworking,76.226%,75.574%
+Workshops,72.980%,75.000%
+FreshFood,74.709%,73.966%
+overall (total_store_views/total_clicks),73.352%,73.193%

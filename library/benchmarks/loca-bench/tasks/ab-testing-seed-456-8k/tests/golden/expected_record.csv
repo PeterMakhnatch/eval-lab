@@ -1,0 +1,12 @@
+scenario,A_conversion %,B_conversion %
+Delivery,73.933%,77.096%
+LuxuryGoods,73.922%,75.114%
+GourmetFood,69.215%,69.480%
+Collectibles,69.260%,70.540%
+Cards,70.484%,70.012%
+Coaching,71.561%,71.972%
+Quilting,71.755%,69.067%
+Streaming,78.133%,77.077%
+Gaming,74.022%,76.246%
+IceCream,77.662%,74.535%
+overall (total_store_views/total_clicks),72.979%,73.090%

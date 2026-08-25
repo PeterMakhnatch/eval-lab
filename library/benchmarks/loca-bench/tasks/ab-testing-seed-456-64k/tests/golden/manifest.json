@@ -1,0 +1,9 @@
+{
+  "benchmark": "LOCA-bench",
+  "official_seed": 456,
+  "padding_only": false,
+  "row_count": 184320,
+  "size": "64k",
+  "state_digest": "b4b00ef1c2d51edb6bdd7caf35a0bed27e952663d955ee92766213fba03cab9a",
+  "task_family": "ABTestingS2LEnv"
+}

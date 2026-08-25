@@ -50,7 +50,7 @@ class TaskVariant:
     environments: tuple[str, ...]
 
     @classmethod
-    def from_row(cls, row: dict[str, Any]) -> "TaskVariant":
+    def from_row(cls, row: dict[str, Any]) -> TaskVariant:
         required = ("pair_id", "category", "task_id", "task_type", "instruction", "system_prompt")
         missing = [key for key in required if key not in row]
         if missing:

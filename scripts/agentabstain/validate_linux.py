@@ -15,8 +15,9 @@ import stat
 import subprocess
 import sys
 import tomllib
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Any, Literal
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ACT_TASK = REPO_ROOT / "library/tasks/agentabstain-ambiguous-action-preview-002-act"

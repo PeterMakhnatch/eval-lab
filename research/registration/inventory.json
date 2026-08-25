@@ -1,6 +1,6 @@
 {
-  "total_packages": 512,
-  "runnable_packages": 492,
+  "total_packages": 514,
+  "runnable_packages": 494,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -5040,6 +5040,26 @@
     {
       "task_id": "seqgen-s7-003",
       "path": "library/synthetic/seqgen-v0/seqgen-s7-003",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "agentabstain-ambiguous-action-preview-002-abstain",
+      "path": "library/tasks/agentabstain-ambiguous-action-preview-002-abstain",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "agentabstain-ambiguous-action-preview-002-act",
+      "path": "library/tasks/agentabstain-ambiguous-action-preview-002-act",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,

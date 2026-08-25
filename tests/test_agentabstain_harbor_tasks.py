@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-import tomllib
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "library/adapters"))
@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "library/adapters"))
 from agentabstain.agentabstain import load_variants, primary_verdict
 from agentabstain.reset_state import reset_trial
 from agentabstain.runtime import EnvironmentState, handle_tool_call
+
 from evallab.task_workbench import CandidateSource, inspect_candidate
 
 CORPUS = Path(__file__).parents[1] / "library/adapters/agentabstain/data/tasks.jsonl"

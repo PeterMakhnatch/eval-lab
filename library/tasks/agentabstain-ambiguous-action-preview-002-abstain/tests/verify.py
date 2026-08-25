@@ -1,4 +1,5 @@
 """Deterministic primary verifier for agentabstain-ambiguous-action-preview-002-abstain."""
+import contextlib
 import hashlib
 import json
 import sys
@@ -52,10 +53,8 @@ def main() -> int:
         for line in calls_path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line:
-                try:
+                with contextlib.suppress(json.JSONDecodeError):
                     calls.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
 
     successful_tools = [
         str(c["tool"])

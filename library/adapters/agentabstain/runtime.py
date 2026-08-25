@@ -89,13 +89,13 @@ class EnvironmentState:
         error: str | None = None,
     ) -> dict[str, Any]:
         call_entry = {
-            "call_id": f"call-{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
+            "call_id": f"call-{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d%H%M%S%f')}",
             "tool": tool,
             "arguments": arguments,
             "result": result,
             "success": success,
             "error": error,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
         with self.calls_log_file.open("a", encoding="utf-8") as f:
             f.write(json.dumps(call_entry, ensure_ascii=False, sort_keys=True) + "\n")

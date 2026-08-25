@@ -14,7 +14,6 @@ from agentabstain import (
     validate_corpus,
 )
 
-
 CORPUS = Path(__file__).parents[1] / "library/adapters/agentabstain/data/tasks.jsonl"
 
 

@@ -34,7 +34,8 @@ def run_controls(corpus: str | Path) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    import argparse, json
+    import argparse
+    import json
     parser = argparse.ArgumentParser()
     parser.add_argument("corpus", type=Path)
     args = parser.parse_args()

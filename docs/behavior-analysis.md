@@ -129,3 +129,34 @@ print(render_behavior_report(report))
 data = report_to_dict(report)
 print(f"Total trials: {data['total_trials']}, Token coverage: {data['token_coverage_summary']}")
 ```
+
+---
+
+## 5. Evidence-backed behavior episodes
+
+`evallab.behavior_episodes` adds multi-label, step-bounded interpretations without
+rewriting Harbor ATIF. Detector input is the normalized event-mart action sequence;
+detector output is stored atomically in
+`derived/behavior_episodes/behavior_episodes.parquet` and is queryable through the
+unified attach surface as `behavior_episodes`.
+
+The calibrated v1 dimensions are `tool_error`, `unchanged_retry`,
+`recovered_progress`, and `verification_gap`. `unresolved_error` is the
+right-censored negative recovery route, not a fifth calibrated dimension.
+`effect_loop_candidate` remains experimental and requires repeated equivalent
+observations plus explicit complete evidence that no state changed across the
+interval. Missing observation, relevance, or state-coverage data produces an
+unknown assessment rather than a positive label.
+
+Definitions, exclusions, counterexamples, detector versions, and calibration
+status live in `research/behavior/catalog-v1.yaml`. Calibration in
+`evallab.behavior_calibration` reports confusion counts, precision, and recall
+separately for each behavior. A dimension without explicit human ground truth is
+excluded; it is not silently counted as negative.
+
+Phoenix is only the disposable annotation surface. `evallab.phoenix_annotations`
+publishes episodes on an exact evidence span when the ATIF-to-OTLP conversion
+provides an unambiguous step mapping, otherwise on the trace root. Reviewed
+annotations are imported only when Phoenix reports authenticated UI provenance
+(`HUMAN`, `APP`, and a non-empty `user_id`). Harbor ATIF and the Eval Lab evidence
+store remain canonical.

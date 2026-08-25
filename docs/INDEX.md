@@ -25,7 +25,7 @@ inputs:
   - path: docs/authoring.md
     digest: sha256:37669e0ed2770fc1c3b5c9c9baadc2ca4b3d2af4e3844c8da298c08d6ab9b5d9
   - path: docs/behavior-analysis.md
-    digest: sha256:100d45ccc9f3b0dfa046f04c77973a523133dec810d4fb2f236001fdfda9629f
+    digest: sha256:13a91a461b028742a92c3cb5a1f70f46c257794a180bf6d6299154b80ea08f67
   - path: docs/build-plan.md
     digest: sha256:4a70d5a356561eab053ffe7e14f6bb5fd8fed0256b9e81edddb500183697bee7
   - path: docs/canaries.md

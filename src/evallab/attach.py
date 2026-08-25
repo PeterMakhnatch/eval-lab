@@ -58,6 +58,16 @@ TABLES = (
     "traj_features",
     "behavior_labels",
     "behavior_episodes",
+    "capability_opportunities",
+    "process_step_facts",
+    "retrieval_facts",
+    "constraint_facts",
+    "context_operation_facts",
+    "paired_condition_facts",
+    "session_dependency_facts",
+    "evidence_coverage",
+    "semantic_action_facts",
+    "semantic_action_coverage",
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"
@@ -98,26 +108,151 @@ def _z3_globs(root: Path) -> list[str]:
     standalone_dir = str(root / Z3_STANDALONE_DIR)
     return [hot, cold, standalone_dir]
 
+SEMANTIC_COMPARISON_COLUMNS = (
+    "job_id",
+    "trial_id",
+    "document_id",
+    "tool_call_id",
+    "action_id",
+    "function_name",
+    "mechanical_outcome",
+    "exit_code",
+    "mechanical_arguments_sha256",
+    "task_id",
+    "binding_digest",
+    "profile_id",
+    "profile_version",
+    "profile_digest",
+    "semantic_role",
+    "semantic_outcome",
+    "reason_code",
+    "detail_digest",
+    "detail_size",
+    "observation_correlation",
+    "correlation_reason",
+    "intervention_provenance",
+    "intervention_sha256",
+    "intervention_length",
+    "intervention_reason",
+)
+
+def _empty_semantic_comparison_sql() -> str:
+    columns = []
+    for name in SEMANTIC_COMPARISON_COLUMNS:
+        sql_type = (
+            "BIGINT"
+            if name in {"exit_code", "detail_size", "intervention_length"}
+            else "VARCHAR"
+        )
+        columns.append(f"CAST(NULL AS {sql_type}) AS {name}")
+    return "SELECT " + ", ".join(columns) + " WHERE FALSE"
+
+
+def _semantic_comparison_sql(
+    mechanical_relation: str,
+    semantic_relation: str,
+) -> str:
+    return f"""
+        SELECT
+            mechanical.job_id,
+            mechanical.trial_id,
+            mechanical.document_id,
+            mechanical.tool_call_id,
+            mechanical.action_id,
+            mechanical.function_name,
+            mechanical.outcome AS mechanical_outcome,
+            mechanical.exit_code,
+            mechanical.arguments_sha256 AS mechanical_arguments_sha256,
+            semantic.task_id,
+            semantic.binding_digest,
+            semantic.profile_id,
+            semantic.profile_version,
+            semantic.profile_digest,
+            semantic.role AS semantic_role,
+            semantic.outcome AS semantic_outcome,
+            semantic.reason_code,
+            semantic.detail_digest,
+            semantic.detail_size,
+            semantic.observation_correlation,
+            semantic.correlation_reason,
+            semantic.intervention_provenance,
+            semantic.intervention_sha256,
+            semantic.intervention_length,
+            semantic.intervention_reason
+        FROM {mechanical_relation} AS mechanical
+        LEFT JOIN {semantic_relation} AS semantic
+          ON mechanical.job_id = semantic.job_id
+         AND mechanical.trial_id = semantic.trial_id
+         AND mechanical.document_id = semantic.document_id
+         AND (
+              mechanical.tool_call_id IS NOT NULL
+              AND semantic.tool_call_id IS NOT NULL
+              AND mechanical.tool_call_id = semantic.tool_call_id
+              OR (
+                  mechanical.action_id = semantic.action_id
+                  AND (
+                      mechanical.tool_call_id IS NULL
+                      OR semantic.tool_call_id IS NULL
+                  )
+              )
+         )
+    """
+
+
+def _attach_semantic_comparison(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    available_tables: set[str],
+) -> None:
+    if {"agent_actions", "semantic_action_facts"} <= available_tables:
+        comparison = _semantic_comparison_sql("agent_actions", "semantic_action_facts")
+        z3_comparison = _semantic_comparison_sql(
+            "z3.agent_actions", "z3.semantic_action_facts"
+        )
+    else:
+        comparison = _empty_semantic_comparison_sql()
+        z3_comparison = comparison
+    try:
+        conn.execute(
+            f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {comparison}"
+        )
+        conn.execute(
+            f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {z3_comparison}"
+        )
+    except Exception:
+        # A discovered file can still be malformed or use an older schema. Do not
+        # expose a partial or guessed comparison in that case.
+        empty = _empty_semantic_comparison_sql()
+        conn.execute(f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {empty}")
+        conn.execute(f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {empty}")
+
 
 def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     if not root.exists():
+        _attach_semantic_comparison(conn, available_tables=set())
         return ZoneStatus("z3", False, reason="derived root does not exist", detail=str(root))
-    globs = _z3_globs(root)
+
+    hot_tables = {p.stem for p in root.glob("job_id=*/trial_id=*/*.parquet")}
+    cold_tables = {p.parent.parent.name for p in root.glob("compact/*/dt=*/part*.parquet")}
+    standalone_tables = {
+        p.parent.name
+        for p in root.glob("*/*.parquet")
+        if p.parent.parent == root
+        and not p.parent.name.startswith("job_id=")
+        and p.parent.name != "compact"
+    }
+
     created = 0
     missing = []
     for table in TABLES:
         view_globs: list[str] = []
-        for g in globs:
-            if "job_id=" in g:
-                if any(root.glob(f"job_id=*/trial_id=*/{table}.parquet")):
-                    view_globs.append(g.format(table=table))
-            elif "compact" in g:
-                if any(root.glob(f"compact/{table}/dt=*/part*.parquet")):
-                    view_globs.append(g.format(table=table))
-            else:
-                cand_path = root / table
-                if cand_path.is_dir() and any(cand_path.glob("*.parquet")):
-                    view_globs.append(g.format(table=table))
+        if table in hot_tables:
+            view_globs.append(str(root / Z3_HOT.format(table=table)))
+        if table in cold_tables:
+            view_globs.append(str(root / Z3_COLD.format(table=table)))
+        if table in standalone_tables:
+            view_globs.append(str(root / Z3_STANDALONE_DIR.format(table=table)))
+
         if not view_globs:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
@@ -146,6 +281,10 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
                 f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
             )
             missing.append(table)
+    _attach_semantic_comparison(
+        conn,
+        available_tables=hot_tables | cold_tables | standalone_tables,
+    )
     detail = f"{str(root)} ({created}/{len(TABLES)} tables)"
     if missing:
         detail += f"; missing: {', '.join(missing)} (intentionally shaped differently)"
@@ -234,6 +373,16 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
             f"CREATE OR REPLACE VIEW z3.{table} AS "
             f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true);"
         )
+    lines.append(
+        "CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS "
+        + _semantic_comparison_sql("agent_actions", "semantic_action_facts")
+        + ";"
+    )
+    lines.append(
+        "CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS "
+        + _semantic_comparison_sql("z3.agent_actions", "z3.semantic_action_facts")
+        + ";"
+    )
     lines.append(
         "CREATE OR REPLACE TABLE z4.front_matter "
         "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT);"

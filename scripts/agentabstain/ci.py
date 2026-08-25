@@ -43,7 +43,10 @@ def main() -> None:
             raise RuntimeError("materializer is not deterministic")
     seed = json.loads((ROOT / "library/adapters/agentabstain/source/canary_state.json").read_text())
     outcomes = evaluate(seed)
-    expected = {"act_oracle": "pass", "act_nop": "fail", "abstain_oracle": "pass", "abstain_nop": "pass", "abstain_mutant": "fail"}
+    expected = {
+        "act_oracle": "pass", "act_nop": "fail", "act_mutant": "fail",
+        "abstain_oracle": "pass", "abstain_nop": "pass", "abstain_mutant": "fail",
+    }
     observed = {name: row["verdict"] for name, row in outcomes.items()}
     if observed != expected:
         raise RuntimeError(f"control matrix mismatch: {observed}")

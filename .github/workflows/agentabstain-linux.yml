@@ -61,7 +61,7 @@ jobs:
           uv run python scripts/agentabstain/assert_reward.py runs/agentabstain-linux/agentabstain-abstain-mutant 0
       - name: Reject committed generated corpus and reports
         run: |
-          test -z "$(git ls-files 'derived/harbor-tasks/**' 'library/adapters/agentabstain/raw/**' 'library/adapters/agentabstain/reports/**')"
+          test -z "$(git ls-files 'derived/harbor-tasks/**' 'library/adapters/agentabstain/raw/**' 'library/adapters/agentabstain/reports/**' 'library/tasks/agentabstain-*' 'library/tasks/agentabstain-*/**')"
       - name: Upload immutable raw CAS jobs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

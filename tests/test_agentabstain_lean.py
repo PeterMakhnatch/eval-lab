@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import importlib
 import json
 import stat
-import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
@@ -13,6 +14,7 @@ from library.adapters.agentabstain.adapter import load_variants, primary_verdict
 from library.adapters.agentabstain.controls import evaluate  # noqa: E402
 from library.adapters.agentabstain.materialize import materialize  # noqa: E402
 from scripts.agentabstain.assert_reward import _job_reward  # noqa: E402
+materializer_module = importlib.import_module("library.adapters.agentabstain.materialize")
 
 SEED = json.loads((ROOT / "library/adapters/agentabstain/source/canary_state.json").read_text())
 
@@ -28,6 +30,7 @@ def test_controls_defend_oracle_nop_and_mutant_boundaries() -> None:
     assert observed == {
         "act_oracle": "pass",
         "act_nop": "fail",
+        "act_mutant": "fail",
         "abstain_oracle": "pass",
         "abstain_nop": "pass",
         "abstain_mutant": "fail",
@@ -50,6 +53,10 @@ def test_materializer_emits_variant_solutions_and_executable_scripts(tmp_path: P
     assert "deliberately make no calls" in (abstain / "solution/solve.sh").read_text()
     for package in (act, abstain):
         assert (package / "solution/solve.sh").stat().st_mode & stat.S_IXUSR
+        config = tomllib.loads((package / "task.toml").read_text())
+        assert config["environment"]["network_mode"] == "public"
+        assert config["verifier"]["environment_mode"] == "separate"
+        assert config["verifier"]["environment"]["network_mode"] == "no-network"
         assert (package / "tests/test.sh").stat().st_mode & stat.S_IXUSR
 
 
@@ -60,6 +67,18 @@ def test_reward_assertion_reads_persisted_harbor_result(tmp_path: Path) -> None:
         "stats": {"evals": {"control": {"metrics": [{"mean": 1.0}]}}},
     }))
     assert _job_reward(job) == 1.0
+
+def test_committed_corpus_guard_rejects_generated_task(monkeypatch) -> None:
+    def fake_check_output(command, text):
+        return "library/tasks/agentabstain-canary/task.toml\n" if command[-1] == "library/tasks/agentabstain-*" else ""
+
+    monkeypatch.setattr(materializer_module.subprocess, "check_output", fake_check_output)
+    try:
+        materializer_module.assert_no_committed_generated(Path("/tmp"))
+    except RuntimeError as error:
+        assert "library/tasks/agentabstain-canary/task.toml" in str(error)
+    else:
+        raise AssertionError("committed generated task was not rejected")
 
 
 def test_abstain_rejects_state_mutation_without_tool() -> None:

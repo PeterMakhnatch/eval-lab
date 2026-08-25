@@ -13,8 +13,15 @@ from .adapter import MANIFEST, source_digest
 ROOT = Path(__file__).parents[3]
 OUTPUT_ROOT = ROOT / "derived/harbor-tasks/agentabstain"
 SEED = Path(__file__).parent / "source/canary_state.json"
+COMMITTED_CORPUS_PATTERNS = (
+    "derived/harbor-tasks/**",
+    "library/adapters/agentabstain/raw/**",
+    "library/adapters/agentabstain/reports/**",
+    "library/tasks/agentabstain-*",
+    "library/tasks/agentabstain-*/**",
+)
 RUNTIME = Path(__file__).parent / "runtime.py"
-MATERIALIZER_VERSION = "agentabstain-materializer/v3"
+MATERIALIZER_VERSION = "agentabstain-materializer/v4"
 
 
 def source_id() -> str:
@@ -92,10 +99,19 @@ def materialize(output_root: Path = OUTPUT_ROOT) -> Path:
     return output
 
 
+def committed_generated_paths(repo_root: Path = ROOT) -> tuple[str, ...]:
+    tracked: list[str] = []
+    for pattern in COMMITTED_CORPUS_PATTERNS:
+        tracked.extend(subprocess.check_output(
+            ["git", "-C", str(repo_root), "ls-files", pattern], text=True,
+        ).splitlines())
+    return tuple(sorted(set(tracked)))
+
+
 def assert_no_committed_generated(repo_root: Path = ROOT) -> None:
-    tracked = subprocess.check_output(["git", "-C", str(repo_root), "ls-files", "derived/harbor-tasks"], text=True).splitlines()
+    tracked = committed_generated_paths(repo_root)
     if tracked:
-        raise RuntimeError("generated Harbor corpus is committed: " + ", ".join(tracked))
+        raise RuntimeError("generated corpus is committed: " + ", ".join(tracked))
 
 
 def main() -> None:

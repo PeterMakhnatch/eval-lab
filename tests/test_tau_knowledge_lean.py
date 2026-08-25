@@ -5,6 +5,9 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 ROOT = Path(__file__).parents[1]
 MANIFEST = ROOT / "library/benchmarks/tau-knowledge/cohort.manifest.json"
@@ -50,16 +53,57 @@ def test_missing_source_and_credentials_fail_closed_without_trial() -> None:
     assert credential.reason_code == "blocked:missing_openai_api_key_for_simulated_user"
     assert credential.to_dict()["created_trial"] is False
 
+
 def test_harbor_repository_layout_resolves_nested_tau_adapter(tmp_path: Path) -> None:
     materializer = _load(MATERIALIZER, "tau_knowledge_nested_adapter")
     package = tmp_path / "harbor/adapters/tau3-bench/src/tau3_bench"
     package.mkdir(parents=True)
-    (package / "__init__.py").write_text(
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "adapter.py").write_text(
         "class Tau3BenchAdapter: pass\n", encoding="utf-8"
     )
     sys.modules.pop("tau3_bench", None)
+    sys.modules.pop("tau3_bench.adapter", None)
     adapter = materializer._load_adapter(tmp_path / "harbor")
     assert adapter.__name__ == "Tau3BenchAdapter"
+
+
+def test_adapter_digest_pins_are_enforced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    materializer = _load(MATERIALIZER, "tau_knowledge_adapter_digests")
+    package = tmp_path / "adapters/tau3-bench"
+    (package / "src/tau3_bench").mkdir(parents=True)
+    for relative in ("pyproject.toml", "README.md", "src/tau3_bench/adapter.py"):
+        (package / relative).write_text("fixture\n", encoding="utf-8")
+    root = tmp_path
+    manifest = json.loads(MANIFEST.read_text())
+    monkeypatch.setattr(
+        materializer.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout=manifest["adapter_evidence"]["commit"] + "\n"
+        ),
+    )
+    digests = {
+        "pyproject.toml": manifest["adapter_evidence"]["adapter_pyproject_sha256"],
+        "README.md": manifest["adapter_evidence"]["adapter_readme_sha256"],
+        "adapter.py": manifest["adapter_evidence"]["adapter_source_sha256"],
+    }
+    monkeypatch.setattr(materializer, "sha256", lambda path: digests[path.name])
+    assert materializer._validate_adapter(root, manifest) == root.resolve()
+    monkeypatch.setattr(materializer, "sha256", lambda path: "sha256:wrong")
+    with pytest.raises(RuntimeError, match="adapter_digest_mismatch"):
+        materializer._validate_adapter(root, manifest)
+
+
+def test_control_reads_persisted_reward(tmp_path: Path) -> None:
+    controls = _load(CONTROLS, "tau_knowledge_reward")
+    result = tmp_path / "trial/result.json"
+    result.parent.mkdir()
+    result.write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": 0.0}}}),
+        encoding="utf-8",
+    )
+    assert controls._persisted_reward(tmp_path) == 0.0
 
 
 def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) -> None:
@@ -67,11 +111,10 @@ def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) ->
     task = tmp_path / "tau3-banking_knowledge-task-001"
     (task / "solution").mkdir(parents=True)
     (task / "task.toml").write_text("[task]\n", encoding="utf-8")
-    (task / "solution/solve.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     for mode in ("oracle", "nop", "mutant"):
         command = controls.run_control(task, mode, dry_run=True)
         assert command[:6] == ["uv", "run", "harbor", "trial", "start", "-p"]
-        assert command[-1] in {"oracle", "nop"}
+        assert command[-1] == ("oracle" if mode in {"oracle", "mutant"} else "nop")
 
 
 def test_generated_corpus_is_not_tracked() -> None:

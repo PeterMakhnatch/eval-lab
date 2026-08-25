@@ -60,6 +60,20 @@ def _validate_adapter(root: Path, manifest: Mapping[str, Any]) -> Path:
         raise RuntimeError(
             f"blocked:adapter_commit_mismatch:expected={expected}:actual={actual}"
         )
+    package_root = root / "adapters" / "tau3-bench"
+    if not (package_root / "pyproject.toml").is_file():
+        package_root = root / "harbor" / "adapters" / "tau3-bench"
+    if not (package_root / "pyproject.toml").is_file():
+        package_root = root
+    expected_files = {
+        "adapter_pyproject_sha256": package_root / "pyproject.toml",
+        "adapter_source_sha256": package_root / "src" / "tau3_bench" / "adapter.py",
+        "adapter_readme_sha256": package_root / "README.md",
+    }
+    evidence = manifest["adapter_evidence"]
+    for evidence_key, path in expected_files.items():
+        if not path.is_file() or sha256(path) != evidence[evidence_key]:
+            raise RuntimeError(f"blocked:adapter_digest_mismatch:{path}")
     return root
 
 
@@ -73,7 +87,7 @@ def _load_adapter(root: Path) -> type[Any]:
         if candidate.is_dir():
             sys.path.insert(0, str(candidate))
             try:
-                return importlib.import_module("tau3_bench").Tau3BenchAdapter
+                return importlib.import_module("tau3_bench.adapter").Tau3BenchAdapter
             except (ImportError, AttributeError):
                 continue
     raise RuntimeError(f"blocked:adapter_package_missing:{root}")

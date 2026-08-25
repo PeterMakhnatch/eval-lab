@@ -22,7 +22,9 @@ jobs:
         run: |
           python3 -c 'import subprocess,sys; p=subprocess.check_output(["git","ls-files"],text=True).splitlines(); bad=[x for x in p if x.startswith(("library/benchmarks/tau-knowledge/generated/","library/benchmarks/tau-knowledge/evidence/trials/","library/benchmarks/tau-knowledge/evidence/luna/")) or (x.startswith("library/benchmarks/tau-knowledge/") and x.endswith(".parquet"))]; print("forbidden tracked paths:", bad); sys.exit(bool(bad))'
       - name: Install uv
-        run: python3 -m pip install --user uv==0.9.24
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Pin tau2 source and Harbor adapter
         run: |
           git clone --depth 1 --branch v1.0.1 https://github.com/sierra-research/tau2-bench.git "$RUNNER_TEMP/tau2-bench"
@@ -35,7 +37,6 @@ jobs:
           TAU2_BENCH_ROOT: ${{ runner.temp }}/tau2-bench
           TAU3_BENCH_ADAPTER_ROOT: ${{ runner.temp }}/harbor
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           mkdir -p derived/harbor-tasks/tau
           python3 scripts/tau_knowledge/materialize.py --task-id task_001 --output-root "$GITHUB_WORKSPACE/derived/harbor-tasks/tau" > "$RUNNER_TEMP/task-root.txt"
           task_root="$(cat "$RUNNER_TEMP/task-root.txt")"
@@ -47,9 +48,11 @@ jobs:
       - name: Run oracle, nop, and mutant controls
         env:
           HARBOR_ROOT: ${{ runner.temp }}/harbor
+          # Required only to satisfy task.toml interpolation; controls never use it.
+          OPENAI_API_KEY: ci-unused-marker
+          TAU_TRIALS_ROOT: ${{ runner.temp }}/tau-trials
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           cd "$HARBOR_ROOT"
-          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode oracle
-          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode nop
-          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode mutant
+          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode oracle --trials-dir "$TAU_TRIALS_ROOT/oracle" --expect-reward 1
+          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode nop --trials-dir "$TAU_TRIALS_ROOT/nop" --expect-reward 0
+          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode mutant --trials-dir "$TAU_TRIALS_ROOT/mutant" --expect-reward 0

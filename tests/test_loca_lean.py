@@ -58,6 +58,11 @@ def test_materializer_oracle_nop_and_mutants(tmp_path):
     materializer.materialize(target, verify_sources=False)
     second = {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}
     assert first == second
+    for required in ("task.toml", "instruction.md", "environment", "solution", "tests", "state_manifest.json", "files", "local_db"):
+        assert (target / required).exists()
+    assert (target / "environment" / "Dockerfile").is_file()
+    assert (target / "solution" / "solve.sh").is_file()
+    assert (target / "tests" / "test.sh").is_file()
     templates.nop(target, target / "agent_workspace")
     assert verifier.verify(target)["reward"] == 0.0
     materializer.materialize(target, verify_sources=False)

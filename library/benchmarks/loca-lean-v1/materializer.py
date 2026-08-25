@@ -6,11 +6,12 @@ import shutil
 from pathlib import Path
 
 from source import Pin, PinError, fetch_pinned, load_pins, source_digest, verify_cache
-from state import CANARY, SIZES, SEEDS, build_state
+from state import CANARY, INSTRUCTION, SIZES, SEEDS, build_state
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[2]
 DERIVED = REPO / "derived" / "harbor-tasks" / "loca"
+PACKAGE_NAME = "loca-abtesting-8k-seed42"
 SOURCE_CACHE = REPO / "derived" / "harbor-source-cache" / "loca"
 
 
@@ -23,15 +24,46 @@ def _acquire(cache_dir: Path) -> dict[str, Path]:
 
 def output_path() -> Path:
     record, pins = load_pins()
-    return DERIVED / source_digest(record, pins)
-
+    digest = source_digest(record, pins)
+    return DERIVED / digest / PACKAGE_NAME
 
 def _safe_output(path: Path, digest: str) -> Path:
     resolved = path.resolve()
-    expected_parent = DERIVED.resolve()
-    if resolved.parent != expected_parent or resolved.name != digest:
-        raise PinError(f"generated output must be exactly {expected_parent / digest}")
+    expected_parent = (DERIVED / digest).resolve()
+    if resolved.parent != expected_parent or resolved.name != PACKAGE_NAME:
+        raise PinError(f"generated output must be exactly {expected_parent / PACKAGE_NAME}")
     return resolved
+def _write_harbor_package(target: Path, digest: str, manifest: dict[str, object]) -> None:
+    (target / "environment").mkdir()
+    (target / "solution").mkdir()
+    (target / "tests").mkdir()
+    (target / "environment" / "Dockerfile").write_text(
+        "FROM python:3.12-slim\nWORKDIR /app\nENV NETWORK_MODE=none\nCOPY . /app\n", encoding="utf-8"
+    )
+    (target / "environment" / "entrypoint.sh").write_text(
+        "#!/bin/sh\nset -eu\nexec python3 \"$LOCA_BENCHMARK_ROOT/runtime.py\" --task-dir /app/task_state\n", encoding="utf-8"
+    )
+    (target / "environment" / "entrypoint.sh").chmod(0o755)
+    (target / "environment" / "service-config.json").write_text(
+        json.dumps({"type": "google_cloud", "data_dir": "/app/task_state/local_db/google_cloud", "network_mode": "no-network"}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (target / "solution" / "solve.sh").write_text(
+        "#!/bin/sh\nset -eu\nexec python3 \"$LOCA_BENCHMARK_ROOT/oracle.py\" --task-dir /app/task_state --workspace /app/task_state/agent_workspace\n", encoding="utf-8"
+    )
+    (target / "solution" / "solve.sh").chmod(0o755)
+    (target / "tests" / "test.sh").write_text(
+        "#!/bin/sh\nset -eu\nexec python3 \"$LOCA_BENCHMARK_ROOT/verifier.py\" --task-dir /app/task_state --workspace /app/task_state/agent_workspace --reward-dir /app/task_state/tests/rewards\n", encoding="utf-8"
+    )
+    (target / "tests" / "test.sh").chmod(0o755)
+    (target / "task.toml").write_text(
+        f'''schema_version = "1.4"\nartifacts = ["/app/task_state/agent_workspace/record.csv", "/app/task_state/agent_workspace/promo-assets-for-b.marker"]\n\n[task]\nversion = "1.0.0"\nname = "loca-bench/ab-testing-seed-42-8k"\ndescription = "Pinned LOCA ABTestingS2LEnv canary."\n[metadata]\nauthor_name = "LOCA-bench Contributors"\ncategory = "long-context-agents"\ntags = ["loca", "mcp", "context-growth"]\nsource_ref = "8b6fac49d9edd92922593e703b74ea255357c3ec"\nlicense = "MIT"\n[verifier]\ntimeout_sec = 900.0\nenvironment_mode = "separate"\n[agent]\ntimeout_sec = 7200.0\n[environment]\nnetwork_mode = "none"\nmcp_servers = [{{ name = "google_cloud", transport = "stdio", command = "python3", args = ["-m", "mcps.google_cloud.server"] }}]\n''', encoding="utf-8"
+    )
+    (target / "harbor-task.json").write_text(
+        json.dumps({"benchmark": "LOCA-bench", "source_digest": digest, "task": "loca-abtesting-8k-seed42", "state": manifest["state_strategy"], "network_mode": "none", "runtime": "shared benchmark runtime.py", "verifier": "shared benchmark verifier.py"}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (target / "instruction.md").write_text(INSTRUCTION, encoding="utf-8")
 def materialize(
     output_dir: Path | None = None,
     *,
@@ -85,11 +117,12 @@ def materialize(
     )
     manifest.update({
         "materialized_at": "source-digest-addressed",
-        "output_relpath": f"derived/harbor-tasks/loca/{digest}",
+        "output_relpath": f"derived/harbor-tasks/loca/{digest}/{PACKAGE_NAME}",
         "source_pins_verified": bool(verify_sources),
         "legacy_8k_seed42_state_digest": "sha256:829bba54bad9ca179d3fc3c03f2d6737dfc4e1fc91f22c94cef73d7f4f4b2d9d",
         "legacy_8k_seed42_database_digest": "sha256:38060fd9580ad0fc08069d01e442807f984405fa0ee7f8a2b363da5b5a5aeb02",
     })
+    _write_harbor_package(target, digest, manifest)
     (target / "state_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return manifest
 

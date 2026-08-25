@@ -24,7 +24,7 @@
     "file_count": 13,
     "bytes": 40953,
     "source_digest": "402df9845a83c88221a660c2ec5f0a2519cd162c352bb3c3aed114e5574ce093",
-    "generated_output": "derived/harbor-tasks/loca/<source-digest>/",
+    "generated_output": "derived/harbor-tasks/loca/<source-digest>/loca-abtesting-8k-seed42/",
     "committed_generated_corpora": false,
     "excluded": ["nine materialized task trees", "vendored upstream payload", "repeated runtime/verifier copies", "large source-config payloads"],
     "canary_fixture": {

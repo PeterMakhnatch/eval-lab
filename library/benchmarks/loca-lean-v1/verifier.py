@@ -29,7 +29,7 @@ def _csv_rows(path: Path) -> list[list[str]]:
         return list(csv.reader(stream))
 
 
-def verify(task_dir: Path, workspace: Path | None = None) -> dict:
+def verify(task_dir: Path, workspace: Path | None = None, reward_dir: Path | None = None) -> dict:
     task_dir = task_dir.resolve()
     workspace = (workspace or task_dir / "agent_workspace").resolve()
     assertions: dict[str, bool] = {}
@@ -56,8 +56,25 @@ def verify(task_dir: Path, workspace: Path | None = None) -> dict:
         marker_required = float(expected_rows[-1][2].rstrip("%")) > float(expected_rows[-1][1].rstrip("%"))
     assertions["required_marker"] = not marker_required or (workspace / "promo-assets-for-b.marker").is_file()
     assertions["all_assertions"] = all(assertions.values())
-    return {
+    result = {
         "reward": 1.0 if assertions["all_assertions"] else 0.0,
         "assertions": assertions,
         "state_digest": manifest.get("state_digest"),
     }
+    if reward_dir is not None:
+        reward_dir.mkdir(parents=True, exist_ok=True)
+        (reward_dir / "verify.json").write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
+        (reward_dir / "reward.txt").write_text(f"{result['reward']:.1f}\n", encoding="utf-8")
+    return result
+ 
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task-dir", type=Path, required=True)
+    parser.add_argument("--workspace", type=Path, default=None)
+    parser.add_argument("--reward-dir", type=Path, default=None)
+    args = parser.parse_args()
+    result = verify(args.task_dir, args.workspace, args.reward_dir)
+    print(json.dumps(result, sort_keys=True))
+    raise SystemExit(0 if result["reward"] == 1.0 else 1)
+ 

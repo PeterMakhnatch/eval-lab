@@ -7,10 +7,12 @@ inventory-only and are not copied here.
 
 ## Materialization
 
-`python3 library/benchmarks/loca-lean-v1/materialize.py` creates exactly one canary at
-`derived/harbor-tasks/loca/<source-digest>/`. The output directory is ignored and
-must be source-digest addressed. No generated task tree belongs in Git. The canary is
-8k/seed 42; no fixture is committed because deterministic generation needs no fixture.
+`python3 library/benchmarks/loca-lean-v1/materialize.py` creates exactly one canary task at
+`derived/harbor-tasks/loca/<source-digest>/loca-abtesting-8k-seed42/`. The output
+directory is ignored and must be source-digest addressed. The package includes
+task.toml, instruction, environment/solution/tests launchers, and deterministic
+state; runtime/verifier/oracle remain shared benchmark source. No generated task
+tree belongs in Git. The canary is 8k/seed 42; no fixture is committed.
 
 `source.py` validates the MIT license and immutable upstream/sandbox commits. The
 production materializer is cache-first and SHA-fetches every pinned license, config,

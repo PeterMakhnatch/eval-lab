@@ -21,8 +21,8 @@
   },
   "new_source": {
     "path": "library/benchmarks/loca-lean-v1",
-    "file_count": 13,
-    "bytes": 40953,
+    "file_count": 15,
+    "bytes": 46167,
     "source_digest": "402df9845a83c88221a660c2ec5f0a2519cd162c352bb3c3aed114e5574ce093",
     "generated_output": "derived/harbor-tasks/loca/<source-digest>/loca-abtesting-8k-seed42/",
     "committed_generated_corpora": false,

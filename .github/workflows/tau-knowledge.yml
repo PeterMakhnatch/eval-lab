@@ -48,8 +48,9 @@ jobs:
       - name: Run oracle, nop, and mutant controls
         env:
           HARBOR_ROOT: ${{ runner.temp }}/harbor
-          # Required only to satisfy task.toml interpolation; controls never use it.
+          # Required only for task.toml interpolation; endpoint is unreachable and unused by controls.
           OPENAI_API_KEY: ci-unused-marker
+          OPENAI_BASE_URL: http://127.0.0.1:9/v1
           TAU_TRIALS_ROOT: ${{ runner.temp }}/tau-trials
         run: |
           cd "$HARBOR_ROOT"

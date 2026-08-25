@@ -7,18 +7,21 @@ AnalysisReview, BehaviorEpisode, and NormalizedFactBundle.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import posixpath
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 from uuid import UUID
 
 from evallab.behavior_episodes import BehaviorEpisode, load_behavior_episodes
 from evallab.paths import derived_root_from_environment
+from evallab.runner import database_url_from_environment
 from evallab.schemas import (
     AnalysisEvidenceCitation,
     AnalysisReview,
@@ -53,6 +56,7 @@ class _CitationIndex:
 
 
 EntryKind = Literal["analysis", "episode", "semantic_fact", "unknown"]
+ContextOutputFormat = Literal["markdown", "json"]
 EntryStatus = Literal[
     "accepted",
     "reviewed",
@@ -71,6 +75,8 @@ _KIND_ORDER: dict[EntryKind, int] = {
     "semantic_fact": 2,
     "unknown": 3,
 }
+
+
 @dataclass(frozen=True)
 class ContextCitation:
     path: str
@@ -105,7 +111,6 @@ class TruncationMetadata:
     total_bytes: int = 0
     max_tokens: int | None = None
     tokenizer_bound: bool = False
-
 
 
 def _to_json_compatible(obj: Any) -> Any:
@@ -194,6 +199,10 @@ class TrajectoryContextPack:
         """JSON-compatible dict: UUIDs as str, tuples as lists, nested dicts only."""
         return _to_json_compatible(self)
 
+    def to_json(self) -> str:
+        """Deterministic JSON serialization used by the claims CLI."""
+        return json.dumps(self.to_dict(), sort_keys=True, indent=2) + "\n"
+
     def to_markdown(self) -> str:
         """Concise Markdown with citations. Deterministic."""
         lines = [f"# Trajectory context — {self.trial_id}"]
@@ -203,44 +212,55 @@ class TrajectoryContextPack:
         facts = [e for e in self.entries if e.kind == "semantic_fact"]
 
         if analyses:
-            lines.append("")
-            lines.append("## Analyses")
+            lines.extend(["", "## Analyses"])
             for entry in analyses:
                 lines.extend(_format_markdown_entry(entry))
 
         if episodes:
-            lines.append("")
-            lines.append("## Episodes")
+            lines.extend(["", "## Episodes"])
             for entry in episodes:
                 lines.extend(_format_markdown_entry(entry))
 
         if facts:
-            lines.append("")
-            lines.append("## Semantic facts")
+            lines.extend(["", "## Semantic facts"])
             for entry in facts:
                 lines.extend(_format_markdown_entry(entry))
 
         if self.unknowns:
-            lines.append("")
-            lines.append("## Unknowns")
+            lines.extend(["", "## Unknowns"])
             for entry in self.unknowns:
                 lines.extend(_format_markdown_entry(entry))
 
         if self.truncation.truncated and self.truncation.omitted_entry_ids:
-            lines.append("")
-            lines.append("## Truncation")
+            lines.extend(["", "## Truncation"])
             for omitted_id in self.truncation.omitted_entry_ids:
                 lines.append(f"- {omitted_id}")
 
-        rendered = "\n".join(lines) + "\n"
-        if (
-            self.truncation.truncated
-            and self.truncation.max_bytes is not None
-            and len(rendered.encode("utf-8")) > self.truncation.max_bytes
-        ):
-            header = f"# Trajectory context — {self.trial_id}\n"
-            return header if len(header.encode("utf-8")) <= self.truncation.max_bytes else ""
-        return rendered
+        return "\n".join(lines) + "\n"
+
+    def render(self, output_format: ContextOutputFormat = "markdown") -> str:
+        if output_format == "markdown":
+            return self.to_markdown()
+        if output_format == "json":
+            return self.to_json()
+        raise ValueError(f"unsupported context output format: {output_format}")
+
+
+def _with_total_bytes(
+    pack: TrajectoryContextPack,
+    output_format: ContextOutputFormat,
+) -> TrajectoryContextPack:
+    """Reach a deterministic serialization-size fixed point."""
+    current = pack
+    for _ in range(8):
+        total_bytes = len(current.render(output_format).encode("utf-8"))
+        if current.truncation.total_bytes == total_bytes:
+            return current
+        current = replace(
+            current,
+            truncation=replace(current.truncation, total_bytes=total_bytes),
+        )
+    raise RuntimeError("trajectory context serialization size did not converge")
 
 
 def latest_review(reviews: Sequence[AnalysisReview]) -> AnalysisReview | None:
@@ -276,9 +296,7 @@ def _citation_sort_key(citation: ContextCitation) -> tuple[str, bool, int, str]:
     )
 
 
-def _resolve_analysis_citation_digest(
-    path: str, digests: AnalysisSourceDigests
-) -> str | None:
+def _resolve_analysis_citation_digest(path: str, digests: AnalysisSourceDigests) -> str | None:
     if path in digests.files:
         return digests.files[path]
     basename = posixpath.basename(path).lower()
@@ -294,6 +312,7 @@ def _resolve_analysis_citation_digest(
 def _fact_row_provenance(row: FactRow) -> dict[str, Any]:
     dumped = row.model_dump()
     return {k: tuple(v) if isinstance(v, list) else v for k, v in dumped.items()}
+
 
 def _path_keys(path: str) -> tuple[str, ...]:
     normalized = posixpath.normpath(path)
@@ -381,7 +400,9 @@ def _load_sidecars(sidecar_roots: Sequence[Path], trial_id: str) -> list[TrialAn
     return [loaded[key] for key in sorted(loaded)]
 
 
-def _load_sidecar_reviews(sidecar_roots: Sequence[Path], analysis_ids: set[str]) -> list[AnalysisReview]:
+def _load_sidecar_reviews(
+    sidecar_roots: Sequence[Path], analysis_ids: set[str]
+) -> list[AnalysisReview]:
     from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME
 
     loaded: dict[str, AnalysisReview] = {}
@@ -511,15 +532,12 @@ def _validate_citation(
     if citation.tool_call_id is not None:
         if citation.step_id is not None:
             found = any(
-                (key, expected_digest, citation.step_id, citation.tool_call_id)
-                in index.tool_calls
+                (key, expected_digest, citation.step_id, citation.tool_call_id) in index.tool_calls
                 for key in keys
             )
         else:
             found = any(
-                item[0] in keys
-                and item[1] == expected_digest
-                and item[3] == citation.tool_call_id
+                item[0] in keys and item[1] == expected_digest and item[3] == citation.tool_call_id
                 for item in index.tool_calls
             )
         if not found:
@@ -535,20 +553,23 @@ def _augment_index_with_sidecar_files(
     files = set(index.files)
     for sidecar in analyses:
         trial_path = Path(sidecar.source_trial_path)
+        trial_root = trial_path if trial_path.is_absolute() else repo_root / trial_path
         for evidence in sidecar.output.evidence:
-            expected = _resolve_analysis_citation_digest(
-                evidence.path, sidecar.source_digests
-            )
+            expected = _resolve_analysis_citation_digest(evidence.path, sidecar.source_digests)
             if expected is None:
                 continue
-            trial_candidates = (
-                trial_path,
-                repo_root / trial_path,
-                repo_root / evidence.path,
-                repo_root / "runs" / str(sidecar.source_trial_id),
+            citation_path = PurePosixPath(evidence.path)
+            if citation_path.is_absolute() or ".." in citation_path.parts:
+                continue
+            candidates = sorted(
+                {
+                    (repo_root / evidence.path).resolve(),
+                    (trial_root / evidence.path).resolve(),
+                    (repo_root / "runs" / str(sidecar.source_trial_id) / evidence.path).resolve(),
+                },
+                key=lambda path: path.as_posix(),
             )
-            for base in trial_candidates:
-                candidate = (base / evidence.path).resolve()
+            for candidate in candidates:
                 if not candidate.is_file():
                     continue
                 digest = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
@@ -571,6 +592,7 @@ def build_trajectory_context(
     max_bytes: int | None = None,
     max_tokens: int | None = None,
     tokenizer: Callable[[str], int] | Any | None = None,
+    output_format: ContextOutputFormat = "markdown",
     citation_index: _CitationIndex | None = None,
 ) -> TrajectoryContextPack:
     """Compile a deterministic pack.
@@ -642,9 +664,7 @@ def build_trajectory_context(
                 tool_call_id=ev.tool_call_id,
                 supports=ev.supports,
             )
-            reason = _validate_citation(
-                citation, expected_digest=digest, index=citation_index
-            )
+            reason = _validate_citation(citation, expected_digest=digest, index=citation_index)
             if reason is None:
                 valid_citations.append(citation)
             else:
@@ -652,7 +672,7 @@ def build_trajectory_context(
                     InvalidCitation(ev.path, ev.step_id, ev.tool_call_id, reason)
                 )
         citations = tuple(sorted(valid_citations, key=_citation_sort_key))
-        invalid_citations = tuple(
+        invalid_citations_sorted = tuple(
             sorted(
                 invalid_citations,
                 key=lambda item: (
@@ -679,7 +699,7 @@ def build_trajectory_context(
             "source_digests.trajectory": sidecar.source_digests.trajectory,
             "citation_rejections": tuple(
                 (item.path, item.step_id, item.tool_call_id, item.reason)
-                for item in invalid_citations
+                for item in invalid_citations_sorted
             ),
         }
 
@@ -693,7 +713,7 @@ def build_trajectory_context(
                 citations=citations,
                 provenance=provenance,
                 source="TrialAnalysisSidecar",
-                invalid_citations=invalid_citations,
+                invalid_citations=invalid_citations_sorted,
             )
         )
 
@@ -843,7 +863,11 @@ def build_trajectory_context(
                 c_status = (
                     "unexposed"
                     if not cov.exposed
-                    else ("missing_evidence" if cov.missing_evidence else ("not_ready" if cov.analysis_ready is False else "unknown_readiness"))
+                    else (
+                        "missing_evidence"
+                        if cov.missing_evidence
+                        else ("not_ready" if cov.analysis_ready is False else "unknown_readiness")
+                    )
                 )
                 c_claim = (
                     f"Evidence coverage for construct {cov.construct} is unexposed."
@@ -911,7 +935,13 @@ def build_trajectory_context(
         for ret_fact in facts.retrieval_facts:
             if str(ret_fact.trial_id) != trial_id:
                 continue
-            doc_or_file = ret_fact.document_id or ret_fact.file_id or ret_fact.block_id or ret_fact.line_id or "unknown"
+            doc_or_file = (
+                ret_fact.document_id
+                or ret_fact.file_id
+                or ret_fact.block_id
+                or ret_fact.line_id
+                or "unknown"
+            )
             cit = ContextCitation(
                 path=ret_fact.source_ref,
                 digest=ret_fact.source_digest,
@@ -1095,76 +1125,71 @@ def build_trajectory_context(
         key=lambda e: (_KIND_ORDER[e.kind], e.entry_id),
     )
 
-    unknowns = tuple(
-        sorted(
-            unknown_entries,
-            key=lambda u: (u.source, u.entry_id),
-        )
+    all_unknowns = sorted(
+        unknown_entries,
+        key=lambda entry: (entry.source, entry.entry_id),
     )
-
-    candidate_limit = len(all_entries)
+    entry_limit = len(all_entries)
     if max_entries is not None:
-        candidate_limit = min(candidate_limit, max(0, max_entries))
+        entry_limit = min(entry_limit, max(0, max_entries))
+    max_entry_omissions = tuple(all_entries[entry_limit:])
+    budget_candidates = [
+        *((False, entry) for entry in all_entries[:entry_limit]),
+        *((True, entry) for entry in all_unknowns),
+    ]
+    candidate_limit = len(budget_candidates)
 
     def token_count(text: str) -> int:
         if tokenizer is None:
             return 0
         if callable(tokenizer):
-            return int(tokenizer(text))
-        encode = getattr(tokenizer, "encode", None)
-        if callable(encode):
-            return len(encode(text))
-        raise TypeError("tokenizer must be callable or provide encode()")
+            count = int(tokenizer(text))
+        else:
+            encode = getattr(tokenizer, "encode", None)
+            if not callable(encode):
+                raise TypeError("tokenizer must be callable or provide encode()")
+            count = len(encode(text))
+        if count < 0:
+            raise ValueError("tokenizer returned a negative token count")
+        return count
 
     def candidate_pack(count: int) -> TrajectoryContextPack:
-        kept = tuple(all_entries[:count])
-        omitted = tuple(entry.entry_id for entry in all_entries[count:])
-        trunc = TruncationMetadata(
-            truncated=bool(omitted),
-            max_entries=max_entries,
-            max_bytes=max_bytes,
-            included_count=len(kept),
-            omitted_count=len(omitted),
-            omitted_entry_ids=omitted,
-            max_tokens=max_tokens,
-            tokenizer_bound=max_tokens is not None,
+        kept = budget_candidates[:count]
+        omitted_entries = [
+            *max_entry_omissions,
+            *(entry for _, entry in budget_candidates[count:]),
+        ]
+        omitted = tuple(entry.entry_id for entry in omitted_entries)
+        kept_entries = tuple(entry for is_unknown, entry in kept if not is_unknown)
+        kept_unknowns = tuple(entry for is_unknown, entry in kept if is_unknown)
+        pack = TrajectoryContextPack(
+            trial_id=trial_id,
+            entries=kept_entries,
+            unknowns=kept_unknowns,
+            truncation=TruncationMetadata(
+                truncated=bool(omitted),
+                max_entries=max_entries,
+                max_bytes=max_bytes,
+                included_count=len(kept_entries),
+                omitted_count=len(omitted),
+                omitted_entry_ids=omitted,
+                max_tokens=max_tokens,
+                tokenizer_bound=max_tokens is not None,
+            ),
         )
-        return TrajectoryContextPack(
-            trial_id=trial_id, entries=kept, unknowns=unknowns, truncation=trunc
-        )
+        return _with_total_bytes(pack, output_format)
 
-    selected = candidate_limit
-    if max_bytes is not None or max_tokens is not None:
-        for count in range(candidate_limit, -1, -1):
-            candidate = candidate_pack(count)
-            rendered = candidate.to_markdown()
-            if (max_bytes is None or len(rendered.encode("utf-8")) <= max_bytes) and (
-                max_tokens is None or token_count(rendered) <= max_tokens
-            ):
-                selected = count
-                break
-        else:
-            selected = 0
-    preliminary = candidate_pack(selected)
-    rendered_bytes = len(preliminary.to_markdown().encode("utf-8"))
-    truncation = TruncationMetadata(
-        truncated=preliminary.truncation.truncated,
-        max_entries=max_entries,
-        max_bytes=max_bytes,
-        included_count=preliminary.truncation.included_count,
-        omitted_count=preliminary.truncation.omitted_count,
-        omitted_entry_ids=preliminary.truncation.omitted_entry_ids,
-        total_bytes=rendered_bytes,
-        max_tokens=max_tokens,
-        tokenizer_bound=max_tokens is not None,
-    )
+    if max_bytes is None and max_tokens is None:
+        return candidate_pack(candidate_limit)
 
-    return TrajectoryContextPack(
-        trial_id=trial_id,
-        entries=preliminary.entries,
-        unknowns=unknowns,
-        truncation=truncation,
-    )
+    for count in range(candidate_limit, -1, -1):
+        candidate = candidate_pack(count)
+        rendered = candidate.render(output_format)
+        if (max_bytes is None or len(rendered.encode("utf-8")) <= max_bytes) and (
+            max_tokens is None or token_count(rendered) <= max_tokens
+        ):
+            return candidate
+    raise ValueError(f"{output_format} context pack cannot satisfy the requested output budget")
 
 
 # Functional alias
@@ -1185,13 +1210,12 @@ def build_durable_trajectory_context(
     max_bytes: int | None = None,
     max_tokens: int | None = None,
     tokenizer: Callable[[str], int] | Any | None = None,
+    output_format: ContextOutputFormat = "markdown",
 ) -> TrajectoryContextPack:
     """Load durable catalog/Parquet/sidecar surfaces, then compile one pack."""
     root = (repo_root or Path.cwd()).resolve()
     derived = (
-        derived_root.resolve()
-        if derived_root is not None
-        else derived_root_from_environment(root)
+        derived_root.resolve() if derived_root is not None else derived_root_from_environment(root)
     )
     roots = list(sidecar_roots)
     if not roots:
@@ -1202,8 +1226,14 @@ def build_durable_trajectory_context(
         ]
     analyses = _load_sidecars(roots, trial_id)
     reviews = _load_sidecar_reviews(roots, {str(item.analysis_id) for item in analyses})
-    if database_url:
-        db_analyses, db_reviews = _load_postgres_analysis(database_url, trial_id)
+    configured_database_url = database_url
+    if configured_database_url is None and os.environ.get("DATABASE_URL"):
+        configured_database_url = database_url_from_environment()
+    if configured_database_url:
+        db_analyses, db_reviews = _load_postgres_analysis(
+            configured_database_url,
+            trial_id,
+        )
         by_id = {str(item.analysis_id): item for item in analyses}
         for item in db_analyses:
             by_id.setdefault(str(item.analysis_id), item)
@@ -1227,6 +1257,7 @@ def build_durable_trajectory_context(
         max_bytes=max_bytes,
         max_tokens=max_tokens,
         tokenizer=tokenizer,
+        output_format=output_format,
         citation_index=index,
     )
 

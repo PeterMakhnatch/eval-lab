@@ -5,6 +5,7 @@ on:
     paths:
       - "library/benchmarks/tau-knowledge/**"
       - "scripts/tau_knowledge/**"
+      - "tests/test_tau_knowledge_lean.py"
       - ".github/workflows/tau-knowledge.yml"
   workflow_dispatch:
 

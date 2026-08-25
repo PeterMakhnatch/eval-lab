@@ -8,6 +8,18 @@ adapter_pythonpath: /Users/petermakhnatch/Developer/agent-evals/harbor/adapters/
 upstream_required:
   tag: v1.0.1
   commit: fc0055dc4e0a316c3f83133267fbd6faaa770992
+credentials:
+  simulated_user:
+    consumer: tau3-runtime
+    required_env: [OPENAI_API_KEY]
+    required_by_phases: [reference, luna]
+    oauth_equivalent: false
+  pinned_codex:
+    consumer: evallab.harbor_codex:PinnedCodex
+    routing_env:
+      CODEX_FORCE_AUTH_JSON: "1"
+    auth_file: ~/.codex/auth.json
+    required_by_phases: [luna]
 limits:
   timeout_seconds: 900
   max_steps: 80
@@ -35,5 +47,6 @@ sequence:
 outputs:
   root: ../evidence
   controls_status: controls-status.json
+  credential_preflight: credential-preflight.json
   atif_required: true
   preserve_raw: true

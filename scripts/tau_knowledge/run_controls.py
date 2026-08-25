@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
@@ -19,6 +20,21 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+def _load_preflight() -> Any:
+    """Load the sibling preflight module without a package."""
+    module_path = Path(__file__).with_name("preflight.py")
+    spec = importlib.util.spec_from_file_location("tau_knowledge_preflight_rc", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load tau-knowledge preflight module")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+preflight = _load_preflight()
 
 
 def _sha256(path: Path) -> str:
@@ -100,10 +116,18 @@ def _validate_generated(config_path: Path, config: dict[str, Any], manifest: dic
         raise RuntimeError("runtime pin evidence is missing")
     return generated
 
+
 def _status_path(config_path: Path, config: dict[str, Any]) -> Path:
     root = (config_path.parent / str(config["outputs"]["root"])).resolve()
     root.mkdir(parents=True, exist_ok=True)
     return root / str(config["outputs"]["controls_status"])
+
+
+def _preflight_path(config_path: Path, config: dict[str, Any]) -> Path:
+    root = (config_path.parent / str(config["outputs"]["root"])).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    filename = config.get("outputs", {}).get("credential_preflight", "credential-preflight.json")
+    return root / filename
 
 
 def _load_status(path: Path) -> dict[str, dict[str, str]]:
@@ -113,9 +137,37 @@ def _load_status(path: Path) -> dict[str, dict[str, str]]:
     return value if isinstance(value, dict) else {}
 
 
-def _run(command: list[str], *, task_path: Path, timeout: int) -> None:
-    rendered = [item.replace("{task_path}", str(task_path)) for item in command]
-    subprocess.run(rendered, check=True, timeout=timeout, env=os.environ.copy())
+def _run(command: list[str], *, task_path: Path, timeout: int, env: dict[str, str]) -> None:
+    rendered = preflight.render_command(command, task_path=task_path, env=env)
+    subprocess.run(rendered, check=True, timeout=timeout, env=env)
+
+
+def _resolve_luna_agent(env: dict[str, str], step: dict[str, Any]) -> str:
+    """Return the Luna agent selector, defaulting to PinnedCodex."""
+    agent = env.get("LUNA_AGENT")
+    if agent:
+        return agent
+    agent = step.get("agent")
+    if agent and not agent.startswith("$"):
+        return agent
+    return preflight.DEFAULT_LUNA_AGENT
+
+
+def _render_plan(
+    phase: str,
+    tasks: list[Path],
+    decision: Any,
+    execute: bool,
+) -> str:
+    return json.dumps(
+        {
+            "phase": phase,
+            "tasks": [str(path) for path in tasks],
+            "execute": execute,
+            "preflight": decision.to_dict(),
+        },
+        indent=2,
+    )
 
 
 def main() -> int:
@@ -140,15 +192,41 @@ def main() -> int:
             if missing:
                 raise RuntimeError(f"Luna gate closed for {row['task_id']}; missing controls: {', '.join(missing)}")
     tasks = [generated / f"tau3-banking_knowledge-{row['task_id'].replace('_', '-')}" for row in manifest["tasks"]]
+
+    home = Path.home()
+    luna_agent = _resolve_luna_agent(os.environ, step) if args.phase == "luna" else None
+    decision = preflight.preflight_tau_phase(
+        args.phase,
+        env=os.environ,
+        home=home,
+        config=config,
+        agent=luna_agent,
+    )
+
+    if not decision.proceed:
+        _preflight_path(config_path, config).write_text(
+            json.dumps(decision.to_dict(), indent=2) + "\n",
+            encoding="utf-8",
+        )
+        raise RuntimeError(f"{decision.detail} ({decision.reason_code})")
+
     if not args.execute:
-        print(json.dumps({"phase": args.phase, "tasks": [str(path) for path in tasks], "execute": False}, indent=2))
+        print(_render_plan(args.phase, tasks, decision, execute=False))
         return 0
-    if config.get("adapter_pythonpath"):
-        existing = os.environ.get("PYTHONPATH")
-        os.environ["PYTHONPATH"] = str(config["adapter_pythonpath"]) + (os.pathsep + existing if existing else "")
+
+    repo_root = Path(__file__).resolve().parents[2]
+    child_env = preflight.build_child_env(
+        args.phase,
+        env=os.environ,
+        home=home,
+        repo_root=repo_root,
+        adapter_pythonpath=config.get("adapter_pythonpath"),
+        luna_agent=luna_agent,
+    )
+
     timeout = int(config["limits"]["timeout_seconds"])
     for task_path in tasks:
-        _run(step["command"], task_path=task_path, timeout=timeout)
+        _run(step["command"], task_path=task_path, timeout=timeout, env=child_env)
         task_id = "task_" + task_path.name.rsplit("-", 1)[-1]
         status.setdefault(task_id, {})[args.phase] = "passed"
         status_path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n", encoding="utf-8")

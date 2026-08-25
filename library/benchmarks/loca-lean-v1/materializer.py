@@ -42,8 +42,12 @@ def _write_harbor_package(target: Path, digest: str, manifest: dict[str, object]
     tests.mkdir()
     source_root = Path(__file__).resolve().parent
     task_state = environment / "task_state"
+    verifier_state = tests / "task_state"
     for name in ("files", "agent_workspace", "local_db"):
         shutil.copytree(target / name, task_state / name)
+        shutil.copytree(target / name, verifier_state / name)
+    shutil.copy2(target / "state_manifest.json", task_state / "state_manifest.json")
+    shutil.copy2(target / "state_manifest.json", verifier_state / "state_manifest.json")
     shutil.copy2(source_root / "runtime.py", environment / "runtime.py")
     shutil.copy2(source_root / "oracle.py", environment / "oracle.py")
     shutil.copy2(source_root / "templates.py", environment / "templates.py")
@@ -61,12 +65,9 @@ def _write_harbor_package(target: Path, digest: str, manifest: dict[str, object]
         encoding="utf-8",
     )
     (solution / "solve.sh").write_text(
-        "#!/bin/sh\nset -eu\nexec python3 /app/oracle.py --task-dir /app/task_state --workspace /app/task_state/agent_workspace\n", encoding="utf-8"
-    )
-    (solution / "solve.sh").chmod(0o755)
-    (tests / "Dockerfile").write_text("FROM python:3.12-slim\nWORKDIR /tests\nCOPY . /tests\n", encoding="utf-8")
+    (tests / "Dockerfile").write_text("FROM python:3.12-slim\nWORKDIR /tests\nCOPY . /tests\nCMD [\"sleep\", \"infinity\"]\n", encoding="utf-8")
     (tests / "test.sh").write_text(
-        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\nexec python3 /tests/verifier.py --task-dir /app/task_state --workspace /app/task_state/agent_workspace --reward-dir /logs/verifier\n", encoding="utf-8"
+        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\nexec python3 /tests/verifier.py --task-dir /tests/task_state --workspace /app/task_state/agent_workspace --reward-dir /logs/verifier\n", encoding="utf-8"
     )
     (tests / "test.sh").chmod(0o755)
     (target / "task.toml").write_text(
@@ -139,8 +140,8 @@ def materialize(
         "legacy_8k_seed42_state_digest": "sha256:829bba54bad9ca179d3fc3c03f2d6737dfc4e1fc91f22c94cef73d7f4f4b2d9d",
         "legacy_8k_seed42_database_digest": "sha256:38060fd9580ad0fc08069d01e442807f984405fa0ee7f8a2b363da5b5a5aeb02",
     })
-    _write_harbor_package(target, digest, manifest)
     (target / "state_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _write_harbor_package(target, digest, manifest)
     return manifest
 
 

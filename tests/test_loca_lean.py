@@ -92,6 +92,11 @@ def test_materializer_oracle_nop_and_mutants(tmp_path):
         target / "tests" / "Dockerfile",
     ):
         assert referenced.is_file()
+    assert (target / "environment" / "task_state" / "state_manifest.json").is_file()
+    assert (target / "environment" / "task_state" / "files" / "environment_description.json").is_file()
+    assert (target / "tests" / "task_state" / "state_manifest.json").is_file()
+    assert (target / "tests" / "task_state" / "files" / "clickstream.csv").is_file()
+    assert 'CMD ["sleep", "infinity"]' in (target / "tests" / "Dockerfile").read_text(encoding="utf-8")
     templates.nop(target, target / "agent_workspace")
     assert verifier.verify(target)["reward"] == 0.0
     templates.oracle(target)

@@ -38,7 +38,7 @@
     },
     {
       "name": "mcp_tool_schemas.json",
-      "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/scripts/mcp_tool_schemas.json",
+      "url": "https://raw.githubusercontent.com/PeterMakhnatch/eval-lab/b29e3d0057a4289d567acd6106c0da42fcea15c4/library/benchmarks/loca-bench/vendor/loca_upstream/scripts/mcp_tool_schemas.json",
       "sha256": "sha256:0205b4ddb5f7a45fe2bc240983bc592be02446e8e3043cb9ba0fddf9187bbd3a"
     }
   ]

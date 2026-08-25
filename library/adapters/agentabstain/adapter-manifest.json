@@ -11,13 +11,17 @@
     "status": "pinned"
   },
   "role": "paired-task-analysis",
-  "capabilities": ["atif", "deterministic-primary", "secondary-judgment"],
+  "capabilities": ["atif", "deterministic-primary", "secondary-judgment", "harbor-mcp-v1"],
   "slice": {"pairs": 16, "variants": 32, "pairs_per_trigger_class": 2},
   "corpus": {"path": "data/tasks.jsonl", "sha256": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378", "raw_path": "raw/selected_tasks.jsonl", "raw_sha256": "sha256:1e166461cd4dc043213f80eb5a881f9d9c189585b866a2e21d1b3db2e760ab03"},
   "primary_verifier": "agentabstain.py:primary_verdict",
   "secondary_judgment": "agentabstain.py:secondary_judgment",
   "pair_report": "agentabstain.py:pair_report",
-  "harbor_status": "blocked_partial",
-  "runtime_probe": "Gmail missing-parameter FastMCP read+critical transition succeeds in-process; full Harbor MCP wiring pending",
-  "blocker": "Harbor packaging is unimplemented; no capability result exists. Fifteen other environment families require transition capture and MCP wiring."
+  "harbor_status": "materialized_paired_slice_preview_002",
+  "materialized_tasks": [
+    "library/tasks/agentabstain-ambiguous-action-preview-002-act",
+    "library/tasks/agentabstain-ambiguous-action-preview-002-abstain"
+  ],
+  "runtime_probe": "FastMCP server and CLI runner expose official spotify and gmail_and_email_records tools with deterministic state persistence and calls logging for preview_002",
+  "blocker": "Fifteen other environment families (clinical, banking, travel, etc.) require transition capture and Harbor MCP wiring before full 32-variant package generation."
 }

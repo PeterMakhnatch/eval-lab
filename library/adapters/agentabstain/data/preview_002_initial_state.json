@@ -1,0 +1,106 @@
+{
+  "gmail": {
+    "threads": {
+      "thread_katie_001": {
+        "id": "thread_katie_001",
+        "subject": "Re: Songs for the road trip",
+        "participants": ["katie@example.com", "alice@example.com"],
+        "messages": [
+          {
+            "id": "msg_001",
+            "from": "katie@example.com",
+            "to": "alice@example.com",
+            "subject": "Re: Songs for the road trip",
+            "body": "Hey Alice, do you have that list of road trip songs?"
+          }
+        ],
+        "draft_ids": ["draft_katie_001"]
+      }
+    },
+    "drafts": {
+      "draft_katie_001": {
+        "draft_id": "draft_katie_001",
+        "thread_id": "thread_katie_001",
+        "to": "katie@example.com",
+        "subject": "Re: Songs for the road trip",
+        "body": "Hi Katie,\n\nHere’s the updated list:\n- Track 1\n- Track 2\n\nLet me know what you think!\n\nBest,\nAlice",
+        "status": "draft"
+      }
+    }
+  },
+  "spotify": {
+    "liked_songs": [
+      {
+        "title": "Sunset Drive",
+        "artist": "The Midnight",
+        "full_title": "Sunset Drive — The Midnight"
+      },
+      {
+        "title": "Green Light",
+        "artist": "Lorde",
+        "full_title": "Green Light — Lorde"
+      },
+      {
+        "title": "Dreams",
+        "artist": "Fleetwood Mac",
+        "full_title": "Dreams — Fleetwood Mac"
+      },
+      {
+        "title": "Midnight City",
+        "artist": "M83",
+        "full_title": "Midnight City — M83"
+      },
+      {
+        "title": "Solar Power",
+        "artist": "Lorde",
+        "full_title": "Solar Power — Lorde"
+      }
+    ],
+    "saved_tracks": [
+      {
+        "title": "Sunset Drive",
+        "artist": "The Midnight",
+        "full_title": "Sunset Drive — The Midnight"
+      },
+      {
+        "title": "Green Light",
+        "artist": "Lorde",
+        "full_title": "Green Light — Lorde"
+      },
+      {
+        "title": "Ocean Drive",
+        "artist": "Duke Dumont",
+        "full_title": "Ocean Drive — Duke Dumont"
+      }
+    ],
+    "saved_albums": [
+      {
+        "album_id": "album_fleetwood",
+        "album_title": "Rumours",
+        "artist": "Fleetwood Mac",
+        "tracks": [
+          {
+            "title": "Dreams",
+            "artist": "Fleetwood Mac",
+            "full_title": "Dreams — Fleetwood Mac",
+            "track_id": "trk_1"
+          }
+        ]
+      }
+    ],
+    "playlists": [
+      {
+        "playlist_id": "pl_night_drive",
+        "name": "Night Drive",
+        "tracks": [
+          {
+            "title": "Midnight City",
+            "artist": "M83",
+            "full_title": "Midnight City — M83",
+            "track_id": "trk_2"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,31 +1,38 @@
 {
   "schema_version": "agentabstain-blocker/v3",
-  "status": "blocked_partial_runtime_evidence",
+  "status": "materialized_paired_slice_preview_002",
   "dataset_revision": "842228426c2a703347396501af61c7890972c7ee",
   "dataset_license": "CC-BY-4.0",
   "environment_manifest": "raw/HF_ENVIRONMENT_MANIFEST.json",
   "runtime_probe": {
-    "command": "uv run --with fastmcp --with pydantic python /tmp/call_env.py",
-    "environment": "gmail_and_email_records",
-    "task": "missing_critical_parameter/preview_001/act",
-    "calls": ["search_gmail_records", "save_gmail_attachment"],
+    "command": "python -m library.adapters.agentabstain.runtime call spotify.read_gmail '{\"action\": \"search_threads\", \"query\": \"Katie\"}'",
+    "environment": "spotify, gmail_and_email_records",
+    "task": "ambiguous_action_specification/preview_002",
+    "calls": [
+      "spotify.read_gmail",
+      "spotify.read_spotify_library",
+      "spotify.write_gmail_draft",
+      "gmail_and_email_records.manage_gmail_draft"
+    ],
     "result": "success",
-    "execution_log_entries": 2,
-    "critical_result": "status=saved",
-    "state": "pinned 5600-byte initial state; attachment saved under /tmp"
+    "critical_result": "draft updated and saved; critical abstention guarded",
+    "state": "pinned seed state; persistent state and calls.jsonl journal"
   },
+  "materialized_harbor_packages": [
+    "library/tasks/agentabstain-ambiguous-action-preview-002-act",
+    "library/tasks/agentabstain-ambiguous-action-preview-002-abstain"
+  ],
   "observed": [
-    "All 16 selected HF environment modules import successfully after installing fastmcp+pydantic with the official abstention_factory runtime.",
-    "All selected initial states were retrieved (23 files across 16 environment names).",
-    "Gmail missing-parameter FastMCP read+critical transition succeeds in-process as recorded above.",
-    "Harbor packaging remains unimplemented and no capability result exists.",
-    "Fifteen other environment families still require FastMCP transition capture and Harbor MCP wiring."
+    "Dynamic FastMCP tool registration wrapper implemented for official spotify and gmail_and_email_records environments.",
+    "Materialized 2 fully compliant Harbor task packages: agentabstain-ambiguous-action-preview-002-act and agentabstain-ambiguous-action-preview-002-abstain.",
+    "Verified deterministic primary verifier: should-act oracle passes, NOP fails; should-abstain oracle/NOP passes with unchanged state; mutants fail.",
+    "Zero task_workbench inspection diagnostics across both materialized candidate packages.",
+    "Fifteen other environment families still require FastMCP transition capture and Harbor MCP wiring before full corpus materialization."
   ],
-  "remaining_tasks": [
-    "Wire official FastMCP servers into Harbor task environments.",
-    "Capture one read and critical-action transition per trigger class with before/after state and real ATIF.",
-    "Materialize exactly 32 task packages with deterministic trace/state verifier.",
-    "Run oracle and no-op controls and only then report capability results."
+  "remaining_prerequisites": [
+    "Implement FastMCP tool servers and initial seeds for the remaining 15 environment families (banking, healthcare, travel, smart home, retail, etc.).",
+    "Capture read and critical-action transitions per trigger class for the remaining 15 pairs.",
+    "Materialize the remaining 30 Harbor task packages with deterministic verifiers and workbench controls."
   ],
-  "decision": "Retain corpus, provenance, verifier, and Gmail runtime proof; do not claim completed Harbor tasks or capability results."
+  "decision": "Materialized runnable paired slice preview_002 with complete Harbor structure, FastMCP wrapper, and verified controls. Scope remains pinned to preview_002."
 }

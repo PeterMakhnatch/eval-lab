@@ -1,0 +1,40 @@
+{
+  "commit_match": true,
+  "dataset": {
+    "full_official_digest_observed": true,
+    "full_official_sha256": "165f021e7bb8b3a1ba103cef291eb522ff219769e8e7727f1a669364a225fb63",
+    "path": "/private/tmp/agentabstain-tasks.jsonl",
+    "repository": "https://huggingface.co/datasets/antiquality/agentabstain",
+    "revision": "842228426c2a703347396501af61c7890972c7ee",
+    "sha256": "165f021e7bb8b3a1ba103cef291eb522ff219769e8e7727f1a669364a225fb63"
+  },
+  "expected_commit": "f581249704b26804e28a39e37396f1be00b71a4d",
+  "license": {
+    "declared": "MIT",
+    "path": "LICENSE",
+    "sha256": "ae23741b50e4cb70f5e4eddf4878f4623899d467fa97012d505bf5b5272c5d91"
+  },
+  "observed_commit": "f581249704b26804e28a39e37396f1be00b71a4d",
+  "official_commands": [
+    "python -m src.scripts.run_inference --runtime-config src/configs/openclaw_deepseek-v4-pro.yaml --smoke",
+    "python -m eval.runner --provider openclaw --model openrouter/deepseek/deepseek-v4-pro"
+  ],
+  "repository": "https://github.com/AntiQuality/agentabstain",
+  "schema_version": "agentabstain-upstream-reproduction/v1",
+  "slice_reproduction": {
+    "categories": [
+      "ambiguous_action_specification",
+      "conflicting_constraints",
+      "conflicting_evidence",
+      "critical_tool_failure",
+      "emergent_risk_discovery",
+      "high_stakes_action",
+      "insufficient_tool_capability",
+      "missing_critical_parameter"
+    ],
+    "pairs": 263,
+    "rows": 526,
+    "two_variants_per_pair": true
+  },
+  "status": "verified"
+}

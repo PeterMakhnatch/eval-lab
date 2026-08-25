@@ -1,0 +1,610 @@
+[
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#ambiguous_action_specification/preview_001:act",
+    "trial_id": "ambiguous_action_specification/preview_001:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#ambiguous_action_specification/preview_001:abstain",
+    "trial_id": "ambiguous_action_specification/preview_001:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#ambiguous_action_specification/preview_002:act",
+    "trial_id": "ambiguous_action_specification/preview_002:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#ambiguous_action_specification/preview_002:abstain",
+    "trial_id": "ambiguous_action_specification/preview_002:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#conflicting_constraints/preview_001:act",
+    "trial_id": "conflicting_constraints/preview_001:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#conflicting_constraints/preview_001:abstain",
+    "trial_id": "conflicting_constraints/preview_001:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#conflicting_constraints/preview_002:act",
+    "trial_id": "conflicting_constraints/preview_002:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#conflicting_constraints/preview_002:abstain",
+    "trial_id": "conflicting_constraints/preview_002:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#conflicting_evidence/preview_001:act",
+    "trial_id": "conflicting_evidence/preview_001:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#conflicting_evidence/preview_001:abstain",
+    "trial_id": "conflicting_evidence/preview_001:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#conflicting_evidence/preview_002:act",
+    "trial_id": "conflicting_evidence/preview_002:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#conflicting_evidence/preview_002:abstain",
+    "trial_id": "conflicting_evidence/preview_002:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#critical_tool_failure/preview_001:act",
+    "trial_id": "critical_tool_failure/preview_001:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#critical_tool_failure/preview_001:abstain",
+    "trial_id": "critical_tool_failure/preview_001:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#critical_tool_failure/preview_002:act",
+    "trial_id": "critical_tool_failure/preview_002:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#critical_tool_failure/preview_002:abstain",
+    "trial_id": "critical_tool_failure/preview_002:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#emergent_risk_discovery/preview_001:act",
+    "trial_id": "emergent_risk_discovery/preview_001:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#emergent_risk_discovery/preview_001:abstain",
+    "trial_id": "emergent_risk_discovery/preview_001:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#emergent_risk_discovery/preview_002:act",
+    "trial_id": "emergent_risk_discovery/preview_002:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#emergent_risk_discovery/preview_002:abstain",
+    "trial_id": "emergent_risk_discovery/preview_002:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#high_stakes_action/preview_001:act",
+    "trial_id": "high_stakes_action/preview_001:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#high_stakes_action/preview_001:abstain",
+    "trial_id": "high_stakes_action/preview_001:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#high_stakes_action/preview_002:act",
+    "trial_id": "high_stakes_action/preview_002:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#high_stakes_action/preview_002:abstain",
+    "trial_id": "high_stakes_action/preview_002:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#insufficient_tool_capability/preview_001:act",
+    "trial_id": "insufficient_tool_capability/preview_001:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#insufficient_tool_capability/preview_001:abstain",
+    "trial_id": "insufficient_tool_capability/preview_001:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#insufficient_tool_capability/preview_002:act",
+    "trial_id": "insufficient_tool_capability/preview_002:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#insufficient_tool_capability/preview_002:abstain",
+    "trial_id": "insufficient_tool_capability/preview_002:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#missing_critical_parameter/preview_001:act",
+    "trial_id": "missing_critical_parameter/preview_001:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#missing_critical_parameter/preview_001:abstain",
+    "trial_id": "missing_critical_parameter/preview_001:abstain"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#missing_critical_parameter/preview_002:act",
+    "trial_id": "missing_critical_parameter/preview_002:act"
+  },
+  {
+    "analysis_ready": true,
+    "benchmark": "AgentAbstain",
+    "construct": "abstention_pair",
+    "eligible": true,
+    "exposed": true,
+    "missing_evidence": [],
+    "observed_evidence": [
+      "primary_verifier"
+    ],
+    "provenance_kind": "mechanical",
+    "required_evidence": [
+      "ATIF",
+      "primary_verifier"
+    ],
+    "source_digest": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "source_ref": "library/adapters/agentabstain/data/tasks.jsonl#missing_critical_parameter/preview_002:abstain",
+    "trial_id": "missing_critical_parameter/preview_002:abstain"
+  }
+]

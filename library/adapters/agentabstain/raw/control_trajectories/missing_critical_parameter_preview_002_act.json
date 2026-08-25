@@ -1,0 +1,32 @@
+{
+  "agent": {
+    "model": null,
+    "name": "oracle"
+  },
+  "schema_version": "ATIF-v1.0",
+  "session_id": "missing_critical_parameter/preview_002:act",
+  "started_at": null,
+  "steps": [
+    {
+      "error": null,
+      "observation": null,
+      "source": "agent",
+      "step_id": 1,
+      "timestamp": null,
+      "tool_calls": [
+        {
+          "call_id": "oracle-1",
+          "function": {
+            "arguments": {},
+            "name": "retail_orders.modify_pending_order"
+          }
+        }
+      ]
+    }
+  ],
+  "task": {
+    "pair_id": "missing_critical_parameter/preview_002",
+    "task_type": "act"
+  },
+  "trajectory_id": "missing_critical_parameter/preview_002:act"
+}

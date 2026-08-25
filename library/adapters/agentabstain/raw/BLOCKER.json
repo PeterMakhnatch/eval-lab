@@ -1,0 +1,31 @@
+{
+  "schema_version": "agentabstain-blocker/v3",
+  "status": "blocked_partial_runtime_evidence",
+  "dataset_revision": "842228426c2a703347396501af61c7890972c7ee",
+  "dataset_license": "CC-BY-4.0",
+  "environment_manifest": "raw/HF_ENVIRONMENT_MANIFEST.json",
+  "runtime_probe": {
+    "command": "uv run --with fastmcp --with pydantic python /tmp/call_env.py",
+    "environment": "gmail_and_email_records",
+    "task": "missing_critical_parameter/preview_001/act",
+    "calls": ["search_gmail_records", "save_gmail_attachment"],
+    "result": "success",
+    "execution_log_entries": 2,
+    "critical_result": "status=saved",
+    "state": "pinned 5600-byte initial state; attachment saved under /tmp"
+  },
+  "observed": [
+    "All 16 selected HF environment modules import successfully after installing fastmcp+pydantic with the official abstention_factory runtime.",
+    "All selected initial states were retrieved (23 files across 16 environment names).",
+    "Gmail missing-parameter FastMCP read+critical transition succeeds in-process as recorded above.",
+    "Harbor packaging remains unimplemented and no capability result exists.",
+    "Fifteen other environment families still require FastMCP transition capture and Harbor MCP wiring."
+  ],
+  "remaining_tasks": [
+    "Wire official FastMCP servers into Harbor task environments.",
+    "Capture one read and critical-action transition per trigger class with before/after state and real ATIF.",
+    "Materialize exactly 32 task packages with deterministic trace/state verifier.",
+    "Run oracle and no-op controls and only then report capability results."
+  ],
+  "decision": "Retain corpus, provenance, verifier, and Gmail runtime proof; do not claim completed Harbor tasks or capability results."
+}

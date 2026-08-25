@@ -1,0 +1,15 @@
+{
+  "agent": {
+    "model": null,
+    "name": "nop"
+  },
+  "schema_version": "ATIF-v1.0",
+  "session_id": "missing_critical_parameter/preview_002:abstain",
+  "started_at": null,
+  "steps": [],
+  "task": {
+    "pair_id": "missing_critical_parameter/preview_002",
+    "task_type": "abstain"
+  },
+  "trajectory_id": "missing_critical_parameter/preview_002:abstain"
+}

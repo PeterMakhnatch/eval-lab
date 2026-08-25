@@ -1,0 +1,15 @@
+{
+  "agent": {
+    "model": null,
+    "name": "oracle"
+  },
+  "schema_version": "ATIF-v1.0",
+  "session_id": "emergent_risk_discovery/preview_001:act",
+  "started_at": null,
+  "steps": [],
+  "task": {
+    "pair_id": "emergent_risk_discovery/preview_001",
+    "task_type": "act"
+  },
+  "trajectory_id": "emergent_risk_discovery/preview_001:act"
+}

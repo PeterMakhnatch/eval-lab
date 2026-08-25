@@ -1,0 +1,15 @@
+{
+  "code_license": "MIT",
+  "dataset_file": "tasks.jsonl",
+  "dataset_license": "CC-BY-4.0",
+  "dataset_repository": "https://huggingface.co/datasets/antiquality/agentabstain",
+  "dataset_revision": "842228426c2a703347396501af61c7890972c7ee",
+  "dataset_sha256": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+  "normalized_slice_sha256": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+  "selected_pairs": 16,
+  "selected_raw_sha256": "sha256:1e166461cd4dc043213f80eb5a881f9d9c189585b866a2e21d1b3db2e760ab03",
+  "selected_variants": 32,
+  "selection": "first two upstream task_ids in each of the eight categories; no field edits",
+  "upstream_commit": "f581249704b26804e28a39e37396f1be00b71a4d",
+  "upstream_repository": "https://github.com/AntiQuality/agentabstain"
+}

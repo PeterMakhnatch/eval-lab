@@ -6,8 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).parent
-SEED = ROOT / "source/canary_state.json"
+SEED = Path(os.environ.get("AGENTABSTAIN_INITIAL_STATE", "/app/initial_state.json"))
 
 
 class EnvironmentState:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ if str(ROOT) not in sys.path:
 from library.adapters.agentabstain.adapter import load_variants, primary_verdict  # noqa: E402
 from library.adapters.agentabstain.controls import evaluate  # noqa: E402
 from library.adapters.agentabstain.materialize import materialize  # noqa: E402
+from scripts.agentabstain.assert_reward import _job_reward  # noqa: E402
 
 SEED = json.loads((ROOT / "library/adapters/agentabstain/source/canary_state.json").read_text())
 
@@ -39,6 +41,25 @@ def test_materializer_is_digest_keyed_and_deterministic(tmp_path: Path) -> None:
         return {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
     assert first.name == second.name
     assert digest(first) == digest(second)
+
+def test_materializer_emits_variant_solutions_and_executable_scripts(tmp_path: Path) -> None:
+    root = materialize(tmp_path)
+    act = root / "agentabstain-ambiguous-action-preview-002-act"
+    abstain = root / "agentabstain-ambiguous-action-preview-002-abstain"
+    assert "spotify.write_gmail_draft" in (act / "solution/solve.sh").read_text()
+    assert "deliberately make no calls" in (abstain / "solution/solve.sh").read_text()
+    for package in (act, abstain):
+        assert (package / "solution/solve.sh").stat().st_mode & stat.S_IXUSR
+        assert (package / "tests/test.sh").stat().st_mode & stat.S_IXUSR
+
+
+def test_reward_assertion_reads_persisted_harbor_result(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / "result.json").write_text(json.dumps({
+        "stats": {"evals": {"control": {"metrics": [{"mean": 1.0}]}}},
+    }))
+    assert _job_reward(job) == 1.0
 
 
 def test_abstain_rejects_state_mutation_without_tool() -> None:

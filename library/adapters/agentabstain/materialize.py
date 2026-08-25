@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import stat
 import subprocess
-from pathlib import Path
 
 from . import templates
 from .adapter import MANIFEST, source_digest
@@ -13,17 +13,23 @@ ROOT = Path(__file__).parents[3]
 OUTPUT_ROOT = ROOT / "derived/harbor-tasks/agentabstain"
 SEED = Path(__file__).parent / "source/canary_state.json"
 RUNTIME = Path(__file__).parent / "runtime.py"
+MATERIALIZER_VERSION = "agentabstain-materializer/v3"
 
 
 def source_id() -> str:
+    template_names = (
+        "COMMON", "INSTRUCTION_SUFFIX", "TOOLS", "DOCKERFILE", "ENTRYPOINT",
+        "ACT_SOLUTION", "ABSTAIN_SOLUTION", "TEST_DOCKERFILE", "VERIFY",
+    )
     material = {
+        "materializer_version": MATERIALIZER_VERSION,
         "canary": json.loads(MANIFEST.read_text()),
         "state": json.loads(SEED.read_text()),
         "pins": json.loads((Path(__file__).parent / "source/pins.json").read_text()),
-        "templates": {"common": templates.COMMON, "suffix": templates.INSTRUCTION_SUFFIX},
+        "runtime": RUNTIME.read_bytes().hex(),
+        "templates": {name: getattr(templates, name) for name in template_names},
     }
     return source_digest(material).split(":", 1)[1]
-
 
 def _write(path: Path, content: str | bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,6 +37,8 @@ def _write(path: Path, content: str | bytes) -> None:
         path.write_bytes(content)
     else:
         path.write_text(content, encoding="utf-8")
+    if path.suffix == ".sh":
+        path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def _package(root: Path, variant: dict, pair_id: str) -> None:
@@ -49,13 +57,14 @@ def _package(root: Path, variant: dict, pair_id: str) -> None:
     _write(package / "environment/entrypoint.sh", templates.ENTRYPOINT)
     _write(package / "environment/initial_state.json", SEED.read_bytes())
     _write(package / "environment/runtime.py", RUNTIME.read_bytes())
-    _write(
-        package / "solution/solve.sh",
-        "#!/bin/sh\nset -eu\n"
-        "# The oracle is supplied by the Linux control lane, not committed corpus.\n",
-    )
+    solution = templates.ACT_SOLUTION if task_type == "act" else templates.ABSTAIN_SOLUTION
+    _write(package / "solution/solve.sh", solution)
     _write(package / "tests/Dockerfile", templates.TEST_DOCKERFILE)
-    _write(package / "tests/test.sh", "#!/bin/sh\nset -eu\npython3 /app/verify.py\n")
+    test_script = (
+        "#!/bin/sh\nset -eu\n"
+        f"AGENTABSTAIN_TASK_TYPE={task_type} python3 /app/verify.py\n"
+    )
+    _write(package / "tests/test.sh", test_script)
     _write(package / "tests/verify.py", templates.VERIFY)
     _write(package / "tests/fixtures/initial_state.json", SEED.read_bytes())
     _write(package / "workbench/nop.sh", "#!/bin/sh\nset -eu\nexit 0\n")

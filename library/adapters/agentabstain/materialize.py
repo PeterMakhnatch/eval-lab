@@ -5,6 +5,7 @@ import argparse
 import json
 import stat
 import subprocess
+from pathlib import Path
 
 from . import templates
 from .adapter import MANIFEST, source_digest

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "loca-lean-v1"
@@ -75,6 +76,8 @@ def test_materializer_oracle_nop_and_mutants(tmp_path):
         assert (target / required).exists()
     assert (target / "environment" / "Dockerfile").is_file()
     assert (target / "solution" / "solve.sh").is_file()
+    task_config = tomllib.loads((target / "task.toml").read_text(encoding="utf-8"))
+    assert task_config["environment"]["network_mode"] == "no-network"
     assert (target / "tests" / "test.sh").is_file()
     templates.nop(target, target / "agent_workspace")
     assert verifier.verify(target)["reward"] == 0.0

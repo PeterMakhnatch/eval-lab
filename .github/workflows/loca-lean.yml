@@ -22,6 +22,15 @@ jobs:
           python-version: "3.12"
       - name: Exercise lean LOCA contract
         run: python3 library/benchmarks/loca-lean-v1/ci_contract.py
+      - name: Install Harbor 0.21.0
+        run: python3 -m pip install --disable-pip-version-check harbor==0.21.0
+      - name: Run generated package through Harbor oracle and NOP
+        run: |
+          task="$(python3 -c 'from pathlib import Path; print(next(Path("derived/harbor-tasks/loca").glob("*/*/task.toml")).parent)')"
+          harbor run --path "$task" --agent oracle --env docker --n-concurrent 1 --n-tasks 1 --jobs-dir runs/loca-harbor-oracle --yes
+          harbor run --path "$task" --agent nop --env docker --n-concurrent 1 --n-tasks 1 --jobs-dir runs/loca-harbor-nop --yes
+          python3 library/benchmarks/loca-lean-v1/ci_contract.py --assert-harbor-reward runs/loca-harbor-oracle 1.0
+          python3 library/benchmarks/loca-lean-v1/ci_contract.py --assert-harbor-reward runs/loca-harbor-nop 0.0
       - name: Reject committed generated output
         run: |
           test -z "$(git ls-files 'library/benchmarks/loca-bench/tasks/*')"

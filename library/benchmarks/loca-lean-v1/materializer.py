@@ -59,10 +59,14 @@ def _write_harbor_package(target: Path, digest: str, manifest: dict[str, object]
     (target / "task.toml").write_text(
         f'''schema_version = "1.4"\nartifacts = ["/app/task_state/agent_workspace/record.csv", "/app/task_state/agent_workspace/promo-assets-for-b.marker"]\n\n[task]\nversion = "1.0.0"\nname = "loca-bench/ab-testing-seed-42-8k"\ndescription = "Pinned LOCA ABTestingS2LEnv canary."\n[metadata]\nauthor_name = "LOCA-bench Contributors"\ncategory = "long-context-agents"\ntags = ["loca", "mcp", "context-growth"]\nsource_ref = "8b6fac49d9edd92922593e703b74ea255357c3ec"\nlicense = "MIT"\n[verifier]\ntimeout_sec = 900.0\nenvironment_mode = "separate"\n[agent]\ntimeout_sec = 7200.0\n[environment]\nnetwork_mode = "none"\nmcp_servers = [{{ name = "google_cloud", transport = "stdio", command = "python3", args = ["-m", "mcps.google_cloud.server"] }}]\n''', encoding="utf-8"
     )
+    task_toml = target / "task.toml"
+    task_toml.write_text(task_toml.read_text(encoding="utf-8").replace('network_mode = "none"', 'network_mode = "no-network"'), encoding="utf-8")
     (target / "harbor-task.json").write_text(
         json.dumps({"benchmark": "LOCA-bench", "source_digest": digest, "task": "loca-abtesting-8k-seed42", "state": manifest["state_strategy"], "network_mode": "none", "runtime": "shared benchmark runtime.py", "verifier": "shared benchmark verifier.py"}, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    harbor_json = target / "harbor-task.json"
+    harbor_json.write_text(harbor_json.read_text(encoding="utf-8").replace('"network_mode": "none"', '"network_mode": "no-network"'), encoding="utf-8")
     (target / "instruction.md").write_text(INSTRUCTION, encoding="utf-8")
 def materialize(
     output_dir: Path | None = None,

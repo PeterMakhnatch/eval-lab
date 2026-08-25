@@ -20,6 +20,13 @@ def snapshot(root: Path) -> dict[str, str]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+def assert_harbor_reward(job_dir: Path, expected: str) -> None:
+    rewards = sorted(job_dir.rglob("reward.txt"))
+    if not rewards:
+        raise AssertionError(f"Harbor job has no persisted reward.txt: {job_dir}")
+    values = {path.read_text(encoding="utf-8").strip() for path in rewards}
+    if values != {expected}:
+        raise AssertionError(f"Harbor rewards {values} != {{{expected}}}: {rewards}")
 
 
 def main() -> None:
@@ -60,4 +67,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 4 and sys.argv[1] == "--assert-harbor-reward":
+        assert_harbor_reward(Path(sys.argv[2]), sys.argv[3])
+    else:
+        main()

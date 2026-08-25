@@ -11,11 +11,13 @@ import hashlib
 import json
 import os
 import tarfile
+from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
-from pathlib import Path
-from typing import Any, Literal, Mapping, Protocol
+from enum import StrEnum
+from pathlib import Path, PurePosixPath
+from typing import Any, Literal, Protocol
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -44,7 +46,7 @@ DERIVED_TRAJECTORIES_SUBDIR = "analyst_trajectories"
 ANALYST_RUBRIC_VERSION = "analyst-context-v2"
 
 
-class AnalystCategory(str, Enum):
+class AnalystCategory(StrEnum):
     """Closed category vocabulary for :data:`ANALYST_RUBRIC_VERSION`."""
 
     TASK_EXECUTION_FAILURE = "task_execution_failure"
@@ -97,6 +99,7 @@ def _deterministic_ulid(identifier: str) -> str:
     for i in range(1, 26):
         chars.append(crockford[h[i] % 32])
     return "".join(chars)
+
 
 @dataclass(frozen=True)
 class AnalystResult:
@@ -228,9 +231,7 @@ class ModelAnalyzer:
         if callable(self.adapter):
             call_result = self.adapter(full_prompt, schema)
         else:
-            raise ModelProviderRefusedError(
-                f"Injected adapter for '{self.model}' is not callable."
-            )
+            raise ModelProviderRefusedError(f"Injected adapter for '{self.model}' is not callable.")
 
         category = "model_analysis"
         raw_text = getattr(call_result, "raw_output", str(call_result))
@@ -253,9 +254,7 @@ class ModelAnalyzer:
                                 EvidenceCitation(
                                     path=str(item["path"]),
                                     step=(
-                                        int(item["step"])
-                                        if item.get("step") is not None
-                                        else None
+                                        int(item["step"]) if item.get("step") is not None else None
                                     ),
                                 )
                             )
@@ -307,9 +306,8 @@ class ModelAnalyzer:
             citation_metadata=citation_metadata,
         )
 
-def _resolve_runs_roots(
-    repo_root: Path, runs_root: Path | None = None
-) -> list[Path]:
+
+def _resolve_runs_roots(repo_root: Path, runs_root: Path | None = None) -> list[Path]:
     """Resolve ordered candidate roots for locating raw trial runs."""
     if runs_root is not None:
         return [runs_root.resolve()]
@@ -364,26 +362,65 @@ def _load_json_object(path: Path | None) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _cas_member_bytes(store_root: Path, uri: str, names: tuple[str, ...]) -> bytes | None:
-    """Read one named member from a CAS archive without extracting or mutating raw data."""
+def _normalized_archive_member(name: str) -> str:
+    normalized = name
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    path = PurePosixPath(normalized)
+    if not normalized or path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError(f"invalid CAS evidence member path: {name}")
+    return path.as_posix()
+
+
+def _load_verified_cas_members(store_root: Path, uri: str) -> dict[str, bytes]:
+    """Read and content-verify a CAS archive without extracting it."""
     blob = load_archive(store_root, uri)
+    expected_digest = f"sha256:{uri.removeprefix('cas://sha256/')}"
+    members: dict[str, bytes] = {}
     with tarfile.open(blob, mode="r:gz") as archive:
-        members = {
-            member.name.lstrip("./"): member
-            for member in archive.getmembers()
-            if member.isfile()
-        }
-        for name in names:
-            member = members.get(name)
-            if member is None:
-                member = next(
-                    (item for key, item in members.items() if key.endswith("/" + name)), None
-                )
-            if member is not None:
-                source = archive.extractfile(member)
-                if source is None:
-                    raise ValueError(f"cannot read CAS evidence member: {member.name}")
-                return source.read()
+        entries: list[tuple[str, tarfile.TarInfo]] = []
+        for member in archive.getmembers():
+            if not member.isfile():
+                raise ValueError(f"CAS evidence archive contains non-file member: {member.name}")
+            entries.append((_normalized_archive_member(member.name), member))
+        digest = hashlib.sha256()
+        for name, member in sorted(entries, key=lambda item: item[0]):
+            if name in members:
+                raise ValueError(f"duplicate CAS evidence member: {name}")
+            source = archive.extractfile(member)
+            if source is None:
+                raise ValueError(f"cannot read CAS evidence member: {member.name}")
+            content = source.read()
+            members[name] = content
+            encoded_name = name.encode()
+            digest.update(len(encoded_name).to_bytes(8, "big"))
+            digest.update(encoded_name)
+            digest.update(len(content).to_bytes(8, "big"))
+            digest.update(content)
+    actual_digest = f"sha256:{digest.hexdigest()}"
+    if actual_digest != expected_digest:
+        raise ValueError(
+            f"CAS evidence digest mismatch: expected {expected_digest}, got {actual_digest}"
+        )
+    return members
+
+
+def _select_cas_member(
+    members: Mapping[str, bytes],
+    names: tuple[str, ...],
+) -> tuple[str, bytes] | None:
+    for name in names:
+        if name in members:
+            return name, members[name]
+        matches = sorted(
+            (member_name, content)
+            for member_name, content in members.items()
+            if member_name.endswith("/" + name)
+        )
+        if len(matches) > 1:
+            raise ValueError(f"ambiguous CAS evidence member: {name}")
+        if matches:
+            return matches[0]
     return None
 
 
@@ -504,40 +541,62 @@ def resolve_trial(
     if cas_uri is None and store_root is not None and found_traj is None and found_result is None:
         cas_uri = _cas_uri_for_trial(trial_identifier, trial_row, store_root)
     hydrated_steps: list[dict[str, Any]] | None = None
-    hydrated_result: dict[str, Any] = {}
+    hydrated_result: dict[str, Any] | None = None
+    trajectory_member: tuple[str, bytes] | None = None
+    result_member: tuple[str, bytes] | None = None
     if cas_uri is not None:
         if store_root is None:
             raise ValueError("CAS hydration requested without an evidence store root")
-        trajectory_bytes = _cas_member_bytes(
-            store_root, cas_uri, ("agent/trajectory.json", "trajectory.json")
+        members = _load_verified_cas_members(store_root, cas_uri)
+        trajectory_member = _select_cas_member(
+            members,
+            ("agent/trajectory.json", "trajectory.json"),
         )
-        result_bytes = _cas_member_bytes(store_root, cas_uri, ("result.json",))
-        if trajectory_bytes is None and result_bytes is None:
+        result_member = _select_cas_member(members, ("result.json",))
+        if trajectory_member is None and result_member is None:
             raise FileNotFoundError(f"CAS evidence has no trajectory or result: {cas_uri}")
-        if trajectory_bytes is not None:
+        if trajectory_member is not None:
             try:
-                hydrated_steps = _steps_from_payload(json.loads(trajectory_bytes))
+                hydrated_steps = _steps_from_payload(json.loads(trajectory_member[1]))
             except Exception as exc:
                 raise ValueError(f"CAS trajectory is not valid JSON: {cas_uri}") from exc
-        if result_bytes is not None:
+        if result_member is not None:
             try:
-                parsed_result = json.loads(result_bytes)
+                parsed_result = json.loads(result_member[1])
             except Exception as exc:
                 raise ValueError(f"CAS result is not valid JSON: {cas_uri}") from exc
-            if isinstance(parsed_result, dict):
-                hydrated_result = parsed_result
+            if not isinstance(parsed_result, dict):
+                raise ValueError(f"CAS result is not a JSON object: {cas_uri}")
+            hydrated_result = parsed_result
         found_traj = None
         found_result = None
 
-    steps = hydrated_steps if hydrated_steps is not None else _load_trajectory_steps(found_traj) if found_traj else []
-    result_payload = hydrated_result if hydrated_result else _load_json_object(found_result)
+    steps = (
+        hydrated_steps
+        if hydrated_steps is not None
+        else _load_trajectory_steps(found_traj)
+        if found_traj
+        else []
+    )
+    result_payload = (
+        hydrated_result if hydrated_result is not None else _load_json_object(found_result)
+    )
 
     inputs: list[dict[str, Any]] = []
     if cas_uri is not None:
-        digest = cas_uri.removeprefix("cas://sha256/")
-        inputs.append({"path": cas_uri, "member": "agent/trajectory.json", "digest": f"sha256:{digest}"})
-        if hydrated_result:
-            inputs.append({"path": cas_uri, "member": "result.json", "digest": f"sha256:{digest}"})
+        content_digest = f"sha256:{cas_uri.removeprefix('cas://sha256/')}"
+        for selected in (trajectory_member, result_member):
+            if selected is None:
+                continue
+            member_name, member_content = selected
+            inputs.append(
+                {
+                    "path": cas_uri,
+                    "member": member_name,
+                    "digest": f"sha256:{hashlib.sha256(member_content).hexdigest()}",
+                    "content_digest": content_digest,
+                }
+            )
     else:
         if found_traj and found_traj.is_file():
             inputs.append(
@@ -559,13 +618,27 @@ def resolve_trial(
             )
 
     raw_trial_id = str(trial_row.get("trial_id") if trial_row else trial_identifier)
-    trial_id = raw_trial_id if len(raw_trial_id) == 26 and raw_trial_id[0] in "01234567" else _deterministic_ulid(raw_trial_id)
+    trial_id = (
+        raw_trial_id
+        if len(raw_trial_id) == 26 and raw_trial_id[0] in "01234567"
+        else _deterministic_ulid(raw_trial_id)
+    )
     job_id = str(trial_row.get("job_id") if trial_row else new_ulid())
-    job_name = str(trial_row.get("job_name") if trial_row else (found_trial_dir.parent.name if found_trial_dir else "unknown_job"))
-    trial_name = str(trial_row.get("trial_name") if trial_row else (found_trial_dir.name if found_trial_dir else trial_identifier))
+    job_name = str(
+        trial_row.get("job_name")
+        if trial_row
+        else (found_trial_dir.parent.name if found_trial_dir else "unknown_job")
+    )
+    trial_name = str(
+        trial_row.get("trial_name")
+        if trial_row
+        else (found_trial_dir.name if found_trial_dir else trial_identifier)
+    )
     task_name = str(trial_row.get("task_name") if trial_row else trial_name.split("__")[0])
     reward = trial_row.get("primary_reward") if trial_row else result_payload.get("primary_reward")
-    exception = trial_row.get("exception_class") if trial_row else result_payload.get("exception_class")
+    exception = (
+        trial_row.get("exception_class") if trial_row else result_payload.get("exception_class")
+    )
     agent_name = str(trial_row.get("agent_name") if trial_row else "unknown_agent")
     model_name = str(trial_row.get("model_name") if trial_row else "unknown_model")
 
@@ -586,6 +659,7 @@ def resolve_trial(
         result_payload=result_payload,
         cas_uri=cas_uri,
     )
+
 
 MAX_ORDINARY_STEPS = 24
 MAX_ORDINARY_STEP_CHARS = 240
@@ -613,7 +687,11 @@ def _error_lines(value: Any, prefix: str = "Error") -> list[str]:
         for key in sorted(value, key=str):
             child = value[key]
             if str(key).lower() in _ERROR_KEYS and child not in (None, "", [], {}):
-                rendered = child if isinstance(child, str) else json.dumps(child, sort_keys=True, default=str)
+                rendered = (
+                    child
+                    if isinstance(child, str)
+                    else json.dumps(child, sort_keys=True, default=str)
+                )
                 lines.append(f"{prefix} {key}: {rendered}")
             elif isinstance(child, (Mapping, list)):
                 lines.extend(_error_lines(child, f"{prefix}.{key}"))
@@ -627,6 +705,72 @@ def _citation_field(citation: Any, name: str, default: Any = None) -> Any:
     if isinstance(citation, Mapping):
         return citation.get(name, default)
     return getattr(citation, name, default)
+
+
+def _normalize_citation_path(path: str) -> str:
+    if "\\" in path:
+        raise ValueError(f"Analysis rejected: invalid citation path {path!r}")
+    normalized = path
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    parsed = PurePosixPath(normalized)
+    if (
+        not normalized
+        or parsed.is_absolute()
+        or any(part in {"", ".", ".."} for part in parsed.parts)
+    ):
+        raise ValueError(f"Analysis rejected: invalid citation path {path!r}")
+    return parsed.as_posix()
+
+
+def _available_citation_paths(trial: TrialData) -> tuple[dict[str, str], set[str]]:
+    aliases: dict[str, str] = {}
+    trajectory_paths: set[str] = set()
+    for input_record in trial.inputs:
+        member = input_record.get("member")
+        raw_path = member if isinstance(member, str) else input_record.get("path")
+        if not isinstance(raw_path, str):
+            continue
+        canonical_path: str | None = None
+        with suppress(ValueError):
+            canonical_path = _normalize_citation_path(raw_path)
+        is_trajectory = raw_path.endswith("trajectory.json")
+        is_result = raw_path.endswith("result.json")
+        if canonical_path is None:
+            if is_trajectory:
+                canonical_path = "agent/trajectory.json"
+            elif is_result:
+                canonical_path = "result.json"
+            else:
+                continue
+        aliases[canonical_path] = canonical_path
+        if is_trajectory:
+            aliases["trajectory.json"] = canonical_path
+            aliases["agent/trajectory.json"] = canonical_path
+            trajectory_paths.add(canonical_path)
+        elif is_result:
+            aliases["result.json"] = canonical_path
+    return aliases, trajectory_paths
+
+
+def _step_reference_ids(step: Mapping[str, Any]) -> tuple[set[str], set[str]]:
+    event_ids: set[str] = set()
+    tool_call_ids: set[str] = set()
+
+    def collect(value: Any) -> None:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                if key == "event_id" and child is not None:
+                    event_ids.add(str(child))
+                elif key in {"tool_call_id", "source_call_id", "call_id"} and child is not None:
+                    tool_call_ids.add(str(child))
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(step)
+    return event_ids, tool_call_ids
 
 
 def _validate_result(
@@ -646,27 +790,13 @@ def _validate_result(
             "Every claim must cite concrete artifacts/steps."
         )
 
-    step_ids: set[int] = set()
-    event_ids: set[str] = set()
-    tool_call_ids: set[str] = set()
-    for index, step in enumerate(trial.trajectory_steps):
-        step_id = step.get("step_id")
+    available_paths, trajectory_paths = _available_citation_paths(trial)
+    steps_by_id: dict[int, Mapping[str, Any]] = {}
+    for index, step_payload in enumerate(trial.trajectory_steps):
+        steps_by_id.setdefault(index, step_payload)
+        step_id = step_payload.get("step_id")
         if isinstance(step_id, int) and not isinstance(step_id, bool):
-            step_ids.add(step_id)
-        # ATIF step citations historically used the zero-based position.
-        step_ids.add(index)
-
-        def collect_ids(value: Any) -> None:
-            if isinstance(value, Mapping):
-                for key, child in value.items():
-                    if key in {"event_id", "tool_call_id", "source_call_id"} and child is not None:
-                        (tool_call_ids if key != "event_id" else event_ids).add(str(child))
-                    collect_ids(child)
-            elif isinstance(value, list):
-                for child in value:
-                    collect_ids(child)
-
-        collect_ids(step)
+            steps_by_id[step_id] = step_payload
 
     normalized: list[EvidenceCitation] = []
     for index, citation in enumerate(result.evidence):
@@ -680,16 +810,33 @@ def _validate_result(
             tool_call_id = metadata.get("tool_call_id", tool_call_id)
         if not isinstance(path, str) or not path.strip():
             raise ValueError("Analysis rejected: citation path is empty")
-        if step is not None:
-            if not isinstance(step, int) or isinstance(step, bool) or step not in step_ids:
-                raise ValueError(f"Analysis rejected: nonexistent step citation {step!r}")
-        if event_id is not None and str(event_id) not in event_ids:
-            raise ValueError(f"Analysis rejected: nonexistent event citation {event_id!r}")
-        if tool_call_id is not None and str(tool_call_id) not in tool_call_ids:
+        normalized_path = _normalize_citation_path(path.strip())
+        resolved_path = available_paths.get(normalized_path)
+        if resolved_path is None:
             raise ValueError(
-                f"Analysis rejected: nonexistent tool_call citation {tool_call_id!r}"
+                f"Analysis rejected: citation path is not a resolved trial input: {normalized_path}"
             )
-        normalized.append(EvidenceCitation(path=path, step=step))
+        if step is None:
+            if event_id is not None or tool_call_id is not None:
+                raise ValueError("Analysis rejected: event/tool citation requires a cited step")
+            normalized.append(EvidenceCitation(path=resolved_path, step=None))
+            continue
+        if not isinstance(step, int) or isinstance(step, bool) or step not in steps_by_id:
+            raise ValueError(f"Analysis rejected: nonexistent step citation {step!r}")
+        if resolved_path not in trajectory_paths:
+            raise ValueError(
+                f"Analysis rejected: step citation targets non-trajectory input {resolved_path}"
+            )
+        step_event_ids, step_tool_call_ids = _step_reference_ids(steps_by_id[step])
+        if event_id is not None and str(event_id) not in step_event_ids:
+            raise ValueError(
+                f"Analysis rejected: nonexistent event citation {event_id!r} at step {step}"
+            )
+        if tool_call_id is not None and str(tool_call_id) not in step_tool_call_ids:
+            raise ValueError(
+                f"Analysis rejected: nonexistent tool_call citation {tool_call_id!r} at step {step}"
+            )
+        normalized.append(EvidenceCitation(path=resolved_path, step=step))
     return normalized
 
 
@@ -709,7 +856,8 @@ def assemble_context(trial: TrialData) -> tuple[str, str]:
         "",
         "## Trajectory Summary:",
     ]
-    ordinary_count = 0
+    ordinary_total = 0
+    ordinary_included = 0
     error_lines: list[str] = []
     for index, step in enumerate(trial.trajectory_steps):
         if _step_error(step):
@@ -721,22 +869,31 @@ def assemble_context(trial: TrialData) -> tuple[str, str]:
                 if message:
                     error_lines.append(f"Step {step_id} message: {message}")
             continue
-        if ordinary_count >= MAX_ORDINARY_STEPS:
+        ordinary_total += 1
+        if ordinary_included >= MAX_ORDINARY_STEPS:
             continue
-        ordinary_count += 1
+        ordinary_included += 1
         source = step.get("source", "agent")
         msg = step.get("message")
-        msg_str = json.dumps(msg, sort_keys=True, default=str) if isinstance(msg, dict) else str(msg or "")
-        bounded = (msg_str[:MAX_ORDINARY_STEP_CHARS] + "...") if len(msg_str) > MAX_ORDINARY_STEP_CHARS else msg_str
+        msg_str = (
+            json.dumps(msg, sort_keys=True, default=str)
+            if isinstance(msg, dict)
+            else str(msg or "")
+        )
+        bounded = (
+            (msg_str[:MAX_ORDINARY_STEP_CHARS] + "...")
+            if len(msg_str) > MAX_ORDINARY_STEP_CHARS
+            else msg_str
+        )
         context_lines.append(f"Step {step.get('step_id', index)} [{source}]: {bounded}")
 
     if error_lines or trial.result_payload:
         context_lines.extend(["", "## Complete Error Evidence:"])
         context_lines.extend(error_lines)
         context_lines.extend(_error_lines(trial.result_payload, "Result"))
-    if len(trial.trajectory_steps) > ordinary_count:
+    if ordinary_total > ordinary_included:
         context_lines.append(
-            f"[ordinary steps bounded: included {ordinary_count} of {len(trial.trajectory_steps)}]"
+            f"[ordinary steps bounded: included {ordinary_included} of {ordinary_total}]"
         )
     context = "\n".join(context_lines)
     return prompt, context
@@ -770,9 +927,7 @@ def run_analysis(
     # 1. Resolve analyzer
     if analyzer is None:
         analyzer = (
-            ModelAnalyzer(model=model, adapter=adapter)
-            if model is not None
-            else StubAnalyzer()
+            ModelAnalyzer(model=model, adapter=adapter) if model is not None else StubAnalyzer()
         )
     # Track analyst's own trajectory steps
     analyst_steps: list[dict[str, Any]] = []
@@ -784,6 +939,7 @@ def run_analysis(
             "timestamp": t_start,
             "message": f"Attached unified surface and resolved trial '{trial_identifier}'",
         }
+    )
     trial = resolve_trial(
         trial_identifier,
         root,
@@ -833,11 +989,7 @@ def run_analysis(
     normalized_evidence = _validate_result(result, trial)
     # 5. Build durable AnalysisRecord only after all model output is admitted.
     rec_id = analysis_id or new_ulid()
-    model_name = (
-        model
-        if model
-        else ("stub" if isinstance(analyzer, StubAnalyzer) else "analyzer")
-    )
+    model_name = model if model else ("stub" if isinstance(analyzer, StubAnalyzer) else "analyzer")
     record = AnalysisRecord(
         analysis_id=rec_id,
         trial_id=trial.trial_id,
@@ -882,9 +1034,7 @@ def run_analysis(
     return record, trajectory_payload, conclusion_file, trajectory_file
 
 
-def project_analyses(
-    repo_root: Path, explicit_derived: Path | None = None
-) -> tuple[int, int]:
+def project_analyses(repo_root: Path, explicit_derived: Path | None = None) -> tuple[int, int]:
     """Project all stored analysis records and trajectories into Parquet.
 
     Writes:
@@ -1003,9 +1153,7 @@ def project_analyses(
     )
 
     if trajectory_rows:
-        t_trajectories = pa.Table.from_pylist(
-            trajectory_rows, schema=traj_schema
-        )
+        t_trajectories = pa.Table.from_pylist(trajectory_rows, schema=traj_schema)
     else:
         t_trajectories = traj_schema.empty_table()
 
@@ -1016,9 +1164,7 @@ def project_analyses(
     return len(record_rows), len(trajectory_rows)
 
 
-def list_analyses(
-    repo_root: Path, trial_id: str | None = None
-) -> list[dict[str, Any]]:
+def list_analyses(repo_root: Path, trial_id: str | None = None) -> list[dict[str, Any]]:
     """List stored analysis conclusions, optionally filtered by trial_id."""
     analysis_dir = repo_root / ANALYSIS_DIR_NAME
     if not analysis_dir.exists():
@@ -1058,18 +1204,14 @@ def list_analyses(
     return results
 
 
-def show_analysis(
-    analysis_id: str, repo_root: Path
-) -> tuple[dict[str, Any], dict[str, Any]]:
+def show_analysis(analysis_id: str, repo_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """Retrieve an analysis conclusion and its recorded reasoning trajectory."""
     analysis_dir = repo_root / ANALYSIS_DIR_NAME
     conclusion_file = analysis_dir / f"{analysis_id}.json"
     trajectory_file = analysis_dir / f"{analysis_id}.trajectory.json"
 
     if not conclusion_file.is_file():
-        raise FileNotFoundError(
-            f"Analysis record '{analysis_id}' not found at {conclusion_file}"
-        )
+        raise FileNotFoundError(f"Analysis record '{analysis_id}' not found at {conclusion_file}")
 
     conclusion_data = json.loads(conclusion_file.read_text(encoding="utf-8"))
     trajectory_data = (

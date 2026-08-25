@@ -244,24 +244,24 @@ def project_behavior_episodes_from_atif(
             or "irrelevant" in model_output.lower()
             or "filtered" in model_output.lower()
         ):
-                behavior_label = "context_distraction_filtered"
-                ep_id = _stable_hash(resolved_trial_id, spec_id, step_id, step_id, behavior_label)
-                episodes.append(
-                    BehaviorEpisodeRecord(
-                        episode_id=ep_id,
-                        trial_id=resolved_trial_id,
-                        spec_id=spec_id,
-                        behavior=behavior_label,
-                        start_step=step_id,
-                        end_step=step_id,
-                        intent="filter_irrelevant_distractor_context",
-                        evidence_step_ids=[step_id],
-                        evidence_summary=f"Agent explicitly filtered distractors at step {step_id}",
-                        status=default_status,
-                        confidence="medium",
-                        metadata={"distraction_filtering": True},
-                    )
+            behavior_label = "context_distraction_filtered"
+            ep_id = _stable_hash(resolved_trial_id, spec_id, step_id, step_id, behavior_label)
+            episodes.append(
+                BehaviorEpisodeRecord(
+                    episode_id=ep_id,
+                    trial_id=resolved_trial_id,
+                    spec_id=spec_id,
+                    behavior=behavior_label,
+                    start_step=step_id,
+                    end_step=step_id,
+                    intent="filter_irrelevant_distractor_context",
+                    evidence_step_ids=[step_id],
+                    evidence_summary=f"Agent explicitly filtered distractors at step {step_id}",
+                    status=default_status,
+                    confidence="medium",
+                    metadata={"distraction_filtering": True},
                 )
+            )
 
         # 5. Function DAG Dependency Sequencing Behavior
         if (

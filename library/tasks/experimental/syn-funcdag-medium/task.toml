@@ -5,7 +5,7 @@ schema_version = "1.4"
 artifacts = ["/app/output/result.json"]
 
 [task]
-name = "syn-funcdag-medium"
+name = "evallab/syn-funcdag-medium"
 version = "1.0.0"
 description = "Evaluate deterministic function dependency graph target node n_4_0"
 keywords = ["synthetic", "funcdag", "deterministic", "dag", "reasoning", "medium"]

@@ -4,7 +4,7 @@ Executes deterministic, execution-based verification of synthetic task packages
 before admission to the experimental registry:
 
 1. Static Reachability: schema compliance, reachability of solution paths and dependencies.
-2. Clean Reset: deterministic environment setup and cleanup without residual state.
+2. Clean Reset: repeated environment setup and cleanup executions without residual state.
 3. Oracle 3x Pass: reference oracle solution succeeds across 3 consecutive trials.
 4. NOP Fail: empty/no-op agent fails verifier (ensures non-triviality / non-vacuity).
 5. Plausible Mutants: at least 3 adversarial/plausible mutants tested and rejected.
@@ -179,33 +179,50 @@ class SyntheticCertificationGate:
         task_dir: Path | None = None,
         reset_fn: Callable[[], bool | tuple[bool, str]] | None = None,
     ) -> GateCheckResult:
-        """Check 2: Verify deterministic environment clean reset."""
+        """Check 2: Verify repeated environment clean reset executions."""
         diagnostics: list[str] = []
 
         if reset_fn is not None:
-            try:
-                result = reset_fn()
-                if isinstance(result, tuple):
-                    res_bool, res_msg = result
-                    if not res_bool:
-                        diagnostics.append(f"Reset function failed: {res_msg}")
-                elif not result:
-                    diagnostics.append("Reset function returned False")
-            except Exception as exc:
-                diagnostics.append(f"Reset function raised exception: {exc}")
-        elif task_dir is not None:
-            task_path = Path(task_dir)
-            # Verify no transient leftover lock or cache files in environment dir
-            env_dir = task_path / "environment"
-            if env_dir.exists():
-                leftovers = list(env_dir.glob("**/*.tmp")) + list(env_dir.glob("**/*.lock"))
-                if leftovers:
+            for run_idx in range(2):
+                try:
+                    result = reset_fn()
+                    if isinstance(result, tuple):
+                        res_bool, res_msg = result
+                        if not res_bool:
+                            diagnostics.append(
+                                f"Reset function failed on run {run_idx + 1}/2: {res_msg}"
+                            )
+                            break
+                    elif not result:
+                        diagnostics.append(
+                            f"Reset function returned False on run {run_idx + 1}/2"
+                        )
+                        break
+                except Exception as exc:
                     diagnostics.append(
-                        f"Transient unreset files found: {[p.name for p in leftovers]}"
+                        f"Reset function raised exception on run {run_idx + 1}/2: {exc}"
                     )
+                    break
+
+            if task_dir is not None:
+                task_path = Path(task_dir)
+                # Verify no transient leftover lock or cache files in environment dir
+                env_dir = task_path / "environment"
+                if env_dir.exists():
+                    leftovers = list(env_dir.glob("**/*.tmp")) + list(env_dir.glob("**/*.lock"))
+                    if leftovers:
+                        diagnostics.append(
+                            f"Transient unreset files found: {[p.name for p in leftovers]}"
+                        )
+        else:
+            diagnostics.append("No clean reset function provided")
 
         passed = len(diagnostics) == 0
-        details = "Environment clean reset verified" if passed else "; ".join(diagnostics)
+        details = (
+            "Repeated reset executions succeeded"
+            if passed
+            else "; ".join(diagnostics)
+        )
         return GateCheckResult(
             name="clean_reset",
             passed=passed,
@@ -251,10 +268,7 @@ class SyntheticCertificationGate:
                     if not rec.get("passed", False):
                         diagnostics.append(f"Oracle execution record {idx + 1} did not pass")
         else:
-            # Default to passing if oracle contract metadata is valid
-            if not spec.expected_behavior:
-                diagnostics.append("No oracle runner or expected_behavior provided")
-
+            diagnostics.append("No oracle runner or execution records provided")
         passed = len(diagnostics) == 0
         details = (
             f"Oracle passed {self.oracle_runs} consecutive trials"
@@ -301,10 +315,7 @@ class SyntheticCertificationGate:
                     if rec.get("passed", False):
                         diagnostics.append(f"NOP record {idx + 1} unexpectedly passed verification")
         else:
-            # When no dynamic runner is provided, verify spec requires affirmative evidence
-            if not spec.required_evidence and not spec.expected_behavior:
-                diagnostics.append("No required evidence defined to reject NOP agent")
-
+            diagnostics.append("No NOP runner or execution records provided")
         passed = len(diagnostics) == 0
         details = "NOP agent successfully failed verification" if passed else "; ".join(diagnostics)
         return GateCheckResult(
@@ -357,10 +368,9 @@ class SyntheticCertificationGate:
                     f"Insufficient mutant records: {tested_count} < minimum {self.min_mutants}"
                 )
         else:
-            # Default minimum baseline check
-            tested_count = 3
-            failed_count = 3
-
+            tested_count = 0
+            failed_count = 0
+            diagnostics.append("No mutant runners or mutant records provided")
         passed = (
             tested_count >= self.min_mutants
             and failed_count == tested_count
@@ -469,6 +479,14 @@ class SyntheticCertificationGate:
                 base_digest_1, gen_digest_1 = regenerator(spec.seed, spec.parameters)
                 base_digest_2, gen_digest_2 = regenerator(spec.seed, spec.parameters)
 
+                if base_digest_1 != base_digest_2:
+                    diagnostics.append(
+                        f"Non-deterministic base generation: run 1 ({base_digest_1}) != run 2 ({base_digest_2})"
+                    )
+                if base_digest_1 != spec.base_task_digest:
+                    diagnostics.append(
+                        f"Regenerated base digest ({base_digest_1}) != spec base digest ({spec.base_task_digest})"
+                    )
                 if gen_digest_1 != gen_digest_2:
                     diagnostics.append(
                         f"Non-deterministic generation: run 1 ({gen_digest_1}) != run 2 ({gen_digest_2})"
@@ -480,13 +498,7 @@ class SyntheticCertificationGate:
             except Exception as exc:
                 diagnostics.append(f"Regeneration check raised: {exc}")
         else:
-            # Deterministic spec_id check
-            expected_id = compute_synthetic_spec_id(spec)
-            if spec.spec_id != expected_id:
-                diagnostics.append(
-                    f"Spec ID not idempotent with canonical hash: {spec.spec_id} != {expected_id}"
-                )
-
+            diagnostics.append("No regenerator function provided")
         passed = len(diagnostics) == 0
         details = (
             "Seed-based regeneration idempotency verified" if passed else "; ".join(diagnostics)
@@ -614,13 +626,13 @@ class SyntheticCertificationGate:
             regeneration_idempotent=r7.passed,
             secret_isolation_passed=r8.passed,
             evidence_paths=evidence_paths,
+            check_results=all_checks,
             notes=notes
             or (
                 "All 8 certification checks passed"
                 if overall_passed
-                else "Certification gate failed"
+                else f"Certification gate failed: {'; '.join(d for c in all_checks for d in c.diagnostics if d) or 'checks failed'}"
             ),
-            check_results=all_checks,
         )
 
     def certify(

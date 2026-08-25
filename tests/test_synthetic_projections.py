@@ -119,6 +119,8 @@ def sample_certs(sample_specs: list[SyntheticEvalSpec]) -> list[SyntheticCertifi
     gate = SyntheticCertificationGate()
     certs = []
     for spec in sample_specs:
+        base_digest = spec.base_task_digest
+        gen_digest = spec.generated_task_digest
         cert = gate.certify(
             spec,
             oracle_runner=lambda: (True, "pass"),
@@ -128,10 +130,11 @@ def sample_certs(sample_specs: list[SyntheticEvalSpec]) -> list[SyntheticCertifi
                 lambda: (False, "m2 fail"),
                 lambda: (False, "m3 fail"),
             ],
+            reset_fn=lambda: (True, "clean"),
+            regenerator=lambda seed, params, b=base_digest, g=gen_digest: (b, g),
         )
         certs.append(cert)
     return certs
-
 
 def test_lineage_and_transformation_projection(sample_specs: list[SyntheticEvalSpec]) -> None:
     spec = sample_specs[0]

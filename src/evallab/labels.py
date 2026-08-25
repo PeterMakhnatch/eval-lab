@@ -688,3 +688,170 @@ def evaluate_heuristic_precision(
         precision=round(exact / matched, 4) if matched else 0.0,
         disagreements=tuple(disagreements),
     )
+
+
+@dataclass(frozen=True)
+class BehaviorEpisodeReviewItem:
+    """A deterministic review item retaining the source episode envelope."""
+
+    behavior: str
+    trial_id: str
+    document_id: str
+    start_step: int
+    end_step: int
+    trajectory_id: str | None
+    session_id: str | None
+    candidate_status: str | None
+    human_status: str | None
+    candidate_evidence_step_ids: tuple[int, ...]
+    candidate_evidence_span_ids: tuple[str, ...]
+    human_evidence_step_ids: tuple[int, ...]
+    human_evidence_span_ids: tuple[str, ...]
+    candidate_provenance: dict[str, Any] | None
+    human_provenance: dict[str, Any] | None
+    reason: str
+
+
+def select_behavior_episode_review_queue(
+    episodes: Sequence[Any], *, limit: int = 50
+) -> list[BehaviorEpisodeReviewItem]:
+    """Prioritize disagreements, then unreviewed candidate episodes."""
+
+    if limit <= 0:
+        return []
+    from evallab.behavior_calibration import calibrate_behavior_episodes
+
+    def value(episode: Any, name: str, default: Any = None) -> Any:
+        if isinstance(episode, dict):
+            return episode.get(name, default)
+        return getattr(episode, name, default)
+
+    def tuple_text(value_: Any) -> tuple[str, ...]:
+        if value_ is None:
+            return ()
+        if isinstance(value_, str):
+            return (value_,)
+        return tuple(str(item) for item in value_)
+
+    def tuple_int(value_: Any) -> tuple[int, ...]:
+        if value_ is None:
+            return ()
+        if isinstance(value_, (str, bytes)):
+            return (int(value_),)
+        return tuple(int(item) for item in value_)
+
+    def route(label: str) -> str:
+        return "recovered_progress" if label == "unresolved_error" else label
+
+    def identity(episode: Any) -> tuple[Any, ...]:
+        return (
+            str(value(episode, "trial_id", "")), str(value(episode, "document_id", "")),
+            value(episode, "trajectory_id"), value(episode, "session_id"),
+            int(value(episode, "start_step", 0)), int(value(episode, "end_step", 0)),
+        )
+
+    def provenance(episode: Any) -> dict[str, Any] | None:
+        if episode is None:
+            return None
+        return {
+            "annotator_kind": value(episode, "annotator_kind"),
+            "annotator_id": value(episode, "annotator_id"),
+            "source_sha256": value(episode, "source_sha256"),
+            "input_digest": value(episode, "input_digest"),
+            "catalog_version": value(episode, "catalog_version"),
+            "detector_version": value(episode, "detector_version"),
+            "rubric_version": value(episode, "rubric_version"),
+        }
+
+    candidates = [
+        episode for episode in episodes
+        if value(episode, "annotator_kind") != "human"
+        and value(episode, "status", "candidate") != "rejected"
+    ]
+    human = [
+        episode for episode in episodes
+        if value(episode, "annotator_kind") == "human"
+        and value(episode, "status") in {"reviewed", "confirmed", "rejected"}
+    ]
+    report = calibrate_behavior_episodes(candidates, human)
+    by_key: dict[tuple[Any, ...], list[Any]] = {}
+    for episode in candidates:
+        by_key.setdefault(identity(episode), []).append(episode)
+    human_labels = {
+        (identity(episode), route(str(value(episode, "label", "")))) for episode in human
+    }
+
+    def item(
+        behavior: str,
+        candidate: Any,
+        human_episode: Any,
+        reason: str,
+    ) -> BehaviorEpisodeReviewItem:
+        source = candidate if candidate is not None else human_episode
+        return BehaviorEpisodeReviewItem(
+            behavior=behavior,
+            trial_id=str(value(source, "trial_id", "")),
+            document_id=str(value(source, "document_id", "")),
+            start_step=int(value(source, "start_step", 0)),
+            end_step=int(value(source, "end_step", 0)),
+            trajectory_id=value(source, "trajectory_id"),
+            session_id=value(source, "session_id"),
+            candidate_status=value(candidate, "status") if candidate is not None else None,
+            human_status=value(human_episode, "status") if human_episode is not None else None,
+            candidate_evidence_step_ids=tuple_int(value(candidate, "evidence_step_ids", ())),
+            candidate_evidence_span_ids=tuple_text(value(candidate, "evidence_span_ids", ())),
+            human_evidence_step_ids=tuple_int(value(human_episode, "evidence_step_ids", ())),
+            human_evidence_span_ids=tuple_text(value(human_episode, "evidence_span_ids", ())),
+            candidate_provenance=provenance(candidate),
+            human_provenance=provenance(human_episode),
+            reason=reason,
+        )
+
+    disagreements: list[BehaviorEpisodeReviewItem] = []
+    for disagreement in report.disagreements:
+        key = (
+            disagreement["trial_id"], disagreement["document_id"], disagreement["trajectory_id"],
+            disagreement["session_id"], disagreement["start_step"], disagreement["end_step"],
+        )
+        candidates_for_key = [
+            episode for episode in by_key.get(key, ())
+            if (
+                value(episode, "label") == disagreement["candidate_label"]
+                or (
+                    disagreement["candidate_label"] is None
+                    and route(str(value(episode, "label", ""))) == disagreement["behavior"]
+                )
+            )
+        ]
+        human_for_key = [
+            episode for episode in human
+            if identity(episode) == key and value(episode, "label") == disagreement["human_label"]
+        ]
+        candidate = sorted(
+            candidates_for_key, key=lambda ep: str(value(ep, "episode_id", ""))
+        )[0] if candidates_for_key else None
+        human_episode = sorted(
+            human_for_key, key=lambda ep: str(value(ep, "episode_id", ""))
+        )[0] if human_for_key else None
+        disagreements.append(
+            item(disagreement["behavior"], candidate, human_episode, disagreement["reason"])
+        )
+    disagreements.sort(key=lambda value_: (
+        value_.behavior, value_.trial_id, value_.document_id, value_.start_step,
+        value_.end_step, value_.reason,
+    ))
+
+    unreviewed: list[BehaviorEpisodeReviewItem] = []
+    for key, values in by_key.items():
+        for episode in values:
+            if value(episode, "status", "candidate") != "candidate":
+                continue
+            label = route(str(value(episode, "label", "")))
+            if (key, label) in human_labels:
+                continue
+            unreviewed.append(item(label, episode, None, "unreviewed_candidate"))
+    unreviewed.sort(key=lambda value_: (
+        value_.behavior, value_.trial_id, value_.document_id, value_.start_step,
+        value_.end_step, value_.candidate_evidence_step_ids, value_.candidate_evidence_span_ids,
+    ))
+    return (disagreements + unreviewed)[:limit]

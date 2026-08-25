@@ -34,28 +34,41 @@ def _safe_output(path: Path, digest: str) -> Path:
         raise PinError(f"generated output must be exactly {expected_parent / PACKAGE_NAME}")
     return resolved
 def _write_harbor_package(target: Path, digest: str, manifest: dict[str, object]) -> None:
-    (target / "environment").mkdir()
-    (target / "solution").mkdir()
-    (target / "tests").mkdir()
-    (target / "environment" / "Dockerfile").write_text(
-        "FROM python:3.12-slim\nWORKDIR /app\nENV NETWORK_MODE=none\nCOPY . /app\n", encoding="utf-8"
+    environment = target / "environment"
+    solution = target / "solution"
+    tests = target / "tests"
+    environment.mkdir()
+    solution.mkdir()
+    tests.mkdir()
+    source_root = Path(__file__).resolve().parent
+    task_state = environment / "task_state"
+    for name in ("files", "agent_workspace", "local_db"):
+        shutil.copytree(target / name, task_state / name)
+    shutil.copy2(source_root / "runtime.py", environment / "runtime.py")
+    shutil.copy2(source_root / "oracle.py", environment / "oracle.py")
+    shutil.copy2(source_root / "templates.py", environment / "templates.py")
+    shutil.copy2(source_root / "verifier.py", tests / "verifier.py")
+    shutil.copy2(source_root / "templates.py", tests / "templates.py")
+    (environment / "Dockerfile").write_text(
+        "FROM python:3.12-slim\nWORKDIR /app\nENV NETWORK_MODE=no-network\nCOPY . /app\nENTRYPOINT [\"/app/entrypoint.sh\"]\n", encoding="utf-8"
     )
-    (target / "environment" / "entrypoint.sh").write_text(
-        "#!/bin/sh\nset -eu\nexec python3 \"$LOCA_BENCHMARK_ROOT/runtime.py\" --task-dir /app/task_state\n", encoding="utf-8"
+    (environment / "entrypoint.sh").write_text(
+        "#!/bin/sh\nset -eu\npython3 /app/runtime.py --task-dir /app/task_state\nif [ \"$#\" -gt 0 ]; then exec \"$@\"; fi\nexec sleep infinity\n", encoding="utf-8"
     )
-    (target / "environment" / "entrypoint.sh").chmod(0o755)
-    (target / "environment" / "service-config.json").write_text(
+    (environment / "entrypoint.sh").chmod(0o755)
+    (environment / "service-config.json").write_text(
         json.dumps({"type": "google_cloud", "data_dir": "/app/task_state/local_db/google_cloud", "network_mode": "no-network"}, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    (target / "solution" / "solve.sh").write_text(
-        "#!/bin/sh\nset -eu\nexec python3 \"$LOCA_BENCHMARK_ROOT/oracle.py\" --task-dir /app/task_state --workspace /app/task_state/agent_workspace\n", encoding="utf-8"
+    (solution / "solve.sh").write_text(
+        "#!/bin/sh\nset -eu\nexec python3 /app/oracle.py --task-dir /app/task_state --workspace /app/task_state/agent_workspace\n", encoding="utf-8"
     )
-    (target / "solution" / "solve.sh").chmod(0o755)
-    (target / "tests" / "test.sh").write_text(
-        "#!/bin/sh\nset -eu\nexec python3 \"$LOCA_BENCHMARK_ROOT/verifier.py\" --task-dir /app/task_state --workspace /app/task_state/agent_workspace --reward-dir /app/task_state/tests/rewards\n", encoding="utf-8"
+    (solution / "solve.sh").chmod(0o755)
+    (tests / "Dockerfile").write_text("FROM python:3.12-slim\nWORKDIR /tests\nCOPY . /tests\n", encoding="utf-8")
+    (tests / "test.sh").write_text(
+        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\nexec python3 /tests/verifier.py --task-dir /app/task_state --workspace /app/task_state/agent_workspace --reward-dir /logs/verifier\n", encoding="utf-8"
     )
-    (target / "tests" / "test.sh").chmod(0o755)
+    (tests / "test.sh").chmod(0o755)
     (target / "task.toml").write_text(
         f'''schema_version = "1.4"\nartifacts = ["/app/task_state/agent_workspace/record.csv", "/app/task_state/agent_workspace/promo-assets-for-b.marker"]\n\n[task]\nversion = "1.0.0"\nname = "loca-bench/ab-testing-seed-42-8k"\ndescription = "Pinned LOCA ABTestingS2LEnv canary."\n[metadata]\nauthor_name = "LOCA-bench Contributors"\ncategory = "long-context-agents"\ntags = ["loca", "mcp", "context-growth"]\nsource_ref = "8b6fac49d9edd92922593e703b74ea255357c3ec"\nlicense = "MIT"\n[verifier]\ntimeout_sec = 900.0\nenvironment_mode = "separate"\n[agent]\ntimeout_sec = 7200.0\n[environment]\nnetwork_mode = "none"\nmcp_servers = [{{ name = "google_cloud", transport = "stdio", command = "python3", args = ["-m", "mcps.google_cloud.server"] }}]\n''', encoding="utf-8"
     )

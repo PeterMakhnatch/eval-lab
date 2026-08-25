@@ -79,6 +79,19 @@ def test_materializer_oracle_nop_and_mutants(tmp_path):
     task_config = tomllib.loads((target / "task.toml").read_text(encoding="utf-8"))
     assert task_config["environment"]["network_mode"] == "no-network"
     assert (target / "tests" / "test.sh").is_file()
+    for script in (target / "environment" / "entrypoint.sh", target / "solution" / "solve.sh", target / "tests" / "test.sh"):
+        text = script.read_text(encoding="utf-8")
+        assert "LOCA_BENCHMARK_ROOT" not in text
+        assert "/repo/" not in text
+    for referenced in (
+        target / "environment" / "runtime.py",
+        target / "environment" / "oracle.py",
+        target / "environment" / "templates.py",
+        target / "tests" / "verifier.py",
+        target / "tests" / "templates.py",
+        target / "tests" / "Dockerfile",
+    ):
+        assert referenced.is_file()
     templates.nop(target, target / "agent_workspace")
     assert verifier.verify(target)["reward"] == 0.0
     templates.oracle(target)

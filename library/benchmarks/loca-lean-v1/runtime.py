@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from materializer import materialize
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--task-dir", type=Path, required=True)

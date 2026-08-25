@@ -131,33 +131,33 @@ def evaluate_paired_recovery_trial(
             "verifier_exit_code": 0,
         }
 
-    initial_cost = initial_trial_metrics.get("cost_usd", 0.0)
-    rec_cost = recovery_result.get("cost_usd", 0.0)
+    initial_cost = float(initial_trial_metrics.get("cost_usd", 0.0))
+    rec_cost = float(recovery_result.get("cost_usd", 0.0))
 
-    final_reward = recovery_result.get("reward", 0.0)
+    final_reward = float(recovery_result.get("reward", 0.0))
     success = final_reward > 0.0
 
     fallback_steps = len(config.bundle.command_ledger)
-    init_steps = initial_trial_metrics.get("steps", fallback_steps)
+    init_steps = int(initial_trial_metrics.get("steps", fallback_steps))
 
     return PairedTrajectoryOutcome(
         initial_trial_id=config.bundle.source_trial_id,
-        recovery_trial_id=recovery_result.get("recovery_trial_id", str(uuid4())),
+        recovery_trial_id=str(recovery_result.get("recovery_trial_id", str(uuid4()))),
         task_id=config.task_id,
         message_mode=config.message_mode,
         certificate_status=config.certificate.overall_status,
-        initial_reward=initial_trial_metrics.get("reward", 0.0),
+        initial_reward=float(initial_trial_metrics.get("reward", 0.0)),
         final_recovery_reward=final_reward,
         recovery_success=success,
         initial_cost_usd=initial_cost,
         recovery_cost_usd=rec_cost,
         total_cost_usd=round(initial_cost + rec_cost, 6),
-        initial_input_tokens=initial_trial_metrics.get("input_tokens", 0),
-        initial_output_tokens=initial_trial_metrics.get("output_tokens", 0),
-        recovery_input_tokens=recovery_result.get("input_tokens", 0),
-        recovery_output_tokens=recovery_result.get("output_tokens", 0),
+        initial_input_tokens=int(initial_trial_metrics.get("input_tokens", 0)),
+        initial_output_tokens=int(initial_trial_metrics.get("output_tokens", 0)),
+        recovery_input_tokens=int(recovery_result.get("input_tokens", 0)),
+        recovery_output_tokens=int(recovery_result.get("output_tokens", 0)),
         initial_steps=init_steps,
-        recovery_steps=recovery_result.get("steps", 0),
-        verifier_stdout=recovery_result.get("verifier_stdout", ""),
-        verifier_exit_code=recovery_result.get("verifier_exit_code", 0),
+        recovery_steps=int(recovery_result.get("steps", 0)),
+        verifier_stdout=str(recovery_result.get("verifier_stdout", "")),
+        verifier_exit_code=int(recovery_result.get("verifier_exit_code", 0)),
     )

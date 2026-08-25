@@ -273,12 +273,17 @@ def run_bounded_recovery_pilot() -> BoundedRecoveryPilotReport:
         if cert.overall_status == "PASS":
             certified_lanes.append(task_def.task_class)
             outcomes: dict[str, PairedTrajectoryOutcome | None] = {}
-            for mode in ["none", "summary", "full"]:
+            modes: tuple[Literal["none", "summary", "full"], ...] = (
+                "none",
+                "summary",
+                "full",
+            )
+            for mode in modes:
                 config = RecoveryTrialConfig(
                     task_id=task_def.task_id,
                     bundle=bundle,
                     certificate=cert,
-                    message_mode=mode,  # type: ignore
+                    message_mode=mode,
                     agent_name="codex-luna",
                     agent_model="gpt-5.6-luna",
                 )

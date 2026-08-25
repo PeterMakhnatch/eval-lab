@@ -38,7 +38,9 @@ def test_agentabstain_real_verdict_artifacts_preserve_pair_lineage(tmp_path: Pat
         "satisfied",
         "satisfied",
     ]
-    assert all(row.trial_id.endswith(("__act", "__abstain")) for row in projection.paired_condition_facts)
+    assert all(
+        row.trial_id.endswith(("__act", "__abstain")) for row in projection.paired_condition_facts
+    )
     assert all(row.eligible is True for row in projection.capability_opportunities)
     assert all(row.analysis_ready is True for row in projection.evidence_coverage)
 
@@ -62,10 +64,28 @@ def test_agentabstain_deleted_verdict_is_unknown_and_missing(tmp_path: Path) -> 
     assert fact.primary_verdict == "unknown"
     assert projection.capability_opportunities[0].eligible is None
     assert "verdict_artifact" in projection.capability_opportunities[0].missing_evidence
-    assert "reason:missing_verdict_artifact" in projection.capability_opportunities[0].missing_evidence
+    assert (
+        "reason:missing_verdict_artifact" in projection.capability_opportunities[0].missing_evidence
+    )
     assert "verdict_artifact" in projection.evidence_coverage[0].missing_evidence
     assert "reason:missing_verdict_artifact" in projection.evidence_coverage[0].missing_evidence
     assert projection.evidence_coverage[0].analysis_ready is None
+
+
+def test_agent_decision_is_not_treated_as_verifier_verdict() -> None:
+    projection = project_agentabstain(
+        [
+            {
+                "pair_id": "missing_critical_parameter/preview_002",
+                "task_id": "preview_002",
+                "variant": "act",
+                "verdict_artifact": {"verdict": "abstain"},
+            }
+        ]
+    )
+    fact = projection.paired_condition_facts[0]
+    assert fact.primary_verdict == "unknown"
+    assert "reason:verdict_value_unknown" in projection.evidence_coverage[0].missing_evidence
 
 
 def test_recovery_distinguishes_autonomous_and_assisted_actions() -> None:
@@ -80,8 +100,16 @@ def test_recovery_distinguishes_autonomous_and_assisted_actions() -> None:
                 "certificate": {"overall_status": "PASS"},
                 "fault_exposed": True,
                 "semantic_actions": [
-                    {"action_id": "a1", "intervention_provenance": "autonomous", "outcome": "error"},
-                    {"action_id": "a2", "intervention_provenance": "user_assisted", "outcome": "success"},
+                    {
+                        "action_id": "a1",
+                        "intervention_provenance": "autonomous",
+                        "outcome": "error",
+                    },
+                    {
+                        "action_id": "a2",
+                        "intervention_provenance": "user_assisted",
+                        "outcome": "success",
+                    },
                 ],
             }
         ]
@@ -106,7 +134,11 @@ def test_recovery_without_fault_exposure_is_unexposed_not_failure() -> None:
                 },
                 "certificate": {"overall_status": "FAIL"},
                 "semantic_actions": [
-                    {"action_id": "a1", "intervention_provenance": "autonomous", "outcome": "success"}
+                    {
+                        "action_id": "a1",
+                        "intervention_provenance": "autonomous",
+                        "outcome": "success",
+                    }
                 ],
             }
         ]
@@ -116,3 +148,26 @@ def test_recovery_without_fault_exposure_is_unexposed_not_failure() -> None:
     assert coverage.eligible is None
     assert coverage.analysis_ready is None
     assert all(row.eligible is None for row in projection.capability_opportunities)
+
+
+def test_expected_negative_action_does_not_imply_fault_exposure() -> None:
+    projection = project_recovery(
+        [
+            {
+                "recovery_fact": {
+                    "recovery_trial_id": "recovery-negative-control",
+                    "recovery_success": False,
+                },
+                "certificate": {"overall_status": "FAIL"},
+                "semantic_actions": [
+                    {
+                        "action_id": "a1",
+                        "intervention_provenance": "autonomous",
+                        "outcome": "expected_negative",
+                    }
+                ],
+            }
+        ]
+    )
+    assert projection.evidence_coverage[0].exposed is False
+    assert projection.evidence_coverage[0].analysis_ready is None

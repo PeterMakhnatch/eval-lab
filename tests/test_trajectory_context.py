@@ -9,6 +9,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from evallab import trajectory_context as trajectory_context_module
@@ -30,6 +33,7 @@ from evallab.semantic_facts import (
     NormalizedFactBundle,
 )
 from evallab.trajectory_context import (
+    _POSTGRES_REVIEWS_SQL,
     build_durable_trajectory_context,
     build_trajectory_context,
     latest_review,
@@ -1029,6 +1033,126 @@ def test_durable_pack_loads_real_sidecar_file_and_changes_on_supersession(
     assert second.entries == ()
     assert second.to_json() == repeated.to_json()
     assert first.to_json() != second.to_json()
+
+
+def test_durable_pack_validates_sidecar_step_and_tool_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    trial_uuid = UUID("00000000-0000-0000-0000-000000000001")
+    trial_id = str(trial_uuid)
+    relative_path = "agent/trajectory.json"
+    trajectory_path = tmp_path / "runs" / trial_id / relative_path
+    trajectory_path.parent.mkdir(parents=True)
+    trajectory_path.write_bytes(b'{"steps":[]}\n')
+    trajectory_digest = "sha256:" + hashlib.sha256(trajectory_path.read_bytes()).hexdigest()
+
+    sidecar = _make_sidecar(
+        analysis_id=UUID("00000000-0000-0000-0000-000000000095"),
+        trial_uuid=trial_uuid,
+        files={relative_path: trajectory_digest},
+        evidence=[
+            AnalysisEvidenceCitation(
+                path=relative_path,
+                step_id=7,
+                tool_call_id="call-7",
+                supports="real action",
+            )
+        ],
+    )
+    accepted = _make_review(
+        review_id=UUID("00000000-0000-0000-0000-000000000096"),
+        analysis_id=sidecar.analysis_id,
+    )
+    store = tmp_path / "analysis-store" / str(sidecar.analysis_id)
+    store.mkdir(parents=True)
+    sidecar_path = store / ANALYSIS_SIDECAR_FILENAME
+    sidecar_path.write_text(sidecar.model_dump_json())
+    reviews_dir = store / ANALYSIS_REVIEWS_DIRNAME
+    reviews_dir.mkdir()
+    (reviews_dir / f"{accepted.review_id}.json").write_text(accepted.model_dump_json())
+
+    partition = tmp_path / "derived" / "job_id=job" / f"trial_id={trial_id}"
+    partition.mkdir(parents=True)
+    identity = {
+        "trial_id": trial_id,
+        "source_path": str(trajectory_path),
+        "source_sha256": trajectory_digest,
+        "step_id": 7,
+    }
+    pq.write_table(pa.Table.from_pylist([identity]), partition / "steps.parquet")
+    pq.write_table(
+        pa.Table.from_pylist([{**identity, "tool_call_id": "call-7"}]),
+        partition / "tool_calls.parquet",
+    )
+
+    valid = build_durable_trajectory_context(
+        trial_id=trial_id,
+        repo_root=tmp_path,
+        derived_root=tmp_path / "derived",
+        sidecar_roots=(tmp_path / "analysis-store",),
+    )
+    valid_entry = valid.entries[0]
+    assert [(item.step_id, item.tool_call_id) for item in valid_entry.citations] == [(7, "call-7")]
+    assert valid_entry.invalid_citations == ()
+
+    invalid_evidence = [
+        AnalysisEvidenceCitation(
+            path=relative_path,
+            step_id=8,
+            tool_call_id=None,
+            supports="missing step",
+        ),
+        AnalysisEvidenceCitation(
+            path=relative_path,
+            step_id=7,
+            tool_call_id="missing-call",
+            supports="missing call",
+        ),
+    ]
+    invalid_sidecar = sidecar.model_copy(
+        update={"output": sidecar.output.model_copy(update={"evidence": invalid_evidence})}
+    )
+    sidecar_path.write_text(invalid_sidecar.model_dump_json())
+    invalid = build_durable_trajectory_context(
+        trial_id=trial_id,
+        repo_root=tmp_path,
+        derived_root=tmp_path / "derived",
+        sidecar_roots=(tmp_path / "analysis-store",),
+    )
+    invalid_entry = invalid.entries[0]
+    assert invalid_entry.citations == ()
+    assert {item.reason for item in invalid_entry.invalid_citations} == {
+        "step 8 is not present in normalized trajectory",
+        "tool call 'missing-call' is not present in normalized trajectory",
+    }
+
+
+def test_postgres_review_query_qualifies_joined_identity_columns() -> None:
+    connection = duckdb.connect()
+    connection.execute(
+        """
+        CREATE TABLE analysis_invocations (
+            id UUID,
+            source_trial_id VARCHAR
+        );
+        CREATE TABLE analysis_reviews (
+            id UUID,
+            analysis_id UUID,
+            disposition VARCHAR,
+            rationale VARCHAR,
+            reviewer VARCHAR,
+            reviewed_at TIMESTAMP,
+            superseded_by UUID
+        );
+        """
+    )
+    rows = connection.execute(
+        _POSTGRES_REVIEWS_SQL.replace("%s", "?"),
+        ("trial",),
+    ).fetchall()
+    assert rows == []
 
 
 def test_durable_pack_uses_configured_database_url(

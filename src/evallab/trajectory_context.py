@@ -57,17 +57,6 @@ class _CitationIndex:
 
 EntryKind = Literal["analysis", "episode", "semantic_fact", "unknown"]
 ContextOutputFormat = Literal["markdown", "json"]
-EntryStatus = Literal[
-    "accepted",
-    "reviewed",
-    "confirmed",
-    "candidate",
-    "rejected",
-    "needs_revision",
-    "superseded",
-    "unreviewed",
-    "invalid",
-]
 
 _KIND_ORDER: dict[EntryKind, int] = {
     "analysis": 0,
@@ -378,8 +367,6 @@ def _load_semantic_parquet(root: Path, trial_id: str) -> NormalizedFactBundle | 
             model.model_validate(row)
             for row in pq.read_table(path).to_pylist()
             if str(row.get("trial_id")) == trial_id
-            or name == "process_step_facts"
-            and str(row.get("trial_id")) == trial_id
         ]
     if not rows_by_type:
         return None
@@ -414,6 +401,19 @@ def _load_sidecar_reviews(
             if str(review.analysis_id) in analysis_ids:
                 loaded[str(review.review_id)] = review
     return [loaded[key] for key in sorted(loaded)]
+
+
+_POSTGRES_REVIEWS_SQL = """
+SELECT analysis_reviews.id, analysis_reviews.analysis_id,
+       analysis_reviews.disposition, analysis_reviews.rationale,
+       analysis_reviews.reviewer, analysis_reviews.reviewed_at,
+       analysis_reviews.superseded_by
+FROM analysis_reviews
+JOIN analysis_invocations
+  ON analysis_invocations.id = analysis_reviews.analysis_id
+WHERE analysis_invocations.source_trial_id = %s
+ORDER BY analysis_reviews.reviewed_at, analysis_reviews.id
+"""
 
 
 def _load_postgres_analysis(
@@ -488,13 +488,7 @@ def _load_postgres_analysis(
             by_id[analysis_id] = sidecar.model_copy(update={"output": output})
         analyses = [by_id[key] for key in sorted(by_id)]
         review_rows = connection.execute(
-            """
-            SELECT id, analysis_id, disposition, rationale, reviewer, reviewed_at, superseded_by
-            FROM analysis_reviews
-            JOIN analysis_invocations ON analysis_invocations.id = analysis_reviews.analysis_id
-            WHERE analysis_invocations.source_trial_id = %s
-            ORDER BY reviewed_at, id
-            """,
+            _POSTGRES_REVIEWS_SQL,
             (trial_id,),
         ).fetchall()
         for row in review_rows:
@@ -545,12 +539,24 @@ def _validate_citation(
     return None
 
 
+def _citation_path_matches(source_path: str, citation_path: str) -> bool:
+    source_parts = PurePosixPath(source_path.replace("\\", "/")).parts
+    citation_parts = PurePosixPath(citation_path).parts
+    return bool(citation_parts) and (
+        source_parts == citation_parts
+        or len(source_parts) >= len(citation_parts)
+        and source_parts[-len(citation_parts) :] == citation_parts
+    )
+
+
 def _augment_index_with_sidecar_files(
     index: _CitationIndex,
     analyses: Sequence[TrialAnalysisSidecar],
     repo_root: Path,
 ) -> _CitationIndex:
     files = set(index.files)
+    steps = set(index.steps)
+    tool_calls = set(index.tool_calls)
     for sidecar in analyses:
         trial_path = Path(sidecar.source_trial_path)
         trial_root = trial_path if trial_path.is_absolute() else repo_root / trial_path
@@ -573,10 +579,24 @@ def _augment_index_with_sidecar_files(
                 if not candidate.is_file():
                     continue
                 digest = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
-                if digest == expected:
-                    files.update((key, expected) for key in _path_keys(evidence.path))
-                    break
-    return _CitationIndex(frozenset(files), index.steps, index.tool_calls)
+                if digest != expected:
+                    continue
+                citation_keys = _path_keys(evidence.path)
+                files.update((key, expected) for key in citation_keys)
+                for source, source_digest, step_id in index.steps:
+                    if source_digest == expected and _citation_path_matches(source, evidence.path):
+                        steps.update((key, expected, step_id) for key in citation_keys)
+                for source, source_digest, step_id, tool_call_id in index.tool_calls:
+                    if source_digest == expected and _citation_path_matches(source, evidence.path):
+                        tool_calls.update(
+                            (key, expected, step_id, tool_call_id) for key in citation_keys
+                        )
+                break
+    return _CitationIndex(
+        frozenset(files),
+        frozenset(steps),
+        frozenset(tool_calls),
+    )
 
 
 def build_trajectory_context(

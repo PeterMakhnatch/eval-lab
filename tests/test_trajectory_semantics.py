@@ -138,6 +138,14 @@ def test_grep_diff_cmp_expected_negative_vs_real_failure() -> None:
     assert diff_error.reason_code is SemanticReasonCode.DIFF_ERROR_EXIT_CODE
     assert diff_error.detail_digest is not None
 
+    compound = GENERIC_POSIX_PROFILE.resolve_action(
+        "bash",
+        {"command": "cd work && grep -q absent file.txt"},
+        {"exit_code": 1, "output": ""},
+    )
+    assert compound.outcome == "unknown_semantics"
+    assert compound.reason_code is SemanticReasonCode.SHELL_COMPOUND_AMBIGUOUS
+
 
 def test_structured_search_requires_declared_cardinality_for_expected_negative() -> None:
     structured = GENERIC_POSIX_PROFILE.resolve_action(
@@ -453,6 +461,7 @@ def test_resolver_conformance_vectors_cover_transitive_helper_paths() -> None:
         "environment_assignment_no_match",
         "pipeline_status_owner",
         "nested_exit_code",
+        "compound_command_ambiguous",
         "shell_parse_error",
         "empty_command",
         "incomplete_pipeline",

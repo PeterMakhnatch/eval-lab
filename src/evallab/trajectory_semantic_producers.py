@@ -4,6 +4,7 @@ The producers have a deliberately narrow evidence boundary: verifier artifacts a
 profile-derived semantic action facts are authoritative.  They never derive a verdict
 from trajectory prose, rewards, or a missing artifact.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -181,17 +182,13 @@ def _read_verdict_artifact(artifact: Any) -> tuple[str, str | None, str | None]:
         "satisfied": "satisfied",
         "success": "satisfied",
         "true": "satisfied",
-        "act": "satisfied",
         "fail": "violated",
         "failed": "violated",
         "violated": "violated",
         "failure": "violated",
         "false": "violated",
-        "abstain": "satisfied",
         "unknown": "unknown",
     }.get(normalized)
-    if verdict is None and normalized.startswith("abstain:"):
-        verdict = "satisfied"
     if verdict is None:
         return "unknown", "verdict_value_unknown", _digest(source_bytes or value)
     if verdict == "unknown":
@@ -199,7 +196,9 @@ def _read_verdict_artifact(artifact: Any) -> tuple[str, str | None, str | None]:
     return verdict, None, _digest(source_bytes or value)
 
 
-def _agent_source(raw: Mapping[str, Any], trial_id: str, artifact_digest: str | None) -> tuple[str, str]:
+def _agent_source(
+    raw: Mapping[str, Any], trial_id: str, artifact_digest: str | None
+) -> tuple[str, str]:
     artifact_ref = raw.get("verdict_artifact", raw.get("verdict_path"))
     ref = str(raw.get("source_ref") or artifact_ref or f"agentabstain:{trial_id}")
     digest = artifact_digest or _digest({"trial_id": trial_id, "artifact": "missing"})
@@ -318,8 +317,7 @@ def _recovery_exposure(raw: Mapping[str, Any], actions: Sequence[Mapping[str, An
         return explicit
     # Exposure is a semantic action fact, never a reward/certificate inference.
     return any(
-        bool(action.get("fault_exposed"))
-        or str(action.get("outcome", "")) in {"error", "expected_negative"}
+        bool(action.get("fault_exposed")) or str(action.get("outcome", "")) == "error"
         for action in actions
     )
 
@@ -349,7 +347,9 @@ def project_recovery(
             or ""
         )
         if not trial_id:
-            raise ValueError("recovery input requires recovery_trial_id, initial_trial_id, or trial_id")
+            raise ValueError(
+                "recovery input requires recovery_trial_id, initial_trial_id, or trial_id"
+            )
         source_ref = str(raw_input.get("source_ref") or f"recovery:{trial_id}")
         source_digest = _digest(
             {"recovery_fact": raw, "certificate": certificate_data, "semantic_actions": actions}
@@ -423,7 +423,9 @@ def project_recovery(
             eligible_coverage: bool | None = None
             ready: bool | None = None
         else:
-            missing_coverage = tuple(evidence for evidence in required_coverage if evidence not in observed)
+            missing_coverage = tuple(
+                evidence for evidence in required_coverage if evidence not in observed
+            )
             eligible_coverage = True if not missing_coverage else None
             ready = True if eligible_coverage else None
         coverage.append(
@@ -447,27 +449,11 @@ def project_recovery(
     return RecoveryProjection(tuple(opportunities), tuple(coverage))
 
 
-# Explicit names make this narrow boundary discoverable while retaining simple helpers.
-produce_agentabstain = project_agentabstain
-produce_agent_abstain = project_agentabstain
-project_agentabstain_facts = project_agentabstain
-produce_agent_abstain_facts = project_agentabstain
-produce_recovery = project_recovery
-produce_recovery_facts = project_recovery
-project_recovery_facts = project_recovery
-
 __all__ = [
     "AgentAbstainProjection",
     "AgentAbstainTrialInput",
     "RecoveryProjection",
     "RecoveryTrialInput",
     "project_agentabstain",
-    "project_agentabstain_facts",
     "project_recovery",
-    "project_recovery_facts",
-    "produce_agentabstain",
-    "produce_agent_abstain",
-    "produce_agent_abstain_facts",
-    "produce_recovery",
-    "produce_recovery_facts",
 ]

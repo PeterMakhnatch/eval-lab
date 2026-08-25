@@ -98,6 +98,7 @@ class SemanticReasonCode(StrEnum):
     OBSERVATION_ERROR_STATUS = "observation_error_status"
     EXIT_CODE_MISSING = "exit_code_missing"
     SHELL_PARSE_ERROR = "shell_parse_error"
+    SHELL_COMPOUND_AMBIGUOUS = "shell_compound_ambiguous"
     EMPTY_COMMAND = "empty_command"
     INCOMPLETE_PIPELINE = "incomplete_pipeline"
     MISSING_SHELL_PROGRAM = "missing_shell_program"
@@ -213,7 +214,7 @@ class ResolverRef:
 
 
 DEFAULT_RESOLVER_REF = ResolverRef("default", "2.0.0")
-BASH_RESOLVER_REF = ResolverRef("bash-command", "2.0.0")
+BASH_RESOLVER_REF = ResolverRef("bash-command", "2.1.0")
 STRUCTURED_SEARCH_RESOLVER_REF = ResolverRef("structured-search", "2.0.0")
 
 
@@ -263,13 +264,21 @@ def _shell_program(
 ) -> tuple[str | None, SemanticReasonCode | None]:
     """Return the status-owning program or an explicit ambiguity reason."""
     try:
-        tokens = shlex.split(command)
+        lexer = shlex.shlex(command, posix=True, punctuation_chars="|&;")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = list(lexer)
     except ValueError:
         return None, SemanticReasonCode.SHELL_PARSE_ERROR
     if not tokens:
         return None, SemanticReasonCode.EMPTY_COMMAND
-    if "|" in tokens:
-        last_pipe = len(tokens) - 1 - tokens[::-1].index("|")
+    for index, token in enumerate(tokens):
+        redirected_ampersand = token == "&" and index > 0 and tokens[index - 1].endswith((">", "<"))
+        if token in {"&&", "||", ";", ";;", ";&", ";;&", "&"} and not redirected_ampersand:
+            return None, SemanticReasonCode.SHELL_COMPOUND_AMBIGUOUS
+    pipe_tokens = {"|", "|&"}
+    if any(token in pipe_tokens for token in tokens):
+        last_pipe = max(index for index, token in enumerate(tokens) if token in pipe_tokens)
         if last_pipe + 1 >= len(tokens):
             return None, SemanticReasonCode.INCOMPLETE_PIPELINE
         tokens = tokens[last_pipe + 1 :]
@@ -574,7 +583,7 @@ DEFAULT_RESOLVER_SPEC = ResolverSpec(
 )
 BASH_RESOLVER_SPEC = ResolverSpec(
     resolver_id="bash-command",
-    resolver_version="2.0.0",
+    resolver_version="2.1.0",
     resolve=bash_command_outcome_resolver,
     conformance_vectors=(
         _vector("no_observation", {"command": "true"}, None),
@@ -592,6 +601,11 @@ BASH_RESOLVER_SPEC = ResolverSpec(
             "nested_exit_code",
             {"command": "grep pattern file.txt"},
             {"extra": {"exit_code": 2}},
+        ),
+        _vector(
+            "compound_command_ambiguous",
+            {"command": "cd work && grep pattern file.txt"},
+            {"exit_code": 1},
         ),
         _vector("shell_parse_error", {"command": "'"}, {"exit_code": 2}),
         _vector("empty_command", {"command": ""}, {"exit_code": 0}),

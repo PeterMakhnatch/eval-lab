@@ -1,0 +1,12 @@
+{
+    "task": {
+        "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-001"
+    },
+    "trial_name": "tau3-banking_knowledge-task-001__XFeTRk5",
+    "trials_dir": "/tmp/tau-luna-smoke/2026-08-25__01-29-35",
+    "agent": {
+        "name": "evallab.harbor_codex:PinnedCodex",
+        "model_name": "gpt-5.6-luna"
+    },
+    "job_id": "19957d0b-98dd-450b-8833-ce100d0114e7"
+}

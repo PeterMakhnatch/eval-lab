@@ -30,12 +30,16 @@ source IDs were exposed by a trial.
 [`scripts/tau_knowledge/run_controls.py`](../../../scripts/tau_knowledge/run_controls.py)
 sequence one reference control, one oracle control, a clean-reset oracle repetition,
 and at most one Luna attempt per task. The Luna phase requires all three per-task
-control status values to be `passed`; missing status fails closed. No Luna attempt was
-made.
+control status values to be `passed`; missing status fails closed. One Luna smoke
+was run for task_001 after controls: environment and verifier setup passed, but the
+simulated-user `start_conversation` tool failed with missing OpenAI credentials.
+The agent then emitted no valid termination or action, so the zero reward is an
+agent/runtime credential failure, not a task-semantic verdict. Remaining Luna
+attempts are held pending shared credentials.
 
 The control attempts are recorded in [`evidence/control-attempts.json`](evidence/control-attempts.json).
-Oracle startup was blocked by the absent `OPENAI_API_KEY` required by the tau2 user
-simulator; the reference invocation was initially rejected because Harbor does not
-register the adapter-local name, and the config now uses its external import path.
-No ATIF, verifier reward, or agent reward was produced. Infra and agent status remain
+Oracle controls and two clean-reset repetitions passed at reward 1.0. The Luna raw
+ATIF and runtime/verifier artifacts are preserved under `evidence/luna/`; the
+projection records missing valid termination/action evidence. Retrieval rows remain
+absent because no query/result source IDs were exposed. Infra and agent status stay
 separate, and unknown evidence is not treated as failure or zero.

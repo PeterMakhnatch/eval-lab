@@ -1,0 +1,115 @@
+{
+    "id": "d6dc7465-3dd7-477f-b176-95c69b4fb9c1",
+    "task_name": "sierra-research/tau3-bench__tau3-banking_knowledge-task-001",
+    "trial_name": "tau3-banking_knowledge-task-001__XFeTRk5",
+    "trial_uri": "file:///private/tmp/tau-luna-smoke/2026-08-25__01-29-35/tau3-banking_knowledge-task-001__XFeTRk5",
+    "task_id": {
+        "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-001"
+    },
+    "source": null,
+    "task_checksum": "ff1876f182f3c9fc5a2dda4c0add1ee7c25687bac63c3e2e68467b8ac6fe88f1",
+    "config": {
+        "task": {
+            "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-001",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "tau3-banking_knowledge-task-001__XFeTRk5",
+        "trials_dir": "/tmp/tau-luna-smoke/2026-08-25__01-29-35",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "evallab.harbor_codex:PinnedCodex",
+            "import_path": null,
+            "model_name": "gpt-5.6-luna",
+            "n_concurrent": null,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "19957d0b-98dd-450b-8833-ce100d0114e7",
+        "source_trial": null
+    },
+    "agent_info": {
+        "name": "codex",
+        "version": "0.148.0",
+        "model_info": {
+            "name": "gpt-5.6-luna",
+            "provider": "openai"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 124001,
+        "n_cache_tokens": 109056,
+        "n_output_tokens": 666,
+        "cost_usd": 0.005969319999999999,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "verifier_environment_mode": "shared",
+    "exception_info": null,
+    "started_at": "2026-08-25T05:29:35.448657Z",
+    "finished_at": "2026-08-25T05:31:12.464291Z",
+    "environment_setup": {
+        "started_at": "2026-08-25T05:29:35.476725Z",
+        "finished_at": "2026-08-25T05:29:48.359459Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-08-25T05:29:48.359604Z",
+        "finished_at": "2026-08-25T05:30:43.696542Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-08-25T05:30:43.696935Z",
+        "finished_at": "2026-08-25T05:31:05.389401Z"
+    },
+    "verifier": {
+        "started_at": "2026-08-25T05:31:07.168968Z",
+        "finished_at": "2026-08-25T05:31:09.247808Z"
+    },
+    "step_results": null
+}

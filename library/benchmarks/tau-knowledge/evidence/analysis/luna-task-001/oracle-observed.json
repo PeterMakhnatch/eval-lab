@@ -1,0 +1,17 @@
+{
+  "trial_id": "d6dc7465-3dd7-477f-b176-95c69b4fb9c1",
+  "task_id": "task_001",
+  "criteria_digest": "sha256:fb363fab8563b27a63cb8a1263c9656ee06bb7465c68008a20263de972e1a287",
+  "source_ref": "/private/tmp/eval-lab-wave-tau/library/benchmarks/tau-knowledge/evidence/luna/tau3-banking_knowledge-task-001__XFeTRk5/agent/tau3_runtime_state.json",
+  "source_digest": "sha256:8cb14717638e1eb56925480872effe14b9d73befb5a063670b89a069a8d61672",
+  "verifier_ref": "/private/tmp/eval-lab-wave-tau/library/benchmarks/tau-knowledge/evidence/luna/tau3-banking_knowledge-task-001__XFeTRk5/verifier/result.json",
+  "verifier_digest": "sha256:4eae23cc5a0e2751206c78adab34b800c480045d653d0aba6433e4c1caffcb74",
+  "verifier_reward": 0.0,
+  "observed_action_names": [],
+  "atif_path": "/private/tmp/eval-lab-wave-tau/library/benchmarks/tau-knowledge/evidence/luna/tau3-banking_knowledge-task-001__XFeTRk5/agent/trajectory.json",
+  "atif_observed": true,
+  "missing_evidence": [
+    "valid_termination",
+    "observed_action"
+  ]
+}

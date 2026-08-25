@@ -3,7 +3,7 @@
   "benchmark": "tau-Knowledge",
   "benchmark_family": "tau3-bench",
   "domain": "banking_knowledge",
-  "status": "controls_blocked",
+  "status": "luna_smoke_blocked_credentials",
   "immutable": true,
   "selection": {
     "method": "fixed_source_task_ids",
@@ -39,7 +39,7 @@
     "banking_task_glob": "data/tau2/domains/banking_knowledge/tasks/task_*.json",
     "retrieval_variant": "bm25",
     "parity_status": "source_and_task_pin_verified",
-    "blocker": "Controls require OPENAI_API_KEY for the tau2 user simulator; no ATIF or reward evidence was emitted. Luna remains gated."
+    "blocker": "Reference and Luna require OpenAI credentials for simulated-user start_conversation; oracle controls pass, Luna task_001 smoke emitted no valid termination/action, remaining attempts are held."
   },
   "tasks": [
     {"task_id":"task_001","task_sha256":"sha256:9a797288dd215e89c0fab9d0063581a3a64d433f06af6179eaad795521b23ef0","criteria_sha256":"sha256:fb363fab8563b27a63cb8a1263c9656ee06bb7465c68008a20263de972e1a287","reward_basis":["DB"],"action_names":["apply_for_credit_card"]},

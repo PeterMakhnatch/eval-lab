@@ -45,8 +45,15 @@ def main() -> int:
                 if isinstance(call, dict) and call.get("name"):
                     observed_actions.append(str(call["name"]))
     reward = verifier_payload.get("reward")
-    required = ("source_task", "runtime_state", "verifier_reward", "atif_trajectory")
-    missing = ("atif_trajectory",) if not (trial / "agent/trajectory.json").is_file() else ()
+    required = ("source_task", "runtime_state", "verifier_reward", "atif_trajectory", "valid_termination", "observed_action")
+    missing_list = []
+    if not (trial / "agent/trajectory.json").is_file():
+        missing_list.append("atif_trajectory")
+    if state_payload.get("termination_reason") not in {"agent_stop", "user_stop"}:
+        missing_list.append("valid_termination")
+    if not observed_actions:
+        missing_list.append("observed_action")
+    missing = tuple(missing_list)
     opportunity = CapabilityOpportunity(
         opportunity_id=f"{trial_id}:credit_card_action",
         trial_id=trial_id,
@@ -54,7 +61,7 @@ def main() -> int:
         construct="credit_card_action",
         start_step=0,
         end_step=max(0, len(messages or []) - 1),
-        eligible=True,
+        eligible=True if observed_actions else None,
         required_evidence=required,
         missing_evidence=missing,
         source_ref=str(state),

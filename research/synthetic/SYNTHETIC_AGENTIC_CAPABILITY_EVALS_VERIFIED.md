@@ -1,6 +1,8 @@
 ---
 topic: synthetic-agentic-capability-evals
 created_at: 2026-08-25T15:25:00Z
+updated_at: 2026-08-25T23:15:00Z
+repository_state_commit: e7fd00899d6105e2185bf319bafd36ac1d87a17c
 author: "OpenAI Codex GPT-5.6-Sol, synthetic-evals research orchestrator — requested by Peter"
 source_type: "prior OMP/Exa reports reconciled against primary papers, official repositories, released datasets, licenses, and current Eval Lab code"
 status: reviewed
@@ -27,7 +29,7 @@ The reviewed literature separates into three materially different groups:
 2. **Benchmark-specific perturbation systems.** ToolMaze and ToolBench-X construct recovery/unreliability evaluations. Their taxonomies and controlled hazards are reusable; neither is a general capability-eval generator.
 3. **Training-first generators.** TRACE, AReaL-SEA, AWM, SPADE, RandomWorld, DIVE, TOUCAN, APIGen-MT, ASTRA, EnvFactory, and SyntheticAgentTraceQA primarily generate RL environments, SFT trajectories, or supervision. Execution during data generation does **not** make their output an evaluation suite.
 
-Immediate priority: make Eval Lab's existing certification gate evidence-strict before adding another generator. Current code can admit an `experimental` certificate without executed oracle, no-op, or mutant evidence; that invalidates the strongest claim in the local methodology audit.
+Immediate priority: finish the evidence migration enabled by the now-fail-closed certification gate. The repository contains three experimental Function-DAG packages and sequence-analysis machinery, but it does not contain the complete 12-task campaign, a model cohort, or durable execution records for the checked-in experimental certificates.
 
 ## Operational definition: evaluation-grade synthetic task
 
@@ -78,68 +80,73 @@ Use these methods together, but preserve their different epistemic roles:
 
 Do not combine all seven in one first system. The first campaign should exercise the existing Function-DAG generator, then add one perturbation family at a time.
 
-## Source and identity corrections required in the local audit
+## Source and identity corrections applied to the local audit
 
-`research/synthetic/LEGAL_AND_METHODOLOGY_AUDIT.md` is useful policy scaffolding, but it is not currently source-verified enough to serve as a legal or methodological authority.
+`research/synthetic/LEGAL_AND_METHODOLOGY_AUDIT.md` now records the corrections identified during this review:
 
-1. **FuncBenchGen and ToolMaze arXiv identifiers are swapped.**
+1. **FuncBenchGen and ToolMaze have distinct arXiv identifiers.**
    - FuncBenchGen: `arXiv:2509.26553`, first released in 2025, revised 2026, accepted at ICLR 2026.
    - ToolMaze / *When Tools Fail*: `arXiv:2606.05806`.
-   - The current audit assigns `2606.05806` to FuncBenchGen and `2509.26553` to ToolMaze.
-2. **ToolBench-X is not `2606.xxxxx`.** The primary paper is `arXiv:2606.25819`, *Beyond Function Calling: Benchmarking Tool-Using Agents under Tool-Environment Unreliability*.
-3. **Paper and repository licenses differ.** TASTE's arXiv paper is CC BY 4.0; the current repository code/data license is review-only and forbids redistribution. Paper-level ideas may be cited; code/artifacts must not be copied.
+2. **ToolBench-X is `arXiv:2606.25819`.** The paper is *Beyond Function Calling: Benchmarking Tool-Using Agents under Tool-Environment Unreliability*.
+3. **Paper and repository licenses differ.** TASTE's arXiv paper is CC BY 4.0; the repository code/data license is review-only and forbids redistribution. Paper-level ideas may be cited; code/artifacts must not be copied.
 4. **"Execution-based" must name executed evidence.** Static metadata, required-evidence declarations, or expected-behavior text are not oracle runs, no-op trials, or mutation tests.
 5. **Training artifacts are not evaluation artifacts.** APIGen-MT, DIVE, TOUCAN, AWM, TRACE, AReaL-SEA, SPADE, ASTRA, and EnvFactory need independent held-out task construction and graders before Eval Lab can call their outputs evaluations.
 
-## Current Eval Lab state: implemented versus demonstrated
+## Current Eval Lab state: implemented versus evidenced
 
 ### Implemented
 
 - `synthetic_contracts.py`: `SyntheticEvalSpec`, lineage, paired lineage, certificate, and behavior-episode contracts.
 - `synthetic_funcdag.py`: seeded typed DAG generation, deterministic execution, difficulty parameters, distractors, and Harbor package materialization.
 - `synthetic_transform.py`: seeded tool-fault, epistemic-restraint, and context-pressure transforms over base task directories.
-- `synthetic_cert.py`: an eight-check audit API.
+- `synthetic_cert.py`: an eight-check audit API that now fails when reset, oracle, no-op, mutant, or regeneration runners/records are absent.
 - `synthetic_projections.py` and `synthetic_report.py`: typed projections and aggregate reporting.
+- `trajectory_sequence.py`: trial-isolated chronological action sequences, transition/motif extraction, strict PyArrow schemas, and atomic deterministic Parquet projections.
+- Three experimental Function-DAG packages—easy, medium, and hard—with exact-output verifiers and focused pass/fail tests.
 
-### Not yet demonstrated
+### Not yet evidenced in the repository
 
-- A generated cross-family corpus that passed real Harbor oracle, no-op, and mutant controls.
-- A paired model cohort establishing that one perturbation isolates one capability rather than changing general task difficulty.
-- Coverage/novelty reporting over generated action sequences or task topology.
+- The specified 12-task `SG-FDAG-001` campaign across three seeds and four matched conditions.
+- Persisted execution records and content digests supporting every claim in the three checked-in experimental certificate sidecars. Each sidecar is explicitly `experimental`; its named `output/result.json` is not tracked with the package.
+- A paired model cohort establishing discrimination, avoiding flat floors/ceilings, or isolating a capability effect.
+- Sequence/motif projections computed from the synthetic campaign's actual ATIF trajectories.
 - A closed-loop generator update supported by held-out evidence.
 
-### Blocking certification defect
+### Certification gate status
 
-The current gate is an evidence *interface*, not an execution gate:
+The fail-open code paths identified in the original review have been removed:
 
-- `SyntheticCertificationGate.check_oracle_3x()` passes without an `oracle_runner` or execution records when `expected_behavior` exists (`synthetic_cert.py:253-258`).
-- `check_nop_failed()` passes without a no-op run when the spec merely declares required evidence or expected behavior (`synthetic_cert.py:303-308`).
-- `check_mutants()` fabricates `tested_count = 3` and `failed_count = 3` when no mutant runners or records are supplied (`synthetic_cert.py:359-367`).
+- `check_clean_reset()` requires a reset function and executes it twice.
+- `check_oracle_3x()` requires an oracle runner or at least three oracle execution records.
+- `check_nop_failed()` requires a no-op runner or no-op execution records.
+- `check_mutants()` requires at least three supplied runners or records and rejects every mutant.
+- `check_regeneration_idempotency()` requires a regenerator and compares two runs with the spec digests.
 
-Decision: no current synthetic certificate should be interpreted as execution-backed unless its sidecar includes the actual runner/record evidence. Remove these default-pass paths before promoting generated tasks.
+This repairs the admission logic, not historical evidence. Existing experimental certificates must be regenerated from persisted execution records before they are treated as execution-backed.
 
 ## Build program
 
-### M0 — restore trust before scale
+### M0 — fail-closed gate landed; migrate artifacts
 
-**Goal:** make claims and certificates true.
+**Goal:** make checked-in claims and certificates traceable to durable evidence.
 
-Likely files:
+Completed:
 
-- `research/synthetic/LEGAL_AND_METHODOLOGY_AUDIT.md`
-- `src/evallab/synthetic_cert.py`
-- `tests/test_synthetic_cert.py`
+- Corrected the source-identity issues above and recorded paper licenses separately from code/data licenses.
+- Made missing oracle, no-op, reset, regeneration, and mutant evidence fail certification.
+- Added focused tests proving metadata-only inputs are rejected.
 
-Acceptance:
+Remaining:
 
-- Correct the three source-identity issues above and record paper license separately from code/data license.
-- Missing oracle, no-op, reset, regeneration, or mutant evidence fails certification; no synthetic counts are substituted.
-- A certificate contains paths/digests for every execution record it relies on.
-- Focused tests prove metadata-only specs are rejected and executed controls are admitted.
+- Persist execution records and content digests for each certified control.
+- Regenerate the experimental Function-DAG certificates from those records rather than relying on untracked `output/result.json` paths.
+- Re-run the packages under a clean reset and preserve the resulting evidence.
 
-### M1 — run the existing Function-DAG generator as the first synthetic evaluation campaign
+### M1 — complete the Function-DAG evaluation campaign
 
-**Goal:** learn from a released evaluation-first method before building more machinery.
+**Goal:** move from three materialized experimental packages to a controlled, evidenced campaign.
+
+Status: easy, medium, and hard packages exist and their exact-output verifiers have focused pass/fail coverage. The matched 12-task design and model cohort below are not yet present as repository evidence.
 
 Use `synthetic_funcdag.py`; do not add a generic `SyntheticEngine` abstraction yet. Existing generation paths have not demonstrated a repeated orchestration need.
 
@@ -202,7 +209,7 @@ Do not add context pressure or abstention in this campaign. One capability famil
 
 **Goal:** choose what to generate next from evidence without creating an uncontrolled self-modifying benchmark loop.
 
-Add reporting, not automatic mutation:
+Use the merged `trajectory_sequence.py` extraction and projection contracts, then add campaign-specific reporting rather than another sequence representation:
 
 - action-sequence n-gram coverage and weighted edit distance;
 - DAG depth/width/motif and distractor coverage;
@@ -261,4 +268,4 @@ The analysis agent may propose a new operator or new parameter weights. A human 
 
 The underbuilt part of the field is not synthetic agent data. It is **refreshable executable evaluations with hardened, provenance-bearing verifiers and controlled capability factors**. That conclusion is bounded to the reviewed systems: most generate training environments or trajectories; the smaller evaluation-first set is either abstract (FuncBenchGen), restrictively licensed (TASTE), generator-withheld/hybrid-judged (AgentAbstain), or benchmark-specific (ToolMaze and ToolBench-X).
 
-Eval Lab already has enough prototype code to start learning. The next correct action is not another generator. It is to repair certification, run the 12-task Function-DAG campaign, preserve real control evidence, and use those trajectories to decide the next single perturbation family.
+Eval Lab now has a fail-closed certification gate, three experimental Function-DAG packages, and trial-isolated sequence/motif projections. The next action is to attach durable control records to those packages, complete the 12-task Function-DAG campaign, run an approved model cohort, and project its actual trajectories through `trajectory_sequence.py`. Only that evidence should determine the next perturbation family.

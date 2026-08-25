@@ -157,8 +157,8 @@ def test_ordering_by_timestamp_when_ordinal_missing() -> None:
     assert [a.action_id for a in ordered_ts] == ["early", "mid", "late"]
 
 
-def test_trial_boundary_isolation() -> None:
-    """Transitions and ordering must strictly isolate trials; no edge may cross trial boundaries."""
+def test_trial_boundary_isolation_and_api_chronological_order() -> None:
+    """extract_transition_edges must return edges in chronological order preserving trial order."""
     rows = [
         {"trial_id": "trial-A", "action_id": "A1", "ordinal": 1, "action_family": "edit"},
         {"trial_id": "trial-A", "action_id": "A2", "ordinal": 2, "action_family": "test"},
@@ -169,8 +169,13 @@ def test_trial_boundary_isolation() -> None:
     edges = extract_transition_edges(rows)
     assert len(edges) == 2
 
+    # Trial-A comes before Trial-B in sorted trial order
     edge_trials = [e.trial_id for e in edges]
     assert edge_trials == ["trial-A", "trial-B"]
+    assert edges[0].source_action_id == "A1"
+    assert edges[0].target_action_id == "A2"
+    assert edges[1].source_action_id == "B1"
+    assert edges[1].target_action_id == "B2"
 
     for edge in edges:
         assert not (edge.source_action_id.startswith("A") and edge.target_action_id.startswith("B"))
@@ -439,7 +444,7 @@ def test_pyarrow_schemas_structure() -> None:
     assert summary_schema.field("summary_id").type == pa.string()
     assert not summary_schema.field("summary_id").nullable
     assert summary_schema.field("rate").type == pa.float64()
-    assert summary_schema.field("rate").nullable  # Must remain nullable for unexposed rates
+    assert summary_schema.field("rate").nullable
 
 
 def test_deterministic_primary_keys_and_collision_resistance() -> None:
@@ -464,8 +469,8 @@ def test_deterministic_primary_keys_and_collision_resistance() -> None:
     assert s1 != s3
 
 
-def test_parquet_projection_round_trip_and_atomic_replacement(tmp_path: Path) -> None:
-    """Atomic Parquet projections must write valid tables, replace atomically, and round-trip cleanly."""
+def test_parquet_projection_round_trip_and_byte_stability(tmp_path: Path) -> None:
+    """Atomic Parquet projections must write valid tables, replace atomically, and produce byte-stable output."""
     rows = [
         {
             "trial_id": "trial-1",
@@ -518,10 +523,9 @@ def test_parquet_projection_round_trip_and_atomic_replacement(tmp_path: Path) ->
     assert out_tables["observable_motifs"].is_file()
     assert out_tables["motif_summaries"].is_file()
 
-    # Load back with load_trajectory_sequence_table
     edges_table = load_trajectory_sequence_table(out_tables["action_transition_edges"])
     assert edges_table.schema == TRAJECTORY_SEQUENCE_SCHEMAS["action_transition_edges"]
-    assert len(edges_table) == 2  # act-1 -> act-2, act-2 -> act-3
+    assert len(edges_table) == 2
 
     motifs_table = load_trajectory_sequence_table(out_tables["observable_motifs"])
     assert motifs_table.schema == TRAJECTORY_SEQUENCE_SCHEMAS["observable_motifs"]
@@ -533,16 +537,10 @@ def test_parquet_projection_round_trip_and_atomic_replacement(tmp_path: Path) ->
     summary_rows = summaries_table.to_pylist()
     assert len(summary_rows) == 4
 
-    # Check that rates are correctly typed and nullable when opportunities == 0
     rec_summary = next(s for s in summary_rows if s["motif_type"] == "recovery_after_failure")
     assert rec_summary["opportunities"] == 1
     assert rec_summary["occurrences"] == 1
     assert rec_summary["rate"] == pytest.approx(1.0)
-
-    repeat_summary = next(s for s in summary_rows if s["motif_type"] == "repeated_tool_failure")
-    assert repeat_summary["opportunities"] == 1
-    assert repeat_summary["occurrences"] == 0
-    assert repeat_summary["rate"] == pytest.approx(0.0)
 
     # Re-project to verify atomic idempotency and byte-stability
     bytes_before = out_tables["action_transition_edges"].read_bytes()

@@ -349,7 +349,7 @@ def extract_transition_edges(
     cohort_fields: Sequence[str] = (),
     type_field: Literal["action_type", "action_family", "function_name"] = "action_family",
 ) -> list[TransitionEdge]:
-    """Extract transition edges between consecutive actions strictly within the same trial."""
+    """Extract transition edges in chronological order strictly within each trial."""
     ordered = order_actions(actions, cohort_fields=cohort_fields)
     by_trial: dict[str, list[NormalizedAction]] = defaultdict(list)
     for act in ordered:
@@ -391,7 +391,7 @@ def extract_transition_edges(
                 )
             )
 
-    return sorted(edges, key=lambda e: e.edge_id)
+    return edges
 
 
 @dataclass(frozen=True)
@@ -493,7 +493,7 @@ def detect_observable_motifs(
     *,
     cohort_fields: Sequence[str] = (),
 ) -> tuple[list[ObservableMotif], list[MotifSummary]]:
-    """Detect exact observable motifs and compute non-tautological opportunity denominators."""
+    """Detect exact observable motifs in chronological order and compute non-tautological opportunity denominators."""
     ordered = order_actions(actions, cohort_fields=cohort_fields)
     by_trial: dict[str, list[NormalizedAction]] = defaultdict(list)
     for act in ordered:
@@ -663,9 +663,7 @@ def detect_observable_motifs(
                 )
             )
 
-    sorted_motifs = sorted(motifs, key=lambda m: m.motif_id)
-    sorted_summaries = sorted(summaries, key=lambda s: s.summary_id)
-    return sorted_motifs, sorted_summaries
+    return motifs, summaries
 
 
 # --- Parquet Projection and Storage ------------------------------------------
@@ -721,67 +719,78 @@ def project_trajectory_sequence_tables(
     - action_transition_edges.parquet
     - observable_motifs.parquet
     - motif_summaries.parquet
+
+    Rows inside each Parquet table are sorted by primary key to guarantee byte-level stability.
     """
     out_path = Path(output_dir)
     edges = extract_transition_edges(actions, cohort_fields=cohort_fields, type_field=type_field)
     motifs, summaries = detect_observable_motifs(actions, cohort_fields=cohort_fields)
 
-    # 1. Action Transition Edges Table
-    edge_rows = [
-        {
-            "edge_id": e.edge_id,
-            "trial_id": e.trial_id,
-            "source_action_id": e.source_action_id,
-            "source_step_id": e.source_step_id,
-            "target_action_id": e.target_action_id,
-            "target_step_id": e.target_step_id,
-            "from_type": e.from_type,
-            "to_type": e.to_type,
-            "transition_type": e.transition_type,
-            "source_outcome": e.source_outcome,
-            "target_outcome": e.target_outcome,
-            "cohort_keys_json": json.dumps(dict(e.cohort_keys), sort_keys=True),
-            "provenance_json": json.dumps(dict(e.provenance), sort_keys=True),
-        }
-        for e in edges
-    ]
+    # 1. Action Transition Edges Table (sorted by edge_id for deterministic byte stability)
+    edge_rows = sorted(
+        [
+            {
+                "edge_id": e.edge_id,
+                "trial_id": e.trial_id,
+                "source_action_id": e.source_action_id,
+                "source_step_id": e.source_step_id,
+                "target_action_id": e.target_action_id,
+                "target_step_id": e.target_step_id,
+                "from_type": e.from_type,
+                "to_type": e.to_type,
+                "transition_type": e.transition_type,
+                "source_outcome": e.source_outcome,
+                "target_outcome": e.target_outcome,
+                "cohort_keys_json": json.dumps(dict(e.cohort_keys), sort_keys=True),
+                "provenance_json": json.dumps(dict(e.provenance), sort_keys=True),
+            }
+            for e in edges
+        ],
+        key=lambda r: r["edge_id"],
+    )
     edges_table = pa.Table.from_pylist(
         edge_rows,
         schema=TRAJECTORY_SEQUENCE_SCHEMAS["action_transition_edges"],
     )
 
-    # 2. Observable Motifs Table
-    motif_rows = [
-        {
-            "motif_id": m.motif_id,
-            "motif_type": m.motif_type,
-            "trial_id": m.trial_id,
-            "step_ids_json": json.dumps(list(m.step_ids)),
-            "action_ids_json": json.dumps(list(m.action_ids)),
-            "details_json": json.dumps(dict(m.details), sort_keys=True),
-            "cohort_keys_json": json.dumps(dict(m.cohort_keys), sort_keys=True),
-            "provenance_json": json.dumps(dict(m.provenance), sort_keys=True),
-        }
-        for m in motifs
-    ]
+    # 2. Observable Motifs Table (sorted by motif_id for deterministic byte stability)
+    motif_rows = sorted(
+        [
+            {
+                "motif_id": m.motif_id,
+                "motif_type": m.motif_type,
+                "trial_id": m.trial_id,
+                "step_ids_json": json.dumps(list(m.step_ids)),
+                "action_ids_json": json.dumps(list(m.action_ids)),
+                "details_json": json.dumps(dict(m.details), sort_keys=True),
+                "cohort_keys_json": json.dumps(dict(m.cohort_keys), sort_keys=True),
+                "provenance_json": json.dumps(dict(m.provenance), sort_keys=True),
+            }
+            for m in motifs
+        ],
+        key=lambda r: r["motif_id"],
+    )
     motifs_table = pa.Table.from_pylist(
         motif_rows,
         schema=TRAJECTORY_SEQUENCE_SCHEMAS["observable_motifs"],
     )
 
-    # 3. Motif Summaries Table
-    summary_rows = [
-        {
-            "summary_id": s.summary_id,
-            "cohort_keys_json": json.dumps(dict(s.cohort_keys), sort_keys=True),
-            "motif_type": s.motif_type,
-            "occurrences": s.occurrences,
-            "opportunities": s.opportunities,
-            "rate": s.rate,
-            "unknown_evidence_count": s.unknown_evidence_count,
-        }
-        for s in summaries
-    ]
+    # 3. Motif Summaries Table (sorted by summary_id for deterministic byte stability)
+    summary_rows = sorted(
+        [
+            {
+                "summary_id": s.summary_id,
+                "cohort_keys_json": json.dumps(dict(s.cohort_keys), sort_keys=True),
+                "motif_type": s.motif_type,
+                "occurrences": s.occurrences,
+                "opportunities": s.opportunities,
+                "rate": s.rate,
+                "unknown_evidence_count": s.unknown_evidence_count,
+            }
+            for s in summaries
+        ],
+        key=lambda r: r["summary_id"],
+    )
     summaries_table = pa.Table.from_pylist(
         summary_rows,
         schema=TRAJECTORY_SEQUENCE_SCHEMAS["motif_summaries"],

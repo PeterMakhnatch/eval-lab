@@ -212,9 +212,9 @@ class ResolverRef:
     resolver_version: str
 
 
-DEFAULT_RESOLVER_REF = ResolverRef("default", "1.0.0")
-BASH_RESOLVER_REF = ResolverRef("bash-command", "1.0.0")
-STRUCTURED_SEARCH_RESOLVER_REF = ResolverRef("structured-search", "1.0.0")
+DEFAULT_RESOLVER_REF = ResolverRef("default", "2.0.0")
+BASH_RESOLVER_REF = ResolverRef("bash-command", "2.0.0")
+STRUCTURED_SEARCH_RESOLVER_REF = ResolverRef("structured-search", "2.0.0")
 
 
 @dataclass(frozen=True)
@@ -561,7 +561,7 @@ def _vector(
 
 DEFAULT_RESOLVER_SPEC = ResolverSpec(
     resolver_id="default",
-    resolver_version="1.0.0",
+    resolver_version="2.0.0",
     resolve=default_outcome_resolver,
     conformance_vectors=(
         _vector("no_observation", {}, None),
@@ -574,7 +574,7 @@ DEFAULT_RESOLVER_SPEC = ResolverSpec(
 )
 BASH_RESOLVER_SPEC = ResolverSpec(
     resolver_id="bash-command",
-    resolver_version="1.0.0",
+    resolver_version="2.0.0",
     resolve=bash_command_outcome_resolver,
     conformance_vectors=(
         _vector("no_observation", {"command": "true"}, None),
@@ -607,7 +607,7 @@ BASH_RESOLVER_SPEC = ResolverSpec(
 )
 STRUCTURED_SEARCH_RESOLVER_SPEC = ResolverSpec(
     resolver_id="structured-search",
-    resolver_version="1.0.0",
+    resolver_version="2.0.0",
     resolve=structured_search_outcome_resolver,
     conformance_vectors=(
         _vector("no_observation", {}, None),

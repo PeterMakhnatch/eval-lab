@@ -160,6 +160,90 @@ def test_user_assisted_vs_autonomous_recovery_intervention() -> None:
     assert facts[2].outcome == "success"
 
 
+def test_environment_recovery_and_parallel_action_interventions() -> None:
+    """Environment errors mark subsequent parallel actions as environment_recovery; later steps revert to autonomous."""
+    profile = GENERIC_POSIX_PROFILE
+
+    atif_data = {
+        "trial_id": "trial_env_rec",
+        "steps": [
+            # Step 0: Environment exception / timeout notice
+            {
+                "step_id": 0,
+                "source": "environment",
+                "error": "TimeoutException: command timed out after 30 seconds; retrying container",
+            },
+            # Step 1: Agent performs 2 parallel actions to inspect and recover
+            {
+                "step_id": 1,
+                "source": "agent",
+                "tool_calls": [
+                    {"tool_name": "bash", "command": "cat /var/log/syslog", "tool_call_id": "c1"},
+                    {"tool_name": "bash", "command": "grep -rn 'ERROR' /var/log/", "tool_call_id": "c2"},
+                ],
+                "observations": [
+                    {"tool_call_id": "c1", "exit_code": 0, "output": "log entries"},
+                    {"tool_call_id": "c2", "exit_code": 0, "output": "ERROR: none"},
+                ],
+            },
+            # Step 2: Subsequent step without further intervention should be autonomous
+            {
+                "step_id": 2,
+                "source": "agent",
+                "tool_calls": [
+                    {"tool_name": "bash", "command": "echo recovered", "tool_call_id": "c3"},
+                ],
+                "observations": [
+                    {"tool_call_id": "c3", "exit_code": 0, "output": "recovered"},
+                ],
+            },
+        ],
+    }
+
+    facts = extract_semantic_actions(atif_data, profile, strict=True)
+    assert len(facts) == 3
+
+    # Both actions in step 1 inherit environment_recovery
+    assert facts[0].intervention_provenance == "environment_recovery"
+    assert facts[0].intervention_detail == "post_environment_error"
+    assert facts[1].intervention_provenance == "environment_recovery"
+    assert facts[1].intervention_detail == "post_environment_error"
+
+    # Action in step 2 reverts to autonomous
+    assert facts[2].intervention_provenance == "autonomous"
+    assert facts[2].intervention_detail is None
+
+
+def test_canonical_atif_nested_observation_results() -> None:
+    """Canonical ATIF payloads with step.observation.results are correctly correlated."""
+    profile = GENERIC_POSIX_PROFILE
+
+    atif_data = {
+        "trial_id": "trial_atif_nested",
+        "document_id": "doc_123",
+        "steps": [
+            {
+                "step_id": 0,
+                "source": "agent",
+                "tool_calls": [
+                    {"tool_name": "read", "arguments": {"path": "src/main.py"}, "call_id": "call_1"},
+                ],
+                "observation": {
+                    "results": [
+                        {"source_call_id": "call_1", "content": "print('hello')", "status": "ok"},
+                    ],
+                },
+            },
+        ],
+    }
+
+    facts = extract_semantic_actions(atif_data, profile, strict=True)
+    assert len(facts) == 1
+    assert facts[0].role == "read"
+    assert facts[0].outcome == "success"
+    assert facts[0].observation_sha256 != "sha256:" + "0" * 64
+
+
 def test_unknown_tool_strict_vs_permissive() -> None:
     """Strict mode raises UnmappedActionError; permissive mode emits unknown_semantics with reason."""
     profile = TrajectorySemanticsProfile(

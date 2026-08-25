@@ -14,6 +14,6 @@
   "evidence_paths": [
     "output/result.json"
   ],
-  "certified_at": "2026-08-25T16:45:26.196956+00:00",
+  "certified_at": "2026-08-25T16:53:04.223464+00:00",
   "notes": "Certified Function-DAG task (hard). Harbor environment network_mode is public because darwin-docker-cannot-enforce-no-network; this certificate does not claim network isolation."
 }

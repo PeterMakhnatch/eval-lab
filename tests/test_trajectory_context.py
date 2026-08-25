@@ -834,3 +834,61 @@ def test_rejected_opt_in_is_labeled() -> None:
     a_sup_entry = next(e for e in pack_opt.entries if e.entry_id == str(a_superseded.analysis_id))
     assert a_sup_entry.label == "superseded"
     assert a_sup_entry.status == "superseded"
+
+def test_hard_deterministic_max_bytes_truncation() -> None:
+    """Exact max_bytes limit truncates entries atomically without splitting citations."""
+    from evallab.trajectory_context import compile_context_pack
+
+    trial_uuid = UUID("00000000-0000-0000-0000-000000000001")
+    trial_id = str(trial_uuid)
+
+    analyses = [
+        _make_sidecar(
+            analysis_id=UUID(f"00000000-0000-0000-0000-00000000000{i}"),
+            trial_uuid=trial_uuid,
+            evidence=[
+                AnalysisEvidenceCitation(path=f"path/to/evidence_{i}.json", supports="fact_a"),
+                AnalysisEvidenceCitation(path=f"path/to/extra_{i}.json", supports="fact_b"),
+            ],
+            summary=f"Analysis summary for entry {i} with citation details",
+        )
+        for i in range(1, 6)
+    ]
+    reviews = [
+        _make_review(analysis_id=a.analysis_id, disposition="accepted")
+        for a in analyses
+    ]
+
+    # 1. Unbounded compilation includes all 5 entries
+    full_pack = compile_context_pack(
+        trial_id=trial_id,
+        analyses=analyses,
+        reviews=reviews,
+    )
+    assert len(full_pack.entries) == 5
+    assert not full_pack.truncation.truncated
+
+    # 2. Strict max_bytes bound
+    # Set max_bytes small enough to allow only 2 entries
+    entry_bytes_approx = len(full_pack.entries[0].claim.encode("utf-8")) + 200
+    bounded_pack = compile_context_pack(
+        trial_id=trial_id,
+        analyses=analyses,
+        reviews=reviews,
+        max_bytes=entry_bytes_approx * 2 + 50,
+    )
+    assert bounded_pack.truncation.truncated is True
+    assert bounded_pack.truncation.max_bytes == entry_bytes_approx * 2 + 50
+    assert bounded_pack.truncation.included_count < 5
+    assert bounded_pack.truncation.omitted_count > 0
+    assert len(bounded_pack.truncation.omitted_entry_ids) == bounded_pack.truncation.omitted_count
+
+    # Every included entry retains 100% of its citations atomically
+    for entry in bounded_pack.entries:
+        assert len(entry.citations) == 2
+
+    # Truncation section rendered in markdown
+    md = bounded_pack.to_markdown()
+    assert "## Truncation" in md
+    for omitted_id in bounded_pack.truncation.omitted_entry_ids:
+        assert omitted_id in md

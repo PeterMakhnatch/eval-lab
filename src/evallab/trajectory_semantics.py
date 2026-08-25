@@ -24,6 +24,7 @@ import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal
 
@@ -67,25 +68,65 @@ ObservationCorrelation = Literal[
     "no_observation",
     "unknown_unmatched",
 ]
+ObservationCorrelationReason = Literal[
+    "single_call_single_observation",
+    "tool_call_id_not_found",
+    "ambiguous_unkeyed_observations",
+    "observation_absent",
+]
+InterventionReason = Literal[
+    "post_action_user_message",
+    "explicit_harness_retry",
+    "explicit_environment_error",
+    "post_action_system_message",
+]
+
+
+class SemanticReasonCode(StrEnum):
+    """Closed, storage-safe reason codes for semantic outcomes."""
+
+    NO_OBSERVATION = "no_observation"
+    MATCH_FOUND = "match_found"
+    PATTERN_NOT_FOUND = "pattern_not_found"
+    IDENTICAL = "identical"
+    DIFFERENCES_FOUND = "differences_found"
+    GREP_ERROR_EXIT_CODE = "grep_error_exit_code"
+    DIFF_ERROR_EXIT_CODE = "diff_error_exit_code"
+    SYSTEM_ERROR_EXIT_CODE = "system_error_exit_code"
+    EXIT_CODE_ERROR = "exit_code_error"
+    OBSERVATION_ERROR_FLAG = "observation_error_flag"
+    OBSERVATION_ERROR_STATUS = "observation_error_status"
+    EXIT_CODE_MISSING = "exit_code_missing"
+    SHELL_PARSE_ERROR = "shell_parse_error"
+    EMPTY_COMMAND = "empty_command"
+    INCOMPLETE_PIPELINE = "incomplete_pipeline"
+    MISSING_SHELL_PROGRAM = "missing_shell_program"
+    STRUCTURED_SEARCH_RESULT_SHAPE_UNKNOWN = "structured_search_result_shape_unknown"
+    UNMAPPED_TOOL = "unmapped_tool"
+    OBSERVATION_CORRELATION_UNKNOWN = "observation_correlation_unknown"
+
+
+def _canonical_bytes(value: Any) -> bytes:
+    """Encode a value deterministically for hashing and size accounting."""
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+
 
 _SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _sha256_digest(value: Any) -> str:
     """Compute deterministic sha256:<64-hex> digest."""
-    if isinstance(value, bytes):
-        payload = value
-    elif isinstance(value, str):
-        payload = value.encode("utf-8")
-    else:
-        payload = json.dumps(
-            value,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-            default=str,
-        ).encode("utf-8")
-    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+    return f"sha256:{hashlib.sha256(_canonical_bytes(value)).hexdigest()}"
 
 
 class UnmappedActionError(ValueError):
@@ -108,15 +149,17 @@ class SemanticActionFact(ContractModel):
     arguments_sha256: Digest
     observation_sha256: Digest
     observation_correlation: ObservationCorrelation
-    correlation_reason: str | None = None
+    correlation_reason: ObservationCorrelationReason | None = None
     source_sha256: Digest
     role: ToolRole
     outcome: ActionOutcome
-    outcome_detail: str | None = None
+    reason_code: SemanticReasonCode | None = None
+    detail_digest: Digest | None = None
+    detail_size: int | None = Field(default=None, ge=0)
     intervention_provenance: InterventionProvenance
     intervention_sha256: Digest | None = None
     intervention_length: int | None = Field(default=None, ge=0)
-    intervention_reason: str | None = None
+    intervention_reason: InterventionReason | None = None
     profile_id: str = Field(min_length=1)
     profile_version: str = Field(min_length=1)
     profile_digest: Digest
@@ -129,6 +172,7 @@ class SemanticActionFact(ContractModel):
         "source_sha256",
         "profile_digest",
         "intervention_sha256",
+        "detail_digest",
     )
     @classmethod
     def _validate_digest(cls, value: str | None) -> str | None:
@@ -136,10 +180,27 @@ class SemanticActionFact(ContractModel):
             raise ValueError("digest must match sha256:<64 lowercase hex digits>")
         return value
 
+    @model_validator(mode="after")
+    def _validate_detail_metadata(self) -> SemanticActionFact:
+        if (self.detail_digest is None) != (self.detail_size is None):
+            raise ValueError("detail_digest and detail_size must be present together")
+        if self.detail_digest is not None and self.reason_code is None:
+            raise ValueError("digested resolver detail requires a reason_code")
+        return self
+
+
+@dataclass(frozen=True)
+class ResolverResult:
+    """Resolver output; optional free-form detail is digested before persistence."""
+
+    outcome: ActionOutcome
+    reason_code: SemanticReasonCode | None = None
+    detail: Any | None = field(default=None, repr=False, compare=False)
+
 
 OutcomeResolver = Callable[
     [Mapping[str, Any], Mapping[str, Any] | None],
-    tuple[ActionOutcome, str | None],
+    ResolverResult,
 ]
 
 
@@ -148,7 +209,7 @@ class ResolverRef:
     """Pinned resolver identity used by one profile rule."""
 
     resolver_id: str
-    version: str
+    resolver_version: str
 
 
 DEFAULT_RESOLVER_REF = ResolverRef("default", "1.0.0")
@@ -176,35 +237,41 @@ def _observation_exit_code(observation: Mapping[str, Any]) -> Any:
 def default_outcome_resolver(
     action_args: Mapping[str, Any],
     observation: Mapping[str, Any] | None,
-) -> tuple[ActionOutcome, str | None]:
+) -> ResolverResult:
     """Resolve tools that expose an exit code or an explicit error marker."""
     del action_args
     if observation is None:
-        return "neutral", "no_observation"
+        return ResolverResult("neutral", SemanticReasonCode.NO_OBSERVATION)
     code = _observation_exit_code(observation)
     if code == 0:
-        return "success", None
+        return ResolverResult("success")
     if code is not None:
-        return "error", f"exit_code_{code}"
+        return ResolverResult(
+            "error",
+            SemanticReasonCode.EXIT_CODE_ERROR,
+            {"exit_code": code},
+        )
     if observation.get("error") or observation.get("is_error"):
-        return "error", "observation_error_flag"
+        return ResolverResult("error", SemanticReasonCode.OBSERVATION_ERROR_FLAG)
     if observation.get("status") in ("failed", "error"):
-        return "error", "observation_error_status"
-    return "success", None
+        return ResolverResult("error", SemanticReasonCode.OBSERVATION_ERROR_STATUS)
+    return ResolverResult("success")
 
 
-def _shell_program(command: str) -> tuple[str | None, str | None]:
+def _shell_program(
+    command: str,
+) -> tuple[str | None, SemanticReasonCode | None]:
     """Return the status-owning program or an explicit ambiguity reason."""
     try:
         tokens = shlex.split(command)
     except ValueError:
-        return None, "shell_parse_error"
+        return None, SemanticReasonCode.SHELL_PARSE_ERROR
     if not tokens:
-        return None, "empty_command"
+        return None, SemanticReasonCode.EMPTY_COMMAND
     if "|" in tokens:
         last_pipe = len(tokens) - 1 - tokens[::-1].index("|")
         if last_pipe + 1 >= len(tokens):
-            return None, "incomplete_pipeline"
+            return None, SemanticReasonCode.INCOMPLETE_PIPELINE
         tokens = tokens[last_pipe + 1 :]
     index = 0
     if tokens and tokens[0] == "env":
@@ -218,16 +285,16 @@ def _shell_program(command: str) -> tuple[str | None, str | None]:
             index += 1
             continue
         return Path(candidate).name, None
-    return None, "missing_shell_program"
+    return None, SemanticReasonCode.MISSING_SHELL_PROGRAM
 
 
 def bash_command_outcome_resolver(
     action_args: Mapping[str, Any],
     observation: Mapping[str, Any] | None,
-) -> tuple[ActionOutcome, str | None]:
+) -> ResolverResult:
     """Resolve POSIX command outcomes using the program that owns the exit code."""
     if observation is None:
-        return "neutral", "no_observation"
+        return ResolverResult("neutral", SemanticReasonCode.NO_OBSERVATION)
 
     command = str(action_args.get("command") or action_args.get("cmd") or "").strip()
     program, ambiguity = _shell_program(command)
@@ -237,129 +304,341 @@ def bash_command_outcome_resolver(
     )
 
     if ambiguity is not None:
-        return "unknown_semantics", ambiguity
+        return ResolverResult("unknown_semantics", ambiguity)
     if program in {"grep", "rg"}:
         if code == 0:
-            return "success", "match_found"
+            return ResolverResult("success", SemanticReasonCode.MATCH_FOUND)
         if code == 1:
-            return "expected_negative", "pattern_not_found"
+            return ResolverResult(
+                "expected_negative",
+                SemanticReasonCode.PATTERN_NOT_FOUND,
+            )
         if isinstance(code, int) and code >= 2:
-            return "error", f"grep_error_exit_code_{code}"
+            return ResolverResult(
+                "error",
+                SemanticReasonCode.GREP_ERROR_EXIT_CODE,
+                {"exit_code": code},
+            )
     if program in {"diff", "cmp"}:
         if code == 0:
-            return "success", "identical"
+            return ResolverResult("success", SemanticReasonCode.IDENTICAL)
         if code == 1:
-            return "expected_negative", "differences_found"
+            return ResolverResult(
+                "expected_negative",
+                SemanticReasonCode.DIFFERENCES_FOUND,
+            )
         if isinstance(code, int) and code >= 2:
-            return "error", f"diff_error_exit_code_{code}"
+            return ResolverResult(
+                "error",
+                SemanticReasonCode.DIFF_ERROR_EXIT_CODE,
+                {"exit_code": code},
+            )
     if code == 0:
-        return "success", None
+        return ResolverResult("success")
     if code is not None:
-        if "command not found" in content or "Permission denied" in content:
-            return "error", f"system_error_exit_code_{code}"
-        return "error", f"exit_code_{code}"
+        reason_code = (
+            SemanticReasonCode.SYSTEM_ERROR_EXIT_CODE
+            if "command not found" in content or "Permission denied" in content
+            else SemanticReasonCode.EXIT_CODE_ERROR
+        )
+        return ResolverResult("error", reason_code, {"exit_code": code})
     if observation.get("error") or observation.get("is_error"):
-        return "error", "observation_error_flag"
-    return "unknown_semantics", "exit_code_missing"
+        return ResolverResult("error", SemanticReasonCode.OBSERVATION_ERROR_FLAG)
+    return ResolverResult("unknown_semantics", SemanticReasonCode.EXIT_CODE_MISSING)
 
 
 def structured_search_outcome_resolver(
     action_args: Mapping[str, Any],
     observation: Mapping[str, Any] | None,
-) -> tuple[ActionOutcome, str | None]:
+) -> ResolverResult:
     """Resolve explicitly declared structured searches by their result cardinality."""
     del action_args
     if observation is None:
-        return "neutral", "no_observation"
+        return ResolverResult("neutral", SemanticReasonCode.NO_OBSERVATION)
     if observation.get("error") or observation.get("is_error"):
-        return "error", "observation_error_flag"
+        return ResolverResult("error", SemanticReasonCode.OBSERVATION_ERROR_FLAG)
     if observation.get("status") in ("failed", "error"):
-        return "error", "observation_error_status"
+        return ResolverResult("error", SemanticReasonCode.OBSERVATION_ERROR_STATUS)
     for key in ("match_count", "result_count", "total_count", "count"):
         value = observation.get(key)
         if isinstance(value, int) and not isinstance(value, bool):
             return (
-                ("success", "match_found")
+                ResolverResult("success", SemanticReasonCode.MATCH_FOUND)
                 if value > 0
-                else ("expected_negative", "pattern_not_found")
+                else ResolverResult(
+                    "expected_negative",
+                    SemanticReasonCode.PATTERN_NOT_FOUND,
+                )
             )
     for key in ("matches", "results", "files", "items"):
         value = observation.get(key)
         if isinstance(value, list):
             return (
-                ("success", "match_found") if value else ("expected_negative", "pattern_not_found")
+                ResolverResult("success", SemanticReasonCode.MATCH_FOUND)
+                if value
+                else ResolverResult(
+                    "expected_negative",
+                    SemanticReasonCode.PATTERN_NOT_FOUND,
+                )
             )
-    content = observation.get("content")
-    if content == "":
-        return "expected_negative", "pattern_not_found"
-    return "unknown_semantics", "structured_search_result_shape_unknown"
+    return ResolverResult(
+        "unknown_semantics",
+        SemanticReasonCode.STRUCTURED_SEARCH_RESULT_SHAPE_UNKNOWN,
+    )
 
 
-def _resolver_implementation_digest(resolver: OutcomeResolver) -> str:
-    code = getattr(resolver, "__code__", None)
-    module = str(getattr(resolver, "__module__", type(resolver).__module__))
-    qualname = str(getattr(resolver, "__qualname__", type(resolver).__qualname__))
-    if code is None:
-        return _sha256_digest(
-            {
-                "module": module,
-                "qualname": qualname,
-            }
-        )
-    return _sha256_digest(
-        {
-            "module": module,
-            "qualname": qualname,
-            "bytecode": code.co_code.hex(),
-            "constants": repr(code.co_consts),
-            "names": code.co_names,
+_ACTION_OUTCOMES = frozenset(
+    {"success", "error", "expected_negative", "neutral", "unknown_semantics"}
+)
+
+
+@dataclass(frozen=True)
+class NormalizedResolverResult:
+    """Storage-safe resolver output with any free-form detail irreversibly digested."""
+
+    outcome: ActionOutcome
+    reason_code: SemanticReasonCode | None
+    detail_digest: Digest | None
+    detail_size: int | None
+
+    def canonical_record(self) -> dict[str, Any]:
+        return {
+            "outcome": self.outcome,
+            "reason_code": self.reason_code.value if self.reason_code is not None else None,
+            "detail_digest": self.detail_digest,
+            "detail_size": self.detail_size,
         }
+
+
+def _normalize_resolver_result(result: ResolverResult) -> NormalizedResolverResult:
+    if not isinstance(result, ResolverResult):
+        raise TypeError("resolver must return ResolverResult")
+    if result.outcome not in _ACTION_OUTCOMES:
+        raise ValueError(f"resolver returned invalid outcome: {result.outcome!r}")
+    if result.reason_code is not None and not isinstance(result.reason_code, SemanticReasonCode):
+        raise ValueError("resolver reason_code must be a SemanticReasonCode")
+    if result.detail is not None and result.reason_code is None:
+        raise ValueError("resolver detail requires a SemanticReasonCode")
+    if result.detail is None:
+        detail_digest = None
+        detail_size = None
+    else:
+        payload = _canonical_bytes(result.detail)
+        detail_digest = _sha256_digest(payload)
+        detail_size = len(payload)
+    return NormalizedResolverResult(
+        outcome=result.outcome,
+        reason_code=result.reason_code,
+        detail_digest=detail_digest,
+        detail_size=detail_size,
+    )
+
+
+def _canonical_json(value: Any) -> str:
+    """Canonical JSON used to freeze resolver conformance inputs."""
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
     )
 
 
 @dataclass(frozen=True)
-class ResolverDefinition:
-    resolver_id: str
-    version: str
-    resolve: OutcomeResolver
+class ResolverConformanceVector:
+    """Immutable normalized input that exercises one resolver behavior path."""
 
-    @property
-    def implementation_digest(self) -> str:
-        return _resolver_implementation_digest(self.resolve)
+    vector_id: str
+    action_args_json: str
+    observation_json: str
+
+    @classmethod
+    def from_inputs(
+        cls,
+        vector_id: str,
+        action_args: Mapping[str, Any],
+        observation: Mapping[str, Any] | None,
+    ) -> ResolverConformanceVector:
+        if not vector_id:
+            raise ValueError("resolver conformance vector_id must be non-empty")
+        return cls(
+            vector_id=vector_id,
+            action_args_json=_canonical_json(dict(action_args)),
+            observation_json=_canonical_json(
+                dict(observation) if observation is not None else None
+            ),
+        )
+
+    def materialize(self) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        action_args = json.loads(self.action_args_json)
+        observation = json.loads(self.observation_json)
+        if not isinstance(action_args, dict):
+            raise ValueError("resolver action_args vector must decode to an object")
+        if observation is not None and not isinstance(observation, dict):
+            raise ValueError("resolver observation vector must decode to an object or null")
+        return action_args, observation
+
+    def canonical_input_record(self) -> dict[str, Any]:
+        action_args, observation = self.materialize()
+        return {
+            "vector_id": self.vector_id,
+            "action_args": action_args,
+            "observation": observation,
+        }
+
+
+@dataclass(frozen=True)
+class ResolverSpec:
+    """Versioned resolver plus behavior-defining canonical conformance vectors."""
+
+    resolver_id: str
+    resolver_version: str
+    resolve: OutcomeResolver = field(repr=False, compare=False)
+    conformance_vectors: tuple[ResolverConformanceVector, ...]
+    behavior_digest: Digest = field(init=False)
+
+    def __post_init__(self) -> None:
+        if not self.resolver_id or not self.resolver_version:
+            raise ValueError("resolver_id and resolver_version must be non-empty")
+        if not self.conformance_vectors:
+            raise ValueError("resolver must define at least one conformance vector")
+        vector_ids = [vector.vector_id for vector in self.conformance_vectors]
+        if len(vector_ids) != len(set(vector_ids)):
+            raise ValueError("resolver conformance vector IDs must be unique")
+        records: list[dict[str, Any]] = []
+        for vector in sorted(self.conformance_vectors, key=lambda item: item.vector_id):
+            action_args, observation = vector.materialize()
+            normalized = _normalize_resolver_result(self.resolve(action_args, observation))
+            records.append(
+                {
+                    **vector.canonical_input_record(),
+                    "output": normalized.canonical_record(),
+                }
+            )
+        object.__setattr__(self, "behavior_digest", _sha256_digest(records))
+
+    def resolve_normalized(
+        self,
+        action_args: Mapping[str, Any],
+        observation: Mapping[str, Any] | None,
+    ) -> NormalizedResolverResult:
+        return _normalize_resolver_result(self.resolve(action_args, observation))
 
 
 class ResolverRegistry:
-    """Immutable registry of versioned outcome resolvers."""
+    """Immutable registry of versioned, behavior-digested outcome resolvers."""
 
-    def __init__(self, definitions: Sequence[ResolverDefinition]) -> None:
-        entries: dict[tuple[str, str], ResolverDefinition] = {}
-        for definition in definitions:
-            key = (definition.resolver_id, definition.version)
+    def __init__(self, specs: Sequence[ResolverSpec]) -> None:
+        entries: dict[tuple[str, str], ResolverSpec] = {}
+        for spec in specs:
+            key = (spec.resolver_id, spec.resolver_version)
             if key in entries:
                 raise ValueError(f"duplicate resolver registration: {key[0]}@{key[1]}")
-            entries[key] = definition
+            entries[key] = spec
         self._entries = entries
 
-    def get(self, reference: ResolverRef) -> ResolverDefinition:
+    def get(self, reference: ResolverRef) -> ResolverSpec:
         try:
-            return self._entries[(reference.resolver_id, reference.version)]
+            return self._entries[(reference.resolver_id, reference.resolver_version)]
         except KeyError as exc:
             raise KeyError(
-                f"unknown resolver: {reference.resolver_id}@{reference.version}"
+                f"unknown resolver: {reference.resolver_id}@{reference.resolver_version}"
             ) from exc
 
 
+def _vector(
+    vector_id: str,
+    action_args: Mapping[str, Any],
+    observation: Mapping[str, Any] | None,
+) -> ResolverConformanceVector:
+    return ResolverConformanceVector.from_inputs(
+        vector_id,
+        action_args,
+        observation,
+    )
+
+
+DEFAULT_RESOLVER_SPEC = ResolverSpec(
+    resolver_id="default",
+    resolver_version="1.0.0",
+    resolve=default_outcome_resolver,
+    conformance_vectors=(
+        _vector("no_observation", {}, None),
+        _vector("top_level_exit_zero", {}, {"exit_code": 0}),
+        _vector("nested_exit_nonzero", {}, {"extra": {"exit_code": 9}}),
+        _vector("error_flag", {}, {"error": "opaque"}),
+        _vector("error_status", {}, {"status": "failed"}),
+        _vector("opaque_success", {}, {"content": "opaque"}),
+    ),
+)
+BASH_RESOLVER_SPEC = ResolverSpec(
+    resolver_id="bash-command",
+    resolver_version="1.0.0",
+    resolve=bash_command_outcome_resolver,
+    conformance_vectors=(
+        _vector("no_observation", {"command": "true"}, None),
+        _vector(
+            "environment_assignment_no_match",
+            {"command": "LC_ALL=C grep absent file.txt"},
+            {"exit_code": 1},
+        ),
+        _vector(
+            "pipeline_status_owner",
+            {"command": "cat file.txt | diff expected.txt -"},
+            {"exit_code": 1},
+        ),
+        _vector(
+            "nested_exit_code",
+            {"command": "grep pattern file.txt"},
+            {"extra": {"exit_code": 2}},
+        ),
+        _vector("shell_parse_error", {"command": "'"}, {"exit_code": 2}),
+        _vector("empty_command", {"command": ""}, {"exit_code": 0}),
+        _vector("incomplete_pipeline", {"command": "echo ok |"}, {"exit_code": 2}),
+        _vector("missing_shell_program", {"command": "env -i"}, {"exit_code": 0}),
+        _vector(
+            "system_error",
+            {"command": "missing-command"},
+            {"exit_code": 127, "output": "command not found"},
+        ),
+        _vector("exit_code_missing", {"command": "python task.py"}, {"output": "done"}),
+    ),
+)
+STRUCTURED_SEARCH_RESOLVER_SPEC = ResolverSpec(
+    resolver_id="structured-search",
+    resolver_version="1.0.0",
+    resolve=structured_search_outcome_resolver,
+    conformance_vectors=(
+        _vector("no_observation", {}, None),
+        _vector("zero_count", {}, {"match_count": 0}),
+        _vector("positive_count", {}, {"result_count": 2}),
+        _vector("empty_results", {}, {"results": []}),
+        _vector("nonempty_results", {}, {"results": [{"id": "r1"}]}),
+        _vector("undeclared_empty_content", {}, {"content": ""}),
+        _vector("error_flag", {}, {"error": "opaque"}),
+        _vector("error_status", {}, {"status": "error"}),
+        _vector("unknown_shape", {}, {"content": "opaque"}),
+    ),
+)
 DEFAULT_RESOLVER_REGISTRY = ResolverRegistry(
     (
-        ResolverDefinition("default", "1.0.0", default_outcome_resolver),
-        ResolverDefinition("bash-command", "1.0.0", bash_command_outcome_resolver),
-        ResolverDefinition(
-            "structured-search",
-            "1.0.0",
-            structured_search_outcome_resolver,
-        ),
+        DEFAULT_RESOLVER_SPEC,
+        BASH_RESOLVER_SPEC,
+        STRUCTURED_SEARCH_RESOLVER_SPEC,
     )
 )
+
+
+@dataclass(frozen=True)
+class ActionResolution:
+    """Role plus storage-safe normalized outcome for one action."""
+
+    role: ToolRole
+    outcome: ActionOutcome
+    reason_code: SemanticReasonCode | None
+    detail_digest: Digest | None
+    detail_size: int | None
 
 
 @dataclass(frozen=True)
@@ -378,18 +657,18 @@ class TrajectorySemanticsProfile:
 
     @property
     def digest(self) -> str:
-        """Digest profile rules and the exact registered resolver implementations."""
+        """Digest profile rules and the conformance-observed resolver behavior."""
         rules = []
         for rule in self.tool_rules:
-            definition = self.resolver_registry.get(rule.resolver)
+            spec = self.resolver_registry.get(rule.resolver)
             rules.append(
                 {
                     "tool_pattern": rule.tool_pattern,
                     "role": rule.role,
                     "command_prefix": rule.command_prefix,
-                    "resolver_id": definition.resolver_id,
-                    "resolver_version": definition.version,
-                    "resolver_implementation_digest": definition.implementation_digest,
+                    "resolver_id": spec.resolver_id,
+                    "resolver_version": spec.resolver_version,
+                    "resolver_behavior_digest": spec.behavior_digest,
                 }
             )
         return _sha256_digest(
@@ -408,8 +687,8 @@ class TrajectorySemanticsProfile:
         observation: Mapping[str, Any] | None,
         *,
         strict: bool = True,
-    ) -> tuple[ToolRole, ActionOutcome, str | None]:
-        """Resolve the semantic role and outcome for an action."""
+    ) -> ActionResolution:
+        """Resolve an action without exposing free-form resolver detail."""
         command = str(action_args.get("command") or action_args.get("cmd") or "").strip()
         for rule in self.tool_rules:
             if rule.tool_pattern not in (tool_name, "*"):
@@ -418,15 +697,27 @@ class TrajectorySemanticsProfile:
                 program, _ = _shell_program(command)
                 if program != rule.command_prefix:
                     continue
-            definition = self.resolver_registry.get(rule.resolver)
-            outcome, detail = definition.resolve(action_args, observation)
-            return rule.role, outcome, detail
+            spec = self.resolver_registry.get(rule.resolver)
+            normalized = spec.resolve_normalized(action_args, observation)
+            return ActionResolution(
+                role=rule.role,
+                outcome=normalized.outcome,
+                reason_code=normalized.reason_code,
+                detail_digest=normalized.detail_digest,
+                detail_size=normalized.detail_size,
+            )
         if strict:
             raise UnmappedActionError(
                 f"Profile '{self.profile_id}@{self.version}' has no mapping rule "
                 f"for tool '{tool_name}'"
             )
-        return "other", "unknown_semantics", f"unmapped_tool:{tool_name}"
+        return ActionResolution(
+            role="other",
+            outcome="unknown_semantics",
+            reason_code=SemanticReasonCode.UNMAPPED_TOOL,
+            detail_digest=None,
+            detail_size=None,
+        )
 
 
 # Standard default profiles
@@ -654,7 +945,9 @@ SEMANTIC_ACTION_FACT_SCHEMA = pa.schema(
         pa.field("source_sha256", pa.string(), nullable=False),
         pa.field("role", pa.string(), nullable=False),
         pa.field("outcome", pa.string(), nullable=False),
-        pa.field("outcome_detail", pa.string(), nullable=True),
+        pa.field("reason_code", pa.string(), nullable=True),
+        pa.field("detail_digest", pa.string(), nullable=True),
+        pa.field("detail_size", pa.int64(), nullable=True),
         pa.field("intervention_provenance", pa.string(), nullable=False),
         pa.field("intervention_sha256", pa.string(), nullable=True),
         pa.field("intervention_length", pa.int64(), nullable=True),
@@ -713,7 +1006,7 @@ def extract_semantic_actions(
     pending_provenance: InterventionProvenance | None = None
     pending_digest: str | None = None
     pending_length: int | None = None
-    pending_reason: str | None = None
+    pending_reason: InterventionReason | None = None
 
     for step_index, step in enumerate(steps):
         if not isinstance(step, Mapping):
@@ -826,7 +1119,7 @@ def extract_semantic_actions(
 
             matched_observation: Mapping[str, Any] | None = None
             correlation: ObservationCorrelation
-            correlation_reason: str | None
+            correlation_reason: ObservationCorrelationReason | None
             if tool_call_id is not None and tool_call_id in keyed_observations:
                 matched_observation = keyed_observations[tool_call_id]
                 correlation = "matched_call_id"
@@ -851,15 +1144,20 @@ def extract_semantic_actions(
                 correlation = "no_observation"
                 correlation_reason = "observation_absent"
 
-            role, outcome, outcome_detail = profile.resolve_action(
+            resolution = profile.resolve_action(
                 tool_name,
                 args_map,
                 matched_observation,
                 strict=strict,
             )
             if correlation == "unknown_unmatched":
-                outcome = "unknown_semantics"
-                outcome_detail = f"observation_correlation_unknown:{correlation_reason}"
+                resolution = ActionResolution(
+                    role=resolution.role,
+                    outcome="unknown_semantics",
+                    reason_code=SemanticReasonCode.OBSERVATION_CORRELATION_UNKNOWN,
+                    detail_digest=None,
+                    detail_size=None,
+                )
 
             provenance = pending_provenance or "autonomous"
             facts.append(
@@ -883,9 +1181,11 @@ def extract_semantic_actions(
                     observation_correlation=correlation,
                     correlation_reason=correlation_reason,
                     source_sha256=source_sha256,
-                    role=role,
-                    outcome=outcome,
-                    outcome_detail=outcome_detail,
+                    role=resolution.role,
+                    outcome=resolution.outcome,
+                    reason_code=resolution.reason_code,
+                    detail_digest=resolution.detail_digest,
+                    detail_size=resolution.detail_size,
                     intervention_provenance=provenance,
                     intervention_sha256=pending_digest,
                     intervention_length=pending_length,
@@ -995,7 +1295,9 @@ def project_semantic_actions_parquet(
             "source_sha256": a.source_sha256,
             "role": a.role,
             "outcome": a.outcome,
-            "outcome_detail": a.outcome_detail,
+            "reason_code": (a.reason_code.value if a.reason_code is not None else None),
+            "detail_digest": a.detail_digest,
+            "detail_size": a.detail_size,
             "intervention_provenance": a.intervention_provenance,
             "intervention_sha256": a.intervention_sha256,
             "intervention_length": a.intervention_length,

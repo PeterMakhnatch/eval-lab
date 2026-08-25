@@ -44,6 +44,18 @@ def test_cache_fetch_fails_closed_on_mismatch(tmp_path):
         assert "mismatch" in str(exc)
     else:
         raise AssertionError("tampered cache was accepted")
+def test_cached_generator_loader_accepts_digest_suffix(tmp_path):
+    state = load("state_cached", "state")
+    cached = tmp_path / ("generate_ab_data.py." + "a" * 64)
+    cached.write_text(
+        "class ABTestingDataGenerator:\n"
+        "    def __init__(self, seed): self.seed = seed\n"
+        "    def generate_scenarios(self, **kwargs):\n"
+        "        return {'scenarios': [{'name': 'canary', 'data_rows': [{'time_window': 't', 'A_clicks': 1, 'A_store_views': 1, 'B_clicks': 1, 'B_store_views': 0}]}]}\n"
+    )
+    rows = state._upstream_rows(cached, "8k", 42)
+    assert rows == [{"scenario": "canary", "time_window": "t", "A_clicks": 1, "A_store_views": 1, "B_clicks": 1, "B_store_views": 0}]
+
 
 
 def test_materializer_oracle_nop_and_mutants(tmp_path):

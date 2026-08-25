@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import importlib.machinery
 import importlib.util
-import io
 import json
 import random
 from pathlib import Path
@@ -36,11 +36,14 @@ def _csv(rows: list[dict[str, Any]]) -> bytes:
 
 
 def _upstream_rows(generator_path: Path, size: str, seed: int) -> list[dict[str, Any]]:
-    spec = importlib.util.spec_from_file_location("loca_pinned_generator", generator_path)
-    if spec is None or spec.loader is None:
+    # Cache entries are digest-suffixed, so SourceFileLoader must be used
+    # instead of extension-based spec_from_file_location.
+    loader = importlib.machinery.SourceFileLoader("loca_pinned_generator", str(generator_path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    if spec is None:
         raise RuntimeError(f"cannot load pinned generator: {generator_path}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    loader.exec_module(module)
     params = SIZES[size]
     scenarios = module.ABTestingDataGenerator(seed=seed).generate_scenarios(
         num_scenarios=params["num_scenarios"], num_days=params["num_days"], difficulty="medium"

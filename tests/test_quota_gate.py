@@ -170,10 +170,11 @@ def authorized_dispatch(
 
 
 def reasons_for(queue: DirectoryQueue, spec_id: str) -> list[dict]:
-    return [
+    reasons = [
         json.loads(path.read_text())
-        for path in sorted(queue.reasons_dir.glob(f"{spec_id}-*.json"))
+        for path in queue.reasons_dir.glob(f"{spec_id}-*.json")
     ]
+    return sorted(reasons, key=lambda r: (r.get("occurred_at", ""), r.get("code", "")))
 
 
 # --- trap 1: an unavailable reading is never headroom -----------------------

@@ -1,0 +1,88 @@
+name: agentabstain-linux
+
+# Ubuntu-only Harbor lane for preview_002. Darwin Docker Desktop cannot start
+# the separate no-network verifier; this workflow is the isolation proof.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "library/tasks/agentabstain-ambiguous-action-preview-002-act/**"
+      - "library/tasks/agentabstain-ambiguous-action-preview-002-abstain/**"
+      - "library/adapters/agentabstain/**"
+      - "tests/test_agentabstain_harbor_tasks.py"
+      - "tests/test_agentabstain_adapter.py"
+      - "tests/test_agentabstain_linux_lane.py"
+      - "scripts/agentabstain/**"
+      - ".github/workflows/agentabstain-linux.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install uv 0.9.24 from PyPI
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install Python 3.12
+        run: |
+          uv python install 3.12
+          echo "UV_PYTHON=3.12" >> $GITHUB_ENV
+      - run: uv sync --locked
+      - name: Install Harbor 0.21.0
+        run: uv tool install "harbor[modal]==0.21.0"
+      - name: AgentAbstain Linux controls
+        run: uv run python scripts/agentabstain/validate_linux.py --phase controls
+      - name: upload Harbor jobs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agentabstain-linux-controls
+          path: runs/agentabstain-linux/
+          if-no-files-found: warn
+
+  luna:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: ${{ secrets.CODEX_AUTH_JSON != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install uv 0.9.24 from PyPI
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install Python 3.12
+        run: |
+          uv python install 3.12
+          echo "UV_PYTHON=3.12" >> $GITHUB_ENV
+      - run: uv sync --locked
+      - name: Install Harbor 0.21.0
+        run: uv tool install "harbor[modal]==0.21.0"
+      - name: Restore Codex auth
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        run: |
+          mkdir -p "$HOME/.codex"
+          printf '%s\n' "$CODEX_AUTH_JSON" > "$HOME/.codex/auth.json"
+          chmod 600 "$HOME/.codex/auth.json"
+      - name: AgentAbstain paired Luna
+        env:
+          CODEX_FORCE_AUTH_JSON: "1"
+        run: uv run python scripts/agentabstain/validate_linux.py --phase luna
+      - name: upload Harbor jobs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agentabstain-linux-luna
+          path: runs/agentabstain-linux/
+          if-no-files-found: warn

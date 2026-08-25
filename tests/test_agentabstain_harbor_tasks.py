@@ -29,7 +29,9 @@ OFFICIAL_ABSTAIN = (
 )
 TOOL_APPENDIX = (
     "Tools are documented in /app/TOOLS.md. Invoke a tool with:\n\n"
-    "python3 /app/runtime.py call <tool-name> '<json-arguments>'"
+    "python3 /app/runtime.py call <tool-name> '<json-arguments>'\n\n"
+    "This environment uses Harbor's public network baseline. Docker Desktop on macOS "
+    "cannot enforce no-network isolation; do not treat this trial as an offline-agent evaluation."
 )
 
 
@@ -54,6 +56,15 @@ def test_harbor_packages_pass_workbench_inspection() -> None:
 
     insp_abstain = inspect_candidate(repo_root=repo_root, task_path=ABSTAIN_TASK_DIR, source=source)
     assert len(insp_abstain.diagnostics) == 0, f"Abstain diagnostics: {insp_abstain.diagnostics}"
+
+
+def test_pair_uses_public_network_without_isolation_claim() -> None:
+    for task_dir in (ACT_TASK_DIR, ABSTAIN_TASK_DIR):
+        toml = (task_dir / "task.toml").read_text(encoding="utf-8")
+        assert 'network_mode = "public"' in toml
+        assert "no-network" not in toml.split("[environment]", 1)[1]
+        assert "no-isolation-claim" in toml
+        assert "public-network" in toml
 
 
 def test_live_artifacts_include_state_and_calls() -> None:

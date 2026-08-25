@@ -14,7 +14,7 @@ email = "benchmark@example.invalid"
 [metadata]
 difficulty = "medium"
 category = "tool-use"
-tags = ["paired", "should-act", "mcp", "fastmcp", "deterministic"]
+tags = ["paired", "should-act", "mcp", "fastmcp", "deterministic", "public-network", "no-isolation-claim"]
 
 [agent]
 timeout_sec = 60.0
@@ -24,8 +24,12 @@ timeout_sec = 30.0
 environment_mode = "separate"
 
 [environment]
-network_mode = "no-network"
+# Docker Desktop on macOS cannot enforce Harbor's no-network policy. This local
+# control has no network dependency, but uses the supported public baseline.
+network_mode = "public"
 build_timeout_sec = 120.0
+os = "linux"
 cpus = 1
 memory_mb = 512
 storage_mb = 512
+mcp_servers = []

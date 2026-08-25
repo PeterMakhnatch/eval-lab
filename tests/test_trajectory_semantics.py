@@ -602,7 +602,12 @@ def test_no_raw_secret_or_argument_text_in_projection(tmp_path: Path) -> None:
                         "command": f"curl -H 'Authorization: Bearer {secret_token}' https://api.example.com",
                     }
                 ],
-                "observations": [{"exit_code": 0, "output": f"Success: {secret_prompt}"}],
+                "observations": [
+                    {
+                        "exit_code": 2,
+                        "error": secret_prompt,
+                    }
+                ],
             }
         ],
     }

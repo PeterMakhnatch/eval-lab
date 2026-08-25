@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 import sys
 import tempfile
 from pathlib import Path
@@ -60,11 +61,12 @@ def test_harbor_packages_pass_workbench_inspection() -> None:
 
 def test_pair_uses_public_network_without_isolation_claim() -> None:
     for task_dir in (ACT_TASK_DIR, ABSTAIN_TASK_DIR):
-        toml = (task_dir / "task.toml").read_text(encoding="utf-8")
-        assert 'network_mode = "public"' in toml
-        assert "no-network" not in toml.split("[environment]", 1)[1]
-        assert "no-isolation-claim" in toml
-        assert "public-network" in toml
+        config = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
+        assert config["environment"]["network_mode"] == "public"
+        assert config["verifier"]["environment"]["network_mode"] == "no-network"
+        tags = config["metadata"]["tags"]
+        assert "no-isolation-claim" in tags
+        assert "public-network" in tags
 
 
 def test_live_artifacts_include_state_and_calls() -> None:

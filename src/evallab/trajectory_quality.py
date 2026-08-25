@@ -1,3 +1,9 @@
+"""Deterministic evidence quality checks for trajectory ingestion and analysis.
+
+Validates raw ATIF envelopes, Harbor trial-result consistency, projected facts,
+and analysis readiness without scoring agent capability or mutating inputs.
+"""
+
 from __future__ import annotations
 
 import hashlib

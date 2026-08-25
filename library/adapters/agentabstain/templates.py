@@ -31,6 +31,7 @@ network_mode = "no-network"
 
 [environment]
 network_mode = "public"
+build_timeout_sec = 120.0
 os = "linux"
 cpus = 1
 memory_mb = 512
@@ -65,7 +66,10 @@ set -eu
 mkdir -p /app/state
 cp /app/initial_state.json /app/state/state.json
 : > /app/state/calls.jsonl
-exec "$@"
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+exec sleep infinity
 '''
 
 ACT_SOLUTION = '''#!/bin/sh
@@ -89,7 +93,6 @@ COPY fixtures/initial_state.json /tests/fixtures/initial_state.json
 COPY verify.py /tests/verify.py
 COPY test.sh /tests/test.sh
 RUN chmod +x /tests/test.sh
-ENTRYPOINT ["/tests/test.sh"]
 '''
 
 VERIFY = '''import contextlib
@@ -172,7 +175,7 @@ if __name__ == "__main__":
 '''
 
 TEST_SCRIPT = '''#!/bin/sh
-set -u
+set -eu
 mkdir -p /logs/verifier
 if AGENTABSTAIN_TASK_TYPE="{task_type}" python3 /tests/verify.py; then
   printf '1\\n' > /logs/verifier/reward.txt

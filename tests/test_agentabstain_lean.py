@@ -57,13 +57,27 @@ def test_materializer_emits_variant_solutions_and_executable_scripts(tmp_path: P
         assert (package / "solution/solve.sh").stat().st_mode & stat.S_IXUSR
         config = tomllib.loads((package / "task.toml").read_text())
         assert config["environment"]["network_mode"] == "public"
+        assert config["environment"].get("build_timeout_sec") == 120.0
         assert config["verifier"]["environment_mode"] == "separate"
         assert config["verifier"]["environment"]["network_mode"] == "no-network"
         assert (package / "tests/test.sh").stat().st_mode & stat.S_IXUSR
         verifier_docker = (package / "tests/Dockerfile").read_text()
+        test_sh = (package / "tests/test.sh").read_text()
+        entrypoint = (package / "environment/entrypoint.sh").read_text()
         assert "WORKDIR /tests" in verifier_docker
         assert "COPY fixtures/initial_state.json /tests/fixtures/initial_state.json" in verifier_docker
-        assert "reward.txt" in (package / "tests/test.sh").read_text()
+        assert "ENTRYPOINT" not in verifier_docker
+        assert "reward.txt" in test_sh
+        assert "set -eu" in test_sh
+        assert "exec sleep infinity" in entrypoint
+
+def test_verifier_reward_script_is_executable_and_produces_binary_reward(tmp_path: Path) -> None:
+    package = materialize(tmp_path)
+    act = package / "agentabstain-ambiguous-action-preview-002-act"
+    test_sh = (act / "tests/test.sh").read_text()
+    assert test_sh.startswith("#!/bin/sh")
+    assert "/logs/verifier/reward.txt" in test_sh
+    assert "printf '1" in test_sh and "printf '0" in test_sh
 
 
 def test_reward_assertion_reads_persisted_harbor_result(tmp_path: Path) -> None:

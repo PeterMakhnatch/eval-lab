@@ -16,7 +16,7 @@ environment_mode = "separate"
 [agent]
 timeout_sec = 7200.0
 [environment]
-network_mode = "no-network"
+network_mode = "public"
 mcp_servers = [{ name = "google_cloud", transport = "stdio", command = "python3", args = ["-m", "mcps.google_cloud.server"] }]
 env = { GOOGLE_CLOUD_DATA_DIR = "/app/task_state/local_db/google_cloud", LOCA_TASK_ROOT = "/app/task_state" }
 cpus = 2

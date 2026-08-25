@@ -20,6 +20,8 @@
     "backend": "native-m4",
     "harbor_core_edits": false,
     "network": "none",
+    "network_enforcement": "unavailable_on_docker_darwin",
+    "network_mode": "public",
     "padding_only": false
   },
   "selection": {

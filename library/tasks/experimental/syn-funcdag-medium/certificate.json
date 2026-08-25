@@ -1,0 +1,19 @@
+{
+  "cert_version": "cert/v1",
+  "spec_id": "sha256:f7492c3fce119c6c73f7f7d730294e81440ffe1e9577d26274706c16a29fe8b5",
+  "status": "experimental",
+  "static_reachability": true,
+  "clean_reset_passed": true,
+  "oracle_3x_passed": true,
+  "nop_failed": true,
+  "mutants_tested_count": 3,
+  "mutants_failed_count": 3,
+  "alignment_audit_passed": true,
+  "regeneration_idempotent": true,
+  "secret_isolation_passed": true,
+  "evidence_paths": [
+    "output/result.json"
+  ],
+  "certified_at": "2026-08-25T05:15:34.326515+00:00",
+  "notes": "Certified Function-DAG task (medium)"
+}

@@ -1,0 +1,263 @@
+{
+  "nodes": {
+    "n_1_0": {
+      "id": "n_1_0",
+      "name": "fn_layer1_node0",
+      "op": "xor_op",
+      "inputs": [
+        "in_1",
+        "in_2"
+      ],
+      "output_type": "int",
+      "layer": 1,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 1 Node 0: Bitwise XOR: x ^ y",
+      "code": "def fn_layer1_node0(in_1: int, in_2: int) -> int:\n    return in_1 ^ in_2\n"
+    },
+    "n_1_1": {
+      "id": "n_1_1",
+      "name": "fn_layer1_node1",
+      "op": "clamp",
+      "inputs": [
+        "in_2"
+      ],
+      "output_type": "int",
+      "layer": 1,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {
+        "low": 3,
+        "high": 59
+      },
+      "docstring": "Layer 1 Node 1: Clamp input between [low, high]: max(low, min(x, high))",
+      "code": "def fn_layer1_node1(in_2: int) -> int:\n    return max(3, min(in_2, 59))\n"
+    },
+    "n_1_2": {
+      "id": "n_1_2",
+      "name": "fn_layer1_node2",
+      "op": "linear",
+      "inputs": [
+        "in_1",
+        "in_2"
+      ],
+      "output_type": "int",
+      "layer": 1,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {
+        "c1": 1,
+        "c2": 3,
+        "offset": 1
+      },
+      "docstring": "Layer 1 Node 2: Linear combination: c1*x + c2*y + offset",
+      "code": "def fn_layer1_node2(in_1: int, in_2: int) -> int:\n    return (1 * in_1) + (3 * in_2) + (1)\n"
+    },
+    "n_2_0": {
+      "id": "n_2_0",
+      "name": "fn_layer2_node0",
+      "op": "scale_offset",
+      "inputs": [
+        "n_1_1"
+      ],
+      "output_type": "int",
+      "layer": 2,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {
+        "scale": 4,
+        "offset": 4
+      },
+      "docstring": "Layer 2 Node 0: Scale and offset: scale*x + offset",
+      "code": "def fn_layer2_node0(n_1_1: int) -> int:\n    return (4 * n_1_1) + (4)\n"
+    },
+    "n_2_1": {
+      "id": "n_2_1",
+      "name": "fn_layer2_node1",
+      "op": "min_op",
+      "inputs": [
+        "in_1",
+        "n_1_0"
+      ],
+      "output_type": "int",
+      "layer": 2,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 2 Node 1: Minimum of two inputs: min(x, y)",
+      "code": "def fn_layer2_node1(in_1: int, n_1_0: int) -> int:\n    return min(in_1, n_1_0)\n"
+    },
+    "n_2_2": {
+      "id": "n_2_2",
+      "name": "fn_layer2_node2",
+      "op": "sub",
+      "inputs": [
+        "n_1_0",
+        "n_1_2"
+      ],
+      "output_type": "int",
+      "layer": 2,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 2 Node 2: Subtract second integer from first: x - y",
+      "code": "def fn_layer2_node2(n_1_0: int, n_1_2: int) -> int:\n    return n_1_0 - n_1_2\n"
+    },
+    "n_3_0": {
+      "id": "n_3_0",
+      "name": "fn_layer3_node0",
+      "op": "sub",
+      "inputs": [
+        "n_2_2",
+        "n_2_1"
+      ],
+      "output_type": "int",
+      "layer": 3,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 3 Node 0: Subtract second integer from first: x - y",
+      "code": "def fn_layer3_node0(n_2_2: int, n_2_1: int) -> int:\n    return n_2_2 - n_2_1\n"
+    },
+    "n_3_1": {
+      "id": "n_3_1",
+      "name": "fn_layer3_node1",
+      "op": "max_op",
+      "inputs": [
+        "n_2_0",
+        "n_2_2"
+      ],
+      "output_type": "int",
+      "layer": 3,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 3 Node 1: Maximum of two inputs: max(x, y)",
+      "code": "def fn_layer3_node1(n_2_0: int, n_2_2: int) -> int:\n    return max(n_2_0, n_2_2)\n"
+    },
+    "n_3_2": {
+      "id": "n_3_2",
+      "name": "fn_layer3_node2",
+      "op": "sub",
+      "inputs": [
+        "n_2_0",
+        "n_2_2"
+      ],
+      "output_type": "int",
+      "layer": 3,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 3 Node 2: Subtract second integer from first: x - y",
+      "code": "def fn_layer3_node2(n_2_0: int, n_2_2: int) -> int:\n    return n_2_0 - n_2_2\n"
+    },
+    "n_4_0": {
+      "id": "n_4_0",
+      "name": "fn_layer4_node0",
+      "op": "scale_offset",
+      "inputs": [
+        "n_2_1"
+      ],
+      "output_type": "int",
+      "layer": 4,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {
+        "scale": 2,
+        "offset": 6
+      },
+      "docstring": "Layer 4 Node 0: Scale and offset: scale*x + offset",
+      "code": "def fn_layer4_node0(n_2_1: int) -> int:\n    return (2 * n_2_1) + (6)\n"
+    },
+    "n_4_1": {
+      "id": "n_4_1",
+      "name": "fn_layer4_node1",
+      "op": "min_op",
+      "inputs": [
+        "n_3_2",
+        "n_2_2"
+      ],
+      "output_type": "int",
+      "layer": 4,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 4 Node 1: Minimum of two inputs: min(x, y)",
+      "code": "def fn_layer4_node1(n_3_2: int, n_2_2: int) -> int:\n    return min(n_3_2, n_2_2)\n"
+    },
+    "n_4_2": {
+      "id": "n_4_2",
+      "name": "fn_layer4_node2",
+      "op": "clamp",
+      "inputs": [
+        "n_2_0"
+      ],
+      "output_type": "int",
+      "layer": 4,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {
+        "low": 6,
+        "high": 49
+      },
+      "docstring": "Layer 4 Node 2: Clamp input between [low, high]: max(low, min(x, high))",
+      "code": "def fn_layer4_node2(n_2_0: int) -> int:\n    return max(6, min(n_2_0, 49))\n"
+    },
+    "d_conn_0": {
+      "id": "d_conn_0",
+      "name": "distractor_connected_0",
+      "op": "mul",
+      "inputs": [
+        "n_3_0",
+        "n_4_1"
+      ],
+      "output_type": "int",
+      "layer": 4,
+      "is_distractor": true,
+      "distractor_type": "connected",
+      "params": {},
+      "docstring": "Connected Distractor 0: Multiply two integers: x * y (Dead-end branch)",
+      "code": "def distractor_connected_0(n_3_0: int, n_4_1: int) -> int:\n    return n_3_0 * n_4_1\n"
+    },
+    "d_conn_1": {
+      "id": "d_conn_1",
+      "name": "distractor_connected_1",
+      "op": "scale_offset",
+      "inputs": [
+        "n_4_1"
+      ],
+      "output_type": "int",
+      "layer": 4,
+      "is_distractor": true,
+      "distractor_type": "connected",
+      "params": {
+        "scale": 3,
+        "offset": 7
+      },
+      "docstring": "Connected Distractor 1: Scale and offset: scale*x + offset (Dead-end branch)",
+      "code": "def distractor_connected_1(n_4_1: int) -> int:\n    return (3 * n_4_1) + (7)\n"
+    }
+  },
+  "input_keys": [
+    "in_0",
+    "in_1",
+    "in_2"
+  ],
+  "input_types": {
+    "in_0": "int",
+    "in_1": "int",
+    "in_2": "int"
+  },
+  "input_values": {
+    "in_0": 11,
+    "in_1": 15,
+    "in_2": 5
+  },
+  "target_node_id": "n_4_0",
+  "depth": 4,
+  "width": 3,
+  "connected_distractors": 2,
+  "disconnected_distractors": 0,
+  "seed": 101
+}

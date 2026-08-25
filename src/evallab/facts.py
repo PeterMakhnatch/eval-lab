@@ -30,6 +30,12 @@ from evallab.schemas import (
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
 )
+from evallab.state_events import (
+    StateEventFact,
+    StateEventValidationError,
+    invalid_state_event_fact,
+    load_state_event_facts,
+)
 
 JsonObject = dict[str, Any]
 
@@ -85,6 +91,83 @@ def experiment_id(job: JobRecord) -> str | None:
     value = experiment.get("spec_id")
     return str(value) if value else None
 
+def _experiment_provenance(job: JobRecord) -> JsonObject:
+    value = job.metadata.get("experiment")
+    return value if isinstance(value, dict) else {}
+
+
+def _coordinate_json(value: Any) -> str | None:
+    return (
+        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        if isinstance(value, dict)
+        else None
+    )
+
+
+def _task_identity(
+    job: JobRecord,
+    trial: TrialRecord,
+    *,
+    task_digest: str | None,
+    verifier_digest: str,
+    environment_digest: str,
+) -> tuple[
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+]:
+    provenance = _experiment_provenance(job)
+    task_lock = trial.lock.get("task")
+    observed_task = task_lock if isinstance(task_lock, dict) else {}
+    task_id = _string(provenance.get("task_id") or observed_task.get("name"))
+    task_family = _string(provenance.get("task_family") or observed_task.get("family"))
+    instance_id = _string(
+        provenance.get("task_instance_id") or observed_task.get("instance_id")
+    )
+    generator_seed = (
+        provenance["generator_seed"]
+        if provenance.get("generator_seed") is not None
+        else observed_task.get("generator_seed")
+    )
+    generator_seed_json = (
+        json.dumps(
+            generator_seed, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
+        if generator_seed is not None
+        else None
+    )
+    package_identity = task_digest or _string(provenance.get("package_digest"))
+    if package_identity is None:
+        return (
+            task_family,
+            task_id,
+            instance_id,
+            generator_seed_json,
+            None,
+            None,
+        )
+    inputs = {
+        "task_package_digest": package_identity,
+        "instance_id": instance_id,
+        "generator_seed": generator_seed,
+        "verifier_base_digest": verifier_digest,
+        "environment_base_digest": environment_digest,
+    }
+    inputs_json = json.dumps(
+        inputs, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return (
+        task_family,
+        task_id,
+        instance_id,
+        generator_seed_json,
+        inputs_json,
+        digest_json(inputs),
+    )
+
 
 def _task_digest(trial: TrialRecord) -> str | None:
     task = trial.lock.get("task")
@@ -128,6 +211,23 @@ class TrialFact:
     task_digest: str | None
     verifier_digest: str
     environment_digest: str
+    grid_id: str | None
+    point_id: str | None
+    arm_id: str | None
+    factor_values_json: str | None
+    factor_values_digest: str | None
+    factor_bindings_json: str | None
+    factor_bindings_digest: str | None
+    bound_execution_values_json: str | None
+    bound_execution_values_digest: str | None
+    preamble_path: str | None
+    preamble_content_sha256: str | None
+    task_family: str | None
+    task_id: str | None
+    task_instance_id: str | None
+    generator_seed_json: str | None
+    task_block_inputs_json: str | None
+    task_block_id: str | None
     agent_config_digest: str
     agent_name: str | None
     agent_version: str | None
@@ -154,6 +254,9 @@ class TrialFact:
     artifact_count: int
     missing_artifact_count: int
     artifact_set_digest: str
+    state_journal_status: str
+    state_journal_reason: str | None
+    state_change_count: int
 
 
 @dataclass(frozen=True)
@@ -188,25 +291,125 @@ class ToolUseFact:
 
 
 @dataclass(frozen=True)
+class StateJournalRecord:
+    status: str
+    reason: str | None
+    changes: tuple[JsonObject, ...]
+
+
+@dataclass(frozen=True)
+class StateChangeFact:
+    experiment_id: str | None
+    job_id: str
+    trial_id: str
+    path: str
+    change_type: str
+    before_sha256: str | None
+    after_sha256: str | None
+    before_size_bytes: int | None
+    after_size_bytes: int | None
+    event_count: int
+    first_event_at: str | None
+    last_event_at: str | None
+    journal_status: str
+
+
+@dataclass(frozen=True)
 class JobFacts:
     trials: tuple[TrialFact, ...]
     rewards: tuple[RewardFact, ...]
     artifacts: tuple[ArtifactFact, ...]
     tool_usage: tuple[ToolUseFact, ...]
+    state_changes: tuple[StateChangeFact, ...]
+    state_events: tuple[StateEventFact, ...]
 
 
 @dataclass(frozen=True)
 class RebuildResult:
     trajectory_export: ExportResult
     fact_export: ExportResult
+    event_mart_export: ExportResult
 
     @property
     def tables(self) -> tuple[ExportedTable, ...]:
-        return self.trajectory_export.tables + self.fact_export.tables
+        return (
+            self.trajectory_export.tables
+            + self.fact_export.tables
+            + self.event_mart_export.tables
+        )
 
 
-def extract_trial_fact(job: JobRecord, trial: TrialRecord) -> TrialFact:
+def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
+    status_path = trial.path / "state-journal" / "status.json"
+    diff_path = trial.path / "state-journal" / "state-diff.json"
+    if not status_path.is_file():
+        return StateJournalRecord("absent", "not_recorded", ())
+    try:
+        status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return StateJournalRecord("invalid", f"status_unreadable:{type(exc).__name__}", ())
+    if not isinstance(status_payload, dict):
+        return StateJournalRecord("invalid", "status_invalid", ())
+    status_value = status_payload.get("status")
+    status = status_value if isinstance(status_value, str) and status_value else "invalid"
+    reason_value = status_payload.get("reason")
+    reason = reason_value if isinstance(reason_value, str) else None
+    if not diff_path.is_file():
+        return StateJournalRecord(status, reason or "state_diff_missing", ())
+    try:
+        diff_payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return StateJournalRecord(
+            status, reason or f"diff_unreadable:{type(exc).__name__}", ()
+        )
+    if not isinstance(diff_payload, dict):
+        return StateJournalRecord(status, reason or "state_diff_invalid", ())
+    changes = diff_payload.get("changes")
+    if not isinstance(changes, list) or not all(isinstance(item, dict) for item in changes):
+        return StateJournalRecord(status, reason or "changes_invalid", ())
+    return StateJournalRecord(status, reason, tuple(changes))
+
+
+def _state_change_fact(
+    *,
+    association: str | None,
+    job: JobRecord,
+    trial: TrialRecord,
+    change: JsonObject,
+    journal_status: str,
+) -> StateChangeFact | None:
+    path = _string(change.get("path"))
+    change_type = _string(change.get("change_type"))
+    if not path or not change_type:
+        return None
+    before_value = change.get("before")
+    after_value = change.get("after")
+    before: JsonObject = before_value if isinstance(before_value, dict) else {}
+    after: JsonObject = after_value if isinstance(after_value, dict) else {}
+    return StateChangeFact(
+        experiment_id=association,
+        job_id=job.id,
+        trial_id=trial.id,
+        path=path,
+        change_type=change_type,
+        before_sha256=_string(before.get("sha256")),
+        after_sha256=_string(after.get("sha256")),
+        before_size_bytes=_integer(before.get("size_bytes")),
+        after_size_bytes=_integer(after.get("size_bytes")),
+        event_count=_integer(change.get("event_count")) or 0,
+        first_event_at=_string(change.get("first_event_at")),
+        last_event_at=_string(change.get("last_event_at")),
+        journal_status=journal_status,
+    )
+
+
+def extract_trial_fact(
+    job: JobRecord,
+    trial: TrialRecord,
+    state_journal: StateJournalRecord | None = None,
+) -> TrialFact:
     projection = project_trial(job, trial)
+    journal = state_journal or load_state_journal(trial)
     result = trial.result
     agent_info = result.get("agent_info") if isinstance(result.get("agent_info"), dict) else {}
     model_info = (
@@ -253,6 +456,27 @@ def extract_trial_fact(job: JobRecord, trial: TrialRecord) -> TrialFact:
             key=lambda item: (item.source, item.destination or ""),
         )
     ]
+    provenance = _experiment_provenance(job)
+    factor_values_json = _coordinate_json(provenance.get("factor_values"))
+    bound_values_json = _coordinate_json(provenance.get("bound_execution_values"))
+    factor_bindings_json = _coordinate_json(provenance.get("factor_bindings"))
+    verifier_digest = _verifier_digest(job, trial)
+    environment_digest = digest_json(trial.lock.get("environment") or {})
+    task_digest = _task_digest(trial)
+    (
+        task_family,
+        task_id,
+        task_instance_id,
+        generator_seed_json,
+        task_block_inputs_json,
+        task_block_id,
+    ) = _task_identity(
+        job,
+        trial,
+        task_digest=task_digest,
+        verifier_digest=verifier_digest,
+        environment_digest=environment_digest,
+    )
     return TrialFact(
         experiment_id=experiment_id(job),
         job_id=job.id,
@@ -260,10 +484,39 @@ def extract_trial_fact(job: JobRecord, trial: TrialRecord) -> TrialFact:
         job_name=job.name,
         trial_name=trial.name,
         task_name=_string(result.get("task_name")),
-        task_digest=_task_digest(trial),
-        verifier_digest=_verifier_digest(job, trial),
-        environment_digest=digest_json(trial.lock.get("environment") or {}),
+        task_digest=task_digest,
+        verifier_digest=verifier_digest,
+        environment_digest=environment_digest,
         agent_config_digest=digest_json(trial.lock.get("agent") or {}),
+        grid_id=_string(provenance.get("grid_id")),
+        point_id=_string(provenance.get("point_id")),
+        arm_id=_string(provenance.get("arm_id")),
+        factor_values_json=factor_values_json,
+        factor_values_digest=(
+            digest_json(provenance["factor_values"])
+            if factor_values_json is not None
+            else None
+        ),
+        factor_bindings_json=factor_bindings_json,
+        factor_bindings_digest=(
+            digest_json(provenance["factor_bindings"])
+            if factor_bindings_json is not None
+            else None
+        ),
+        bound_execution_values_json=bound_values_json,
+        bound_execution_values_digest=(
+            digest_json(provenance["bound_execution_values"])
+            if bound_values_json is not None
+            else None
+        ),
+        preamble_path=_string(provenance.get("preamble_path")),
+        preamble_content_sha256=_string(provenance.get("preamble_sha256")),
+        task_family=task_family,
+        task_id=task_id,
+        task_instance_id=task_instance_id,
+        generator_seed_json=generator_seed_json,
+        task_block_inputs_json=task_block_inputs_json,
+        task_block_id=task_block_id,
         agent_name=_string(agent_info.get("name")),
         agent_version=_string(agent_info.get("version")),
         model_name=_string(model_info.get("name") or model_info.get("model_name")),
@@ -295,6 +548,9 @@ def extract_trial_fact(job: JobRecord, trial: TrialRecord) -> TrialFact:
         artifact_count=len(trial.artifacts),
         missing_artifact_count=sum(not item.exists for item in trial.artifacts),
         artifact_set_digest=digest_json(artifact_inventory),
+        state_journal_status=journal.status,
+        state_journal_reason=journal.reason,
+        state_change_count=len(journal.changes),
     )
 
 
@@ -303,10 +559,30 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
     reward_facts: list[RewardFact] = []
     artifact_facts: list[ArtifactFact] = []
     tool_usage: list[ToolUseFact] = []
+    state_change_facts: list[StateChangeFact] = []
+    state_event_facts: list[StateEventFact] = []
     association = experiment_id(job)
     for trial in sorted(job.trials, key=lambda item: item.id):
         projection = project_trial(job, trial)
-        trial_facts.append(extract_trial_fact(job, trial))
+        state_journal = load_state_journal(trial)
+        trial_facts.append(extract_trial_fact(job, trial, state_journal))
+        try:
+            state_event_facts.extend(
+                load_state_event_facts(
+                    trial,
+                    job_id=str(job.id),
+                    experiment_id=association,
+                )
+            )
+        except StateEventValidationError as exc:
+            state_event_facts.append(
+                invalid_state_event_fact(
+                    trial,
+                    job_id=str(job.id),
+                    experiment_id=association,
+                    error=exc,
+                )
+            )
         reward_facts.extend(
             RewardFact(
                 experiment_id=association,
@@ -345,11 +621,23 @@ def extract_job_facts(job: JobRecord) -> JobFacts:
             )
             for name, count in sorted(counts.items())
         )
+        for change in state_journal.changes:
+            fact = _state_change_fact(
+                association=association,
+                job=job,
+                trial=trial,
+                change=change,
+                journal_status=state_journal.status,
+            )
+            if fact is not None:
+                state_change_facts.append(fact)
     return JobFacts(
         trials=tuple(trial_facts),
         rewards=tuple(reward_facts),
         artifacts=tuple(artifact_facts),
         tool_usage=tuple(tool_usage),
+        state_changes=tuple(state_change_facts),
+        state_events=tuple(state_event_facts),
     )
 
 
@@ -364,6 +652,23 @@ TRIAL_FACT_SCHEMA = pa.schema(
         pa.field("task_digest", pa.string()),
         pa.field("verifier_digest", pa.string(), nullable=False),
         pa.field("environment_digest", pa.string(), nullable=False),
+        pa.field("grid_id", pa.string()),
+        pa.field("point_id", pa.string()),
+        pa.field("arm_id", pa.string()),
+        pa.field("factor_values_json", pa.string()),
+        pa.field("factor_values_digest", pa.string()),
+        pa.field("factor_bindings_json", pa.string()),
+        pa.field("factor_bindings_digest", pa.string()),
+        pa.field("bound_execution_values_json", pa.string()),
+        pa.field("bound_execution_values_digest", pa.string()),
+        pa.field("preamble_path", pa.string()),
+        pa.field("preamble_content_sha256", pa.string()),
+        pa.field("task_family", pa.string()),
+        pa.field("task_id", pa.string()),
+        pa.field("task_instance_id", pa.string()),
+        pa.field("generator_seed_json", pa.string()),
+        pa.field("task_block_inputs_json", pa.string()),
+        pa.field("task_block_id", pa.string()),
         pa.field("agent_config_digest", pa.string(), nullable=False),
         pa.field("agent_name", pa.string()),
         pa.field("agent_version", pa.string()),
@@ -390,6 +695,9 @@ TRIAL_FACT_SCHEMA = pa.schema(
         pa.field("artifact_count", pa.int64(), nullable=False),
         pa.field("missing_artifact_count", pa.int64(), nullable=False),
         pa.field("artifact_set_digest", pa.string(), nullable=False),
+        pa.field("state_journal_status", pa.string(), nullable=False),
+        pa.field("state_journal_reason", pa.string()),
+        pa.field("state_change_count", pa.int64(), nullable=False),
     ]
 )
 
@@ -425,6 +733,54 @@ FACT_SCHEMAS = {
             pa.field("trial_id", pa.string(), nullable=False),
             pa.field("function_name", pa.string(), nullable=False),
             pa.field("call_count", pa.int64(), nullable=False),
+        ]
+    ),
+    "state_changes": pa.schema(
+        [
+            pa.field("experiment_id", pa.string()),
+            pa.field("job_id", pa.string(), nullable=False),
+            pa.field("trial_id", pa.string(), nullable=False),
+            pa.field("path", pa.string(), nullable=False),
+            pa.field("change_type", pa.string(), nullable=False),
+            pa.field("before_sha256", pa.string()),
+            pa.field("after_sha256", pa.string()),
+            pa.field("before_size_bytes", pa.int64()),
+            pa.field("after_size_bytes", pa.int64()),
+            pa.field("event_count", pa.int64(), nullable=False),
+            pa.field("first_event_at", pa.string()),
+            pa.field("last_event_at", pa.string()),
+            pa.field("journal_status", pa.string(), nullable=False),
+        ]
+    ),
+    "state_events": pa.schema(
+        [
+            pa.field("experiment_id", pa.string()),
+            pa.field("job_id", pa.string(), nullable=False),
+            pa.field("trial_id", pa.string(), nullable=False),
+            pa.field("sequence", pa.int64(), nullable=False),
+            pa.field("precedence", pa.int64(), nullable=False),
+            pa.field("predecessor_sequence", pa.int64()),
+            pa.field("event_at", pa.string()),
+            pa.field("operations", pa.list_(pa.string()), nullable=False),
+            pa.field("path", pa.string()),
+            pa.field("is_directory", pa.bool_()),
+            pa.field("cookie", pa.int64()),
+            pa.field("before_state_digest", pa.string()),
+            pa.field("after_state_digest", pa.string()),
+            pa.field("before_content_sha256", pa.string()),
+            pa.field("after_content_sha256", pa.string()),
+            pa.field("before_size_bytes", pa.int64()),
+            pa.field("after_size_bytes", pa.int64()),
+            pa.field("before_evidence_status", pa.string(), nullable=False),
+            pa.field("producer", pa.string(), nullable=False),
+            pa.field("producer_schema_version", pa.int64()),
+            pa.field("fact_schema_version", pa.string(), nullable=False),
+            pa.field("source_digest", pa.string(), nullable=False),
+            pa.field("source_record_digest", pa.string()),
+            pa.field("temporal_semantics", pa.string(), nullable=False),
+            pa.field("evidence_status", pa.string(), nullable=False),
+            pa.field("invalid_reason", pa.string()),
+            pa.field("invalid_error_digest", pa.string()),
         ]
     ),
 }
@@ -469,6 +825,12 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
                 "tool_usage": [
                     asdict(item) for item in facts.tool_usage if item.trial_id == trial_id
                 ],
+                "state_changes": [
+                    asdict(item) for item in facts.state_changes if item.trial_id == trial_id
+                ],
+                "state_events": [
+                    asdict(item) for item in facts.state_events if item.trial_id == trial_id
+                ],
             }
             for table_name, rows in rows_by_table.items():
                 exported.append(
@@ -478,9 +840,12 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
 
 
 def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
+    from evallab.event_mart import export_event_mart
+
     return RebuildResult(
         trajectory_export=export_trajectories(jobs, output_root),
         fact_export=export_facts(jobs, output_root),
+        event_mart_export=export_event_mart(jobs, output_root),
     )
 
 
@@ -578,7 +943,13 @@ def ingest_catalog(
                     """
                     INSERT INTO deterministic_trial_facts (
                         trial_id, verifier_digest, environment_digest,
-                        agent_config_digest, exception_phase,
+                        agent_config_digest, grid_id, point_id, arm_id,
+                        factor_values_json, factor_values_digest,
+                        factor_bindings_json, factor_bindings_digest,
+                        bound_execution_values_json, bound_execution_values_digest,
+                        preamble_path, preamble_content_sha256, task_family, task_id,
+                        task_instance_id, generator_seed_json,
+                        task_block_inputs_json, task_block_id, exception_phase,
                         environment_setup_seconds, agent_setup_seconds,
                         agent_execution_seconds, verifier_seconds,
                         trajectory_count, invalid_trajectory_count, step_count,
@@ -588,7 +959,14 @@ def ingest_catalog(
                         updated_at
                     ) VALUES (
                         %(trial_id)s, %(verifier_digest)s, %(environment_digest)s,
-                        %(agent_config_digest)s, %(exception_phase)s,
+                        %(agent_config_digest)s, %(grid_id)s, %(point_id)s, %(arm_id)s,
+                        %(factor_values_json)s, %(factor_values_digest)s,
+                        %(factor_bindings_json)s, %(factor_bindings_digest)s,
+                        %(bound_execution_values_json)s,
+                        %(bound_execution_values_digest)s,
+                        %(preamble_path)s, %(preamble_content_sha256)s, %(task_family)s,
+                        %(task_id)s, %(task_instance_id)s, %(generator_seed_json)s,
+                        %(task_block_inputs_json)s, %(task_block_id)s, %(exception_phase)s,
                         %(environment_setup_seconds)s, %(agent_setup_seconds)s,
                         %(agent_execution_seconds)s, %(verifier_seconds)s,
                         %(trajectory_count)s, %(invalid_trajectory_count)s,
@@ -601,6 +979,23 @@ def ingest_catalog(
                         verifier_digest = EXCLUDED.verifier_digest,
                         environment_digest = EXCLUDED.environment_digest,
                         agent_config_digest = EXCLUDED.agent_config_digest,
+                        grid_id = EXCLUDED.grid_id,
+                        point_id = EXCLUDED.point_id,
+                        arm_id = EXCLUDED.arm_id,
+                        factor_values_json = EXCLUDED.factor_values_json,
+                        factor_values_digest = EXCLUDED.factor_values_digest,
+                        factor_bindings_json = EXCLUDED.factor_bindings_json,
+                        factor_bindings_digest = EXCLUDED.factor_bindings_digest,
+                        bound_execution_values_json = EXCLUDED.bound_execution_values_json,
+                        bound_execution_values_digest = EXCLUDED.bound_execution_values_digest,
+                        preamble_path = EXCLUDED.preamble_path,
+                        preamble_content_sha256 = EXCLUDED.preamble_content_sha256,
+                        task_family = EXCLUDED.task_family,
+                        task_id = EXCLUDED.task_id,
+                        task_instance_id = EXCLUDED.task_instance_id,
+                        generator_seed_json = EXCLUDED.generator_seed_json,
+                        task_block_inputs_json = EXCLUDED.task_block_inputs_json,
+                        task_block_id = EXCLUDED.task_block_id,
                         exception_phase = EXCLUDED.exception_phase,
                         environment_setup_seconds = EXCLUDED.environment_setup_seconds,
                         agent_setup_seconds = EXCLUDED.agent_setup_seconds,
@@ -759,9 +1154,7 @@ def _source_digests(trial: TrialRecord, cited_paths: set[str]) -> AnalysisSource
     return AnalysisSourceDigests(
         result=_analysis_file_digest(result_path),
         task=_task_source_digest(trial),
-        trajectory=(
-            _analysis_file_digest(trajectory_path) if trajectory_path.is_file() else None
-        ),
+        trajectory=(_analysis_file_digest(trajectory_path) if trajectory_path.is_file() else None),
         files=files,
     )
 
@@ -808,9 +1201,7 @@ def validate_analysis_evidence(
             None,
         )
         if step is None:
-            errors.append(
-                f"evidence[{index}] missing step {citation.step_id} in {citation.path}"
-            )
+            errors.append(f"evidence[{index}] missing step {citation.step_id} in {citation.path}")
             continue
         if citation.tool_call_id is not None:
             call_ids = {
@@ -1054,8 +1445,7 @@ class CodexExecAnalyzer:
         )
         if completed.returncode != 0:
             raise RuntimeError(
-                f"codex exec failed with {completed.returncode}: "
-                f"{completed.stderr.strip()[:500]}"
+                f"codex exec failed with {completed.returncode}: {completed.stderr.strip()[:500]}"
             )
         return AnalyzerCallResult(raw_output=output_path.read_text())
 

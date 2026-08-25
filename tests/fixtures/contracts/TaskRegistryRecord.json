@@ -1,9 +1,207 @@
 {
   "$defs": {
-    "ControlEvidenceRef": {
+    "CertificationAxes": {
       "additionalProperties": false,
       "properties": {
-        "evidence_digest": {
+        "difficulty_calibration": {
+          "$ref": "#/$defs/CertificationAxis"
+        },
+        "realism_review": {
+          "$ref": "#/$defs/CertificationAxis"
+        },
+        "solvability": {
+          "$ref": "#/$defs/CertificationAxis"
+        },
+        "task_correctness": {
+          "$ref": "#/$defs/CertificationAxis"
+        },
+        "verifier_completeness": {
+          "$ref": "#/$defs/CertificationAxis"
+        },
+        "verifier_soundness": {
+          "$ref": "#/$defs/CertificationAxis"
+        }
+      },
+      "required": [
+        "task_correctness",
+        "verifier_soundness",
+        "verifier_completeness",
+        "solvability",
+        "difficulty_calibration",
+        "realism_review"
+      ],
+      "title": "CertificationAxes",
+      "type": "object"
+    },
+    "CertificationAxis": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "not_assessed",
+            "not_applicable"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "title": "CertificationAxis",
+      "type": "object"
+    },
+    "CertificationCheckVector": {
+      "additionalProperties": false,
+      "properties": {
+        "all_controls_completed": {
+          "title": "All Controls Completed",
+          "type": "boolean"
+        },
+        "fair_alternative_exact_1": {
+          "title": "Fair Alternative Exact 1",
+          "type": "boolean"
+        },
+        "hack_detected": {
+          "title": "Hack Detected",
+          "type": "boolean"
+        },
+        "invalid_outputs_rejected": {
+          "title": "Invalid Outputs Rejected",
+          "type": "boolean"
+        },
+        "isolation": {
+          "title": "Isolation",
+          "type": "boolean"
+        },
+        "leakage_scan_clean": {
+          "title": "Leakage Scan Clean",
+          "type": "boolean"
+        },
+        "nop_exact_0_x2": {
+          "title": "Nop Exact 0 X2",
+          "type": "boolean"
+        },
+        "oracle_exact_1_x3": {
+          "title": "Oracle Exact 1 X3",
+          "type": "boolean"
+        },
+        "oracle_stable_output": {
+          "title": "Oracle Stable Output",
+          "type": "boolean"
+        },
+        "please_hack_executed": {
+          "title": "Please Hack Executed",
+          "type": "boolean"
+        },
+        "static": {
+          "title": "Static",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "all_controls_completed",
+        "static",
+        "oracle_exact_1_x3",
+        "oracle_stable_output",
+        "nop_exact_0_x2",
+        "invalid_outputs_rejected",
+        "fair_alternative_exact_1",
+        "please_hack_executed",
+        "hack_detected",
+        "leakage_scan_clean",
+        "isolation"
+      ],
+      "title": "CertificationCheckVector",
+      "type": "object"
+    },
+    "CertificationControlSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "fair_alternative_runs": {
+          "minimum": 0,
+          "title": "Fair Alternative Runs",
+          "type": "integer"
+        },
+        "invalid_probe_runs": {
+          "minimum": 0,
+          "title": "Invalid Probe Runs",
+          "type": "integer"
+        },
+        "nop_runs": {
+          "minimum": 0,
+          "title": "Nop Runs",
+          "type": "integer"
+        },
+        "oracle_runs": {
+          "minimum": 0,
+          "title": "Oracle Runs",
+          "type": "integer"
+        },
+        "please_hack_runs": {
+          "minimum": 0,
+          "title": "Please Hack Runs",
+          "type": "integer"
+        },
+        "result_digests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Result Digests",
+          "type": "array"
+        }
+      },
+      "required": [
+        "oracle_runs",
+        "nop_runs",
+        "invalid_probe_runs",
+        "fair_alternative_runs",
+        "please_hack_runs",
+        "result_digests"
+      ],
+      "title": "CertificationControlSummary",
+      "type": "object"
+    },
+    "CertificationIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "code_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Code Digest",
+          "type": "string"
+        },
+        "execution": {
+          "const": "local",
+          "title": "Execution",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Model"
+        },
+        "prompt_digest": {
           "anyOf": [
             {
               "pattern": "^sha256:[0-9a-f]{64}$",
@@ -14,29 +212,111 @@
             }
           ],
           "default": null,
-          "title": "Evidence Digest"
+          "title": "Prompt Digest"
+        }
+      },
+      "required": [
+        "code_digest",
+        "execution",
+        "model"
+      ],
+      "title": "CertificationIdentity",
+      "type": "object"
+    },
+    "ControlEvidenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Evidence Digest",
+          "type": "string"
         },
         "evidence_path": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Evidence Path"
+          "minLength": 1,
+          "title": "Evidence Path",
+          "type": "string"
+        },
+        "harbor_task_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Harbor Task Digest",
+          "type": "string"
         },
         "job_name": {
           "minLength": 1,
           "title": "Job Name",
           "type": "string"
         },
+        "lock_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Lock Digest",
+          "type": "string"
+        },
         "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "reward": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Reward",
+          "type": "number"
+        },
+        "task_digests": {
+          "$ref": "#/$defs/TaskDigests"
+        },
+        "task_id": {
+          "minLength": 3,
+          "pattern": "^[a-z0-9][a-z0-9-]+$",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "task_version": {
+          "minLength": 1,
+          "title": "Task Version",
+          "type": "string"
+        },
+        "trial_name": {
+          "minLength": 1,
+          "title": "Trial Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "job_name",
+        "trial_name",
+        "reward",
+        "evidence_path",
+        "evidence_digest",
+        "lock_digest",
+        "observed_at",
+        "task_id",
+        "task_version",
+        "task_digests",
+        "harbor_task_digest"
+      ],
+      "title": "ControlEvidenceRef",
+      "type": "object"
+    },
+    "TaskCertificationEnvelope": {
+      "additionalProperties": false,
+      "description": "Digest-bound workbench packet reference; legacy absence stays explicit.",
+      "properties": {
+        "axes": {
           "anyOf": [
             {
-              "format": "date-time",
+              "$ref": "#/$defs/CertificationAxes"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "candidate_id": {
+          "anyOf": [
+            {
+              "pattern": "^candidate-[0-9a-f]{24}$",
               "type": "string"
             },
             {
@@ -44,20 +324,158 @@
             }
           ],
           "default": null,
-          "title": "Observed At"
+          "title": "Candidate Id"
         },
-        "reward": {
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Reward",
-          "type": "number"
+        "candidate_package_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Package Digest"
+        },
+        "candidate_record_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Record Digest"
+        },
+        "certification_id": {
+          "anyOf": [
+            {
+              "pattern": "^cert-[0-9a-f]{24}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Certification Id"
+        },
+        "check_vector": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CertificationCheckVector"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "control_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CertificationControlSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "generator_identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CertificationIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "package_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Package Digest"
+        },
+        "packet_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Packet Path"
+        },
+        "packet_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Packet Sha256"
+        },
+        "reason": {
+          "default": "legacy_record_has_no_certificate_packet",
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "state": {
+          "default": "legacy_missing",
+          "enum": [
+            "bound",
+            "legacy_missing"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "validator_identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CertificationIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "workbench_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workbench Version"
         }
       },
-      "required": [
-        "job_name",
-        "reward"
-      ],
-      "title": "ControlEvidenceRef",
+      "title": "TaskCertificationEnvelope",
       "type": "object"
     },
     "TaskContamination": {
@@ -238,6 +656,9 @@
       "default": null,
       "title": "Approved By"
     },
+    "certification": {
+      "$ref": "#/$defs/TaskCertificationEnvelope"
+    },
     "contamination": {
       "anyOf": [
         {
@@ -251,7 +672,15 @@
       "description": "contamination assessment (public_since, in_pretrain, basis)"
     },
     "control_evidence": {
-      "$ref": "#/$defs/TaskControlEvidence"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TaskControlEvidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "digests": {
       "$ref": "#/$defs/TaskDigests"
@@ -331,6 +760,20 @@
       "title": "State",
       "type": "string"
     },
+    "state_reason": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "machine-readable reason for a non-registered admission state",
+      "title": "State Reason"
+    },
     "task_id": {
       "maxLength": 80,
       "minLength": 3,
@@ -357,7 +800,6 @@
     "source_uri",
     "provenance_zone",
     "is_synthetic",
-    "control_evidence",
     "state",
     "allowed_uses"
   ],

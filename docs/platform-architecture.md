@@ -480,7 +480,7 @@ real model today regardless of spend authorisation:
 |---|---|---|
 | `analyst.ModelAnalyzer.analyze()` | — | raises `ModelProviderRefusedError` **even when `--model` is supplied** (`analyst.py:150`) |
 | `analysis_worker.AnalyzerCallable` | `_no_adapter` | raises `no analysis adapter is wired` (`analysis_worker.py:657`) |
-| `authoring.design_novel_spec(designer=…)` | `default_novel_designer` | deterministic stub spec designer (`authoring.py:642`) |
+| `authoring.design_novel_spec(designer=…)` | `local_test_designer` | deterministic test-only fallback; production `model-propose` requires explicit pinned model and transport (`authoring.py`) |
 
 Trial *execution* against real agents does work — the catalog holds 33 `codex` trials
 beside 57 `oracle` and 2 `nop` controls — so the gap is confined to the analysis and

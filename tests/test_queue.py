@@ -15,13 +15,25 @@ from evallab import eventlog
 from evallab.credentials import CLAUDE_OAUTH, CODEX_AUTH
 from evallab.queue import (
     DirectoryQueue,
+    DispatchCapacity,
     Executor,
     PaidRunAuthorization,
     PolicyGate,
     load_events,
 )
-from evallab.runner import RunRequest, TransientHarnessFailure, TrialTimeoutFailure
-from evallab.schemas import AutoRunRule, ExperimentSpec, QueueEvent, StandingApprovalsPolicy
+from evallab.runner import (
+    ExecutionFailure,
+    RunRequest,
+    TransientHarnessFailure,
+    TrialTimeoutFailure,
+)
+from evallab.schemas import (
+    AutoRunRule,
+    ExperimentSpec,
+    QueueEvent,
+    StandingApprovalsPolicy,
+    canonical_grid_point_id,
+)
 
 
 def policy() -> StandingApprovalsPolicy:
@@ -50,6 +62,8 @@ def spec(
     model: str | None = None,
     est_cost_usd: float = 0,
     policy_rule: str | None = None,
+    attempts: int = 1,
+    concurrency: int = 1,
 ) -> ExperimentSpec:
     return ExperimentSpec(
         name=name,
@@ -62,6 +76,8 @@ def spec(
         submitted_by="test-agent",
         est_cost_usd=est_cost_usd,
         policy_rule=policy_rule,
+        attempts=attempts,
+        concurrency=concurrency,
     )
 
 
@@ -95,6 +111,8 @@ def executor(
     credentials: frozenset[str] | None = None,
     sleeper=lambda _seconds: None,
     max_transient_retries: int = 2,
+    parallel: int = 1,
+    capacity: DispatchCapacity | None = None,
 ) -> Executor:
     return Executor(
         repo_root=root,
@@ -109,6 +127,8 @@ def executor(
         else frozenset({"claude_oauth", "codex_auth"}),
         sleeper=sleeper,
         max_transient_retries=max_transient_retries,
+        parallel=parallel,
+        capacity=capacity,
     )
 
 
@@ -895,6 +915,90 @@ def test_concurrent_executor_tick_defers_to_single_queue_owner(tmp_path: Path) -
     assert calls == ["single-owner-control"]
 
 
+def test_global_dispatch_capacity_bounds_internal_trial_slots(tmp_path: Path) -> None:
+    calls: list[str] = []
+    service = executor(
+        tmp_path,
+        runner=lambda request: calls.append(request.name) or request.jobs_dir / request.name,
+        parallel=4,
+        capacity=DispatchCapacity(max_specs_per_tick=4, max_active_trials=3),
+    )
+    for index in range(4):
+        service.submit(spec(
+            f"capacity-{index}",
+            attempts=3,
+            concurrency=2,
+        ))
+
+    assert service.tick() == 1
+    assert len(calls) == 1
+    assert len(service.queue.list_specs("approved")) == 3
+
+
+def test_max_specs_per_tick_is_independent_of_worker_parallelism(tmp_path: Path) -> None:
+    calls: list[str] = []
+    service = executor(
+        tmp_path,
+        runner=lambda request: calls.append(request.name) or request.jobs_dir / request.name,
+        parallel=1,
+        capacity=DispatchCapacity(max_specs_per_tick=3),
+    )
+    for index in range(4):
+        service.submit(spec(f"batch-limit-{index}"))
+
+    assert service.tick() == 3
+    assert len(calls) == 3
+    assert len(service.queue.list_specs("approved")) == 1
+
+
+def test_trial_capacity_without_batch_limit_is_not_clamped_to_parallel(
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+    service = executor(
+        tmp_path,
+        runner=lambda request: calls.append(request.name) or request.jobs_dir / request.name,
+        parallel=2,
+        capacity=DispatchCapacity(max_active_trials=4),
+    )
+    for index in range(4):
+        service.submit(spec(f"trial-capacity-{index}"))
+
+    assert service.tick() == 4
+    assert len(calls) == 4
+    assert not service.queue.list_specs("approved")
+
+
+def test_per_agent_capacity_and_oversized_specs_remain_approved(tmp_path: Path) -> None:
+    calls: list[str] = []
+    service = executor(
+        tmp_path,
+        runner=lambda request: calls.append(request.name) or request.jobs_dir / request.name,
+        parallel=4,
+        capacity=DispatchCapacity(
+            max_active_trials=4,
+            per_agent_active_trials={"oracle": 2, "nop": 2},
+        ),
+    )
+    service.submit(spec("oracle-one", attempts=2, concurrency=2))
+    service.submit(spec("oracle-two", attempts=2, concurrency=2))
+    service.submit(spec("nop-one", agent="nop", attempts=2, concurrency=2))
+
+    assert service.tick() == 2
+    assert set(calls) == {"oracle-one", "nop-one"}
+    assert len(service.queue.list_specs("approved")) == 1
+
+    blocked = executor(
+        tmp_path / "blocked",
+        parallel=2,
+        capacity=DispatchCapacity(max_active_trials=1),
+    )
+    blocked.submit(spec("too-wide", attempts=2, concurrency=2))
+    assert blocked.tick() == 0
+    assert blocked.last_tick_reason == "capacity_no_approved_spec_fits"
+    assert len(blocked.queue.list_specs("approved")) == 1
+
+
 def test_atomic_lease_acquisition_and_release(tmp_path: Path) -> None:
     queue = DirectoryQueue(tmp_path / "queue")
     s = spec("lease-test-control")
@@ -1026,3 +1130,115 @@ def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> Non
     assert order == ["seq-spec-1", "seq-spec-2", "seq-spec-3"]
     assert len(service.queue.list_specs("done")) == 3
     assert len(service.queue.list_leases()) == 0
+
+
+def test_dispatch_preserves_bound_factor_execution_values(tmp_path: Path) -> None:
+    requests: list[RunRequest] = []
+    service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
+    item = spec("bound-factor", concurrency=2).model_copy(update={
+        "timeout_seconds": 60,
+        "grid_id": "grid-1",
+        "grid_point": {
+            "point_id": canonical_grid_point_id(
+                task_ref="library/tasks/event-summary",
+                agent_key="oracle",
+                preamble=None,
+                k=1,
+                arm_id=None,
+                factor_values={"parallelism": 2, "wall_clock": 60},
+                factor_bindings={
+                    "parallelism": "concurrency",
+                    "wall_clock": "timeout_seconds",
+                },
+            ),
+            "task_ref": "library/tasks/event-summary",
+            "agent": "oracle",
+            "preamble": None,
+            "k": 1,
+            "factors": {"parallelism": 2, "wall_clock": 60},
+            "factor_bindings": {
+                "parallelism": "concurrency",
+                "wall_clock": "timeout_seconds",
+            },
+            "bindings": {"concurrency": 2, "timeout_seconds": 60},
+        },
+    })
+
+    service.execute_spec(item)
+
+    assert requests[0].concurrency == 2
+    assert requests[0].timeout_seconds == 60
+    assert requests[0].provenance is not None
+    assert requests[0].provenance.factor_bindings == {
+        "parallelism": "concurrency",
+        "wall_clock": "timeout_seconds",
+    }
+
+
+def test_dispatch_refuses_unhonored_and_tampered_factor_bindings(tmp_path: Path) -> None:
+    service = executor(tmp_path)
+    unhonored = spec("unhonored-factor").model_copy(update={
+        "timeout_seconds": 120,
+        "grid_point": {
+            "factors": {"wall_clock": 60},
+            "factor_bindings": {"wall_clock": "timeout_seconds"},
+            "bindings": {"timeout_seconds": 60},
+        },
+    })
+    with pytest.raises(ExecutionFailure, match="requested 60"):
+        service.execute_spec(unhonored)
+
+    tampered = spec("tampered-factor").model_copy(update={
+        "timeout_seconds": 60,
+        "grid_point": {
+            "factors": {"wall_clock": 60},
+            "factor_bindings": {"wall_clock": "concurrency"},
+            "bindings": {"timeout_seconds": 60},
+        },
+    })
+    with pytest.raises(ExecutionFailure, match="does not match bound execution"):
+        service.execute_spec(tampered)
+
+
+
+def test_dispatch_refuses_stale_point_identity_after_consistent_edit(
+    tmp_path: Path,
+) -> None:
+    service = executor(tmp_path)
+    stale_point = canonical_grid_point_id(
+        task_ref="library/tasks/event-summary",
+        agent_key="oracle",
+        preamble=None,
+        k=1,
+        arm_id=None,
+        factor_values={"wall_clock": 60},
+        factor_bindings={"wall_clock": "timeout_seconds"},
+    )
+    consistently_edited = spec("stale-point").model_copy(update={
+        "timeout_seconds": 120,
+        "grid_point": {
+            "point_id": stale_point,
+            "task_ref": "library/tasks/event-summary",
+            "agent": "oracle",
+            "preamble": None,
+            "k": 1,
+            "factors": {"wall_clock": 120},
+            "factor_bindings": {"wall_clock": "timeout_seconds"},
+            "bindings": {"timeout_seconds": 120},
+        },
+    })
+    with pytest.raises(ExecutionFailure, match="stored point_id"):
+        service.execute_spec(consistently_edited)
+
+
+
+def test_dispatch_refuses_preamble_digest_mismatch(tmp_path: Path) -> None:
+    preamble = tmp_path / "instructions.txt"
+    preamble.write_text("changed after generation\n")
+    item = spec("preamble-drift").model_copy(update={
+        "extra_instruction_path": "instructions.txt",
+        "extra_instruction_sha256": "sha256:" + "0" * 64,
+    })
+
+    with pytest.raises(ExecutionFailure, match="no longer matches"):
+        executor(tmp_path).execute_spec(item)

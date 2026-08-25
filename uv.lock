@@ -30,6 +30,24 @@ wheels = [
 ]
 
 [[package]]
+name = "arize-phoenix-client"
+version = "3.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "openinference-instrumentation" },
+    { name = "openinference-semantic-conventions" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-sdk" },
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/82/2f/5c36c290feebe0b2284b5e9ebd1063d71f02774bda9845d79390652aaa65/arize_phoenix_client-3.3.0.tar.gz", hash = "sha256:583f1ac7704a8dd7eb6a8d866aeb07820ce1e599ce3bdf273840f519b9a0fe55", size = 260808, upload-time = "2026-08-22T01:43:08.765Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/20/152d531d2d93afa2632f70dd68a2d64913b927f76904caf669da09a2804e/arize_phoenix_client-3.3.0-py3-none-any.whl", hash = "sha256:387009ba1cdb9999d1080afbdb75d052be2f2798771856ccc721f522e7fee784", size = 231351, upload-time = "2026-08-22T01:43:07.187Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -388,6 +406,7 @@ dev = [
     { name = "ruff" },
 ]
 observability = [
+    { name = "arize-phoenix-client" },
     { name = "harbor-atif2otel" },
     { name = "openinference-instrumentation-dspy" },
     { name = "openinference-instrumentation-litellm" },
@@ -415,6 +434,7 @@ dev = [
     { name = "ruff", specifier = ">=0.12,<1" },
 ]
 observability = [
+    { name = "arize-phoenix-client", specifier = ">=3.3.0" },
     { name = "harbor-atif2otel", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-dspy", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-litellm", specifier = ">=0.1.0" },

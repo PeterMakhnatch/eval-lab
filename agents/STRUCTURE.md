@@ -21,9 +21,10 @@ eval-lab/
 │   ├── ROLES.md               superseded — compatibility pointer (M001)
 │   ├── missions/              ACTIVE.md live board + TEMPLATE.md
 │   ├── archive/               dated closed-mission and registry records, plus
-│   │                          dated handoff subdirectories (spent handoffs are
-│   │                          moved here 1:1 by `git mv`, never edited or
-│   │                          deleted, each with an INDEX.md)
+│   │                          dated handoff subdirectories. Normalize the
+│   │                          four-line header before the 1:1 `git mv`; after
+│   │                          archival, handoffs are never edited or deleted.
+│   │                          Dated INDEX.md files remain mutable indexes.
 │   ├── CHECKS.md              the verification contract
 │   ├── STRUCTURE.md           this file
 │   └── handoffs/<role>.md     live status, one file per **live** mission only;
@@ -69,6 +70,7 @@ eval-lab/
 │   ├── tasks/                 lab-authored tasks
 │   ├── benchmarks/            pinned frontier benchmark ingests (INGEST)
 │   ├── adapters/              benchmark → Harbor converters
+│   ├── synthetic/             Zone 03 generated task sources (docs/data-architecture.md)
 │   └── registry/              task admission and execution trust records (REGISTER)
 │
 ├── research/                  WHAT WE LEARN — produced knowledge
@@ -83,19 +85,37 @@ eval-lab/
 │                              canary suite. Peter-owned content; deliberately
 │                              at root for visibility.
 │
-├── src/  tests/  sql/  scripts/     THE LAB SOFTWARE (Platform lane)
+├── src/                       Platform implementation
+├── tests/                     executable contracts for repository behavior
+├── sql/                       schema and analysis views
+├── scripts/                   operator and CI tooling
 ├── dashboard/                 read-only research overview (Streamlit app +
 │                              explorer, projection, queries, own tests/).
 │                              Platform lane per agents/OWNERS.md. Separate
 │                              from src/ because it is a presentation surface
 │                              over committed evidence, never an execution path.
-├── pyproject.toml  uv.lock  Makefile  compose.yaml     build & services
+├── containers/                repo-owned container entrypoints and images used
+│                              by Platform services (for example state-journal);
+│                              committed runtime definitions, not generated state
+├── pyproject.toml             Python package and tool configuration
+├── uv.lock                    locked Python dependency graph
+├── Makefile                   operator command shortcuts
+├── compose.yaml               local service composition
 ├── .github/                   CI workflows and gates (Integration lane)
-├── .env.example  .gitignore  .gitattributes  .python-version     repo config
+├── .claude/                   checked-in Claude command configuration
+├── .githooks/                 checked-in repository hook implementations
+├── .env.example               environment-variable template
+├── .gitignore                 generated/local path exclusions
+├── .gitattributes             merge and path attributes
+├── .python-version            development Python pin
 │
+├── authoring/                 versioned authoring templates and seed material
+├── grids/                     declared experiment grid inputs
 ├── digests/                   the daily one-pager the human reads (committed)
-├── queue/  runs/  derived/    GENERATED STATE (gitignored, rebuildable)
-├── backups/                    nightly local PostgreSQL recovery snapshots
+├── queue/                     generated queue state (gitignored, rebuildable)
+├── runs/                      generated run state (gitignored, rebuildable)
+├── derived/                   generated projections (gitignored, rebuildable)
+├── backups/                   nightly local PostgreSQL recovery snapshots
 └── .worktrees/                parallel working trees (gitignored, hidden)
 ```
 
@@ -113,6 +133,7 @@ Ask which question the thing answers:
 | "How does the lab software work?" | `src/` (+ `tests/`, `sql/`, `scripts/`) |
 | "How do I *look* at what the lab produced?" | `dashboard/` (read-only presentation over committed evidence) |
 | "What did the integrator verify by hand, on what date?" | `docs/checkpoints/` (append-only history — correct by dated note, never rewrite) |
+| "What defines a repo-owned service container?" | `containers/` (Platform runtime definitions and entrypoints) |
 | "What happened?" (generated, rebuildable) | `runs/`, `queue/`, `derived/`, `backups/`, catalog — never committed |
 | "What happened?" (curated for humans) | `digests/`, `research/evidence/` |
 
@@ -187,3 +208,12 @@ for today).
   - Ownership labels refreshed from `agents/OWNERS.md`: `src/ tests/ sql/
     scripts/` is Platform lane, not "BUILDER-owned" (a codename retired by
     M001). Placement-guide rows added for `dashboard/` and `docs/checkpoints/`.
+- 2026-08-23 — `containers/` declared after PR #146 merged the
+  `containers/state-journal/` runtime. Bucket: Platform-owned service container
+  definitions and entrypoints; unlike `runs/` or `derived/`, these sources are
+  committed and reviewed.
+- 2026-08-24 — `library/synthetic/` named in the library submap (SEQGEN).
+  Bucket rule: evaluable task supply; the path was already the normative Zone
+  03 storage boundary in `docs/data-architecture.md` and the blueprint's
+  disposition target in `docs/research/synthetic-tasks.md`; the first
+  committed batch is `library/synthetic/seqgen-v0/`.

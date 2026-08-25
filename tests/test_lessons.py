@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,9 +19,13 @@ from evallab.lessons import (
     LessonsResult,
     apply_statistical_gating,
     build_lessons,
+    check_lessons_freshness,
+    collect_lessons_inputs,
     compare_lesson_rows,
     execute_lessons_views,
     generate_lessons_file,
+    load_analysis_sidecars,
+    load_trial_facts,
     parse_observation_markdown,
     populate_duckdb,
     rank_lesson_rows,
@@ -301,6 +306,11 @@ def _make_mock_analysis_sidecars() -> list[dict]:
             "earliest_failure_step_id": 2,
             "confidence": "high",
             "validation_status": "valid",
+            "source_path": "derived/analysis/a/analysis.json",
+            "source_digest": (
+                "sha256:"
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ),
         }
     ]
 
@@ -347,12 +357,14 @@ def test_duckdb_views_against_fixtures(tmp_path: Path) -> None:
     verifier_rows = views_data["v_outcome_by_verifier_type"]
     assert len(verifier_rows) == 2
     pytest_row = next(r for r in verifier_rows if r["verifier_type"] == "pytest")
-    assert pytest_row["n"] == 6
+    assert pytest_row["total_trials_n"] == 6
+    assert pytest_row["n"] == 5
     assert pytest_row["passed_n"] == 4
     assert pytest_row["exceptions_n"] == 1
+    assert pytest_row["never_measured_n"] == 0
+    assert pytest_row["excluded_n"] == 1
     assert pytest_row["failed_unexcepted_n"] == 1
-    assert pytest_row["pass_rate_pct"] == pytest.approx(66.67, abs=0.01)
-    assert pytest_row["exception_rate_pct"] == pytest.approx(16.67, abs=0.01)
+    assert pytest_row["pass_rate_pct"] == pytest.approx(80.0)
 
     golden_row = next(r for r in verifier_rows if r["verifier_type"] == "golden_file")
     assert golden_row["n"] == 3
@@ -364,9 +376,17 @@ def test_duckdb_views_against_fixtures(tmp_path: Path) -> None:
     loop_rows = views_data["v_loop_rate_by_env"]
     assert len(loop_rows) == 2
     single_cont_row = next(r for r in loop_rows if not r["env_multi_container"])
-    assert single_cont_row["n"] == 6
+    assert single_cont_row["total_trials_n"] == 6
+    assert single_cont_row["annotated_n"] == 1
+    assert single_cont_row["unannotated_n"] == 5
+    assert single_cont_row["n"] == 1
     assert single_cont_row["loops_n"] == 1
-    assert single_cont_row["loop_rate_pct"] == pytest.approx(16.67, abs=0.01)
+    assert single_cont_row["loop_rate_pct"] == pytest.approx(100.0)
+    multi_cont_row = next(r for r in loop_rows if r["env_multi_container"])
+    assert multi_cont_row["total_trials_n"] == 3
+    assert multi_cont_row["annotated_n"] == 0
+    assert multi_cont_row["unannotated_n"] == 3
+    assert multi_cont_row["n"] == 0
 
     # 3. v_failure_by_facet checks
     failure_rows = views_data["v_failure_by_facet"]
@@ -377,12 +397,207 @@ def test_duckdb_views_against_fixtures(tmp_path: Path) -> None:
             for r in failure_rows
             if r["facet_name"] == "verifier_type"
             and r["facet_value"] == "pytest"
-            and r["failure_category"] == "tool_use"
+            and r["model_failure_category"] == "tool_use"
         ),
         None,
     )
     assert tool_use_row is not None
+    assert tool_use_row["model_diagnosis_source"] == "validated_analysis_sidecar"
+    assert tool_use_row["mechanical_failure_category"] == "unscored_failure"
+    assert tool_use_row["mechanical_diagnosis_source"] == "trial_facts"
+    assert tool_use_row["model_analysis_ids"] == ["a-001"]
+    assert "failure_category" not in tool_use_row
+    assert "validity" not in tool_use_row
     assert tool_use_row["failures_n"] == 1
+    pytest_facet_rows = [
+        row
+        for row in failure_rows
+        if row["facet_name"] == "verifier_type" and row["facet_value"] == "pytest"
+    ]
+    assert sum(row["total_trials_n"] for row in pytest_facet_rows) == 6
+    assert sum(row["n"] for row in pytest_facet_rows) == 5
+    assert sum(row["exceptions_n"] for row in pytest_facet_rows) == 1
+    assert sum(row["never_measured_n"] for row in pytest_facet_rows) == 0
+    assert sum(row["excluded_n"] for row in pytest_facet_rows) == 1
+    exception_row = next(
+        row
+        for row in pytest_facet_rows
+        if row["mechanical_failure_category"] == "exception"
+    )
+    gated_exception = apply_statistical_gating(
+        {"v_failure_by_facet": [exception_row]}
+    )["v_failure_by_facet"][0]
+    assert gated_exception.n == 0
+    assert gated_exception.wilson_95 is None
+    assert not gated_exception.powered
+
+
+def test_failure_diagnoses_keep_sources_distinct_and_deduplicate_valid_sidecars() -> None:
+    sidecars = _make_mock_analysis_sidecars()
+    sidecars.extend(
+        [
+            {
+                **sidecars[0],
+                "analysis_id": "a-002",
+                "primary_category": "duplicate_diagnosis",
+                "source_path": "derived/analysis/z/analysis.json",
+                "source_digest": (
+                    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                ),
+            },
+            {
+                **sidecars[0],
+                "analysis_id": "a-000-invalid",
+                "primary_category": "invalid_diagnosis",
+                "validation_status": "invalid",
+                "source_path": "derived/analysis/0/analysis.json",
+            },
+        ]
+    )
+
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=_make_mock_craft_records(),
+            trial_facts=_make_mock_trial_facts(),
+            analysis_sidecars=sidecars,
+            observation_records=_make_mock_observation_records(),
+        )
+        rows = execute_lessons_views(con)["v_failure_by_facet"]
+
+    pytest_verifier_rows = [
+        row
+        for row in rows
+        if row["facet_name"] == "verifier_type" and row["facet_value"] == "pytest"
+    ]
+    chosen = next(
+        row
+        for row in pytest_verifier_rows
+        if row["model_failure_category"] == "tool_use"
+    )
+    assert chosen["model_analysis_ids"] == ["a-001"]
+    assert chosen["model_sidecar_paths"] == ["derived/analysis/a/analysis.json"]
+    assert chosen["mechanical_failure_category"] == "unscored_failure"
+    assert sum(row["total_trials_n"] for row in pytest_verifier_rows) == 6
+    assert not any(
+        row["model_failure_category"] in {"duplicate_diagnosis", "invalid_diagnosis"}
+        for row in pytest_verifier_rows
+    )
+
+
+
+def test_verifier_outcomes_group_on_the_projected_unclassified_key() -> None:
+    craft = _make_mock_craft_records()
+    craft[0] = {**craft[0], "verifier_type": None}
+    craft[1] = {**craft[1], "verifier_type": "unclassified"}
+
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=craft,
+            trial_facts=_make_mock_trial_facts(),
+            analysis_sidecars=[],
+            observation_records=[],
+        )
+        rows = execute_lessons_views(con)["v_outcome_by_verifier_type"]
+
+    assert len(rows) == 1
+    assert rows[0]["verifier_type"] == "unclassified"
+    assert rows[0]["total_trials_n"] == 9
+
+
+def test_capability_denominator_reports_exception_and_never_measured_exclusions() -> None:
+    facts = _make_mock_trial_facts()
+    never_measured = {
+        **next(row for row in facts if row["exception_class"] is not None),
+        "trial_id": "t-pytest-never-measured",
+        "exception_class": None,
+        "exception_phase": None,
+    }
+    facts.append(never_measured)
+
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=_make_mock_craft_records(),
+            trial_facts=facts,
+            analysis_sidecars=[],
+            observation_records=[],
+        )
+        rows = execute_lessons_views(con)["v_outcome_by_verifier_type"]
+
+    pytest_row = next(row for row in rows if row["verifier_type"] == "pytest")
+    assert pytest_row["total_trials_n"] == 7
+    assert pytest_row["n"] == 5
+    assert pytest_row["passed_n"] == 4
+    assert pytest_row["exceptions_n"] == 1
+    assert pytest_row["never_measured_n"] == 1
+    assert pytest_row["excluded_n"] == 2
+    assert pytest_row["pass_rate_pct"] == pytest.approx(80.0)
+
+
+def test_views_join_tasks_only_by_exact_digest() -> None:
+    mismatched = {
+        **_make_mock_trial_facts()[0],
+        "trial_id": "matching-name-wrong-digest",
+        "task_digest": (
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        ),
+    }
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con,
+            craft_records=_make_mock_craft_records(),
+            trial_facts=[mismatched],
+            analysis_sidecars=[],
+            observation_records=[],
+        )
+        views = execute_lessons_views(con)
+
+    assert views["v_failure_by_facet"] == []
+    assert views["v_loop_rate_by_env"] == []
+    assert views["v_outcome_by_verifier_type"] == []
+
+
+def test_markdown_observations_never_become_deterministic_trial_facts(tmp_path: Path) -> None:
+    observation = _make_mock_observation_records()[0]
+    assert observation["steps_taken"] > 0
+    assert observation["tool_errors"] > 0
+    assert load_trial_facts(tmp_path) == []
+
+
+def test_production_lessons_discovery_excludes_test_fixtures(tmp_path: Path) -> None:
+    payload = {
+        "analysis_id": "analysis-production",
+        "job_id": "job-1",
+        "source_trial_id": "trial-1",
+        "validation_status": "valid",
+        "output": {
+            "validity": "valid_agent_attempt",
+            "primary_category": "tool_use",
+            "summary": "annotation",
+            "confidence": "high",
+        },
+    }
+    production = tmp_path / "derived/analysis/production/analysis.json"
+    fixture = tmp_path / "tests/fixtures/explorer/analyses/fixture/analysis.json"
+    production.parent.mkdir(parents=True)
+    fixture.parent.mkdir(parents=True)
+    production.write_text(json.dumps(payload), encoding="utf-8")
+    fixture.write_text(
+        json.dumps({**payload, "analysis_id": "analysis-fixture"}),
+        encoding="utf-8",
+    )
+
+    sidecars = load_analysis_sidecars(tmp_path)
+    inputs = collect_lessons_inputs(tmp_path)
+
+    assert [row["analysis_id"] for row in sidecars] == ["analysis-production"]
+    assert sidecars[0]["source_path"] == "derived/analysis/production/analysis.json"
+    assert sidecars[0]["source_digest"] == compute_file_digest(production)
+    input_paths = {row["path"] for row in inputs}
+    assert "derived/analysis/production/analysis.json" in input_paths
+    assert not any(path.startswith("tests/fixtures/") for path in input_paths)
 
 
 def test_statistical_gating_power_threshold() -> None:
@@ -422,8 +637,10 @@ def test_statistical_gating_power_threshold() -> None:
                 "source_repo": "test-repo",
                 "facet_name": "verifier_type",
                 "facet_value": "pytest",
-                "failure_category": "tool_use",
-                "validity": "valid_agent_attempt",
+                "model_failure_category": "tool_use",
+                "model_validity": "valid_agent_attempt",
+                "mechanical_failure_category": "unscored_failure",
+                "mechanical_validity": "measured_agent_attempt",
                 "n": 6,
                 "failures_n": 2,
                 "failure_rate_pct": 33.3,
@@ -432,8 +649,10 @@ def test_statistical_gating_power_threshold() -> None:
                 "source_repo": "test-repo",
                 "facet_name": "difficulty_mechanism",
                 "facet_value": "volume",
-                "failure_category": "timeout",
-                "validity": "harness_failure",
+                "model_failure_category": None,
+                "model_validity": None,
+                "mechanical_failure_category": "exception",
+                "mechanical_validity": "exception_trial",
                 "n": 1,
                 "failures_n": 1,
                 "failure_rate_pct": 100.0,
@@ -680,6 +899,13 @@ def test_lessons_generation_convergence_two_consecutive_runs(tmp_path: Path) -> 
     second_path = generate_lessons_file(root, output_path=target, generated_at=fixed_time)
     second_content = second_path.read_text(encoding="utf-8")
     assert first_content == second_content
+
+
+def test_committed_lessons_are_fresh_and_lineage_bound() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    assert check_lessons_freshness(repo_root)
+    node = resolve_lineage("research/lessons.md", repo_root=repo_root)
+    assert node.status == "resolved"
 
 
 def test_lessons_recorded_digests_match_actual_file_digests(tmp_path: Path) -> None:

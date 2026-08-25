@@ -1,0 +1,31 @@
+{
+  "schema_version": "adapter-manifest/v1",
+  "adapter_id": "recovery-bench-result-file/v1",
+  "upstream": {
+    "canonical_url": "https://github.com/letta-ai/recovery-bench",
+    "revision": "c5f83f2ba4f882a9b544c7bf0fa9be1bc3859c78",
+    "license": "MIT",
+    "license_status": "declared",
+    "status": "active"
+  },
+  "role": "result",
+  "capabilities": [
+    "reward",
+    "session-result"
+  ],
+  "isolation": "file",
+  "input": {
+    "format": "recovery-bench-result-json",
+    "version": "v1"
+  },
+  "output": {
+    "format": "external-evidence",
+    "version": "external-evidence/v1"
+  },
+  "compatibility_fixture": {
+    "path": "tests/fixtures/upstream_adapters/recovery_bench/result.json",
+    "digest": "sha256:778b0933b4d49b695d82b1f00d5735afbe0a7e824c32e5a8b7b5ae9fc55393ed"
+  },
+  "adapter_code_digest": "sha256:7d8b78107ba2c741e0219cce6ee4f3500404b693d0feeff27363711145ac584a",
+  "last_verified": "2026-08-24"
+}

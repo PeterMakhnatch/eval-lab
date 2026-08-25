@@ -31,6 +31,7 @@ TOP_LEVEL_COMMANDS = (
     "ingest",
     "trajectories",
     "compare",
+    "curve",
     "power",
     "report",
     "analyze",
@@ -39,6 +40,8 @@ TOP_LEVEL_COMMANDS = (
     "analyst",
     "card",
     "behavior",
+    "evidence",
+    "tasks",
     "ladder",
     "trace",
     "fetch",
@@ -46,10 +49,14 @@ TOP_LEVEL_COMMANDS = (
     "registry",
     "tidy",
     "verdict",
+    "traj",
 )
 NESTED_COMMANDS = (
     ("schedule", "install"),
     ("canary", "import-terminal-bench"),
+    ("curve", "validate"),
+    ("curve", "build"),
+    ("curve", "report"),
     ("registry", "list"),
     ("registry", "audit"),
     ("report", "family"),
@@ -60,15 +67,24 @@ NESTED_COMMANDS = (
     ("analyze", "review"),
     ("analyze", "agreement"),
     ("db", "init"),
+    ("analyze", "worker-run-one"),
     ("db", "list"),
     ("analyst", "run"),
     ("analyst", "list"),
     ("analyst", "show"),
     ("card", "generate"),
+    ("evidence", "archive"),
+    ("evidence", "restore"),
+    ("tasks", "import"),
     ("ladder", "generate"),
+    ("traj", "outline"),
+    ("traj", "queue"),
+    ("ladder", "validate"),
+    ("traj", "label"),
+    ("traj", "project"),
+    ("traj", "report"),
 )
 HELP_PATHS = tuple((command,) for command in TOP_LEVEL_COMMANDS) + NESTED_COMMANDS
-
 
 def test_cli_inventory_matches_help_audit() -> None:
     command_action = next(

@@ -15,6 +15,8 @@ import pytest
 
 from evallab.authoring import (
     LEDGER_SCHEMA,
+    MODEL_PROVENANCE_SCHEMA_VERSION,
+    MODEL_SPEC_RESPONSE_SCHEMA,
     REGISTER_REFUSAL,
     SEED_CLASS_PASS_RATE_SQL,
     AuthoringError,
@@ -39,7 +41,13 @@ from evallab.authoring import (
     verify_inversion_reproducibility,
     write_ledger,
 )
+from evallab.facts import AnalyzerCallResult
 from evallab.lineage import read_artifact_inputs, resolve_lineage
+from evallab.modeladapter import (
+    ModelAdapterExecutionError,
+    ModelAdapterResult,
+    ModelAdapterTimeoutError,
+)
 from evallab.paths import derived_root_from_environment
 from evallab.schemas import ProposalAxes, ProposalSpec
 
@@ -169,16 +177,127 @@ def make_repo(tmp_path: Path) -> Path:
     return repo
 
 
-def pipeline_for(repo: Path) -> AuthoringPipeline:
+def pipeline_for(repo: Path, *, adapter: Any = None) -> AuthoringPipeline:
     return AuthoringPipeline(
         repo,
         derived_root=repo / "derived" / "parquet",
         runner=StructuralControlRunner(),
+        adapter=adapter,
         now=lambda: FIXED_NOW,
         new_id=SequencedIds(),
     )
 
 
+class FakeDesignerAdapter:
+    model = "fake-pinned-model-2026-08-19"
+    transport = "fake"
+
+    def __init__(
+        self,
+        output: str | None = None,
+        *,
+        error: Exception | None = None,
+    ) -> None:
+        self.output = output or json.dumps(
+            {
+                "schema_version": "spec/1",
+                "name": "model-task",
+                "category": "systems-programming",
+                "scenario": "incident-emergency",
+                "difficulty": "advanced",
+                "summary": "A model-authored proposal.",
+                "seed_class": "scenario",
+                "axes": {
+                    "category": "systems-programming",
+                    "scenario": "incident-emergency",
+                    "difficulty": "advanced",
+                },
+            }
+        )
+        self.error = error
+        self.prompts: list[str] = []
+        self.schemas: list[dict[str, Any]] = []
+
+    def __call__(self, prompt: str, schema: dict[str, Any]) -> AnalyzerCallResult:
+        self.prompts.append(prompt)
+        self.schemas.append(schema)
+        if self.error is not None:
+            raise self.error
+        return ModelAdapterResult(
+            raw_output=self.output,
+            model=self.model,
+            transport=self.transport,
+        )
+
+
+
+
+def test_model_adapter_proposal_reaches_quarantine_with_complete_provenance(
+    tmp_path: Path,
+) -> None:
+    repo = make_repo(tmp_path)
+    adapter = FakeDesignerAdapter()
+    proposal = pipeline_for(repo, adapter=adapter).propose_model("incident", "formal")
+
+    manifest = json.loads((proposal.path / "proposal.json").read_text())
+    provenance = manifest["provenance"]
+    assert proposal.outcome == "proposed"
+    assert (proposal.path / "task.toml").is_file()
+    assert manifest["injected_spec"]["schema_version"] == "spec/1"
+    assert provenance["schema_version"] == MODEL_PROVENANCE_SCHEMA_VERSION
+    assert provenance["spec_schema_version"] == "spec/1"
+    assert provenance["model"] == adapter.model
+    assert provenance["transport"] == adapter.transport
+    assert provenance["prompt_sha256"] == __import__("hashlib").sha256(
+        adapter.prompts[0].encode("utf-8")
+    ).hexdigest()
+    assert provenance["raw_output_sha256"] == __import__("hashlib").sha256(
+        adapter.output.encode("utf-8")
+    ).hexdigest()
+    assert adapter.schemas == [MODEL_SPEC_RESPONSE_SCHEMA]
+    assert "chain-of-thought" in adapter.prompts[0]
+    assert "raw_output" not in manifest
+
+
+@pytest.mark.parametrize("failure", ["malformed", "schema", "timeout", "exit"])
+def test_model_designer_failures_leave_no_partial_proposal(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    repo = make_repo(tmp_path)
+    if failure == "malformed":
+        adapter = FakeDesignerAdapter("{")
+    elif failure == "schema":
+        adapter = FakeDesignerAdapter(json.dumps({"schema_version": "wrong"}))
+    elif failure == "timeout":
+        adapter = FakeDesignerAdapter(
+            error=ModelAdapterTimeoutError("timed out", timeout=1.0, argv=["fake"])
+        )
+    else:
+        adapter = FakeDesignerAdapter(
+            error=ModelAdapterExecutionError(
+                "failed", returncode=7, argv=["fake"], stderr="failed"
+            )
+        )
+
+    pipe = pipeline_for(repo, adapter=adapter)
+    with pytest.raises((AuthoringError, ModelAdapterTimeoutError, ModelAdapterExecutionError)):
+        pipe.propose_model("incident", "formal")
+    quarantine = repo / "library" / "tasks" / "_proposed"
+    assert not quarantine.exists() or not list(quarantine.iterdir())
+    assert pipe.records() == []
+
+
+def test_model_designer_duplicate_coordinates_are_refused(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    pipe = pipeline_for(repo, adapter=FakeDesignerAdapter())
+    first = pipe.propose_model("incident", "formal")
+
+    with pytest.raises(AuthoringError, match="duplicate"):
+        pipe.propose_model("different-topic", "different-style")
+
+    assert [record.proposal_id for record in pipe.records()] == [first.proposal_id]
+    assert sorted(path.name for path in pipe.quarantine.iterdir()) == [first.proposal_id]
 def test_bump_version_never_returns_source() -> None:
     assert bump_version("1.0.0") == "1.0.1"
     assert bump_version("2.3") == "2.4.0"

@@ -1,0 +1,43 @@
+schema_version = "1.4"
+artifacts = [
+    "/app/data/orders.jsonl",
+    "/app/output/result.jsonl",
+]
+
+[task]
+name = "local-lab/seqgen-s7-001"
+version = "1.0.0"
+description = "Process structured JSONL orders using deterministic pipeline operations"
+keywords = ["jsonl", "tool-sequence", "synthetic", "separate-verifier", "seqgen"]
+
+[[task.authors]]
+name = "Peter Makhnatch"
+email = "p.makhnatch@gmail.com"
+
+[metadata]
+difficulty = "unknown"
+category = "data-processing"
+tags = ["deterministic", "synthetic", "seqgen"]
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+collect = []
+
+[verifier.environment]
+network_mode = "no-network"
+
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+# Docker Desktop on macOS cannot enforce Harbor's no-network policy. This local
+# control has no network dependency, but uses the supported public baseline.
+network_mode = "public"
+build_timeout_sec = 300.0
+os = "linux"
+cpus = 1
+memory_mb = 512
+storage_mb = 2048
+mcp_servers = []

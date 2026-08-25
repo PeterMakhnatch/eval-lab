@@ -34,6 +34,7 @@ dev = [
 ]
 observability = [
     "harbor-atif2otel>=0.1.0",
+    "arize-phoenix-client>=3.3.0",
     "opentelemetry-exporter-otlp>=1.38.0",
     "opentelemetry-proto>=1.38.0",
     "opentelemetry-sdk>=1.38.0",
@@ -63,6 +64,7 @@ target-version = "py312"
 extend-exclude = [
     "library/adapters/*/generated",
     "library/tasks/terminal-bench-html-js-filter", "library/curated",
+    "library/external/terminal-bench-v3.0.0",
     # Promoted evidence is a verbatim record of what an agent produced. Its
     # digests are pinned in each bundle's PROMOTION.json, so linting or
     # reformatting it would falsify the record rather than improve it.

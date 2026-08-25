@@ -116,8 +116,7 @@ def iter_trial_dirs(path: Path) -> list[Path]:
 def load_trajectory(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise TraceError(
-            f"no ATIF trajectory at {path} "
-            "(oracle/nop controls write agent/oracle.txt instead)"
+            f"no ATIF trajectory at {path} (oracle/nop controls write agent/oracle.txt instead)"
         )
     try:
         payload = json.loads(path.read_text())
@@ -153,9 +152,7 @@ def convert_atif(
     *,
     service_name: str = DEFAULT_SERVICE_NAME,
 ) -> tuple[Any, dict[str, Any]]:
-    convert_trajectory, resource_spans_to_otlp_json, validate_trajectory = (
-        _require_atif2otel()
-    )
+    convert_trajectory, resource_spans_to_otlp_json, validate_trajectory = _require_atif2otel()
     issues = list(validate_trajectory(trajectory))
     if issues:
         rendered = "\n".join(f"  - {issue}" for issue in issues)
@@ -269,8 +266,7 @@ def convert_source(
     summary = summarize_otel(payload)
     if not summary.has_root_agent:
         raise TraceError(
-            f"converted {path} but no root AGENT span was present "
-            f"(kinds={summary.span_kinds})"
+            f"converted {path} but no root AGENT span was present (kinds={summary.span_kinds})"
         )
     return resource_spans, payload, summary, path
 
@@ -452,9 +448,7 @@ def format_batch(batch: TraceBatch) -> str:
 # text. The exact shape is pinned so a truncated marker cannot pass as a whole
 # one; see `truncated_redaction_markers`.
 REDACTION_MARKER_PREFIX = "<<evallab-redacted:"
-REDACTION_MARKER_RE = re.compile(
-    r"<<evallab-redacted: \d+ bytes, sha256:[0-9a-f]{64}>>"
-)
+REDACTION_MARKER_RE = re.compile(r"<<evallab-redacted: \d+ bytes, sha256:[0-9a-f]{64}>>")
 SESSION_ATTRIBUTE = "session.id"
 
 
@@ -542,6 +536,50 @@ def iter_spans(payload: dict[str, Any]) -> list[dict[str, Any]]:
         for scope in resource.get("scopeSpans") or []:
             spans.extend(scope.get("spans") or [])
     return spans
+
+
+def span_ids_by_step(payload: dict[str, Any]) -> dict[int, str]:
+    """Map unambiguous ATIF step attributes to OTLP span IDs.
+
+    A step may legitimately have several child spans.  Since an episode must be
+    attached to one exact evidence span, such a mapping is rejected rather than
+    selecting a span by traversal order.
+    """
+    step_keys = {
+        "step_id",
+        "step.id",
+        "atif.step_id",
+        "evallab.step_id",
+        "harbor.step_id",
+    }
+    result: dict[int, str] = {}
+    for span in iter_spans(payload):
+        span_id = span.get("spanId") or span.get("span_id") or span.get("spanID")
+        if not isinstance(span_id, str) or not span_id:
+            continue
+        step_id: int | None = None
+        for attribute in span.get("attributes") or ():
+            if not isinstance(attribute, dict) or attribute.get("key") not in step_keys:
+                continue
+            value = attribute.get("value")
+            if isinstance(value, dict):
+                value = next(iter(value.values()), None)
+            if isinstance(value, bool) or not isinstance(value, str | int | float):
+                continue
+            try:
+                candidate = int(value)
+            except (TypeError, ValueError):
+                continue
+            if step_id is not None and step_id != candidate:
+                raise TraceError(f"ambiguous step identity on span {span_id!r}")
+            step_id = candidate
+        if step_id is None:
+            continue
+        previous = result.get(step_id)
+        if previous is not None and previous != span_id:
+            raise TraceError(f"step {step_id} maps to multiple OTLP spans")
+        result[step_id] = span_id
+    return result
 
 
 def span_attribute(span: dict[str, Any], key: str) -> str | None:

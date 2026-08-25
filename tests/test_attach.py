@@ -52,6 +52,26 @@ def test_z3_views_return_written_rows(tmp_path: Path) -> None:
         "jobs",
         [{"job_id": "testjob", "status": "done"}],
     )
+    _write_parquet_tree(
+        derived,
+        "behavior_labels",
+        [{
+            "label_id": "label-1",
+            "trial_id": "t1",
+            "target_type": "trajectory",
+            "model_name": "judge-model",
+        }],
+    )
+    _write_parquet_tree(
+        derived,
+        "behavior_episodes",
+        [{
+            "episode_id": "episode-1",
+            "trial_id": "t1",
+            "document_id": "document-1",
+            "label": "tool_error",
+        }],
+    )
     result = attach(repo_root=tmp_path, explicit_derived=derived)
     try:
         rows = result.connection.execute("SELECT COUNT(*) FROM trial_facts").fetchone()
@@ -66,6 +86,39 @@ def test_z3_views_return_written_rows(tmp_path: Path) -> None:
         job_rows_z3 = result.connection.execute("SELECT COUNT(*) FROM z3.jobs").fetchone()
         assert job_rows_z3 is not None
         assert job_rows_z3[0] == 1
+        label_rows = result.connection.execute(
+            "SELECT target_type, model_name FROM behavior_labels"
+        ).fetchall()
+        assert label_rows == [("trajectory", "judge-model")]
+        episode_rows = result.connection.execute(
+            "SELECT episode_id, document_id, label FROM z3.behavior_episodes"
+        ).fetchall()
+        assert episode_rows == [("episode-1", "document-1", "tool_error")]
+    finally:
+        result.connection.close()
+
+
+def test_standalone_parquet_is_attached_once_and_preamble_has_one_glob(
+    tmp_path: Path,
+) -> None:
+    derived = tmp_path / "derived"
+    labels_dir = derived / "behavior_labels"
+    labels_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"label_id": "label-1", "trial_id": "t1"}]),
+        labels_dir / "behavior_labels.parquet",
+    )
+
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        assert result.connection.execute(
+            "SELECT count(*), count(DISTINCT label_id) FROM behavior_labels"
+        ).fetchone() == (1, 1)
+        assert result.connection.execute(
+            "SELECT count(*), count(DISTINCT label_id) FROM z3.behavior_labels"
+        ).fetchone() == (1, 1)
+        assert "behavior_labels/behavior_labels.parquet" not in result.sql_preamble
+        assert result.sql_preamble.count("behavior_labels/*.parquet") == 2
     finally:
         result.connection.close()
 def test_z2_unavailable_reports_reason_not_empty_view(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -126,14 +179,14 @@ def test_cli_zones_reports_z3_with_row_counts(tmp_path: Path, capsys: pytest.Cap
     derived.mkdir()
     _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1"}, {"trial_id": "t2"}])
     _write_parquet_tree(derived, "jobs", [{"job_id": "j1"}])
-    for t in ["reward_facts", "artifact_facts", "trajectories", "steps", "tool_calls", "tool_usage", "observations"]:  # noqa: E501
+    for t in ["reward_facts", "artifact_facts", "trajectories", "steps", "tool_calls", "tool_usage", "observations", "state_changes"]:  # noqa: E501
         _write_parquet_tree(derived, t, [{"trial_id": "t1"}])
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
     code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
     out, _ = capsys.readouterr()
     assert code == 0
     assert "z3: attached" in out
-    assert "9/9 tables" in out
+    assert "10/19 tables" in out
 
 
 def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501

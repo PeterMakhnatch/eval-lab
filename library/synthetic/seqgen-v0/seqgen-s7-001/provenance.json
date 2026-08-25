@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "item_id": "seqgen-s7-001",
+  "zone": "03-synthetic",
+  "source_uri": "library/synthetic/seqgen-v0/seqgen-s7-001",
+  "revision": "seqgen@0.1.0",
+  "material_digest": "sha256:1d4db4522f2bf686788ecb9e6b031b2195c7990b325c01cd84f5e5ebb3015107",
+  "license": "NOASSERTION",
+  "created_at": "2026-08-24T05:24:43.027298Z",
+  "created_by": "evallab.seqgen",
+  "transform": "seqgen@0.1.0",
+  "parent_digests": [
+    "sha256:e1c3a3423504c814addfe10e1f0ba8f49dceda0e0722d48f8a2966ecf2f0e170",
+    "sha256:534e56741597871d1c3fb0674580f520fcc6442b5ac587f79786c3b970c3aef2",
+    "sha256:577ef789918e497ea49f692cc1aaf0ec0c0fd919e1482bb6d1eeea4a1a701630",
+    "sha256:5df6da47a94043326008e5443dacd828146159f896795a13369b5db9858b7248",
+    "sha256:2424a8dde1e4900b82636243ed3486fffb0eec725021282e9963d87e21fe40c1",
+    "sha256:3c2ea8fd25cadba04a4de77864b3abf5b48ba84852c193d2dda072711d408914",
+    "sha256:d059d20d96e497122ddc45efa5e1fde79384f380e2f0f38c81b175a6bf677c04"
+  ],
+  "notes": "Independent record-pipeline reimplementation from the paper-level description; no upstream code, prompt, output, or artifact was reused. A pinned restricted source snapshot was inspected for dependency and license assessment, so no implementation firewall is claimed. No model or prompt was used. License is not asserted pending repository policy."
+}

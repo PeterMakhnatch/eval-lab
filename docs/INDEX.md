@@ -23,9 +23,9 @@ inputs:
   - path: docs/attach-surface.md
     digest: sha256:9331c616efea61c692dbca6b95043e3d0f7ec71e669430772cfc4460384282f4
   - path: docs/authoring.md
-    digest: sha256:0ba1ed1759a63a50c4eb1ee552230e2e42561ce7d3aa2c8512f4e1bbbedd0aea
+    digest: sha256:37669e0ed2770fc1c3b5c9c9baadc2ca4b3d2af4e3844c8da298c08d6ab9b5d9
   - path: docs/behavior-analysis.md
-    digest: sha256:100d45ccc9f3b0dfa046f04c77973a523133dec810d4fb2f236001fdfda9629f
+    digest: sha256:13a91a461b028742a92c3cb5a1f70f46c257794a180bf6d6299154b80ea08f67
   - path: docs/build-plan.md
     digest: sha256:4a70d5a356561eab053ffe7e14f6bb5fd8fed0256b9e81edddb500183697bee7
   - path: docs/canaries.md
@@ -35,7 +35,7 @@ inputs:
   - path: docs/context-packs.md
     digest: sha256:da5e79f7620f04f7eb3c88619330cb5a6b452095c985ff4608ab375931ba3879
   - path: docs/contracts.md
-    digest: sha256:55a53bd20b420eef64004a4409d735e70088ecf18408ae2cda0895bd43ff7079
+    digest: sha256:124e379a9c083e8c670c3d1c26028af6ecac3115ca94e2a27cc89ff95f50729e
   - path: docs/craft.md
     digest: sha256:fe6db1dd40e6490e188c8c0feb1f799dcd6195615787638b1baddd15801faf00
   - path: docs/dashboard.md
@@ -77,17 +77,19 @@ inputs:
   - path: docs/path-forward-2026-08.md
     digest: sha256:7d962f12c5de2135a0ebef6e656dac17938ed75e76f73a4f8d1fd9ea286e8b0e
   - path: docs/platform-architecture.md
-    digest: sha256:3f3cc4baad1d805c3a597710e6ce15beddbfc6eb2c7189ac00918c1d641369f1
+    digest: sha256:a8e2a02a7d4a30aa4654b711094f3f81fa7380afdbbf98d55949635d8cf935d8
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:cadf5f3c7438daf72d6c1a034ee940bac3b37b8371e60d48c59c66a159b5e9ae
+    digest: sha256:c086d6b9520d828ed9cf79be0f075a8657ff707c5dc3736d7ae7732aed1711cb
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
     digest: sha256:15920beae543ae241d6c2f77dd43019d5d60b57d49fff6792a116e70029a6ae5
+  - path: docs/research/evaluation-factory-2026-08.md
+    digest: sha256:bcd46b89460210d50e14b1337d79fbc64201a5bb4dbacc6a05fecb452f70d8e2
   - path: docs/research/external-datasets.md
     digest: sha256:f36f501ccc8d0fc121d12e8904b0f85ef83f51c64253aa282344b42f17fc602b
   - path: docs/research/literature-survey.md
@@ -154,6 +156,7 @@ an operator can see what is archived.
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/antigravity-lane.md` | Antigravity (AGY) Agent Lane Research & Architecture | `living` | `builder, runner` |
+| `docs/research/evaluation-factory-2026-08.md` | Evaluation-factory audit and build program (2026-08) | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
@@ -197,6 +200,7 @@ an operator can see what is archived.
 | `docs/platform-architecture.md` | Eval R&D Platform — System Architecture (v2, detailed) | `living` | `builder, analyst, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
+| `docs/research/evaluation-factory-2026-08.md` | Evaluation-factory audit and build program (2026-08) | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |

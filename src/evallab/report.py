@@ -413,6 +413,11 @@ def build_eval_card(
     repo_root: Path,
 ) -> tuple[str, JsonObject]:
     spec = load_completed_spec(spec_path)
+    if spec.purpose == "comparison" and spec.prereg is None:
+        raise ValueError(
+            "comparison eval cards require a prereg block with expected result "
+            "and decision rule"
+        )
     job = _completed_job(repo_root, spec)
     evidence = summarize_job_evidence(
         job,

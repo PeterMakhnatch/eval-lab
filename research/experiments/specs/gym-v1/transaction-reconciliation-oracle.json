@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "campaign-gym-v1-transaction-reconciliation-baseline",
+  "hypothesis": "transaction-reconciliation frozen local package produces a measurable baseline with standard harness configuration.",
+  "purpose": "baseline",
+  "question_ref": "library/frozen/gym-v1/manifest.json",
+  "task": "library/tasks/transaction-reconciliation",
+  "task_path": "library/tasks/transaction-reconciliation",
+  "task_version": "0.1.0",
+  "verifier_digest": "sha256:980dc81c50f81116d31b73b8dca7d94c564b538a892871a53cea63d7a5991e03",
+  "agent": "oracle",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "concurrency": 1,
+  "submitted_by": "campaign-gym-v1",
+  "priority": 70,
+  "est_cost_usd": 0.0,
+  "policy_rule": "operational_smoke"
+}

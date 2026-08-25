@@ -1,0 +1,10 @@
+{
+  "observer": {
+    "mode": "external-sidecar",
+    "model_visible_output": false,
+    "target_mutated": false
+  },
+  "reason": null,
+  "schema_version": 1,
+  "status": "available"
+}

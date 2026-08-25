@@ -16,6 +16,8 @@ from pydantic import ValidationError
 from evallab.schemas import (
     AnalysisRecord,
     CalibrationRecord,
+    CapabilityCurveReport,
+    CapabilityCurveSpec,
     ConfidenceClaim,
     ControlEvidenceRef,
     CriterionAgreement,
@@ -51,6 +53,8 @@ def test_golden_schemas_match_live():
         (Verdict, "Verdict"),
         (ExperimentSpec, "ExperimentSpec"),
         (TaskRegistryRecord, "TaskRegistryRecord"),
+        (CapabilityCurveSpec, "CapabilityCurveSpec"),
+        (CapabilityCurveReport, "CapabilityCurveReport"),
     ]:
         live = Model.model_json_schema()
         committed = _load_golden(golden_name)
@@ -167,17 +171,19 @@ def test_roundtrip_all_models():
     )
     assert TaskContamination.model_validate(contamination.model_dump()) == contamination
 
+    registry_digests = TaskDigests(
+        task_toml="sha256:" + "1" * 64,
+        instruction="sha256:" + "2" * 64,
+        environment="sha256:" + "3" * 64,
+        verifier="sha256:" + "4" * 64,
+        package="sha256:" + "5" * 64,
+    )
+
     registry_record = TaskRegistryRecord(
         task_id="sample-task",
         version="1.0.0",
         task_path="library/tasks/sample-task",
-        digests=TaskDigests(
-            task_toml="sha256:" + "1" * 64,
-            instruction="sha256:" + "2" * 64,
-            environment="sha256:" + "3" * 64,
-            verifier="sha256:" + "4" * 64,
-            package="sha256:" + "5" * 64,
-        ),
+        digests=registry_digests,
         source_uri="https://github.com/example/sample-task",
         provenance_zone="02-local-evidence",
         is_synthetic=False,
@@ -185,17 +191,29 @@ def test_roundtrip_all_models():
         control_evidence=TaskControlEvidence(
             oracle=ControlEvidenceRef(
                 job_name="sample-task-oracle-evidence",
+                trial_name="sample-task__oracle",
                 reward=1.0,
                 evidence_path="research/evidence/runs/sample-task-oracle-evidence/result.json",
                 evidence_digest="sha256:" + "6" * 64,
                 observed_at=now,
+                lock_digest="sha256:" + "8" * 64,
+                task_id="sample-task",
+                task_version="1.0.0",
+                task_digests=registry_digests,
+                harbor_task_digest="sha256:" + "9" * 64,
             ),
             nop=ControlEvidenceRef(
                 job_name="sample-task-nop-evidence",
+                trial_name="sample-task__nop",
                 reward=0.0,
                 evidence_path="research/evidence/runs/sample-task-nop-evidence/result.json",
                 evidence_digest="sha256:" + "7" * 64,
                 observed_at=now,
+                lock_digest="sha256:" + "a" * 64,
+                task_id="sample-task",
+                task_version="1.0.0",
+                task_digests=registry_digests,
+                harbor_task_digest="sha256:" + "9" * 64,
             ),
         ),
         state="registered",
@@ -449,8 +467,8 @@ def test_spec_pre_dating_new_fields_loads_with_defaults():
     assert spec.attempts == 3
 
 
-def test_task_registry_record_pre_dating_new_fields_loads_with_defaults():
-    """A TaskRegistryRecord written before contamination/human_minutes loads with defaults."""
+def test_task_registry_record_pre_dating_optional_metadata_loads_with_defaults():
+    """A record written before contamination/human_minutes loads with defaults."""
     raw_record = {
         "schema_version": 1,
         "task_id": "legacy-task",
@@ -488,6 +506,19 @@ def test_task_registry_record_pre_dating_new_fields_loads_with_defaults():
         "approved_by": "peter",
         "approved_at": "2026-08-15T12:00:00Z",
     }
+    for agent in ("oracle", "nop"):
+        ref = raw_record["control_evidence"][agent]
+        ref.update(
+            {
+                "trial_name": f"legacy-task__{agent}",
+                "lock_digest": "sha256:" + "8" * 64,
+                "task_id": "legacy-task",
+                "task_version": "1.0.0",
+                "task_digests": raw_record["digests"],
+                "harbor_task_digest": "sha256:" + "9" * 64,
+            }
+        )
+
 
     record = TaskRegistryRecord.model_validate(raw_record)
     assert record.contamination is None
@@ -627,3 +658,32 @@ def test_extra_instruction_path_cannot_escape_the_repository(escape):
     fenced by the same repo-relative rule as task_path and jobs_dir."""
     with pytest.raises(ValidationError):
         _s03_spec(extra_instruction_path=escape)
+
+
+def test_factor_provenance_schema_migrates_preexisting_fact_table_additively() -> None:
+    schema = (Path(__file__).parents[1] / "sql" / "schema.sql").read_text()
+    columns = (
+        "grid_id",
+        "point_id",
+        "arm_id",
+        "factor_values_json",
+        "factor_values_digest",
+        "factor_bindings_json",
+        "factor_bindings_digest",
+        "bound_execution_values_json",
+        "bound_execution_values_digest",
+        "preamble_path",
+        "preamble_content_sha256",
+        "task_family",
+        "task_id",
+        "task_instance_id",
+        "generator_seed_json",
+        "task_block_inputs_json",
+        "task_block_id",
+    )
+    for column in columns:
+        assert (
+            "ALTER TABLE deterministic_trial_facts "
+            f"ADD COLUMN IF NOT EXISTS {column} text;"
+        ) in schema
+        assert f"{column} text NOT NULL" not in schema

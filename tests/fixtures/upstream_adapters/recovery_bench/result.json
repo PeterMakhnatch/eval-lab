@@ -1,0 +1,19 @@
+{
+  "id": "constructed-recovery-session",
+  "task_name": "constructed/task",
+  "trial_name": "constructed-trial",
+  "agent_info": {
+    "name": "constructed-agent",
+    "version": null,
+    "model_info": null
+  },
+  "verifier_result": {
+    "rewards": {
+      "reward": 0.0
+    }
+  },
+  "exception_info": null,
+  "started_at": "2026-08-24T00:00:00Z",
+  "finished_at": "2026-08-24T00:00:01Z",
+  "fixture_note": "constructed; no upstream bytes"
+}

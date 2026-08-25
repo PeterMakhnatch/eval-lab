@@ -20,6 +20,8 @@ All pydantic v2 contract models live in `src/evallab/schemas.py` per platform-ar
 | `Verdict` | (discovery_id) | status ∈ {accepted, rejected, needs_evidence, pending}, by, at, note | status literal set only; ULID discovery_id |
 | `ExperimentSpec` | spec_id | name, hypothesis, purpose, question_ref, elicitation, prereg, power, task, agent, model, ... | purpose enum; question_ref str; elicitation tuple (preamble_hash, toolset, env_overrides); prereg block stored verbatim; power (mdd, planned_n) |
 | `TaskRegistryRecord` | task_id | version, task_path, digests, source_uri, limits, control_evidence, state, allowed_uses, contamination, human_minutes | state invariants; contamination ({public_since, in_pretrain ∈ {y, n, unknown}, basis}); optional human_minutes |
+| `CapabilityCurveSpec` / `CapabilityCurveReport` | curve_id | ordered factor levels, reference, one preregistered primary contrast, paired cohort sources, per-level task intervals/deltas/refusals | strict execution-vs-task-generator provenance; `task_block_id` pairing; no fit or aggregate score |
+
 ## Other §2.1 entities (already modelled — do not re-declare)
 
 | Entity | Location | Key |
@@ -55,9 +57,11 @@ from evallab.schemas import (
     Verdict,
     ExperimentSpec,
     TaskRegistryRecord,
+    CapabilityCurveSpec,
+    CapabilityCurveReport,
 )
 fixtures = Path("tests/fixtures/contracts")
-for Model in [Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict, ExperimentSpec, TaskRegistryRecord]:
+for Model in [Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict, ExperimentSpec, TaskRegistryRecord, CapabilityCurveSpec, CapabilityCurveReport]:
     schema = Model.model_json_schema()
     out = fixtures / f"{Model.__name__}.json"
     out.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n")

@@ -26,7 +26,7 @@ import pyarrow as pa
 from evallab.cohort import NOT_COMPARABLE, wilson_interval
 from evallab.craft import CRAFT_SCHEMA, CraftRecord, TaskSource, scan
 from evallab.facts import TRIAL_FACT_SCHEMA
-from evallab.lineage import compute_file_digest
+from evallab.lineage import compute_file_digest, resolve_lineage
 
 GENERATED_HEADER = "generated-by: lessons v1"
 DEFAULT_POWER_THRESHOLD = 5
@@ -43,6 +43,8 @@ ANALYSIS_SIDECAR_SCHEMA = pa.schema(
         pa.field("earliest_failure_step_id", pa.int64()),
         pa.field("confidence", pa.string()),
         pa.field("validation_status", pa.string()),
+        pa.field("source_path", pa.string()),
+        pa.field("source_digest", pa.string()),
     ]
 )
 
@@ -181,11 +183,9 @@ def collect_lessons_inputs(
                     }
                 )
 
-    # 4. Analysis sidecars
     candidate_dirs = [
         root / "derived/analysis",
         root / "research/analysis",
-        root / "tests/fixtures/explorer/analyses",
         root / "research/explorations/harbor-021/captures/analyze",
     ]
     for cdir in candidate_dirs:
@@ -393,12 +393,11 @@ def _craft_record_to_dict(r: CraftRecord) -> dict[str, Any]:
 
 
 def load_analysis_sidecars(root: Path) -> list[dict[str, Any]]:
-    """Discover all valid analysis.json sidecars across the repo."""
+    """Discover validated production analysis sidecars with file provenance."""
     sidecars: list[dict[str, Any]] = []
     candidate_dirs = [
         root / "derived/analysis",
         root / "research/analysis",
-        root / "tests/fixtures/explorer/analyses",
         root / "research/explorations/harbor-021/captures/analyze",
     ]
 
@@ -408,32 +407,33 @@ def load_analysis_sidecars(root: Path) -> list[dict[str, Any]]:
         for path in sorted(cdir.rglob("analysis.json")):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                if not isinstance(data, dict):
+                if not isinstance(data, dict) or data.get("validation_status") != "valid":
                     continue
-                output = data.get("output", {})
+                output = data.get("output")
+                if not isinstance(output, dict):
+                    continue
                 sidecars.append(
                     {
                         "analysis_id": str(data.get("analysis_id", "")),
                         "job_id": str(data.get("job_id", "")),
                         "source_trial_id": str(data.get("source_trial_id", "")),
-                        "validity": output.get("validity", "unknown"),
-                        "primary_category": output.get("primary_category", "unclassified"),
-                        "summary": output.get("summary", ""),
+                        "validity": output.get("validity"),
+                        "primary_category": output.get("primary_category"),
+                        "summary": output.get("summary"),
                         "earliest_failure_step_id": output.get("earliest_failure_step_id"),
-                        "confidence": output.get("confidence", "unknown"),
-                        "validation_status": data.get("validation_status", "valid"),
+                        "confidence": output.get("confidence"),
+                        "validation_status": "valid",
+                        "source_path": _relative_path(path, root),
+                        "source_digest": compute_file_digest(path),
                     }
                 )
-            except Exception:
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 continue
     return sidecars
 
 
-def load_trial_facts(
-    root: Path,
-    observations: Sequence[dict[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
-    """Load trial facts from parquet if present, or synthesize from observation records."""
+def load_trial_facts(root: Path) -> list[dict[str, Any]]:
+    """Load deterministic trial facts from parquet, refusing annotation substitutes."""
     trial_parquet_files = list(root.glob("derived/parquet/**/trial_facts.parquet"))
     if trial_parquet_files:
         try:
@@ -447,55 +447,8 @@ def load_trial_facts(
                 cols = [desc[0] for desc in con.description]
                 return [dict(zip(cols, r, strict=False)) for r in rows]
         except Exception:
-            pass
-
-    # Synthesize trial facts from observation records
-    facts: list[dict[str, Any]] = []
-    obs_list = observations if observations is not None else load_observation_records(root)
-    for obs in obs_list:
-        reward = obs.get("reward")
-        task_name = obs.get("task", "")
-        trial_id = obs.get("trial_id", "")
-        facts.append(
-            {
-                "experiment_id": "synthesized-from-observations",
-                "job_id": obs.get("job", ""),
-                "trial_id": trial_id,
-                "job_name": obs.get("job", ""),
-                "trial_name": obs.get("trial_name", ""),
-                "task_name": task_name,
-                "task_digest": None,
-                "verifier_digest": "synthesized",
-                "environment_digest": "synthesized",
-                "agent_config_digest": "synthesized",
-                "agent_name": obs.get("agent", ""),
-                "agent_version": None,
-                "model_name": obs.get("model", ""),
-                "primary_reward": reward,
-                "exception_class": None if reward is not None else "HarnessException",
-                "exception_phase": None,
-                "duration_seconds": None,
-                "environment_setup_seconds": None,
-                "agent_setup_seconds": None,
-                "agent_execution_seconds": None,
-                "verifier_seconds": None,
-                "input_tokens": None,
-                "cache_tokens": None,
-                "output_tokens": None,
-                "cost_usd": None,
-                "trajectory_count": 1 if obs.get("steps_taken", 0) > 0 else 0,
-                "invalid_trajectory_count": 0,
-                "step_count": obs.get("steps_taken", 0),
-                "llm_call_count": obs.get("steps_taken", 0),
-                "tool_call_count": obs.get("steps_taken", 0),
-                "command_failure_count": obs.get("tool_errors", 0),
-                "repeated_failed_command_count": 1 if obs.get("loop_detected") else 0,
-                "artifact_count": 0,
-                "missing_artifact_count": 0,
-                "artifact_set_digest": "",
-            }
-        )
-    return facts
+            return []
+    return []
 
 
 # --------------------------------------------------------------------------- #
@@ -567,8 +520,13 @@ def apply_statistical_gating(
 
         facet_name = str(row.get("facet_name", "unknown"))
         facet_value = str(row.get("facet_value", "unknown"))
-        category = str(row.get("failure_category", "unknown"))
-        dimension = f"{facet_name}={facet_value} ({category})"
+        model_category = row.get("model_failure_category")
+        mechanical_category = str(row.get("mechanical_failure_category", "unknown"))
+        model_label = "none" if model_category is None else str(model_category)
+        dimension = (
+            f"{facet_name}={facet_value} "
+            f"(model={model_label}; mechanical={mechanical_category})"
+        )
 
         if powered and interval is not None:
             low, high = interval
@@ -681,9 +639,10 @@ def apply_statistical_gating(
 
         if powered and pass_interval is not None:
             low, high = pass_interval
+            never_measured = int(row.get("never_measured_n", 0))
             finding = (
                 f"pass_rate={pass_rate:.1%} [95% CI: {low:.1%}-{high:.1%}, n={n}], "
-                f"exceptions={exceptions}"
+                f"excluded_exceptions={exceptions}, excluded_never_measured={never_measured}"
             )
         else:
             finding = "insufficient n"
@@ -808,7 +767,7 @@ def build_lessons(
     craft_records = load_craft_records(root)
     observations = load_observation_records(root)
     sidecars = load_analysis_sidecars(root)
-    facts = load_trial_facts(root, observations=observations)
+    facts = load_trial_facts(root)
 
     with duckdb.connect(":memory:") as con:
         populate_duckdb(
@@ -910,15 +869,16 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             "## 1. Outcome by Verifier Type (`v_outcome_by_verifier_type`)",
             "",
             (
-                "Cross-tabulation of task verifier architecture against trial pass rates, "
-                "exceptions, duration, and cost."
+                "Cross-tabulation of task verifier architecture against measured trial pass "
+                "rates. Exception and never-measured trials are reported but excluded from "
+                "the capability denominator."
             ),
             "",
             (
-                "| Source Repo | Verifier Type | n | Passed | Pass Rate | Wilson 95% CI | "
-                "Exceptions | Exception Rate | Status | Finding |"
+                "| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | "
+                "Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | Status | Finding |"
             ),
-            "|---|---|---:|---:|---:|---|---:|---:|---|---|",
+            "|---|---|---:|---:|---:|---:|---|---:|---:|---|---|",
         ]
     )
 
@@ -926,25 +886,32 @@ def render_lessons_markdown(result: LessonsResult) -> str:
     if verifier_lessons:
         for row in verifier_lessons:
             if row.n == 0:
+                det = row.details
                 lines.append(
-                    "| - | none | 0 | 0 | 0.0% | n/a | 0 | 0.0% | `insufficient n` | "
+                    f"| {det.get('source_repo', '-')} | "
+                    f"{det.get('verifier_type', 'none')} | "
+                    f"{int(det.get('total_trials_n', 0))} | 0 | 0 | 0.0% | n/a | "
+                    f"{int(det.get('exceptions_n', 0))} | "
+                    f"{int(det.get('never_measured_n', 0))} | `insufficient n` | "
                     "insufficient n |"
                 )
                 continue
             det = row.details
             repo = str(det.get("source_repo", "corpus"))
             vtype = str(det.get("verifier_type", "unclassified"))
+            total = int(det.get("total_trials_n", row.n))
             passed = int(det.get("passed_n", 0))
             exceptions = int(det.get("exceptions_n", 0))
-            exc_rate = float(det.get("exception_rate_pct", 0.0)) / 100.0
+            never_measured = int(det.get("never_measured_n", 0))
             ci_str = _format_ci(row.wilson_95)
             lines.append(
-                f"| {repo} | {vtype} | {row.n} | {passed} | {row.rate:.1%} | {ci_str} | "
-                f"{exceptions} | {exc_rate:.1%} | `{row.status}` | {row.finding} |"
+                f"| {repo} | {vtype} | {total} | {row.n} | {passed} | {row.rate:.1%} | "
+                f"{ci_str} | {exceptions} | {never_measured} | `{row.status}` | "
+                f"{row.finding} |"
             )
     else:
         lines.append(
-            "| - | none | 0 | 0 | 0.0% | n/a | 0 | 0.0% | `insufficient n` | "
+            "| - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | `insufficient n` | "
             "insufficient n |"
         )
 
@@ -953,45 +920,51 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             "",
             "## 2. Loop Rate by Environment Complexity (`v_loop_rate_by_env`)",
             "",
-            "Analysis of repetitive tool loops vs multi-container and environment complexity.",
+            (
+                "Observation-annotation loop rates by environment complexity. Markdown "
+                "annotations remain identified and are not substituted for deterministic facts."
+            ),
             "",
             (
-                "| Source Repo | Services | Container Mode | Env Files | n | Loops | Loop Rate | "
-                "Wilson 95% CI | Avg Steps | Avg Tool Errors | Status | Finding |"
+                "| Source Repo | Annotation Source | Services | Container Mode | Env Files | "
+                "Total Trials | Annotated | Unannotated | Eligible n | Loops | Loop Rate | "
+                "Wilson 95% CI | Avg Annotated Steps | Avg Annotated Tool Errors | "
+                "Status | Finding |"
             ),
-            "|---|---:|---|---|---:|---:|---:|---|---:|---:|---|---|",
+            "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---|---|",
         ]
     )
 
     loop_lessons = result.lessons_by_view.get("v_loop_rate_by_env", [])
     if loop_lessons:
         for row in loop_lessons:
-            if row.n == 0:
-                lines.append(
-                    "| - | 0 | single | 0_files | 0 | 0 | 0.0% | n/a | n/a | n/a | "
-                    "`insufficient n` | insufficient n |"
-                )
-                continue
             det = row.details
-            repo = str(det.get("source_repo", "corpus"))
+            repo = str(det.get("source_repo", "-"))
+            annotation_source = str(
+                det.get("observation_source", "observation_markdown")
+            )
             services = det.get("env_services_n", 1)
             multi = "multi" if det.get("env_multi_container") else "single"
             files_b = str(det.get("env_files_bucket", "unknown"))
+            total = int(det.get("total_trials_n", row.n))
+            annotated = int(det.get("annotated_n", 0))
+            unannotated = int(det.get("unannotated_n", total - annotated))
             loops = row.k
             ci_str = _format_ci(row.wilson_95)
-            avg_s = det.get("avg_steps")
-            avg_e = det.get("avg_tool_errors")
+            avg_s = det.get("avg_observation_steps")
+            avg_e = det.get("avg_observation_tool_errors")
             avg_s_str = f"{avg_s:.1f}" if avg_s is not None else "n/a"
             avg_e_str = f"{avg_e:.1f}" if avg_e is not None else "n/a"
             lines.append(
-                f"| {repo} | {services} | {multi} | {files_b} | {row.n} | {loops} | "
+                f"| {repo} | {annotation_source} | {services} | {multi} | {files_b} | "
+                f"{total} | {annotated} | {unannotated} | {row.n} | {loops} | "
                 f"{row.rate:.1%} | {ci_str} | {avg_s_str} | {avg_e_str} | "
                 f"`{row.status}` | {row.finding} |"
             )
     else:
         lines.append(
-            "| - | 0 | single | 0_files | 0 | 0 | 0.0% | n/a | n/a | n/a | "
-            "`insufficient n` | insufficient n |"
+            "| - | observation_markdown | 0 | single | 0_files | 0 | 0 | 0 | 0 | 0 | "
+            "0.0% | n/a | n/a | n/a | `insufficient n` | insufficient n |"
         )
 
     lines.extend(
@@ -1000,42 +973,53 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             "## 3. Failure by Craft Facet (`v_failure_by_facet`)",
             "",
             (
-                "Taxonomy breakdown of agent and infrastructure failures "
-                "across structural task facets."
+                "Source-discriminated model diagnoses and mechanical trial-fact classifications "
+                "across structural task facets. The two vocabularies are never merged."
             ),
             "",
             (
-                "| Source Repo | Facet Name | Facet Value | Category | Validity | n | Failures | "
+                "| Source Repo | Facet Name | Facet Value | Model Category | Model Validity | "
+                "Model Source | Mechanical Category | Mechanical Validity | Mechanical Source | "
+                "Total Trials | Eligible n | Exceptions | Never Measured | Excluded | Failures | "
                 "Failure Rate | Wilson 95% CI | Status | Finding |"
             ),
-            "|---|---|---|---|---|---:|---:|---:|---|---|---|",
+            (
+                "|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|"
+                "---:|---|---|---|"
+            ),
         ]
     )
 
     failure_lessons = result.lessons_by_view.get("v_failure_by_facet", [])
     if failure_lessons:
         for row in failure_lessons:
-            if row.n == 0:
-                lines.append(
-                    "| - | none | none | none | unknown | 0 | 0 | 0.0% | n/a | "
-                    "`insufficient n` | insufficient n |"
-                )
-                continue
             det = row.details
-            repo = str(det.get("source_repo", "corpus"))
-            fname = str(det.get("facet_name", "facet"))
-            fval = str(det.get("facet_value", "value"))
-            cat = str(det.get("failure_category", "none"))
-            val = str(det.get("validity", "unknown"))
+            repo = str(det.get("source_repo", "-"))
+            fname = str(det.get("facet_name", "none"))
+            fval = str(det.get("facet_value", "none"))
+            model_cat = det.get("model_failure_category") or "none"
+            model_val = det.get("model_validity") or "none"
+            model_source = det.get("model_diagnosis_source") or "none"
+            mechanical_cat = str(det.get("mechanical_failure_category", "none"))
+            mechanical_val = str(det.get("mechanical_validity", "none"))
+            mechanical_source = str(
+                det.get("mechanical_diagnosis_source", "trial_facts")
+            )
+            total = int(det.get("total_trials_n", row.n))
+            exceptions = int(det.get("exceptions_n", 0))
+            never_measured = int(det.get("never_measured_n", 0))
+            excluded = int(det.get("excluded_n", exceptions + never_measured))
             ci_str = _format_ci(row.wilson_95)
             lines.append(
-                f"| {repo} | {fname} | {fval} | {cat} | {val} | {row.n} | {row.k} | "
+                f"| {repo} | {fname} | {fval} | {model_cat} | {model_val} | {model_source} | "
+                f"{mechanical_cat} | {mechanical_val} | {mechanical_source} | {total} | "
+                f"{row.n} | {exceptions} | {never_measured} | {excluded} | {row.k} | "
                 f"{row.rate:.1%} | {ci_str} | `{row.status}` | {row.finding} |"
             )
     else:
         lines.append(
-            "| - | none | none | none | unknown | 0 | 0 | 0.0% | n/a | "
-            "`insufficient n` | insufficient n |"
+            "| - | none | none | none | none | none | none | none | trial_facts | 0 | 0 | "
+            "0 | 0 | 0 | 0 | 0.0% | n/a | `insufficient n` | insufficient n |"
         )
 
     lines.extend(
@@ -1089,3 +1073,44 @@ def generate_lessons_file(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(markdown, encoding="utf-8")
     return target
+
+
+def check_lessons_freshness(root: Path, target: Path | None = None) -> bool:
+    """Return whether committed lessons exactly match current source inputs."""
+    lessons_path = target if target is not None else root / "research/lessons.md"
+    if not lessons_path.is_file():
+        return False
+    committed = lessons_path.read_text(encoding="utf-8")
+    timestamp_match = re.search(
+        r"^- \*\*Generated at:\*\* ([0-9]{4}-[0-9]{2}-[0-9]{2} "
+        r"[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$",
+        committed,
+        flags=re.MULTILINE,
+    )
+    if timestamp_match is None:
+        return False
+    generated_at = datetime.strptime(
+        timestamp_match.group(1), "%Y-%m-%d %H:%M:%SZ"
+    ).replace(tzinfo=UTC)
+    expected = render_lessons_markdown(
+        build_lessons(root, generated_at=generated_at)
+    )
+    return committed == expected
+
+
+def main() -> int:
+    """Check the committed lessons projection from a clean checkout."""
+    root = Path.cwd()
+    if not check_lessons_freshness(root):
+        print("research/lessons.md is stale; regenerate with evallab.lessons")
+        return 1
+    lineage = resolve_lineage("research/lessons.md", repo_root=root)
+    if lineage.status != "resolved":
+        print(f"research/lessons.md lineage is {lineage.status}")
+        return 1
+    print("research/lessons.md is fresh with resolved lineage")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

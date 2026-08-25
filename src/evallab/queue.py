@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fcntl
 import fnmatch
+import hashlib
 import json
 import os
 import platform
@@ -30,12 +31,13 @@ from evallab.credentials import (
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.paths import derived_root_from_environment
-from evallab.preflight import preflight_at_tick_start
+from evallab.profiles import CONTROL_ADAPTERS
 from evallab.quota import (
     Headroom,
     default_roots,
     label,
     load_quota_report,
+    provider_subscription_description,
 )
 from evallab.registry import (
     RegistryError,
@@ -72,6 +74,7 @@ from evallab.schemas import (
     QueueState,
     RunProvenance,
     StandingApprovalsPolicy,
+    canonical_grid_point_id,
 )
 
 QUEUE_STATES: tuple[QueueState, ...] = (
@@ -146,9 +149,10 @@ class PaidRunAuthorization:
 def authorization_required_message(spec: ExperimentSpec) -> str:
     """The refusal an operator reads — in `submit` output and in queue/reasons/."""
     spec_id = spec.spec_id or "<spec-id>"
+    subscription = provider_subscription_description(spec.agent)
     return (
-        f"{spec.agent} is a billable agent. Paid execution here draws on Peter's "
-        "ChatGPT subscription, so it never runs unattended: this spec waits until "
+        f"{spec.agent} is a billable agent. Paid execution here draws on "
+        f"{subscription}, so it never runs unattended: this spec waits until "
         "a named human authorises it.\n"
         f"  authorise: uv run evallab approve {spec_id} --actor <you>\n"
         f'  refuse:    uv run evallab reject {spec_id} --actor <you> --reason "<why>"\n'
@@ -365,15 +369,18 @@ def _instant(moment: datetime | None) -> str:
     return moment.isoformat() if moment is not None else label("unavailable")
 
 
-def render_headroom_notice(headroom: Headroom) -> str:
-    """What the operator is told about the allowance, at the moment of decision.
-
-    Every figure carries its provenance, and no figure is printed unless the
-    reading is observed. The scope line is not decoration: the percentage is
-    account-wide and the lab's share of it is structurally unknowable, so a
-    reader must not take "8% remaining" as "8% remaining for the lab".
-    """
-    header = "subscription quota (scope: account, NOT the lab; provider-reported):"
+def render_headroom_notice(
+    headroom: Headroom,
+    *,
+    agent: str | None = None,
+) -> str:
+    """What the operator is told about one provider's allowance."""
+    provider = (
+        f"{provider_subscription_description(agent)} allowance/policy state"
+        if agent is not None
+        else "subscription quota"
+    )
+    header = f"{provider} (scope: account, NOT the lab; provider-reported):"
     if headroom.availability != "observed":
         return "\n".join(
             [
@@ -415,32 +422,38 @@ class PolicyGate:
         repo_root: Path | None = None,
         registry: TaskRegistry | None = None,
         headroom: HeadroomReader | None = None,
+        headroom_by_agent: Callable[[str], Headroom] | None = None,
     ) -> None:
         self.policy = policy
         self.repo_root = repo_root.resolve() if repo_root else None
         self.registry = registry
         self._headroom_reader = headroom
-        self._headroom: Headroom | None = None
+        self._headroom_by_agent = headroom_by_agent
+        self._headroom: dict[str, Headroom] = {}
 
-    def headroom(self) -> Headroom:
-        """The provider's most recent quota reading, resolved at most once.
+    def headroom(self, agent: str | None = None) -> Headroom:
+        """Read one provider's allowance at most once per agent."""
+        key = agent or ""
+        if key not in self._headroom:
+            self._headroom[key] = self._read_headroom(agent)
+        return self._headroom[key]
 
-        Never raises. A gate that cannot read the quota reports `unavailable`
-        with the reason it failed, which the operator surfaces print as
-        UNKNOWN. It must never report a number it does not have.
-        """
-        if self._headroom is None:
-            self._headroom = self._read_headroom()
-        return self._headroom
+    def _read_headroom(self, agent: str | None = None) -> Headroom:
+        if self._headroom_by_agent is not None and agent is not None:
+            reader = self._headroom_by_agent
+        elif self._headroom_reader is not None:
+            base_reader = self._headroom_reader
 
-    def _read_headroom(self) -> Headroom:
-        if self._headroom_reader is None:
+            def reader(_agent: str) -> Headroom:
+                return base_reader()
+
+        else:
             return Headroom(
                 availability="unavailable",
                 reason=QUOTA_READER_UNCONFIGURED_REASON,
             )
         try:
-            return self._headroom_reader()
+            return reader(agent or "")
         except (OSError, ValueError) as exc:
             return Headroom(
                 availability="unavailable",
@@ -563,7 +576,7 @@ class PolicyGate:
                     reason_code="paid_run_unauthorized",
                     message=(
                         f"{authorization_required_message(spec)}\n"
-                        f"{render_headroom_notice(self.headroom())}"
+                        f"{render_headroom_notice(self.headroom(spec.agent), agent=spec.agent)}"
                     ),
                 )
             if spec.submitted_at is None:
@@ -594,7 +607,7 @@ class PolicyGate:
             # run. An unavailable or expired reading refuses nothing here — it
             # is not evidence of exhaustion — but it is never silent either:
             # every branch below carries `render_headroom_notice`.
-            headroom = self.headroom()
+            headroom = self.headroom(spec.agent)
             exhausted = provider_reported_exhaustion(headroom)
             if exhausted is not None and not authorization.quota_override:
                 return PolicyDecision(
@@ -604,7 +617,7 @@ class PolicyGate:
                         f"the provider reports the subscription exhausted: {exhausted}. "
                         "This is the provider's own account of its allowance, not a "
                         "threshold this lab invented.\n"
-                        f"{render_headroom_notice(headroom)}\n"
+                        f"{render_headroom_notice(headroom, agent=spec.agent)}\n"
                         "  override, only if you have reason to believe the reading is "
                         f"wrong: uv run evallab approve {spec.spec_id} --actor <you> "
                         "--despite-quota"
@@ -619,7 +632,7 @@ class PolicyGate:
                     reason_code="subscription_quota_ceiling",
                     message=(
                         f"{threshold_reached}.\n"
-                        f"{render_headroom_notice(headroom)}\n"
+                        f"{render_headroom_notice(headroom, agent=spec.agent)}\n"
                         f"  override: uv run evallab approve {spec.spec_id} "
                         "--actor <you> --despite-quota"
                     ),
@@ -660,8 +673,10 @@ class PolicyGate:
             if spec.billable:
                 # Whoever authorised this is entitled to see, in the admission
                 # itself, the allowance they just spent against.
-                admitted_headroom = self.headroom()
-                notes.append(render_headroom_notice(admitted_headroom))
+                admitted_headroom = self.headroom(spec.agent)
+                notes.append(
+                    render_headroom_notice(admitted_headroom, agent=spec.agent)
+                )
                 if authorization.quota_override and (
                     provider_reported_exhaustion(admitted_headroom)
                     or lab_threshold_reached(
@@ -1137,6 +1152,7 @@ IngestCallable = Callable[[Path], IngestProjectionResult | None]
 SpendCallable = Callable[[], float]
 FailureCallable = Callable[[], int]
 Sleeper = Callable[[float], None]
+ProgressCallable = Callable[[str], None]
 
 MAX_TRANSIENT_RETRIES = 2
 TRANSIENT_BACKOFF_BASE_SECONDS = 5.0
@@ -1164,6 +1180,24 @@ def record_projection_failures(
         )
 
 
+@dataclass(frozen=True)
+class DispatchCapacity:
+    """Explicit global limits for one concurrent dispatch batch."""
+
+    max_specs_per_tick: int | None = None
+    max_active_trials: int | None = None
+    per_agent_active_trials: dict[str, int] | None = None
+
+    def __post_init__(self) -> None:
+        values = [
+            self.max_specs_per_tick,
+            self.max_active_trials,
+            *(self.per_agent_active_trials or {}).values(),
+        ]
+        if any(value is not None and value < 1 for value in values):
+            raise ValueError("dispatch capacity values must be positive")
+
+
 class Executor:
     """The sole application boundary allowed to start Harbor experiments."""
 
@@ -1179,21 +1213,25 @@ class Executor:
         consecutive_harness_failures: FailureCallable | None = None,
         credential_probe: CredentialProbe | None = None,
         headroom: HeadroomReader | None = None,
+        progress: ProgressCallable | None = None,
         sleeper: Sleeper = time.sleep,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int = 1,
+        capacity: DispatchCapacity | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
         self.gate = PolicyGate(
             policy,
             repo_root=self.repo_root,
-            headroom=headroom or self._repo_headroom,
+            headroom=headroom,
+            headroom_by_agent=None if headroom is not None else self._repo_headroom,
         )
         self._runner = runner or self._run_harbor
         self._ingester = ingester or self._ingest
         self._spent_today = spent_today or self._catalog_spend
         self._credential_probe = credential_probe or available_credentials
+        self._progress = progress
         self._sleeper = sleeper
         if max_transient_retries < 0:
             raise ValueError("max_transient_retries cannot be negative")
@@ -1204,31 +1242,34 @@ class Executor:
         if parallel < 1:
             raise ValueError("parallel must be at least 1")
         self.parallel = parallel
+        self.capacity = capacity
         self.last_tick_reason: str | None = None
 
-    def _repo_headroom(self) -> Headroom:
-        """The provider quota reading recovered from this checkout's own runs.
-
-        No network, no credential store, no API key: `quota.py` parses the
-        `rate_limits` block the agent CLI already wrote into a completed
-        trial's session rollout. A checkout with no paid trials therefore
-        reports `unavailable` — which is the truth, and is printed as UNKNOWN
-        rather than treated as headroom.
-        """
+    def _repo_headroom(self, agent: str) -> Headroom:
+        """Read only the quota evidence belonging to ``agent``."""
         return load_quota_report(
             default_roots(self.repo_root),
             now=datetime.now(UTC),
+            paid_agents=frozenset({agent}),
         ).headroom
 
     @classmethod
-    def from_repo(cls, root: Path, *, parallel: int = 1) -> Executor:
+    def from_repo(
+        cls,
+        root: Path,
+        *,
+        parallel: int = 1,
+        progress: ProgressCallable | None = None,
+        capacity: DispatchCapacity | None = None,
+    ) -> Executor:
         return cls(
             repo_root=root,
             queue=DirectoryQueue(root / "queue"),
             policy=load_policy(root / "policy/standing-approvals.yaml"),
             parallel=parallel,
+            capacity=capacity,
+            progress=progress,
         )
-
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
         return self.queue.submit(
             spec,
@@ -1247,6 +1288,10 @@ class Executor:
                 return 0
             self.last_tick_reason = None
             return self._tick_locked(parallel=effective_parallel)
+
+    def _report_progress(self, message: str) -> None:
+        if self._progress is not None:
+            self._progress(message)
 
     def _dispatch_one(
         self,
@@ -1305,6 +1350,13 @@ class Executor:
         except (FileNotFoundError, FileExistsError, ValueError):
             self.queue.release_lease(spec)
             return False
+        self._report_progress(
+            f"dispatching {spec.name} (spec {spec.spec_id}, agent {spec.agent})"
+        )
+        self._report_progress(
+            f"child started for {spec.name}; progress log: "
+            f"{self.repo_root / spec.jobs_dir / '.executor' / (spec.name + '.log')}"
+        )
         try:
             try:
                 job_dir = self.execute_spec(spec)
@@ -1330,6 +1382,9 @@ class Executor:
                     reason_code=failure.reason_code,
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
+                self._report_progress(
+                    f"failed {spec.name} ({failure.reason_code}); state: failed"
+                )
             else:
                 try:
                     ingest_result = self._ingester(job_dir)
@@ -1350,6 +1405,9 @@ class Executor:
                         reason_code=failure.reason_code,
                     )
                     self.queue.write_reason(self.queue.load(failed), failure)
+                    self._report_progress(
+                        f"failed {spec.name} ({failure.reason_code}); state: failed"
+                    )
                 else:
                     if ingest_result is not None:
                         record_projection_failures(
@@ -1365,13 +1423,43 @@ class Executor:
                         event="dispatch_completed",
                         policy_rule=decision.policy_rule,
                     )
+                    self._report_progress(f"completed {spec.name}; state: done")
             return True
         finally:
             self.queue.release_lease(spec)
 
+    def _capacity_batch(
+        self,
+        approved_specs: list[tuple[Path, ExperimentSpec]],
+    ) -> list[tuple[Path, ExperimentSpec]]:
+        if self.capacity is None:
+            return approved_specs
+        limit = self.capacity.max_specs_per_tick
+        selected: list[tuple[Path, ExperimentSpec]] = []
+        active_trials = 0
+        by_agent: dict[str, int] = {}
+        for path, spec in approved_specs:
+            if limit is not None and len(selected) >= limit:
+                break
+            slots = min(spec.attempts, spec.concurrency)
+            if (
+                self.capacity.max_active_trials is not None
+                and active_trials + slots > self.capacity.max_active_trials
+            ):
+                continue
+            agent_limit = (self.capacity.per_agent_active_trials or {}).get(spec.agent)
+            if agent_limit is not None and by_agent.get(spec.agent, 0) + slots > agent_limit:
+                continue
+            selected.append((path, spec))
+            active_trials += slots
+            by_agent[spec.agent] = by_agent.get(spec.agent, 0) + slots
+        if not selected:
+            self.last_tick_reason = "capacity_no_approved_spec_fits"
+        return selected
+
+
     def _tick_locked(self, parallel: int = 1) -> int:
         self.reconcile_running()
-        preflight_at_tick_start(self.repo_root)
         if self.queue.stop_path.exists():
             return 0
         if self.queue.list_specs("running"):
@@ -1391,6 +1479,7 @@ class Executor:
             return 0
         credentials = self._credential_probe()
         approved_specs = self.queue.list_specs("approved")
+        approved_specs = self._capacity_batch(approved_specs)
         if not approved_specs:
             return 0
 
@@ -1421,6 +1510,7 @@ class Executor:
         package_digest = None
         timeout_seconds = spec.timeout_seconds
         canonical_task_path = spec.executable_task_path
+        task_id = spec.task_id
 
         if spec.task.startswith("registered/"):
             reg = TaskRegistry.from_repo(self.repo_root)
@@ -1435,7 +1525,100 @@ class Executor:
             task_version = resolved.version
             verifier_digest = resolved.digests.verifier
             package_digest = resolved.digests.package
+            task_id = resolved.task_id
             timeout_seconds = min(spec.timeout_seconds, resolved.limits.timeout_seconds)
+        grid_point = spec.grid_point if isinstance(spec.grid_point, dict) else {}
+        bound_values = (
+            dict(grid_point["bindings"])
+            if isinstance(grid_point.get("bindings"), dict)
+            else {}
+        )
+        factor_values = (
+            dict(grid_point["factors"])
+            if isinstance(grid_point.get("factors"), dict)
+            else {}
+        )
+        factor_bindings = (
+            dict(grid_point["factor_bindings"])
+            if isinstance(grid_point.get("factor_bindings"), dict)
+            else {}
+        )
+        factor_bindings_digest = "sha256:" + hashlib.sha256(
+            json.dumps(
+                factor_bindings, sort_keys=True, separators=(",", ":")
+            ).encode()
+        ).hexdigest()
+        declared_binding_digest = grid_point.get("factor_bindings_digest")
+        if (
+            declared_binding_digest is not None
+            and declared_binding_digest != factor_bindings_digest
+        ):
+            raise ExecutionFailure(
+                "factor_binding_unhonored",
+                "factor-name binding map does not match its declared digest",
+            )
+        if set(factor_values) != set(factor_bindings):
+            raise ExecutionFailure(
+                "factor_binding_unhonored",
+                "factor values and factor-name bindings do not name the same coordinates",
+            )
+        for factor_name, level in factor_values.items():
+            binding = factor_bindings[factor_name]
+            if bound_values.get(binding) != level:
+                raise ExecutionFailure(
+                    "factor_binding_unhonored",
+                    f"factor {factor_name!r} level {level!r} does not match "
+                    f"bound execution value {binding!r}={bound_values.get(binding)!r}",
+                )
+        resolved_execution_values = {
+            "concurrency": spec.concurrency,
+            "timeout_seconds": timeout_seconds,
+        }
+        for binding, expected in bound_values.items():
+            if (
+                binding not in resolved_execution_values
+                or resolved_execution_values[binding] != expected
+            ):
+                raise ExecutionFailure(
+                    "factor_binding_unhonored",
+                    f"factor binding {binding!r} requested {expected!r} but execution "
+                    f"resolved {resolved_execution_values.get(binding)!r}",
+                )
+        stored_point_id = grid_point.get("point_id")
+        if stored_point_id is not None:
+            point_agent = str(grid_point.get("agent") or spec.agent)
+            point_model = grid_point.get("model") or spec.model
+            point_agent_key = (
+                f"{point_agent}-{point_model}"
+                if point_model and point_agent not in CONTROL_ADAPTERS
+                else point_agent
+            )
+            expected_point_id = canonical_grid_point_id(
+                task_ref=str(
+                    grid_point.get("task_ref")
+                    or grid_point.get("task")
+                    or spec.task
+                ),
+                agent_key=point_agent_key,
+                preamble=(
+                    str(grid_point["preamble"])
+                    if grid_point.get("preamble") is not None
+                    else None
+                ),
+                k=int(grid_point.get("k") or spec.attempts),
+                arm_id=(
+                    str(grid_point["arm_id"])
+                    if grid_point.get("arm_id")
+                    else None
+                ),
+                factor_values=factor_values,
+                factor_bindings=factor_bindings,
+            )
+            if stored_point_id != expected_point_id:
+                raise ExecutionFailure(
+                    "grid_point_identity_mismatch",
+                    "stored point_id does not match canonical runnable coordinates",
+                )
 
         jobs_dir = self._safe_repo_path(spec.jobs_dir)
         # A field the dispatcher never forwards is the defect class this repo keeps
@@ -1445,6 +1628,27 @@ class Executor:
             if spec.extra_instruction_path
             else None
         )
+        actual_preamble_hash = (
+            f"sha256:{hashlib.sha256(extra_instruction_path.read_bytes()).hexdigest()}"
+            if extra_instruction_path is not None and extra_instruction_path.is_file()
+            else None
+        )
+        declared_preamble_hash = spec.extra_instruction_sha256 or (
+            str(grid_point["preamble_sha256"])
+            if grid_point.get("preamble_sha256")
+            else None
+        )
+        if extra_instruction_path is not None and actual_preamble_hash is None:
+            raise ExecutionFailure(
+                "preamble_missing",
+                f"preamble file does not exist: {spec.extra_instruction_path!r}",
+            )
+        if declared_preamble_hash and actual_preamble_hash != declared_preamble_hash:
+            raise ExecutionFailure(
+                "preamble_provenance_mismatch",
+                f"preamble {spec.extra_instruction_path!r} no longer matches "
+                f"declared digest {declared_preamble_hash}",
+            )
         request = RunRequest(
             task=task_path,
             extra_instruction_path=extra_instruction_path,
@@ -1468,6 +1672,23 @@ class Executor:
                 policy_rule=spec.policy_rule,
                 package_digest=package_digest,
                 task_path=canonical_task_path,
+                grid_id=spec.grid_id,
+                point_id=(
+                    str(grid_point["point_id"]) if grid_point.get("point_id") else None
+                ),
+                arm_id=str(grid_point["arm_id"]) if grid_point.get("arm_id") else None,
+                factor_values=factor_values or None,
+                factor_bindings=factor_bindings or None,
+                factor_bindings_digest=(
+                    factor_bindings_digest if factor_bindings else None
+                ),
+                bound_execution_values=bound_values or None,
+                preamble_path=spec.extra_instruction_path,
+                preamble_sha256=actual_preamble_hash,
+                task_family=spec.task_family,
+                task_id=task_id,
+                task_instance_id=spec.task_instance_id,
+                generator_seed=spec.generator_seed,
             ),
         )
         return self._run_with_transient_retries(spec, request)
@@ -1693,8 +1914,36 @@ class Executor:
                 checks.append(("docker-daemon", completed.returncode == 0, detail))
         return checks
 
+    def _running_state_timed_out(self, spec: ExperimentSpec) -> bool:
+        state_path = (
+            self._safe_repo_path(spec.jobs_dir)
+            / ".executor"
+            / f"{spec.name}.state.json"
+        )
+        try:
+            state = json.loads(state_path.read_text())
+            started = datetime.fromisoformat(str(state["started_at"]))
+            timeout = float(state.get("job_timeout_seconds", spec.timeout_seconds))
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return False
+        if str(state.get("status")) != "running":
+            return False
+        return datetime.now(UTC) >= started + timedelta(seconds=timeout)
+
     def reconcile_running(self) -> None:
         for path, spec in self.queue.list_specs("running"):
+            if self._running_state_timed_out(spec):
+                self._fail_reconciled_running(
+                    path,
+                    spec,
+                    reason_code="trial_wall_clock_timeout",
+                    message=(
+                        "executor state exceeded the spec timeout; the child was "
+                        "not observed to settle after restart. Inspect the progress "
+                        f"log under {self._safe_repo_path(spec.jobs_dir) / '.executor'}"
+                    ),
+                )
+                continue
             job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
             archive_root = (
                 self._safe_repo_path(spec.jobs_dir)

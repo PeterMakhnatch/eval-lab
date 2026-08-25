@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import posixpath
 import re
 from datetime import date, datetime
 from typing import Any, Literal, cast, get_args
@@ -74,6 +77,48 @@ def validated_jobs_dir(value: str) -> str:
         "<spec.json>`"
     )
 
+
+def canonical_preamble_path(value: str | None) -> str | None:
+    """Normalize a repo-relative preamble coordinate; ``none`` is absence."""
+    if value in (None, "none"):
+        return None
+    normalized = posixpath.normpath(value)
+    if normalized in ("", ".") or normalized.startswith("/") or normalized == "..":
+        raise ValueError(f"invalid preamble path {value!r}")
+    if normalized.startswith("../"):
+        raise ValueError(f"preamble path must stay relative to the repository: {value!r}")
+    return normalized
+
+def canonical_grid_point_id(
+    *,
+    task_ref: str,
+    agent_key: str,
+    preamble: str | None,
+    k: int,
+    arm_id: str | None,
+    factor_values: dict[str, Any],
+    factor_bindings: dict[str, str],
+) -> str:
+    """Hash the complete runnable grid coordinate without name parsing."""
+    bindings_json = json.dumps(
+        factor_bindings, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    payload = {
+        "task_ref": task_ref,
+        "agent_key": agent_key,
+        "preamble": canonical_preamble_path(preamble),
+        "k": k,
+        "arm_id": arm_id,
+        "factors": factor_values,
+        "factor_bindings": factor_bindings,
+        "factor_bindings_digest": (
+            f"sha256:{hashlib.sha256(bindings_json.encode()).hexdigest()}"
+        ),
+    }
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 #: Why a spec exists. Required on every ``ExperimentSpec``, because until now
 #: nothing recorded *intent*: the queue could be listed but never grouped,
@@ -201,6 +246,11 @@ class ExperimentSpec(ContractModel):
             "so EXP-S03's treatment arm varies it while the control leaves it unset."
         ),
     )
+    extra_instruction_sha256: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+        description="content digest of extra_instruction_path at spec generation",
+    )
     agent: str = Field(min_length=1)
     model: str | None = None
     environment: str = "docker"
@@ -219,6 +269,15 @@ class ExperimentSpec(ContractModel):
     submitted_at: datetime | None = None
     grid_id: str | None = None
     grid_point: dict[str, Any] | None = None
+    task_family: str | None = None
+    task_id: str | None = None
+    task_instance_id: str | None = None
+    generator_seed: int | str | None = Field(
+        default=None,
+        description=(
+            "task-generator seed only; model-sampling seed is uncontrolled and absent"
+        ),
+    )
 
     @field_validator("task", "task_path", "jobs_dir", "extra_instruction_path")
     @classmethod
@@ -238,6 +297,10 @@ class ExperimentSpec(ContractModel):
     def controls_do_not_name_models(self) -> ExperimentSpec:
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"the {self.agent} control does not accept a model")
+        if self.extra_instruction_sha256 and not self.extra_instruction_path:
+            raise ValueError(
+                "extra_instruction_sha256 requires extra_instruction_path"
+            )
         return self
 
     @property
@@ -442,6 +505,28 @@ class RunProvenance(ContractModel):
     policy_rule: str | None = None
     package_digest: str | None = None
     task_path: str | None = None
+    grid_id: str | None = None
+    point_id: str | None = None
+    arm_id: str | None = None
+    factor_values: dict[str, str | int | float | bool] | None = None
+    factor_bindings: dict[
+        str, Literal["concurrency", "timeout_seconds"]
+    ] | None = None
+    factor_bindings_digest: str | None = None
+    bound_execution_values: dict[
+        Literal["concurrency", "timeout_seconds"], int
+    ] | None = None
+    preamble_path: str | None = None
+    preamble_sha256: str | None = None
+    task_family: str | None = None
+    task_id: str | None = None
+    task_instance_id: str | None = None
+    generator_seed: int | str | None = Field(
+        default=None,
+        description=(
+            "task-generator seed only; model-sampling seed is uncontrolled and absent"
+        ),
+    )
 
 
 class CohortSelector(ContractModel):
@@ -469,13 +554,20 @@ class CohortComparisonSpec(ContractModel):
         "model_settings_digest",
         "environment_digest",
         "preamble_hash",
+        "preamble_content_sha256",
         "toolset_digest",
+        "factor_values_digest",
+        "factor_bindings_digest",
+        "bound_execution_values_digest",
     ]
     mode: Literal["causal", "exploratory"] = "causal"
     reward_name: str = "reward"
     pass_threshold: float = 1.0
     pass_k: list[int] = Field(default_factory=lambda: [1], min_length=1)
-    pairing_key: Literal["task_digest", "task_name", "trial_name"] = "task_digest"
+    budget_exhaustion_is_failure: bool = False
+    pairing_key: Literal[
+        "task_block_id", "task_digest", "task_name", "trial_name"
+    ] = "task_digest"
     constraints: dict[Literal["task_digest", "verifier_digest", "environment_digest"], str] = Field(
         default_factory=dict
     )
@@ -497,6 +589,219 @@ class CohortComparisonSpec(ContractModel):
             raise ValueError("cohort labels must be unique")
         return self
 
+
+
+CurveFactorValue = str | int | float | bool
+
+
+class CurvePrimaryContrast(ContractModel):
+    """The single preregistered inferential contrast on an empirical curve."""
+
+    level: CurveFactorValue
+    k: int = Field(ge=1)
+
+
+class CurveComparisonSource(ContractModel):
+    """One reference-versus-level comparison, either live or already frozen."""
+
+    level: CurveFactorValue
+    comparison_spec: CohortComparisonSpec | None = None
+    comparison_artifact: str | None = None
+    comparison_artifact_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+
+    @model_validator(mode="after")
+    def exactly_one_source(self) -> CurveComparisonSource:
+        if (self.comparison_spec is None) == (self.comparison_artifact is None):
+            raise ValueError(
+                "curve comparison source requires exactly one of comparison_spec "
+                "or comparison_artifact"
+            )
+        if self.comparison_artifact is not None:
+            if self.comparison_artifact.startswith("/") or ".." in self.comparison_artifact.split(
+                "/"
+            ):
+                raise ValueError("curve comparison artifacts must stay relative to the repository")
+            if self.comparison_artifact_digest is None:
+                raise ValueError("frozen comparison artifacts require a sha256 digest")
+        elif self.comparison_artifact_digest is not None:
+            raise ValueError("comparison_artifact_digest requires comparison_artifact")
+        return self
+
+
+class CapabilityCurveSpec(ContractModel):
+    """Strict empirical curve contract; it intentionally has no fitted-model fields."""
+
+    schema_version: Literal[1] = 1
+    curve_id: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    factor_name: str = Field(min_length=1)
+    factor_unit: str = Field(min_length=1)
+    factor_kind: Literal["execution", "task_generator"]
+    ordered_levels: list[CurveFactorValue] = Field(min_length=2)
+    reference_level: CurveFactorValue
+    primary_contrast: CurvePrimaryContrast
+    prereg: PreregSpec
+    treatment_binding: Literal["concurrency", "timeout_seconds"] | None = None
+    comparisons: list[CurveComparisonSource] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def coherent_curve(self) -> CapabilityCurveSpec:
+        if self.factor_kind == "execution" and self.treatment_binding is None:
+            raise ValueError(
+                "execution capability curves require an explicit treatment_binding"
+            )
+        if self.factor_kind == "task_generator" and self.treatment_binding is not None:
+            raise ValueError(
+                "task_generator capability curves must not declare a harness treatment_binding"
+            )
+        identities = [json.dumps(value, sort_keys=True) for value in self.ordered_levels]
+        if len(identities) != len(set(identities)):
+            raise ValueError("curve ordered_levels must be unique")
+        reference = json.dumps(self.reference_level, sort_keys=True)
+        primary = json.dumps(self.primary_contrast.level, sort_keys=True)
+        if reference not in identities:
+            raise ValueError("curve reference_level must occur in ordered_levels")
+        if primary not in identities or primary == reference:
+            raise ValueError(
+                "curve primary contrast level must be a non-reference ordered level"
+            )
+        source_levels = [json.dumps(item.level, sort_keys=True) for item in self.comparisons]
+        expected_levels = [item for item in identities if item != reference]
+        if source_levels != expected_levels:
+            raise ValueError(
+                "curve comparisons must occur once in ordered non-reference level order"
+            )
+        for source in self.comparisons:
+            comparison = source.comparison_spec
+            if comparison is None:
+                continue
+            if comparison.pairing_key != "task_block_id":
+                raise ValueError("curve comparisons require pairing_key='task_block_id'")
+            if len(comparison.cohorts) != 2:
+                raise ValueError("curve comparisons require exactly two cohorts")
+            if comparison.declared_variable != "factor_values_digest":
+                raise ValueError(
+                    "curve comparisons require declared_variable='factor_values_digest'"
+                )
+        primary_source = next(
+            item
+            for item in self.comparisons
+            if json.dumps(item.level, sort_keys=True) == primary
+        )
+        if (
+            primary_source.comparison_spec is not None
+            and self.primary_contrast.k not in primary_source.comparison_spec.pass_k
+        ):
+            raise ValueError("primary contrast k must be requested by its comparison spec")
+        return self
+
+
+class CurveMetricReport(ContractModel):
+    k: int = Field(ge=1)
+    n_tasks: int = Field(ge=0)
+    rate: float | None = Field(default=None, ge=0, le=1)
+    task_interval_95: list[float] | None = None
+    passes: int = Field(ge=0)
+    selected_task_blocks: list[str]
+    insufficient_task_blocks: list[str]
+
+    @field_validator("task_interval_95")
+    @classmethod
+    def interval_is_ordered_pair(cls, value: list[float] | None) -> list[float] | None:
+        if value is not None and (len(value) != 2 or value[0] > value[1]):
+            raise ValueError("curve task intervals must be ordered [lower, upper] pairs")
+        return value
+
+
+class CurveContrastReport(ContractModel):
+    k: int = Field(ge=1)
+    pass_power_k_delta: float | None = None
+    pass_power_k_interval_95: list[float] | None = None
+    pass_power_k_wins: int = Field(ge=0)
+    pass_power_k_ties: int = Field(ge=0)
+    pass_power_k_losses: int = Field(ge=0)
+    n_pairs: int = Field(ge=0)
+    paired_delta: float | None = None
+    paired_interval_95: list[float] | None = None
+    wins: int = Field(ge=0)
+    ties: int = Field(ge=0)
+    losses: int = Field(ge=0)
+    rankable: bool
+    refusal_reasons: list[str]
+
+    @field_validator("paired_interval_95", "pass_power_k_interval_95")
+    @classmethod
+    def intervals_are_ordered_pairs(
+        cls, value: list[float] | None
+    ) -> list[float] | None:
+        if value is not None and (len(value) != 2 or value[0] > value[1]):
+            raise ValueError("curve paired intervals must be ordered [lower, upper] pairs")
+        return value
+
+
+class CurveExceptionReport(ContractModel):
+    trial_id: str
+    task_block_id: str | None
+    exception_class: str
+
+
+class CurveLevelReport(ContractModel):
+    level: CurveFactorValue
+    role: Literal["reference", "primary", "descriptive"]
+    exact_pair_set: list[str]
+    unpaired_task_blocks: list[str]
+    censored_task_blocks: list[str]
+    exception_trials: list[CurveExceptionReport]
+    missing_reward_trials: list[str]
+    pass_at_k: list[CurveMetricReport]
+    pass_power_k: list[CurveMetricReport]
+    contrasts: list[CurveContrastReport]
+
+
+class CapabilityCurveReport(ContractModel):
+    """A provenance-backed empirical curve, never a scalar capability score."""
+
+    schema_version: Literal[1] = 1
+    curve_id: str
+    factor_name: str
+    factor_unit: str
+    factor_kind: Literal["execution", "task_generator"]
+    ordered_levels: list[CurveFactorValue]
+    reference_level: CurveFactorValue
+    primary_contrast: CurvePrimaryContrast
+    prereg: PreregSpec
+    common_controlled_fingerprint: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    input_digests: dict[str, str]
+    produced_at: datetime
+    produced_by: str = Field(min_length=1)
+    rankable: bool
+    refuse_to_rank_reasons: list[str]
+    levels: list[CurveLevelReport]
+    contract_note: Literal[
+        "empirical paired contract enforcement; not substantive generality evidence"
+    ] = "empirical paired contract enforcement; not substantive generality evidence"
+
+    @field_validator("input_digests")
+    @classmethod
+    def inputs_are_sha256_digests(cls, values: dict[str, str]) -> dict[str, str]:
+        if not values or any(
+            not re.fullmatch(r"sha256:[0-9a-f]{64}", value) for value in values.values()
+        ):
+            raise ValueError("curve input_digests must be a non-empty sha256 manifest")
+        return values
+
+    @model_validator(mode="after")
+    def rank_and_level_contract_is_coherent(self) -> CapabilityCurveReport:
+        identities = [json.dumps(value, sort_keys=True) for value in self.ordered_levels]
+        reported = [json.dumps(item.level, sort_keys=True) for item in self.levels]
+        if reported != identities:
+            raise ValueError("curve report levels must preserve ordered_levels exactly")
+        if self.rankable == bool(self.refuse_to_rank_reasons):
+            raise ValueError("rankable curves require no refusal reasons and vice versa")
+        return self
 
 FailureCategory = Literal[
     "task_invalid",
@@ -597,6 +902,45 @@ class TrialAnalysisSidecar(ContractModel):
             raise ValueError("valid analyses cannot carry validation errors")
         if self.validation_status == "invalid" and not self.validation_errors:
             raise ValueError("invalid analyses require validation errors")
+        return self
+
+
+class BehaviorLabel(ContractModel):
+    """Versioned semantic or mechanical label for any agent-behavior target."""
+
+    schema_version: Literal[1] = 1
+    label_id: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    target_type: Literal["trajectory", "trial", "event", "action"]
+    target_id: str = Field(min_length=1)
+    job_id: str | None = None
+    trial_id: str
+    trial_name: str
+    task_name: str
+    taxonomy: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    rationale: str | None = None
+    provenance: Literal["human", "heuristic", "model"]
+    author: str = Field(min_length=1)
+    created_at: datetime
+    confidence: Literal["low", "medium", "high"] | None = None
+    evidence: list[AnalysisEvidenceCitation] = Field(default_factory=list)
+    source_sha256: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    analysis_id: UUID | None = None
+    model_provenance: AnalysisProvenance | None = None
+
+    @model_validator(mode="after")
+    def provenance_fields_are_consistent(self) -> BehaviorLabel:
+        if self.provenance == "model":
+            if self.model_provenance is None:
+                raise ValueError("model labels require model_provenance")
+            if self.confidence is None:
+                raise ValueError("model labels require confidence")
+        elif self.model_provenance is not None:
+            raise ValueError("only model labels may carry model_provenance")
+        if self.target_type in {"trajectory", "trial"} and self.target_id != self.trial_id:
+            raise ValueError("trajectory/trial label target_id must equal trial_id")
         return self
 
 
@@ -848,24 +1192,175 @@ class TaskLimits(ContractModel):
     max_cpus: float | None = Field(default=None, gt=0)
 
 
+DURABLE_CONTROL_EVIDENCE_PREFIX = "research/evidence/runs/"
+
+
 class ControlEvidenceRef(ContractModel):
     job_name: str = Field(min_length=1)
+    trial_name: str = Field(min_length=1)
     reward: float = Field(ge=0.0, le=1.0)
-    evidence_path: str | None = None
-    evidence_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
-    observed_at: datetime | None = None
+    evidence_path: str = Field(min_length=1)
+    evidence_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    lock_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    observed_at: datetime
+    task_id: str = Field(min_length=3, pattern=r"^[a-z0-9][a-z0-9-]+$")
+    task_version: str = Field(min_length=1)
+    task_digests: TaskDigests
+    harbor_task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
     @field_validator("evidence_path")
     @classmethod
-    def evidence_path_is_relative(cls, value: str | None) -> str | None:
-        if value is not None and (value.startswith("/") or ".." in value.split("/")):
+    def evidence_path_is_durable_and_relative(cls, value: str) -> str:
+        if value.startswith("/") or ".." in value.split("/"):
             raise ValueError("evidence_path must stay relative to the repository")
+        if not value.startswith(DURABLE_CONTROL_EVIDENCE_PREFIX):
+            raise ValueError(
+                "control evidence must be under the durable owned root "
+                f"{DURABLE_CONTROL_EVIDENCE_PREFIX!r}"
+            )
         return value
 
 
 class TaskControlEvidence(ContractModel):
     oracle: ControlEvidenceRef
     nop: ControlEvidenceRef
+
+
+DURABLE_TASK_CERTIFICATION_PREFIX = "research/registration/candidates/"
+CertificationAxisStatus = Literal["passed", "failed", "not_assessed", "not_applicable"]
+
+
+class CertificationCheckVector(ContractModel):
+    all_controls_completed: bool
+    static: bool
+    oracle_exact_1_x3: bool
+    oracle_stable_output: bool
+    nop_exact_0_x2: bool
+    invalid_outputs_rejected: bool
+    fair_alternative_exact_1: bool
+    please_hack_executed: bool
+    hack_detected: bool
+    leakage_scan_clean: bool
+    isolation: bool
+
+
+class CertificationControlSummary(ContractModel):
+    oracle_runs: int = Field(ge=0)
+    nop_runs: int = Field(ge=0)
+    invalid_probe_runs: int = Field(ge=0)
+    fair_alternative_runs: int = Field(ge=0)
+    please_hack_runs: int = Field(ge=0)
+    result_digests: list[str]
+
+    @field_validator("result_digests")
+    @classmethod
+    def result_digests_are_sha256(cls, values: list[str]) -> list[str]:
+        if any(not re.fullmatch(r"sha256:[0-9a-f]{64}", value) for value in values):
+            raise ValueError("control result digests must be sha256 values")
+        return values
+
+
+class CertificationAxis(ContractModel):
+    status: CertificationAxisStatus
+    reason: str = Field(min_length=1)
+    evidence: list[str] = Field(default_factory=list)
+
+
+class CertificationAxes(ContractModel):
+    task_correctness: CertificationAxis
+    verifier_soundness: CertificationAxis
+    verifier_completeness: CertificationAxis
+    solvability: CertificationAxis
+    difficulty_calibration: CertificationAxis
+    realism_review: CertificationAxis
+
+
+class CertificationIdentity(ContractModel):
+    code_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    execution: Literal["local"]
+    model: str | None
+    prompt_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+
+
+class TaskCertificationEnvelope(ContractModel):
+    """Digest-bound workbench packet reference; legacy absence stays explicit."""
+
+    state: Literal["bound", "legacy_missing"] = "legacy_missing"
+    reason: str = Field(default="legacy_record_has_no_certificate_packet", min_length=1)
+    certification_id: str | None = Field(
+        default=None, pattern=r"^cert-[0-9a-f]{24}$"
+    )
+    packet_path: str | None = None
+    packet_sha256: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    candidate_id: str | None = Field(
+        default=None, pattern=r"^candidate-[0-9a-f]{24}$"
+    )
+    candidate_record_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    candidate_package_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    package_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
+    workbench_version: str | None = None
+    check_vector: CertificationCheckVector | None = None
+    control_summary: CertificationControlSummary | None = None
+    axes: CertificationAxes | None = None
+    generator_identity: CertificationIdentity | None = None
+    validator_identity: CertificationIdentity | None = None
+
+    @field_validator("packet_path")
+    @classmethod
+    def packet_path_is_durable(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value.startswith("/") or ".." in value.split("/"):
+            raise ValueError("certificate packet path must stay repository-relative")
+        if not value.startswith(DURABLE_TASK_CERTIFICATION_PREFIX):
+            raise ValueError(
+                "certificate packet must be under "
+                f"{DURABLE_TASK_CERTIFICATION_PREFIX!r}"
+            )
+        if not value.endswith("/certification.json"):
+            raise ValueError("certificate packet path must end in certification.json")
+        return value
+
+    @model_validator(mode="after")
+    def validate_state(self) -> TaskCertificationEnvelope:
+        bound_fields = (
+            "certification_id",
+            "packet_path",
+            "packet_sha256",
+            "candidate_id",
+            "candidate_record_digest",
+            "candidate_package_digest",
+            "package_digest",
+            "workbench_version",
+            "check_vector",
+            "control_summary",
+            "axes",
+            "generator_identity",
+            "validator_identity",
+        )
+        if self.state == "bound":
+            missing = [name for name in bound_fields if getattr(self, name) is None]
+            if missing:
+                raise ValueError(
+                    f"bound certification is missing fields: {', '.join(missing)}"
+                )
+            if self.generator_identity == self.validator_identity:
+                raise ValueError(
+                    "generator and validator identities cannot be the same self-check"
+                )
+        elif any(getattr(self, name) is not None for name in bound_fields):
+            raise ValueError("legacy_missing certification cannot carry packet claims")
+        return self
 
 
 TaskAdmissionState = Literal["candidate", "registered", "retired"]
@@ -927,7 +1422,10 @@ class TaskRegistryRecord(ContractModel):
     ]
     is_synthetic: bool
     limits: TaskLimits = Field(default_factory=TaskLimits)
-    control_evidence: TaskControlEvidence
+    control_evidence: TaskControlEvidence | None = None
+    certification: TaskCertificationEnvelope = Field(
+        default_factory=TaskCertificationEnvelope
+    )
     state: TaskAdmissionState
     allowed_uses: list[TaskAllowedUse] = Field(min_length=1)
     contamination: TaskContamination | None = Field(
@@ -941,6 +1439,11 @@ class TaskRegistryRecord(ContractModel):
     )
     approved_by: str | None = None
     approved_at: datetime | None = None
+    state_reason: str | None = Field(
+        default=None,
+        pattern=r"^[a-z0-9][a-z0-9_]*$",
+        description="machine-readable reason for a non-registered admission state",
+    )
 
     @field_validator("task_path")
     @classmethod
@@ -959,6 +1462,10 @@ class TaskRegistryRecord(ContractModel):
     @model_validator(mode="after")
     def validate_state_invariants(self) -> TaskRegistryRecord:
         if self.state == "registered":
+            if self.state_reason is not None:
+                raise ValueError("registered task records cannot carry state_reason")
+            if self.control_evidence is None:
+                raise ValueError("registered task records require control_evidence")
             if not self.approved_by or not self.approved_by.strip():
                 raise ValueError("registered task records require approved_by")
             if self.approved_at is None:
@@ -973,36 +1480,36 @@ class TaskRegistryRecord(ContractModel):
                     "registered task requires nop reward 0.0 "
                     f"(got {self.control_evidence.nop.reward})"
                 )
-            oracle_ref = self.control_evidence.oracle
-            if (
-                not oracle_ref.evidence_path
-                or not oracle_ref.evidence_digest
-                or oracle_ref.observed_at is None
+            for label, ref in (
+                ("oracle", self.control_evidence.oracle),
+                ("nop", self.control_evidence.nop),
             ):
-                raise ValueError(
-                    "registered task oracle control requires evidence_path, "
-                    "evidence_digest, and observed_at"
-                )
-            nop_ref = self.control_evidence.nop
-            if (
-                not nop_ref.evidence_path
-                or not nop_ref.evidence_digest
-                or nop_ref.observed_at is None
-            ):
-                raise ValueError(
-                    "registered task nop control requires evidence_path, "
-                    "evidence_digest, and observed_at"
-                )
+                if ref.task_id != self.task_id or ref.task_version != self.version:
+                    raise ValueError(
+                        f"registered task {label} evidence identity does not match "
+                        "the registry record"
+                    )
+                if ref.task_digests != self.digests:
+                    raise ValueError(
+                        f"registered task {label} evidence digests do not match "
+                        "the registry record"
+                    )
             if self.provenance_zone == "01-external":
                 if not self.license or not self.license.strip():
                     raise ValueError("external registered task requires license")
                 if not self.source_ref or any(
-                    char in self.source_ref.lower() for char in ("latest", "head", "main", "master")
+                    char in self.source_ref.lower()
+                    for char in ("latest", "head", "main", "master")
                 ):
                     raise ValueError(
                         "external registered task requires immutable pinned source_ref "
                         "(commit SHA or release tag)"
                     )
+        elif self.state == "candidate" and self.control_evidence is None:
+            if self.state_reason is None:
+                raise ValueError(
+                    "candidate task without control_evidence requires state_reason"
+                )
         return self
 
 
@@ -1257,6 +1764,15 @@ class TaskSpec(ContractModel):
     expected_reward: float | None = None
     task_version: str | None = None
     verifier_digest: str | None = None
+    task_family: str | None = None
+    task_id: str | None = None
+    instance_id: str | None = None
+    generator_seed: int | str | None = Field(
+        default=None,
+        description=(
+            "task-generator seed only; model-sampling seed is uncontrolled and absent"
+        ),
+    )
 
 
 class AgentSpec(ContractModel):
@@ -1272,6 +1788,74 @@ class AgentSpec(ContractModel):
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"Control agent {self.agent!r} must not declare a model")
         return self
+FactorValue = str | int | float | bool
+FactorBinding = Literal["concurrency", "timeout_seconds"]
+
+
+class GridFactor(ContractModel):
+    """A declared treatment coordinate bound to a runner execution lever."""
+
+    binding: FactorBinding
+    levels: list[FactorValue] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _levels_match_binding(self) -> GridFactor:
+        encoded = [json.dumps(level, sort_keys=True) for level in self.levels]
+        if len(encoded) != len(set(encoded)):
+            raise ValueError("factor contains duplicate levels")
+        for level in self.levels:
+            if not isinstance(level, int) or isinstance(level, bool):
+                raise ValueError(
+                    f"binding {self.binding!r} requires integer levels, got {level!r}"
+                )
+            if level < 1:
+                raise ValueError(f"binding {self.binding!r} requires levels >= 1")
+            if self.binding == "timeout_seconds" and level > 21_600:
+                raise ValueError("timeout_seconds factor levels must be <= 21600")
+        return self
+
+
+class ExperimentArm(ContractModel):
+    """Named runnable treatment with fixed agent and factor coordinates."""
+
+    arm_id: str = Field(
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=80
+    )
+    agent: AgentSpec
+    preamble: str = "none"
+    factor_overrides: dict[str, FactorValue] = Field(default_factory=dict)
+
+    @field_validator("preamble", mode="before")
+    @classmethod
+    def _canonical_preamble(cls, value: Any) -> str:
+        return canonical_preamble_path(str(value)) or "none"
+
+    @field_validator("agent", mode="before")
+    @classmethod
+    def _normalize_agent(cls, value: Any) -> AgentSpec:
+        if isinstance(value, AgentSpec):
+            return value
+        if isinstance(value, str):
+            from evallab.profiles import builtin_profiles
+
+            profiles = builtin_profiles()
+            if value in profiles:
+                profile = profiles[value]
+                return AgentSpec(agent=profile.adapter, model=profile.model)
+            return AgentSpec(agent=value)
+        return AgentSpec.model_validate(value)
+
+    @field_validator("factor_overrides")
+    @classmethod
+    def _factor_names_are_identifiers(
+        cls, values: dict[str, FactorValue]
+    ) -> dict[str, FactorValue]:
+        for name in values:
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+                raise ValueError(f"invalid factor name {name!r}")
+        return values
+
+
 
 
 class ProviderLimit(ContractModel):
@@ -1292,13 +1876,14 @@ class GridLimits(ContractModel):
 
 
 class GridAxes(ContractModel):
-    """Experimental axes for Cartesian grid expansion: tasks x agents x preambles x k."""
+    """Tasks crossed with named arms or legacy agent/preamble axes and factors."""
 
     task_refs: list[TaskSpec] = Field(min_length=1)
-    agents: list[AgentSpec] = Field(min_length=1)
+    agents: list[AgentSpec] = Field(default_factory=list)
+    arms: list[ExperimentArm] = Field(default_factory=list)
     preamble: list[str] = Field(default_factory=lambda: ["none"])
+    factors: dict[str, GridFactor] = Field(default_factory=dict)
     k: list[int] = Field(default_factory=lambda: [1])
-
     @field_validator("task_refs", mode="before")
     @classmethod
     def _normalize_task_refs(cls, value: Any) -> list[TaskSpec]:
@@ -1321,10 +1906,10 @@ class GridAxes(ContractModel):
     @field_validator("agents", mode="before")
     @classmethod
     def _normalize_agents(cls, value: Any) -> list[AgentSpec]:
+        if value is None:
+            return []
         if isinstance(value, (str, dict, AgentSpec)):
             value = [value]
-        if not value:
-            raise ValueError("agents must not be empty")
         from evallab.profiles import builtin_profiles
 
         builtins = builtin_profiles()
@@ -1343,6 +1928,61 @@ class GridAxes(ContractModel):
             else:
                 raise ValueError(f"Invalid agent item: {v}")
         return res
+    @field_validator("arms", mode="before")
+    @classmethod
+    def _normalize_arms(cls, value: Any) -> list[ExperimentArm]:
+        if value is None:
+            return []
+        if isinstance(value, (dict, ExperimentArm)):
+            value = [value]
+        return [
+            item if isinstance(item, ExperimentArm) else ExperimentArm.model_validate(item)
+            for item in value
+        ]
+
+    @field_validator("factors")
+    @classmethod
+    def _validate_factors(
+        cls, values: dict[str, GridFactor]
+    ) -> dict[str, GridFactor]:
+        bindings: dict[FactorBinding, str] = {}
+        for name, factor in values.items():
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+                raise ValueError(f"invalid factor name {name!r}")
+            previous = bindings.get(factor.binding)
+            if previous is not None:
+                raise ValueError(
+                    f"factors {previous!r} and {name!r} both bind {factor.binding!r}"
+                )
+            bindings[factor.binding] = name
+        return values
+
+    @model_validator(mode="after")
+    def _one_arm_surface(self) -> GridAxes:
+        if bool(self.agents) == bool(self.arms):
+            raise ValueError("axes must declare exactly one of agents or arms")
+        if self.arms and "preamble" in self.model_fields_set:
+            raise ValueError("axes.preamble cannot be declared when axes.arms is used")
+        arm_ids = [arm.arm_id for arm in self.arms]
+        if len(arm_ids) != len(set(arm_ids)):
+            raise ValueError("arm_id values must be unique")
+        for arm in self.arms:
+            for name, value in arm.factor_overrides.items():
+                if name not in self.factors:
+                    raise ValueError(
+                        f"arm {arm.arm_id!r} overrides undeclared factor {name!r}"
+                    )
+                encoded = json.dumps(value, sort_keys=True)
+                declared = {
+                    json.dumps(level, sort_keys=True)
+                    for level in self.factors[name].levels
+                }
+                if encoded not in declared:
+                    raise ValueError(
+                        f"arm {arm.arm_id!r} override for factor {name!r} "
+                        f"uses undeclared level {value!r}"
+                    )
+        return self
 
     @field_validator("preamble", mode="before")
     @classmethod
@@ -1351,7 +1991,12 @@ class GridAxes(ContractModel):
             value = [value]
         if not value:
             return ["none"]
-        return list(value)
+        normalized = [
+            canonical_preamble_path(str(item)) or "none" for item in value
+        ]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("preamble levels must be unique")
+        return normalized
 
     @field_validator("k", mode="before")
     @classmethod
@@ -1368,6 +2013,8 @@ class GridAxes(ContractModel):
             if int_val < 1:
                 raise ValueError(f"k value {int_val} must be >= 1")
             res.append(int_val)
+        if len(res) != len(set(res)):
+            raise ValueError("k values must be unique")
         return res
 
 
@@ -1394,6 +2041,7 @@ class GridSpec(ContractModel):
     est_cost_per_trial_usd: dict[str, float] | float = Field(default_factory=dict)
     limits: GridLimits = Field(default_factory=GridLimits)
     check_quota_headroom: bool = True
+    shard_size: int = Field(default=50, ge=1, le=1000)
     policy_rule: str | None = None
     requires: list[str] = Field(default_factory=list)
 
@@ -1442,6 +2090,45 @@ class GridSpec(ContractModel):
         self.agents = cast(list[str | AgentSpec], list(self.axes.agents))
         self.preambles = self.axes.preamble
         self.attempts = self.axes.k
+        declared_factors = {
+            name: {
+                json.dumps(level, sort_keys=True) for level in factor.levels
+            }
+            for name, factor in self.axes.factors.items()
+        }
+        declared_arms = {arm.arm_id for arm in self.axes.arms}
+        for constraint in self.constraints:
+            for coordinate, raw_value in constraint.items():
+                values = (
+                    raw_value
+                    if isinstance(raw_value, (list, tuple, set))
+                    else [raw_value]
+                )
+                if coordinate.startswith("factor."):
+                    factor_name = coordinate.removeprefix("factor.")
+                    if factor_name not in declared_factors:
+                        raise ValueError(
+                            f"constraint references undeclared factor {factor_name!r}"
+                        )
+                    undeclared = [
+                        value
+                        for value in values
+                        if json.dumps(value, sort_keys=True)
+                        not in declared_factors[factor_name]
+                    ]
+                    if undeclared:
+                        raise ValueError(
+                            f"constraint for factor {factor_name!r} uses "
+                            f"undeclared levels {undeclared!r}"
+                        )
+                elif coordinate in {"arm", "arm_id", "arms"} and declared_arms:
+                    undeclared = [
+                        value for value in values if value not in declared_arms
+                    ]
+                    if undeclared:
+                        raise ValueError(
+                            f"constraint references undeclared arms {undeclared!r}"
+                        )
         if not self.name and not self.grid_id:
             raise ValueError("grid specification must declare either grid_id or name")
         if not self.grid_id and self.name:
@@ -1480,7 +2167,7 @@ class ProposalSpec(ContractModel):
     scenario: str = Field(min_length=1)
     difficulty: str = Field(min_length=1)
     summary: str | None = None
-    seed_class: str = "craft-gap"
+    seed_class: AuthoringSeedClass = "craft-gap"
     target_facets: dict[str, Any] | None = None
     scenario_path: str | None = None
     ref_task: str | None = None
@@ -1527,3 +2214,29 @@ class InversionSpec(ContractModel):
     category: str = "data-processing"
     difficulty: str = "medium"
     summary: str = Field(min_length=1)
+
+
+
+class StateEventMetadata(ContractModel):
+    """Bounded filesystem metadata emitted by the state-journal producer."""
+
+    path: str = Field(min_length=1, max_length=4096)
+    mode: str = Field(min_length=1, max_length=16)
+    size_bytes: int = Field(ge=0)
+    mtime_ns: int
+    type: Literal["file", "directory", "symlink", "other"]
+    sha256: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    hash_status: Literal["complete", "size_limit", "unreadable"] | None = None
+    target: str | None = Field(default=None, max_length=4096)
+
+
+class StateJournalEvent(ContractModel):
+    """One append-only record from ``state-journal/state-events.jsonl``."""
+
+    sequence: int = Field(ge=1)
+    timestamp: str = Field(min_length=1, max_length=64)
+    path: str = Field(min_length=1, max_length=4096)
+    operations: list[str] = Field(min_length=1, max_length=16)
+    cookie: int | None = Field(default=None, ge=0)
+    is_directory: bool
+    state: StateEventMetadata | None = None

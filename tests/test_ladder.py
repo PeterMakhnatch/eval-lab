@@ -189,8 +189,9 @@ def test_grid_spec_rejects_empty_tasks_or_agents() -> None:
         )
 
 
-def test_generate_grid_cartesian_expansion() -> None:
+def test_generate_grid_cartesian_expansion(tmp_path: Path) -> None:
     # 2 tasks * 2 agents * 2 preambles * 2 attempts = 16 specs
+    (tmp_path / "brief-discipline").write_text("treatment\n")
     grid = LadderGridSpec(
         name="cartesian-grid",
         purpose="elicitation",
@@ -200,7 +201,7 @@ def test_generate_grid_cartesian_expansion() -> None:
         attempts=[1, 3],
         check_quota_headroom=False,
     )
-    result = generate_grid(grid)
+    result = generate_grid(grid, repo_root=tmp_path)
     assert result.total_specs == 16
     assert len(result.specs) == 16
     assert len(result.skipped) == 0
@@ -215,7 +216,8 @@ def test_generate_grid_cartesian_expansion() -> None:
         assert s.grid_point is not None
 
 
-def test_generate_grid_custom_hypothesis_template() -> None:
+def test_generate_grid_custom_hypothesis_template(tmp_path: Path) -> None:
+    (tmp_path / "brief-discipline").write_text("treatment\n")
     grid = LadderGridSpec(
         name="hypo-grid",
         purpose="comparison",
@@ -226,7 +228,7 @@ def test_generate_grid_custom_hypothesis_template() -> None:
         hypothesis_template="Testing {agent} on {task} with {preamble} at k={k} for {purpose}",
         check_quota_headroom=False,
     )
-    result = generate_grid(grid)
+    result = generate_grid(grid, repo_root=tmp_path)
     assert len(result.specs) == 1
     spec = result.specs[0]
     assert spec.hypothesis == (
@@ -253,6 +255,35 @@ def test_generate_grid_writes_valid_json_files(tmp_path: Path) -> None:
         assert loaded.purpose == "practice"
         assert loaded.name == p.stem
         assert loaded.grid_id == "write-grid"
+
+
+def test_generate_grid_does_not_publish_partial_spec_when_atomic_publish_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_dir = tmp_path / "queue" / "proposed"
+    grid = LadderGridSpec(
+        name="atomic-write-grid",
+        purpose="practice",
+        tasks=["tasks/event-summary"],
+        agents=["oracle"],
+        check_quota_headroom=False,
+    )
+    destination: Path | None = None
+
+    def fail_publish(source: Path, target: Path) -> None:
+        nonlocal destination
+        destination = Path(target)
+        assert not destination.exists()
+        raise OSError("simulated publish failure")
+
+    monkeypatch.setattr("evallab.ladder.os.link", fail_publish)
+    with pytest.raises(OSError, match="simulated publish failure"):
+        generate_grid(grid, output_dir=out_dir)
+
+    assert destination is not None
+    assert not destination.exists()
+    assert not list(out_dir.glob(".*.tmp"))
 
 
 def test_generate_grid_respects_global_max_specs() -> None:
@@ -526,8 +557,9 @@ axes:
     assert "purpose" in str(excinfo_dict.value)
 
 
-def test_grid_expands_exact_point_set_minus_constraints() -> None:
+def test_grid_expands_exact_point_set_minus_constraints(tmp_path: Path) -> None:
     """A fixture grid expands to the exact expected cross-product minus constraints."""
+    (tmp_path / "p1.md").write_text("treatment\n")
     grid = GridSpec(
         grid_id="grid-axes-test",
         purpose="elicitation",
@@ -543,7 +575,7 @@ def test_grid_expands_exact_point_set_minus_constraints() -> None:
         ],
         check_quota_headroom=False,
     )
-    result = generate_grid(grid)
+    result = generate_grid(grid, repo_root=tmp_path)
 
     # Full cross-product: 2 * 2 * 2 * 2 = 16 points.
     # Excluded points:
@@ -566,14 +598,14 @@ def test_grid_expands_exact_point_set_minus_constraints() -> None:
     }
 
     expected_points = {
-        ("tasks/task-a", "oracle", "none", 1),
-        ("tasks/task-a", "oracle", "none", 3),
-        ("tasks/task-a", "nop", "none", 1),
-        ("tasks/task-b", "oracle", "none", 1),
-        ("tasks/task-b", "oracle", "none", 3),
+        ("tasks/task-a", "oracle", None, 1),
+        ("tasks/task-a", "oracle", None, 3),
+        ("tasks/task-a", "nop", None, 1),
+        ("tasks/task-b", "oracle", None, 1),
+        ("tasks/task-b", "oracle", None, 3),
         ("tasks/task-b", "oracle", "p1.md", 1),
         ("tasks/task-b", "oracle", "p1.md", 3),
-        ("tasks/task-b", "nop", "none", 1),
+        ("tasks/task-b", "nop", None, 1),
         ("tasks/task-b", "nop", "p1.md", 1),
     }
 
@@ -751,7 +783,10 @@ def test_output_is_byte_identical_across_two_runs(
             "axes": {
                 "task_refs": ["canary/event-summary", "tasks/transaction-reconciliation"],
                 "agents": ["oracle", "nop"],
-                "preamble": ["none", "brief-discipline.md"],
+                "preamble": [
+                    "none",
+                    "research/experiments/preambles/brief-discipline.md",
+                ],
                 "k": [1, 3],
             },
             "constraints": [{"agent": "nop", "k": 3}],
@@ -787,7 +822,12 @@ def test_example_grid_file_in_grids_directory_validates(tmp_path: Path) -> None:
     out_dir = tmp_path / "queue" / "proposed"
 
     # Run 1: Writes N=12 files, 0 deduped, 12 files on disk
-    result = generate_grid(grid, output_dir=out_dir, repo_root=tmp_path, check_quota_headroom=False)
+    result = generate_grid(
+        grid,
+        output_dir=out_dir,
+        repo_root=example_path.parents[1],
+        check_quota_headroom=False,
+    )
     assert result.total_specs == 12
     assert len(result.specs) == 12
     assert len(result.written_paths) == 12
@@ -803,7 +843,7 @@ def test_example_grid_file_in_grids_directory_validates(tmp_path: Path) -> None:
 
     # Run 2: Writes 0, dedupes N=12, files on disk remains 12
     result_run2 = generate_grid(
-        grid, output_dir=out_dir, repo_root=tmp_path, check_quota_headroom=False
+        grid, output_dir=out_dir, repo_root=example_path.parents[1], check_quota_headroom=False
     )
     assert result_run2.total_specs == 0
     assert len(result_run2.written_paths) == 0
@@ -812,7 +852,7 @@ def test_example_grid_file_in_grids_directory_validates(tmp_path: Path) -> None:
 
     # Run 3: Writes 0, dedupes N=12, files on disk remains 12 (convergence confirmed)
     result_run3 = generate_grid(
-        grid, output_dir=out_dir, repo_root=tmp_path, check_quota_headroom=False
+        grid, output_dir=out_dir, repo_root=example_path.parents[1], check_quota_headroom=False
     )
     assert result_run3.total_specs == 0
     assert len(result_run3.written_paths) == 0
@@ -839,3 +879,574 @@ def test_grid_axes_differing_only_in_path_coordinate_produce_distinct_files(tmp_
     assert len(result.written_paths) == 2
     assert result.specs[0].name != result.specs[1].name
     assert len(list(out_dir.glob("*.json"))) == 2
+
+
+
+def test_named_arms_factors_compile_to_bounded_restartable_shards(tmp_path: Path) -> None:
+    grid = GridSpec.model_validate({
+        "schema_version": 1,
+        "grid_id": "agent-behavior-plan",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b"],
+            "arms": [
+                {
+                    "arm_id": "baseline",
+                    "agent": "oracle",
+                    "factor_overrides": {"context_budget": 1200},
+                },
+                {
+                    "arm_id": "treatment",
+                    "agent": {"agent": "nop"},
+                },
+            ],
+            "factors": {
+                "context_budget": {
+                    "binding": "timeout_seconds",
+                    "levels": [1200, 1800],
+                },
+                "feedback": {"binding": "concurrency", "levels": [1, 2]},
+            },
+            "k": [1],
+        },
+        "shard_size": 3,
+        "check_quota_headroom": False,
+    })
+    output = tmp_path / "plans"
+
+    result = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+
+    # baseline fixes context_budget and crosses feedback: 2 tasks * 2 = 4.
+    # treatment crosses both factors: 2 tasks * 2 * 2 = 8.
+    assert result.total_specs == 12
+    assert len(result.shards) == 4
+    assert all(len(shard.spec_names) <= 3 for shard in result.shards)
+    assert sum(shard.trial_count for shard in result.shards) == 12
+    assert len({spec.grid_point["point_id"] for spec in result.specs}) == 12
+    assert {
+        spec.grid_point["arm_id"] for spec in result.specs
+    } == {"baseline", "treatment"}
+    manifest = json.loads(
+        (output / "_plan/manifest-agent-behavior-plan.json").read_text()
+    )
+    assert manifest["spec_count"] == 12
+    assert len(manifest["shards"]) == 4
+
+    resumed = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+    assert resumed.total_specs == 0
+    assert len(resumed.deduped) == 12
+
+
+def test_factor_constraints_and_validate_cli(tmp_path: Path, capsys) -> None:
+    plan = {
+        "schema_version": 1,
+        "grid_id": "factor-constraint-plan",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a"],
+            "arms": [
+                {"arm_id": "baseline", "agent": "oracle"},
+                {"arm_id": "treatment", "agent": "nop"},
+            ],
+            "factors": {
+                "feedback": {"binding": "concurrency", "levels": [1, 2]}
+            },
+            "k": [1],
+        },
+        "constraints": [{"arm": "treatment", "factor.feedback": 1}],
+        "shard_size": 2,
+        "check_quota_headroom": False,
+    }
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(plan))
+
+    result = generate_grid(plan, repo_root=tmp_path, dry_run=True)
+    assert result.total_specs == 3
+    assert len(result.shards) == 2
+
+    rc = cli.run_cli(["ladder", "validate", str(path), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["valid"] is True
+    assert payload["spec_count"] == 3
+    assert payload["shard_count"] == 2
+
+
+def test_partial_resume_merges_manifest_with_continued_shard_indices(
+    tmp_path: Path,
+) -> None:
+    grid = GridSpec.model_validate({
+        "grid_id": "partial-plan",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b", "task/c", "task/d"],
+            "agents": ["oracle"],
+        },
+        "limits": {"max_specs": 2},
+        "shard_size": 1,
+        "check_quota_headroom": False,
+    })
+    output = tmp_path / "queue" / "proposed"
+
+    first = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+    second = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+
+    assert [shard.index for shard in first.shards] == [0, 1]
+    assert [shard.index for shard in second.shards] == [2, 3]
+    manifest = json.loads(
+        (output / "_plan" / "manifest-partial-plan.json").read_text()
+    )
+    assert manifest["spec_count"] == 4
+    assert [shard["index"] for shard in manifest["shards"]] == [0, 1, 2, 3]
+    assert {
+        path.name for path in (output / "_plan").glob("*.json")
+    } == {
+        "manifest-partial-plan.json",
+        *(shard["path"] for shard in manifest["shards"]),
+    }
+
+
+def test_partial_resume_rejects_incompatible_manifest(tmp_path: Path) -> None:
+    grid = GridSpec.model_validate({
+        "grid_id": "incompatible-plan",
+        "purpose": "elicitation",
+        "axes": {"task_refs": ["task/a"], "agents": ["oracle"]},
+        "shard_size": 1,
+        "check_quota_headroom": False,
+    })
+    output = tmp_path / "queue" / "proposed"
+    generate_grid(grid, output_dir=output, repo_root=tmp_path)
+    manifest_path = output / "_plan" / "manifest-incompatible-plan.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["shard_size"] = 2
+    manifest_path.write_text(json.dumps(manifest))
+
+    with pytest.raises(ValueError, match="incompatible plan manifest"):
+        generate_grid(grid, output_dir=output, repo_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "arm_id",
+    ["has.dot", "has_under", "Uppercase", "-leading", "trailing-", "two--hyphens"],
+)
+def test_arm_id_is_slug_stable(arm_id: str) -> None:
+    with pytest.raises(ValidationError):
+        GridSpec.model_validate({
+            "grid_id": "bad-arm",
+            "purpose": "elicitation",
+            "axes": {
+                "task_refs": ["task/a"],
+                "arms": [{"arm_id": arm_id, "agent": "oracle"}],
+            },
+        })
+
+
+@pytest.mark.parametrize(
+    "grid_order",
+    [
+        ("plan-a", "plan-a-stage2"),
+        ("plan-a-stage2", "plan-a"),
+    ],
+)
+def test_prefix_related_grids_share_plan_directory_in_both_orders(
+    tmp_path: Path,
+    grid_order: tuple[str, str],
+) -> None:
+    output = tmp_path / "queue" / "proposed"
+    shard_names: set[str] = set()
+    for grid_id in grid_order:
+        grid = GridSpec.model_validate({
+            "grid_id": grid_id,
+            "purpose": "elicitation",
+            "axes": {"task_refs": ["task/a"], "agents": ["oracle"]},
+            "shard_size": 1,
+            "check_quota_headroom": False,
+        })
+        result = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+        assert [shard.index for shard in result.shards] == [0]
+        assert result.shards[0].path is not None
+        shard_names.add(result.shards[0].path.name)
+
+    plan_dir = output / "_plan"
+    assert (plan_dir / "manifest-plan-a.json").is_file()
+    assert (plan_dir / "manifest-plan-a-stage2.json").is_file()
+    assert len(shard_names) == 2
+    assert len(list(plan_dir.glob("*.json"))) == 4
+
+
+def test_arms_reject_explicit_preamble_axis_and_invalid_factor_overrides() -> None:
+    base = {
+        "grid_id": "bad-axes",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a"],
+            "arms": [{"arm_id": "control", "agent": "oracle"}],
+        },
+    }
+    with pytest.raises(ValidationError, match="preamble cannot be declared"):
+        GridSpec.model_validate({
+            **base,
+            "axes": {**base["axes"], "preamble": ["none"]},
+        })
+    with pytest.raises(ValidationError, match="undeclared factor"):
+        GridSpec.model_validate({
+            **base,
+            "axes": {
+                **base["axes"],
+                "arms": [{
+                    "arm_id": "control",
+                    "agent": "oracle",
+                    "factor_overrides": {"missing": "value"},
+                }],
+            },
+        })
+    with pytest.raises(ValidationError, match="undeclared level"):
+        GridSpec.model_validate({
+            **base,
+            "axes": {
+                **base["axes"],
+                "arms": [{
+                    "arm_id": "control",
+                    "agent": "oracle",
+                    "factor_overrides": {"budget": 2},
+                }],
+                "factors": {
+                    "budget": {"binding": "concurrency", "levels": [1]}
+                },
+            },
+        })
+
+
+@pytest.mark.parametrize(
+    ("constraint", "message"),
+    [
+        ({"factor.missing": True}, "undeclared factor"),
+        ({"factor.feedback": "unknown"}, "undeclared levels"),
+        ({"arm": "unknown"}, "undeclared arms"),
+    ],
+)
+def test_constraints_reject_undeclared_arm_and_factor_coordinates(
+    constraint: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        GridSpec.model_validate({
+            "grid_id": "bad-constraint",
+            "purpose": "elicitation",
+            "axes": {
+                "task_refs": ["task/a"],
+                "arms": [
+                    {"arm_id": "control", "agent": "oracle"},
+                    {"arm_id": "treatment", "agent": "nop"},
+                ],
+                "factors": {
+                    "feedback": {"binding": "concurrency", "levels": [1, 2]}
+                },
+            },
+            "constraints": [constraint],
+        })
+
+
+def test_skipped_arm_coordinates_are_preserved_and_serialized(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = {
+        "grid_id": "withheld-coordinates",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b"],
+            "arms": [{
+                "arm_id": "treatment",
+                "agent": "oracle",
+                "factor_overrides": {"feedback": 2},
+            }],
+            "factors": {
+                "feedback": {"binding": "concurrency", "levels": [1, 2]}
+            },
+        },
+        "limits": {"max_specs": 1},
+        "check_quota_headroom": False,
+    }
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(plan))
+
+    rc = cli.run_cli(["ladder", "generate", str(path), "--json"], workspace=tmp_path)
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["skipped"] == [{
+        "name": payload["skipped"][0]["name"],
+        "task": "task/b",
+        "agent": "oracle",
+        "preamble": "none",
+        "attempts": 1,
+        "reason": "global max_specs limit (1) reached",
+        "arm_id": "treatment",
+        "factor_values": {"feedback": 2},
+    }]
+
+
+def test_validate_json_reports_resume_counts_and_invalid_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = {
+        "grid_id": "validate-counts",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b"],
+            "agents": ["oracle"],
+        },
+        "limits": {"max_specs": 1},
+        "check_quota_headroom": False,
+    }
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(plan))
+    generate_grid(
+        plan,
+        output_dir=tmp_path / "queue" / "proposed",
+        repo_root=tmp_path,
+    )
+
+    rc = cli.run_cli(
+        ["ladder", "validate", str(path), "--json"], workspace=tmp_path
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["declared_spec_count"] == 2
+    assert payload["remaining_spec_count"] == 1
+    assert payload["deduped_spec_count"] == 1
+    assert payload["skipped_spec_count"] == 0
+
+    bad_path = tmp_path / "bad.yaml"
+    bad_path.write_text("purpose: elicitation\naxes: nope\n")
+    rc = cli.run_cli(
+        ["ladder", "validate", str(bad_path), "--json"], workspace=tmp_path
+    )
+    error_payload = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert error_payload["valid"] is False
+    assert error_payload["errors"]
+
+
+def test_module_entry_json_serializes_skipped_and_deduped_arm_coordinates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan = {
+        "grid_id": "module-coordinates",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a", "task/b", "task/c"],
+            "arms": [{
+                "arm_id": "treatment",
+                "agent": "oracle",
+                "factor_overrides": {"feedback": 2},
+            }],
+            "factors": {
+                "feedback": {"binding": "concurrency", "levels": [1, 2]}
+            },
+        },
+        "limits": {"max_specs": 1},
+        "check_quota_headroom": False,
+    }
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(plan))
+    generate_grid(
+        plan,
+        output_dir=tmp_path / "queue" / "proposed",
+        repo_root=tmp_path,
+    )
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["generate", str(path), "--json", "--no-quota-check"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    for record in [*payload["skipped"], *payload["deduped"]]:
+        assert record["arm_id"] == "treatment"
+        assert record["factor_values"] == {"feedback": 2}
+    assert len(payload["skipped"]) == 1
+    assert len(payload["deduped"]) == 1
+
+
+def test_bound_factor_levels_change_resolved_execution_field(tmp_path: Path) -> None:
+    grid = GridSpec.model_validate({
+        "grid_id": "bound-timeout",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a"],
+            "agents": ["oracle"],
+            "factors": {
+                "wall_clock": {
+                    "binding": "timeout_seconds",
+                    "levels": [60, 120],
+                }
+            },
+        },
+        "check_quota_headroom": False,
+    })
+
+    specs = generate_grid(grid, repo_root=tmp_path).specs
+
+    assert [spec.timeout_seconds for spec in specs] == [60, 120]
+    assert [spec.grid_point["factors"] for spec in specs] == [
+        {"wall_clock": 60},
+        {"wall_clock": 120},
+    ]
+    assert [spec.grid_point["bindings"] for spec in specs] == [
+        {"timeout_seconds": 60},
+        {"timeout_seconds": 120},
+    ]
+
+
+def test_unbound_factor_and_wrong_level_type_fail_closed() -> None:
+    base = {
+        "grid_id": "invalid-factor",
+        "purpose": "elicitation",
+        "axes": {"task_refs": ["task/a"], "agents": ["oracle"]},
+    }
+    with pytest.raises(ValidationError):
+        GridSpec.model_validate({
+            **base,
+            "axes": {**base["axes"], "factors": {"annotation_only": [1, 2]}},
+        })
+    with pytest.raises(ValidationError, match="requires integer levels"):
+        GridSpec.model_validate({
+            **base,
+            "axes": {
+                **base["axes"],
+                "factors": {
+                    "wall_clock": {
+                        "binding": "timeout_seconds",
+                        "levels": ["short", "long"],
+                    }
+                },
+            },
+        })
+
+
+def test_preamble_reaches_spec_with_content_provenance(tmp_path: Path) -> None:
+    preamble = tmp_path / "instructions" / "treatment.txt"
+    preamble.parent.mkdir()
+    preamble.write_text("Use the treatment protocol.\n")
+    grid = GridSpec(
+        grid_id="preamble-binding",
+        purpose="elicitation",
+        axes=GridAxes(
+            task_refs=["task/a"],
+            agents=["oracle"],
+            preamble=["none", "instructions/treatment.txt"],
+        ),
+        check_quota_headroom=False,
+    )
+
+    specs = generate_grid(grid, repo_root=tmp_path).specs
+
+    assert [spec.extra_instruction_path for spec in specs] == [
+        None,
+        "instructions/treatment.txt",
+    ]
+    treatment = specs[1]
+    assert treatment.grid_point["preamble_sha256"] == (
+        "sha256:" + hashlib.sha256(preamble.read_bytes()).hexdigest()
+    )
+
+
+def test_missing_preamble_refuses_before_spec_emission(tmp_path: Path) -> None:
+    grid = GridSpec(
+        grid_id="missing-preamble",
+        purpose="elicitation",
+        axes=GridAxes(
+            task_refs=["task/a"],
+            agents=["oracle"],
+            preamble=["instructions/missing.txt"],
+        ),
+        check_quota_headroom=False,
+    )
+
+    with pytest.raises(ValueError, match="preamble file does not exist"):
+        generate_grid(grid, repo_root=tmp_path)
+
+
+def test_factor_rebinding_changes_point_and_spec_identity(tmp_path: Path) -> None:
+    def generate(binding: str):
+        return generate_grid(
+            GridSpec.model_validate({
+                "grid_id": "rebind-identity",
+                "purpose": "elicitation",
+                "axes": {
+                    "task_refs": ["task/a"],
+                    "agents": ["oracle"],
+                    "factors": {
+                        "level": {"binding": binding, "levels": [2]}
+                    },
+                },
+                "check_quota_headroom": False,
+            }),
+            repo_root=tmp_path,
+        ).specs[0]
+
+    concurrency = generate("concurrency")
+    timeout = generate("timeout_seconds")
+
+    assert concurrency.grid_point["factor_bindings"] == {"level": "concurrency"}
+    assert timeout.grid_point["factor_bindings"] == {"level": "timeout_seconds"}
+    assert concurrency.grid_point["point_id"] != timeout.grid_point["point_id"]
+    assert concurrency.name != timeout.name
+
+
+def test_resume_recomputes_and_ignores_stale_stored_point_id(tmp_path: Path) -> None:
+    grid = GridSpec.model_validate({
+        "grid_id": "resume-canonical-point",
+        "purpose": "elicitation",
+        "axes": {
+            "task_refs": ["task/a"],
+            "agents": ["oracle"],
+            "factors": {
+                "wall_clock": {
+                    "binding": "timeout_seconds",
+                    "levels": [60],
+                }
+            },
+        },
+        "check_quota_headroom": False,
+    })
+    output = tmp_path / "plans"
+    first = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+    payload_path = first.written_paths[0]
+    payload = json.loads(payload_path.read_text())
+    payload["grid_point"]["point_id"] = "sha256:" + "0" * 64
+    payload_path.write_text(json.dumps(payload))
+
+    resumed = generate_grid(grid, output_dir=output, repo_root=tmp_path)
+
+    assert resumed.total_specs == 0
+    assert len(resumed.deduped) == 1
+
+
+def test_preamble_axis_normalizes_before_point_identity(tmp_path: Path) -> None:
+    preamble = tmp_path / "instructions" / "treatment.txt"
+    preamble.parent.mkdir()
+    preamble.write_text("treatment\n")
+
+    def generate(path: str) -> ExperimentSpec:
+        grid = GridSpec(
+            grid_id="normalized-preamble",
+            purpose="elicitation",
+            axes=GridAxes(
+                task_refs=["task/a"],
+                agents=["oracle"],
+                preamble=[path],
+            ),
+            check_quota_headroom=False,
+        )
+        return generate_grid(grid, repo_root=tmp_path).specs[0]
+
+    raw = generate("./instructions//treatment.txt")
+    canonical = generate("instructions/treatment.txt")
+
+    assert raw.extra_instruction_path == "instructions/treatment.txt"
+    assert raw.grid_point["preamble"] == "instructions/treatment.txt"
+    assert raw.grid_point["point_id"] == canonical.grid_point["point_id"]
+    assert raw.name == canonical.name

@@ -13,6 +13,19 @@ from typing import cast
 import pytest
 import yaml
 
+from evallab.registry import (
+    TaskCertificationError,
+    TaskRegistry,
+    audit_registry,
+    certification_envelope_from_packet,
+    compute_task_digests,
+    inventory_tasks,
+    task_directory_digest,
+    verify_certification_packet,
+)
+from evallab.registry import _canonical_bytes as registry_canonical_bytes
+from evallab.registry import _digest_bytes as registry_digest_bytes
+from evallab.schemas import TaskRegistryRecord
 from evallab.task_workbench import (
     _MODELLED_CONSTRUCT_VALUES,
     _SUPPORTED_ENVIRONMENT_KEYS,
@@ -31,6 +44,8 @@ from evallab.task_workbench import (
     WorkbenchError,
     _effective_verifier_network,
     _harbor_task_digest,
+    _registry_package_digest,
+    _sha256_bytes,
     _verifier_output_digest,
     check_candidate,
     classify_trial_outcome,
@@ -329,6 +344,36 @@ def _bundle(
     )
 
 
+def _bound_registry_record(
+    repo: Path, task: Path, certification_path: Path
+) -> TaskRegistryRecord:
+    digests = compute_task_digests(task)
+    relative_task = task.relative_to(repo).as_posix()
+    certification = certification_envelope_from_packet(
+        repo,
+        certification_path,
+        task_id="uppercase-fixture",
+        task_version="1.0.0",
+        task_path=relative_task,
+        package_digest=digests.package,
+    )
+    return TaskRegistryRecord(
+        task_id="uppercase-fixture",
+        version="1.0.0",
+        task_path=relative_task,
+        digests=digests,
+        source_uri="local/uppercase-fixture",
+        source_ref="local/uppercase-fixture@1.0.0",
+        license="MIT",
+        provenance_zone="02-local-evidence",
+        is_synthetic=True,
+        certification=certification,
+        state="candidate",
+        state_reason="certificate_bound_pending_human_admission",
+        allowed_uses=["measurement"],
+    )
+
+
 def _codes(inspection) -> set[str]:
     return {item.code for item in inspection.diagnostics}
 
@@ -354,6 +399,20 @@ def _tree_digest(path: Path) -> str:
     ]
     return _digest(_canonical(payload))
 
+def test_workbench_registry_canonical_and_package_digests_are_identical(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    payload = {"z": [3, 2, 1], "a": {"unicode": "λ"}}
+    canonical = _canonical(payload)
+    assert registry_canonical_bytes(payload) == canonical
+    assert registry_digest_bytes(canonical) == _sha256_bytes(canonical)
+    assert _registry_package_digest(task) == task_directory_digest(task)
+    assert _inspect(repo, task).candidate["digests"]["registry_package"] == (
+        compute_task_digests(task).package
+    )
+
+
 
 def test_valid_candidate_inspection_freezes_every_digest_and_safe_command(
     tmp_path: Path,
@@ -363,14 +422,17 @@ def test_valid_candidate_inspection_freezes_every_digest_and_safe_command(
 
     assert inspection.static_passed
     assert inspection.diagnostics == ()
-    assert len(inspection.control_plan) == 7
-    assert [item.control_id for item in inspection.control_plan[:4]] == [
+    assert len(inspection.control_plan) == 10
+    assert [item.control_id for item in inspection.control_plan[:6]] == [
         "oracle-1",
         "oracle-2",
         "oracle-3",
+        "fair-alternative",
         "nop-1",
+        "nop-2",
     ]
     assert len([item for item in inspection.control_plan if item.kind == "adversarial"]) == 3
+    assert inspection.control_plan[-1].control_id == "please-hack"
     assert all(item.agent in {"oracle", "nop"} for item in inspection.control_plan)
     assert all(item.concurrency == 1 for item in inspection.control_plan)
     assert all("--model" not in item.command for item in inspection.control_plan)
@@ -398,12 +460,16 @@ def test_valid_candidate_inspection_freezes_every_digest_and_safe_command(
     }
     assert set(candidate["digests"]) == {
         "package",
+        "registry_package",
         "task_toml",
         "instruction",
         "image_definition",
         "solution",
         "verifier",
         "adversarial_controls",
+        "fair_alternative",
+        "please_hack",
+        "leakage_scan",
         "artifact_config",
         "source_metadata",
     }
@@ -1417,6 +1483,62 @@ def test_harbor_backend_rejects_drifted_candidate_and_command_before_staging(
     assert not run_root.exists()
 
 
+def test_fair_alternative_must_be_byte_distinct_and_please_hack_replay_exists(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    (task / "workbench/fair-alternative.sh").write_bytes(
+        (task / "solution/solve.sh").read_bytes()
+    )
+    assert "fair_alternative_not_distinct" in _codes(_inspect(repo, task))
+
+    repo2, task2 = _copy_candidate(tmp_path / "missing-hack")
+    (task2 / "workbench/please-hack.sh").unlink()
+    assert "required_control_missing" in _codes(_inspect(repo2, task2))
+
+
+def test_second_nop_flake_and_successful_please_hack_are_failures(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    valid = _bundle(inspection, repo=repo, task=task)
+    observations = list(valid.observations)
+    nop_index = next(
+        index for index, item in enumerate(observations) if item.control_id == "nop-2"
+    )
+    observations[nop_index] = replace(
+        observations[nop_index], reward=1.0, reward_vector={"reward": 1.0}
+    )
+    flaky = ControlBundle.build(
+        candidate_id=valid.candidate_id,
+        source_package_digest=valid.source_package_digest,
+        observations=observations,
+    )
+    assert "verifier_permissive" in {
+        item.code for item in check_candidate(inspection, flaky, repo_root=repo).diagnostics
+    }
+
+    observations = list(valid.observations)
+    hack_index = next(
+        index for index, item in enumerate(observations) if item.control_id == "please-hack"
+    )
+    observations[hack_index] = replace(
+        observations[hack_index], reward=1.0, reward_vector={"reward": 1.0}
+    )
+    hacked = ControlBundle.build(
+        candidate_id=valid.candidate_id,
+        source_package_digest=valid.source_package_digest,
+        observations=observations,
+    )
+    report = check_candidate(inspection, hacked, repo_root=repo)
+    _, packet = write_packet(repo_root=repo, report=report)
+    certificate = json.loads(packet.read_text())
+    assert report.disposition == "needs_changes"
+    assert certificate["check_vector"]["hack_detected"] is True
+    assert any(
+        item["control_id"] == "please-hack" for item in certificate["retained_replays"]
+    )
+
+
 def test_valid_controls_certify_and_rescan_is_idempotent(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path)
     inspection = _inspect(repo, task)
@@ -1428,7 +1550,7 @@ def test_valid_controls_certify_and_rescan_is_idempotent(tmp_path: Path) -> None
         backend=backend,
     )
 
-    assert len(backend.calls) == 7
+    assert len(backend.calls) == 10
     assert check_candidate(inspection, bundle, repo_root=repo).disposition == (
         "certified_for_review"
     )
@@ -1640,11 +1762,31 @@ def test_wrong_task_job_and_missing_network_binding_cannot_certify(tmp_path: Pat
 
     _, certification_path = write_packet(repo_root=repo, report=report)
     vector = json.loads(certification_path.read_text())["check_vector"]
-    assert vector["oracle_exact_1"] is False
-    assert vector["nop_exact_0"] is False
-    assert vector["invalid_outputs_rejected"] is False
-    assert vector["verifier_deterministic"] is False
+    assert vector["oracle_exact_1_x3"] is False
+    assert vector["nop_exact_0_x2"] is True
+    assert vector["invalid_outputs_rejected"] is True
+    assert vector["oracle_stable_output"] is False
     assert vector["isolation"] is False
+
+
+def test_stale_control_bundle_zeroes_every_certificate_claim(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    valid = _bundle(inspection, repo=repo, task=task)
+    stale = ControlBundle.build(
+        candidate_id="candidate-" + "0" * 24,
+        source_package_digest=valid.source_package_digest,
+        observations=valid.observations,
+    )
+    report = check_candidate(inspection, stale, repo_root=repo)
+    _, packet = write_packet(repo_root=repo, report=report)
+    certificate = json.loads(packet.read_text())
+    assert "control_source_stale" in {item.code for item in report.diagnostics}
+    assert not any(certificate["check_vector"].values())
+    assert all(
+        axis["status"] != "passed" and axis["evidence"] == []
+        for axis in certificate["axes"].values()
+    )
 
 
 def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -> None:
@@ -1665,9 +1807,11 @@ def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -
 
     assert second_paths == first_paths
     assert tuple(path.read_bytes() for path in second_paths) == first_bytes
-    assert len(first_evidence) == 7
+    assert len(first_evidence) == 10
     assert {
         path.relative_to(repo).as_posix(): path.read_bytes()
+
+
         for path in sorted(first_paths[0].parent.joinpath("evidence").glob("*.json"))
     } == first_evidence
     candidate = json.loads(first_paths[0].read_text())
@@ -1675,15 +1819,155 @@ def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -
     assert candidate["admission_boundary"]["can_register"] is False
     assert certification["admission_granted"] is False
     assert certification["certified"] is True
-    assert len(certification["retained_evidence"]) == 7
+    assert len(certification["retained_evidence"]) == 10
     assert all(
         (repo / item["path"]).is_file() for item in certification["retained_evidence"]
     )
+    assert len(certification["retained_replays"]) == 2
+    assert certification["axes"]["realism_review"]["status"] == "not_assessed"
+    assert certification["axes"]["difficulty_calibration"]["status"] == "not_applicable"
     assert "ALPHA-BETA-GAMMA" not in b"".join(first_evidence.values()).decode()
 
     first_paths[1].write_text("tampered\n")
     with pytest.raises(PacketConflictError, match="non-identical"):
         write_packet(repo_root=repo, report=report)
+
+
+def test_certificate_binds_registry_reload_and_rejects_tamper_replay_and_circularity(
+    tmp_path: Path,
+) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    bundle = _bundle(inspection, repo=repo, task=task)
+    report = check_candidate(inspection, bundle, repo_root=repo)
+    _, certification_path = write_packet(repo_root=repo, report=report)
+    record = _bound_registry_record(repo, task, certification_path)
+    registry_dir = repo / "library/registry"
+    registry_dir.mkdir(parents=True)
+    record_path = registry_dir / "uppercase-fixture.json"
+    record_path.write_text(record.model_dump_json(indent=2) + "\n")
+    policy = repo / "policy/canary-suite.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("version: 1\nmembers:\n  []\n")
+    inventory = repo / "research/registration/inventory.json"
+    inventory.parent.mkdir(parents=True, exist_ok=True)
+    inventory.write_text(json.dumps(inventory_tasks(repo).to_dict(), indent=2) + "\n")
+
+    reloaded = TaskRegistry.from_repo(repo).get("uppercase-fixture")
+    assert reloaded is not None
+    verify_certification_packet(repo, reloaded)
+    assert audit_registry(repo).passed
+
+    original = certification_path.read_bytes()
+    certification_path.write_bytes(original + b" ")
+    with pytest.raises(TaskCertificationError, match="envelope|packet bytes"):
+        verify_certification_packet(repo, reloaded)
+    certification_path.write_bytes(original)
+
+    with pytest.raises(TaskCertificationError, match="replay/identity mismatch"):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id="another-task",
+            task_version="1.0.0",
+            task_path=task.relative_to(repo).as_posix(),
+            package_digest=record.digests.package,
+        )
+
+    def rewrite(body: dict[str, object]) -> None:
+        body.pop("certification_id", None)
+        body["certification_id"] = "cert-" + hashlib.sha256(_canonical(body)).hexdigest()[:24]
+        certification_path.write_bytes(_canonical(body))
+
+    circular = json.loads(original)
+    circular["generator_identity"] = circular["validator_identity"]
+    rewrite(circular)
+    with pytest.raises(TaskCertificationError, match="circular"):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
+
+    missing_replay = json.loads(original)
+    missing_replay["retained_replays"] = [
+        item
+        for item in missing_replay["retained_replays"]
+        if item["control_id"] != "please-hack"
+    ]
+    rewrite(missing_replay)
+    with pytest.raises(TaskCertificationError, match="please-hack"):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
+
+    contradictory_vector = json.loads(original)
+    contradictory_vector["check_vector"]["oracle_exact_1_x3"] = False
+    rewrite(contradictory_vector)
+    with pytest.raises(TaskCertificationError, match="check vector contradicts"):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
+
+    contradictory_summary = json.loads(original)
+    contradictory_summary["control_summary"]["oracle_runs"] = 99
+    rewrite(contradictory_summary)
+    with pytest.raises(TaskCertificationError, match="control summary contradicts"):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
+
+    unsupported = json.loads(original)
+    unsupported["workbench_version"] = "m999-v1"
+    rewrite(unsupported)
+    with pytest.raises(TaskCertificationError, match="unsupported task workbench"):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
+
+    semantic_tamper = json.loads(original)
+    semantic_tamper["diagnostics"].append(
+        {
+            "severity": "error",
+            "code": "golden_data_leak",
+            "classification": "task_defect",
+            "path": "instruction.md",
+            "message": "semantic tamper",
+        }
+    )
+    rewrite(semantic_tamper)
+    with pytest.raises(TaskCertificationError, match="check vector contradicts"):
+        certification_envelope_from_packet(
+            repo,
+            certification_path,
+            task_id=record.task_id,
+            task_version=record.version,
+            task_path=record.task_path,
+            package_digest=record.digests.package,
+        )
 
 
 def test_packet_path_cannot_target_registry_queue_policy_or_outside(tmp_path: Path) -> None:
@@ -1711,12 +1995,17 @@ def test_failed_candidate_packet_preserves_exact_diagnostics(tmp_path: Path) -> 
     certification = json.loads(certification_path.read_text())
     assert certification["status"] == "needs_changes"
     assert certification["check_vector"] == {
+        "all_controls_completed": False,
+        "fair_alternative_exact_1": False,
+        "hack_detected": False,
         "invalid_outputs_rejected": False,
         "isolation": False,
-        "nop_exact_0": False,
-        "oracle_exact_1": False,
+        "leakage_scan_clean": False,
+        "nop_exact_0_x2": False,
+        "oracle_exact_1_x3": False,
+        "oracle_stable_output": False,
+        "please_hack_executed": False,
         "static": False,
-        "verifier_deterministic": False,
     }
     assert any(item["code"] == "required_file_missing" for item in certification["diagnostics"])
 
@@ -1732,10 +2021,10 @@ def test_controls_pending_packet_does_not_claim_unobserved_control_success(
     assert certification["status"] == "controls_pending"
     assert certification["check_vector"]["static"] is True
     assert certification["check_vector"]["isolation"] is False
-    assert certification["check_vector"]["oracle_exact_1"] is False
-    assert certification["check_vector"]["nop_exact_0"] is False
+    assert certification["check_vector"]["oracle_exact_1_x3"] is False
+    assert certification["check_vector"]["nop_exact_0_x2"] is False
     assert certification["check_vector"]["invalid_outputs_rejected"] is False
-    assert certification["check_vector"]["verifier_deterministic"] is False
+    assert certification["check_vector"]["oracle_stable_output"] is False
 
 
 def test_source_provenance_and_license_fail_closed(tmp_path: Path) -> None:
@@ -1841,7 +2130,7 @@ def test_cli_run_controls_composes_fixed_harbor_subprocess_commands(
     ) == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["disposition"] == "harness_blocked"
-    assert len(captured) == 7
+    assert len(captured) == 10
     assert {command[command.index("--agent") + 1] for command in captured} == {
         "oracle",
         "nop",

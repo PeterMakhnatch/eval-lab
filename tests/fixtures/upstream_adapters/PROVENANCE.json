@@ -1,0 +1,12 @@
+{
+  "schema_version": "constructed-fixture-provenance/v1",
+  "created_on": "2026-08-24",
+  "status": "constructed",
+  "copyright_source": "eval-lab authors",
+  "upstream_bytes_included": false,
+  "purpose": "Minimal compatibility examples for independently implemented file schemas",
+  "sources_consulted": [
+    "https://github.com/Exgentic/exgentic/blob/main/docs/output-format.md",
+    "https://github.com/letta-ai/recovery-bench"
+  ]
+}

@@ -4,6 +4,7 @@ policy, probes, clock, health, spend — zero real credentials, DB, or model.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -61,7 +62,7 @@ class CountingAdapter:
         )
 
 
-def make_worker(tmp_path: Path, *, adapter=None, indexer=None, stop=False,
+def make_worker(tmp_path: Path, *, adapter=None, adapter_factory=None, indexer=None, stop=False,
                 probe_ok=True, healthy=True, spent=0.0, est_cost=0.01,
                 requirements_ok=True, profile=PROFILE,
                 response="saved-response.json"):
@@ -93,6 +94,7 @@ def make_worker(tmp_path: Path, *, adapter=None, indexer=None, stop=False,
         adapter=adapter or CountingAdapter(response),
         prompt_path=root / "prompt.md",
         rubric_path=root / "rubric.json",
+        adapter_factory=adapter_factory,
         indexer=indexer,
         clock=lambda: FROZEN,
     )
@@ -659,6 +661,31 @@ def test_default_worker_has_catalog_indexer(monkeypatch, tmp_path):
     assert indexed[1][1] == sidecar
 
 
+def test_default_indexer_does_not_persist_invalid_analysis(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from evallab import analysis_worker as aw
+
+    persisted: list[object] = []
+    monkeypatch.setattr("evallab.database.initialize", lambda url: None)
+    monkeypatch.setattr(
+        aw,
+        "ingest_analysis_sidecar",
+        lambda url, path, root: SimpleNamespace(validation_status="invalid"),
+    )
+    monkeypatch.setattr(
+        "evallab.labels.persist_behavior_label", persisted.append
+    )
+    monkeypatch.setattr(
+        "evallab.labels.label_from_analysis_sidecar",
+        lambda sidecar: pytest.fail("invalid sidecar must not become a canonical label"),
+    )
+
+    aw._default_indexer(tmp_path)(tmp_path / "invalid-analysis.json")
+
+    assert persisted == []
+
+
 def test_default_indexer_failure_leaves_sidecar_adoptable(monkeypatch, tmp_path):
 
     adapter = CountingAdapter()
@@ -1088,6 +1115,70 @@ def test_default_worker_stays_fail_closed_for_live_analysis(tmp_path):
 
     # An adapter supplied explicitly by a caller is still honoured.
     assert aw.default_worker(root, adapter=CountingAdapter()).adapter is not aw._no_adapter
+
+
+def test_explicit_adapter_factory_runs_only_after_admission(tmp_path):
+    calls: list[str] = []
+    adapter = CountingAdapter()
+
+    def factory(job, trial, request):
+        calls.append(request.request_id)
+        return adapter
+
+    worker, root = make_worker(
+        tmp_path, adapter_factory=factory, requirements_ok=True
+    )
+    worker.stage([root / "jobs"])
+    rid = _pending(worker)[0]
+
+    transition = worker.run_one(rid)
+
+    assert transition.state == "completed"
+    assert calls == [rid]
+    assert adapter.calls == 1
+
+
+def test_default_worker_opens_calibration_gate_for_exact_measured_model(tmp_path):
+    from evallab import analysis_worker as aw
+
+    root = _fail_closed_root(tmp_path)
+    records = root / "research/calibration/records/exact"
+    records.mkdir(parents=True)
+    (records / "passing.json").write_text(json.dumps({
+        "schema_version": 1,
+        "record_id": "exact-terra",
+        "family": "test-family",
+        "status": "measured",
+        "judge_backend": "codex",
+        "judge_model": "gpt-5.6-terra",
+        "rubric_digest": f"sha256:{'a' * 64}",
+        "corpus_digest": f"sha256:{'b' * 64}",
+        "per_criterion_agreement": {
+            "evidence": {"agreements": 1, "total": 1, "rate": 1.0}
+        },
+        "mean_agreement": 1.0,
+        "agreement_floor": 0.9,
+        "meets_floor": True,
+        "reportable": True,
+        "document_count": 1,
+        "evaluated_on": "2026-08-19",
+        "prediction_artifact": "predictions.json",
+    }))
+
+    worker = aw.default_worker(
+        root, adapter_factory=lambda job, trial, request: CountingAdapter()
+    )
+
+    assert worker.adapter_factory is not None
+    assert worker.context.requirement_checks["calibrated_judges_only"]() is False
+
+    active_digest = "sha256:" + hashlib.sha256(
+        (root / "research/analysis/stage5-rubric.json").read_bytes()
+    ).hexdigest()
+    payload = json.loads((records / "passing.json").read_text())
+    payload["rubric_digest"] = active_digest
+    (records / "passing.json").write_text(json.dumps(payload))
+    assert worker.context.requirement_checks["calibrated_judges_only"]() is True
 
 
 def test_lease_replacement_during_execution_is_durably_recorded(monkeypatch, tmp_path):

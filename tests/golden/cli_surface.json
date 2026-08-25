@@ -703,6 +703,37 @@
   "analyze worker-run-one": {
     "options": [
       {
+        "action": "_StoreAction",
+        "choices": [
+          "codex-exec",
+          "none"
+        ],
+        "default": "none",
+        "dest": "adapter",
+        "flags": [
+          "--adapter"
+        ],
+        "help": "Explicit guarded model adapter; default performs no model call",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "authorization",
+        "flags": [
+          "--authorization"
+        ],
+        "help": "Queue authorization JSON required by codex-exec",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
         "action": "_HelpAction",
         "choices": null,
         "default": "==SUPPRESS==",
@@ -728,6 +759,20 @@
         "nargs": null,
         "required": true,
         "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/analyses/scratch",
+        "dest": "scratch_dir",
+        "flags": [
+          "--scratch-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
       }
     ]
   },
@@ -1394,6 +1439,160 @@
       }
     ]
   },
+  "curve": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "curve build": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output",
+        "flags": [
+          "--output"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "evallab",
+        "dest": "produced_by",
+        "flags": [
+          "--produced-by"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "curve report": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "curve validate": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "path",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "evallab",
+        "dest": "produced_by",
+        "flags": [
+          "--produced-by"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
   "dashboard": {
     "options": [
       {
@@ -1695,6 +1894,171 @@
       }
     ]
   },
+  "evidence": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "evidence archive": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "job",
+        "dest": "kind",
+        "flags": [
+          "--kind"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "record_id",
+        "flags": [
+          "--record-id"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "source",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "store",
+        "flags": [
+          "--store"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "evidence restore": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "destination",
+        "flags": [
+          "--destination"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "store",
+        "flags": [
+          "--store"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "uri",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
   "fetch": {
     "options": [
       {
@@ -1988,6 +2352,319 @@
           "--submit"
         ],
         "help": "Submit generated ExperimentSpecs directly to the queue",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "ladder screen": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "ladder screen analyze": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "jobs_dir",
+        "flags": [
+          "--jobs-dir"
+        ],
+        "help": "Jobs directory to search for results",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Print analysis report in JSON format",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "screen_id_or_spec",
+        "flags": [],
+        "help": "Screen ID or path to ScreenSpec file",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "ladder screen stage1": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dry_run",
+        "flags": [
+          "--dry-run"
+        ],
+        "help": "Print expansion without writing to disk (default)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Print generation summary in JSON format",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Directory to write generated ExperimentSpec JSON files",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "spec",
+        "flags": [],
+        "help": "Path to ScreenSpec YAML/JSON file",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "submit",
+        "flags": [
+          "--submit"
+        ],
+        "help": "Submit generated ExperimentSpecs directly to the queue",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "ladder screen stage2": {
+    "options": [
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "dry_run",
+        "flags": [
+          "--dry-run"
+        ],
+        "help": "Print expansion without writing to disk (default)",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "jobs_dir",
+        "flags": [
+          "--jobs-dir"
+        ],
+        "help": "Jobs directory to search for results",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Print generation summary in JSON format",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Directory to write generated ExperimentSpec JSON files",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "spec",
+        "flags": [],
+        "help": "Path to ScreenSpec YAML/JSON file",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "submit",
+        "flags": [
+          "--submit"
+        ],
+        "help": "Submit generated ExperimentSpecs directly to the queue",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "ladder validate": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "grid_spec",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": null,
         "metavar": null,
         "nargs": 0,
         "required": false,
@@ -2444,6 +3121,20 @@
         "type": null
       },
       {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "certification_packet",
+        "flags": [
+          "--certification-packet"
+        ],
+        "help": "Durable task_workbench certification.json to bind",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
         "action": "_HelpAction",
         "choices": null,
         "default": "==SUPPRESS==",
@@ -2718,6 +3409,20 @@
         "metavar": null,
         "nargs": null,
         "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "certification_packet",
+        "flags": [
+          "--certification-packet"
+        ],
+        "help": "Durable task_workbench certification.json required for new registration",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
         "type": null
       },
       {
@@ -3407,7 +4112,7 @@
       }
     ]
   },
-  "tick": {
+  "tasks": {
     "options": [
       {
         "action": "_HelpAction",
@@ -3423,6 +4128,154 @@
         "nargs": 0,
         "required": false,
         "type": null
+      }
+    ]
+  },
+  "tasks import": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "library/tasks/imported",
+        "dest": "destination",
+        "flags": [
+          "--destination"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/imports/tasks.sqlite3",
+        "dest": "ledger",
+        "flags": [
+          "--ledger"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "limit",
+        "flags": [
+          "--limit"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "source",
+        "flags": [],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": "Path"
+      }
+    ]
+  },
+  "tick": {
+    "options": [
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": "[]",
+        "dest": "agent_capacity",
+        "flags": [
+          "--agent-capacity"
+        ],
+        "help": "Per-agent concurrent trial slots (repeatable)",
+        "metavar": "AGENT=N",
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_active_trials",
+        "flags": [
+          "--max-active-trials"
+        ],
+        "help": "Maximum sum of Harbor-internal concurrent trial slots",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_specs",
+        "flags": [
+          "--max-specs"
+        ],
+        "help": "Maximum specs admitted to this dispatch batch",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
       },
       {
         "action": "_StoreAction",
@@ -3557,6 +4410,342 @@
         "nargs": null,
         "required": true,
         "type": "Path"
+      }
+    ]
+  },
+  "traj": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "traj label": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "peter",
+        "dest": "author",
+        "flags": [
+          "--author"
+        ],
+        "help": "Author of the label",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit label as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "label",
+        "flags": [],
+        "help": "Behavior label (e.g. tool_use_loop)",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "note",
+        "flags": [
+          "--note"
+        ],
+        "help": "Optional label explanation or observation",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "heuristic",
+          "human"
+        ],
+        "default": "human",
+        "dest": "provenance",
+        "flags": [
+          "--provenance"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "trial",
+        "flags": [],
+        "help": "Trial identifier or directory",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "traj outline": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit outline as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "target",
+        "flags": [],
+        "help": "Trial ID, directory, result.json, or trajectory.json path",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "verbose",
+        "flags": [
+          "--verbose",
+          "-v"
+        ],
+        "help": "Include detailed step snippets",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "traj project": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit projection summary as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output_dir",
+        "flags": [
+          "--output-dir"
+        ],
+        "help": "Override output Parquet root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": null,
+        "dest": "runs_dir",
+        "flags": [
+          "--runs-dir"
+        ],
+        "help": "Runs directory (repeatable)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      }
+    ]
+  },
+  "traj queue": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit queue as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 3,
+        "dest": "limit",
+        "flags": [
+          "--limit"
+        ],
+        "help": "Number of trajectories to select (default: 3)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "runs_dir",
+        "flags": [
+          "--runs-dir"
+        ],
+        "help": "Override candidate runs root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      }
+    ]
+  },
+  "traj report": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit report as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
       }
     ]
   },

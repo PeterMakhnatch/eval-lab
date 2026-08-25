@@ -20,29 +20,19 @@
     "max_memory_mb": 2048,
     "max_cpus": 1.0
   },
-  "control_evidence": {
-    "oracle": {
-      "job_name": "gymv0-oracle-query-optimize",
-      "reward": 1.0,
-      "evidence_path": "runs/gymv0-oracle-query-optimize/result.json",
-      "evidence_digest": "sha256:adcb8c0a4ec951b0f609ecc967c67343c29a5b5c5173d77cf5e547676a7976e3",
-      "observed_at": "2026-08-19T11:41:48.925683"
-    },
-    "nop": {
-      "job_name": "gymv0-nop-query-optimize",
-      "reward": 0.0,
-      "evidence_path": "runs/gymv0-nop-query-optimize/result.json",
-      "evidence_digest": "sha256:2792b96423c2e030b6d1c18cf6f81fdeb40401bedf69a1ade0b2307b5bb98bbb",
-      "observed_at": "2026-08-19T11:50:55.751763"
-    }
+  "control_evidence": null,
+  "certification": {
+    "state": "legacy_missing",
+    "reason": "legacy_record_has_no_certificate_packet"
   },
-  "state": "registered",
+  "state": "candidate",
   "allowed_uses": [
     "measurement",
     "training"
   ],
   "contamination": null,
   "human_minutes": 60,
-  "approved_by": "Peter Makhnatch",
-  "approved_at": "2026-08-19T23:31:08.250668Z"
+  "approved_by": null,
+  "approved_at": null,
+  "state_reason": "durable_identity_bound_control_evidence_missing"
 }

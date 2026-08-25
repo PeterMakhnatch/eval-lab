@@ -67,11 +67,17 @@ from evallab.gc import (
     nightly_gc_plan,
     run_gc,
 )
+from evallab.labels import (
+    evaluate_heuristic_precision,
+    label_trajectory,
+    select_review_queue,
+)
 from evallab.lineage import lineage_to_dict, render_lineage_tree, resolve_lineage
 from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import (
     DirectoryQueue,
+    DispatchCapacity,
     Executor,
     lab_threshold_reached,
     load_policy,
@@ -81,7 +87,12 @@ from evallab.queue import (
     record_projection_failures,
     render_headroom_notice,
 )
-from evallab.quota import Headroom, default_roots, load_quota_report
+from evallab.quota import (
+    Headroom,
+    default_roots,
+    load_quota_report,
+    provider_subscription_description,
+)
 from evallab.report import (
     build_eval_card,
     draft_eval_card,
@@ -109,21 +120,21 @@ from evallab.tracing import (
     trace_completed_jobs,
     trace_path,
 )
+from evallab.traj import outline_trajectory, project_trajectory_features, render_outline
 
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _headroom_for(root: Path) -> Headroom:
-    """The provider quota reading for this checkout, or an honest unavailable.
-
-    `approve` must print the allowance even when the allowance cannot be read,
-    so a failed scan becomes an `unavailable` reading with its reason rather
-    than an exception or, worse, a blank.
-    """
+def _headroom_for(root: Path, *, agent: str) -> Headroom:
+    """Read only the allowance evidence belonging to ``agent``."""
     try:
-        return load_quota_report(default_roots(root), now=datetime.now(UTC)).headroom
+        return load_quota_report(
+            default_roots(root),
+            now=datetime.now(UTC),
+            paid_agents=frozenset({agent}),
+        ).headroom
     except (OSError, ValueError) as exc:
         return Headroom(
             availability="unavailable",
@@ -396,21 +407,14 @@ def _submit_command(
     # A paid-authorization refusal already spells out both commands with
     # this spec's real id; repeating one of them here reads as noise.
     if path.parent.name == "waiting" and "evallab approve" not in decision.message:
-        print(
-            "next: uv run evallab approve "
-            f"{shlex.quote(str(submitted.spec_id))} --actor <you>"
-        )
+        print(f"next: uv run evallab approve {shlex.quote(str(submitted.spec_id))} --actor <you>")
     return 0
-
 
 def _tick_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    # if args.command == "tick":
-    # WS-E item 2: the preflight runs at tick start. This is the
-    # operator-facing tick; the library-level `Executor._tick_locked`
-    # takes the same call in one additive line, described in
-    # `agents/handoffs/preflight.md`.
+    # if args.command == "tick": the preflight is rendered exactly once here,
+    # before the guarded executor performs any dispatch.
     print(
         render_preflight(
             build_preflight_report(
@@ -421,7 +425,26 @@ def _tick_command(
             )
         )
     )
-    executor = Executor.from_repo(root, parallel=getattr(args, "parallel", 1))
+    agent_caps: dict[str, int] = {}
+    for raw in args.agent_capacity:
+        agent, separator, value = raw.partition("=")
+        if not separator or not agent or not value.isdigit() or int(value) < 1:
+            print(f"invalid --agent-capacity value: {raw!r}", file=sys.stderr)
+            return 2
+        agent_caps[agent] = int(value)
+    capacity = None
+    if args.max_specs is not None or args.max_active_trials is not None or agent_caps:
+        capacity = DispatchCapacity(
+            max_specs_per_tick=args.max_specs,
+            max_active_trials=args.max_active_trials,
+            per_agent_active_trials=agent_caps or None,
+        )
+    executor = Executor.from_repo(
+        root,
+        parallel=getattr(args, "parallel", 1),
+        progress=print,
+        capacity=capacity,
+    )
     result = GuardedTick(
         doctor=HeadlessDoctor(root, executor=executor),
         executor=executor,
@@ -448,13 +471,12 @@ def _approve_command(
         print(
             f"spend: {authorized.agent} x {authorized.attempts} attempt(s), "
             f"estimated {authorized.est_cost_usd:.2f} USD per job, billed to "
-            "Peter's ChatGPT subscription"
+            f"{provider_subscription_description(authorized.agent)}"
         )
-        # What the authorisation is actually spending against. The
-        # dollar figure above is an API-list-price equivalent and does
-        # not move; the subscription window does.
-        headroom = _headroom_for(root)
-        print(render_headroom_notice(headroom))
+        # The dollar figure is an API-list-price equivalent; the provider
+        # allowance or policy state is the binding account-side signal.
+        headroom = _headroom_for(root, agent=authorized.agent)
+        print(render_headroom_notice(headroom, agent=authorized.agent))
         # The threshold is policy, not code: `refuse_billable_at_used_percent`
         # in `policy/standing-approvals.yaml`, committed unset. Loaded
         # inline here, as `_digest_renderer` does at cli.py:1526.
@@ -581,9 +603,7 @@ def _nightly_command(
         executor=executor,
         renderer=_digest_renderer(root),
         canary_enqueuer=CanaryEnqueuer.from_repo(root, executor).enqueue,
-        researcher_pass=lambda day: get_researcher_loop().run(
-            report_date=day
-        ).invocation_count,
+        researcher_pass=lambda day: get_researcher_loop().run(report_date=day).invocation_count,
         digest_enricher=_nightly_digest_enricher(root, get_researcher_loop),
         completed_job_ingester=lambda: ingest_and_project(
             database_url,
@@ -601,16 +621,10 @@ def _nightly_command(
         analysis_stager=_nightly_analysis_stager(root),
     ).run(report_date=args.report_date)
     print(f"digest: {result.digest_path}")
-    print(
-        "database backup: "
-        f"{getattr(result, 'backup_path', None) or 'not created'}"
-    )
+    print(f"database backup: {getattr(result, 'backup_path', None) or 'not created'}")
     print(f"enqueued: {result.enqueued}")
     print(f"dispatched: {result.dispatched}")
-    print(
-        "researcher invocations: "
-        f"{getattr(result, 'researcher_invocations', 0)}"
-    )
+    print(f"researcher invocations: {getattr(result, 'researcher_invocations', 0)}")
     print(f"quarantined: {'yes' if result.quarantined else 'no'}")
     try:
         print(
@@ -887,6 +901,68 @@ def _compare_command(
     return 0
 
 
+def _curve_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.curve import build_curve, load_curve_report, load_curve_spec, write_curve
+
+    try:
+        if args.curve_command == "report":
+            report = load_curve_report(_resolve(root, args.path))
+            print(report.model_dump_json(indent=2))
+            return 0
+
+        spec_path = _resolve(root, args.path)
+        spec = load_curve_spec(spec_path)
+        if args.curve_command == "validate":
+            report = build_curve(spec, repo_root=root, produced_by=args.produced_by)
+            print(report.model_dump_json(indent=2))
+            return 0
+
+        output = (
+            _resolve(root, args.output)
+            if args.output is not None
+            else root / "derived" / "curves" / f"{spec.curve_id}.json"
+        )
+        path, report = write_curve(
+            spec_path,
+            repo_root=root,
+            output_path=output,
+            produced_by=args.produced_by,
+        )
+        try:
+            artifact = path.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            artifact = path.resolve().as_posix()
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "curve_id": report.curve_id,
+                    "artifact": artifact,
+                    "rankable": report.rankable,
+                    "refuse_to_rank_reasons": report.refuse_to_rank_reasons,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (FileExistsError, OSError, RuntimeError, ValueError) as exc:
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "valid": False,
+                    "error": str(exc),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def _power_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -913,9 +989,7 @@ def _power_command(
         else:
             comparison_pass = pass_at_k_probability(args.baseline + effect, args.k)
             print(f"minimum detectable per-attempt difference: {effect:.4f}")
-            print(
-                f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}"
-            )
+            print(f"implied pass@{args.k} difference: {comparison_pass - baseline_pass:.4f}")
         print(
             "Assumptions: independent attempts for the pass@k transformation and a normal "
             "approximation to paired task outcomes; "
@@ -1064,10 +1138,7 @@ def _analyze_stub_command(
         print(f"catalog: {database.identity(url)}")
     else:
         print("indexed: no (the catalog is a derived index, written on request)")
-        print(
-            "next: uv run evallab analyze ingest-sidecar "
-            f"{shlex.quote(str(sidecar_path))}"
-        )
+        print(f"next: uv run evallab analyze ingest-sidecar {shlex.quote(str(sidecar_path))}")
     return 0 if sidecar.validation_status == "valid" else 1
 
 
@@ -1095,8 +1166,26 @@ def _analyze_worker_run_one_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     from evallab.analysis_worker import default_worker
+    from evallab.facts import CodexExecAnalyzer
 
-    worker = default_worker(root)
+    adapter_factory = None
+    if args.adapter == "codex-exec":
+        if args.authorization is None:
+            print("error: --authorization is required for codex-exec", file=sys.stderr)
+            return 2
+        authorization_path = _resolve(root, args.authorization)
+        scratch_root = _resolve(root, args.scratch_dir)
+
+        def adapter_factory(job, trial, request):
+            return CodexExecAnalyzer(
+                repo_root=root,
+                trial=trial,
+                model=request.model,
+                authorization_path=authorization_path,
+                scratch_dir=scratch_root / request.request_id,
+            )
+
+    worker = default_worker(root, adapter_factory=adapter_factory)
     transition = worker.run_one(args.request_id)
     print(json.dumps({"state": transition.state, "reason": transition.reason}))
     return 0 if transition.state == "completed" else 1
@@ -1162,10 +1251,7 @@ def _analyze_review_command(
         print(f"catalog: {database.identity(url)}")
     else:
         print("indexed: no (the catalog is a derived index, written on request)")
-        print(
-            "next: uv run evallab analyze ingest-sidecar "
-            f"{shlex.quote(str(sidecar_path))}"
-        )
+        print(f"next: uv run evallab analyze ingest-sidecar {shlex.quote(str(sidecar_path))}")
     return 0
 
 
@@ -1207,9 +1293,7 @@ def _db_list_command(
     print("| job | trial | task | agent | model | reward | exception | seconds |")
     print("|---|---|---|---|---|---:|---|---:|")
     for row in rows:
-        print(
-            "| " + " | ".join("" if value is None else str(value) for value in row) + " |"
-        )
+        print("| " + " | ".join("" if value is None else str(value) for value in row) + " |")
     return 0
 
 
@@ -1403,6 +1487,137 @@ def _behavior_command(
     return 0
 
 
+def _evidence_archive_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.evidence_store import archive_evidence
+
+    source = _resolve(root, args.source)
+    archive = archive_evidence(
+        source,
+        _resolve(root, args.store),
+        record_id=args.record_id or source.name,
+        kind=args.kind,
+    )
+    payload = {
+        "record_id": archive.record_id,
+        "kind": archive.kind,
+        "uri": archive.uri,
+        "content_digest": archive.content_digest,
+        "archive_digest": archive.archive_digest,
+        "blob_path": str(archive.blob_path),
+        "manifest_path": str(archive.manifest_path),
+        "file_count": archive.file_count,
+        "uncompressed_bytes": archive.uncompressed_bytes,
+    }
+    print(json.dumps(payload, indent=2) if args.json else archive.uri)
+    return 0
+
+
+def _evidence_restore_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.evidence_store import restore_evidence
+
+    destination = restore_evidence(
+        _resolve(root, args.store),
+        args.uri,
+        _resolve(root, args.destination),
+    )
+    print(destination)
+    return 0
+
+
+def _tasks_import_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_import import import_task_batch
+
+    report = import_task_batch(
+        _resolve(root, args.source),
+        _resolve(root, args.destination),
+        _resolve(root, args.ledger),
+        limit=args.limit,
+    )
+    payload = {
+        "discovered": report.discovered,
+        "imported": report.imported,
+        "skipped": report.skipped,
+        "failed": report.failed,
+        "items": [
+            {
+                "source": str(item.source),
+                "source_digest": item.source_digest,
+                "destination": str(item.destination) if item.destination else None,
+                "status": item.status,
+                "reason": item.reason,
+            }
+            for item in report.items
+        ],
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            f"tasks: {report.discovered} discovered, {report.imported} imported, "
+            f"{report.skipped} resumed, {report.failed} failed"
+        )
+    return 1 if report.failed else 0
+
+
+def _ladder_validate_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import generate_grid, load_grid_spec
+
+    try:
+        grid_spec = load_grid_spec(_resolve(root, args.grid_spec))
+        result = generate_grid(
+            grid_spec,
+            repo_root=root,
+            dry_run=True,
+            check_quota_headroom=False,
+        )
+    except Exception as exc:
+        if args.json:
+            print(json.dumps({"valid": False, "errors": [str(exc)]}, indent=2))
+        else:
+            print(f"invalid: {exc}")
+        return 1
+
+    remaining = result.total_specs
+    deduped = len(result.deduped)
+    skipped = len(result.skipped)
+    declared = remaining + deduped + skipped
+    payload = {
+        "valid": True,
+        "grid_id": result.grid_id,
+        "errors": [],
+        "declared": declared,
+        "remaining": remaining,
+        "deduped": deduped,
+        "skipped": skipped,
+        "declared_spec_count": declared,
+        "remaining_spec_count": remaining,
+        "deduped_spec_count": deduped,
+        "skipped_spec_count": skipped,
+        "spec_count": remaining,
+        "trial_count": result.total_trials,
+        "shard_count": len(result.shards),
+        "normalized_spec": grid_spec.model_dump(mode="json"),
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            f"valid: {result.grid_id} "
+            f"({declared} declared, {remaining} remaining, {deduped} deduped, "
+            f"{skipped} skipped; {result.total_trials} remaining trials, "
+            f"{len(result.shards)} shards)"
+        )
+    return 0
+
+
 def _ladder_generate_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1431,6 +1646,18 @@ def _ladder_generate_command(
             "total_trials": result.total_trials,
             "total_estimated_cost_usd": result.total_estimated_cost_usd,
             "specs": [s.model_dump(mode="json") for s in result.specs],
+            "shards": [
+                {
+                    "shard_id": shard.shard_id,
+                    "index": shard.index,
+                    "spec_names": list(shard.spec_names),
+                    "trial_count": shard.trial_count,
+                    "estimated_cost_usd": shard.estimated_cost_usd,
+                    "sha256": shard.sha256,
+                    "path": str(shard.path) if shard.path else None,
+                }
+                for shard in result.shards
+            ],
             "skipped": [
                 {
                     "name": sk.name,
@@ -1439,6 +1666,8 @@ def _ladder_generate_command(
                     "preamble": sk.preamble,
                     "attempts": sk.attempts,
                     "reason": sk.reason,
+                    "arm_id": sk.arm_id,
+                    "factor_values": sk.factor_values,
                 }
                 for sk in result.skipped
             ],
@@ -1450,6 +1679,8 @@ def _ladder_generate_command(
                     "preamble": d.preamble,
                     "attempts": d.attempts,
                     "reason": d.reason,
+                    "arm_id": d.arm_id,
+                    "factor_values": d.factor_values,
                 }
                 for d in result.deduped
             ],
@@ -1459,6 +1690,155 @@ def _ladder_generate_command(
         print(json.dumps(out_data, indent=2))
     else:
         print(result.summary())
+    return 0
+
+
+def _ladder_screen_stage1_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import generate_stage1_screen, load_screen_spec
+
+    spec_path = _resolve(root, args.spec)
+    screen_spec = load_screen_spec(spec_path)
+    dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+    output_dir = _resolve(root, args.output_dir) if args.output_dir else None
+
+    result = generate_stage1_screen(
+        screen_spec,
+        repo_root=root,
+        output_dir=output_dir,
+        submit=args.submit,
+        dry_run=dry_run,
+    )
+
+    if args.json:
+        out = {
+            "screen_id": result.grid_id,
+            "stage": 1,
+            "total_specs": result.total_specs,
+            "total_trials": result.total_trials,
+            "specs": [s.model_dump(mode="json") for s in result.specs],
+            "written_files": [str(p) for p in result.written_paths],
+        }
+        print(json.dumps(out, indent=2))
+    else:
+        print(f"LADDER Screen Stage 1 Generation: {result.grid_id}")
+        print(
+            f"Generated {result.total_specs} specs "
+            f"({result.total_trials} trials, k={screen_spec.initial_k})"
+        )
+        print(f"Tasks: {len(screen_spec.tasks)} | Model levels: {len(screen_spec.model_levels)}")
+        if result.written_paths:
+            print(
+                f"Written to: {result.written_paths[0].parent} ({len(result.written_paths)} files)"
+            )
+        elif dry_run:
+            print("Dry-run mode: no files written to disk.")
+        print("Human approval preserved (pending review before dispatch).")
+    return 0
+
+
+def _ladder_screen_analyze_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import analyze_screen_results, load_screen_spec
+
+    target = args.screen_id_or_spec
+    target_path = _resolve(root, Path(target))
+    screen_id = target
+    spec_obj = None
+    if target_path.is_file():
+        spec_obj = load_screen_spec(target_path)
+        screen_id = spec_obj.screen_id
+    jobs_dir = _resolve(root, args.jobs_dir) if args.jobs_dir else None
+
+    report = analyze_screen_results(
+        screen_id,
+        spec=spec_obj,
+        repo_root=root,
+        jobs_dir=jobs_dir,
+    )
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(report.summary())
+    return 0
+
+
+def _ladder_screen_stage2_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.ladder import (
+        analyze_screen_results,
+        generate_stage2_screen,
+        load_screen_spec,
+    )
+
+    spec_path = _resolve(root, args.spec)
+    screen_spec = load_screen_spec(spec_path)
+    jobs_dir = _resolve(root, args.jobs_dir) if args.jobs_dir else None
+
+    report = analyze_screen_results(
+        screen_spec.screen_id,
+        spec=screen_spec,
+        repo_root=root,
+        jobs_dir=jobs_dir,
+    )
+
+    dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+    output_dir = _resolve(root, args.output_dir) if args.output_dir else None
+
+    result = generate_stage2_screen(
+        report,
+        screen_spec,
+        repo_root=root,
+        output_dir=output_dir,
+        submit=args.submit,
+        dry_run=dry_run,
+    )
+
+    if args.json:
+        out = {
+            "screen_id": result.grid_id,
+            "stage": 2,
+            "separating_tasks": report.separating_tasks,
+            "stopped_tasks": report.stopped_tasks,
+            "total_specs": result.total_specs,
+            "total_trials": result.total_trials,
+            "specs": [s.model_dump(mode="json") for s in result.specs],
+            "written_files": [str(p) for p in result.written_paths],
+        }
+        print(json.dumps(out, indent=2))
+    else:
+        print(f"LADDER Screen Stage 2 Follow-Up Generation: {result.grid_id}")
+        sep_str = ", ".join(report.separating_tasks) or "none"
+        stop_str = ", ".join(report.stopped_tasks) or "none"
+        print(
+            f"Separating tasks selected for follow-up ({len(report.separating_tasks)}): {sep_str}"
+        )
+        print(f"Stopped tasks ({len(report.stopped_tasks)}): {stop_str}")
+        print("Task decisions:")
+        for task_result in report.tasks:
+            action = (
+                "SELECTED for Stage 2"
+                if task_result.selected_for_followup
+                else "STOPPED"
+            )
+            print(
+                f"  - {task_result.task_id}: {action} — "
+                f"{task_result.followup_reason}"
+            )
+        print(
+            f"Generated {result.total_specs} follow-up specs "
+            f"({result.total_trials} trials, k={screen_spec.followup_k})"
+        )
+        if result.written_paths:
+            print(
+                f"Written to: {result.written_paths[0].parent} ({len(result.written_paths)} files)"
+            )
+        elif dry_run:
+            print("Dry-run mode: no files written to disk.")
+        print("Human approval preserved (no automatic paid dispatch).")
     return 0
 
 
@@ -1583,6 +1963,7 @@ def _registry_promote_command(
             state=state,
             actor=args.actor,
             jobs_roots=jobs_roots,
+            certification_path=getattr(args, "certification_packet", None),
         )
     except (RegistryError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1594,12 +1975,10 @@ def _registry_promote_command(
         print(f"promoted: {record.task_id}@{record.version} (state: {record.state})")
         print(f"  path:     {record.task_path}")
         print(f"  package:  {record.digests.package}")
-        o_job = record.control_evidence.oracle.job_name
-        o_rew = record.control_evidence.oracle.reward
-        n_job = record.control_evidence.nop.job_name
-        n_rew = record.control_evidence.nop.reward
-        print(f"  oracle:   {o_job} ({o_rew})")
-        print(f"  nop:      {n_job} ({n_rew})")
+        evidence = record.control_evidence
+        if evidence is not None:
+            print(f"  oracle:   {evidence.oracle.job_name} ({evidence.oracle.reward})")
+            print(f"  nop:      {evidence.nop.job_name} ({evidence.nop.reward})")
         if record.approved_by:
             print(f"  approved: {record.approved_by} at {record.approved_at}")
     return 0
@@ -1622,6 +2001,7 @@ def _registry_register_command(
             actor=args.actor,
             repo_root=root,
             registry_dir=registry_dir,
+            certification_path=getattr(args, "certification_packet", None),
         )
     except (RegistryError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1705,9 +2085,7 @@ def _verdict_command(
     if action == "list":
         status_filter = args.status or args.status_or_id
         try:
-            verdicts = list_current_verdicts_from_catalog(
-                database_url=db_url, status=status_filter
-            )
+            verdicts = list_current_verdicts_from_catalog(database_url=db_url, status=status_filter)
         except Exception:
             if db_url is not None:
                 raise
@@ -1767,6 +2145,116 @@ def _verdict_command(
             f"Recorded verdict for {verdict.discovery_id}: {verdict.status} "
             f"by {verdict.by}{note_suffix}"
         )
+    return 0
+
+
+def _traj_outline_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    try:
+        outline = outline_trajectory(args.target, repo_root=root)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(outline.to_dict(), indent=2))
+    else:
+        print(render_outline(outline, verbose=args.verbose))
+    return 0 if outline.status == "featured" else 1
+
+
+def _traj_queue_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    runs_roots = [_resolve(root, args.runs_dir)] if args.runs_dir else None
+    queue_items = select_review_queue(
+        limit=args.limit,
+        runs_roots=runs_roots,
+        repo_root=root,
+    )
+    if args.json:
+        print(json.dumps([asdict(item) for item in queue_items], indent=2))
+    else:
+        if not queue_items:
+            print("No unlabeled trajectories in review queue.")
+            return 0
+        print(f"TRAJECTORY REVIEW QUEUE ({len(queue_items)} items):")
+        print("=" * 80)
+        for idx, item in enumerate(queue_items, start=1):
+            print(
+                f"{idx}. [{item.task_name}] {item.trial_name} ({item.agent_name}/{item.model_name})"
+            )
+            print(f"   Signals:    {item.outline_preview}")
+            print(f"   Suggested:  {item.suggested_taxonomy} ({item.suggestion_reason})")
+            print(f"   Action:     {item.next_command}")
+            print("")
+    return 0
+
+
+def _traj_label_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    try:
+        label = label_trajectory(
+            args.trial,
+            label=args.label,
+            note=args.note,
+            provenance=args.provenance,
+            author=args.author,
+            repo_root=root,
+        )
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        print(label.model_dump_json(indent=2))
+    else:
+        note_str = f" (note: {label.rationale})" if label.rationale else ""
+        print(
+            f"Recorded label: {label.trial_name} -> {label.label} "
+            f"by {label.author} [{label.provenance}]{note_str}"
+        )
+    return 0
+
+
+def _traj_project_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    runs_roots = [_resolve(root, r) for r in args.runs_dir] if args.runs_dir else None
+    out_dir = _resolve(root, args.output_dir) if args.output_dir else None
+    res = project_trajectory_features(runs_roots=runs_roots, output_root=out_dir, repo_root=root)
+    if args.json:
+        print(json.dumps(asdict(res), indent=2, default=str))
+    else:
+        print(f"Projected {res.table_rows} trajectory feature rows to {res.output_path}")
+        print(f"  Featured:    {res.featured_count}")
+        print(f"  Unavailable: {res.unavailable_count}")
+        print(f"  Digest:      {res.sha256[:16]}...")
+    return 0
+
+
+def _traj_report_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    report = evaluate_heuristic_precision(repo_root=root)
+    if args.json:
+        print(json.dumps(asdict(report), indent=2))
+    else:
+        print("HEURISTIC PRECISION REPORT:")
+        print(f"  Human Labels:        {report.human_label_count}")
+        print(f"  Heuristic Proposals: {report.heuristic_proposal_count}")
+        print(f"  Matched Trials:      {report.matched_trials_count}")
+        print(f"  Exact Matches:       {report.exact_taxonomy_matches}")
+        pct = f"{report.precision * 100:.1f}%" if report.matched_trials_count > 0 else "N/A"
+        print(f"  Precision:           {pct}")
+        if report.disagreements:
+            print(f"\nDISAGREEMENTS ({len(report.disagreements)}):")
+            for d in report.disagreements:
+                t_name = d["task_name"]
+                t_id = d["trial_id"]
+                h_tax = d["human_label"]
+                he_tax = d["heuristic_label"]
+                print(f"  - {t_name} ({t_id}): human={h_tax!r} vs heuristic={he_tax!r}")
     return 0
 
 
@@ -1871,6 +2359,23 @@ def parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Bounded parallel dispatch worker count (default: 1)",
     )
+    tick.add_argument(
+        "--max-specs",
+        type=int,
+        help="Maximum specs admitted to this dispatch batch",
+    )
+    tick.add_argument(
+        "--max-active-trials",
+        type=int,
+        help="Maximum sum of Harbor-internal concurrent trial slots",
+    )
+    tick.add_argument(
+        "--agent-capacity",
+        action="append",
+        default=[],
+        metavar="AGENT=N",
+        help="Per-agent concurrent trial slots (repeatable)",
+    )
     tick.set_defaults(func=_tick_command)
 
     approve = commands.add_parser(
@@ -1942,9 +2447,7 @@ def parser() -> argparse.ArgumentParser:
     calibrate = commands.add_parser(
         "calibrate", help="Measure a judge against one sealed calibration family"
     )
-    calibrate.add_argument(
-        "family", choices=("checkout-pool-exhaustion", "retry-storm-backlog")
-    )
+    calibrate.add_argument("family", choices=("checkout-pool-exhaustion", "retry-storm-backlog"))
     calibration_mode = calibrate.add_mutually_exclusive_group()
     calibration_mode.add_argument("--predictions", type=Path)
     calibration_mode.add_argument("--stub", action="store_true")
@@ -2038,6 +2541,29 @@ def parser() -> argparse.ArgumentParser:
     compare.add_argument("--database-url")
     compare.set_defaults(func=_compare_command)
 
+    curve = commands.add_parser(
+        "curve", help="Validate, build, or read an empirical paired capability curve"
+    )
+    curve_commands = curve.add_subparsers(dest="curve_command", required=True)
+    curve_validate = curve_commands.add_parser(
+        "validate", help="Validate a curve spec and its paired cohort inputs as JSON"
+    )
+    curve_validate.add_argument("path", type=Path)
+    curve_validate.add_argument("--produced-by", default="evallab")
+    curve_validate.set_defaults(func=_curve_command)
+    curve_build = curve_commands.add_parser(
+        "build", help="Build a provenance-backed empirical curve artifact"
+    )
+    curve_build.add_argument("path", type=Path)
+    curve_build.add_argument("--output", type=Path)
+    curve_build.add_argument("--produced-by", default="evallab")
+    curve_build.set_defaults(func=_curve_command)
+    curve_report = curve_commands.add_parser(
+        "report", help="Validate and emit a frozen curve artifact as JSON"
+    )
+    curve_report.add_argument("path", type=Path)
+    curve_report.set_defaults(func=_curve_command)
+
     power = commands.add_parser("power", help="Plan task-paired pass@k comparison power")
     power_mode = power.add_mutually_exclusive_group(required=True)
     power_mode.add_argument(
@@ -2102,9 +2628,7 @@ def parser() -> argparse.ArgumentParser:
     analyze_plan_parser.add_argument("--agent", default="codex")
     analyze_plan_parser.add_argument("--agent-version", default="local")
     analyze_plan_parser.add_argument("--model", default="configured-by-queue")
-    analyze_plan_parser.add_argument(
-        "--output-dir", type=Path, default=Path("derived/analyses")
-    )
+    analyze_plan_parser.add_argument("--output-dir", type=Path, default=Path("derived/analyses"))
     analyze_plan_parser.set_defaults(func=_analyze_plan_command)
 
     analyze_worker_plan = analyze_commands.add_parser(
@@ -2121,6 +2645,22 @@ def parser() -> argparse.ArgumentParser:
         "worker-run-one", help="Run ONE request through normal admission (never self-approves)"
     )
     analyze_worker_run.add_argument("request_id")
+    analyze_worker_run.add_argument(
+        "--adapter",
+        choices=("none", "codex-exec"),
+        default="none",
+        help="Explicit guarded model adapter; default performs no model call",
+    )
+    analyze_worker_run.add_argument(
+        "--authorization",
+        type=Path,
+        help="Queue authorization JSON required by codex-exec",
+    )
+    analyze_worker_run.add_argument(
+        "--scratch-dir",
+        type=Path,
+        default=Path("derived/analyses/scratch"),
+    )
     analyze_worker_run.set_defaults(func=_analyze_worker_run_one_command)
 
     analyze_worker_resolve = analyze_commands.add_parser(
@@ -2128,9 +2668,7 @@ def parser() -> argparse.ArgumentParser:
         help="Explicitly retry or quarantine one possibly-paid ambiguous invocation",
     )
     analyze_worker_resolve.add_argument("request_id")
-    analyze_worker_resolve.add_argument(
-        "--action", choices=("retry", "quarantine"), required=True
-    )
+    analyze_worker_resolve.add_argument("--action", choices=("retry", "quarantine"), required=True)
     analyze_worker_resolve.add_argument("--actor", required=True)
     analyze_worker_resolve.set_defaults(func=_analyze_worker_resolve_ambiguous_command)
 
@@ -2199,10 +2737,20 @@ def parser() -> argparse.ArgumentParser:
     db_list.set_defaults(func=_db_list_command)
 
     db_attach = db_commands.add_parser("attach", help="Attach unified DuckDB surface (Z2+Z3+Z4)")
-    db_attach.add_argument("--zones", action="store_true", help="report zone status (exit non-zero if none attached)")  # noqa: E501
-    db_attach.add_argument("--print-sql", action="store_true", help="emit the attach + view DDL preamble to stdout")  # noqa: E501
-    db_attach.add_argument("--query", metavar="SQL", help="run query against the surface and print rows")  # noqa: E501
-    db_attach.add_argument("--derived-root", type=Path, help="override the shared Parquet root (same resolution as library)")  # noqa: E501
+    db_attach.add_argument(
+        "--zones", action="store_true", help="report zone status (exit non-zero if none attached)"
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--print-sql", action="store_true", help="emit the attach + view DDL preamble to stdout"
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--query", metavar="SQL", help="run query against the surface and print rows"
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )  # noqa: E501
     db_attach.set_defaults(func=_db_attach_command)
 
     lineage = commands.add_parser(
@@ -2245,9 +2793,7 @@ def parser() -> argparse.ArgumentParser:
     )
     analyst_run.set_defaults(func=_analyst_run_command)
 
-    analyst_list = analyst_commands.add_parser(
-        "list", help="List stored analysis conclusions"
-    )
+    analyst_list = analyst_commands.add_parser("list", help="List stored analysis conclusions")
     analyst_list.add_argument(
         "--trial",
         dest="trial_id",
@@ -2260,9 +2806,7 @@ def parser() -> argparse.ArgumentParser:
         "show", help="Show an analysis conclusion and its recorded trajectory"
     )
     analyst_show.add_argument("analysis_id", help="ULID of the analysis record to show")
-    analyst_show.add_argument(
-        "--json", action="store_true", help="emit raw structured JSON"
-    )
+    analyst_show.add_argument("--json", action="store_true", help="emit raw structured JSON")
     analyst_show.set_defaults(func=_analyst_show_command)
 
     card = commands.add_parser(
@@ -2308,12 +2852,8 @@ def parser() -> argparse.ArgumentParser:
     behavior.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON behavior report"
     )
-    behavior.add_argument(
-        "--task", help="filter analysis to one task name"
-    )
-    behavior.add_argument(
-        "--agent", help="filter analysis to one agent name"
-    )
+    behavior.add_argument("--task", help="filter analysis to one task name")
+    behavior.add_argument("--agent", help="filter analysis to one agent name")
     behavior.add_argument(
         "--derived-root",
         type=Path,
@@ -2321,10 +2861,58 @@ def parser() -> argparse.ArgumentParser:
     )
     behavior.set_defaults(func=_behavior_command)
 
+    evidence_parser = commands.add_parser(
+        "evidence", help="Archive and restore content-addressed raw evidence"
+    )
+    evidence_commands = evidence_parser.add_subparsers(
+        dest="evidence_command", required=True
+    )
+    evidence_archive = evidence_commands.add_parser("archive")
+    evidence_archive.add_argument("source", type=Path)
+    evidence_archive.add_argument("--store", type=Path, required=True)
+    evidence_archive.add_argument("--record-id")
+    evidence_archive.add_argument("--kind", default="job")
+    evidence_archive.add_argument("--json", action="store_true")
+    evidence_archive.set_defaults(func=_evidence_archive_command)
+    evidence_restore = evidence_commands.add_parser("restore")
+    evidence_restore.add_argument("uri")
+    evidence_restore.add_argument("--store", type=Path, required=True)
+    evidence_restore.add_argument("--destination", type=Path, required=True)
+    evidence_restore.set_defaults(func=_evidence_restore_command)
+
+    tasks_parser = commands.add_parser(
+        "tasks", help="Import and manage task corpora"
+    )
+    tasks_commands = tasks_parser.add_subparsers(dest="tasks_command", required=True)
+    tasks_import = tasks_commands.add_parser(
+        "import", help="Restartable batch import of local Harbor task packages"
+    )
+    tasks_import.add_argument("source", type=Path)
+    tasks_import.add_argument(
+        "--destination",
+        type=Path,
+        default=Path("library/tasks/imported"),
+    )
+    tasks_import.add_argument(
+        "--ledger",
+        type=Path,
+        default=Path("derived/imports/tasks.sqlite3"),
+    )
+    tasks_import.add_argument("--limit", type=int)
+    tasks_import.add_argument("--json", action="store_true")
+    tasks_import.set_defaults(func=_tasks_import_command)
+
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"
     )
     ladder_commands = ladder.add_subparsers(dest="ladder_command", required=True)
+    ladder_validate = ladder_commands.add_parser(
+        "validate", help="Validate and cardinality-check a plan without writing or submitting"
+    )
+    ladder_validate.add_argument("grid_spec", type=Path)
+    ladder_validate.add_argument("--json", action="store_true")
+    ladder_validate.set_defaults(func=_ladder_validate_command)
+
     ladder_generate = ladder_commands.add_parser(
         "generate", help="Expand a grid specification into ExperimentSpec files"
     )
@@ -2359,6 +2947,88 @@ def parser() -> argparse.ArgumentParser:
         help="Print generation summary and details in JSON format",
     )
     ladder_generate.set_defaults(func=_ladder_generate_command)
+
+    ladder_screen = ladder_commands.add_parser(
+        "screen", help="Staged difficulty screening and follow-up generation"
+    )
+    screen_commands = ladder_screen.add_subparsers(dest="screen_command", required=True)
+
+    s1_parser = screen_commands.add_parser(
+        "stage1", help="Emit Stage 1 screening specs (k=1) across tasks and model levels"
+    )
+    s1_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file")
+    s1_parser.add_argument(
+        "-o",
+        "--output",
+        dest="output_dir",
+        type=Path,
+        default=None,
+        help="Directory to write generated ExperimentSpec JSON files",
+    )
+    s1_parser.add_argument(
+        "--submit",
+        action="store_true",
+        help="Submit generated ExperimentSpecs directly to the queue",
+    )
+    s1_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print expansion without writing to disk (default)",
+    )
+    s1_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print generation summary in JSON format",
+    )
+    s1_parser.set_defaults(func=_ladder_screen_stage1_command)
+
+    sa_parser = screen_commands.add_parser(
+        "analyze", help="Analyze completed Stage 1 results and classify task separation"
+    )
+    sa_parser.add_argument("screen_id_or_spec", help="Screen ID or path to ScreenSpec file")
+    sa_parser.add_argument(
+        "--jobs-dir", type=Path, default=None, help="Jobs directory to search for results"
+    )
+    sa_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print analysis report in JSON format",
+    )
+    sa_parser.set_defaults(func=_ladder_screen_analyze_command)
+
+    s2_parser = screen_commands.add_parser(
+        "stage2", help="Emit Stage 2 follow-up specs (k=3) for separating tasks only"
+    )
+    s2_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file")
+    s2_parser.add_argument(
+        "-o",
+        "--output",
+        dest="output_dir",
+        type=Path,
+        default=None,
+        help="Directory to write generated ExperimentSpec JSON files",
+    )
+    s2_parser.add_argument(
+        "--submit",
+        action="store_true",
+        help="Submit generated ExperimentSpecs directly to the queue",
+    )
+    s2_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print expansion without writing to disk (default)",
+    )
+    s2_parser.add_argument(
+        "--jobs-dir", type=Path, default=None, help="Jobs directory to search for results"
+    )
+    s2_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print generation summary in JSON format",
+    )
+    s2_parser.set_defaults(func=_ladder_screen_stage2_command)
 
     trace = commands.add_parser(
         "trace",
@@ -2550,6 +3220,10 @@ def parser() -> argparse.ArgumentParser:
         help="Override destination registry directory",
     )
     registry_promote.add_argument(
+        "--certification-packet",
+        help="Durable task_workbench certification.json to bind",
+    )
+    registry_promote.add_argument(
         "--json",
         action="store_true",
         help="Emit promoted record as JSON",
@@ -2572,6 +3246,10 @@ def parser() -> argparse.ArgumentParser:
     registry_register.add_argument(
         "--registry-dir",
         help="Override registry directory",
+    )
+    registry_register.add_argument(
+        "--certification-packet",
+        help="Durable task_workbench certification.json required for new registration",
     )
     registry_register.add_argument(
         "--json",
@@ -2637,6 +3315,59 @@ def parser() -> argparse.ArgumentParser:
         help="Override the shared Parquet root",
     )
     verdict.set_defaults(func=_verdict_command)
+    traj = commands.add_parser(
+        "traj", help="Analyze, feature-extract, outline, and label trajectories"
+    )
+    traj_commands = traj.add_subparsers(dest="traj_command", required=True)
+
+    traj_outline = traj_commands.add_parser(
+        "outline", help="Deterministic step outline of an ATIF trajectory"
+    )
+    traj_outline.add_argument(
+        "target", help="Trial ID, directory, result.json, or trajectory.json path"
+    )
+    traj_outline.add_argument(
+        "--verbose", "-v", action="store_true", help="Include detailed step snippets"
+    )
+    traj_outline.add_argument("--json", action="store_true", help="Emit outline as JSON")
+    traj_outline.set_defaults(func=_traj_outline_command)
+
+    traj_queue = traj_commands.add_parser("queue", help="Deterministic daily reading/review queue")
+    traj_queue.add_argument(
+        "--limit", type=int, default=3, help="Number of trajectories to select (default: 3)"
+    )
+    traj_queue.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
+    traj_queue.add_argument("--json", action="store_true", help="Emit queue as JSON")
+    traj_queue.set_defaults(func=_traj_queue_command)
+
+    traj_label = traj_commands.add_parser(
+        "label", help="Persist a human or heuristic trajectory behavior label"
+    )
+    traj_label.add_argument("trial", help="Trial identifier or directory")
+    traj_label.add_argument("label", help="Behavior label (e.g. tool_use_loop)")
+    traj_label.add_argument("--note", help="Optional label explanation or observation")
+    traj_label.add_argument(
+        "--provenance", default="human", choices=["human", "heuristic"]
+    )
+    traj_label.add_argument("--author", default="peter", help="Author of the label")
+    traj_label.add_argument("--json", action="store_true", help="Emit label as JSON")
+    traj_label.set_defaults(func=_traj_label_command)
+
+    traj_project = traj_commands.add_parser(
+        "project", help="Extract mechanical features to Parquet"
+    )
+    traj_project.add_argument("--output-dir", type=Path, help="Override output Parquet root")
+    traj_project.add_argument(
+        "--runs-dir", type=Path, action="append", help="Runs directory (repeatable)"
+    )
+    traj_project.add_argument("--json", action="store_true", help="Emit projection summary as JSON")
+    traj_project.set_defaults(func=_traj_project_command)
+
+    traj_report = traj_commands.add_parser(
+        "report", help="Precision report of heuristic labels vs human ground truth"
+    )
+    traj_report.add_argument("--json", action="store_true", help="Emit report as JSON")
+    traj_report.set_defaults(func=_traj_report_command)
     return root
 
 
@@ -2660,8 +3391,8 @@ def run_cli(
         return 2
 
 
-def main() -> None:
-    raise SystemExit(run_cli())
+def main(argv: Sequence[str] | None = None) -> None:
+    raise SystemExit(run_cli(argv))
 
 
 def legacy_main() -> None:

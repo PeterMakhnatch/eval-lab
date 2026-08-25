@@ -12,12 +12,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from itertools import product
 from pathlib import Path
 from typing import Any
 
@@ -33,13 +36,30 @@ from evallab.quota import (
 )
 from evallab.schemas import (
     AgentSpec,
+    ExperimentArm,
     ExperimentSpec,
     GridAxes,
+    GridFactor,
     GridLimits,
     GridSpec,
     LadderGridSpec,
     ProviderLimit,
     TaskSpec,
+    canonical_grid_point_id,
+    canonical_preamble_path,
+)
+from evallab.screen import (
+    DifficultyVariantContract,
+    ModelLevelSpec,
+    ScreenAnalysisReport,
+    ScreenClassification,
+    ScreenDecisionRules,
+    ScreenSpec,
+    TaskScreenResult,
+    analyze_screen_results,
+    generate_stage1_screen,
+    generate_stage2_screen,
+    load_screen_spec,
 )
 
 # Re-export schema models for callers
@@ -47,23 +67,39 @@ __all__ = [
     "AgentSpec",
     "CandidatePoint",
     "DedupeRecord",
+    "ExperimentArm",
+    "DifficultyVariantContract",
     "GridAxes",
+    "GridFactor",
     "GridGenerationResult",
     "GridLimits",
     "GridSpec",
     "LadderGridSpec",
+    "ModelLevelSpec",
     "ProviderLimit",
+    "PlanShard",
     "ProviderStats",
+    "ScreenAnalysisReport",
+    "ScreenClassification",
+    "ScreenDecisionRules",
+    "ScreenSpec",
     "SkippedSpec",
+    "TaskScreenResult",
     "TaskSpec",
+    "analyze_screen_results",
     "build_arg_parser",
     "find_existing_grid_points",
+    "compile_plan_shards",
     "generate_grid",
     "generate_spec_name",
+    "generate_stage1_screen",
+    "generate_stage2_screen",
     "load_grid_spec",
+    "load_screen_spec",
     "main",
     "sanitize_slug",
 ]
+
 
 #: Default estimated cost per trial in USD when unspecified.
 DEFAULT_COST_PER_TRIAL_USD: dict[str, float] = {
@@ -136,6 +172,11 @@ class CandidatePoint:
     agent_key: str
     provider_key: str
     preamble: str
+    arm_id: str | None
+    factor_values: dict[str, Any]
+    factor_bindings: dict[str, str]
+    bound_execution_values: dict[str, int]
+    point_id: str
     k: int
 
 
@@ -149,6 +190,8 @@ class SkippedSpec:
     preamble: str
     attempts: int
     reason: str
+    arm_id: str | None = None
+    factor_values: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -160,7 +203,20 @@ class DedupeRecord:
     agent: str
     preamble: str
     attempts: int
+    arm_id: str | None = None
+    factor_values: dict[str, Any] = field(default_factory=dict)
     reason: str = "already present in queue/evidence (resumed)"
+@dataclass(frozen=True)
+class PlanShard:
+    shard_id: str
+    index: int
+    spec_names: tuple[str, ...]
+    trial_count: int
+    estimated_cost_usd: float
+    sha256: str
+    path: Path | None = None
+
+
 
 
 @dataclass
@@ -179,6 +235,7 @@ class GridGenerationResult:
 
     grid_id: str
     specs: list[ExperimentSpec]
+    shards: list[PlanShard] = field(default_factory=list)
     skipped: list[SkippedSpec] = field(default_factory=list)
     deduped: list[DedupeRecord] = field(default_factory=list)
     written_paths: list[Path] = field(default_factory=list)
@@ -267,35 +324,42 @@ def _render_hypothesis(
     agent_spec: AgentSpec,
     preamble: str,
     attempts: int,
+    *,
+    arm_id: str | None = None,
+    factor_values: dict[str, Any] | None = None,
 ) -> str:
     """Construct the hypothesis string for an expanded experiment spec."""
+    factors = factor_values or {}
     grid_name = grid_spec.name or grid_spec.grid_id or "grid"
     if grid_spec.hypothesis_template:
+        coordinates = {f"factor_{name}": value for name, value in factors.items()}
         return grid_spec.hypothesis_template.format(
             grid=grid_name,
             task=task_spec.task,
             task_path=task_spec.task_path or task_spec.task,
             agent=agent_spec.agent,
             model=agent_spec.model or "default",
+            arm=arm_id or "legacy",
+            factors_json=json.dumps(factors, sort_keys=True),
             preamble=preamble,
             attempts=attempts,
             k=attempts,
             purpose=grid_spec.purpose,
+            **coordinates,
         )
-
-    if grid_spec.hypothesis:
-        if preamble and preamble != "none":
-            return f"{grid_spec.hypothesis} (variant: {preamble}, k={attempts})"
-        return f"{grid_spec.hypothesis} (k={attempts})"
-
+    suffix: list[str] = [f"k={attempts}"]
+    if arm_id:
+        suffix.insert(0, f"arm={arm_id}")
     if preamble and preamble != "none":
-        preamble_desc = f"with preamble '{preamble}'"
-    else:
-        preamble_desc = "with standard prompt"
+        suffix.insert(0, f"variant={preamble}")
+    if factors:
+        suffix.insert(0, f"factors={json.dumps(factors, sort_keys=True)}")
+    if grid_spec.hypothesis:
+        return f"{grid_spec.hypothesis} ({', '.join(suffix)})"
     model_desc = f" ({agent_spec.model})" if agent_spec.model else ""
     return (
         f"LADDER evaluation of {agent_spec.agent}{model_desc} on {task_spec.task} "
-        f"{preamble_desc} across {attempts} attempt(s)."
+        f"({', '.join(suffix)})."
     )
 
 
@@ -311,6 +375,307 @@ def _normalize_agent_item(item: str | AgentSpec) -> AgentSpec:
 def _normalize_task_item(item: str | TaskSpec) -> TaskSpec:
     """Normalize a string or TaskSpec into a TaskSpec."""
     return item if isinstance(item, TaskSpec) else TaskSpec(task=item)
+def _point_id(
+    task_ref: str,
+    agent_key: str,
+    preamble: str,
+    k: int,
+    *,
+    arm_id: str | None,
+    factor_values: dict[str, Any],
+    factor_bindings: dict[str, str] | None = None,
+) -> str:
+    return canonical_grid_point_id(
+        task_ref=task_ref,
+        agent_key=agent_key,
+        preamble=preamble,
+        k=k,
+        arm_id=arm_id,
+        factor_values=factor_values,
+        factor_bindings=factor_bindings or {},
+    )
+
+
+def _factor_combinations(
+    factors: dict[str, Any],
+    overrides: dict[str, Any],
+) -> list[dict[str, Any]]:
+    names = sorted(name for name in factors if name not in overrides)
+    if not names:
+        return [dict(sorted(overrides.items()))]
+    return [
+        dict(sorted({**dict(zip(names, levels, strict=True)), **overrides}.items()))
+        for levels in product(*(factors[name].levels for name in names))
+    ]
+
+def _factor_bindings(factors: dict[str, Any]) -> dict[str, str]:
+    return {
+        name: factor.binding for name, factor in sorted(factors.items())
+    }
+
+
+def _bound_execution_values(
+    factors: dict[str, Any], values: dict[str, Any]
+) -> dict[str, int]:
+    return {
+        factor.binding: int(values[name])
+        for name, factor in sorted(factors.items())
+    }
+
+def _preamble_provenance(
+    repo_root: Path, preamble: str
+) -> tuple[str | None, str | None]:
+    normalized = canonical_preamble_path(preamble)
+    if normalized is None:
+        return None, None
+    path = Path(normalized)
+    candidate = repo_root / path
+    if not candidate.is_file():
+        raise ValueError(f"preamble file does not exist: {preamble!r}")
+    digest = f"sha256:{hashlib.sha256(candidate.read_bytes()).hexdigest()}"
+    return path.as_posix(), digest
+
+
+def _candidate_spec_name(grid_name: str, candidate: CandidatePoint) -> str:
+    coordinate = candidate.preamble
+    if candidate.factor_values:
+        encoded = json.dumps(
+            {
+                "factor_values": candidate.factor_values,
+                "factor_bindings": candidate.factor_bindings,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        factor_slug = f"f{hashlib.sha256(encoded).hexdigest()[:8]}"
+        coordinate = (
+            f"{coordinate}-{factor_slug}" if coordinate != "none" else factor_slug
+        )
+    treatment = candidate.arm_id or (
+        f"{candidate.agent_spec.agent}-{candidate.agent_spec.model}"
+        if candidate.agent_spec.model
+        else candidate.agent_spec.agent
+    )
+    return generate_spec_name(
+        grid_name,
+        sanitize_slug(candidate.task_spec.task),
+        sanitize_slug(treatment),
+        sanitize_slug(coordinate),
+        candidate.k,
+    )
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def _atomic_write_text(path: Path, content: str, *, overwrite: bool) -> None:
+    """Publish complete text in one filesystem operation from the destination directory."""
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary.write(content)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_path = Path(temporary.name)
+        assert temporary_path is not None
+        if overwrite:
+            os.replace(temporary_path, path)
+        else:
+            os.link(temporary_path, path)
+            temporary_path.unlink()
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def compile_plan_shards(
+    grid_id: str,
+    specs: Sequence[ExperimentSpec],
+    *,
+    shard_size: int,
+    output_dir: Path | None = None,
+) -> list[PlanShard]:
+    """Compile deterministic, independently dispatchable bounded shards."""
+    existing_manifest: dict[str, Any] | None = None
+    existing_entries: list[dict[str, Any]] = []
+    start_index = 0
+    plan_dir: Path | None = None
+    manifest_path: Path | None = None
+    if output_dir is not None:
+        plan_dir = output_dir / "_plan"
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        grid_slug = sanitize_slug(grid_id)
+        manifest_path = plan_dir / f"manifest-{grid_slug}.json"
+        shard_filename = re.compile(
+            rf"{re.escape(grid_slug)}-s\d{{5,}}-[0-9a-f]{{12}}\.json"
+        )
+        if manifest_path.exists():
+            try:
+                loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError(f"incompatible plan manifest {manifest_path}: {exc}") from exc
+            if not isinstance(loaded, dict):
+                raise ValueError(f"incompatible plan manifest {manifest_path}: expected object")
+            if (
+                loaded.get("schema_version") != 1
+                or loaded.get("grid_id") != grid_id
+                or loaded.get("shard_size") != shard_size
+                or not isinstance(loaded.get("shards"), list)
+            ):
+                raise ValueError(
+                    f"incompatible plan manifest {manifest_path}: "
+                    "schema_version, grid_id, and shard_size must match"
+                )
+            existing_manifest = loaded
+            existing_entries = loaded["shards"]
+            indices = [entry.get("index") for entry in existing_entries if isinstance(entry, dict)]
+            if (
+                len(indices) != len(existing_entries)
+                or indices != list(range(len(existing_entries)))
+                or any(
+                    not isinstance(entry.get("path"), str)
+                    or not (plan_dir / entry["path"]).is_file()
+                    for entry in existing_entries
+                )
+            ):
+                raise ValueError(
+                    f"incompatible plan manifest {manifest_path}: "
+                    "shards must have contiguous indices and existing paths"
+                )
+            if (
+                not isinstance(loaded.get("spec_count"), int)
+                or not isinstance(loaded.get("trial_count"), int)
+                or any(
+                    not isinstance(entry.get("spec_count"), int)
+                    or not isinstance(entry.get("trial_count"), int)
+                    for entry in existing_entries
+                )
+                or loaded["spec_count"]
+                != sum(entry["spec_count"] for entry in existing_entries)
+                or loaded["trial_count"]
+                != sum(entry["trial_count"] for entry in existing_entries)
+            ):
+                raise ValueError(
+                    f"incompatible plan manifest {manifest_path}: "
+                    "aggregate counts must match shard entries"
+                )
+            declared_paths = {entry["path"] for entry in existing_entries}
+            orphan_paths = {
+                path.name
+                for path in plan_dir.glob("*.json")
+                if shard_filename.fullmatch(path.name)
+            } - declared_paths
+            if orphan_paths:
+                raise ValueError(
+                    f"incompatible plan manifest {manifest_path}: "
+                    f"unreferenced shard files {sorted(orphan_paths)}"
+                )
+            start_index = len(existing_entries)
+        else:
+            orphan_paths = {
+                path.name
+                for path in plan_dir.glob("*.json")
+                if shard_filename.fullmatch(path.name)
+            }
+            if orphan_paths:
+                raise ValueError(
+                    f"incompatible plan directory {plan_dir}: manifest is missing for "
+                    f"shard files {sorted(orphan_paths)}"
+                )
+
+    shards: list[PlanShard] = []
+    for relative_index, offset in enumerate(range(0, len(specs), shard_size)):
+        index = start_index + relative_index
+        members = list(specs[offset : offset + shard_size])
+        entries = []
+        for spec in members:
+            payload = spec.model_dump(mode="json")
+            entries.append({
+                "name": spec.name,
+                "sha256": (
+                    "sha256:"
+                    + hashlib.sha256(_canonical_json(payload).encode()).hexdigest()
+                ),
+                "attempts": spec.attempts,
+                "agent": spec.agent,
+                "model": spec.model,
+                "grid_point": spec.grid_point,
+            })
+        base = {
+            "schema_version": 1,
+            "grid_id": grid_id,
+            "index": index,
+            "specs": entries,
+            "trial_count": sum(spec.attempts for spec in members),
+            "estimated_cost_usd": round(
+                sum(spec.est_cost_usd or 0.0 for spec in members), 8
+            ),
+        }
+        digest = "sha256:" + hashlib.sha256(
+            _canonical_json(base).encode()
+        ).hexdigest()
+        shard_id = f"{sanitize_slug(grid_id)}-s{index:05d}-{digest[7:19]}"
+        payload = {**base, "shard_id": shard_id, "sha256": digest}
+        path = None
+        if plan_dir is not None:
+            path = plan_dir / f"{shard_id}.json"
+            encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+            if path.exists() and path.read_text(encoding="utf-8") != encoded:
+                raise FileExistsError(f"plan shard path collision: {path}")
+            if not path.exists():
+                _atomic_write_text(path, encoded, overwrite=False)
+        shards.append(PlanShard(
+            shard_id=shard_id,
+            index=index,
+            spec_names=tuple(spec.name for spec in members),
+            trial_count=base["trial_count"],
+            estimated_cost_usd=base["estimated_cost_usd"],
+            sha256=digest,
+            path=path,
+        ))
+
+    if manifest_path is not None and shards:
+        new_entries = [
+            {
+                "shard_id": item.shard_id,
+                "index": item.index,
+                "sha256": item.sha256,
+                "spec_count": len(item.spec_names),
+                "trial_count": item.trial_count,
+                "estimated_cost_usd": item.estimated_cost_usd,
+                "path": item.path.name if item.path else None,
+            }
+            for item in shards
+        ]
+        manifest = {
+            "schema_version": 1,
+            "grid_id": grid_id,
+            "shard_size": shard_size,
+            "spec_count": (
+                int(existing_manifest.get("spec_count", 0)) if existing_manifest else 0
+            ) + len(specs),
+            "trial_count": (
+                int(existing_manifest.get("trial_count", 0)) if existing_manifest else 0
+            ) + sum(item.trial_count for item in shards),
+            "shards": [*existing_entries, *new_entries],
+        }
+        _atomic_write_text(
+            manifest_path,
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            overwrite=True,
+        )
+    return shards
+
+
 
 
 def find_existing_grid_points(
@@ -318,11 +683,10 @@ def find_existing_grid_points(
     *,
     repo_root: Path | None = None,
     extra_dirs: Sequence[Path] = (),
-) -> set[tuple[str, str, str, int]]:
-    """Scan queue state directories and extra directories for existing points of a grid."""
+) -> set[str]:
+    """Return stable point identities already present in queue or output."""
     root = repo_root or Path.cwd()
-    points: set[tuple[str, str, str, int]] = set()
-
+    points: set[str] = set()
     search_dirs: list[Path] = []
     queue_root = root / "queue"
     if queue_root.is_dir():
@@ -330,7 +694,7 @@ def find_existing_grid_points(
             "proposed", "pending", "approved", "waiting",
             "rejected", "running", "done", "failed",
         )
-        search_dirs.extend(queue_root / s for s in states if (queue_root / s).is_dir())
+        search_dirs.extend(queue_root / state for state in states if (queue_root / state).is_dir())
     for extra in extra_dirs:
         if extra.is_dir() and extra not in search_dirs:
             search_dirs.append(extra)
@@ -341,31 +705,35 @@ def find_existing_grid_points(
                 data = json.loads(json_file.read_text(encoding="utf-8"))
             except Exception:
                 continue
-            if not isinstance(data, dict):
+            if not isinstance(data, dict) or data.get("grid_id") != grid_id:
                 continue
-            spec_grid_id = data.get("grid_id")
-            if spec_grid_id != grid_id:
-                continue
-
             grid_point = data.get("grid_point")
-            if isinstance(grid_point, dict):
-                t_ref = str(grid_point.get("task_ref") or data.get("task") or "")
-                ag = str(grid_point.get("agent") or data.get("agent") or "")
-                mod = grid_point.get("model") or data.get("model")
-                ag_key = f"{ag}-{mod}" if mod and ag not in CONTROL_ADAPTERS else ag
-                preamble = str(grid_point.get("preamble") or "none")
-                k = int(grid_point.get("k") or data.get("attempts") or 1)
-                points.add((t_ref, ag_key, preamble, k))
-                points.add((t_ref, ag, preamble, k))
-            else:
-                t_ref = str(data.get("task") or "")
-                ag = str(data.get("agent") or "")
-                mod = data.get("model")
-                ag_key = f"{ag}-{mod}" if mod and ag not in CONTROL_ADAPTERS else ag
-                k = int(data.get("attempts") or 1)
-                points.add((t_ref, ag_key, "none", k))
-                points.add((t_ref, ag, "none", k))
-
+            point = grid_point if isinstance(grid_point, dict) else {}
+            task_ref = str(point.get("task_ref") or data.get("task") or "")
+            agent = str(point.get("agent") or data.get("agent") or "")
+            model = point.get("model") or data.get("model")
+            agent_key = (
+                f"{agent}-{model}" if model and agent not in CONTROL_ADAPTERS else agent
+            )
+            preamble = str(point.get("preamble") or "none")
+            attempts = int(point.get("k") or data.get("attempts") or 1)
+            arm_id = str(point["arm_id"]) if point.get("arm_id") else None
+            factor_values = point.get("factors")
+            factors = factor_values if isinstance(factor_values, dict) else {}
+            raw_factor_bindings = point.get("factor_bindings")
+            factor_bindings = (
+                raw_factor_bindings if isinstance(raw_factor_bindings, dict) else {}
+            )
+            points.add(_point_id(
+                task_ref, agent_key, preamble, attempts,
+                arm_id=arm_id, factor_values=factors,
+                factor_bindings=factor_bindings,
+            ))
+            points.add(_point_id(
+                task_ref, agent, preamble, attempts,
+                arm_id=arm_id, factor_values=factors,
+                factor_bindings=factor_bindings,
+            ))
     return points
 
 
@@ -379,29 +747,39 @@ def _point_matches_constraint(
     agent_key: str,
     preamble: str,
     k: int,
+    arm_id: str,
+    factor_values: dict[str, Any],
     constraint: dict[str, Any],
 ) -> bool:
     """Check whether a grid point matches an exclusion constraint."""
-    for key, val in constraint.items():
+    for key, value in constraint.items():
         if key in {"task", "task_ref", "task_refs"}:
-            if not _matches_str(task_ref, val):
+            if not _matches_str(task_ref, value):
                 return False
         elif key in {"agent", "agents"}:
-            allowed = val if isinstance(val, (list, tuple, set)) else [str(val)]
+            allowed = value if isinstance(value, (list, tuple, set)) else [str(value)]
             if agent_spec.agent not in allowed and agent_key not in allowed:
                 return False
         elif key in {"model", "models"}:
-            if not _matches_str(agent_spec.model, val):
+            if not _matches_str(agent_spec.model, value):
                 return False
         elif key in {"preamble", "preambles"}:
-            if not _matches_str(preamble, val):
+            if not _matches_str(preamble, value):
                 return False
         elif key in {"k", "attempts"}:
-            allowed_k = [int(x) for x in val] if isinstance(val, (list, tuple, set)) else [int(val)]
-            if k not in allowed_k:
+            allowed = value if isinstance(value, (list, tuple, set)) else [value]
+            if k not in [int(item) for item in allowed]:
                 return False
-        elif str(val) != str(constraint.get(key)):
-            return False
+        elif key in {"arm", "arm_id", "arms"}:
+            if not _matches_str(arm_id, value):
+                return False
+        elif key.startswith("factor."):
+            factor_name = key.removeprefix("factor.")
+            allowed = value if isinstance(value, (list, tuple, set)) else [value]
+            if factor_values.get(factor_name) not in allowed:
+                return False
+        else:
+            raise ValueError(f"unknown grid constraint coordinate {key!r}")
     return True
 
 
@@ -451,59 +829,80 @@ def generate_grid(
     extra_dirs = [Path(output_dir)] if output_dir else []
     existing_points = find_existing_grid_points(grid_id, repo_root=root, extra_dirs=extra_dirs)
 
-    # 2. Build candidate points across axes
+    # 2. Build candidate points across tasks, treatments, factors, and attempts.
     assert grid_spec.axes is not None
-    tasks = [_normalize_task_item(t) for t in grid_spec.axes.task_refs]
-    agents = [_normalize_agent_item(a) for a in grid_spec.axes.agents]
-    preambles = list(grid_spec.axes.preamble)
+    tasks = [_normalize_task_item(item) for item in grid_spec.axes.task_refs]
     attempts = list(grid_spec.axes.k)
+    treatments: list[
+        tuple[str | None, AgentSpec, str, dict[str, Any]]
+    ] = []
+    if grid_spec.axes.arms:
+        treatments.extend(
+            (arm.arm_id, arm.agent, arm.preamble, dict(arm.factor_overrides))
+            for arm in grid_spec.axes.arms
+        )
+    else:
+        for agent in grid_spec.axes.agents:
+            agent_spec = _normalize_agent_item(agent)
+            for preamble in grid_spec.axes.preamble:
+                treatments.append((None, agent_spec, preamble, {}))
 
+    preamble_by_value = {
+        preamble: _preamble_provenance(root, preamble)
+        for _, _, preamble, _ in treatments
+    }
     candidates: list[CandidatePoint] = []
     deduped: list[DedupeRecord] = []
-
     for task_spec in tasks:
-        for agent_spec in agents:
+        for arm_id, agent_spec, preamble, overrides in treatments:
             agent_key = (
                 f"{agent_spec.agent}-{agent_spec.model}"
                 if agent_spec.model and agent_spec.agent not in CONTROL_ADAPTERS
                 else agent_spec.agent
             )
-            provider_key = agent_spec.agent
-
-            for preamble in preambles:
+            factor_bindings = _factor_bindings(grid_spec.axes.factors)
+            for factor_values in _factor_combinations(grid_spec.axes.factors, overrides):
+                bound_execution_values = _bound_execution_values(
+                    grid_spec.axes.factors, factor_values
+                )
                 for k in attempts:
-                    # Check constraints
-                    excluded_by_constraint = False
-                    for constraint in grid_spec.constraints:
-                        if _point_matches_constraint(
-                            task_spec.task, agent_spec, agent_key, preamble, k, constraint
-                        ):
-                            excluded_by_constraint = True
-                            break
-                    if excluded_by_constraint:
-                        continue
-
-                    # Check deduplication (resume)
-                    if (task_spec.task, agent_key, preamble, k) in existing_points or (
-                        task_spec.task, agent_spec.agent, preamble, k
-                    ) in existing_points:
-                        deduped.append(
-                            DedupeRecord(
-                                grid_id=grid_id,
-                                task=task_spec.task,
-                                agent=agent_key,
-                                preamble=preamble,
-                                attempts=k,
-                            )
-                        )
-                        continue
-
-                    candidates.append(
-                        CandidatePoint(
-                            task_spec=task_spec, agent_spec=agent_spec, agent_key=agent_key,
-                            provider_key=provider_key, preamble=preamble, k=k,
-                        )
+                    point_id = _point_id(
+                        task_spec.task, agent_key, preamble, k,
+                        arm_id=arm_id, factor_values=factor_values,
+                        factor_bindings=factor_bindings,
                     )
+                    if any(
+                        _point_matches_constraint(
+                            task_spec.task, agent_spec, agent_key, preamble, k,
+                            arm_id or agent_key, factor_values, constraint,
+                        )
+                        for constraint in grid_spec.constraints
+                    ):
+                        continue
+                    if point_id in existing_points:
+                        deduped.append(DedupeRecord(
+                            grid_id=grid_id,
+                            task=task_spec.task,
+                            agent=agent_key,
+                            preamble=preamble,
+                            attempts=k,
+                            arm_id=arm_id,
+                            factor_values=factor_values,
+                        ))
+                        continue
+                    candidates.append(CandidatePoint(
+                        task_spec=task_spec,
+                        agent_spec=agent_spec,
+                        agent_key=agent_key,
+                        provider_key=agent_spec.agent,
+                        preamble=preamble,
+                        arm_id=arm_id,
+                        factor_values=factor_values,
+                        factor_bindings=factor_bindings,
+                        bound_execution_values=bound_execution_values,
+                        point_id=point_id,
+                        k=k,
+                    ))
 
     # 3. Round-robin order candidate points across providers
     candidates_by_provider: dict[str, list[CandidatePoint]] = {}
@@ -520,18 +919,8 @@ def generate_grid(
                 ordered_candidates.append(queues[p].pop(0))
     # 4. Assert uniqueness of candidate point names across all unskipped points
     candidate_names = [
-        generate_spec_name(
-            grid_spec.name or grid_id,
-            sanitize_slug(c.task_spec.task),
-            sanitize_slug(
-                f"{c.agent_spec.agent}-{c.agent_spec.model}"
-                if c.agent_spec.model
-                else c.agent_spec.agent
-            ),
-            sanitize_slug(c.preamble),
-            c.k,
-        )
-        for c in ordered_candidates
+        _candidate_spec_name(grid_spec.name or grid_id, candidate)
+        for candidate in ordered_candidates
     ]
     if len(candidate_names) != len(set(candidate_names)):
         counts = Counter(candidate_names)
@@ -558,14 +947,7 @@ def generate_grid(
         preamble = cand.preamble
         k = cand.k
 
-        task_slug = sanitize_slug(task_spec.task)
-        agent_slug = sanitize_slug(
-            f"{agent_spec.agent}-{agent_spec.model}" if agent_spec.model else agent_spec.agent
-        )
-        preamble_slug = sanitize_slug(preamble)
-        spec_name = generate_spec_name(
-            grid_spec.name or grid_id, task_slug, agent_slug, preamble_slug, k
-        )
+        spec_name = _candidate_spec_name(grid_spec.name or grid_id, cand)
 
         if provider_key not in provider_stats:
             provider_stats[provider_key] = ProviderStats(provider=provider_key)
@@ -581,6 +963,8 @@ def generate_grid(
                     name=spec_name, task=task_spec.task, agent=agent_spec.agent,
                     preamble=preamble,
                     attempts=k,
+                    arm_id=cand.arm_id,
+                    factor_values=dict(cand.factor_values),
                     reason="provider reported quota exhausted in current window",
                 )
             )
@@ -598,6 +982,8 @@ def generate_grid(
                         agent=agent_spec.agent,
                         preamble=preamble,
                         attempts=k,
+                        arm_id=cand.arm_id,
+                        factor_values=dict(cand.factor_values),
                         reason=(
                             f"daily_budget_units limit ({grid_spec.daily_budget_units}) "
                             "would be exceeded"
@@ -614,6 +1000,8 @@ def generate_grid(
                     task=task_spec.task,
                     agent=agent_spec.agent, preamble=preamble,
                     attempts=k,
+                    arm_id=cand.arm_id,
+                    factor_values=dict(cand.factor_values),
                     reason=f"global max_specs limit ({grid_spec.limits.max_specs}) reached",
                 )
             )
@@ -628,6 +1016,8 @@ def generate_grid(
                     name=spec_name, task=task_spec.task,
                     agent=agent_spec.agent, preamble=preamble,
                     attempts=k,
+                    arm_id=cand.arm_id,
+                    factor_values=dict(cand.factor_values),
                     reason=(
                         f"global max_trials limit ({grid_spec.limits.max_trials}) "
                         "would be exceeded"
@@ -647,6 +1037,8 @@ def generate_grid(
                     agent=agent_spec.agent,
                     preamble=preamble,
                     attempts=k,
+                    arm_id=cand.arm_id,
+                    factor_values=dict(cand.factor_values),
                     reason=(
                         f"global max_cost_usd limit "
                         f"(${grid_spec.limits.max_cost_usd:.2f}) would be exceeded"
@@ -665,6 +1057,8 @@ def generate_grid(
                         agent=agent_spec.agent,
                         preamble=preamble,
                         attempts=k,
+                        arm_id=cand.arm_id,
+                        factor_values=dict(cand.factor_values),
                         reason=(
                             f"provider {provider_key} max_specs limit "
                             f"({p_lim.max_specs}) reached"
@@ -681,6 +1075,8 @@ def generate_grid(
                         agent=agent_spec.agent,
                         preamble=preamble,
                         attempts=k,
+                        arm_id=cand.arm_id,
+                        factor_values=dict(cand.factor_values),
                         reason=(
                             f"provider {provider_key} max_trials limit "
                             f"({p_lim.max_trials}) would be exceeded"
@@ -700,6 +1096,8 @@ def generate_grid(
                         agent=agent_spec.agent,
                         preamble=preamble,
                         attempts=k,
+                        arm_id=cand.arm_id,
+                        factor_values=dict(cand.factor_values),
                         reason=(
                             f"provider {provider_key} max_cost_usd limit "
                             f"(${p_lim.max_cost_usd:.2f}) would be exceeded"
@@ -709,22 +1107,28 @@ def generate_grid(
                 continue
 
         # Construct ExperimentSpec
-        hypothesis = _render_hypothesis(grid_spec, task_spec, agent_spec, preamble, k)
+        hypothesis = _render_hypothesis(
+            grid_spec, task_spec, agent_spec, preamble, k,
+            arm_id=cand.arm_id, factor_values=cand.factor_values,
+        )
         environment = agent_spec.environment or grid_spec.environment
-
+        preamble_path, preamble_sha256 = preamble_by_value[preamble]
+        bound = cand.bound_execution_values
         spec = ExperimentSpec(
             name=spec_name,
             hypothesis=hypothesis,
             purpose=grid_spec.purpose,
             task=task_spec.task,
             task_path=task_spec.task_path,
+            extra_instruction_path=preamble_path,
+            extra_instruction_sha256=preamble_sha256,
             agent=agent_spec.agent,
             model=agent_spec.model,
             environment=environment,
             jobs_dir=grid_spec.jobs_dir,
             attempts=k,
-            concurrency=grid_spec.concurrency,
-            timeout_seconds=grid_spec.timeout_seconds,
+            concurrency=bound.get("concurrency", grid_spec.concurrency),
+            timeout_seconds=bound.get("timeout_seconds", grid_spec.timeout_seconds),
             submitted_by=grid_spec.submitted_by,
             priority=grid_spec.priority,
             est_cost_usd=spec_cost,
@@ -733,12 +1137,25 @@ def generate_grid(
             expected_reward=task_spec.expected_reward,
             task_version=task_spec.task_version,
             verifier_digest=task_spec.verifier_digest,
+            task_family=task_spec.task_family,
+            task_id=task_spec.task_id,
+            task_instance_id=task_spec.instance_id,
+            generator_seed=task_spec.generator_seed,
             grid_id=grid_id,
             grid_point={
+                "point_id": cand.point_id,
                 "task_ref": task_spec.task,
+                "arm_id": cand.arm_id,
                 "agent": agent_spec.agent,
                 "model": agent_spec.model,
-                "preamble": preamble,
+                "preamble": preamble_path,
+                "preamble_sha256": preamble_sha256,
+                "factors": cand.factor_values,
+                "factor_bindings": cand.factor_bindings,
+                "factor_bindings_digest": (
+                    f"sha256:{hashlib.sha256(_canonical_json(cand.factor_bindings).encode()).hexdigest()}"
+                ),
+                "bindings": bound,
                 "k": k,
             },
         )
@@ -766,28 +1183,45 @@ def generate_grid(
             f"Duplicate names: {duplicates}"
         )
 
-    # Write or submit if requested and not in dry-run mode
-    if submit:
+    # Write or submit only outside dry-run mode.
+    plan_output: Path | None = None
+    if not dry_run and submit:
         executor = Executor.from_repo(root)
-        for s in specs:
-            path, _decision = executor.submit(s)
-            submitted_specs.append(s.name)
+        for spec in specs:
+            path, _decision = executor.submit(spec)
+            submitted_specs.append(spec.name)
             written_paths.append(path)
-    elif output_dir is not None:
+    elif not dry_run and output_dir is not None:
         out_path = Path(output_dir)
         out_path.mkdir(parents=True, exist_ok=True)
-        for s in specs:
-            file_path = out_path / f"{s.name}.json"
+        compile_plan_shards(
+            grid_id,
+            (),
+            shard_size=grid_spec.shard_size,
+            output_dir=out_path,
+        )
+        for spec in specs:
+            file_path = out_path / f"{spec.name}.json"
             if file_path.exists():
                 raise FileExistsError(
                     f"Spec file already exists and cannot be overwritten: {file_path}. "
                     "Existing points must be resumed (deduped) or removed, never overwritten."
                 )
-            file_path.write_text(s.model_dump_json(indent=2), encoding="utf-8")
+            _atomic_write_text(
+                file_path, spec.model_dump_json(indent=2), overwrite=False
+            )
             written_paths.append(file_path)
+        plan_output = out_path
+    shards = compile_plan_shards(
+        grid_id,
+        specs,
+        shard_size=grid_spec.shard_size,
+        output_dir=plan_output,
+    )
     return GridGenerationResult(
         grid_id=grid_id,
         specs=specs,
+        shards=shards,
         skipped=skipped,
         deduped=deduped,
         written_paths=written_paths,
@@ -846,6 +1280,47 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Print generation summary and details in JSON format.",
     )
 
+    # screen subcommand
+    screen_parser = subparsers.add_parser(
+        "screen",
+        help="Staged difficulty screening and follow-up generation.",
+    )
+    screen_subparsers = screen_parser.add_subparsers(
+        dest="screen_command", help="Screen subcommands"
+    )
+
+    # screen stage1
+    s1_parser = screen_subparsers.add_parser(
+        "stage1",
+        help="Emit Stage 1 screening specs (k=1) across tasks and model levels.",
+    )
+    s1_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file.")
+    s1_parser.add_argument("-o", "--output-dir", type=Path, default=None)
+    s1_parser.add_argument("--submit", action="store_true")
+    s1_parser.add_argument("--dry-run", action="store_true", default=False)
+    s1_parser.add_argument("--json", action="store_true")
+
+    # screen analyze
+    sa_parser = screen_subparsers.add_parser(
+        "analyze",
+        help="Analyze completed Stage 1 results and classify task separation.",
+    )
+    sa_parser.add_argument("screen_id_or_spec", help="Screen ID or path to ScreenSpec file.")
+    sa_parser.add_argument("--jobs-dir", type=Path, default=None)
+    sa_parser.add_argument("--json", action="store_true")
+
+    # screen stage2
+    s2_parser = screen_subparsers.add_parser(
+        "stage2",
+        help="Emit Stage 2 follow-up specs (k=3) for separating tasks only.",
+    )
+    s2_parser.add_argument("spec", type=Path, help="Path to ScreenSpec YAML/JSON file.")
+    s2_parser.add_argument("-o", "--output-dir", type=Path, default=None)
+    s2_parser.add_argument("--submit", action="store_true")
+    s2_parser.add_argument("--dry-run", action="store_true", default=False)
+    s2_parser.add_argument("--jobs-dir", type=Path, default=None)
+    s2_parser.add_argument("--json", action="store_true")
+
     return parser
 
 
@@ -854,13 +1329,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
+    if args.command == "screen":
+        if not getattr(args, "screen_command", None):
+            parser.parse_args(["screen", "--help"])
+            return 1
+        return _handle_screen_cli(args)
+
     if args.command != "generate":
         if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
             args = parser.parse_args(["generate", *sys.argv[1:]])
         else:
             parser.print_help()
             return 1
-
     try:
         grid_spec = load_grid_spec(args.grid_spec)
         if args.no_quota_check:
@@ -886,14 +1366,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "skipped": [
                     {
                         "name": sk.name, "task": sk.task, "agent": sk.agent,
-                        "preamble": sk.preamble, "attempts": sk.attempts, "reason": sk.reason,
+                        "preamble": sk.preamble, "attempts": sk.attempts,
+                        "reason": sk.reason, "arm_id": sk.arm_id,
+                        "factor_values": sk.factor_values,
                     }
                     for sk in result.skipped
                 ],
                 "deduped": [
                     {
                         "grid_id": d.grid_id, "task": d.task, "agent": d.agent,
-                        "preamble": d.preamble, "attempts": d.attempts, "reason": d.reason,
+                        "preamble": d.preamble, "attempts": d.attempts,
+                        "reason": d.reason, "arm_id": d.arm_id,
+                        "factor_values": d.factor_values,
                     }
                     for d in result.deduped
                 ],
@@ -908,6 +1392,123 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception as exc:
         print(f"Error generating grid: {exc}", file=sys.stderr)
         return 1
+
+
+def _handle_screen_cli(args: argparse.Namespace) -> int:
+    """Handle ladder screen subcommands."""
+    cmd = args.screen_command
+    if cmd == "stage1":
+        screen_spec = load_screen_spec(args.spec)
+        dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+        result = generate_stage1_screen(
+            screen_spec,
+            output_dir=args.output_dir,
+            submit=args.submit,
+            dry_run=dry_run,
+        )
+        if args.json:
+            out = {
+                "screen_id": result.grid_id,
+                "stage": 1,
+                "total_specs": result.total_specs,
+                "total_trials": result.total_trials,
+                "specs": [s.model_dump(mode="json") for s in result.specs],
+                "written_files": [str(p) for p in result.written_paths],
+            }
+            print(json.dumps(out, indent=2))
+        else:
+            print(f"LADDER Screen Stage 1 Generation: {result.grid_id}")
+            print(
+                f"Generated {result.total_specs} specs "
+                f"({result.total_trials} trials, k={screen_spec.initial_k})"
+            )
+            print(
+                f"Tasks: {len(screen_spec.tasks)} | "
+                f"Model levels: {len(screen_spec.model_levels)}"
+            )
+            if result.written_paths:
+                print(
+                    f"Written to: {result.written_paths[0].parent} "
+                    f"({len(result.written_paths)} files)"
+                )
+            elif dry_run:
+                print("Dry-run mode: no files written to disk.")
+            print("Human approval preserved (pending review before dispatch).")
+        return 0
+
+    elif cmd == "analyze":
+        target = args.screen_id_or_spec
+        target_path = Path(target)
+        screen_id = target
+        spec_obj = None
+        if target_path.is_file():
+            spec_obj = load_screen_spec(target_path)
+            screen_id = spec_obj.screen_id
+
+        report = analyze_screen_results(
+            screen_id,
+            spec=spec_obj,
+            jobs_dir=args.jobs_dir,
+        )
+        if args.json:
+            print(json.dumps(report.to_dict(), indent=2))
+        else:
+            print(report.summary())
+        return 0
+
+    elif cmd == "stage2":
+        screen_spec = load_screen_spec(args.spec)
+        report = analyze_screen_results(
+            screen_spec.screen_id,
+            spec=screen_spec,
+            jobs_dir=args.jobs_dir,
+        )
+        dry_run = args.dry_run or (not args.submit and args.output_dir is None)
+        result = generate_stage2_screen(
+            report,
+            screen_spec,
+            output_dir=args.output_dir,
+            submit=args.submit,
+            dry_run=dry_run,
+        )
+        if args.json:
+            out = {
+                "screen_id": result.grid_id,
+                "stage": 2,
+                "separating_tasks": report.separating_tasks,
+                "stopped_tasks": report.stopped_tasks,
+                "total_specs": result.total_specs,
+                "total_trials": result.total_trials,
+                "specs": [s.model_dump(mode="json") for s in result.specs],
+                "written_files": [str(p) for p in result.written_paths],
+            }
+            print(json.dumps(out, indent=2))
+        else:
+            print(f"LADDER Screen Stage 2 Follow-Up Generation: {result.grid_id}")
+            sep_str = ", ".join(report.separating_tasks) or "none"
+
+            stop_str = ", ".join(report.stopped_tasks) or "none"
+            print(
+                f"Separating tasks selected for follow-up "
+                f"({len(report.separating_tasks)}): {sep_str}"
+            )
+            print(f"Stopped tasks ({len(report.stopped_tasks)}): {stop_str}")
+            print(
+                f"Generated {result.total_specs} follow-up specs "
+                f"({result.total_trials} trials, k={screen_spec.followup_k})"
+            )
+            if result.written_paths:
+                print(
+                    f"Written to: {result.written_paths[0].parent} "
+                    f"({len(result.written_paths)} files)"
+                )
+            elif dry_run:
+                print("Dry-run mode: no files written to disk.")
+            print("Human approval preserved (no automatic paid dispatch).")
+        return 0
+
+    return 1
+
 
 
 if __name__ == "__main__":

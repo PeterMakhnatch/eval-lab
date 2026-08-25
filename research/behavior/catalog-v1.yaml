@@ -1,0 +1,139 @@
+catalog_version: behavior-catalog/v1
+behaviors:
+  tool_error:
+    definition: An observed tool action ended with an error outcome or a non-zero exit code.
+    required_observables:
+      - action outcome or exit code
+      - function name and arguments digest
+    positive_rule: Assert only when the action observation is error or its exit code is non-zero.
+    exclusions:
+      - missing or unknown observation
+      - a non-zero value inferred from a temporal action_effects link
+    counterexamples:
+      - an unknown outcome with no exit code
+      - a later successful action
+    output_fields:
+      - label
+      - start_step
+      - end_step
+      - evidence_step_ids
+      - evidence_span_ids
+      - rationale
+    known_confounds:
+      - exporters may omit an action outcome
+      - exit-code conventions vary by tool wrapper
+    detector_version: behavior-detectors/v1
+    calibration_status: calibrated
+  unchanged_retry:
+    definition: An error is followed by a repeated function and identical arguments without a changed strategy.
+    required_observables:
+      - prior observed error
+      - normalized function name
+      - arguments digest
+      - ordered action steps
+    positive_rule: Assert when the next retry repeats the errored function and arguments and is not a wait, poll, or verification.
+    exclusions:
+      - corrected arguments
+      - explicit waits or polls
+      - explicit verification actions
+      - missing prior error
+    counterexamples:
+      - a retry with a changed argument digest
+      - a repeated read used only as a verification
+    output_fields:
+      - label
+      - start_step
+      - end_step
+      - evidence_step_ids
+      - evidence_span_ids
+      - rationale
+    known_confounds:
+      - argument normalization can hide semantically meaningful formatting
+      - incomplete traces can hide an intervening strategy change
+    detector_version: behavior-detectors/v1
+    calibration_status: calibrated
+  recovered_progress:
+    definition: An error is followed by a changed strategy that succeeds and supplies relevant new evidence or state.
+    required_observables:
+      - prior observed error
+      - changed function or argument strategy
+      - observed success
+      - explicit relevant task evidence
+      - new evidence or state identifiers
+    positive_rule: Assert only for changed strategy plus success, explicit task relevance, and new evidence or state IDs after the error.
+    exclusions:
+      - unrelated successful reads
+      - a next non-error step without progress evidence
+      - unchanged function and arguments
+      - missing or unknown relevance
+    counterexamples:
+      - successful metadata lookup unrelated to the task
+      - a successful retry with unchanged arguments
+    output_fields:
+      - label
+      - start_step
+      - end_step
+      - evidence_step_ids
+      - evidence_span_ids
+      - rationale
+    known_confounds:
+      - task relevance is often absent from raw traces
+      - evidence identifiers may be emitted by a later projection
+    detector_version: behavior-detectors/v1
+    calibration_status: calibrated
+  verification_gap:
+    definition: A final explicit mutation has no later successful explicit verification carrying observation or evidence.
+    required_observables:
+      - explicit mutation action
+      - ordered later actions
+      - explicit verification intent
+      - verification success and observation or evidence
+    positive_rule: Assert when the final explicit mutation lacks a later successful explicit verification with observation or evidence.
+    exclusions:
+      - no observable mutation
+      - a later successful explicit verification with observation or evidence
+      - arbitrary reads that are not explicit verification
+    counterexamples:
+      - a mutation followed by an explicit successful check
+      - a trace whose final mutation or verification observability is missing
+    output_fields:
+      - label
+      - start_step
+      - end_step
+      - evidence_step_ids
+      - evidence_span_ids
+      - rationale
+    known_confounds:
+      - verification can occur outside the captured trajectory
+      - tools may not expose intent or observations
+    detector_version: behavior-detectors/v1
+    calibration_status: calibrated
+experimental_candidates:
+  effect_loop_candidate:
+    definition: Repeated same-function and same-argument actions have equivalent observations and no new state evidence.
+    required_observables:
+      - repeated function name
+      - repeated arguments digest
+      - equivalent non-null observations
+      - state evidence identifiers
+    positive_rule: Emit only as an experimental candidate when repeated actions have equivalent observations and no new state evidence.
+    exclusions:
+      - waits or polls
+      - verification actions
+      - corrected arguments
+      - changing or missing observations
+    counterexamples:
+      - polling with explicit poll intent
+      - a repeated action whose observation changes
+    output_fields:
+      - label
+      - start_step
+      - end_step
+      - evidence_step_ids
+      - evidence_span_ids
+      - rationale
+    known_confounds:
+      - equivalent observations may be lossy digests
+      - state evidence may be unavailable in an exporter
+    detector_version: effect-loop-candidate/v1
+    calibration_status: experimental

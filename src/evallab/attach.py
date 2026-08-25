@@ -47,11 +47,22 @@ TABLES = (
     "tool_calls",
     "tool_usage",
     "observations",
+    "state_changes",
+    "state_events",
+    "trajectory_events",
+    "agent_actions",
+    "llm_calls",
+    "trajectory_phases",
+    "action_effects",
     "jobs",
+    "traj_features",
+    "behavior_labels",
+    "behavior_episodes",
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"
 Z3_COLD = "compact/{table}/dt=*/part*.parquet"
+Z3_STANDALONE_DIR = "{table}/*.parquet"
 
 
 def _postgres_dsn() -> str:
@@ -84,28 +95,29 @@ def _attach_z2(conn: duckdb.DuckDBPyConnection, dsn: str) -> ZoneStatus:
 def _z3_globs(root: Path) -> list[str]:
     hot = str(root / Z3_HOT)
     cold = str(root / Z3_COLD)
-    return [hot, cold]
+    standalone_dir = str(root / Z3_STANDALONE_DIR)
+    return [hot, cold, standalone_dir]
 
 
 def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     if not root.exists():
-        return ZoneStatus(
-            "z3", False, reason="derived root does not exist", detail=str(root)
-        )
-    has_hot = False
-    if root.exists():
-        has_hot = any(
-            (root / d).exists() for d in root.iterdir() if d.name.startswith("job_id=")
-        )
-    has_cold = (root / "compact").exists()
+        return ZoneStatus("z3", False, reason="derived root does not exist", detail=str(root))
     globs = _z3_globs(root)
     created = 0
     missing = []
     for table in TABLES:
         view_globs: list[str] = []
         for g in globs:
-            if ("job_id=" in g and has_hot) or ("compact" in g and has_cold):
-                view_globs.append(g.format(table=table))
+            if "job_id=" in g:
+                if any(root.glob(f"job_id=*/trial_id=*/{table}.parquet")):
+                    view_globs.append(g.format(table=table))
+            elif "compact" in g:
+                if any(root.glob(f"compact/{table}/dt=*/part*.parquet")):
+                    view_globs.append(g.format(table=table))
+            else:
+                cand_path = root / table
+                if cand_path.is_dir() and any(cand_path.glob("*.parquet")):
+                    view_globs.append(g.format(table=table))
         if not view_globs:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
@@ -143,17 +155,13 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
 def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     docs_dir = root / "docs"
     if not docs_dir.exists():
-        return ZoneStatus(
-            "z4", False, reason="docs directory does not exist", detail=str(docs_dir)
-        )
+        return ZoneStatus("z4", False, reason="docs directory does not exist", detail=str(docs_dir))
     try:
         conn.execute(
             "CREATE OR REPLACE TABLE z4.front_matter "
             "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT)"
         )
-        conn.execute(
-            "CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter"
-        )
+        conn.execute("CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter")
         for md in docs_dir.rglob("*.md"):
             try:
                 meta = parse_doc(md, root=root)
@@ -163,9 +171,7 @@ def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
                 if "generated_by:" in raw:
                     for line in raw.splitlines():
                         if "generated_by:" in line:
-                            generated_by = (
-                                line.split(":", 1)[1].strip().strip('"').strip("'")
-                            )
+                            generated_by = line.split(":", 1)[1].strip().strip('"').strip("'")
                             break
                 conn.execute(
                     "INSERT INTO z4.front_matter VALUES (?, ?, ?, ?, ?)",
@@ -175,9 +181,7 @@ def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
                 continue
         return ZoneStatus("z4", True, detail=str(docs_dir))
     except Exception as exc:
-        return ZoneStatus(
-            "z4", False, reason=f"{type(exc).__name__}: {exc}", detail=str(docs_dir)
-        )
+        return ZoneStatus("z4", False, reason=f"{type(exc).__name__}: {exc}", detail=str(docs_dir))
 
 
 def attach(
@@ -194,7 +198,9 @@ def attach(
     """
     root = repo_root or Path.cwd()
     dsn = _postgres_dsn()
-    derived = derived_root_from_environment(root, explicit=explicit_derived, environ=environ)  # explicit_derived for CLI flag  # noqa: E501
+    derived = derived_root_from_environment(
+        root, explicit=explicit_derived, environ=environ
+    )  # explicit_derived for CLI flag  # noqa: E501
 
     conn = duckdb.connect(":memory:")
     conn.execute("CREATE SCHEMA IF NOT EXISTS z3")
@@ -232,9 +238,7 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
         "CREATE OR REPLACE TABLE z4.front_matter "
         "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT);"
     )
-    lines.append(
-        "CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter;"
-    )
+    lines.append("CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter;")
     return "\n".join(lines)
 
 

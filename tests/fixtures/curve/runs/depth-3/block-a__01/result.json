@@ -1,0 +1,29 @@
+{
+  "agent_info": {
+    "model_info": {
+      "name": "deterministic-fixture"
+    },
+    "name": "fixture-agent",
+    "version": "1.0.0"
+  },
+  "agent_result": {
+    "cost_usd": 0.0,
+    "n_input_tokens": 0,
+    "n_output_tokens": 0
+  },
+  "config": {
+    "extra_instruction_paths": []
+  },
+  "exception_info": null,
+  "finished_at": "2026-08-23T00:00:01Z",
+  "id": "m047-3-001",
+  "started_at": "2026-08-23T00:00:00Z",
+  "task_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "task_name": "block-a",
+  "trial_name": "block-a__01",
+  "verifier_result": {
+    "rewards": {
+      "reward": 0.0
+    }
+  }
+}

@@ -27,11 +27,18 @@ CONSEQUENTIAL_FIELDS = (
     "model_name",
     "model_settings_digest",
     "preamble_hash",
+    "preamble_content_sha256",
     "toolset_digest",
+    "factor_values_digest",
+    "factor_bindings_digest",
+    "bound_execution_values_digest",
 )
 
 BOOTSTRAP_RESAMPLES = 4_000
 NOT_COMPARABLE = "not distinguishable / not comparable"
+TIMEOUT_BUDGET_EXCEPTION_CLASSES = frozenset(
+    {"AgentTimeoutError", "TimeoutError", "TrialTimeoutFailure"}
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +53,23 @@ class CohortMember:
     task_digest: str | None
     verifier_digest: str
     environment_digest: str
+    grid_id: str | None
+    point_id: str | None
+    arm_id: str | None
+    factor_values_json: str | None
+    factor_values_digest: str | None
+    factor_bindings_json: str | None
+    factor_bindings_digest: str | None
+    bound_execution_values_json: str | None
+    bound_execution_values_digest: str | None
+    preamble_path: str | None
+    preamble_content_sha256: str | None
+    task_family: str | None
+    task_id: str | None
+    task_instance_id: str | None
+    generator_seed_json: str | None
+    task_block_inputs_json: str | None
+    task_block_id: str | None
     agent_name: str | None
     agent_version: str | None
     model_name: str | None
@@ -53,6 +77,8 @@ class CohortMember:
     preamble_hash: str | None
     toolset: dict[str, Any] | None
     toolset_digest: str | None
+    harness_policy_digest: str
+    simulator_digest: str
     reward: float | None
     exception_class: str | None
     duration_seconds: float | None
@@ -266,6 +292,23 @@ def _member(
         task_digest=fact.task_digest,
         verifier_digest=fact.verifier_digest,
         environment_digest=fact.environment_digest,
+        grid_id=fact.grid_id,
+        point_id=fact.point_id,
+        arm_id=fact.arm_id,
+        factor_values_json=fact.factor_values_json,
+        factor_values_digest=fact.factor_values_digest,
+        factor_bindings_json=fact.factor_bindings_json,
+        factor_bindings_digest=fact.factor_bindings_digest,
+        bound_execution_values_json=fact.bound_execution_values_json,
+        bound_execution_values_digest=fact.bound_execution_values_digest,
+        preamble_path=fact.preamble_path,
+        preamble_content_sha256=fact.preamble_content_sha256,
+        task_family=fact.task_family,
+        task_id=fact.task_id,
+        task_instance_id=fact.task_instance_id,
+        generator_seed_json=fact.generator_seed_json,
+        task_block_inputs_json=fact.task_block_inputs_json,
+        task_block_id=fact.task_block_id,
         agent_name=agent_name,
         agent_version=agent_version,
         model_name=model_name,
@@ -273,6 +316,14 @@ def _member(
         preamble_hash=_configured_preamble_hash(root, trial),
         toolset=toolset,
         toolset_digest=toolset_digest,
+        harness_policy_digest=digest_json(
+            {
+                "harbor": job.lock.get("harbor") or {},
+                "harness": trial.lock.get("harness") or {},
+                "policy": trial.lock.get("policy") or {},
+            }
+        ),
+        simulator_digest=digest_json(trial.lock.get("simulator") or {}),
         reward=trial.rewards.get(reward_name),
         exception_class=fact.exception_class,
         duration_seconds=fact.duration_seconds,
@@ -325,11 +376,38 @@ def _validate_comparability(
         "environment_digest",
         "preamble_hash",
         "toolset_digest",
+        "factor_values_digest",
+        "bound_execution_values_digest",
+        "factor_bindings_digest",
+        "preamble_content_sha256",
     }
     differing_fields = [
         field for field in treatment_fields if len(observed[field]) > 1
     ]
     warnings: list[str] = []
+    if spec.declared_variable in {
+        "factor_values_digest",
+        "bound_execution_values_digest",
+    }:
+        required = (
+            "factor_values_digest",
+            "factor_bindings_digest",
+            "bound_execution_values_digest",
+        )
+        for field in required:
+            if any(member.condition(field) is None for member in members):
+                warnings.append(
+                    f"controlled factor provenance is missing {field!r}"
+                )
+    if (
+        spec.declared_variable in {"preamble_hash", "preamble_content_sha256"}
+        and any(
+            member.preamble_path is not None
+            and member.preamble_content_sha256 is None
+            for member in members
+        )
+    ):
+        warnings.append("controlled preamble provenance is missing content sha256")
     for field, expected in spec.constraints.items():
         actual = set(observed[field])
         if actual != {expected}:
@@ -344,6 +422,14 @@ def _validate_comparability(
         )
     elif spec.declared_variable == "model_name":
         allowed_differences.add("model_settings_digest")
+    elif spec.declared_variable == "factor_values_digest":
+        allowed_differences.add("bound_execution_values_digest")
+    elif spec.declared_variable == "bound_execution_values_digest":
+        allowed_differences.add("factor_values_digest")
+    elif spec.declared_variable == "preamble_hash":
+        allowed_differences.add("preamble_content_sha256")
+    elif spec.declared_variable == "preamble_content_sha256":
+        allowed_differences.add("preamble_hash")
     undeclared = [field for field in differing_fields if field not in allowed_differences]
     if spec.declared_variable not in differing_fields:
         warnings.append(f"declared variable {spec.declared_variable!r} does not differ")
@@ -558,17 +644,33 @@ def power_requirements(
     return rows
 
 
+def _budget_exhaustion(member: CohortMember) -> bool:
+    return member.exception_class in TIMEOUT_BUDGET_EXCEPTION_CLASSES
+
+
+def _effective_reward(
+    member: CohortMember, *, budget_exhaustion_is_failure: bool
+) -> float | None:
+    if member.exception_class is not None:
+        if budget_exhaustion_is_failure and _budget_exhaustion(member):
+            return 0.0
+        return None
+    return float(member.reward) if member.reward is not None else None
+
+
 def _task_evidence(
     members: list[CohortMember],
     *,
     pairing_key: str,
     k: int,
     threshold: float,
+    budget_exhaustion_is_failure: bool = False,
 ) -> tuple[dict[str, dict[str, Any]], list[str], int]:
     groups: dict[str, list[CohortMember]] = defaultdict(list)
     missing_pairing_key = 0
     for member in members:
-        if member.exception_class is not None or member.reward is None:
+        is_budget_failure = budget_exhaustion_is_failure and _budget_exhaustion(member)
+        if (member.exception_class is not None or member.reward is None) and not is_budget_failure:
             continue
         key = _pairing_value(member, pairing_key)
         if key is None:
@@ -584,30 +686,45 @@ def _task_evidence(
             insufficient.append(key)
             continue
         selected = attempts[:k]
-        rewards = [float(item.reward) for item in selected if item.reward is not None]
+        rewards = [
+            reward
+            for item in selected
+            if (
+                reward := _effective_reward(
+                    item,
+                    budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+                )
+            )
+            is not None
+        ]
+        passed = [reward >= threshold for reward in rewards]
         evidence[key] = {
-            "success": float(any(reward >= threshold for reward in rewards)),
+            "success": float(any(passed)),
+            "all_success": float(all(passed)),
             "mean_reward": statistics.fmean(rewards),
             "members": selected,
         }
     return evidence, insufficient, missing_pairing_key
 
 
-def _pass_at_k(
+def _pass_metric(
     members: list[CohortMember],
     *,
     pairing_key: str,
     k: int,
     threshold: float,
     seed: int,
+    metric: str,
+    budget_exhaustion_is_failure: bool,
 ) -> dict[str, Any]:
     evidence, insufficient, missing_pairing_key = _task_evidence(
         members,
         pairing_key=pairing_key,
         k=k,
         threshold=threshold,
+        budget_exhaustion_is_failure=budget_exhaustion_is_failure,
     )
-    outcomes = [float(evidence[key]["success"]) for key in sorted(evidence)]
+    outcomes = [float(evidence[key][metric]) for key in sorted(evidence)]
     successes = int(sum(outcomes))
     interval = bootstrap_mean_interval(outcomes, seed=seed)
     return {
@@ -628,6 +745,48 @@ def _pass_at_k(
     }
 
 
+def _pass_at_k(
+    members: list[CohortMember],
+    *,
+    pairing_key: str,
+    k: int,
+    threshold: float,
+    seed: int,
+    budget_exhaustion_is_failure: bool = False,
+) -> dict[str, Any]:
+    return _pass_metric(
+        members,
+        pairing_key=pairing_key,
+        k=k,
+        threshold=threshold,
+        seed=seed,
+        metric="success",
+        budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+    )
+
+
+def _pass_power_k(
+    members: list[CohortMember],
+    *,
+    pairing_key: str,
+    k: int,
+    threshold: float,
+    seed: int,
+    budget_exhaustion_is_failure: bool = False,
+) -> dict[str, Any]:
+    return _pass_metric(
+        members,
+        pairing_key=pairing_key,
+        k=k,
+        threshold=threshold,
+        seed=seed,
+        metric="all_success",
+        budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+    )
+
+
+
+
 def _summarize_cohort(
     label: str,
     members: list[CohortMember],
@@ -635,7 +794,12 @@ def _summarize_cohort(
 ) -> dict[str, Any]:
     cohort = [member for member in members if member.cohort == label]
     exceptions = Counter(
-        member.exception_class for member in cohort if member.exception_class is not None
+        member.exception_class
+        for member in cohort
+        if member.exception_class is not None
+        and not (
+            spec.budget_exhaustion_is_failure and _budget_exhaustion(member)
+        )
     )
     missing_rewards = [
         member.trial_id
@@ -645,7 +809,11 @@ def _summarize_cohort(
     capability = [
         member
         for member in cohort
-        if member.exception_class is None and member.reward is not None
+        if _effective_reward(
+            member,
+            budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+        )
+        is not None
     ]
     return {
         "label": label,
@@ -656,9 +824,26 @@ def _summarize_cohort(
         "missing_reward_count": len(missing_rewards),
         "missing_reward_trials": sorted(missing_rewards),
         "trial_pass_count": sum(
-            _scored_reward(member) >= spec.pass_threshold for member in capability
+            (_effective_reward(
+                member,
+                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+            ) or 0.0)
+            >= spec.pass_threshold
+            for member in capability
         ),
-        "reward": _numeric_summary([_scored_reward(member) for member in capability]),
+        "reward": _numeric_summary(
+            [
+                float(reward)
+                for member in capability
+                if (
+                    reward := _effective_reward(
+                        member,
+                        budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+                    )
+                )
+                is not None
+            ]
+        ),
         "duration_seconds": _numeric_summary(
             [
                 float(member.duration_seconds)
@@ -688,7 +873,19 @@ def _summarize_cohort(
                 pairing_key=spec.pairing_key,
                 k=k,
                 threshold=spec.pass_threshold,
-                seed=_bootstrap_seed(spec.comparison_id, label, k),
+                seed=_bootstrap_seed(spec.comparison_id, label, "pass-at", k),
+                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+            )
+            for k in spec.pass_k
+        ],
+        "pass_power_k": [
+            _pass_power_k(
+                cohort,
+                pairing_key=spec.pairing_key,
+                k=k,
+                threshold=spec.pass_threshold,
+                seed=_bootstrap_seed(spec.comparison_id, label, "pass-power", k),
+                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
             )
             for k in spec.pass_k
         ],
@@ -755,17 +952,24 @@ def _paired_results(
                 pairing_key=spec.pairing_key,
                 k=k,
                 threshold=spec.pass_threshold,
+                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
             )
             comparison_tasks, comparison_insufficient, comparison_missing = _task_evidence(
                 comparison_members,
                 pairing_key=spec.pairing_key,
                 k=k,
                 threshold=spec.pass_threshold,
+                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
             )
             paired_keys = sorted(set(baseline_tasks) & set(comparison_tasks))
             pass_deltas = [
                 float(comparison_tasks[key]["success"])
                 - float(baseline_tasks[key]["success"])
+                for key in paired_keys
+            ]
+            pass_power_deltas = [
+                float(comparison_tasks[key]["all_success"])
+                - float(baseline_tasks[key]["all_success"])
                 for key in paired_keys
             ]
             reward_deltas = [
@@ -776,6 +980,12 @@ def _paired_results(
             interval = bootstrap_mean_interval(
                 pass_deltas,
                 seed=_bootstrap_seed(spec.comparison_id, baseline, selector.label, k),
+            )
+            pass_power_interval = bootstrap_mean_interval(
+                pass_power_deltas,
+                seed=_bootstrap_seed(
+                    spec.comparison_id, baseline, selector.label, "pass-power", k
+                ),
             )
             selected_baseline = [
                 member for key in paired_keys for member in baseline_tasks[key]["members"]
@@ -791,7 +1001,7 @@ def _paired_results(
             )
             unpaired = sorted(set(baseline_tasks) ^ set(comparison_tasks))
             reasons: list[str] = []
-            if spec.pairing_key not in {"task_digest", "task_name"}:
+            if spec.pairing_key not in {"task_block_id", "task_digest", "task_name"}:
                 reasons.append(f"pairing key {spec.pairing_key!r} is not a task identity")
             if warnings:
                 reasons.extend(warnings)
@@ -844,6 +1054,19 @@ def _paired_results(
                         statistics.fmean(pass_deltas) if pass_deltas else None
                     ),
                     "bootstrap_95": list(interval) if interval is not None else None,
+                    "mean_pass_power_k_delta": (
+                        statistics.fmean(pass_power_deltas)
+                        if pass_power_deltas
+                        else None
+                    ),
+                    "pass_power_k_bootstrap_95": (
+                        list(pass_power_interval)
+                        if pass_power_interval is not None
+                        else None
+                    ),
+                    "pass_power_k_wins": sum(value > 0 for value in pass_power_deltas),
+                    "pass_power_k_ties": sum(value == 0 for value in pass_power_deltas),
+                    "pass_power_k_losses": sum(value < 0 for value in pass_power_deltas),
                     "mean_reward_delta": (
                         statistics.fmean(reward_deltas) if reward_deltas else None
                     ),
@@ -863,6 +1086,7 @@ def _paired_results(
                         {
                             "key": key,
                             "pass_at_k_delta": pass_deltas[index],
+                            "pass_power_k_delta": pass_power_deltas[index],
                             "reward_delta": reward_deltas[index],
                         }
                         for index, key in enumerate(paired_keys)
@@ -884,6 +1108,7 @@ def compare(spec: CohortComparisonSpec, *, repo_root: Path) -> dict[str, Any]:
         "declared_variable": spec.declared_variable,
         "reward_name": spec.reward_name,
         "pass_threshold": spec.pass_threshold,
+        "budget_exhaustion_is_failure": spec.budget_exhaustion_is_failure,
         "pairing_key": spec.pairing_key,
         "validity_warnings": warnings,
         "cohorts": [

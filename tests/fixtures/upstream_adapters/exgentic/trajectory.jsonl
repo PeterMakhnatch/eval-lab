@@ -1,0 +1,3 @@
+{"event":"observation","step":0,"initial":true,"session_id":"constructed-exgentic-session","task_id":"constructed-task","observation":{"content":"constructed initial state"},"fixture_note":"constructed; no upstream bytes"}
+{"event":"action","step":1,"initial":false,"session_id":"constructed-exgentic-session","task_id":"constructed-task","observation":null,"action":{"name":"constructed_tool","arguments":{"value":null}}}
+{"event":"observation","step":1,"initial":false,"session_id":"constructed-exgentic-session","task_id":"constructed-task","observation":{"content":"constructed result"}}

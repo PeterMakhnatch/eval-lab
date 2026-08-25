@@ -1,6 +1,6 @@
 {
-  "total_packages": 512,
-  "runnable_packages": 492,
+  "total_packages": 520,
+  "runnable_packages": 500,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -4630,6 +4630,86 @@
     {
       "task_id": "python-99",
       "path": "library/benchmarks/humanevalfix/humanevalfix/python-99",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "tau3-banking_knowledge-task-001",
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-001",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "tau3-banking_knowledge-task-002",
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-002",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "tau3-banking_knowledge-task-003",
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-003",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "tau3-banking_knowledge-task-006",
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-006",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "tau3-banking_knowledge-task-007",
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-007",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "tau3-banking_knowledge-task-010",
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-010",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "tau3-banking_knowledge-task-020",
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-020",
+      "category": "benchmark_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "tau3-banking_knowledge-task-021",
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-021",
       "category": "benchmark_task",
       "has_task_toml": true,
       "has_environment": true,

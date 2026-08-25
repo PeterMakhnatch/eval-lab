@@ -231,7 +231,7 @@ def test_luna_child_env_passed_to_run_when_credentials_ok(
         calls.append({"command": command, "task_path": str(task_path), "env": env})
 
     run_controls._run = recording_run  # type: ignore[attr-defined]
-
+    run_controls._validate_pin = lambda *a, **k: Path(TAU2_BENCH_ROOT)  # type: ignore[attr-defined]
     # Inject a fake key and bypass the real auth.json probe.
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-key")
     monkeypatch.setenv("TAU2_BENCH_ROOT", str(TAU2_BENCH_ROOT))

@@ -132,21 +132,20 @@ def preflight_tau_phase(
     prefix = "Harness credential block (not a model or verifier failure): "
 
     simulated = credentials.get("simulated_user") or {}
-    if phase in simulated.get("required_by_phases", []):
-        if not _simulated_user_key_present(env):
-            return TauCredentialDecision(
-                phase=phase,
-                proceed=False,
-                reason_code="blocked:missing_openai_api_key_for_simulated_user",
-                detail=(
-                    prefix
-                    + "The simulated-user runtime (tau3-runtime) requires a host "
-                    "OPENAI_API_KEY. Codex OAuth via ~/.codex/auth.json cannot be "
-                    "converted into the simulated-user OPENAI_API_KEY."
-                ),
-                consumers=consumers,
-                created_trial=False,
-            )
+    if phase in simulated.get("required_by_phases", []) and not _simulated_user_key_present(env):
+        return TauCredentialDecision(
+            phase=phase,
+            proceed=False,
+            reason_code="blocked:missing_openai_api_key_for_simulated_user",
+            detail=(
+                prefix
+                + "The simulated-user runtime (tau3-runtime) requires a host "
+                "OPENAI_API_KEY. Codex OAuth via ~/.codex/auth.json cannot be "
+                "converted into the simulated-user OPENAI_API_KEY."
+            ),
+            consumers=consumers,
+            created_trial=False,
+        )
 
     pinned = credentials.get("pinned_codex") or {}
     if phase in pinned.get("required_by_phases", []) and _is_pinned_codex(agent):

@@ -179,8 +179,6 @@ def main() -> int:
     config_path = args.config.resolve()
     config = _load(config_path)
     _, manifest = _manifest(config_path, config)
-    _validate_pin(config_path, config, manifest)
-    generated = _validate_generated(config_path, config, manifest)
     status_path = _status_path(config_path, config)
     status = _load_status(status_path)
     step = next(item for item in config["sequence"] if item["id"] == args.phase)
@@ -191,6 +189,7 @@ def main() -> int:
             missing = sorted(required - {name for name, value in task_state.items() if value == "passed"})
             if missing:
                 raise RuntimeError(f"Luna gate closed for {row['task_id']}; missing controls: {', '.join(missing)}")
+    generated = _validate_generated(config_path, config, manifest)
     tasks = [generated / f"tau3-banking_knowledge-{row['task_id'].replace('_', '-')}" for row in manifest["tasks"]]
 
     home = Path.home()
@@ -214,6 +213,7 @@ def main() -> int:
         print(_render_plan(args.phase, tasks, decision, execute=False))
         return 0
 
+    _validate_pin(config_path, config, manifest)
     repo_root = Path(__file__).resolve().parents[2]
     child_env = preflight.build_child_env(
         args.phase,

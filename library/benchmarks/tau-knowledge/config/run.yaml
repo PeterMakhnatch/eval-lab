@@ -1,0 +1,22 @@
+schema_version: tau-knowledge-lean-run/v1
+benchmark: tau-Knowledge
+cohort_manifest: ../cohort.manifest.json
+materializer: ../../../scripts/tau_knowledge/materialize.py
+source_root_env: TAU2_BENCH_ROOT
+adapter_root_env: TAU3_BENCH_ADAPTER_ROOT
+output_root: derived/harbor-tasks/tau
+canary_task_id: task_001
+limits:
+  timeout_seconds: 900
+  max_steps: 80
+credentials:
+  simulated_user:
+    required_env: [OPENAI_API_KEY]
+    phases: [reference, luna]
+  pinned_codex:
+    required_file: ~/.codex/auth.json
+    phases: [luna]
+controls:
+  oracle: [uv, run, harbor, trial, start, -p, "{task_path}", -a, oracle]
+  nop: [uv, run, harbor, trial, start, -p, "{task_path}", -a, nop]
+  mutant: [uv, run, harbor, trial, start, -p, "{task_path}", -a, nop]

@@ -1,6 +1,6 @@
 {
   "cert_version": "cert/v1",
-  "spec_id": "sha256:f7492c3fce119c6c73f7f7d730294e81440ffe1e9577d26274706c16a29fe8b5",
+  "spec_id": "sha256:7903b44eac0481cef052f83498e6d94e100ec9046d86363436984b5ee634692d",
   "status": "experimental",
   "static_reachability": true,
   "clean_reset_passed": true,
@@ -14,6 +14,6 @@
   "evidence_paths": [
     "output/result.json"
   ],
-  "certified_at": "2026-08-25T05:15:34.326515+00:00",
-  "notes": "Certified Function-DAG task (medium)"
+  "certified_at": "2026-08-25T16:53:04.221082+00:00",
+  "notes": "Certified Function-DAG task (medium). Harbor environment network_mode is public because darwin-docker-cannot-enforce-no-network; this certificate does not claim network isolation."
 }

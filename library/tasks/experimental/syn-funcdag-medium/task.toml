@@ -5,7 +5,7 @@ schema_version = "1.4"
 artifacts = ["/app/output/result.json"]
 
 [task]
-name = "syn-funcdag-medium"
+name = "evallab/syn-funcdag-medium"
 version = "1.0.0"
 description = "Evaluate deterministic function dependency graph target node n_4_0"
 keywords = ["synthetic", "funcdag", "deterministic", "dag", "reasoning", "medium"]
@@ -25,6 +25,9 @@ width = 3
 connected_distractors = 2
 disconnected_distractors = 0
 target_node_id = "n_4_0"
+network_mode = "public"
+network_isolation_enforced = false
+network_isolation_reason = "darwin-docker-cannot-enforce-no-network"
 
 [agent]
 timeout_sec = 60.0
@@ -34,7 +37,9 @@ timeout_sec = 60.0
 environment_mode = "separate"
 
 [environment]
-network_mode = "no-network"
+# Docker Desktop on macOS cannot enforce Harbor's no-network policy. This local
+# control has no network dependency, but uses the supported public baseline.
+network_mode = "public"
 build_timeout_sec = 120.0
 cpus = 1
 memory_mb = 512

@@ -1,6 +1,6 @@
 {
   "spec_version": "synthetic/v1",
-  "spec_id": "sha256:2543f7d556bb6c572d55b2e854e875e4f18832870a936a5adc8aaa890f204886",
+  "spec_id": "sha256:cf9860638142c6eb6ee8e7776c6c6972f9b15b374094f1a82c66e54454bd63c1",
   "construct_name": "function_dag_dependency_resolution",
   "family": "function_dag",
   "perturbation_type": "dependency_graph_easy",
@@ -29,6 +29,9 @@
     "total_nodes": 4,
     "target_node_id": "n_2_0",
     "difficulty": "easy",
-    "seed": 42
+    "seed": 42,
+    "network_mode": "public",
+    "network_isolation_enforced": false,
+    "network_isolation_reason": "darwin-docker-cannot-enforce-no-network"
   }
 }

@@ -15,6 +15,7 @@ from library.adapters.agentabstain.adapter import load_variants, primary_verdict
 from library.adapters.agentabstain.controls import evaluate  # noqa: E402
 from library.adapters.agentabstain.materialize import materialize  # noqa: E402
 from scripts.agentabstain.assert_reward import _job_reward  # noqa: E402
+
 materializer_module = importlib.import_module("library.adapters.agentabstain.materialize")
 
 SEED = json.loads((ROOT / "library/adapters/agentabstain/source/canary_state.json").read_text())

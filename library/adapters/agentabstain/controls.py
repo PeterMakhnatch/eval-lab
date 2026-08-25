@@ -47,7 +47,10 @@ def _runtime_trace(seed: dict[str, Any], *, act: bool, wrong_body: bool = False)
                 "subject": "Re: Songs for the road trip", "body": body,
             })
             handle_tool_call(env, "spotify.write_gmail_draft", {"action": "save", "draft_id": "draft_katie_001"})
-        calls = [json.loads(line) for line in calls_file.read_text().splitlines()]
+        calls = (
+            [json.loads(line) for line in calls_file.read_text().splitlines()]
+            if calls_file.exists() else []
+        )
         return calls, env.load()
 
 

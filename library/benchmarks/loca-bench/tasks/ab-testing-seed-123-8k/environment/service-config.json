@@ -1,0 +1,6 @@
+{
+  "type": "google_cloud",
+  "command": "python3 -m mcps.google_cloud.server",
+  "data_dir": "/app/task_state/local_db/google_cloud",
+  "network_mode": "no-network"
+}

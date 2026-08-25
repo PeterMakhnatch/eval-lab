@@ -1,0 +1,9 @@
+{
+  "backend": "native-m4",
+  "container_required": false,
+  "native_m4_proven": true,
+  "network": "none",
+  "platform_machine": "arm64",
+  "platform_system": "Darwin",
+  "python": "3.12.11"
+}

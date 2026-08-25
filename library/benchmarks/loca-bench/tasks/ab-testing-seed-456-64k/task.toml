@@ -1,0 +1,20 @@
+schema_version = "2.0"
+[task]
+name = "loca-bench/ab-testing-seed-456-64k"
+description = "Official LOCA-bench ABTestingS2LEnv seed 456, generated at 64k."
+[metadata]
+author_name = "LOCA-bench Contributors"
+category = "long-context-agents"
+tags = ["loca", "mcp", "bigquery", "context-growth"]
+source_ref = "8b6fac49d9edd92922593e703b74ea255357c3ec"
+license = "MIT"
+[verifier]
+timeout_sec = 900.0
+environment_mode = "separate"
+[agent]
+timeout_sec = 7200.0
+[environment]
+network_mode = "no-network"
+cpus = 2
+memory_mb = 8192
+storage_mb = 20480

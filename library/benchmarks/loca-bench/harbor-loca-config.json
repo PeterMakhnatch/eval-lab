@@ -1,0 +1,187 @@
+{
+  "benchmark": "LOCA-bench",
+  "tasks": [
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 8192,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 42,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 8k --seed 42",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-42-8k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    },
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 65536,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 42,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 64k --seed 42",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-42-64k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    },
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 131072,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 42,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 128k --seed 42",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-42-128k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    },
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 8192,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 123,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 8k --seed 123",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-123-8k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    },
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 65536,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 123,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 64k --seed 123",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-123-64k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    },
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 131072,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 123,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 128k --seed 123",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-123-128k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    },
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 8192,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 456,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 8k --seed 456",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-456-8k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    },
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 65536,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 456,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 64k --seed 456",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-456-64k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    },
+    {
+      "atif": "python3 emit_atif.py --task-dir $LOCA_TASK_DIR --trial-dir $LOCA_TRIAL_DIR",
+      "backend": "native-m4",
+      "configured_size_tokens": 131072,
+      "mcp_servers": {
+        "google_cloud": {
+          "command": "python3 -m mcps.google_cloud.server",
+          "data_dir": "$LOCA_TASK_DIR/local_db/google_cloud",
+          "type": "google_cloud"
+        }
+      },
+      "network_mode": "none",
+      "official_seed": 456,
+      "official_task": "ABTestingS2LEnv",
+      "prepare": "python3 adapter.py --task-dir $LOCA_TASK_DIR --size 128k --seed 456",
+      "runtime_evidence": "python3 runtime_evidence.py --task-dir $LOCA_TASK_DIR --output $LOCA_TRIAL_DIR/runtime_evidence.json",
+      "state_strategy": "upstream_generator_parameters",
+      "task": "tasks/ab-testing-seed-456-128k",
+      "verifier": "python3 verify.py --task-dir $LOCA_TASK_DIR"
+    }
+  ],
+  "upstream_main": "8b6fac49d9edd92922593e703b74ea255357c3ec",
+  "upstream_sandbox": "2b4a1c77bd65d83750372ee079a2e5c5d13cb27c"
+}

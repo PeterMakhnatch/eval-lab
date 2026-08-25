@@ -151,7 +151,7 @@ inputs:
   - path: src/evallab/synthetic_funcdag.py
     digest: sha256:55574e8c9988a07bcf2eba126a2848008f1ae9a25aebdd77c8e8724391a2e902
   - path: src/evallab/synthetic_projections.py
-    digest: sha256:4c1465cb57ee01e68a868359090bf7f79e377807c86ea006f700daa6bddbbd93
+    digest: sha256:f4100cc8dcecb3d8d20c00cd968a4b526f33501eac05438e7b25c8a36dfe86e2
   - path: src/evallab/synthetic_report.py
     digest: sha256:7c3b2a61cf5028cb0ed4678ca16ec9db87832a4e2fa9f8186424a01f9370bc78
   - path: src/evallab/synthetic_transform.py

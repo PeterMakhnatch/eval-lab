@@ -67,7 +67,7 @@ def materialize(
     )
     manifest.update({
         "materialized_at": "source-digest-addressed",
-        "output_relpath": str(target.relative_to(REPO)),
+        "output_relpath": f"derived/harbor-tasks/loca/{digest}",
         "source_pins_verified": bool(verify_sources),
     })
     (target / "state_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")

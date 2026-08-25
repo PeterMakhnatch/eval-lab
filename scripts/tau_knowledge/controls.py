@@ -31,10 +31,17 @@ def _mutant_copy(task: Path, temp: Path) -> Path:
 
 def _persisted_reward(trials_dir: Path) -> float:
     results = sorted(trials_dir.rglob("result.json"))
+    for path in results:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if "verifier_result" in payload:
+            return float(payload["verifier_result"]["rewards"]["reward"])
+        if "reward" in payload:
+            return float(payload["reward"])
     if not results:
         raise RuntimeError(f"Harbor produced no persisted result.json under {trials_dir}")
-    payload = json.loads(results[-1].read_text(encoding="utf-8"))
-    return float(payload["verifier_result"]["rewards"]["reward"])
+    raise RuntimeError(
+        f"Harbor result files contain no persisted reward under {trials_dir}"
+    )
 
 
 def run_control(

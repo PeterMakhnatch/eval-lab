@@ -1,0 +1,34 @@
+{
+  "spec_version": "synthetic/v1",
+  "spec_id": "sha256:2543f7d556bb6c572d55b2e854e875e4f18832870a936a5adc8aaa890f204886",
+  "construct_name": "function_dag_dependency_resolution",
+  "family": "function_dag",
+  "perturbation_type": "dependency_graph_easy",
+  "seed": 42,
+  "source_task_ref": "eval-lab/synthetic/funcdag/easy",
+  "source_failure_evidence": [
+    "docs/research/synthetic-tasks.md#function-dag",
+    "research/literature-survey.md#dag-reasoning-failures"
+  ],
+  "base_task_digest": "sha256:5e828c5e26a174e3998ad2dc6ca2f6bb7fdb26eb590fc3d44850850f178673ec",
+  "generated_task_digest": "sha256:5e828c5e26a174e3998ad2dc6ca2f6bb7fdb26eb590fc3d44850850f178673ec",
+  "expected_behavior": "Correctly resolve the dependency chain for target node n_2_0 across 2 layers while ignoring 0 distractor nodes.",
+  "capability_opportunity": "Evaluates model capability to trace topological dependency paths in code, filter irrelevant dead-end computations, and execute composite arithmetic accurately.",
+  "required_evidence": [
+    "/app/output/result.json"
+  ],
+  "license_provenance": "Apache-2.0 (Cleanroom Synthetic Generation)",
+  "partition": "dev",
+  "family_id": "syn-funcdag",
+  "lineage_id": "lineage-funcdag-easy-42",
+  "parameters": {
+    "depth": 2,
+    "width": 2,
+    "connected_distractors": 0,
+    "disconnected_distractors": 0,
+    "total_nodes": 4,
+    "target_node_id": "n_2_0",
+    "difficulty": "easy",
+    "seed": 42
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "nodes": {
+    "n_1_0": {
+      "id": "n_1_0",
+      "name": "fn_layer1_node0",
+      "op": "scale_offset",
+      "inputs": [
+        "in_0"
+      ],
+      "output_type": "int",
+      "layer": 1,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {
+        "scale": 3,
+        "offset": 3
+      },
+      "docstring": "Layer 1 Node 0: Scale and offset: scale*x + offset",
+      "code": "def fn_layer1_node0(in_0: int) -> int:\n    return (3 * in_0) + (3)\n"
+    },
+    "n_1_1": {
+      "id": "n_1_1",
+      "name": "fn_layer1_node1",
+      "op": "xor_op",
+      "inputs": [
+        "in_0",
+        "in_1"
+      ],
+      "output_type": "int",
+      "layer": 1,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 1 Node 1: Bitwise XOR: x ^ y",
+      "code": "def fn_layer1_node1(in_0: int, in_1: int) -> int:\n    return in_0 ^ in_1\n"
+    },
+    "n_2_0": {
+      "id": "n_2_0",
+      "name": "fn_layer2_node0",
+      "op": "clamp",
+      "inputs": [
+        "in_1"
+      ],
+      "output_type": "int",
+      "layer": 2,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {
+        "low": 3,
+        "high": 87
+      },
+      "docstring": "Layer 2 Node 0: Clamp input between [low, high]: max(low, min(x, high))",
+      "code": "def fn_layer2_node0(in_1: int) -> int:\n    return max(3, min(in_1, 87))\n"
+    },
+    "n_2_1": {
+      "id": "n_2_1",
+      "name": "fn_layer2_node1",
+      "op": "xor_op",
+      "inputs": [
+        "in_1",
+        "n_1_0"
+      ],
+      "output_type": "int",
+      "layer": 2,
+      "is_distractor": false,
+      "distractor_type": "none",
+      "params": {},
+      "docstring": "Layer 2 Node 1: Bitwise XOR: x ^ y",
+      "code": "def fn_layer2_node1(in_1: int, n_1_0: int) -> int:\n    return in_1 ^ n_1_0\n"
+    }
+  },
+  "input_keys": [
+    "in_0",
+    "in_1"
+  ],
+  "input_types": {
+    "in_0": "int",
+    "in_1": "int"
+  },
+  "input_values": {
+    "in_0": 12,
+    "in_1": 3
+  },
+  "target_node_id": "n_2_0",
+  "depth": 2,
+  "width": 2,
+  "connected_distractors": 0,
+  "disconnected_distractors": 0,
+  "seed": 42
+}

@@ -1,0 +1,79 @@
+{
+  "schema_version": "tau-runtime-pin/v1",
+  "source_tag": "v1.0.1",
+  "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+  "files": [
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-001/environment/runtime-server/Dockerfile",
+      "before_sha256": "sha256:c90db88f3c20176a3128e6ffccb3888dcf58c7382fd962abfdf7011a8cbcdcd9",
+      "after_sha256": "sha256:5c0e39ca3d136e92dde7fd1d80e3a6e948ab461cb2e203dc54dd1ec6d6050f68",
+      "source_tag": "v1.0.1",
+      "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+      "task_toml_sha256": "sha256:61865bf6694b405f413a66aa64e658e35e5ce8b1f1317a2b267347b45041c1e0",
+      "task_config_sha256": "sha256:088b79e7835b050684bd85893f32bc5c9ec7fada3d98e110c18d918501d4aee4"
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-002/environment/runtime-server/Dockerfile",
+      "before_sha256": "sha256:c90db88f3c20176a3128e6ffccb3888dcf58c7382fd962abfdf7011a8cbcdcd9",
+      "after_sha256": "sha256:5c0e39ca3d136e92dde7fd1d80e3a6e948ab461cb2e203dc54dd1ec6d6050f68",
+      "source_tag": "v1.0.1",
+      "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+      "task_toml_sha256": "sha256:6ffecdf246124024b94ef621f4b3916aef6199ac35795c6d542e906946b1f1ab",
+      "task_config_sha256": "sha256:21ba3eb1bbffd3311fb289439d362175e3ced902f5047ea2b30b23029e38c774"
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-003/environment/runtime-server/Dockerfile",
+      "before_sha256": "sha256:c90db88f3c20176a3128e6ffccb3888dcf58c7382fd962abfdf7011a8cbcdcd9",
+      "after_sha256": "sha256:5c0e39ca3d136e92dde7fd1d80e3a6e948ab461cb2e203dc54dd1ec6d6050f68",
+      "source_tag": "v1.0.1",
+      "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+      "task_toml_sha256": "sha256:8198e3a10927c43fb90345876c03b8a6834bf55652f0db97c2fbdcbf72df504e",
+      "task_config_sha256": "sha256:8a0fcfdeb7f6e59c006a1cb4c864f903e6af48251891b156222467904b130e59"
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-006/environment/runtime-server/Dockerfile",
+      "before_sha256": "sha256:c90db88f3c20176a3128e6ffccb3888dcf58c7382fd962abfdf7011a8cbcdcd9",
+      "after_sha256": "sha256:5c0e39ca3d136e92dde7fd1d80e3a6e948ab461cb2e203dc54dd1ec6d6050f68",
+      "source_tag": "v1.0.1",
+      "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+      "task_toml_sha256": "sha256:9ce6ef92630b519fddcfc734c815f7fc769bab1c9bc49fa88e7c98507e464c7f",
+      "task_config_sha256": "sha256:0764d7e982d9ec49f7253b7f0b909df1e4025be31471e6a98e5899debadb8d0a"
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-007/environment/runtime-server/Dockerfile",
+      "before_sha256": "sha256:c90db88f3c20176a3128e6ffccb3888dcf58c7382fd962abfdf7011a8cbcdcd9",
+      "after_sha256": "sha256:5c0e39ca3d136e92dde7fd1d80e3a6e948ab461cb2e203dc54dd1ec6d6050f68",
+      "source_tag": "v1.0.1",
+      "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+      "task_toml_sha256": "sha256:fdfbf205f375f1d11481a321d316085ce20976f1a65f9448a4c956bc3de543ae",
+      "task_config_sha256": "sha256:9042009e79f7f4fd77b3d1b8ddbd6146eda9c9798f138be83aad043262ac2ada"
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-010/environment/runtime-server/Dockerfile",
+      "before_sha256": "sha256:c90db88f3c20176a3128e6ffccb3888dcf58c7382fd962abfdf7011a8cbcdcd9",
+      "after_sha256": "sha256:5c0e39ca3d136e92dde7fd1d80e3a6e948ab461cb2e203dc54dd1ec6d6050f68",
+      "source_tag": "v1.0.1",
+      "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+      "task_toml_sha256": "sha256:8b81590369facd95ba47dccabb62f91242dbe452973516b59c477d73b6fa44eb",
+      "task_config_sha256": "sha256:ea30dee8b97708c1a718881338dbffedf3f92304965d0b2134e552cf054685e7"
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-020/environment/runtime-server/Dockerfile",
+      "before_sha256": "sha256:c90db88f3c20176a3128e6ffccb3888dcf58c7382fd962abfdf7011a8cbcdcd9",
+      "after_sha256": "sha256:5c0e39ca3d136e92dde7fd1d80e3a6e948ab461cb2e203dc54dd1ec6d6050f68",
+      "source_tag": "v1.0.1",
+      "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+      "task_toml_sha256": "sha256:f8d86cfbff8dc64411b2ad6cc8b5929bc60c318d40d000dd575e94da466466f7",
+      "task_config_sha256": "sha256:c7c14ef56fbf3994f86ba63194b5f4864b675802221872ff29a62eda11813d7b"
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-021/environment/runtime-server/Dockerfile",
+      "before_sha256": "sha256:c90db88f3c20176a3128e6ffccb3888dcf58c7382fd962abfdf7011a8cbcdcd9",
+      "after_sha256": "sha256:5c0e39ca3d136e92dde7fd1d80e3a6e948ab461cb2e203dc54dd1ec6d6050f68",
+      "source_tag": "v1.0.1",
+      "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+      "task_toml_sha256": "sha256:bf8eb4283bc9b11c1825d05eb27fbc4496ad858d490269d5f98ca8f8e7298113",
+      "task_config_sha256": "sha256:4923b04512ff9d40aaa5e0466efcd0a812f13397367cf16e9da8a5ea86a899e2"
+    }
+  ]
+}

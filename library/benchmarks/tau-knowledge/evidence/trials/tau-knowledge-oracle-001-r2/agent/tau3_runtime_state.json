@@ -1,0 +1,54 @@
+{
+  "domain": "banking_knowledge",
+  "task_id": "task_001",
+  "termination_reason": "agent_stop",
+  "bootstrap_complete": true,
+  "start_tool_called": true,
+  "messages": [
+    {
+      "role": "user",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "oracle_0",
+          "name": "apply_for_credit_card",
+          "arguments": {
+            "card_type": "Gold Rewards Card",
+            "customer_name": "Sarah Bosch",
+            "annual_income": 100000,
+            "rho_bank_subscription": true
+          },
+          "requestor": "user"
+        }
+      ],
+      "is_audio": false,
+      "turn_idx": null,
+      "timestamp": "2026-08-25T05:16:11.124403",
+      "cost": null,
+      "usage": null,
+      "raw_data": null,
+      "generation_time_seconds": null,
+      "audio_format": null,
+      "audio_path": null,
+      "audio_script_gold": null,
+      "speech_effects": null,
+      "source_effects": null,
+      "channel_effects": null,
+      "turn_taking_action": null,
+      "utterance_ids": null,
+      "chunk_id": null,
+      "is_final_chunk": true,
+      "source": null,
+      "contains_speech": true
+    },
+    {
+      "id": "oracle_0",
+      "role": "tool",
+      "content": "Credit card application submitted:\nYour application has been successfully submitted. You will receive a decision within 5-7 business days via email.",
+      "requestor": "user",
+      "error": false,
+      "turn_idx": null,
+      "timestamp": "2026-08-25T05:16:11.124657"
+    }
+  ]
+}

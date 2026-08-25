@@ -1,0 +1,39 @@
+schema_version: tau-knowledge-run/v1
+benchmark: tau-Knowledge
+cohort_manifest: ../cohort.manifest.json
+generated_tasks: ../generated
+adapter_root: /Users/petermakhnatch/Developer/agent-evals/harbor/adapters/tau3-bench
+upstream_root_env: TAU2_BENCH_ROOT
+adapter_pythonpath: /Users/petermakhnatch/Developer/agent-evals/harbor/adapters/tau3-bench
+upstream_required:
+  tag: v1.0.1
+  commit: fc0055dc4e0a316c3f83133267fbd6faaa770992
+limits:
+  timeout_seconds: 900
+  max_steps: 80
+  max_tasks: 8
+  luna_attempts_per_task: 1
+sequence:
+  - id: reference
+    agent: tau3-llm-agent
+    attempts_per_task: 1
+    command: [uv, run, harbor, trial, start, -p, "{task_path}", -a, "tau3_llm_agent:Tau3LLMAgent"]
+  - id: oracle
+    agent: oracle
+    attempts_per_task: 1
+    command: [uv, run, harbor, trial, start, -p, "{task_path}", -a, oracle]
+  - id: clean_reset_repetition
+    agent: oracle
+    attempts_per_task: 1
+    clean_reset: true
+    command: [uv, run, harbor, trial, start, -p, "{task_path}", -a, oracle]
+  - id: luna
+    agent: "${LUNA_AGENT}"
+    attempts_per_task: 1
+    requires: [reference, oracle, clean_reset_repetition]
+    command: [uv, run, harbor, trial, start, -p, "{task_path}", -a, "${LUNA_AGENT}"]
+outputs:
+  root: ../evidence
+  controls_status: controls-status.json
+  atif_required: true
+  preserve_raw: true

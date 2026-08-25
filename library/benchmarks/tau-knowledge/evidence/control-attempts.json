@@ -1,0 +1,27 @@
+{
+  "schema_version": "tau-control-attempts/v1",
+  "benchmark": "tau-Knowledge",
+  "cohort_manifest": "../cohort.manifest.json",
+  "source_commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+  "adapter_commit": "636a2d0295d3ee233666bcd7d77fa81f7f090a19",
+  "luna_attempted": false,
+  "trials": [
+    {"phase":"oracle","task_id":"task_001","trial_name":"tau3-banking_knowledge-task-001__txyhCCg","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau3-banking_knowledge-task-001__txyhCCg","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"oracle","task_id":"task_002","trial_name":"tau3-banking_knowledge-task-002__8nWXeYV","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau3-banking_knowledge-task-002__8nWXeYV","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"oracle","task_id":"task_003","trial_name":"tau3-banking_knowledge-task-003__fSXxZGe","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau3-banking_knowledge-task-003__fSXxZGe","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"oracle","task_id":"task_006","trial_name":"tau3-banking_knowledge-task-006__L9HJ9y3","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau3-banking_knowledge-task-006__L9HJ9y3","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"oracle","task_id":"task_007","trial_name":"tau3-banking_knowledge-task-007__23j7UXB","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau3-banking_knowledge-task-007__23j7UXB","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"oracle","task_id":"task_010","trial_name":"tau3-banking_knowledge-task-010__3Csf9mx","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau3-banking_knowledge-task-010__3Csf9mx","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"oracle","task_id":"task_020","trial_name":"tau3-banking_knowledge-task-020__BqGxjV2","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau3-banking_knowledge-task-020__BqGxjV2","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"oracle","task_id":"task_021","trial_name":"tau3-banking_knowledge-task-021__T74J8P9","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau3-banking_knowledge-task-021__T74J8P9","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"clean_reset_repetition","task_id":"task_001","trial_name":"tau-knowledge-oracle-001-reset","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau-knowledge-oracle-001-reset","atif_path":null,"missing_evidence":["atif_trajectory"]},
+    {"phase":"clean_reset_repetition","task_id":"task_002","trial_name":"tau-knowledge-oracle-002-reset","infra_status":"passed","agent_status":"passed","reward":1.0,"raw_trial_path":"trials/tau-knowledge-oracle-002-reset","atif_path":null,"missing_evidence":["atif_trajectory"]}
+  ],
+  "attempts": [
+    {"phase":"oracle","infra_status":"blocked","agent_status":"unknown","reason":"Initial run was refused by strict OPENAI_API_KEY interpolation; candidate optional-credential overlay repaired DB-only oracle startup.","observed_error":"ValueError: Environment variable 'OPENAI_API_KEY' not found in host environment"},
+    {"phase":"runtime_overlay","infra_status":"blocked","agent_status":"unknown","reason":"Initial candidate runtime overlay omitted a Dockerfile continuation; fail-closed repair added it.","observed_error":"Dockerfile parse error on line 14: unknown instruction: &&"},
+    {"phase":"reference","infra_status":"ready","agent_status":"blocked","reason":"Harbor does not register adapter-local tau3-llm-agent by name; external import config requires a model credential.","observed_error":"ValueError: Agent name tau3-llm-agent is not valid"}
+  ],
+  "analysis_status": "oracle_controls_and_two_clean_reset_repetitions_passed_reference_blocked_luna_not_attempted",
+  "unknowns_are_not_failures": true
+}

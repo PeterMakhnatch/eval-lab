@@ -1,0 +1,24 @@
+{
+  "schema_version": "tau-knowledge-semantic-projection/v1",
+  "benchmark": "tau-Knowledge",
+  "source": {
+    "repository": "https://github.com/sierra-research/tau2-bench",
+    "tag": "v1.0.1",
+    "commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+    "tasks_path": "data/tau2/domains/banking_knowledge/tasks/<task_id>.json",
+    "retrieval_prompt_path": "data/tau2/domains/banking_knowledge/prompts/classic_rag_bm25_no_grep.md"
+  },
+  "projection_status": "source_only_trial_facts_unavailable",
+  "rows": [
+    {"task_id":"task_001","construct":"credit_card_action","required_action_names":["apply_for_credit_card"],"reward_basis":["DB"],"criteria_digest":"sha256:fb363fab8563b27a63cb8a1263c9656ee06bb7465c68008a20263de972e1a287","observed":false},
+    {"task_id":"task_002","construct":"credit_card_action","required_action_names":["apply_for_credit_card"],"reward_basis":["DB"],"criteria_digest":"sha256:026388affb84c52f475cedcf32725de3fac9b0edccf48f672e98c1c7ce728b69","observed":false},
+    {"task_id":"task_003","construct":"credit_card_action","required_action_names":["apply_for_credit_card"],"reward_basis":["DB"],"criteria_digest":"sha256:dadb80156c80aa20bf03353e399d97657f3e58f54b5e0a15904d7e86578dde1b","observed":false},
+    {"task_id":"task_006","construct":"credit_card_action","required_action_names":["apply_for_credit_card"],"reward_basis":["DB"],"criteria_digest":"sha256:52141bce844c2d703be91088451dc07acc240fa400889662520eaee06a8d9074","observed":false},
+    {"task_id":"task_007","construct":"credit_card_action","required_action_names":["apply_for_credit_card"],"reward_basis":["DB"],"criteria_digest":"sha256:86ea6e810bd9de959e05a1dc88d2290f640e7e2509fd0f8bea9d443b5ae2c1c6","observed":false},
+    {"task_id":"task_010","construct":"referral_workflow","required_action_names":["log_verification","submit_referral"],"reward_basis":["DB"],"criteria_digest":"sha256:0520c1d81c35d7f86bd3eed2e5597d2ecbce43827b3d02ccd4bdab9241185d5e","observed":false},
+    {"task_id":"task_020","construct":"discoverable_user_tool_workflow","required_action_names":["log_verification","give_discoverable_user_tool","call_discoverable_user_tool"],"reward_basis":["DB"],"criteria_digest":"sha256:9f5caf96c161645870b4a08e8187f7c5a3b7bf84204045d7329ed321f71fdfcf","observed":false},
+    {"task_id":"task_021","construct":"discoverable_user_tool_workflow","required_action_names":["log_verification","give_discoverable_user_tool","call_discoverable_user_tool"],"reward_basis":["DB"],"criteria_digest":"sha256:2680c15457ab7e3cbeaa1e8dd19795e659ce54e87623f901319f249c8fdbbcca","observed":false}
+  ],
+  "retrieval_policy": "No retrieval_facts rows or gold recall are emitted: source task documents are not observed query/result evidence.",
+  "reward_policy": "No agent or verifier reward is emitted because no trial produced ATIF/verifier evidence; infra and agent statuses remain separate in evidence/control-attempts.json."
+}

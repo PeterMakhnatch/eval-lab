@@ -1,0 +1,53 @@
+{
+  "schema_version": "tau-oracle-config/v1",
+  "files": [
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-001/task.toml",
+      "before_sha256": "sha256:61865bf6694b405f413a66aa64e658e35e5ce8b1f1317a2b267347b45041c1e0",
+      "after_sha256": "sha256:4ab5647883b5e0803072d6dec76b17e9169f98d784d152b52f477ec2fe4ada9d",
+      "oracle_credential_required": false
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-002/task.toml",
+      "before_sha256": "sha256:6ffecdf246124024b94ef621f4b3916aef6199ac35795c6d542e906946b1f1ab",
+      "after_sha256": "sha256:caabb71728fab24deb240ba59552fd50a0c9fb287af8567c2be342fc56459cd0",
+      "oracle_credential_required": false
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-003/task.toml",
+      "before_sha256": "sha256:8198e3a10927c43fb90345876c03b8a6834bf55652f0db97c2fbdcbf72df504e",
+      "after_sha256": "sha256:aec14006e7d035971679229e73b881d7ce2803a04a5052fa86900a3ab969a99b",
+      "oracle_credential_required": false
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-006/task.toml",
+      "before_sha256": "sha256:9ce6ef92630b519fddcfc734c815f7fc769bab1c9bc49fa88e7c98507e464c7f",
+      "after_sha256": "sha256:833f723bf9ce943b16a4c8cbbf2995f14af402abe49c420244ff33f13f32469f",
+      "oracle_credential_required": false
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-007/task.toml",
+      "before_sha256": "sha256:fdfbf205f375f1d11481a321d316085ce20976f1a65f9448a4c956bc3de543ae",
+      "after_sha256": "sha256:5180047aff4ac7e96ce4bf1989846551d95f54c76ac91f41347fd89472679279",
+      "oracle_credential_required": false
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-010/task.toml",
+      "before_sha256": "sha256:8b81590369facd95ba47dccabb62f91242dbe452973516b59c477d73b6fa44eb",
+      "after_sha256": "sha256:4ed458e043c6d1dfc41943e61db9e734044db1dc77545e32ab10367c24ce9ad1",
+      "oracle_credential_required": false
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-020/task.toml",
+      "before_sha256": "sha256:f8d86cfbff8dc64411b2ad6cc8b5929bc60c318d40d000dd575e94da466466f7",
+      "after_sha256": "sha256:8f9d973a32ddfb73c9025b76de607fb9aceb688aeb01731ee7762f5c719654cf",
+      "oracle_credential_required": false
+    },
+    {
+      "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-021/task.toml",
+      "before_sha256": "sha256:bf8eb4283bc9b11c1825d05eb27fbc4496ad858d490269d5f98ca8f8e7298113",
+      "after_sha256": "sha256:7a963069a66f584cdadeab086523f2f3717465b96c6a1e46c3c6cd8b59b0081c",
+      "oracle_credential_required": false
+    }
+  ]
+}

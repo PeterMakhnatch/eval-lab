@@ -1,0 +1,60 @@
+{
+  "schema_version": "tau-knowledge-cohort/v1",
+  "benchmark": "tau-Knowledge",
+  "benchmark_family": "tau3-bench",
+  "domain": "banking_knowledge",
+  "status": "controls_blocked",
+  "immutable": true,
+  "selection": {
+    "method": "fixed_source_task_ids",
+    "count": 8,
+    "bounded_runtime": true,
+    "task_ids": ["task_001", "task_002", "task_003", "task_006", "task_007", "task_010", "task_020", "task_021"]
+  },
+  "required_upstream": {
+    "repository": "https://github.com/sierra-research/tau2-bench",
+    "release_tag": "v1.0.1",
+    "commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992",
+    "release_commit_subject": "chore: prepare release v1.0.1 — banking_knowledge grading fixes (#408)",
+    "license": "MIT",
+    "tasks_file": {
+      "path": "data/tau2/domains/banking_knowledge/tasks.json",
+      "sha256": "sha256:213c7f3e6dc0420b1184ee271e39e38c6ece3c43edfa362db49a560828ebd543"
+    },
+    "retrieval_prompt": {
+      "path": "data/tau2/domains/banking_knowledge/prompts/classic_rag_bm25_no_grep.md",
+      "sha256": "sha256:84ac1a68e0ca59f4cb870faf124202887e7e4f2e92dbd4d62c78ad2bcbb16d3b"
+    }
+  },
+  "adapter_evidence": {
+    "adapter_root": "/Users/petermakhnatch/Developer/agent-evals/harbor/adapters/tau3-bench",
+    "harbor_repository_commit": "636a2d0295d3ee233666bcd7d77fa81f7f090a19",
+    "adapter_commit_subject": "[Ready for review] Adapter: tau3-bench (#1423)",
+    "adapter_package_version": "0.1.0",
+    "adapter_pyproject_sha256": "sha256:09df8690bb4eb2229b26b2b418b50925cd615836e84cb1ef4aa914d26af92708",
+    "adapter_source_sha256": "sha256:57218029822a763ed7a38ef4121d31155de6b0d1b32f8b7e4a61d4396edfc933",
+    "adapter_readme_sha256": "sha256:7fba07e5676161624e421071ab55e7abf9f6e8e27037562364590f7303b6b5e9",
+    "declared_release": "v1.0.0",
+    "tau2_resolution": "external TAU2_BENCH_ROOT pinned to release v1.0.1 commit fc0055dc4e0a316c3f83133267fbd6faaa770992",
+    "banking_task_glob": "data/tau2/domains/banking_knowledge/tasks/task_*.json",
+    "retrieval_variant": "bm25",
+    "parity_status": "source_and_task_pin_verified",
+    "blocker": "Controls require OPENAI_API_KEY for the tau2 user simulator; no ATIF or reward evidence was emitted. Luna remains gated."
+  },
+  "tasks": [
+    {"task_id":"task_001","task_sha256":"sha256:9a797288dd215e89c0fab9d0063581a3a64d433f06af6179eaad795521b23ef0","criteria_sha256":"sha256:fb363fab8563b27a63cb8a1263c9656ee06bb7465c68008a20263de972e1a287","reward_basis":["DB"],"action_names":["apply_for_credit_card"]},
+    {"task_id":"task_002","task_sha256":"sha256:81a1aae95b6bb4d61991d0b9cef836b302b675685309174a53d878693cbd94c5","criteria_sha256":"sha256:026388affb84c52f475cedcf32725de3fac9b0edccf48f672e98c1c7ce728b69","reward_basis":["DB"],"action_names":["apply_for_credit_card"]},
+    {"task_id":"task_003","task_sha256":"sha256:431591345634499dc8aed39de54e5b3304ca8500a927dff91d6919053a80ac73","criteria_sha256":"sha256:dadb80156c80aa20bf03353e399d97657f3e58f54b5e0a15904d7e86578dde1b","reward_basis":["DB"],"action_names":["apply_for_credit_card"]},
+    {"task_id":"task_006","task_sha256":"sha256:396d3d3e9ad6e28e0442e2e22de121cd9d9d6ff1d65c78ebc18616e063c0a73c","criteria_sha256":"sha256:52141bce844c2d703be91088451dc07acc240fa400889662520eaee06a8d9074","reward_basis":["DB"],"action_names":["apply_for_credit_card"]},
+    {"task_id":"task_007","task_sha256":"sha256:d30123e879e031d9fe7cc2a9c99ee04165f1bac8322a0cac8cda9937ee89f1fb","criteria_sha256":"sha256:86ea6e810bd9de959e05a1dc88d2290f640e7e2509fd0f8bea9d443b5ae2c1c6","reward_basis":["DB"],"action_names":["apply_for_credit_card"]},
+    {"task_id":"task_010","task_sha256":"sha256:1b7e99916f35584033555ed92f19dd20b8870ef4c56032a5006ecdc75fa80d43","criteria_sha256":"sha256:0520c1d81c35d7f86bd3eed2e5597d2ecbce43827b3d02ccd4bdab9241185d5e","reward_basis":["DB"],"action_names":["log_verification","submit_referral"]},
+    {"task_id":"task_020","task_sha256":"sha256:bd343bc7ae8f93c8afa3727655d1c4d70cd432a46f8603d57746c9f83fbe24d0","criteria_sha256":"sha256:9f5caf96c161645870b4a08e8187f7c5a3b7bf84204045d7329ed321f71fdfcf","reward_basis":["DB"],"action_names":["call_discoverable_user_tool","give_discoverable_user_tool","log_verification"]},
+    {"task_id":"task_021","task_sha256":"sha256:083e3bfb6860a8ba25fde6bae719badb00c6ba74747f69130d37cf130d73734c","criteria_sha256":"sha256:2680c15457ab7e3cbeaa1e8dd19795e659ce54e87623f901319f249c8fdbbcca","reward_basis":["DB"],"action_names":["call_discoverable_user_tool","give_discoverable_user_tool","log_verification"]}
+  ],
+  "execution_gate": {
+    "controls_required_per_task": ["reference", "oracle", "clean_reset_repetition"],
+    "luna_attempts_per_task": 1,
+    "luna_requires_all_controls_pass": true,
+    "run_now": false
+  }
+}

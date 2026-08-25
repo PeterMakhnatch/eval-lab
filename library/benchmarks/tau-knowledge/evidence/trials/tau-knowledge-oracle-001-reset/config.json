@@ -1,0 +1,6 @@
+{
+    "task": {
+        "path": "library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-001"
+    },
+    "trial_name": "tau-knowledge-oracle-001-reset"
+}

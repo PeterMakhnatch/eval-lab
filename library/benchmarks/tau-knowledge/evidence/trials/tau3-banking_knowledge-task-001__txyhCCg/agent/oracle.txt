@@ -1,0 +1,37 @@
+2026-08-25 05:18:47.570 | WARNING  | tau2.utils.utils:<module>:15 - No .env file found
+2026-08-25 05:18:47.570 | INFO     | tau2.utils.utils:<module>:23 - Using data directory from environment: /opt/tau2-bench/data
+2026-08-25 05:18:48.632 | INFO     | tau2.utils.llm_utils:<module>:102 - LiteLLM: Cache is disabled
+2026-08-25 05:18:48.716 | DEBUG    | tau2.registry:<module>:281 - Registering default components...
+2026-08-25 05:18:48.725 | DEBUG    | tau2.registry:<module>:292 - Voice dependencies not installed, skipping voice user registration
+2026-08-25 05:18:48.725 | DEBUG    | tau2.registry:<module>:350 - Default components registered successfully. Registry info: {
+  "domains": [
+    "mock",
+    "airline",
+    "retail",
+    "telecom",
+    "telecom-workflow",
+    "banking_knowledge"
+  ],
+  "agents": [
+    "llm_agent",
+    "llm_agent_gt",
+    "llm_agent_solo",
+    "discrete_time_audio_native_agent"
+  ],
+  "users": [
+    "user_simulator",
+    "dummy_user"
+  ],
+  "task_sets": [
+    "mock",
+    "airline",
+    "retail",
+    "telecom_full",
+    "telecom_small",
+    "telecom",
+    "telecom-workflow",
+    "banking_knowledge"
+  ]
+}
+2026-08-25 05:18:48.868 | DEBUG    | tau2.environment.environment:get_response:482 - Response: Credit card application submitted:
+Your application has been successfully submitted. You will receive a decision within 5-7 business days via email.

@@ -1,0 +1,46 @@
+2026-08-25 05:20:32.233 | WARNING  | tau2.utils.utils:<module>:15 - No .env file found
+2026-08-25 05:20:32.234 | INFO     | tau2.utils.utils:<module>:23 - Using data directory from environment: /opt/tau2-bench/data
+2026-08-25 05:20:33.361 | INFO     | tau2.utils.llm_utils:<module>:102 - LiteLLM: Cache is disabled
+2026-08-25 05:20:33.446 | DEBUG    | tau2.registry:<module>:281 - Registering default components...
+2026-08-25 05:20:33.454 | DEBUG    | tau2.registry:<module>:292 - Voice dependencies not installed, skipping voice user registration
+2026-08-25 05:20:33.454 | DEBUG    | tau2.registry:<module>:350 - Default components registered successfully. Registry info: {
+  "domains": [
+    "mock",
+    "airline",
+    "retail",
+    "telecom",
+    "telecom-workflow",
+    "banking_knowledge"
+  ],
+  "agents": [
+    "llm_agent",
+    "llm_agent_gt",
+    "llm_agent_solo",
+    "discrete_time_audio_native_agent"
+  ],
+  "users": [
+    "user_simulator",
+    "dummy_user"
+  ],
+  "task_sets": [
+    "mock",
+    "airline",
+    "retail",
+    "telecom_full",
+    "telecom_small",
+    "telecom",
+    "telecom-workflow",
+    "banking_knowledge"
+  ]
+}
+2026-08-25 05:20:33.603 | DEBUG    | tau2.environment.environment:get_response:482 - Response: Verification logged successfully.
+  - User: Wei Chen (ID: 76ad9cc60e)
+  - Verified at: 2025-11-14 03:40:00 EST
+2026-08-25 05:20:33.604 | DEBUG    | tau2.environment.environment:get_response:482 - Response: Referral request submitted successfully!
+  - Referral ID: fa2896839e417592
+  - Referrer ID: 76ad9cc60e
+  - Account Type: Platinum Rewards Card
+  - Status: NO_PROGRESS
+  - Date: 11/14/2025
+
+Share your referral ID with the person you're referring. They will need to use this when applying for their account.

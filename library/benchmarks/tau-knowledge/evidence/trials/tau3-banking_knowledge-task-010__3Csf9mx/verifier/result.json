@@ -1,0 +1,76 @@
+{
+  "status": "passed",
+  "reward": 1.0,
+  "used_tau2_evaluator": true,
+  "reward_info": {
+    "reward": 1.0,
+    "db_check": {
+      "db_match": true,
+      "db_reward": 1.0
+    },
+    "env_assertions": [],
+    "action_checks": [
+      {
+        "action": {
+          "action_id": "010_0",
+          "requestor": "assistant",
+          "name": "log_verification",
+          "arguments": {
+            "name": "Wei Chen",
+            "user_id": "76ad9cc60e",
+            "address": "88 Harbor View Court, Boston, MA 02110",
+            "email": "wei.chen.boston@gmail.com",
+            "phone_number": "617-555-0834",
+            "date_of_birth": "04/17/1979",
+            "time_verified": "2025-11-14 03:40:00 EST"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        "action_match": true,
+        "action_reward": 1.0,
+        "tool_type": "write"
+      },
+      {
+        "action": {
+          "action_id": "010_1",
+          "requestor": "user",
+          "name": "submit_referral",
+          "arguments": {
+            "user_id": "76ad9cc60e",
+            "account_type": "Platinum Rewards Card"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        "action_match": true,
+        "action_reward": 1.0,
+        "tool_type": "write"
+      }
+    ],
+    "nl_assertions": null,
+    "communicate_checks": null,
+    "reward_basis": [
+      "DB"
+    ],
+    "reward_breakdown": {
+      "DB": 1.0
+    },
+    "info": {
+      "env": null,
+      "nl": null,
+      "communicate": {
+        "note": "No communicate_info to evaluate"
+      },
+      "action": null,
+      "trajectory_message_count": 4,
+      "tau2_evaluation": true,
+      "runtime_log": true,
+      "runtime_termination_reason": "agent_stop",
+      "domain": "banking_knowledge",
+      "seed": null,
+      "step_count": null,
+      "num_errors": null
+    }
+  }
+}

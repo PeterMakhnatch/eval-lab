@@ -1,0 +1,61 @@
+2026-08-25 05:21:15.889 | WARNING  | tau2.utils.utils:<module>:15 - No .env file found
+2026-08-25 05:21:15.889 | INFO     | tau2.utils.utils:<module>:23 - Using data directory from environment: /opt/tau2-bench/data
+2026-08-25 05:21:16.977 | INFO     | tau2.utils.llm_utils:<module>:102 - LiteLLM: Cache is disabled
+2026-08-25 05:21:17.061 | DEBUG    | tau2.registry:<module>:281 - Registering default components...
+2026-08-25 05:21:17.062 | DEBUG    | tau2.registry:<module>:292 - Voice dependencies not installed, skipping voice user registration
+2026-08-25 05:21:17.062 | DEBUG    | tau2.registry:<module>:350 - Default components registered successfully. Registry info: {
+  "domains": [
+    "mock",
+    "airline",
+    "retail",
+    "telecom",
+    "telecom-workflow",
+    "banking_knowledge"
+  ],
+  "agents": [
+    "llm_agent",
+    "llm_agent_gt",
+    "llm_agent_solo",
+    "discrete_time_audio_native_agent"
+  ],
+  "users": [
+    "user_simulator",
+    "dummy_user"
+  ],
+  "task_sets": [
+    "mock",
+    "airline",
+    "retail",
+    "telecom_full",
+    "telecom_small",
+    "telecom",
+    "telecom-workflow",
+    "banking_knowledge"
+  ]
+}
+2026-08-25 05:21:17.184 | DEBUG    | tau2.environment.environment:get_response:482 - Response: Verification logged successfully.
+  - User: Dmitri Volkov (ID: d2e5bc4124)
+  - Verified at: 2025-11-14 03:40:00 EST
+2026-08-25 05:21:17.185 | DEBUG    | tau2.environment.environment:get_response:482 - Response: Tool given to user: submit_cash_back_dispute_0589
+Description: Submit a cash back dispute for a specific transaction.
+Arguments: (no arguments)
+
+The user can now execute this action by calling `call_discoverable_user_tool` with discoverable_tool_name='submit_cash_back_dispute_0589' and the same arguments.
+2026-08-25 05:21:17.185 | DEBUG    | tau2.environment.environment:get_response:482 - Response: Cash back dispute submitted successfully. Your case has been queued for review.
+
+Executed: submit_cash_back_dispute_0589
+Arguments: {
+  "user_id": "d2e5bc4124",
+  "transaction_id": "txn_ccbb948ffa10"
+}
+Dispute ID: dsp_86ccdcd2a195
+Status: SUBMITTED - Your dispute has been queued for review.
+2026-08-25 05:21:17.185 | DEBUG    | tau2.environment.environment:get_response:482 - Response: Cash back dispute submitted successfully. Your case has been queued for review.
+
+Executed: submit_cash_back_dispute_0589
+Arguments: {
+  "user_id": "d2e5bc4124",
+  "transaction_id": "txn_5b30a52ac9d6"
+}
+Dispute ID: dsp_c278b0e9183b
+Status: SUBMITTED - Your dispute has been queued for review.

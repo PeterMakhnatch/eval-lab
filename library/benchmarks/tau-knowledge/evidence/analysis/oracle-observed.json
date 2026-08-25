@@ -1,0 +1,18 @@
+{
+  "trial_id": "afc52c55-6b7c-404d-91f0-625212d089fa",
+  "task_id": "task_001",
+  "criteria_digest": "sha256:fb363fab8563b27a63cb8a1263c9656ee06bb7465c68008a20263de972e1a287",
+  "source_ref": "/private/tmp/eval-lab-wave-tau/library/benchmarks/tau-knowledge/evidence/trials/tau-knowledge-oracle-001-r2/agent/tau3_runtime_state.json",
+  "source_digest": "sha256:94229e06a2598695d3b074c87b35a7b655ca8b63065b928513384803c434786d",
+  "verifier_ref": "/private/tmp/eval-lab-wave-tau/library/benchmarks/tau-knowledge/evidence/trials/tau-knowledge-oracle-001-r2/verifier/result.json",
+  "verifier_digest": "sha256:ab54cc0e8f08cd744ef67152bc5948fbf3db81e3d8c37cdddfc889287ecc2335",
+  "verifier_reward": 1.0,
+  "observed_action_names": [
+    "apply_for_credit_card"
+  ],
+  "atif_path": null,
+  "atif_observed": false,
+  "missing_evidence": [
+    "atif_trajectory"
+  ]
+}

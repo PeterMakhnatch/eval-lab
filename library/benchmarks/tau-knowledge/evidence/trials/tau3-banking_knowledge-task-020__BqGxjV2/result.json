@@ -1,0 +1,112 @@
+{
+    "id": "224f23c3-e9d7-44a5-b3a9-808114063d9e",
+    "task_name": "sierra-research/tau3-bench__tau3-banking_knowledge-task-020",
+    "trial_name": "tau3-banking_knowledge-task-020__BqGxjV2",
+    "trial_uri": "file:///private/tmp/eval-lab-wave-tau/trials/tau3-banking_knowledge-task-020__BqGxjV2",
+    "task_id": {
+        "path": "/private/tmp/eval-lab-wave-tau/library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-020"
+    },
+    "source": null,
+    "task_checksum": "da43648521f3aede645d12824beec621ded693fddbbebeb420c2614ed31c1e66",
+    "config": {
+        "task": {
+            "path": "/private/tmp/eval-lab-wave-tau/library/benchmarks/tau-knowledge/generated/tau3-banking_knowledge-task-020",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "tau3-banking_knowledge-task-020__BqGxjV2",
+        "trials_dir": "trials",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "oracle",
+            "import_path": null,
+            "model_name": null,
+            "n_concurrent": null,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": null,
+        "source_trial": null
+    },
+    "agent_info": {
+        "name": "oracle",
+        "version": "1.0.0",
+        "model_info": null
+    },
+    "agent_result": {
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 1.0
+        }
+    },
+    "verifier_environment_mode": "shared",
+    "exception_info": null,
+    "started_at": "2026-08-25T05:20:39.625047Z",
+    "finished_at": "2026-08-25T05:20:59.022650Z",
+    "environment_setup": {
+        "started_at": "2026-08-25T05:20:39.653757Z",
+        "finished_at": "2026-08-25T05:20:52.169662Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-08-25T05:20:52.169795Z",
+        "finished_at": "2026-08-25T05:20:52.169885Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-08-25T05:20:52.170028Z",
+        "finished_at": "2026-08-25T05:20:54.297102Z"
+    },
+    "verifier": {
+        "started_at": "2026-08-25T05:20:54.625908Z",
+        "finished_at": "2026-08-25T05:20:56.497367Z"
+    },
+    "step_results": null
+}

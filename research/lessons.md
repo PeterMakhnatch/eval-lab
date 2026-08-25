@@ -4,6 +4,10 @@ audience:
   - builder
   - analyst
 inputs:
+  - path: library/tasks/agentabstain-ambiguous-action-preview-002-abstain/task.toml
+    digest: sha256:532166edf767d3ce9db1cc6a8b2e7ef9762a39766c0ec1d996f1ed846a8fadcb
+  - path: library/tasks/agentabstain-ambiguous-action-preview-002-act/task.toml
+    digest: sha256:961972b9b1255ecbe67ea628eafff2a38d860fc331d7bbd2c0f75c183219f810
   - path: library/tasks/event-summary/task.toml
     digest: sha256:9a9d26e2fc1235e9d45ae55836a34bb4b191509463cffac96ad8aad8f043a1a8
   - path: library/tasks/query-optimize/task.toml
@@ -75,9 +79,9 @@ inputs:
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-08-25 06:20:43Z
+- **Generated at:** 2026-08-25 18:00:43Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
-- **Corpus Summary:** 8 craft tasks, 0 trials, 25 observation records, 0 analysis sidecars
+- **Corpus Summary:** 10 craft tasks, 0 trials, 25 observation records, 0 analysis sidecars
 - **Findings Gate:** 0 statistically powered finding(s), 3 observation row(s) gated with `insufficient n`
 
 ---

@@ -9,8 +9,8 @@ ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "loca-lean-v1"
 sys.path.insert(0, str(ROOT))
 
 
-def load(name: str):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"{name}.py")
+def load(name: str, filename: str | None = None):
+    spec = importlib.util.spec_from_file_location(name, ROOT / f"{filename or name}.py")
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     sys.modules[name] = module
@@ -33,7 +33,7 @@ def test_pins_are_immutable_and_digest_addressed():
 
 
 def test_cache_fetch_fails_closed_on_mismatch(tmp_path):
-    source = load("source_cache")
+    source = load("source_cache", "source")
     pin = source.Pin("fixture", "file:///does/not/matter", "sha256:" + "0" * 64)
     cache = tmp_path / "cache"
     cache.mkdir()
@@ -47,9 +47,9 @@ def test_cache_fetch_fails_closed_on_mismatch(tmp_path):
 
 
 def test_materializer_oracle_nop_and_mutants(tmp_path):
-    materializer = load("materializer_test")
-    templates = load("templates_test")
-    verifier = load("verifier_test")
+    materializer = load("materializer_test", "materializer")
+    templates = load("templates_test", "templates")
+    verifier = load("verifier_test", "verifier")
     verifier.oracle_bytes = templates.oracle_bytes
     materializer.DERIVED = tmp_path / "derived"
     target = materializer.output_path()
@@ -70,7 +70,7 @@ def test_materializer_oracle_nop_and_mutants(tmp_path):
 
 
 def test_context_curve_contract_rejects_drift(tmp_path):
-    materializer = load("materializer_context")
+    materializer = load("materializer_context", "materializer")
     curve = load("context_curve")
     materializer.DERIVED = tmp_path / "derived"
     target = materializer.output_path()

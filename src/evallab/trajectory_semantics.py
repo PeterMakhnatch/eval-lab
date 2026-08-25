@@ -448,12 +448,24 @@ def extract_semantic_actions(
             tool_calls = [step]
 
         # Correlated observations
-        observations = step.get("observations") or []
+        # Correlated observations (support step.observations, step.observation.results, or single step.observation)
+        observations_raw = step.get("observations")
+        if observations_raw is None:
+            obs_obj = step.get("observation")
+            if isinstance(obs_obj, dict):
+                results = obs_obj.get("results")
+                observations_raw = results if isinstance(results, list) else [obs_obj]
+            elif isinstance(obs_obj, list):
+                observations_raw = obs_obj
+            else:
+                observations_raw = []
+
+        observations = observations_raw if isinstance(observations_raw, list) else []
         obs_map: dict[str, dict[str, Any]] = {}
         for o_idx, obs in enumerate(observations):
-            call_id = obs.get("source_call_id") or obs.get("tool_call_id") or str(o_idx)
-            obs_map[str(call_id)] = obs
-
+            if isinstance(obs, dict):
+                call_id = obs.get("source_call_id") or obs.get("tool_call_id") or obs.get("call_id") or str(o_idx)
+                obs_map[str(call_id)] = obs
         for c_idx, tc in enumerate(tool_calls):
             tool_name = str(tc.get("tool_name") or tc.get("function_name") or tc.get("tool") or tc.get("name") or "unknown")
             action_id = str(tc.get("action_id") or tc.get("event_id") or tc.get("tool_call_id") or f"act_{s_idx}_{c_idx}")
@@ -503,10 +515,7 @@ def extract_semantic_actions(
                 intervention_prov = "autonomous"
                 intervention_detail = None
 
-            # Reset intervention tracking after consuming it on the next action
-            had_user_intervention_since_last_action = False
-            last_user_message_snippet = None
-            had_environment_error_since_last_action = False
+
 
             fact = SemanticActionFact(
                 trial_id=trial_id,
@@ -531,6 +540,11 @@ def extract_semantic_actions(
             )
             facts.append(fact)
             current_sequence += 1
+        # Reset intervention tracking after consuming it across this step's actions
+        if tool_calls:
+            had_user_intervention_since_last_action = False
+            last_user_message_snippet = None
+            had_environment_error_since_last_action = False
 
     return facts
 

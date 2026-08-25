@@ -65,6 +65,9 @@ def _write_harbor_package(target: Path, digest: str, manifest: dict[str, object]
         encoding="utf-8",
     )
     (solution / "solve.sh").write_text(
+        "#!/bin/sh\nset -eu\nexec python3 /app/oracle.py --task-dir /app/task_state --workspace /app/task_state/agent_workspace\n", encoding="utf-8"
+    )
+    (solution / "solve.sh").chmod(0o755)
     (tests / "Dockerfile").write_text("FROM python:3.12-slim\nWORKDIR /tests\nCOPY . /tests\nCMD [\"sleep\", \"infinity\"]\n", encoding="utf-8")
     (tests / "test.sh").write_text(
         "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\nexec python3 /tests/verifier.py --task-dir /tests/task_state --workspace /app/task_state/agent_workspace --reward-dir /logs/verifier\n", encoding="utf-8"

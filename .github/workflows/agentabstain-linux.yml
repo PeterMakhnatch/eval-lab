@@ -1,0 +1,61 @@
+name: agentabstain-linux
+
+# Ubuntu is required for Harbor's separate no-network verifier. The agent side
+# remains the public-network baseline, explicitly avoiding a false isolation claim.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "library/adapters/agentabstain/**"
+      - "scripts/agentabstain/**"
+      - "tests/test_agentabstain_lean.py"
+      - ".github/workflows/agentabstain-linux.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install uv 0.9.24
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Python 3.12
+        run: |
+          uv python install 3.12
+          echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
+      - run: uv sync --locked
+      - name: Install Harbor 0.21.0
+        run: uv tool install "harbor[modal]==0.21.0"
+      - name: Materialize, regenerate, and run local controls
+        run: uv run python scripts/agentabstain/ci.py
+      - name: Locate generated canary
+        id: generated
+        run: echo "path=$(find derived/harbor-tasks/agentabstain -mindepth 1 -maxdepth 1 -type d -print -quit)" >> "$GITHUB_OUTPUT"
+      - name: Harbor act oracle
+        run: harbor run --path "${{ steps.generated.outputs.path }}/agentabstain-ambiguous-action-preview-002-act" --agent oracle --env docker --job-name agentabstain-act-oracle --jobs-dir runs/agentabstain-linux --n-concurrent 1 --n-attempts 1 -y
+      - name: Harbor act NOP
+        run: harbor run --path "${{ steps.generated.outputs.path }}/agentabstain-ambiguous-action-preview-002-act" --agent nop --env docker --job-name agentabstain-act-nop --jobs-dir runs/agentabstain-linux --n-concurrent 1 --n-attempts 1 -y
+      - name: Harbor abstain oracle
+        run: harbor run --path "${{ steps.generated.outputs.path }}/agentabstain-ambiguous-action-preview-002-abstain" --agent oracle --env docker --job-name agentabstain-abstain-oracle --jobs-dir runs/agentabstain-linux --n-concurrent 1 --n-attempts 1 -y
+      - name: Harbor abstain NOP
+        run: harbor run --path "${{ steps.generated.outputs.path }}/agentabstain-ambiguous-action-preview-002-abstain" --agent nop --env docker --job-name agentabstain-abstain-nop --jobs-dir runs/agentabstain-linux --n-concurrent 1 --n-attempts 1 -y
+      - name: Harbor mutants
+        run: |
+          test -x "${{ steps.generated.outputs.path }}/agentabstain-ambiguous-action-preview-002-abstain/workbench/mutant.sh"
+          ! "${{ steps.generated.outputs.path }}/agentabstain-ambiguous-action-preview-002-abstain/workbench/mutant.sh"
+      - name: Reject committed generated corpus and reports
+        run: |
+          test -z "$(git ls-files 'derived/harbor-tasks/**' 'library/adapters/agentabstain/raw/**' 'library/adapters/agentabstain/reports/**')"
+      - name: Upload immutable raw CAS jobs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agentabstain-linux-cas
+          path: runs/agentabstain-linux/
+          if-no-files-found: warn

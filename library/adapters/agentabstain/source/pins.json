@@ -1,0 +1,13 @@
+{
+  "schema_version": "agentabstain-source-pins/v1",
+  "repository": "https://github.com/AntiQuality/agentabstain",
+  "revision": "f581249704b26804e28a39e37396f1be00b71a4d",
+  "code_license": "MIT",
+  "dataset": "https://huggingface.co/datasets/antiquality/agentabstain",
+  "dataset_revision": "842228426c2a703347396501af61c7890972c7ee",
+  "dataset_license": "CC-BY-4.0",
+  "full_dataset_sha256": "sha256:165f021e7bb8b3a1ba103cef291eb522ff219769e8e7727f1a669364a225fb63",
+  "selected_canary": "ambiguous_action_specification/preview_002",
+  "selected_canary_sha256": "sha256:2c19773c36c4b0b316da74a57a047bd82bd76f68c661259c7a1927c543f30734",
+  "network_policy": {"agent": "public", "verifier": "no-network", "platform": "linux"}
+}

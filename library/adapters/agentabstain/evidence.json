@@ -1,0 +1,70 @@
+{
+  "schema_version": "agentabstain-lean-evidence/v1",
+  "replacement": {
+    "branch": "replacement/agentabstain-lean-v1",
+    "base": "origin/main",
+    "selected_canaries": [
+      "ambiguous_action_specification/preview_002:act",
+      "ambiguous_action_specification/preview_002:abstain"
+    ],
+    "source_manifest": "source/canary.json",
+    "seed": {"path": "source/canary_state.json", "sha256": "sha256:6923cc143b3e16c9d4dab2bb63f9e524f1759eb075afd68a48fbcd15f9b67581"},
+    "materializer": "materialize.py",
+    "generated_exclusion": "derived/harbor-tasks/agentabstain/<source-digest>/"
+  },
+  "superseded_source": {
+    "old_pr": 173,
+    "old_branch": "fix/agentabstain-live-runtime",
+    "old_head": "f3bfc0c1510659d44beded0e24f735b6c5a15634",
+    "old_changed_files": 97,
+    "old_changed_bytes": 564778,
+    "old_agentabstain_files": 95,
+    "old_agentabstain_bytes": 404149,
+    "raw_control_files": 40,
+    "generated_report_files": 4,
+    "generated_report_lines": 2709,
+    "raw_selected_tasks_sha256": "sha256:1e166461cd4dc043213f80eb5a881f9d9c189585b866a2e21d1b3db2e760ab03",
+    "normalized_tasks_sha256": "sha256:453b6713d7f1c4a998a34a78bd10ec5ed70694ac0685586e0b3983cba8cfc378",
+    "superseded_paths": [
+      "library/adapters/agentabstain/raw/",
+      "library/adapters/agentabstain/reports/",
+      "library/adapters/agentabstain/data/tasks.jsonl",
+      "library/tasks/agentabstain-ambiguous-action-preview-002-act/",
+      "library/tasks/agentabstain-ambiguous-action-preview-002-abstain/",
+      "scripts/agentabstain/validate_linux.py",
+      "tests/test_agentabstain_adapter.py",
+      "tests/test_agentabstain_harbor_tasks.py",
+      "tests/test_agentabstain_linux_lane.py"
+    ],
+    "old_content_sha256": {
+      "raw/reproduction.json": "sha256:ef36898c24e16f0b130e69ea605b785ac8c351c09f07e3a08794d0fd0d7fdea0",
+      "reports/pair_report.json": "sha256:c2af914d6c375a293d2bed396b920c8e73eb7ae047b6c5a8f5d6e30e95d29421",
+      "reports/pair_scorecard.json": "sha256:568374b3e620673998547e4216c352736b36963598043b1f65b89861d03f170a",
+      "reports/typed_evidence_coverage.json": "sha256:8f797e581808eb8cb0b56eb24aa68021e168b1639204629c2738d45c908c4617",
+      "reports/typed_paired_condition_facts.json": "sha256:ea75ee0d6246e6e82df70d1d8dbaa0a01c22b93214f66ee898d6a9c0b6a4784b"
+    }
+  },
+  "upstream_pins": {
+    "code_repository": "https://github.com/AntiQuality/agentabstain",
+    "code_revision": "f581249704b26804e28a39e37396f1be00b71a4d",
+    "code_license": "MIT",
+    "dataset_repository": "https://huggingface.co/datasets/antiquality/agentabstain",
+    "dataset_revision": "842228426c2a703347396501af61c7890972c7ee",
+    "dataset_license": "CC-BY-4.0",
+    "full_dataset_sha256": "sha256:165f021e7bb8b3a1ba103cef291eb522ff219769e8e7727f1a669364a225fb63",
+    "upstream_license_sha256": "sha256:ae23741b50e4cb70f5e4eddf4878f4623899d467fa97012d505bf5b5272c5d91",
+    "environment_manifest_sha256": "sha256:04bb34ca5ab27927713d5297a98afe0c0b4c56e65740c459d6f58b6dd5ae20c0"
+  },
+  "preserved_cas": {
+    "root": "runs/CAS",
+    "objects": [
+      {"uri": "cas://eval-lab-agentabstain-act-oracle/2026-08-25__13-15-14/result.json", "path": "runs/CAS/agentabstain-act-oracle/2026-08-25__13-15-14/result.json", "sha256": "sha256:07c1c26b052fadd12256564e7903aa367de2024e43fd0e7acafea37269cca8ed"},
+      {"uri": "cas://eval-lab-agentabstain-abstain-oracle/2026-08-25__13-15-27/result.json", "path": "runs/CAS/agentabstain-abstain-oracle/2026-08-25__13-15-27/result.json", "sha256": "sha256:bdb8b32d9c1a5c4271676a8ee27266e255ce937ae941d066a4193aa08c2a69c0"}
+    ]
+  },
+  "retention": {
+    "raw_runs": "runs/CAS remains the immutable execution source; no raw run or generated report is committed here.",
+    "deterministic_output": "materialize.py writes only ignored derived/harbor-tasks output keyed by source digest.",
+    "committed_generated_corpus": "forbidden"
+  }
+}

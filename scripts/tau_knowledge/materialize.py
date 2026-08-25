@@ -64,7 +64,11 @@ def _validate_adapter(root: Path, manifest: Mapping[str, Any]) -> Path:
 
 
 def _load_adapter(root: Path) -> type[Any]:
-    candidates = [root / "src", root / "adapters" / "tau3-bench" / "src"]
+    candidates = [
+        root / "src",
+        root / "adapters" / "tau3-bench" / "src",
+        root / "harbor" / "adapters" / "tau3-bench" / "src",
+    ]
     for candidate in candidates:
         if candidate.is_dir():
             sys.path.insert(0, str(candidate))

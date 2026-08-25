@@ -50,6 +50,17 @@ def test_missing_source_and_credentials_fail_closed_without_trial() -> None:
     assert credential.reason_code == "blocked:missing_openai_api_key_for_simulated_user"
     assert credential.to_dict()["created_trial"] is False
 
+def test_harbor_repository_layout_resolves_nested_tau_adapter(tmp_path: Path) -> None:
+    materializer = _load(MATERIALIZER, "tau_knowledge_nested_adapter")
+    package = tmp_path / "harbor/adapters/tau3-bench/src/tau3_bench"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text(
+        "class Tau3BenchAdapter: pass\n", encoding="utf-8"
+    )
+    sys.modules.pop("tau3_bench", None)
+    adapter = materializer._load_adapter(tmp_path / "harbor")
+    assert adapter.__name__ == "Tau3BenchAdapter"
+
 
 def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) -> None:
     controls = _load(CONTROLS, "tau_knowledge_controls")

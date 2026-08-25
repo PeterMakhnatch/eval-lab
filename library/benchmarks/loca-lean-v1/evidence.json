@@ -22,7 +22,7 @@
   "new_source": {
     "path": "library/benchmarks/loca-lean-v1",
     "file_count": 13,
-    "bytes": 33268,
+    "bytes": 33365,
     "source_digest": "9553463c9b2da4f851f702554a5a973292eeb1eaedb2aa2725ae290c15264ab2",
     "generated_output": "derived/harbor-tasks/loca/<source-digest>/",
     "committed_generated_corpora": false,

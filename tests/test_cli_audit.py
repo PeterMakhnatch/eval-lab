@@ -9,6 +9,7 @@ import pytest
 from evallab import atif, cli
 
 TOP_LEVEL_COMMANDS = (
+    "claims",
     "doctor",
     "dashboard",
     "status",
@@ -41,6 +42,7 @@ TOP_LEVEL_COMMANDS = (
     "card",
     "behavior",
     "semantic-facts",
+    "semantics",
     "evidence",
     "tasks",
     "ladder",
@@ -53,6 +55,7 @@ TOP_LEVEL_COMMANDS = (
     "traj",
 )
 NESTED_COMMANDS = (
+    ("claims", "pack"),
     ("schedule", "install"),
     ("canary", "import-terminal-bench"),
     ("curve", "validate"),
@@ -74,6 +77,8 @@ NESTED_COMMANDS = (
     ("analyst", "list"),
     ("analyst", "show"),
     ("card", "generate"),
+    ("semantics", "project"),
+    ("semantics", "coverage"),
     ("evidence", "archive"),
     ("evidence", "restore"),
     ("tasks", "import"),

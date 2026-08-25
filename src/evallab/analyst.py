@@ -10,15 +10,20 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tarfile
+from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
+from enum import StrEnum
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.attach import attach
+from evallab.evidence_store import load_archive
 from evallab.lineage import compute_file_digest
 from evallab.paths import (
     derived_root_from_environment,
@@ -35,7 +40,38 @@ ANALYSIS_DIR_NAME = "research/analysis"
 DERIVED_ANALYSES_SUBDIR = "analyses"
 DERIVED_TRAJECTORIES_SUBDIR = "analyst_trajectories"
 
-DEFAULT_RUBRIC = """# Trial Failure and Capability Analysis Rubric
+# The category set is intentionally local to ANALYST.  AnalysisRecord remains a
+# generic storage contract, while this rubric version gives model output a
+# closed, reviewable vocabulary at the admission boundary.
+ANALYST_RUBRIC_VERSION = "analyst-context-v2"
+
+
+class AnalystCategory(StrEnum):
+    """Closed category vocabulary for :data:`ANALYST_RUBRIC_VERSION`."""
+
+    TASK_EXECUTION_FAILURE = "task_execution_failure"
+    PARSER_FAILURE = "parser_failure"
+    ASSERTION_ERROR = "assertion_error"
+    TIMEOUT = "timeout"
+    INFRASTRUCTURE_FAILURE = "infrastructure_failure"
+    TOOL_ERROR = "tool_error"
+    ENVIRONMENT_FAILURE = "environment_failure"
+    TASK_SUCCESS = "task_success"
+    CAPABILITY_DEMONSTRATION = "capability_demonstration"
+    SPECULATIVE_GUESS = "speculative_guess"
+    MODEL_ANALYSIS = "model_analysis"
+    # Retain the two values used by the original deterministic multi-perspective
+    # tests.  They are explicit rubric categories, not an open string fallback.
+    HYPOTHESIS_1 = "hypothesis_1"
+    HYPOTHESIS_2 = "hypothesis_2"
+
+
+ANALYST_CATEGORIES: tuple[str, ...] = tuple(item.value for item in AnalystCategory)
+
+
+DEFAULT_RUBRIC = f"""# Trial Failure and Capability Analysis Rubric
+
+Rubric version: {ANALYST_RUBRIC_VERSION}
 
 Evaluate the provided agent trial trajectory, task requirements, execution outcome,
 and verifier reward.
@@ -64,6 +100,7 @@ def _deterministic_ulid(identifier: str) -> str:
         chars.append(crockford[h[i] % 32])
     return "".join(chars)
 
+
 @dataclass(frozen=True)
 class AnalystResult:
     """Structured verdict returned by an Analyzer implementation."""
@@ -73,6 +110,10 @@ class AnalystResult:
     evidence: list[EvidenceCitation]
     confidence: ConfidenceClaim
     steps: list[dict[str, Any]] = field(default_factory=list)
+    # EvidenceCitation predates event/tool references in the storage schema.
+    # Keep those references at the analyst boundary so they can be validated
+    # before an AnalysisRecord is constructed.
+    citation_metadata: list[dict[str, Any]] = field(default_factory=list)
 
 
 class Analyzer(Protocol):
@@ -162,7 +203,7 @@ class ModelAnalyzer:
         schema = {
             "type": "object",
             "properties": {
-                "category": {"type": "string"},
+                "category": {"type": "string", "enum": ANALYST_CATEGORIES},
                 "summary": {"type": "string"},
                 "evidence": {
                     "type": "array",
@@ -171,8 +212,11 @@ class ModelAnalyzer:
                         "properties": {
                             "path": {"type": "string"},
                             "step": {"type": ["integer", "null"]},
+                            "event_id": {"type": ["string", "null"]},
+                            "tool_call_id": {"type": ["string", "null"]},
                         },
                         "required": ["path"],
+                        "additionalProperties": False,
                     },
                 },
                 "confidence": {
@@ -181,19 +225,19 @@ class ModelAnalyzer:
                 },
             },
             "required": ["category", "summary"],
+            "additionalProperties": False,
         }
 
         if callable(self.adapter):
             call_result = self.adapter(full_prompt, schema)
         else:
-            raise ModelProviderRefusedError(
-                f"Injected adapter for '{self.model}' is not callable."
-            )
+            raise ModelProviderRefusedError(f"Injected adapter for '{self.model}' is not callable.")
 
         category = "model_analysis"
         raw_text = getattr(call_result, "raw_output", str(call_result))
         summary = raw_text.strip()
         evidence: list[EvidenceCitation] = []
+        citation_metadata: list[dict[str, Any]] = []
         confidence_level: Literal["low", "medium", "high"] = "medium"
 
         try:
@@ -210,11 +254,16 @@ class ModelAnalyzer:
                                 EvidenceCitation(
                                     path=str(item["path"]),
                                     step=(
-                                        int(item["step"])
-                                        if item.get("step") is not None
-                                        else None
+                                        int(item["step"]) if item.get("step") is not None else None
                                     ),
                                 )
+                            )
+                            citation_metadata.append(
+                                {
+                                    key: item[key]
+                                    for key in ("event_id", "tool_call_id")
+                                    if item.get(key) is not None
+                                }
                             )
                 conf = parsed.get("confidence")
                 if isinstance(conf, str) and conf in {"low", "medium", "high"}:
@@ -254,11 +303,11 @@ class ModelAnalyzer:
                 provenance_digest=provenance_digest,
             ),
             steps=steps,
+            citation_metadata=citation_metadata,
         )
 
-def _resolve_runs_roots(
-    repo_root: Path, runs_root: Path | None = None
-) -> list[Path]:
+
+def _resolve_runs_roots(repo_root: Path, runs_root: Path | None = None) -> list[Path]:
     """Resolve ordered candidate roots for locating raw trial runs."""
     if runs_root is not None:
         return [runs_root.resolve()]
@@ -294,11 +343,108 @@ def _load_trajectory_steps(path: Path) -> list[dict[str, Any]]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return []
-    if isinstance(data, dict):
-        steps = data.get("steps")
-        if isinstance(steps, list):
-            return [s for s in steps if isinstance(s, dict)]
+    return _steps_from_payload(data)
+
+
+def _steps_from_payload(data: Any) -> list[dict[str, Any]]:
+    if isinstance(data, dict) and isinstance(data.get("steps"), list):
+        return [step for step in data["steps"] if isinstance(step, dict)]
     return []
+
+
+def _load_json_object(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _normalized_archive_member(name: str) -> str:
+    normalized = name
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    path = PurePosixPath(normalized)
+    if not normalized or path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError(f"invalid CAS evidence member path: {name}")
+    return path.as_posix()
+
+
+def _load_verified_cas_members(store_root: Path, uri: str) -> dict[str, bytes]:
+    """Read and content-verify a CAS archive without extracting it."""
+    blob = load_archive(store_root, uri)
+    expected_digest = f"sha256:{uri.removeprefix('cas://sha256/')}"
+    members: dict[str, bytes] = {}
+    with tarfile.open(blob, mode="r:gz") as archive:
+        entries: list[tuple[str, tarfile.TarInfo]] = []
+        for member in archive.getmembers():
+            if not member.isfile():
+                raise ValueError(f"CAS evidence archive contains non-file member: {member.name}")
+            entries.append((_normalized_archive_member(member.name), member))
+        digest = hashlib.sha256()
+        for name, member in sorted(entries, key=lambda item: item[0]):
+            if name in members:
+                raise ValueError(f"duplicate CAS evidence member: {name}")
+            source = archive.extractfile(member)
+            if source is None:
+                raise ValueError(f"cannot read CAS evidence member: {member.name}")
+            content = source.read()
+            members[name] = content
+            encoded_name = name.encode()
+            digest.update(len(encoded_name).to_bytes(8, "big"))
+            digest.update(encoded_name)
+            digest.update(len(content).to_bytes(8, "big"))
+            digest.update(content)
+    actual_digest = f"sha256:{digest.hexdigest()}"
+    if actual_digest != expected_digest:
+        raise ValueError(
+            f"CAS evidence digest mismatch: expected {expected_digest}, got {actual_digest}"
+        )
+    return members
+
+
+def _select_cas_member(
+    members: Mapping[str, bytes],
+    names: tuple[str, ...],
+) -> tuple[str, bytes] | None:
+    for name in names:
+        if name in members:
+            return name, members[name]
+        matches = sorted(
+            (member_name, content)
+            for member_name, content in members.items()
+            if member_name.endswith("/" + name)
+        )
+        if len(matches) > 1:
+            raise ValueError(f"ambiguous CAS evidence member: {name}")
+        if matches:
+            return matches[0]
+    return None
+
+
+def _cas_uri_for_trial(
+    trial_identifier: str,
+    trial_row: dict[str, Any] | None,
+    store_root: Path,
+) -> str | None:
+    targets = {trial_identifier}
+    if trial_row:
+        targets.update(str(trial_row.get(key)) for key in ("trial_id", "trial_name", "job_id"))
+    records_root = store_root / "records"
+    if not records_root.is_dir():
+        return None
+    for manifest_path in sorted(records_root.rglob("*.json")):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if str(manifest.get("record_id")) in targets:
+            uri = manifest.get("uri")
+            if isinstance(uri, str):
+                return uri
+    return None
 
 
 @dataclass(frozen=True)
@@ -318,6 +464,8 @@ class TrialData:
     result_path: Path | None
     trajectory_steps: list[dict[str, Any]]
     inputs: list[dict[str, Any]]
+    result_payload: dict[str, Any] = field(default_factory=dict)
+    cas_uri: str | None = None
 
 
 def resolve_trial(
@@ -326,8 +474,10 @@ def resolve_trial(
     *,
     explicit_derived: Path | None = None,
     runs_root: Path | None = None,
+    evidence_store_root: Path | None = None,
+    cas_uri: str | None = None,
 ) -> TrialData:
-    """Resolve trial metadata via DuckDB attach surface and find raw files."""
+    """Resolve trial metadata and, when explicitly requested, hydrate CAS bytes."""
     att = attach(repo_root=repo_root, explicit_derived=explicit_derived)
     trial_row: dict[str, Any] | None = None
     try:
@@ -347,21 +497,17 @@ def resolve_trial(
     finally:
         att.connection.close()
 
-    # Search runs roots for raw trajectory and result
     candidate_roots = _resolve_runs_roots(repo_root, runs_root)
     found_trial_dir: Path | None = None
     found_traj: Path | None = None
     found_result: Path | None = None
-
     for root in candidate_roots:
         if not root.exists():
             continue
-        # Check direct path matches
         direct_target = root / trial_identifier
         if direct_target.is_dir():
             found_trial_dir = direct_target
             break
-        # Search by job/trial subdirectory
         for job_dir in root.iterdir():
             if not job_dir.is_dir():
                 continue
@@ -387,35 +533,96 @@ def resolve_trial(
         if r_path.is_file():
             found_result = r_path
 
-    steps = _load_trajectory_steps(found_traj) if found_traj else []
+    # A CAS URI is an explicit source selection.  It never silently falls back
+    # to an absent filesystem artifact, and hydration is read-only.
+    store_root = evidence_store_root
+    if store_root is None and os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT"):
+        store_root = Path(os.environ["EVALLAB_EVIDENCE_STORE_ROOT"])
+    if cas_uri is None and store_root is not None and found_traj is None and found_result is None:
+        cas_uri = _cas_uri_for_trial(trial_identifier, trial_row, store_root)
+    hydrated_steps: list[dict[str, Any]] | None = None
+    hydrated_result: dict[str, Any] | None = None
+    trajectory_member: tuple[str, bytes] | None = None
+    result_member: tuple[str, bytes] | None = None
+    if cas_uri is not None:
+        if store_root is None:
+            raise ValueError("CAS hydration requested without an evidence store root")
+        members = _load_verified_cas_members(store_root, cas_uri)
+        trajectory_member = _select_cas_member(
+            members,
+            ("agent/trajectory.json", "trajectory.json"),
+        )
+        result_member = _select_cas_member(members, ("result.json",))
+        if trajectory_member is None and result_member is None:
+            raise FileNotFoundError(f"CAS evidence has no trajectory or result: {cas_uri}")
+        if trajectory_member is not None:
+            try:
+                hydrated_steps = _steps_from_payload(json.loads(trajectory_member[1]))
+            except Exception as exc:
+                raise ValueError(f"CAS trajectory is not valid JSON: {cas_uri}") from exc
+        if result_member is not None:
+            try:
+                parsed_result = json.loads(result_member[1])
+            except Exception as exc:
+                raise ValueError(f"CAS result is not valid JSON: {cas_uri}") from exc
+            if not isinstance(parsed_result, dict):
+                raise ValueError(f"CAS result is not a JSON object: {cas_uri}")
+            hydrated_result = parsed_result
+        found_traj = None
+        found_result = None
 
-    # Build inputs for lineage
+    steps = (
+        hydrated_steps
+        if hydrated_steps is not None
+        else _load_trajectory_steps(found_traj)
+        if found_traj
+        else []
+    )
+    result_payload = (
+        hydrated_result if hydrated_result is not None else _load_json_object(found_result)
+    )
+
     inputs: list[dict[str, Any]] = []
-    if found_traj and found_traj.is_file():
-        inputs.append(
-            {
-                "path": str(found_traj.relative_to(repo_root))
-                if found_traj.is_relative_to(repo_root)
-                else found_traj.as_posix(),
-                "digest": compute_file_digest(found_traj),
-            }
-        )
-    if found_result and found_result.is_file():
-        inputs.append(
-            {
-                "path": str(found_result.relative_to(repo_root))
-                if found_result.is_relative_to(repo_root)
-                else found_result.as_posix(),
-                "digest": compute_file_digest(found_result),
-            }
-        )
-
-    # Defaults from trial row or identifier
-    raw_trial_id = str(trial_row.get("trial_id") if trial_row else trial_identifier)
-    if len(raw_trial_id) == 26 and raw_trial_id[0] in "01234567":
-        trial_id = raw_trial_id
+    if cas_uri is not None:
+        content_digest = f"sha256:{cas_uri.removeprefix('cas://sha256/')}"
+        for selected in (trajectory_member, result_member):
+            if selected is None:
+                continue
+            member_name, member_content = selected
+            inputs.append(
+                {
+                    "path": cas_uri,
+                    "member": member_name,
+                    "digest": f"sha256:{hashlib.sha256(member_content).hexdigest()}",
+                    "content_digest": content_digest,
+                }
+            )
     else:
-        trial_id = _deterministic_ulid(raw_trial_id)
+        if found_traj and found_traj.is_file():
+            inputs.append(
+                {
+                    "path": str(found_traj.relative_to(repo_root))
+                    if found_traj.is_relative_to(repo_root)
+                    else found_traj.as_posix(),
+                    "digest": compute_file_digest(found_traj),
+                }
+            )
+        if found_result and found_result.is_file():
+            inputs.append(
+                {
+                    "path": str(found_result.relative_to(repo_root))
+                    if found_result.is_relative_to(repo_root)
+                    else found_result.as_posix(),
+                    "digest": compute_file_digest(found_result),
+                }
+            )
+
+    raw_trial_id = str(trial_row.get("trial_id") if trial_row else trial_identifier)
+    trial_id = (
+        raw_trial_id
+        if len(raw_trial_id) == 26 and raw_trial_id[0] in "01234567"
+        else _deterministic_ulid(raw_trial_id)
+    )
     job_id = str(trial_row.get("job_id") if trial_row else new_ulid())
     job_name = str(
         trial_row.get("job_name")
@@ -427,11 +634,11 @@ def resolve_trial(
         if trial_row
         else (found_trial_dir.name if found_trial_dir else trial_identifier)
     )
-    task_name = str(
-        trial_row.get("task_name") if trial_row else trial_name.split("__")[0]
+    task_name = str(trial_row.get("task_name") if trial_row else trial_name.split("__")[0])
+    reward = trial_row.get("primary_reward") if trial_row else result_payload.get("primary_reward")
+    exception = (
+        trial_row.get("exception_class") if trial_row else result_payload.get("exception_class")
     )
-    reward = trial_row.get("primary_reward") if trial_row else None
-    exception = trial_row.get("exception_class") if trial_row else None
     agent_name = str(trial_row.get("agent_name") if trial_row else "unknown_agent")
     model_name = str(trial_row.get("model_name") if trial_row else "unknown_model")
 
@@ -449,13 +656,193 @@ def resolve_trial(
         result_path=found_result,
         trajectory_steps=steps,
         inputs=inputs,
+        result_payload=result_payload,
+        cas_uri=cas_uri,
     )
 
 
-def assemble_context(trial: TrialData) -> tuple[str, str]:
-    """Assemble analysis prompt and context text from resolved trial data."""
-    prompt = DEFAULT_RUBRIC
+MAX_ORDINARY_STEPS = 24
+MAX_ORDINARY_STEP_CHARS = 240
+_ERROR_KEYS = frozenset(
+    {"stderr", "traceback", "error", "exception", "exception_info", "error_message", "error_type"}
+)
 
+
+def _step_error(step: Mapping[str, Any]) -> bool:
+    def walk(value: Any, key: str = "") -> bool:
+        if key.lower() in _ERROR_KEYS and value not in (None, "", [], {}):
+            return True
+        if isinstance(value, Mapping):
+            return any(walk(child, str(child_key)) for child_key, child in value.items())
+        if isinstance(value, list):
+            return any(walk(child, key) for child in value)
+        return key.lower() in {"exit_code", "returncode"} and value not in (None, 0)
+
+    return walk(step)
+
+
+def _error_lines(value: Any, prefix: str = "Error") -> list[str]:
+    lines: list[str] = []
+    if isinstance(value, Mapping):
+        for key in sorted(value, key=str):
+            child = value[key]
+            if str(key).lower() in _ERROR_KEYS and child not in (None, "", [], {}):
+                rendered = (
+                    child
+                    if isinstance(child, str)
+                    else json.dumps(child, sort_keys=True, default=str)
+                )
+                lines.append(f"{prefix} {key}: {rendered}")
+            elif isinstance(child, (Mapping, list)):
+                lines.extend(_error_lines(child, f"{prefix}.{key}"))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            lines.extend(_error_lines(child, f"{prefix}[{index}]"))
+    return lines
+
+
+def _citation_field(citation: Any, name: str, default: Any = None) -> Any:
+    if isinstance(citation, Mapping):
+        return citation.get(name, default)
+    return getattr(citation, name, default)
+
+
+def _normalize_citation_path(path: str) -> str:
+    if "\\" in path:
+        raise ValueError(f"Analysis rejected: invalid citation path {path!r}")
+    normalized = path
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    parsed = PurePosixPath(normalized)
+    if (
+        not normalized
+        or parsed.is_absolute()
+        or any(part in {"", ".", ".."} for part in parsed.parts)
+    ):
+        raise ValueError(f"Analysis rejected: invalid citation path {path!r}")
+    return parsed.as_posix()
+
+
+def _available_citation_paths(trial: TrialData) -> tuple[dict[str, str], set[str]]:
+    aliases: dict[str, str] = {}
+    trajectory_paths: set[str] = set()
+    for input_record in trial.inputs:
+        member = input_record.get("member")
+        raw_path = member if isinstance(member, str) else input_record.get("path")
+        if not isinstance(raw_path, str):
+            continue
+        canonical_path: str | None = None
+        with suppress(ValueError):
+            canonical_path = _normalize_citation_path(raw_path)
+        is_trajectory = raw_path.endswith("trajectory.json")
+        is_result = raw_path.endswith("result.json")
+        if canonical_path is None:
+            if is_trajectory:
+                canonical_path = "agent/trajectory.json"
+            elif is_result:
+                canonical_path = "result.json"
+            else:
+                continue
+        aliases[canonical_path] = canonical_path
+        if is_trajectory:
+            aliases["trajectory.json"] = canonical_path
+            aliases["agent/trajectory.json"] = canonical_path
+            trajectory_paths.add(canonical_path)
+        elif is_result:
+            aliases["result.json"] = canonical_path
+    return aliases, trajectory_paths
+
+
+def _step_reference_ids(step: Mapping[str, Any]) -> tuple[set[str], set[str]]:
+    event_ids: set[str] = set()
+    tool_call_ids: set[str] = set()
+
+    def collect(value: Any) -> None:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                if key == "event_id" and child is not None:
+                    event_ids.add(str(child))
+                elif key in {"tool_call_id", "source_call_id", "call_id"} and child is not None:
+                    tool_call_ids.add(str(child))
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(step)
+    return event_ids, tool_call_ids
+
+
+def _validate_result(
+    result: AnalystResult,
+    trial: TrialData,
+) -> list[EvidenceCitation]:
+    try:
+        AnalystCategory(result.category)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Analysis rejected: category {result.category!r} is not in "
+            f"{ANALYST_RUBRIC_VERSION} enum"
+        ) from exc
+    if not result.evidence:
+        raise ValueError(
+            "Analysis rejected: conclusion has no cited evidence. "
+            "Every claim must cite concrete artifacts/steps."
+        )
+
+    available_paths, trajectory_paths = _available_citation_paths(trial)
+    steps_by_id: dict[int, Mapping[str, Any]] = {}
+    for index, step_payload in enumerate(trial.trajectory_steps):
+        steps_by_id.setdefault(index, step_payload)
+        step_id = step_payload.get("step_id")
+        if isinstance(step_id, int) and not isinstance(step_id, bool):
+            steps_by_id[step_id] = step_payload
+
+    normalized: list[EvidenceCitation] = []
+    for index, citation in enumerate(result.evidence):
+        path = _citation_field(citation, "path")
+        step = _citation_field(citation, "step")
+        event_id = _citation_field(citation, "event_id")
+        tool_call_id = _citation_field(citation, "tool_call_id")
+        if index < len(result.citation_metadata):
+            metadata = result.citation_metadata[index]
+            event_id = metadata.get("event_id", event_id)
+            tool_call_id = metadata.get("tool_call_id", tool_call_id)
+        if not isinstance(path, str) or not path.strip():
+            raise ValueError("Analysis rejected: citation path is empty")
+        normalized_path = _normalize_citation_path(path.strip())
+        resolved_path = available_paths.get(normalized_path)
+        if resolved_path is None:
+            raise ValueError(
+                f"Analysis rejected: citation path is not a resolved trial input: {normalized_path}"
+            )
+        if step is None:
+            if event_id is not None or tool_call_id is not None:
+                raise ValueError("Analysis rejected: event/tool citation requires a cited step")
+            normalized.append(EvidenceCitation(path=resolved_path, step=None))
+            continue
+        if not isinstance(step, int) or isinstance(step, bool) or step not in steps_by_id:
+            raise ValueError(f"Analysis rejected: nonexistent step citation {step!r}")
+        if resolved_path not in trajectory_paths:
+            raise ValueError(
+                f"Analysis rejected: step citation targets non-trajectory input {resolved_path}"
+            )
+        step_event_ids, step_tool_call_ids = _step_reference_ids(steps_by_id[step])
+        if event_id is not None and str(event_id) not in step_event_ids:
+            raise ValueError(
+                f"Analysis rejected: nonexistent event citation {event_id!r} at step {step}"
+            )
+        if tool_call_id is not None and str(tool_call_id) not in step_tool_call_ids:
+            raise ValueError(
+                f"Analysis rejected: nonexistent tool_call citation {tool_call_id!r} at step {step}"
+            )
+        normalized.append(EvidenceCitation(path=resolved_path, step=step))
+    return normalized
+
+
+def assemble_context(trial: TrialData) -> tuple[str, str]:
+    """Build deterministic, error-adaptive context without mutating raw artifacts."""
+    prompt = DEFAULT_RUBRIC
     context_lines = [
         f"Trial ID: {trial.trial_id}",
         f"Job Name: {trial.job_name}",
@@ -469,13 +856,45 @@ def assemble_context(trial: TrialData) -> tuple[str, str]:
         "",
         "## Trajectory Summary:",
     ]
-    for i, step in enumerate(trial.trajectory_steps):
+    ordinary_total = 0
+    ordinary_included = 0
+    error_lines: list[str] = []
+    for index, step in enumerate(trial.trajectory_steps):
+        if _step_error(step):
+            step_id = step.get("step_id", index)
+            error_lines.append(f"Error Step {step_id}:")
+            error_lines.extend(_error_lines(step, f"Step {step_id}"))
+            if not any(line.startswith(f"Step {step_id} ") for line in error_lines):
+                message = step.get("message")
+                if message:
+                    error_lines.append(f"Step {step_id} message: {message}")
+            continue
+        ordinary_total += 1
+        if ordinary_included >= MAX_ORDINARY_STEPS:
+            continue
+        ordinary_included += 1
         source = step.get("source", "agent")
         msg = step.get("message")
-        msg_str = json.dumps(msg) if isinstance(msg, dict) else str(msg or "")
-        truncated = (msg_str[:200] + "...") if len(msg_str) > 200 else msg_str
-        context_lines.append(f"Step {i} [{source}]: {truncated}")
+        msg_str = (
+            json.dumps(msg, sort_keys=True, default=str)
+            if isinstance(msg, dict)
+            else str(msg or "")
+        )
+        bounded = (
+            (msg_str[:MAX_ORDINARY_STEP_CHARS] + "...")
+            if len(msg_str) > MAX_ORDINARY_STEP_CHARS
+            else msg_str
+        )
+        context_lines.append(f"Step {step.get('step_id', index)} [{source}]: {bounded}")
 
+    if error_lines or trial.result_payload:
+        context_lines.extend(["", "## Complete Error Evidence:"])
+        context_lines.extend(error_lines)
+        context_lines.extend(_error_lines(trial.result_payload, "Result"))
+    if ordinary_total > ordinary_included:
+        context_lines.append(
+            f"[ordinary steps bounded: included {ordinary_included} of {ordinary_total}]"
+        )
     context = "\n".join(context_lines)
     return prompt, context
 
@@ -489,6 +908,8 @@ def run_analysis(
     repo_root: Path | None = None,
     derived_root: Path | None = None,
     runs_root: Path | None = None,
+    evidence_store_root: Path | None = None,
+    cas_uri: str | None = None,
     analysis_id: str | None = None,
 ) -> tuple[AnalysisRecord, dict[str, Any], Path, Path]:
     """Execute analysis on a trial, validate evidence, and store artifacts.
@@ -506,9 +927,7 @@ def run_analysis(
     # 1. Resolve analyzer
     if analyzer is None:
         analyzer = (
-            ModelAnalyzer(model=model, adapter=adapter)
-            if model is not None
-            else StubAnalyzer()
+            ModelAnalyzer(model=model, adapter=adapter) if model is not None else StubAnalyzer()
         )
     # Track analyst's own trajectory steps
     analyst_steps: list[dict[str, Any]] = []
@@ -521,10 +940,13 @@ def run_analysis(
             "message": f"Attached unified surface and resolved trial '{trial_identifier}'",
         }
     )
-
-    # 2. Resolve trial data
     trial = resolve_trial(
-        trial_identifier, root, explicit_derived=derived, runs_root=runs_root
+        trial_identifier,
+        root,
+        explicit_derived=derived,
+        runs_root=runs_root,
+        evidence_store_root=evidence_store_root,
+        cas_uri=cas_uri,
     )
     analyst_steps.append(
         {
@@ -551,40 +973,30 @@ def run_analysis(
     # 4. Run analysis
     result = analyzer.analyze(prompt, context)
 
-    # Append any internal steps from the analyzer
+    # Append any internal steps from the analyzer.
     for extra_step in result.steps:
         next_step_id = len(analyst_steps)
         analyst_steps.append(
             {
                 "step_id": next_step_id,
                 "source": extra_step.get("source", "analyst"),
-                "timestamp": extra_step.get(
-                    "timestamp", datetime.now(UTC).isoformat()
-                ),
+                "timestamp": extra_step.get("timestamp", datetime.now(UTC).isoformat()),
                 "message": extra_step.get("message", "Analyzed trial data"),
             }
         )
-
-    # 5. Evidence requirement: reject unevidenced conclusion
-    if not result.evidence or len(result.evidence) == 0:
-        raise ValueError(
-            "Analysis rejected: conclusion has no cited evidence. "
-            "Every claim must cite concrete artifacts/steps."
-        )
-    # 6. Build durable AnalysisRecord
+    # Validate category and every citation before allocating an analysis ID or
+    # creating the durable analysis directory.
+    normalized_evidence = _validate_result(result, trial)
+    # 5. Build durable AnalysisRecord only after all model output is admitted.
     rec_id = analysis_id or new_ulid()
-    model_name = (
-        model
-        if model
-        else ("stub" if isinstance(analyzer, StubAnalyzer) else "analyzer")
-    )
+    model_name = model if model else ("stub" if isinstance(analyzer, StubAnalyzer) else "analyzer")
     record = AnalysisRecord(
         analysis_id=rec_id,
         trial_id=trial.trial_id,
         rubric_digest=rubric_digest,
         model=model_name,
         category=result.category,
-        evidence=result.evidence,
+        evidence=normalized_evidence,
         confidence=result.confidence,
     )
 
@@ -622,9 +1034,7 @@ def run_analysis(
     return record, trajectory_payload, conclusion_file, trajectory_file
 
 
-def project_analyses(
-    repo_root: Path, explicit_derived: Path | None = None
-) -> tuple[int, int]:
+def project_analyses(repo_root: Path, explicit_derived: Path | None = None) -> tuple[int, int]:
     """Project all stored analysis records and trajectories into Parquet.
 
     Writes:
@@ -743,9 +1153,7 @@ def project_analyses(
     )
 
     if trajectory_rows:
-        t_trajectories = pa.Table.from_pylist(
-            trajectory_rows, schema=traj_schema
-        )
+        t_trajectories = pa.Table.from_pylist(trajectory_rows, schema=traj_schema)
     else:
         t_trajectories = traj_schema.empty_table()
 
@@ -756,9 +1164,7 @@ def project_analyses(
     return len(record_rows), len(trajectory_rows)
 
 
-def list_analyses(
-    repo_root: Path, trial_id: str | None = None
-) -> list[dict[str, Any]]:
+def list_analyses(repo_root: Path, trial_id: str | None = None) -> list[dict[str, Any]]:
     """List stored analysis conclusions, optionally filtered by trial_id."""
     analysis_dir = repo_root / ANALYSIS_DIR_NAME
     if not analysis_dir.exists():
@@ -798,18 +1204,14 @@ def list_analyses(
     return results
 
 
-def show_analysis(
-    analysis_id: str, repo_root: Path
-) -> tuple[dict[str, Any], dict[str, Any]]:
+def show_analysis(analysis_id: str, repo_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """Retrieve an analysis conclusion and its recorded reasoning trajectory."""
     analysis_dir = repo_root / ANALYSIS_DIR_NAME
     conclusion_file = analysis_dir / f"{analysis_id}.json"
     trajectory_file = analysis_dir / f"{analysis_id}.trajectory.json"
 
     if not conclusion_file.is_file():
-        raise FileNotFoundError(
-            f"Analysis record '{analysis_id}' not found at {conclusion_file}"
-        )
+        raise FileNotFoundError(f"Analysis record '{analysis_id}' not found at {conclusion_file}")
 
     conclusion_data = json.loads(conclusion_file.read_text(encoding="utf-8"))
     trajectory_data = (

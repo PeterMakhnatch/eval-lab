@@ -14,10 +14,14 @@ from evallab.analyst import (
     ModelAnalyzer,
     ModelProviderRefusedError,
     StubAnalyzer,
+    TrialData,
+    assemble_context,
     list_analyses,
+    resolve_trial,
     run_analysis,
 )
 from evallab.cli import run_cli
+from evallab.evidence_store import archive_evidence
 from evallab.lineage import resolve_lineage
 from evallab.schemas import AnalysisRecord, ConfidenceClaim, EvidenceCitation
 
@@ -315,9 +319,7 @@ def test_no_model_invoked_without_model_flag(
     monkeypatch.setattr(socket, "socket", guarded_socket)
 
     # Default run works without network
-    record, _, _, _ = run_analysis(
-        "trial_01", model=None, repo_root=tmp_path, derived_root=derived
-    )
+    record, _, _, _ = run_analysis("trial_01", model=None, repo_root=tmp_path, derived_root=derived)
     assert record.model == "stub"
 
     # 4. run_analysis with model flag raises ModelProviderRefusedError
@@ -367,3 +369,178 @@ def test_cli_analyst_commands(tmp_path: Path) -> None:
     # 4. show CLI with --json
     ret_show_json = run_cli(["analyst", "show", analysis_id, "--json"], workspace=tmp_path)
     assert ret_show_json == 0
+
+
+@pytest.mark.parametrize(
+    "bad_path",
+    ["missing.json", "../result.json", "/tmp/result.json"],
+)
+def test_analysis_rejects_missing_or_escaping_citation_paths(
+    tmp_path: Path,
+    bad_path: str,
+) -> None:
+    _create_synthetic_trial(tmp_path)
+
+    class BadPathAnalyzer:
+        def analyze(self, prompt: str, context: str) -> AnalystResult:
+            del prompt, context
+            return AnalystResult(
+                category="parser_failure",
+                summary="bad citation",
+                evidence=[EvidenceCitation(path=bad_path, step=None)],
+                confidence=ConfidenceClaim(level="high"),
+            )
+
+    with pytest.raises(ValueError, match="citation path"):
+        run_analysis(
+            "trial_01",
+            analyzer=BadPathAnalyzer(),
+            repo_root=tmp_path,
+            derived_root=tmp_path / "derived",
+        )
+    assert not (tmp_path / "research" / "analysis").exists()
+
+
+def test_analysis_binds_tool_citation_to_cited_step(tmp_path: Path) -> None:
+    trial_dir = _create_synthetic_trial(tmp_path)
+    trajectory_path = trial_dir / "agent" / "trajectory.json"
+    payload = json.loads(trajectory_path.read_text())
+    payload["steps"][0]["tool_calls"] = [{"tool_name": "read", "tool_call_id": "call-step-0"}]
+    trajectory_path.write_text(json.dumps(payload))
+
+    class MisboundAnalyzer:
+        def analyze(self, prompt: str, context: str) -> AnalystResult:
+            del prompt, context
+            return AnalystResult(
+                category="tool_error",
+                summary="misbound citation",
+                evidence=[
+                    EvidenceCitation(
+                        path="runs/job_01/trial_01/agent/trajectory.json",
+                        step=1,
+                    )
+                ],
+                confidence=ConfidenceClaim(level="high"),
+                citation_metadata=[{"tool_call_id": "call-step-0"}],
+            )
+
+    with pytest.raises(ValueError, match="tool_call.*at step 1"):
+        run_analysis(
+            "trial_01",
+            analyzer=MisboundAnalyzer(),
+            repo_root=tmp_path,
+            derived_root=tmp_path / "derived",
+        )
+
+
+def test_cas_hydration_rejects_tampered_blob(tmp_path: Path) -> None:
+    source_trial = _create_synthetic_trial(tmp_path / "source")
+    store = tmp_path / "evidence-store"
+    archive = archive_evidence(
+        source_trial,
+        store,
+        record_id="trial_01",
+        kind="trial",
+    )
+
+    tampered_trial = _create_synthetic_trial(tmp_path / "tampered")
+    (tampered_trial / "result.json").write_text('{"tampered": true}')
+    tampered_archive = archive_evidence(
+        tampered_trial,
+        store,
+        record_id="tampered",
+        kind="trial",
+    )
+    archive.blob_path.write_bytes(tampered_archive.blob_path.read_bytes())
+
+    with pytest.raises(ValueError, match="CAS evidence digest mismatch"):
+        resolve_trial(
+            "trial_01",
+            tmp_path,
+            explicit_derived=tmp_path / "derived",
+            runs_root=tmp_path / "absent-runs",
+            evidence_store_root=store,
+            cas_uri=archive.uri,
+        )
+
+
+def test_result_only_cas_records_only_hydrated_member(tmp_path: Path) -> None:
+    source = tmp_path / "result-only"
+    source.mkdir()
+    (source / "result.json").write_text("{}")
+    store = tmp_path / "evidence-store"
+    archive = archive_evidence(
+        source,
+        store,
+        record_id="result-only",
+        kind="trial",
+    )
+
+    trial = resolve_trial(
+        "result-only",
+        tmp_path,
+        explicit_derived=tmp_path / "derived",
+        runs_root=tmp_path / "absent-runs",
+        evidence_store_root=store,
+        cas_uri=archive.uri,
+    )
+    assert trial.trajectory_steps == []
+    assert trial.result_payload == {}
+    assert [item["member"] for item in trial.inputs] == ["result.json"]
+    assert trial.inputs[0]["digest"].startswith("sha256:")
+    assert trial.inputs[0]["content_digest"] == archive.content_digest
+
+
+def test_context_keeps_complete_errors_and_counts_only_ordinary_steps() -> None:
+    stderr = "x" * 6000
+    steps = [
+        {
+            "step_id": 0,
+            "source": "agent",
+            "error": "boom",
+            "stderr": stderr,
+        },
+        *[
+            {
+                "step_id": index + 1,
+                "source": "agent",
+                "message": f"ordinary-{index}",
+            }
+            for index in range(26)
+        ],
+    ]
+    trial = TrialData(
+        trial_id="trial",
+        job_id="job",
+        job_name="job",
+        trial_name="trial",
+        task_name="task",
+        primary_reward=0.0,
+        exception_class="RuntimeError",
+        agent_name="agent",
+        model_name="model",
+        trajectory_path=None,
+        result_path=None,
+        trajectory_steps=steps,
+        inputs=[],
+        result_payload={"traceback": "full traceback"},
+    )
+    _, context = assemble_context(trial)
+    assert stderr in context
+    assert "full traceback" in context
+    assert "[ordinary steps bounded: included 24 of 26]" in context
+
+
+def test_analysis_rejects_out_of_rubric_category_before_persistence(
+    tmp_path: Path,
+) -> None:
+    _create_synthetic_trial(tmp_path)
+    analyzer = StubAnalyzer(category="free_form_category")
+    with pytest.raises(ValueError, match="analyst-context-v2 enum"):
+        run_analysis(
+            "trial_01",
+            analyzer=analyzer,
+            repo_root=tmp_path,
+            derived_root=tmp_path / "derived",
+        )
+    assert not (tmp_path / "research" / "analysis").exists()

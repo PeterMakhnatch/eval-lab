@@ -9,6 +9,7 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import UTC, date, datetime
+from importlib import import_module
 from pathlib import Path
 from uuid import UUID
 
@@ -409,6 +410,7 @@ def _submit_command(
     if path.parent.name == "waiting" and "evallab approve" not in decision.message:
         print(f"next: uv run evallab approve {shlex.quote(str(submitted.spec_id))} --actor <you>")
     return 0
+
 
 def _tick_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
@@ -1485,6 +1487,8 @@ def _behavior_command(
     else:
         print(render_behavior_report(report))
     return 0
+
+
 def _semantic_facts_project_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1513,7 +1517,87 @@ def _semantic_facts_query_command(
     return 0
 
 
+def _semantics_bindings(values: Sequence[str]):
+    from evallab.trajectory_semantics import (
+        TaskProfileBinding,
+        get_profile,
+    )
 
+    bindings = []
+    for value in values:
+        task_id, separator, profile_id = value.partition("=")
+        if not separator or not task_id.strip() or not profile_id.strip():
+            raise ValueError("--bind must use TASK_ID=PROFILE_ID")
+        profile = get_profile(profile_id.strip())
+        bindings.append(TaskProfileBinding.from_profile(task_id.strip(), profile))
+    return bindings
+
+
+def _semantics_project_command(
+    args: argparse.Namespace,
+    root: Path,
+    *,
+    harbor: HarborBackend | None = None,
+) -> int:
+    del harbor
+    from evallab.trajectory_semantics import project_job_semantics
+
+    jobs = load_jobs([_resolve(root, path) for path in args.paths])
+    if not jobs:
+        print("No completed Harbor jobs found.", file=sys.stderr)
+        return 1
+    derived = derived_root_from_environment(
+        root,
+        explicit=args.output_dir,
+    )
+    result = project_job_semantics(
+        jobs,
+        bindings=_semantics_bindings(args.bind),
+        output_root=derived,
+        query_threshold=args.coverage_threshold,
+        strict=not args.permissive,
+    )
+    payload = {
+        "files": [str(path) for path in result.files],
+        "coverage": [row.model_dump(mode="json") for row in result.coverage],
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"projected {len(result.files)} semantic file(s) to {derived}")
+        for row in result.coverage:
+            print(
+                f"{row.trial_id}: {row.coverage_fraction:.3f} "
+                f"at threshold {row.query_threshold:.3f} — {row.status}"
+            )
+    return 0
+
+
+def _semantics_coverage_command(
+    args: argparse.Namespace,
+    root: Path,
+    *,
+    harbor: HarborBackend | None = None,
+) -> int:
+    del harbor
+    from evallab.trajectory_semantics import query_semantic_coverage
+
+    derived = derived_root_from_environment(
+        root,
+        explicit=args.derived_dir,
+    )
+    rows = query_semantic_coverage(
+        derived,
+        query_threshold=args.threshold,
+    )
+    print(
+        json.dumps(
+            [row.model_dump(mode="json") for row in rows],
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
 
 def _evidence_archive_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
@@ -1847,15 +1931,8 @@ def _ladder_screen_stage2_command(
         print(f"Stopped tasks ({len(report.stopped_tasks)}): {stop_str}")
         print("Task decisions:")
         for task_result in report.tasks:
-            action = (
-                "SELECTED for Stage 2"
-                if task_result.selected_for_followup
-                else "STOPPED"
-            )
-            print(
-                f"  - {task_result.task_id}: {action} — "
-                f"{task_result.followup_reason}"
-            )
+            action = "SELECTED for Stage 2" if task_result.selected_for_followup else "STOPPED"
+            print(f"  - {task_result.task_id}: {action} — {task_result.followup_reason}")
         print(
             f"Generated {result.total_specs} follow-up specs "
             f"({result.total_trials} trials, k={screen_spec.followup_k})"
@@ -2291,6 +2368,42 @@ def _traj_report_command(
 # ---------------------------------------------------------------------------
 
 
+def _load_claims_tokenizer(selector: str) -> Callable[[str], int] | object:
+    module_name, separator, attribute = selector.partition(":")
+    if not separator or not module_name or not attribute:
+        raise ValueError("tokenizer must be MODULE:ATTRIBUTE")
+    target: object = import_module(module_name)
+    for component in attribute.split("."):
+        target = getattr(target, component)
+    if callable(target) or callable(getattr(target, "encode", None)):
+        return target
+    raise TypeError("tokenizer target must be callable or provide encode()")
+
+
+def _claims_pack_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.trajectory_context import build_durable_trajectory_context
+
+    output_format = "json" if args.json else "markdown"
+    tokenizer = _load_claims_tokenizer(args.tokenizer) if args.tokenizer is not None else None
+    pack = build_durable_trajectory_context(
+        trial_id=args.trial,
+        repo_root=root,
+        derived_root=args.derived_root,
+        database_url=args.database_url,
+        sidecar_roots=tuple(args.analysis_root or ()),
+        semantic_root=args.semantic_root,
+        max_bytes=args.max_bytes,
+        max_entries=args.max_entries,
+        max_tokens=args.max_tokens,
+        tokenizer=tokenizer,
+        output_format=output_format,
+    )
+    print(pack.render(output_format), end="")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="evallab",
@@ -2298,6 +2411,34 @@ def parser() -> argparse.ArgumentParser:
     )
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
+    claims = commands.add_parser("claims", help="Compile durable, provenance-backed claims context")
+    claims_commands = claims.add_subparsers(dest="claims_command", required=True)
+    claims_pack = claims_commands.add_parser(
+        "pack", help="Compile one trial's accepted/current claims"
+    )
+    claims_pack.add_argument("--trial", required=True, help="Trial identifier")
+    claims_pack.add_argument("--max-bytes", type=int, help="Exact UTF-8 output byte bound")
+    claims_pack.add_argument("--max-entries", type=int, help="Maximum complete claims")
+    claims_pack.add_argument(
+        "--max-tokens",
+        type=int,
+        help="Exact token bound; requires --tokenizer",
+    )
+    claims_pack.add_argument(
+        "--tokenizer",
+        help="Explicit tokenizer as MODULE:ATTRIBUTE callable or encode()-provider",
+    )
+    claims_pack.add_argument("--database-url", help="PostgreSQL catalog URL override")
+    claims_pack.add_argument("--derived-root", type=Path, help="Shared Parquet root override")
+    claims_pack.add_argument(
+        "--analysis-root",
+        type=Path,
+        action="append",
+        help="Analysis sidecar root (repeatable)",
+    )
+    claims_pack.add_argument("--semantic-root", type=Path, help="Semantic Parquet root")
+    claims_pack.add_argument("--json", action="store_true", help="Emit the typed pack as JSON")
+    claims_pack.set_defaults(func=_claims_pack_command)
 
     doctor = commands.add_parser("doctor", help="Check local Harbor, Docker, uv, and PostgreSQL")
     doctor.add_argument(
@@ -2910,12 +3051,46 @@ def parser() -> argparse.ArgumentParser:
     semantic_facts_query.add_argument("--construct")
     semantic_facts_query.set_defaults(func=_semantic_facts_query_command)
 
+    semantics = commands.add_parser(
+        "semantics",
+        help="Project and query profile-derived semantic action facts",
+    )
+    semantics_commands = semantics.add_subparsers(
+        dest="semantics_command",
+        required=True,
+    )
+    semantics_project = semantics_commands.add_parser(
+        "project",
+        help="Project normalized ATIF with explicit task-to-profile bindings",
+    )
+    semantics_project.add_argument("paths", nargs="+", type=Path)
+    semantics_project.add_argument(
+        "--bind",
+        action="append",
+        required=True,
+        metavar="TASK_ID=PROFILE_ID",
+    )
+    semantics_project.add_argument("--output-dir", type=Path)
+    semantics_project.add_argument(
+        "--coverage-threshold",
+        type=float,
+        required=True,
+    )
+    semantics_project.add_argument("--permissive", action="store_true")
+    semantics_project.add_argument("--json", action="store_true")
+    semantics_project.set_defaults(func=_semantics_project_command)
+    semantics_coverage = semantics_commands.add_parser(
+        "coverage",
+        help="Query per-trial semantic coverage at an explicit threshold",
+    )
+    semantics_coverage.add_argument("--derived-dir", type=Path)
+    semantics_coverage.add_argument("--threshold", type=float, required=True)
+    semantics_coverage.set_defaults(func=_semantics_coverage_command)
+
     evidence_parser = commands.add_parser(
         "evidence", help="Archive and restore content-addressed raw evidence"
     )
-    evidence_commands = evidence_parser.add_subparsers(
-        dest="evidence_command", required=True
-    )
+    evidence_commands = evidence_parser.add_subparsers(dest="evidence_command", required=True)
     evidence_archive = evidence_commands.add_parser("archive")
     evidence_archive.add_argument("source", type=Path)
     evidence_archive.add_argument("--store", type=Path, required=True)
@@ -2929,9 +3104,7 @@ def parser() -> argparse.ArgumentParser:
     evidence_restore.add_argument("--destination", type=Path, required=True)
     evidence_restore.set_defaults(func=_evidence_restore_command)
 
-    tasks_parser = commands.add_parser(
-        "tasks", help="Import and manage task corpora"
-    )
+    tasks_parser = commands.add_parser("tasks", help="Import and manage task corpora")
     tasks_commands = tasks_parser.add_subparsers(dest="tasks_command", required=True)
     tasks_import = tasks_commands.add_parser(
         "import", help="Restartable batch import of local Harbor task packages"
@@ -3395,9 +3568,7 @@ def parser() -> argparse.ArgumentParser:
     traj_label.add_argument("trial", help="Trial identifier or directory")
     traj_label.add_argument("label", help="Behavior label (e.g. tool_use_loop)")
     traj_label.add_argument("--note", help="Optional label explanation or observation")
-    traj_label.add_argument(
-        "--provenance", default="human", choices=["human", "heuristic"]
-    )
+    traj_label.add_argument("--provenance", default="human", choices=["human", "heuristic"])
     traj_label.add_argument("--author", default="peter", help="Author of the label")
     traj_label.add_argument("--json", action="store_true", help="Emit label as JSON")
     traj_label.set_defaults(func=_traj_label_command)

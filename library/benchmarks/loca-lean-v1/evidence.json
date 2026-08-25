@@ -1,0 +1,70 @@
+{
+  "benchmark": "LOCA-bench",
+  "replacement": "replacement/loca-lean-v1",
+  "old_source": {
+    "pr": 168,
+    "branch": "fix/loca-verifier-state-sharing",
+    "head": "b29e3d0057a4289d567acd6106c0da42fcea15c4",
+    "path": "library/benchmarks/loca-bench",
+    "file_count": 402,
+    "bytes": 7796009,
+    "superseded_paths": [
+      "library/benchmarks/loca-bench/tasks/",
+      "library/benchmarks/loca-bench/vendor/",
+      "library/benchmarks/loca-bench/source_configs/",
+      "library/benchmarks/loca-bench/adapter.py",
+      "library/benchmarks/loca-bench/generate_harbor_tasks.py",
+      "library/benchmarks/loca-bench/verify.py",
+      "library/benchmarks/loca-bench/oracle.py",
+      "library/benchmarks/loca-bench/context_curve.py"
+    ]
+  },
+  "new_source": {
+    "path": "library/benchmarks/loca-lean-v1",
+    "file_count": 13,
+    "bytes": 33268,
+    "source_digest": "9553463c9b2da4f851f702554a5a973292eeb1eaedb2aa2725ae290c15264ab2",
+    "generated_output": "derived/harbor-tasks/loca/<source-digest>/",
+    "committed_generated_corpora": false,
+    "excluded": ["nine materialized task trees", "vendored upstream payload", "repeated runtime/verifier copies", "large source-config payloads"],
+    "canary_fixture": {
+      "committed": false,
+      "reason": "Workbench inspection did not require a fixture; the 8k seed-42 state is generated deterministically from the immutable pin record and seed.",
+      "size": "8k",
+      "seed": 42
+    }
+  },
+  "pins": {
+    "repository": "https://github.com/hkust-nlp/LOCA-bench",
+    "main_commit": "8b6fac49d9edd92922593e703b74ea255357c3ec",
+    "sandbox_commit": "2b4a1c77bd65d83750372ee079a2e5c5d13cb27c",
+    "license": "MIT",
+    "license_sha256": "sha256:2bb75401bf1c737039d17c6defda15c2f37eb2b5eb62facbf6dea50bf72811c2",
+    "source_file_sha256": {
+      "final_8k_set_config.json": "sha256:34c8bfa3c2d28fd1cee8e76e1a9a498a9f5ad57956232a8a2237a97cf52c2e8a",
+      "final_64k_set_config.json": "sha256:67336686488ea40bd4f385b5f89c826168fda5ec5f8fd9dd5454f7b1fb2d75a8",
+      "final_128k_set_config.json": "sha256:1ccd198f280ebfb5958c96a44cde2417195c210edb485ec715f55d1065bddffc",
+      "generate_ab_data.py": "sha256:fc9a8aef8294326866ae69cf6d70cd60bbc3daf7dab1408c1a7eb2b59078eaa9"
+    }
+  },
+  "preserved_cas_references": [
+    {"size": "8k", "seed": 42, "state": "sha256:829bba54bad9ca179d3fc3c03f2d6737dfc4e1fc91f22c94cef73d7f4f4b2d9d", "database": "sha256:38060fd9580ad0fc08069d01e442807f984405fa0ee7f8a2b363da5b5a5aeb02"},
+    {"size": "8k", "seed": 123, "state": "sha256:d9b7fa3c26ab92261a60aeac7a2564d2762f14e9084336ab4211c3115f760a08", "database": "sha256:20c205bfae3f0c5888ff3658526d93eacab1ac9fd2a3654f5b22070d9bbadea1"},
+    {"size": "8k", "seed": 456, "state": "sha256:56ef5d6e486f3bd9b6f1b172a1056b871628ad2e9720afc1901e2bef565e7dba", "database": "sha256:37a75d6a8d3735878269173a4bca5527ee7805122306d478623b257f5bd3c454"},
+    {"size": "64k", "seed": 42, "state": "sha256:92144fcdbeb08a50e5294ac4d041cef209842024d6e3ebd85527df55dbb52018", "database": "sha256:92647f7ad9f2c16714539c1ace73fac1ec067550b4ca514e1934c90950f0aff8"},
+    {"size": "64k", "seed": 123, "state": "sha256:a8407246fa9ed93d30a2818a7490f260b7255d405a4dd0c661a1ea6cc25b8940", "database": "sha256:090686876221110e6ba8897cec98abe7800993bc9112e19ffc226fd42d0efdd8"},
+    {"size": "64k", "seed": 456, "state": "sha256:b4b00ef1c2d51edb6bdd7caf35a0bed27e952663d955ee92766213fba03cab9a", "database": "sha256:936679dff2cfc983828fc9a0011362b0509e8b5e83d0130c193ba318f1310207"},
+    {"size": "128k", "seed": 42, "state": "sha256:2088bb5dd01ea0639ee35675cdf236b8a266fb66819320a018b0a21f37b60a53", "database": "sha256:732ae000ebb711701b215eabe338d0ec58723fee33a576da745b199352a522b4"},
+    {"size": "128k", "seed": 123, "state": "sha256:9caf8ddc1c732ddb6b892fbbe10f690cda4b4b3d80fc1a500ae813b7cc66d513", "database": "sha256:474fd3d2215e3cd852875595d1deadd04ab2a9340e2c53ea78fc194478c897c3"},
+    {"size": "128k", "seed": 456, "state": "sha256:2c5e77a0a6139aab9073a1d2303c26293732d279d3e6b1ce4c75e24c8c1c4a9f", "database": "sha256:7c9b36cff708357414603c4197d59f5a7e7e04af82d182d4f22d3c5ecca4809f"}
+  ],
+  "reproducibility_controls": {
+    "source_address": "source_digest = SHA-256(canonical upstream/license/file pin record)",
+    "state_address": "derived/harbor-tasks/loca/<source_digest>/",
+    "randomness": "random.Random('loca-bench:<size>:<seed>')",
+    "serialization": "sorted JSON keys, compact separators, UTF-8; CSV newline=LF",
+    "cache": "cache entries are named <pin>.<sha256> and are atomically written then rehashed",
+    "fail_closed": ["unsupported size/seed", "pin schema/license mismatch", "missing cache in offline mode", "cache/download SHA mismatch", "output outside source-digest path", "state digest mismatch"],
+    "verification": "oracle, NOP, and swap/drop mutants share templates.py and verifier.py"
+  }
+}

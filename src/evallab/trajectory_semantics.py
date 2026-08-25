@@ -899,7 +899,7 @@ class TaskProfileBinding(ContractModel):
         return _sha256_digest(self.model_dump(mode="json"))
 
 
-CoverageStatus = Literal["analysis_ready", "screening_only"]
+CoverageStatus = Literal["analysis_ready", "screening_only", "stale_profile"]
 
 
 class SemanticCoverage(ContractModel):
@@ -1546,19 +1546,31 @@ def query_semantic_coverage(
             if action_file.is_file()
             else []
         )
-        binding = TaskProfileBinding(
+        try:
+            current_profile = get_profile(stored.profile_id)
+        except KeyError:
+            profile_is_current = False
+        else:
+            profile_is_current = (
+                current_profile.version == stored.profile_version
+                and current_profile.digest == stored.profile_digest
+            )
+        binding = TaskProfileBinding.model_construct(
             task_id=stored.task_id,
             profile_id=stored.profile_id,
             profile_version=stored.profile_version,
             profile_digest=stored.profile_digest,
         )
+        computed = semantic_coverage(
+            actions,
+            job_id=stored.job_id,
+            trial_id=stored.trial_id,
+            binding=binding,
+            query_threshold=query_threshold,
+        )
         rows.append(
-            semantic_coverage(
-                actions,
-                job_id=stored.job_id,
-                trial_id=stored.trial_id,
-                binding=binding,
-                query_threshold=query_threshold,
-            )
+            computed
+            if profile_is_current
+            else computed.model_copy(update={"status": "stale_profile"})
         )
     return tuple(sorted(rows, key=lambda row: (row.job_id, row.trial_id)))

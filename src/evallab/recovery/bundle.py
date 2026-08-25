@@ -156,6 +156,9 @@ def compute_bundle_digest(payload: dict[str, Any]) -> str:
     serialized = json.dumps(copy_payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
+def _file_entry_path(entry: FileEntry) -> str:
+    return entry.path
+
 
 def build_recovery_bundle(
     task_id: str,
@@ -179,7 +182,7 @@ def build_recovery_bundle(
     manifest_digest = compute_canonical_manifest_digest(file_entries)
     fs_manifest = FilesystemManifest(
         root="/",
-        entries=sorted(file_entries, key=lambda e: e.path),
+        entries=sorted(file_entries, key=_file_entry_path),
         manifest_digest=manifest_digest,
     )
     env_config = sanitize_and_redact_env(raw_env)

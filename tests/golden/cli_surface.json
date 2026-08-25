@@ -1366,6 +1366,184 @@
       }
     ]
   },
+  "claims": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "claims pack": {
+    "options": [
+      {
+        "action": "_AppendAction",
+        "choices": null,
+        "default": null,
+        "dest": "analysis_root",
+        "flags": [
+          "--analysis-root"
+        ],
+        "help": "Analysis sidecar root (repeatable)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": "PostgreSQL catalog URL override",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_root",
+        "flags": [
+          "--derived-root"
+        ],
+        "help": "Shared Parquet root override",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit the typed pack as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_bytes",
+        "flags": [
+          "--max-bytes"
+        ],
+        "help": "Exact UTF-8 output byte bound",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_entries",
+        "flags": [
+          "--max-entries"
+        ],
+        "help": "Maximum complete claims",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "max_tokens",
+        "flags": [
+          "--max-tokens"
+        ],
+        "help": "Exact token bound; requires --tokenizer",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "semantic_root",
+        "flags": [
+          "--semantic-root"
+        ],
+        "help": "Semantic Parquet root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "tokenizer",
+        "flags": [
+          "--tokenizer"
+        ],
+        "help": "Explicit tokenizer as MODULE:ATTRIBUTE callable or encode()-provider",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "trial",
+        "flags": [
+          "--trial"
+        ],
+        "help": "Trial identifier",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
   "compare": {
     "options": [
       {

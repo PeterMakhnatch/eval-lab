@@ -9,6 +9,7 @@ import pytest
 from evallab import atif, cli
 
 TOP_LEVEL_COMMANDS = (
+    "claims",
     "doctor",
     "dashboard",
     "status",
@@ -54,6 +55,7 @@ TOP_LEVEL_COMMANDS = (
     "traj",
 )
 NESTED_COMMANDS = (
+    ("claims", "pack"),
     ("schedule", "install"),
     ("canary", "import-terminal-bench"),
     ("curve", "validate"),

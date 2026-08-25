@@ -1,14 +1,18 @@
-"""Tests defending deterministic empirical trajectory sequence analysis and strict invariants."""
+"""Tests defending deterministic empirical trajectory sequence analysis, schemas, and Parquet projections."""
 
 from __future__ import annotations
 
+import json
 import random
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+import pyarrow as pa
 import pytest
 
 from evallab.trajectory_sequence import (
+    TRAJECTORY_SEQUENCE_SCHEMAS,
     MotifSummary,
     NormalizedAction,
     ObservableMotif,
@@ -16,9 +20,14 @@ from evallab.trajectory_sequence import (
     TransitionAggregation,
     TransitionEdge,
     aggregate_transitions,
+    deterministic_edge_id,
+    deterministic_motif_id,
+    deterministic_summary_id,
     detect_observable_motifs,
     extract_transition_edges,
+    load_trajectory_sequence_table,
     order_actions,
+    project_trajectory_sequence_tables,
 )
 
 
@@ -39,7 +48,6 @@ def test_reject_missing_trial_identity() -> None:
 
 def test_require_unique_action_identity_and_derive_from_step_id() -> None:
     """Action identity must derive from explicit step_id when available, reject when absent, and reject duplicates."""
-    # 1. Derivation from explicit step_id
     rows_with_step = [
         {"trial_id": "t1", "step_id": 10, "ordinal": 1},
         {"trial_id": "t1", "step_id": 20, "ordinal": 2},
@@ -48,14 +56,12 @@ def test_require_unique_action_identity_and_derive_from_step_id() -> None:
     assert actions[0].action_id == "step_10"
     assert actions[1].action_id == "step_20"
 
-    # 2. Reject when both action_id and step_id are absent
     rows_no_id = [
         {"trial_id": "t1", "ordinal": 1, "action_family": "edit"},
     ]
     with pytest.raises(TrajectorySequenceError, match="lacks action identity"):
         order_actions(rows_no_id)
 
-    # 3. Reject duplicate action_id within same trial
     duplicate_rows = [
         {"trial_id": "t1", "action_id": "duplicate_act", "ordinal": 1},
         {"trial_id": "t1", "action_id": "duplicate_act", "ordinal": 2},
@@ -66,7 +72,6 @@ def test_require_unique_action_identity_and_derive_from_step_id() -> None:
 
 def test_deterministic_sort_no_input_position_and_reject_duplicate_order_keys() -> None:
     """Sort must not depend on input index and must reject conflicting duplicate explicit order keys."""
-    # 1. Rejection of conflicting duplicate explicit order keys (e.g. two actions claiming ordinal 1 in same trial)
     conflicting_rows = [
         {"trial_id": "t1", "action_id": "act_a", "ordinal": 1},
         {"trial_id": "t1", "action_id": "act_b", "ordinal": 1},
@@ -74,7 +79,6 @@ def test_deterministic_sort_no_input_position_and_reject_duplicate_order_keys() 
     with pytest.raises(TrajectorySequenceError, match="Conflicting duplicate order key"):
         order_actions(conflicting_rows)
 
-    # 2. Rejection of conflicting duplicate explicit step_id order keys without ordinal
     conflicting_steps = [
         {"trial_id": "t1", "action_id": "act_a", "step_id": 5},
         {"trial_id": "t1", "action_id": "act_b", "step_id": 5},
@@ -82,7 +86,6 @@ def test_deterministic_sort_no_input_position_and_reject_duplicate_order_keys() 
     with pytest.raises(TrajectorySequenceError, match="Conflicting duplicate order key"):
         order_actions(conflicting_steps)
 
-    # 3. Valid distinct ordinals sort deterministically regardless of input order
     valid_rows = [
         {"trial_id": "t1", "action_id": "act_3", "ordinal": 3},
         {"trial_id": "t1", "action_id": "act_1", "ordinal": 1},
@@ -114,9 +117,6 @@ def test_require_consistent_cohort_keys_per_trial() -> None:
 
 def test_post_terminal_leakage_episode_non_tautological_opportunity() -> None:
     """Post-terminal motif represents 1 leakage episode per terminal boundary, non-tautological opportunity."""
-    # Cohort has 2 trials:
-    # Trial 1: Clean termination at step 2, no post-terminal actions.
-    # Trial 2: Terminal action at step 2, but leaked actions at step 3 and 4.
     rows = [
         # Trial 1 (clean)
         {"trial_id": "t1", "action_id": "t1_a1", "step_id": 1, "ordinal": 1, "function_name": "edit", "model": "m1"},
@@ -130,7 +130,6 @@ def test_post_terminal_leakage_episode_non_tautological_opportunity() -> None:
 
     motifs, summaries = detect_observable_motifs(rows, cohort_fields=["model"])
 
-    # 1. ObservableMotif for post-terminal action spans all subsequent leaked actions
     post_term_motifs = [m for m in motifs if m.motif_type == "post_terminal_action"]
     assert len(post_term_motifs) == 1
     leakage = post_term_motifs[0]
@@ -141,10 +140,6 @@ def test_post_terminal_leakage_episode_non_tautological_opportunity() -> None:
     assert details_dict["terminal_action_id"] == "t2_a2"
     assert details_dict["leaked_action_count"] == "2"
 
-    # 2. Non-tautological opportunity counting:
-    # 2 trials reached terminal boundary -> opportunities = 2.
-    # 1 trial exhibited post-terminal leakage -> occurrences = 1.
-    # Leakage rate = 1 / 2 = 0.50 (50%).
     summary_map = {s.motif_type: s for s in summaries}
     assert summary_map["post_terminal_action"].opportunities == 2
     assert summary_map["post_terminal_action"].occurrences == 1
@@ -186,6 +181,7 @@ def test_eligible_opportunity_denominators_and_rates() -> None:
     """Aggregation must compute rate = count / opportunities, and return None when opportunities == 0."""
     edges = [
         TransitionEdge(
+            edge_id="e1",
             trial_id="trial-1",
             source_action_id="a1",
             source_step_id=1,
@@ -199,6 +195,7 @@ def test_eligible_opportunity_denominators_and_rates() -> None:
             cohort_keys=(("model", "gpt-4"),),
         ),
         TransitionEdge(
+            edge_id="e2",
             trial_id="trial-1",
             source_action_id="a2",
             source_step_id=2,
@@ -417,3 +414,142 @@ def test_duckdb_and_parquet_row_compatibility() -> None:
     edges = extract_transition_edges([row1, row2])
     assert len(edges) == 1
     assert edges[0].transition_type == "edit->test"
+
+
+# --- PyArrow Schema and Atomic Parquet Projection Tests -----------------------
+
+
+def test_pyarrow_schemas_structure() -> None:
+    """Schemas for action edges, observable motifs, and summaries must match required definitions."""
+    edge_schema = TRAJECTORY_SEQUENCE_SCHEMAS["action_transition_edges"]
+    assert edge_schema.field("edge_id").type == pa.string()
+    assert not edge_schema.field("edge_id").nullable
+    assert edge_schema.field("trial_id").type == pa.string()
+    assert not edge_schema.field("trial_id").nullable
+    assert edge_schema.field("source_step_id").nullable
+    assert edge_schema.field("source_step_id").type == pa.int64()
+
+    motif_schema = TRAJECTORY_SEQUENCE_SCHEMAS["observable_motifs"]
+    assert motif_schema.field("motif_id").type == pa.string()
+    assert not motif_schema.field("motif_id").nullable
+    assert motif_schema.field("motif_type").type == pa.string()
+    assert not motif_schema.field("motif_type").nullable
+
+    summary_schema = TRAJECTORY_SEQUENCE_SCHEMAS["motif_summaries"]
+    assert summary_schema.field("summary_id").type == pa.string()
+    assert not summary_schema.field("summary_id").nullable
+    assert summary_schema.field("rate").type == pa.float64()
+    assert summary_schema.field("rate").nullable  # Must remain nullable for unexposed rates
+
+
+def test_deterministic_primary_keys_and_collision_resistance() -> None:
+    """Primary keys must be deterministic and identical for identical inputs."""
+    k1 = deterministic_edge_id("t1", "a1", "a2", "edit->test")
+    k2 = deterministic_edge_id("t1", "a1", "a2", "edit->test")
+    k3 = deterministic_edge_id("t1", "a1", "a2", "edit->search")
+    assert k1 == k2
+    assert k1 != k3
+    assert len(k1) == 64
+
+    m1 = deterministic_motif_id("t1", "recovery_after_failure", ["a1", "a2"])
+    m2 = deterministic_motif_id("t1", "recovery_after_failure", ["a1", "a2"])
+    m3 = deterministic_motif_id("t1", "repeated_tool_failure", ["a1", "a2"])
+    assert m1 == m2
+    assert m1 != m3
+
+    s1 = deterministic_summary_id('{"model": "gpt-4"}', "recovery_after_failure")
+    s2 = deterministic_summary_id('{"model": "gpt-4"}', "recovery_after_failure")
+    s3 = deterministic_summary_id('{"model": "gpt-4"}', "repeated_tool_failure")
+    assert s1 == s2
+    assert s1 != s3
+
+
+def test_parquet_projection_round_trip_and_atomic_replacement(tmp_path: Path) -> None:
+    """Atomic Parquet projections must write valid tables, replace atomically, and round-trip cleanly."""
+    rows = [
+        {
+            "trial_id": "trial-1",
+            "action_id": "act-1",
+            "step_id": 1,
+            "ordinal": 1,
+            "function_name": "bash",
+            "action_family": "execute",
+            "outcome": "error",
+            "exit_code": 1,
+            "model": "model-v1",
+            "document_id": "doc-1",
+            "source_path": "/path/atif.json",
+        },
+        {
+            "trial_id": "trial-1",
+            "action_id": "act-2",
+            "step_id": 2,
+            "ordinal": 2,
+            "function_name": "bash",
+            "action_family": "execute",
+            "outcome": "success",
+            "exit_code": 0,
+            "model": "model-v1",
+            "document_id": "doc-1",
+            "source_path": "/path/atif.json",
+        },
+        {
+            "trial_id": "trial-1",
+            "action_id": "act-3",
+            "step_id": 3,
+            "ordinal": 3,
+            "function_name": "submit",
+            "action_family": "other",
+            "is_terminal": True,
+            "outcome": "success",
+            "model": "model-v1",
+            "document_id": "doc-1",
+            "source_path": "/path/atif.json",
+        },
+    ]
+
+    out_tables = project_trajectory_sequence_tables(
+        rows,
+        output_dir=tmp_path,
+        cohort_fields=["model"],
+    )
+
+    assert out_tables["action_transition_edges"].is_file()
+    assert out_tables["observable_motifs"].is_file()
+    assert out_tables["motif_summaries"].is_file()
+
+    # Load back with load_trajectory_sequence_table
+    edges_table = load_trajectory_sequence_table(out_tables["action_transition_edges"])
+    assert edges_table.schema == TRAJECTORY_SEQUENCE_SCHEMAS["action_transition_edges"]
+    assert len(edges_table) == 2  # act-1 -> act-2, act-2 -> act-3
+
+    motifs_table = load_trajectory_sequence_table(out_tables["observable_motifs"])
+    assert motifs_table.schema == TRAJECTORY_SEQUENCE_SCHEMAS["observable_motifs"]
+    motif_rows = motifs_table.to_pylist()
+    assert any(m["motif_type"] == "recovery_after_failure" for m in motif_rows)
+
+    summaries_table = load_trajectory_sequence_table(out_tables["motif_summaries"])
+    assert summaries_table.schema == TRAJECTORY_SEQUENCE_SCHEMAS["motif_summaries"]
+    summary_rows = summaries_table.to_pylist()
+    assert len(summary_rows) == 4
+
+    # Check that rates are correctly typed and nullable when opportunities == 0
+    rec_summary = next(s for s in summary_rows if s["motif_type"] == "recovery_after_failure")
+    assert rec_summary["opportunities"] == 1
+    assert rec_summary["occurrences"] == 1
+    assert rec_summary["rate"] == pytest.approx(1.0)
+
+    repeat_summary = next(s for s in summary_rows if s["motif_type"] == "repeated_tool_failure")
+    assert repeat_summary["opportunities"] == 1
+    assert repeat_summary["occurrences"] == 0
+    assert repeat_summary["rate"] == pytest.approx(0.0)
+
+    # Re-project to verify atomic idempotency and byte-stability
+    bytes_before = out_tables["action_transition_edges"].read_bytes()
+    out_tables_2 = project_trajectory_sequence_tables(
+        rows,
+        output_dir=tmp_path,
+        cohort_fields=["model"],
+    )
+    bytes_after = out_tables_2["action_transition_edges"].read_bytes()
+    assert bytes_before == bytes_after

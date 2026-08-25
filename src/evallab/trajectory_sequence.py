@@ -3,16 +3,27 @@
 Provides ordering, typed transition edge extraction, exact observable motif
 detection (repeated tool failure, recovery after failure, verification after action,
 post-terminal action leakage), cohort-keyed aggregation with strict opportunity denominators,
-and explicit preservation of unknown/unexposed evidence.
+explicit preservation of unknown/unexposed evidence, deterministic PyArrow schemas,
+and atomic Parquet projections.
 """
 
 from __future__ import annotations
 
+import fcntl
+import hashlib
+import json
+import os
+import tempfile
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
+
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 Outcome = Literal["success", "error", "unknown"]
 ActionIntent = Literal["mutation", "verification", "wait", "poll", "other", "unknown"]
@@ -32,6 +43,76 @@ TERMINAL_FUNCTIONS = frozenset({
 
 class TrajectorySequenceError(ValueError):
     """Raised when sequence rows violate schema invariants or trial isolation constraints."""
+
+
+def _stable_hash(*parts: object) -> str:
+    """Deterministic sha256 digest over null-byte separated parts."""
+    return hashlib.sha256("\0".join(str(part) for part in parts).encode("utf-8")).hexdigest()
+
+
+def deterministic_edge_id(
+    trial_id: str,
+    source_action_id: str,
+    target_action_id: str,
+    transition_type: str,
+) -> str:
+    """Generate a deterministic primary key for an action transition edge."""
+    return _stable_hash(trial_id, source_action_id, target_action_id, transition_type)
+
+
+def deterministic_motif_id(
+    trial_id: str,
+    motif_type: str,
+    action_ids: Sequence[str],
+) -> str:
+    """Generate a deterministic primary key for an observable motif occurrence."""
+    return _stable_hash(trial_id, motif_type, ",".join(action_ids))
+
+
+def deterministic_summary_id(
+    cohort_keys_json: str,
+    motif_type: str,
+) -> str:
+    """Generate a deterministic primary key for a motif summary."""
+    return _stable_hash(cohort_keys_json, motif_type)
+
+
+TRAJECTORY_SEQUENCE_SCHEMAS: dict[str, pa.Schema] = {
+    "action_transition_edges": pa.schema([
+        pa.field("edge_id", pa.string(), nullable=False),
+        pa.field("trial_id", pa.string(), nullable=False),
+        pa.field("source_action_id", pa.string(), nullable=False),
+        pa.field("source_step_id", pa.int64(), nullable=True),
+        pa.field("target_action_id", pa.string(), nullable=False),
+        pa.field("target_step_id", pa.int64(), nullable=True),
+        pa.field("from_type", pa.string(), nullable=False),
+        pa.field("to_type", pa.string(), nullable=False),
+        pa.field("transition_type", pa.string(), nullable=False),
+        pa.field("source_outcome", pa.string(), nullable=False),
+        pa.field("target_outcome", pa.string(), nullable=False),
+        pa.field("cohort_keys_json", pa.string(), nullable=False),
+        pa.field("provenance_json", pa.string(), nullable=False),
+    ]),
+    "observable_motifs": pa.schema([
+        pa.field("motif_id", pa.string(), nullable=False),
+        pa.field("motif_type", pa.string(), nullable=False),
+        pa.field("trial_id", pa.string(), nullable=False),
+        pa.field("step_ids_json", pa.string(), nullable=False),
+        pa.field("action_ids_json", pa.string(), nullable=False),
+        pa.field("details_json", pa.string(), nullable=False),
+        pa.field("cohort_keys_json", pa.string(), nullable=False),
+        pa.field("provenance_json", pa.string(), nullable=False),
+    ]),
+    "motif_summaries": pa.schema([
+        pa.field("summary_id", pa.string(), nullable=False),
+        pa.field("cohort_keys_json", pa.string(), nullable=False),
+        pa.field("motif_type", pa.string(), nullable=False),
+        pa.field("occurrences", pa.int64(), nullable=False),
+        pa.field("opportunities", pa.int64(), nullable=False),
+        pa.field("rate", pa.float64(), nullable=True),
+        pa.field("unknown_evidence_count", pa.int64(), nullable=False),
+    ]),
+}
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -188,15 +269,7 @@ def order_actions(
     *,
     cohort_fields: Sequence[str] = (),
 ) -> list[NormalizedAction]:
-    """Order actions deterministically within each trial.
-
-    Enforces:
-    1. Rejection of missing trial identity.
-    2. Strict action identity uniqueness per trial.
-    3. Deterministic ordering by explicit (ordinal/step_id, timestamp, action_id); input position is NOT used.
-    4. Rejection of conflicting duplicate order keys.
-    5. Rejection of inconsistent cohort_keys within a trial.
-    """
+    """Order actions deterministically within each trial."""
     normalized: list[NormalizedAction] = [
         a if isinstance(a, NormalizedAction) else NormalizedAction.from_dict(a, cohort_fields=cohort_fields)
         for a in actions
@@ -210,7 +283,6 @@ def order_actions(
     for trial_id in sorted(by_trial.keys()):
         trial_actions = by_trial[trial_id]
 
-        # 1. Action identity uniqueness per trial
         seen_action_ids: set[str] = set()
         for act in trial_actions:
             if act.action_id in seen_action_ids:
@@ -219,7 +291,6 @@ def order_actions(
                 )
             seen_action_ids.add(act.action_id)
 
-        # 2. Consistency of cohort_keys within a trial
         first_cohort = trial_actions[0].cohort_keys
         for act in trial_actions[1:]:
             if act.cohort_keys != first_cohort:
@@ -227,18 +298,14 @@ def order_actions(
                     f"Inconsistent cohort_keys within trial '{trial_id}': expected {first_cohort}, got {act.cohort_keys}."
                 )
 
-        # 3. Deterministic order key resolution
         seen_order_keys: set[tuple[int, int, str]] = set()
 
         def sort_key(act: NormalizedAction) -> tuple[int, int, str, str]:
             has_ord = 0 if act.ordinal is not None else (1 if act.step_id is not None else 2)
             ord_val = act.ordinal if act.ordinal is not None else (act.step_id if act.step_id is not None else 0)
             ts_val = act.timestamp.isoformat() if act.timestamp is not None else ""
-            # Check for duplicate order keys before action_id tie-breaking if both explicit indices collide
-            order_prefix = (has_ord, ord_val, ts_val)
             return (has_ord, ord_val, ts_val, act.action_id)
 
-        # Detect conflicting duplicate explicit order keys
         for act in trial_actions:
             if act.ordinal is not None or act.step_id is not None:
                 has_ord = 0 if act.ordinal is not None else 1
@@ -261,6 +328,7 @@ def order_actions(
 class TransitionEdge:
     """Typed directed edge between two consecutive actions within the same trial."""
 
+    edge_id: str
     trial_id: str
     source_action_id: str
     source_step_id: int | None
@@ -303,8 +371,11 @@ def extract_transition_edges(
                 if k not in prov_dict:
                     prov_dict[k] = v
 
+            e_id = deterministic_edge_id(trial_id, src.action_id, tgt.action_id, transition_type)
+
             edges.append(
                 TransitionEdge(
+                    edge_id=e_id,
                     trial_id=trial_id,
                     source_action_id=src.action_id,
                     source_step_id=src.step_id,
@@ -320,7 +391,7 @@ def extract_transition_edges(
                 )
             )
 
-    return edges
+    return sorted(edges, key=lambda e: e.edge_id)
 
 
 @dataclass(frozen=True)
@@ -394,6 +465,7 @@ MotifType = Literal[
 class ObservableMotif:
     """Exact observable sequence motif occurrence."""
 
+    motif_id: str
     motif_type: MotifType
     trial_id: str
     step_ids: tuple[int | None, ...]
@@ -407,6 +479,7 @@ class ObservableMotif:
 class MotifSummary:
     """Aggregated motif occurrences, eligible opportunity denominator, and rate per cohort."""
 
+    summary_id: str
     cohort_keys: tuple[tuple[str, str], ...]
     motif_type: MotifType
     occurrences: int
@@ -420,20 +493,7 @@ def detect_observable_motifs(
     *,
     cohort_fields: Sequence[str] = (),
 ) -> tuple[list[ObservableMotif], list[MotifSummary]]:
-    """Detect exact observable motifs and compute non-tautological opportunity denominators.
-
-    Semantics:
-    1. repeated_tool_failure: consecutive error outcomes on the same tool/function within a trial.
-       Opportunity: every action that had an error outcome and was followed by another action with the same tool.
-    2. recovery_after_failure: an error outcome followed immediately by a success outcome within a trial.
-       Opportunity: every action that resulted in an error outcome and was followed by another action.
-    3. verification_after_action: a mutation action (intent="mutation" or family in edit/write) followed
-       immediately by a verification action (intent="verification" or family in test/inspect/search).
-       Opportunity: every mutation action that was followed by another action.
-    4. post_terminal_action: one leakage episode per observed terminal boundary.
-       Opportunity: each observed terminal boundary (1 per trial containing a terminal action).
-       Occurrence: 1 per terminal boundary if ANY action exists strictly after it, spanning all leaked actions.
-    """
+    """Detect exact observable motifs and compute non-tautological opportunity denominators."""
     ordered = order_actions(actions, cohort_fields=cohort_fields)
     by_trial: dict[str, list[NormalizedAction]] = defaultdict(list)
     for act in ordered:
@@ -455,27 +515,26 @@ def detect_observable_motifs(
         trial_cohort = trial_acts[0].cohort_keys
         seen_cohorts.add(trial_cohort)
 
-        # Track first terminal action
         first_terminal_idx: int | None = None
         for idx, act in enumerate(trial_acts):
             if act.is_terminal:
                 first_terminal_idx = idx
                 break
 
-        # Post-terminal leakage episode:
-        # Opportunity is the presence of an observed terminal boundary in the trial (1 per trial with terminal action).
-        # Occurrence is 1 if any subsequent action occurred after the terminal boundary.
         if first_terminal_idx is not None:
             cohort_opps[(trial_cohort, "post_terminal_action")] += 1
             post_term_acts = trial_acts[first_terminal_idx + 1 :]
             if post_term_acts:
                 cohort_occs[(trial_cohort, "post_terminal_action")] += 1
+                p_act_ids = tuple(p.action_id for p in post_term_acts)
+                m_id = deterministic_motif_id(trial_id, "post_terminal_action", p_act_ids)
                 motifs.append(
                     ObservableMotif(
+                        motif_id=m_id,
                         motif_type="post_terminal_action",
                         trial_id=trial_id,
                         step_ids=tuple(p.step_id for p in post_term_acts),
-                        action_ids=tuple(p.action_id for p in post_term_acts),
+                        action_ids=p_act_ids,
                         details=(
                             ("terminal_action_id", trial_acts[first_terminal_idx].action_id),
                             ("terminal_step_id", str(trial_acts[first_terminal_idx].step_id)),
@@ -495,14 +554,17 @@ def detect_observable_motifs(
             if i + 1 < n:
                 next_act = trial_acts[i + 1]
 
-                # 1 & 2: Error-based motifs
                 if act.outcome == "error":
                     cohort_opps[(trial_cohort, "recovery_after_failure")] += 1
 
                     if next_act.outcome == "success":
                         cohort_occs[(trial_cohort, "recovery_after_failure")] += 1
+                        m_id = deterministic_motif_id(
+                            trial_id, "recovery_after_failure", (act.action_id, next_act.action_id)
+                        )
                         motifs.append(
                             ObservableMotif(
+                                motif_id=m_id,
                                 motif_type="recovery_after_failure",
                                 trial_id=trial_id,
                                 step_ids=(act.step_id, next_act.step_id),
@@ -520,8 +582,12 @@ def detect_observable_motifs(
                         cohort_opps[(trial_cohort, "repeated_tool_failure")] += 1
                         if next_act.outcome == "error":
                             cohort_occs[(trial_cohort, "repeated_tool_failure")] += 1
+                            m_id = deterministic_motif_id(
+                                trial_id, "repeated_tool_failure", (act.action_id, next_act.action_id)
+                            )
                             motifs.append(
                                 ObservableMotif(
+                                    motif_id=m_id,
                                     motif_type="repeated_tool_failure",
                                     trial_id=trial_id,
                                     step_ids=(act.step_id, next_act.step_id),
@@ -536,7 +602,6 @@ def detect_observable_motifs(
                                 )
                             )
 
-                # 3. Verification after action
                 is_mutation = (
                     act.intent == "mutation"
                     or act.action_family in MUTATION_FAMILIES
@@ -551,8 +616,12 @@ def detect_observable_motifs(
                     )
                     if is_verification:
                         cohort_occs[(trial_cohort, "verification_after_action")] += 1
+                        m_id = deterministic_motif_id(
+                            trial_id, "verification_after_action", (act.action_id, next_act.action_id)
+                        )
                         motifs.append(
                             ObservableMotif(
+                                motif_id=m_id,
                                 motif_type="verification_after_action",
                                 trial_id=trial_id,
                                 step_ids=(act.step_id, next_act.step_id),
@@ -575,13 +644,16 @@ def detect_observable_motifs(
 
     summaries: list[MotifSummary] = []
     for c_key in sorted(seen_cohorts):
+        cohort_json = json.dumps(dict(c_key), sort_keys=True)
         for m_type in all_motif_types:
             opps = cohort_opps[(c_key, m_type)]
             occs = cohort_occs[(c_key, m_type)]
             unknowns = cohort_unknowns[(c_key, m_type)]
             rate = (occs / opps) if opps > 0 else None
+            s_id = deterministic_summary_id(cohort_json, m_type)
             summaries.append(
                 MotifSummary(
+                    summary_id=s_id,
                     cohort_keys=c_key,
                     motif_type=m_type,
                     occurrences=occs,
@@ -591,4 +663,148 @@ def detect_observable_motifs(
                 )
             )
 
-    return motifs, summaries
+    sorted_motifs = sorted(motifs, key=lambda m: m.motif_id)
+    sorted_summaries = sorted(summaries, key=lambda s: s.summary_id)
+    return sorted_motifs, sorted_summaries
+
+
+# --- Parquet Projection and Storage ------------------------------------------
+
+
+@contextmanager
+def _table_lock(path: Path, *, exclusive: bool):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with (path.parent / ".trajectory_sequence.lock").open("a+b") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _write_parquet_atomic(
+    path: Path,
+    table: pa.Table,
+) -> None:
+    """Atomically write a PyArrow Table to a Parquet file with deterministic options."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent, delete=False
+    ) as staged:
+        temporary = Path(staged.name)
+    try:
+        pq.write_table(
+            table,
+            temporary,
+            compression="zstd",
+            use_dictionary=False,
+            write_statistics=True,
+        )
+        with temporary.open("rb") as handle:
+            os.fsync(handle.fileno())
+        temporary.replace(path)
+    finally:
+        with suppress(FileNotFoundError):
+            temporary.unlink()
+
+
+def project_trajectory_sequence_tables(
+    actions: Iterable[NormalizedAction | Mapping[str, Any]],
+    *,
+    output_dir: Path | str,
+    cohort_fields: Sequence[str] = (),
+    type_field: Literal["action_type", "action_family", "function_name"] = "action_family",
+) -> dict[str, Path]:
+    """Deterministically project action sequences into atomic relational Parquet tables.
+
+    Produces:
+    - action_transition_edges.parquet
+    - observable_motifs.parquet
+    - motif_summaries.parquet
+    """
+    out_path = Path(output_dir)
+    edges = extract_transition_edges(actions, cohort_fields=cohort_fields, type_field=type_field)
+    motifs, summaries = detect_observable_motifs(actions, cohort_fields=cohort_fields)
+
+    # 1. Action Transition Edges Table
+    edge_rows = [
+        {
+            "edge_id": e.edge_id,
+            "trial_id": e.trial_id,
+            "source_action_id": e.source_action_id,
+            "source_step_id": e.source_step_id,
+            "target_action_id": e.target_action_id,
+            "target_step_id": e.target_step_id,
+            "from_type": e.from_type,
+            "to_type": e.to_type,
+            "transition_type": e.transition_type,
+            "source_outcome": e.source_outcome,
+            "target_outcome": e.target_outcome,
+            "cohort_keys_json": json.dumps(dict(e.cohort_keys), sort_keys=True),
+            "provenance_json": json.dumps(dict(e.provenance), sort_keys=True),
+        }
+        for e in edges
+    ]
+    edges_table = pa.Table.from_pylist(
+        edge_rows,
+        schema=TRAJECTORY_SEQUENCE_SCHEMAS["action_transition_edges"],
+    )
+
+    # 2. Observable Motifs Table
+    motif_rows = [
+        {
+            "motif_id": m.motif_id,
+            "motif_type": m.motif_type,
+            "trial_id": m.trial_id,
+            "step_ids_json": json.dumps(list(m.step_ids)),
+            "action_ids_json": json.dumps(list(m.action_ids)),
+            "details_json": json.dumps(dict(m.details), sort_keys=True),
+            "cohort_keys_json": json.dumps(dict(m.cohort_keys), sort_keys=True),
+            "provenance_json": json.dumps(dict(m.provenance), sort_keys=True),
+        }
+        for m in motifs
+    ]
+    motifs_table = pa.Table.from_pylist(
+        motif_rows,
+        schema=TRAJECTORY_SEQUENCE_SCHEMAS["observable_motifs"],
+    )
+
+    # 3. Motif Summaries Table
+    summary_rows = [
+        {
+            "summary_id": s.summary_id,
+            "cohort_keys_json": json.dumps(dict(s.cohort_keys), sort_keys=True),
+            "motif_type": s.motif_type,
+            "occurrences": s.occurrences,
+            "opportunities": s.opportunities,
+            "rate": s.rate,
+            "unknown_evidence_count": s.unknown_evidence_count,
+        }
+        for s in summaries
+    ]
+    summaries_table = pa.Table.from_pylist(
+        summary_rows,
+        schema=TRAJECTORY_SEQUENCE_SCHEMAS["motif_summaries"],
+    )
+
+    edges_file = out_path / "action_transition_edges.parquet"
+    motifs_file = out_path / "observable_motifs.parquet"
+    summaries_file = out_path / "motif_summaries.parquet"
+
+    with _table_lock(edges_file, exclusive=True):
+        _write_parquet_atomic(edges_file, edges_table)
+        _write_parquet_atomic(motifs_file, motifs_table)
+        _write_parquet_atomic(summaries_file, summaries_table)
+
+    return {
+        "action_transition_edges": edges_file,
+        "observable_motifs": motifs_file,
+        "motif_summaries": summaries_file,
+    }
+
+
+def load_trajectory_sequence_table(path: Path | str) -> pa.Table:
+    """Load a trajectory sequence table with shared read locking."""
+    p = Path(path)
+    with _table_lock(p, exclusive=False):
+        return pq.read_table(p)

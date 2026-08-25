@@ -1699,3 +1699,40 @@ def write_failure_taxonomy_agreement(
     temporary.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     temporary.replace(output_path)
     return output_path, report
+
+
+def project_recovery_facts(
+    outcomes: list[Any],
+    output_parquet_path: Path,
+) -> Path:
+    """Project paired recovery outcomes into derived columnar Parquet facts."""
+    schema = pa.schema([
+        ("recovery_trial_id", pa.string()),
+        ("initial_trial_id", pa.string()),
+        ("task_id", pa.string()),
+        ("message_mode", pa.string()),
+        ("certificate_status", pa.string()),
+        ("initial_reward", pa.float64()),
+        ("final_recovery_reward", pa.float64()),
+        ("recovery_success", pa.bool_()),
+        ("initial_cost_usd", pa.float64()),
+        ("recovery_cost_usd", pa.float64()),
+        ("total_cost_usd", pa.float64()),
+        ("initial_input_tokens", pa.int64()),
+        ("initial_output_tokens", pa.int64()),
+        ("recovery_input_tokens", pa.int64()),
+        ("recovery_output_tokens", pa.int64()),
+        ("initial_steps", pa.int64()),
+        ("recovery_steps", pa.int64()),
+        ("verifier_exit_code", pa.int32()),
+    ])
+    rows = []
+    for o in outcomes:
+        d = o.model_dump() if hasattr(o, "model_dump") else dict(o)
+        # Keep only fields present in schema
+        filtered = {f.name: d.get(f.name) for f in schema}
+        rows.append(filtered)
+    table = pa.Table.from_pylist(rows, schema=schema)
+    output_parquet_path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(table, output_parquet_path)
+    return output_parquet_path

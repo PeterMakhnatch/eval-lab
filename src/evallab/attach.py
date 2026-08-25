@@ -58,6 +58,14 @@ TABLES = (
     "traj_features",
     "behavior_labels",
     "behavior_episodes",
+    "capability_opportunities",
+    "process_step_facts",
+    "retrieval_facts",
+    "constraint_facts",
+    "context_operation_facts",
+    "paired_condition_facts",
+    "session_dependency_facts",
+    "evidence_coverage",
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"
@@ -102,22 +110,28 @@ def _z3_globs(root: Path) -> list[str]:
 def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     if not root.exists():
         return ZoneStatus("z3", False, reason="derived root does not exist", detail=str(root))
-    globs = _z3_globs(root)
+
+    hot_tables = {p.stem for p in root.glob("job_id=*/trial_id=*/*.parquet")}
+    cold_tables = {p.parent.parent.name for p in root.glob("compact/*/dt=*/part*.parquet")}
+    standalone_tables = {
+        p.parent.name
+        for p in root.glob("*/*.parquet")
+        if p.parent.parent == root
+        and not p.parent.name.startswith("job_id=")
+        and p.parent.name != "compact"
+    }
+
     created = 0
     missing = []
     for table in TABLES:
         view_globs: list[str] = []
-        for g in globs:
-            if "job_id=" in g:
-                if any(root.glob(f"job_id=*/trial_id=*/{table}.parquet")):
-                    view_globs.append(g.format(table=table))
-            elif "compact" in g:
-                if any(root.glob(f"compact/{table}/dt=*/part*.parquet")):
-                    view_globs.append(g.format(table=table))
-            else:
-                cand_path = root / table
-                if cand_path.is_dir() and any(cand_path.glob("*.parquet")):
-                    view_globs.append(g.format(table=table))
+        if table in hot_tables:
+            view_globs.append(str(root / Z3_HOT.format(table=table)))
+        if table in cold_tables:
+            view_globs.append(str(root / Z3_COLD.format(table=table)))
+        if table in standalone_tables:
+            view_globs.append(str(root / Z3_STANDALONE_DIR.format(table=table)))
+
         if not view_globs:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"

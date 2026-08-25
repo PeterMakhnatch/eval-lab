@@ -29,7 +29,7 @@ from evallab.atif import PARQUET_SCHEMAS
 from evallab.event_mart import EVENT_MART_SCHEMAS
 from evallab.facts import FACT_SCHEMAS
 from evallab.paths import derived_root_from_environment
-
+from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
 DEFAULT_RETENTION_DAYS = 7
 COMPACT_DIRNAME = "compact"
 
@@ -41,6 +41,7 @@ TABLE_SCHEMAS: dict[str, pa.Schema] = {
     **PARQUET_SCHEMAS,
     **FACT_SCHEMAS,
     **EVENT_MART_SCHEMAS,
+    **SEMANTIC_FACT_SCHEMAS,
 }
 
 PROJECTED_TABLE_NAMES: tuple[str, ...] = (
@@ -60,8 +61,14 @@ PROJECTED_TABLE_NAMES: tuple[str, ...] = (
     "llm_calls",
     "trajectory_phases",
     "action_effects",
+    "capability_opportunities",
+    "process_step_facts",
+    "constraint_facts",
+    "context_operation_facts",
+    "paired_condition_facts",
+    "session_dependency_facts",
+    "evidence_coverage",
 )
-
 TRIAL_TABLE_NAMES: tuple[str, ...] = (
     "trajectories",
     "steps",
@@ -78,6 +85,13 @@ TRIAL_TABLE_NAMES: tuple[str, ...] = (
     "llm_calls",
     "trajectory_phases",
     "action_effects",
+    "capability_opportunities",
+    "process_step_facts",
+    "constraint_facts",
+    "context_operation_facts",
+    "paired_condition_facts",
+    "session_dependency_facts",
+    "evidence_coverage",
 )
 
 PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
@@ -97,9 +111,14 @@ PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "llm_calls": ("job_id", "trial_id", "document_id", "step_id", "call_id"),
     "trajectory_phases": ("job_id", "trial_id", "phase_id"),
     "action_effects": ("job_id", "trial_id", "effect_id"),
+    "capability_opportunities": ("trial_id", "opportunity_id"),
+    "process_step_facts": ("trial_id", "source_trajectory_id", "source_step_id"),
+    "constraint_facts": ("trial_id", "plan_id", "constraint_id"),
+    "context_operation_facts": ("trial_id", "operation_id"),
+    "paired_condition_facts": ("trial_id", "pair_id", "condition"),
+    "session_dependency_facts": ("trial_id", "episode_id", "dependency_edge"),
+    "evidence_coverage": ("trial_id", "benchmark", "construct"),
 }
-
-
 class CompactionValidationError(Exception):
     """Raised when compaction row count or schema validation fails."""
 

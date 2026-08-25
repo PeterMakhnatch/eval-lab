@@ -330,6 +330,110 @@ def _make_table_row(table_name: str, job_id: str, trial_id: str, index: int = 1)
             "link_status": "linked",
             "link_method": "latest_preceding_action",
         }
+    if table_name == "capability_opportunities":
+        return {
+            "source_ref": f"runs/{trial_id}/trajectory.json",
+            "source_digest": "sha256:" + "a" * 64,
+            "provenance_kind": "mechanical",
+            "opportunity_id": f"opp-{index}",
+            "trial_id": trial_id,
+            "benchmark": "swebench",
+            "construct": "retrieval",
+            "start_step": 0,
+            "end_step": 1,
+            "eligible": True,
+            "required_evidence": ["e1"],
+            "missing_evidence": [],
+        }
+    if table_name == "process_step_facts":
+        return {
+            "source_ref": f"runs/{trial_id}/trajectory.json",
+            "source_digest": "sha256:" + "b" * 64,
+            "provenance_kind": "mechanical",
+            "trial_id": trial_id,
+            "source_trajectory_id": f"traj-{index}",
+            "source_step_id": f"step-{index}",
+            "label": "correct",
+            "original_label": None,
+            "propagated_from_step": None,
+            "first_error": None,
+        }
+    if table_name == "constraint_facts":
+        return {
+            "source_ref": f"runs/{trial_id}/trajectory.json",
+            "source_digest": "sha256:" + "c" * 64,
+            "provenance_kind": "benchmark_verifier",
+            "trial_id": trial_id,
+            "plan_id": f"plan-{index}",
+            "action_id": None,
+            "constraint_id": f"const-{index}",
+            "constraint_scope": "local",
+            "required": True,
+            "verdict": "satisfied",
+            "verifier_evidence": "verified",
+        }
+    if table_name == "context_operation_facts":
+        return {
+            "source_ref": f"runs/{trial_id}/trajectory.json",
+            "source_digest": "sha256:" + "d" * 64,
+            "provenance_kind": "mechanical",
+            "trial_id": trial_id,
+            "operation_id": f"op-{index}",
+            "operation": "compaction",
+            "configured_size": 100,
+            "realized_size": 80,
+            "prompt_tokens": 50,
+            "before_token_count": 200,
+            "after_token_count": 120,
+            "content_digest": None,
+        }
+    if table_name == "paired_condition_facts":
+        return {
+            "source_ref": f"runs/{trial_id}/trajectory.json",
+            "source_digest": "sha256:" + "e" * 64,
+            "provenance_kind": "mechanical",
+            "trial_id": trial_id,
+            "pair_id": f"pair-{index}",
+            "session_id": f"sess-{job_id}",
+            "task_id": "task-001",
+            "variant": "v1",
+            "condition": "control",
+            "trigger": "prompt",
+            "critical_action": None,
+            "state_diff": None,
+            "primary_verdict": "satisfied",
+            "secondary_verdict": "unknown",
+        }
+    if table_name == "session_dependency_facts":
+        return {
+            "source_ref": f"runs/{trial_id}/trajectory.json",
+            "source_digest": "sha256:" + "f" * 64,
+            "provenance_kind": "mechanical",
+            "trial_id": trial_id,
+            "episode_id": f"ep-{index}",
+            "session_id": f"sess-{job_id}",
+            "subtask_id": "subtask-1",
+            "dependency_edge": "depends_on",
+            "required_prior_fact": "fact-1",
+            "observed_memory_reference": None,
+            "progress": "done",
+            "outcome": "success",
+        }
+    if table_name == "evidence_coverage":
+        return {
+            "source_ref": f"runs/{trial_id}/coverage.json",
+            "source_digest": "sha256:" + "1" * 64,
+            "provenance_kind": "derived",
+            "trial_id": trial_id,
+            "benchmark": "swebench",
+            "construct": "retrieval",
+            "exposed": True,
+            "eligible": True,
+            "required_evidence": ["e1"],
+            "observed_evidence": ["e1"],
+            "missing_evidence": [],
+            "analysis_ready": True,
+        }
     raise ValueError(f"Unknown table name: {table_name}")
 
 
@@ -743,3 +847,98 @@ def test_cli_compact_human_output(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert "parquet compaction" in captured.out
     assert "dt=2026-08-12" in captured.out
     assert "total compacted rows" in captured.out
+
+
+def test_deduplicate_and_sort_semantic_facts() -> None:
+    # 1. capability_opportunities
+    opp_schema = TABLE_SCHEMAS["capability_opportunities"]
+    opp_rows = [
+        _make_table_row("capability_opportunities", "j1", "t1", index=2),
+        _make_table_row("capability_opportunities", "j1", "t1", index=1),
+        _make_table_row("capability_opportunities", "j1", "t1", index=1),  # duplicate
+    ]
+    opp_table = pa.Table.from_pylist(opp_rows, schema=opp_schema)
+    opp_deduped = deduplicate_and_sort(opp_table, "capability_opportunities")
+    assert opp_deduped.num_rows == 2
+    assert opp_deduped.column("opportunity_id").to_pylist() == ["opp-1", "opp-2"]
+    assert opp_deduped.schema.equals(opp_schema)
+
+    # 2. process_step_facts
+    step_schema = TABLE_SCHEMAS["process_step_facts"]
+    step_rows = [
+        _make_table_row("process_step_facts", "j1", "t1", index=2),
+        _make_table_row("process_step_facts", "j1", "t1", index=1),
+        _make_table_row("process_step_facts", "j1", "t1", index=1),
+    ]
+    step_table = pa.Table.from_pylist(step_rows, schema=step_schema)
+    step_deduped = deduplicate_and_sort(step_table, "process_step_facts")
+    assert step_deduped.num_rows == 2
+    assert step_deduped.column("source_step_id").to_pylist() == ["step-1", "step-2"]
+
+    # 3. constraint_facts
+    const_schema = TABLE_SCHEMAS["constraint_facts"]
+    const_rows = [
+        _make_table_row("constraint_facts", "j1", "t1", index=2),
+        _make_table_row("constraint_facts", "j1", "t1", index=1),
+        _make_table_row("constraint_facts", "j1", "t1", index=1),
+    ]
+    const_table = pa.Table.from_pylist(const_rows, schema=const_schema)
+    const_deduped = deduplicate_and_sort(const_table, "constraint_facts")
+    assert const_deduped.num_rows == 2
+    assert const_deduped.column("constraint_id").to_pylist() == ["const-1", "const-2"]
+
+    # 4. context_operation_facts
+    ctx_schema = TABLE_SCHEMAS["context_operation_facts"]
+    ctx_rows = [
+        _make_table_row("context_operation_facts", "j1", "t1", index=2),
+        _make_table_row("context_operation_facts", "j1", "t1", index=1),
+        _make_table_row("context_operation_facts", "j1", "t1", index=1),
+    ]
+    ctx_table = pa.Table.from_pylist(ctx_rows, schema=ctx_schema)
+    ctx_deduped = deduplicate_and_sort(ctx_table, "context_operation_facts")
+    assert ctx_deduped.num_rows == 2
+    assert ctx_deduped.column("operation_id").to_pylist() == ["op-1", "op-2"]
+
+    # 5. paired_condition_facts
+    pair_schema = TABLE_SCHEMAS["paired_condition_facts"]
+    pair_rows = [
+        _make_table_row("paired_condition_facts", "j1", "t1", index=2),
+        _make_table_row("paired_condition_facts", "j1", "t1", index=1),
+        _make_table_row("paired_condition_facts", "j1", "t1", index=1),
+    ]
+    pair_table = pa.Table.from_pylist(pair_rows, schema=pair_schema)
+    pair_deduped = deduplicate_and_sort(pair_table, "paired_condition_facts")
+    assert pair_deduped.num_rows == 2
+    assert pair_deduped.column("pair_id").to_pylist() == ["pair-1", "pair-2"]
+
+    # 6. session_dependency_facts
+    sess_schema = TABLE_SCHEMAS["session_dependency_facts"]
+    sess_rows = [
+        _make_table_row("session_dependency_facts", "j1", "t1", index=2),
+        _make_table_row("session_dependency_facts", "j1", "t1", index=1),
+        _make_table_row("session_dependency_facts", "j1", "t1", index=1),
+    ]
+    sess_table = pa.Table.from_pylist(sess_rows, schema=sess_schema)
+    sess_deduped = deduplicate_and_sort(sess_table, "session_dependency_facts")
+    assert sess_deduped.num_rows == 2
+    assert sess_deduped.column("episode_id").to_pylist() == ["ep-1", "ep-2"]
+
+    # 7. evidence_coverage
+    cov_schema = TABLE_SCHEMAS["evidence_coverage"]
+    cov_row1 = _make_table_row("evidence_coverage", "j1", "t1", index=1)
+    cov_row1["construct"] = "retrieval"
+    cov_row2 = _make_table_row("evidence_coverage", "j1", "t1", index=2)
+    cov_row2["construct"] = "planning"
+    cov_row3 = _make_table_row("evidence_coverage", "j1", "t1", index=3)
+    cov_row3["construct"] = "retrieval"  # duplicate key (trial_id, benchmark, construct)
+    cov_table = pa.Table.from_pylist([cov_row1, cov_row2, cov_row3], schema=cov_schema)
+    cov_deduped = deduplicate_and_sort(cov_table, "evidence_coverage")
+    assert cov_deduped.num_rows == 2
+    assert cov_deduped.column("construct").to_pylist() == ["planning", "retrieval"]
+
+
+def test_behavior_episodes_not_compacted() -> None:
+    from evallab.parquet_compaction import PRIMARY_KEYS, PROJECTED_TABLE_NAMES, TRIAL_TABLE_NAMES
+    assert "behavior_episodes" not in PROJECTED_TABLE_NAMES
+    assert "behavior_episodes" not in TRIAL_TABLE_NAMES
+    assert "behavior_episodes" not in PRIMARY_KEYS

@@ -186,8 +186,7 @@ def test_cli_zones_reports_z3_with_row_counts(tmp_path: Path, capsys: pytest.Cap
     out, _ = capsys.readouterr()
     assert code == 0
     assert "z3: attached" in out
-    assert "10/19 tables" in out
-
+    assert "10/27 tables" in out
 
 def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
     # every zone unavailable -> non-zero
@@ -292,5 +291,272 @@ def test_cross_zone_join_with_real_postgres(tmp_path: Path) -> None:
             "JOIN trial_facts t ON j.id::text = t.job_id::text GROUP BY j.job_name"
         ).fetchall()
         assert isinstance(rows2, list)
+    finally:
+        result.connection.close()
+
+
+def test_semantic_tables_hot_cold_standalone_discovery(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+
+    # 1. Standalone layout: capability_opportunities
+    standalone_dir = derived / "capability_opportunities"
+    standalone_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([
+            {
+                "source_ref": "ref1",
+                "source_digest": "sha256:" + "a" * 64,
+                "provenance_kind": "mechanical",
+                "opportunity_id": "opp-standalone-1",
+                "trial_id": "t1",
+                "benchmark": "b1",
+                "construct": "c1",
+                "start_step": 0,
+                "end_step": 1,
+                "eligible": True,
+                "required_evidence": ["e1"],
+                "missing_evidence": [],
+            }
+        ]),
+        standalone_dir / "data.parquet",
+    )
+
+    # 2. Hot layout: process_step_facts
+    _write_parquet_tree(
+        derived,
+        "process_step_facts",
+        [
+            {
+                "source_ref": "ref2",
+                "source_digest": "sha256:" + "b" * 64,
+                "provenance_kind": "mechanical",
+                "trial_id": "t1",
+                "source_trajectory_id": "traj-1",
+                "source_step_id": "step-1",
+                "label": "correct",
+                "original_label": None,
+                "propagated_from_step": None,
+                "first_error": None,
+            }
+        ],
+    )
+
+    # 3. Cold layout: constraint_facts
+    cold_dir = derived / "compact" / "constraint_facts" / "dt=2026-08-25"
+    cold_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([
+            {
+                "source_ref": "ref3",
+                "source_digest": "sha256:" + "c" * 64,
+                "provenance_kind": "benchmark_verifier",
+                "trial_id": "t1",
+                "plan_id": "p1",
+                "action_id": None,
+                "constraint_id": "c1",
+                "constraint_scope": "local",
+                "required": True,
+                "verdict": "satisfied",
+                "verifier_evidence": "verified",
+            }
+        ]),
+        cold_dir / "part0.parquet",
+    )
+
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        # Standalone
+        res_opp = result.connection.execute(
+            "SELECT opportunity_id, benchmark, construct FROM capability_opportunities"
+        ).fetchall()
+        assert res_opp == [("opp-standalone-1", "b1", "c1")]
+        res_opp_z3 = result.connection.execute(
+            "SELECT opportunity_id FROM z3.capability_opportunities"
+        ).fetchall()
+        assert res_opp_z3 == [("opp-standalone-1",)]
+
+        # Hot
+        res_step = result.connection.execute(
+            "SELECT source_step_id, label FROM process_step_facts"
+        ).fetchall()
+        assert res_step == [("step-1", "correct")]
+        res_step_z3 = result.connection.execute(
+            "SELECT source_step_id FROM z3.process_step_facts"
+        ).fetchall()
+        assert res_step_z3 == [("step-1",)]
+
+        # Cold
+        res_const = result.connection.execute(
+            "SELECT constraint_id, verdict FROM constraint_facts"
+        ).fetchall()
+        assert res_const == [("c1", "satisfied")]
+        res_const_z3 = result.connection.execute(
+            "SELECT constraint_id FROM z3.constraint_facts"
+        ).fetchall()
+        assert res_const_z3 == [("c1",)]
+    finally:
+        result.connection.close()
+
+
+def test_semantic_tables_multi_layout_union(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+
+    # Write context_operation_facts across hot, cold, and standalone
+    # Hot
+    _write_parquet_tree(
+        derived,
+        "context_operation_facts",
+        [
+            {
+                "source_ref": "ref-hot",
+                "source_digest": "sha256:" + "1" * 64,
+                "provenance_kind": "mechanical",
+                "trial_id": "t1",
+                "operation_id": "op-hot",
+                "operation": "compaction",
+                "configured_size": 100,
+                "realized_size": 80,
+                "prompt_tokens": 50,
+                "before_token_count": 200,
+                "after_token_count": 120,
+                "content_digest": None,
+            }
+        ],
+    )
+    # Cold
+    cold_dir = derived / "compact" / "context_operation_facts" / "dt=2026-08-20"
+    cold_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([
+            {
+                "source_ref": "ref-cold",
+                "source_digest": "sha256:" + "2" * 64,
+                "provenance_kind": "mechanical",
+                "trial_id": "t2",
+                "operation_id": "op-cold",
+                "operation": "clear",
+                "configured_size": None,
+                "realized_size": None,
+                "prompt_tokens": None,
+                "before_token_count": None,
+                "after_token_count": None,
+                "content_digest": None,
+            }
+        ]),
+        cold_dir / "part0.parquet",
+    )
+    # Standalone
+    standalone_dir = derived / "context_operation_facts"
+    standalone_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([
+            {
+                "source_ref": "ref-standalone",
+                "source_digest": "sha256:" + "3" * 64,
+                "provenance_kind": "mechanical",
+                "trial_id": "t3",
+                "operation_id": "op-standalone",
+                "operation": "evict",
+                "configured_size": None,
+                "realized_size": None,
+                "prompt_tokens": None,
+                "before_token_count": None,
+                "after_token_count": None,
+                "content_digest": None,
+            }
+        ]),
+        standalone_dir / "batch1.parquet",
+    )
+
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        rows = result.connection.execute(
+            "SELECT operation_id, trial_id, operation FROM context_operation_facts ORDER BY trial_id"
+        ).fetchall()
+        assert rows == [
+            ("op-hot", "t1", "compaction"),
+            ("op-cold", "t2", "clear"),
+            ("op-standalone", "t3", "evict"),
+        ]
+        assert result.connection.execute("SELECT COUNT(*) FROM z3.context_operation_facts").fetchone() == (3,)
+    finally:
+        result.connection.close()
+
+
+def test_honest_missing_semantic_tables_and_empty_views(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    # Write only one semantic table
+    _write_parquet_tree(
+        derived,
+        "evidence_coverage",
+        [
+            {
+                "source_ref": "ref-cov",
+                "source_digest": "sha256:" + "d" * 64,
+                "provenance_kind": "derived",
+                "trial_id": "t1",
+                "benchmark": "bench1",
+                "construct": "planning",
+                "exposed": True,
+                "eligible": True,
+                "required_evidence": ["p1"],
+                "observed_evidence": ["p1"],
+                "missing_evidence": [],
+                "analysis_ready": True,
+            }
+        ],
+    )
+
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        z3_status = next(z for z in result.zones if z.name == "z3")
+        assert z3_status.attached is True
+        assert "1/27 tables" in z3_status.detail
+        assert "missing: " in z3_status.detail
+        assert "capability_opportunities" in z3_status.detail
+        assert "paired_condition_facts" in z3_status.detail
+        assert "session_dependency_facts" in z3_status.detail
+
+        # Missing semantic table returns 0 rows (honest empty view)
+        missing_count = result.connection.execute(
+            "SELECT COUNT(*) FROM capability_opportunities"
+        ).fetchone()
+        assert missing_count == (0,)
+
+        missing_count_z3 = result.connection.execute(
+            "SELECT COUNT(*) FROM z3.session_dependency_facts"
+        ).fetchone()
+        assert missing_count_z3 == (0,)
+
+        # Present semantic table returns its data
+        present_rows = result.connection.execute(
+            "SELECT benchmark, construct, analysis_ready FROM evidence_coverage"
+        ).fetchall()
+        assert present_rows == [("bench1", "planning", True)]
+    finally:
+        result.connection.close()
+
+
+def test_all_eight_semantic_tables_registered_in_preamble(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        expected_tables = [
+            "capability_opportunities",
+            "process_step_facts",
+            "retrieval_facts",
+            "constraint_facts",
+            "context_operation_facts",
+            "paired_condition_facts",
+            "session_dependency_facts",
+            "evidence_coverage",
+        ]
+        for tbl in expected_tables:
+            assert f"CREATE OR REPLACE VIEW {tbl} AS" in result.sql_preamble
+            assert f"CREATE OR REPLACE VIEW z3.{tbl} AS" in result.sql_preamble
     finally:
         result.connection.close()

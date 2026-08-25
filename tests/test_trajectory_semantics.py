@@ -14,6 +14,7 @@ from evallab.cli import run_cli
 from evallab.results import load_job
 from evallab.trajectory_semantics import (
     BASH_RESOLVER_SPEC,
+    BENCHMARK_PROFILES,
     GENERIC_POSIX_PROFILE,
     SEMANTIC_ACTION_FACT_SCHEMA,
     ResolverConformanceVector,
@@ -694,6 +695,34 @@ def test_unknown_semantics_below_threshold_is_screening_only() -> None:
     )
     assert coverage.coverage_fraction == 0.0
     assert coverage.status == "screening_only"
+
+
+def test_query_marks_historical_profile_evidence_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = load_job(FIXTURES / "job-fail")
+    binding = TaskProfileBinding.from_profile("lab/demo", GENERIC_POSIX_PROFILE)
+    project_job_semantics(
+        [job],
+        bindings=[binding],
+        output_root=tmp_path,
+        query_threshold=1.0,
+    )
+    evolved_profile = TrajectorySemanticsProfile(
+        profile_id=GENERIC_POSIX_PROFILE.profile_id,
+        version="99.0.0",
+        description="intentionally evolved profile",
+        tool_rules=GENERIC_POSIX_PROFILE.tool_rules,
+    )
+    monkeypatch.setitem(
+        BENCHMARK_PROFILES,
+        GENERIC_POSIX_PROFILE.profile_id,
+        evolved_profile,
+    )
+    queried = query_semantic_coverage(tmp_path, query_threshold=0.5)
+    assert queried[0].coverage_fraction == 1.0
+    assert queried[0].status == "stale_profile"
 
 
 def test_projection_requires_explicit_task_binding(tmp_path: Path) -> None:

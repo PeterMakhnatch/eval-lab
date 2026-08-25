@@ -98,6 +98,71 @@ def test_z3_views_return_written_rows(tmp_path: Path) -> None:
         result.connection.close()
 
 
+def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
+    tmp_path: Path,
+) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    _write_parquet_tree(
+        derived,
+        "agent_actions",
+        [
+            {
+                "job_id": "job-1",
+                "trial_id": "trial-1",
+                "document_id": "document-1",
+                "tool_call_id": "call-1",
+                "action_id": "action-1",
+                "function_name": "bash",
+                "outcome": "error",
+                "exit_code": 1,
+                "arguments_sha256": "sha256:" + "a" * 64,
+            }
+        ],
+    )
+    _write_parquet_tree(
+        derived,
+        "semantic_action_facts",
+        [
+            {
+                "trial_id": "trial-1",
+                "tool_call_id": "call-1",
+                "task_id": "task-1",
+                "binding_digest": "sha256:" + "b" * 64,
+                "profile_id": "posix-generic",
+                "profile_version": "1.0.0",
+                "profile_digest": "sha256:" + "c" * 64,
+                "role": "search",
+                "outcome": "expected_negative",
+                "outcome_detail": "pattern_not_found",
+                "observation_correlation": "matched_call_id",
+                "correlation_reason": None,
+                "intervention_provenance": "autonomous",
+                "intervention_sha256": None,
+                "intervention_length": None,
+                "intervention_reason": None,
+            }
+        ],
+    )
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        row = result.connection.execute(
+            "SELECT mechanical_outcome, semantic_outcome, semantic_role, profile_id "
+            "FROM v_semantic_vs_mechanical"
+        ).fetchone()
+        assert row == (
+            "error",
+            "expected_negative",
+            "search",
+            "posix-generic",
+        )
+        assert result.connection.execute(
+            "SELECT count(*) FROM z3.v_semantic_vs_mechanical"
+        ).fetchone() == (1,)
+    finally:
+        result.connection.close()
+
+
 def test_standalone_parquet_is_attached_once_and_preamble_has_one_glob(
     tmp_path: Path,
 ) -> None:
@@ -186,7 +251,7 @@ def test_cli_zones_reports_z3_with_row_counts(tmp_path: Path, capsys: pytest.Cap
     out, _ = capsys.readouterr()
     assert code == 0
     assert "z3: attached" in out
-    assert "10/27 tables" in out
+    assert "10/29 tables" in out
 
 def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
     # every zone unavailable -> non-zero
@@ -514,7 +579,7 @@ def test_honest_missing_semantic_tables_and_empty_views(tmp_path: Path) -> None:
     try:
         z3_status = next(z for z in result.zones if z.name == "z3")
         assert z3_status.attached is True
-        assert "1/27 tables" in z3_status.detail
+        assert "1/29 tables" in z3_status.detail
         assert "missing: " in z3_status.detail
         assert "capability_opportunities" in z3_status.detail
         assert "paired_condition_facts" in z3_status.detail

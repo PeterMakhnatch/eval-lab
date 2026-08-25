@@ -66,6 +66,8 @@ TABLES = (
     "paired_condition_facts",
     "session_dependency_facts",
     "evidence_coverage",
+    "semantic_action_facts",
+    "semantic_action_coverage",
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"
@@ -105,6 +107,86 @@ def _z3_globs(root: Path) -> list[str]:
     cold = str(root / Z3_COLD)
     standalone_dir = str(root / Z3_STANDALONE_DIR)
     return [hot, cold, standalone_dir]
+
+def _attach_semantic_comparison(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    available_tables: set[str],
+) -> None:
+    empty = """
+        SELECT
+            CAST(NULL AS VARCHAR) AS job_id,
+            CAST(NULL AS VARCHAR) AS trial_id,
+            CAST(NULL AS VARCHAR) AS document_id,
+            CAST(NULL AS VARCHAR) AS tool_call_id,
+            CAST(NULL AS VARCHAR) AS action_id,
+            CAST(NULL AS VARCHAR) AS function_name,
+            CAST(NULL AS VARCHAR) AS mechanical_outcome,
+            CAST(NULL AS BIGINT) AS exit_code,
+            CAST(NULL AS VARCHAR) AS mechanical_arguments_sha256,
+            CAST(NULL AS VARCHAR) AS task_id,
+            CAST(NULL AS VARCHAR) AS binding_digest,
+            CAST(NULL AS VARCHAR) AS profile_id,
+            CAST(NULL AS VARCHAR) AS profile_version,
+            CAST(NULL AS VARCHAR) AS profile_digest,
+            CAST(NULL AS VARCHAR) AS semantic_role,
+            CAST(NULL AS VARCHAR) AS semantic_outcome,
+            CAST(NULL AS VARCHAR) AS semantic_outcome_detail,
+            CAST(NULL AS VARCHAR) AS observation_correlation,
+            CAST(NULL AS VARCHAR) AS correlation_reason,
+            CAST(NULL AS VARCHAR) AS intervention_provenance,
+            CAST(NULL AS VARCHAR) AS intervention_sha256,
+            CAST(NULL AS BIGINT) AS intervention_length,
+            CAST(NULL AS VARCHAR) AS intervention_reason
+        WHERE FALSE
+    """
+    if {"agent_actions", "semantic_action_facts"} <= available_tables:
+        comparison = """
+            SELECT
+                mechanical.job_id,
+                mechanical.trial_id,
+                mechanical.document_id,
+                mechanical.tool_call_id,
+                mechanical.action_id,
+                mechanical.function_name,
+                mechanical.outcome AS mechanical_outcome,
+                mechanical.exit_code,
+                mechanical.arguments_sha256 AS mechanical_arguments_sha256,
+                semantic.task_id,
+                semantic.binding_digest,
+                semantic.profile_id,
+                semantic.profile_version,
+                semantic.profile_digest,
+                semantic.role AS semantic_role,
+                semantic.outcome AS semantic_outcome,
+                semantic.outcome_detail AS semantic_outcome_detail,
+                semantic.observation_correlation,
+                semantic.correlation_reason,
+                semantic.intervention_provenance,
+                semantic.intervention_sha256,
+                semantic.intervention_length,
+                semantic.intervention_reason
+            FROM agent_actions AS mechanical
+            LEFT JOIN semantic_action_facts AS semantic
+              ON mechanical.trial_id = semantic.trial_id
+             AND mechanical.tool_call_id = semantic.tool_call_id
+        """
+        z3_comparison = comparison.replace(
+            "FROM agent_actions AS mechanical",
+            "FROM z3.agent_actions AS mechanical",
+        ).replace(
+            "LEFT JOIN semantic_action_facts AS semantic",
+            "LEFT JOIN z3.semantic_action_facts AS semantic",
+        )
+    else:
+        comparison = empty
+        z3_comparison = empty
+    conn.execute(
+        f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {comparison}"
+    )
+    conn.execute(
+        f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {z3_comparison}"
+    )
 
 
 def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
@@ -160,6 +242,10 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
                 f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
             )
             missing.append(table)
+    _attach_semantic_comparison(
+        conn,
+        available_tables=hot_tables | cold_tables | standalone_tables,
+    )
     detail = f"{str(root)} ({created}/{len(TABLES)} tables)"
     if missing:
         detail += f"; missing: {', '.join(missing)} (intentionally shaped differently)"
@@ -248,6 +334,28 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
             f"CREATE OR REPLACE VIEW z3.{table} AS "
             f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true);"
         )
+    lines.append(
+        "CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS "
+        "SELECT mechanical.*, semantic.task_id, semantic.binding_digest, "
+        "semantic.profile_id, semantic.profile_version, semantic.profile_digest, "
+        "semantic.role AS semantic_role, semantic.outcome AS semantic_outcome, "
+        "semantic.outcome_detail AS semantic_outcome_detail "
+        "FROM agent_actions AS mechanical "
+        "LEFT JOIN semantic_action_facts AS semantic "
+        "ON mechanical.trial_id = semantic.trial_id "
+        "AND mechanical.tool_call_id = semantic.tool_call_id;"
+    )
+    lines.append(
+        "CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS "
+        "SELECT mechanical.*, semantic.task_id, semantic.binding_digest, "
+        "semantic.profile_id, semantic.profile_version, semantic.profile_digest, "
+        "semantic.role AS semantic_role, semantic.outcome AS semantic_outcome, "
+        "semantic.outcome_detail AS semantic_outcome_detail "
+        "FROM z3.agent_actions AS mechanical "
+        "LEFT JOIN z3.semantic_action_facts AS semantic "
+        "ON mechanical.trial_id = semantic.trial_id "
+        "AND mechanical.tool_call_id = semantic.tool_call_id;"
+    )
     lines.append(
         "CREATE OR REPLACE TABLE z4.front_matter "
         "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT);"

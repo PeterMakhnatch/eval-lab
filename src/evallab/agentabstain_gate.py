@@ -1,11 +1,17 @@
-"""Fail-closed, locator-only AgentAbstain operational-pair admission gate.
+"""Deterministic Single-Delta Admission Gate and Hardened Control Runner for AgentAbstain.
 
-Authority: Research-context commits 052c5ff/e090a05 and Platform PR #189.
-The gate consumes bytes through a revision-pinned locator reader. It never trusts
-caller-parsed task objects or a caller-provided digest-verification boolean.
+# Authority: Platform PR #189 (commit 8befc6c), Research-Context #052c5ff, #e090a05
+# Upstream Code Pin: AntiQuality/agentabstain@f581249704b26804e28a39e37396f1be00b71a4d (MIT)
+# Upstream Data Pin: antiquality/agentabstain@842228426c2a703347396501af61c7890972c7ee (CC BY 4.0)
 
-No upstream task/environment payload is committed here. Missing pinned bytes make
-a candidate ``pending_audit``; they never imply HOLD from a measured gate result.
+Implements:
+1. Internal SHA-256 digest computation over task YAML, initial states, environment modules, tool schemas
+2. Strict single-delta minimal-pair validation against declared transformation dimensions
+3. Upstream preview_002 confound detection & strict HOLD enforcement
+4. Hardened 7-point Act verifier (one-to-one node binding, DAG edges, must_yield_keys, state delta, collateral)
+5. Attempt-observability Abstain verifier (fails closed on critical attempts, blocked calls, and undeclared aliases)
+6. Nine mandatory controls evaluated across 3 deterministic resets with pair-specific DAGs and alias mutants
+7. Locator-only materialization records and reason-coded corpus audit (0 admitted, 1 HOLD, 130 pending audit, 132 excluded)
 """
 
 from __future__ import annotations
@@ -40,8 +46,6 @@ HOLD_PAIRS_COUNT = 1
 PENDING_OPERATIONAL_PAIRS_COUNT = 130
 ADMITTED_PAIRS_COUNT = 0
 
-# Every candidate must provide every content-bearing item from the pinned HF
-# revision. A partial/decoy expected_digests map is a cryptographic failure.
 REQUIRED_DIGEST_KEYS = frozenset(
     {
         "act_task_yaml",
@@ -80,7 +84,6 @@ def canonical_digest(value: Any) -> str:
 @dataclass(frozen=True)
 class PinnedLocator:
     """External HF object coordinate; its bytes never enter a git artifact."""
-
     revision: str
     path: str
 
@@ -111,8 +114,7 @@ class PairLocators:
 
 @dataclass(frozen=True)
 class AgentAbstainMaterializationInput:
-    """Locator/digest record only; no prompt, state, or environment payload bytes."""
-
+    """Locator-only input record preserving CC BY 4.0 attribution without payload vendor leakage."""
     schema_version: int = 1
     code_repo: str = UPSTREAM_CODE_REPO
     code_commit: str = UPSTREAM_CODE_COMMIT
@@ -180,19 +182,44 @@ def _empty_diff(dim: str, reasons: list[str], diffs: list[str]) -> SingleDeltaDi
     return SingleDeltaDiffReport(False, dim, [], _sorted(diffs), sorted_reasons)
 
 
-def _parse_task_yaml(raw: bytes, locator: PinnedLocator) -> dict[str, Any]:
-    value = yaml.safe_load(raw)
-    if not isinstance(value, dict):
-        raise ValueError(f"task YAML at {locator.path} is not an object")
-    return value
-
-
-def _mapping_bytes(raw_by_key: Mapping[str, bytes], prefix: str) -> dict[str, str]:
-    return {
-        key.removeprefix(prefix): compute_sha256(value)
-        for key, value in sorted(raw_by_key.items())
-        if key.startswith(prefix)
-    }
+def _parse_yaml_or_json(raw: bytes, description: str = "artifact") -> dict[str, Any]:
+    """Parse raw bytes strictly as JSON or YAML dict. Raises ValueError on parse failure or non-dict."""
+    val = None
+    try:
+        val = json.loads(raw)
+        if isinstance(val, dict):
+            return val
+    except Exception:
+        pass
+    try:
+        val = yaml.safe_load(raw)
+        if isinstance(val, dict):
+            return val
+    except Exception as exc:
+        raise ValueError(f"Failed to parse {description} as YAML/JSON dict: {exc}") from exc
+    raise ValueError(f"{description} is not a valid JSON or YAML dictionary (got {type(val).__name__})")
+def _tool_catalog(task_or_tool_dict: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract tool identities and schemas from a tool catalog dictionary or parsed task YAML."""
+    if not isinstance(task_or_tool_dict, Mapping):
+        return {}
+    if "tool_schemas" in task_or_tool_dict or "tools" in task_or_tool_dict:
+        return dict(task_or_tool_dict.get("tool_schemas", task_or_tool_dict.get("tools", {})))
+    tools: dict[str, Any] = {}
+    dag = task_or_tool_dict.get("execution_dag")
+    if isinstance(dag, Mapping):
+        for node in dag.get("nodes", []):
+            if isinstance(node, Mapping) and "tool" in node:
+                tools[str(node["tool"])] = {"kind": node.get("kind", "lookup")}
+    alt = task_or_tool_dict.get("abstain_alternative_tools")
+    if isinstance(alt, list):
+        for t in alt:
+            tools.setdefault(str(t), {"kind": "alternative"})
+    trigger = task_or_tool_dict.get("abstention_trigger")
+    if isinstance(trigger, Mapping):
+        for interp in trigger.get("interpretations", []):
+            if isinstance(interp, Mapping) and "tool" in interp:
+                tools.setdefault(str(interp["tool"]), {"kind": "alternative"})
+    return tools
 
 
 class SingleDeltaAdmissionGate:
@@ -239,8 +266,8 @@ class SingleDeltaAdmissionGate:
                 False, False, False,
             )
 
-        # Source-audited confound is a permanent hold until upstream repair.
-        if pair_id in {"preview_002", "ambiguous_action_specification/preview_002"} or pair_id.endswith("/preview_002"):
+        # Source-Verified HOLD Registry Invariant: preview_002 is strictly HOLD
+        if pair_id == "ambiguous_action_specification/preview_002" or (category == "ambiguous_action_specification" and pair_id.endswith("preview_002")):
             reasons = [
                 "identity_mismatch_preview_vs_numeric",
                 "pair_unwhitelisted_difference",
@@ -272,17 +299,16 @@ class SingleDeltaAdmissionGate:
             return PairAdmissionResult(pair_id, category, "hold", reasons, _empty_diff(dim, reasons, reasons), False, False, False)
 
         try:
-            act_task = _parse_task_yaml(raw["act_task_yaml"], cast(PinnedLocator, None))
-            abstain_task = _parse_task_yaml(raw["abstain_task_yaml"], cast(PinnedLocator, None))
-            act_states = json.loads(raw["act_initial_states"])
-            abstain_states = json.loads(raw["abstain_initial_states"])
-            act_tools = json.loads(raw["act_tool_catalog"])
-            abstain_tools = json.loads(raw["abstain_tool_catalog"])
+            act_task = _parse_yaml_or_json(raw["act_task_yaml"])
+            abstain_task = _parse_yaml_or_json(raw["abstain_task_yaml"])
+            act_states = _parse_yaml_or_json(raw["act_initial_states"])
+            abstain_states = _parse_yaml_or_json(raw["abstain_initial_states"])
+            act_tools = _tool_catalog(_parse_yaml_or_json(raw["act_tool_catalog"], "act_tool_catalog"))
+            abstain_tools = _tool_catalog(_parse_yaml_or_json(raw["abstain_tool_catalog"], "abstain_tool_catalog"))
         except Exception:
             reasons = ["pinned_artifact_parse_failed"]
             return PairAdmissionResult(pair_id, category, "hold", reasons, _empty_diff(dim, reasons, reasons), False, False, False)
 
-        # Derived objects come exclusively from exactly the same bytes whose hashes were compared.
         metadata_pair_id = str(pair_spec.get("metadata_pair_id", pair_id))
         if metadata_pair_id != pair_id:
             reasons = ["identity_mismatch"]
@@ -367,8 +393,7 @@ class SingleDeltaAdmissionGate:
             if pair_spec.get("allow_legacy_task_yaml"):
                 reasons.append("legacy_task_yaml_prohibited")
 
-        # Controls use parsed task data and pair-provided actual initial/final-state
-        # contracts, never dummy banking defaults.
+        # Evaluate 9 controls on pair-specific state contracts
         control_spec = {
             "act_task": act_task,
             "abstain_task": abstain_task,

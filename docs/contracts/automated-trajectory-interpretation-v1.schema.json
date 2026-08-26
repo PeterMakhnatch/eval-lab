@@ -1,0 +1,2678 @@
+{
+  "$comment": "CalibrationReport v1 is externally authoritative at research-context/trajectory-analysis/calibration/calibration-report-schema-v1.json, sha256:c314af9b5deb75755cc069306361b0fbf405fa7aeb0fa8248c637e4e10e0b824; it is intentionally not duplicated here.",
+  "$defs": {
+    "AcceptanceDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration_class_gate": {
+          "$ref": "#/$defs/CalibrationClassGate"
+        },
+        "calibration_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cross_judge": {
+          "$ref": "#/$defs/CrossJudgeRecord"
+        },
+        "decision": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "abstained"
+          ]
+        },
+        "decision_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "decision_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "deterministic_gates": {
+          "items": {
+            "$ref": "#/$defs/GateResult"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "judgment_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "pack_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "policy_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "produced_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "proposed_next_check": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "acceptance-decision/v1"
+        },
+        "supersedes_decision_id": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "decision_id",
+        "decision_digest",
+        "decision",
+        "judgment_ids",
+        "pack_digest",
+        "deterministic_gates",
+        "cross_judge",
+        "calibration_version",
+        "calibration_class_gate",
+        "reason_codes",
+        "proposed_next_check",
+        "policy_digest",
+        "supersedes_decision_id",
+        "produced_at"
+      ],
+      "type": "object"
+    },
+    "AlignedEventPair": {
+      "additionalProperties": false,
+      "properties": {
+        "event_id_a": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event_id_b": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "match_quality": {
+          "enum": [
+            "exact",
+            "partial",
+            "mismatch",
+            "gap_a",
+            "gap_b"
+          ]
+        },
+        "score": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "event_id_a",
+        "event_id_b",
+        "match_quality",
+        "score"
+      ],
+      "type": "object"
+    },
+    "AlignmentAlgorithm": {
+      "additionalProperties": false,
+      "properties": {
+        "config_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "config_digest"
+      ],
+      "type": "object"
+    },
+    "AlignmentRange": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "enum": [
+            "a",
+            "b"
+          ]
+        },
+        "end_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "event_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "reason_code": {
+          "type": "string"
+        },
+        "start_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch",
+        "start_event_id",
+        "end_event_id",
+        "event_count",
+        "reason_code"
+      ],
+      "type": "object"
+    },
+    "AlignmentRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "$ref": "#/$defs/AlignmentAlgorithm"
+        },
+        "aligned_event_pairs": {
+          "items": {
+            "$ref": "#/$defs/AlignedEventPair"
+          },
+          "type": "array"
+        },
+        "alignment_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "alignment_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "allowed_delta": {
+          "$ref": "#/$defs/AllowedDelta"
+        },
+        "cas_uri": {
+          "pattern": "^cas://sha256/[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "configuration_a": {
+          "$ref": "#/$defs/ConfigurationIdentity"
+        },
+        "configuration_b": {
+          "$ref": "#/$defs/ConfigurationIdentity"
+        },
+        "first_non_reconvergent_divergence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DivergenceRecord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ir_a": {
+          "$ref": "#/$defs/IRRef"
+        },
+        "ir_b": {
+          "$ref": "#/$defs/IRRef"
+        },
+        "local_divergences": {
+          "items": {
+            "$ref": "#/$defs/DivergenceRecord"
+          },
+          "type": "array"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reconvergences": {
+          "items": {
+            "$ref": "#/$defs/ReconvergenceRecord"
+          },
+          "type": "array"
+        },
+        "unmatched_ranges": {
+          "items": {
+            "$ref": "#/$defs/AlignmentRange"
+          },
+          "type": "array"
+        },
+        "validity": {
+          "enum": [
+            "valid",
+            "confounded",
+            "unavailable"
+          ]
+        }
+      },
+      "required": [
+        "alignment_id",
+        "alignment_digest",
+        "cas_uri",
+        "ir_a",
+        "ir_b",
+        "configuration_a",
+        "configuration_b",
+        "allowed_delta",
+        "algorithm",
+        "aligned_event_pairs",
+        "unmatched_ranges",
+        "local_divergences",
+        "reconvergences",
+        "first_non_reconvergent_divergence",
+        "validity",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "AlignmentRecordRef": {
+      "additionalProperties": false,
+      "properties": {
+        "alignment_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "alignment_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "cas_uri": {
+          "pattern": "^cas://sha256/[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "validity": {
+          "enum": [
+            "valid",
+            "confounded",
+            "unavailable"
+          ]
+        }
+      },
+      "required": [
+        "alignment_id",
+        "alignment_digest",
+        "cas_uri",
+        "validity",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "AllowedDelta": {
+      "additionalProperties": false,
+      "properties": {
+        "field_name": {
+          "type": "string"
+        },
+        "preregistration_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value_a": {},
+        "value_b": {}
+      },
+      "required": [
+        "field_name",
+        "value_a",
+        "value_b",
+        "preregistration_digest"
+      ],
+      "type": "object"
+    },
+    "AnalysisConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_policy_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "calibration_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ir_builder_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "judge_configuration_digests": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pack_builder_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "redaction_profile_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "token_budget": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ir_builder_digest",
+        "pack_builder_digest",
+        "token_budget",
+        "redaction_profile_digest",
+        "judge_configuration_digests",
+        "calibration_version",
+        "acceptance_policy_digest"
+      ],
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "type": "string"
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "unavailable",
+            "redacted",
+            "quarantined"
+          ]
+        },
+        "byte_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cas_uri": {
+          "anyOf": [
+            {
+              "pattern": "^cas://sha256/[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "reason_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "trial_relative_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_kind",
+        "trial_relative_path",
+        "sha256",
+        "byte_count",
+        "cas_uri",
+        "media_type",
+        "availability",
+        "reason_code"
+      ],
+      "type": "object"
+    },
+    "CalibrationClassGate": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_enabled": {
+          "type": "boolean"
+        },
+        "acceptance_enabling_allowed": {
+          "type": "boolean"
+        },
+        "calibration_version": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "class_id": {
+          "type": "string"
+        },
+        "hold_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "reliability_snapshot": {
+          "type": "object"
+        },
+        "report_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "report_schema": {
+          "const": "calibration-report-v1"
+        },
+        "thresholds_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "class_id",
+        "calibration_version",
+        "report_digest",
+        "report_schema",
+        "thresholds_digest",
+        "acceptance_enabling_allowed",
+        "acceptance_enabled",
+        "hold_reasons",
+        "reliability_snapshot"
+      ],
+      "type": "object"
+    },
+    "CampaignAccounting": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_cohort_trials": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "controls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "executed_trials": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "planned_specs": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "quarantined_attempts": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "retries": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unresolved_evidence": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "planned_specs",
+        "executed_trials",
+        "analysis_cohort_trials",
+        "controls",
+        "retries",
+        "quarantined_attempts",
+        "unresolved_evidence"
+      ],
+      "type": "object"
+    },
+    "CampaignAnalysisManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "accounting": {
+          "$ref": "#/$defs/CampaignAccounting"
+        },
+        "analysis_config": {
+          "$ref": "#/$defs/AnalysisConfig"
+        },
+        "authorizing_actor": {
+          "type": "string"
+        },
+        "campaign_id": {
+          "type": "string"
+        },
+        "manifest_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "manifest_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "produced_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "campaign-analysis-manifest/v1"
+        },
+        "source_campaign_manifest_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "trials": {
+          "items": {
+            "$ref": "#/$defs/CampaignTrialInput"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "manifest_id",
+        "manifest_digest",
+        "campaign_id",
+        "source_campaign_manifest_digest",
+        "source_commit",
+        "authorizing_actor",
+        "trials",
+        "accounting",
+        "analysis_config",
+        "produced_at"
+      ],
+      "type": "object"
+    },
+    "CampaignTrialInput": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_role": {
+          "enum": [
+            "primary",
+            "retry",
+            "control",
+            "quarantined_attempt"
+          ]
+        },
+        "cas_uri": {
+          "pattern": "^cas://sha256/[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "cohort_included": {
+          "type": "boolean"
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "quality_report_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quality_status": {
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "quarantine",
+            "quality_not_evaluated",
+            "no_atif"
+          ]
+        },
+        "source_role": {
+          "type": "string"
+        },
+        "spec_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "trial_id": {
+          "type": "string"
+        },
+        "trial_name": {
+          "type": "string"
+        },
+        "unknown_reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "verifier_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source_role",
+        "cohort_included",
+        "attempt_role",
+        "spec_id",
+        "job_id",
+        "trial_id",
+        "trial_name",
+        "task_id",
+        "task_digest",
+        "verifier_digest",
+        "cas_uri",
+        "quality_status",
+        "quality_report_digest",
+        "unknown_reason_codes"
+      ],
+      "type": "object"
+    },
+    "CitationHandle": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "enum": [
+            "available",
+            "unavailable",
+            "redacted",
+            "ambiguous"
+          ]
+        },
+        "citation_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "ir_event_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locator": {
+          "$ref": "#/$defs/CitationLocator"
+        },
+        "raw_cas_uri": {
+          "anyOf": [
+            {
+              "pattern": "^cas://sha256/[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "redaction_profile_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_document_id": {
+          "type": "string"
+        },
+        "source_kind": {
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "trial_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "citation_id",
+        "source_kind",
+        "trial_id",
+        "source_document_id",
+        "source_sha256",
+        "raw_cas_uri",
+        "ir_event_id",
+        "locator",
+        "content_sha256",
+        "redaction_profile_digest",
+        "availability",
+        "reason_code"
+      ],
+      "type": "object"
+    },
+    "CitationLocator": {
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "byte_end": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "byte_start": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "observation_index": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "source_call_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "span_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "step_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tool_call_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verifier_check_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "ClassCalibration": {
+      "additionalProperties": false,
+      "properties": {
+        "abstention_threshold": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "auto_accept_enabled": {
+          "type": "boolean"
+        },
+        "brier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "citation_validity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "class_id": {
+          "type": "string"
+        },
+        "coverage": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ece": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "false_accept_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "first_error_accuracy": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "human_kappa": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "human_precision": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "machine_accepted_precision": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n_accepted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "n_gold": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "non_inferiority_margin": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "precision_interval_lower": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "precision_interval_upper": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "selective_risk": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "class_id",
+        "human_kappa",
+        "human_precision",
+        "non_inferiority_margin",
+        "n_gold",
+        "n_accepted",
+        "machine_accepted_precision",
+        "precision_interval_lower",
+        "precision_interval_upper",
+        "selective_risk",
+        "coverage",
+        "citation_validity",
+        "false_accept_count",
+        "first_error_accuracy",
+        "ece",
+        "brier",
+        "abstention_threshold",
+        "auto_accept_enabled",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "ConfigurationIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_scaffold": {
+          "type": "string"
+        },
+        "agent_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "environment_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "factor_values": {
+          "type": "object"
+        },
+        "model_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "task_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "task_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toolset_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verifier_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "task_id",
+        "task_version",
+        "task_digest",
+        "verifier_digest",
+        "environment_digest",
+        "agent_scaffold",
+        "agent_version",
+        "model_name",
+        "prompt_digest",
+        "toolset_digest",
+        "factor_values"
+      ],
+      "type": "object"
+    },
+    "ContractSlice": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "enum": [
+            "available",
+            "unavailable",
+            "ambiguous"
+          ]
+        },
+        "citation_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "contract_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fields": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "fields",
+        "citation_ids",
+        "contract_digest",
+        "availability"
+      ],
+      "type": "object"
+    },
+    "CrossJudgeRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "agreement": {
+          "enum": [
+            "exact",
+            "disagree",
+            "not_required",
+            "unavailable"
+          ]
+        },
+        "class_ids": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": "array"
+        },
+        "judge_families": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "required",
+        "judge_families",
+        "class_ids",
+        "agreement"
+      ],
+      "type": "object"
+    },
+    "Digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "DivergenceRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "citation_ids_a": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "citation_ids_b": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "event_id_a": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event_id_b": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "meaningful": {
+          "type": "boolean"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reconverges": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "event_id_a",
+        "event_id_b",
+        "citation_ids_a",
+        "citation_ids_b",
+        "reconverges",
+        "meaningful",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "EvidenceCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_ready": {
+          "type": "boolean"
+        },
+        "expected_source_kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "missing_source_kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "omitted_event_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "present_source_kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "redacted_item_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unlinked_tool_call_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unresolved_citation_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "present_source_kinds",
+        "expected_source_kinds",
+        "missing_source_kinds",
+        "unresolved_citation_count",
+        "unlinked_tool_call_count",
+        "redacted_item_count",
+        "omitted_event_count",
+        "analysis_ready",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "EvidenceItem": {
+      "additionalProperties": false,
+      "properties": {
+        "advisory_only": {
+          "type": "boolean"
+        },
+        "citation_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "content_redacted": {
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "evidence_item_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "token_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "evidence_item_id",
+        "citation_id",
+        "content_redacted",
+        "content_sha256",
+        "token_count",
+        "advisory_only"
+      ],
+      "type": "object"
+    },
+    "EvidencePack": {
+      "additionalProperties": false,
+      "properties": {
+        "alignment_record_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AlignmentRecordRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "build_warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "builder": {
+          "$ref": "#/$defs/ProducerIdentity"
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/CitationHandle"
+          },
+          "type": "array"
+        },
+        "episode_index": {
+          "items": {
+            "$ref": "#/$defs/IREpisode"
+          },
+          "type": "array"
+        },
+        "evidence_coverage": {
+          "$ref": "#/$defs/EvidenceCoverage"
+        },
+        "evidence_items": {
+          "items": {
+            "$ref": "#/$defs/EvidenceItem"
+          },
+          "type": "array"
+        },
+        "ir_refs": {
+          "items": {
+            "$ref": "#/$defs/IRRef"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "type": "array"
+        },
+        "model_budget": {
+          "$ref": "#/$defs/ModelBudget"
+        },
+        "omitted_ranges": {
+          "items": {
+            "$ref": "#/$defs/OmittedRange"
+          },
+          "type": "array"
+        },
+        "outcome_quality_summary": {
+          "type": "object"
+        },
+        "pack_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "pack_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "produced_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "redaction_profile_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "evidence-pack/v1"
+        },
+        "selected_windows": {
+          "items": {
+            "$ref": "#/$defs/EvidenceWindow"
+          },
+          "type": "array"
+        },
+        "task_contract": {
+          "$ref": "#/$defs/ContractSlice"
+        },
+        "trajectory_outline": {
+          "type": "object"
+        },
+        "verifier_contract": {
+          "$ref": "#/$defs/ContractSlice"
+        }
+      },
+      "required": [
+        "schema_version",
+        "pack_id",
+        "pack_digest",
+        "ir_refs",
+        "alignment_record_ref",
+        "builder",
+        "redaction_profile_digest",
+        "model_budget",
+        "task_contract",
+        "verifier_contract",
+        "outcome_quality_summary",
+        "trajectory_outline",
+        "episode_index",
+        "selected_windows",
+        "evidence_items",
+        "omitted_ranges",
+        "citations",
+        "evidence_coverage",
+        "build_warnings",
+        "produced_at"
+      ],
+      "type": "object"
+    },
+    "EvidenceWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "end_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "event_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "evidence_item_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "mandatory": {
+          "type": "boolean"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "start_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "token_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "window_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "window_id",
+        "reason_codes",
+        "start_event_id",
+        "end_event_id",
+        "event_ids",
+        "evidence_item_ids",
+        "token_count",
+        "mandatory"
+      ],
+      "type": "object"
+    },
+    "GateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "citation_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "gate_id": {
+          "type": "string"
+        },
+        "reason_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "gate_id",
+        "status",
+        "reason_code",
+        "citation_ids"
+      ],
+      "type": "object"
+    },
+    "IREdge": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "edge_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "edge_type": {
+          "enum": [
+            "next",
+            "contains",
+            "calls",
+            "returns_to",
+            "parent_span",
+            "reads_state",
+            "writes_state",
+            "checks",
+            "continues",
+            "aligned_with",
+            "diverges_from",
+            "reconverges_with"
+          ]
+        },
+        "source_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "target_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "edge_type",
+        "source_event_id",
+        "target_event_id",
+        "basis"
+      ],
+      "type": "object"
+    },
+    "IREpisode": {
+      "additionalProperties": false,
+      "properties": {
+        "advisory_only": {
+          "const": true
+        },
+        "boundary_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "citation_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "classifier_name": {
+          "type": "string"
+        },
+        "classifier_version": {
+          "type": "string"
+        },
+        "end_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "episode_id": {
+          "type": "string"
+        },
+        "event_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "start_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "episode_id",
+        "start_event_id",
+        "end_event_id",
+        "event_count",
+        "boundary_reasons",
+        "phase",
+        "classifier_name",
+        "classifier_version",
+        "summary",
+        "advisory_only",
+        "citation_ids"
+      ],
+      "type": "object"
+    },
+    "IREvent": {
+      "additionalProperties": false,
+      "properties": {
+        "action_family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "actor": {
+          "enum": [
+            "system",
+            "user",
+            "agent",
+            "environment",
+            "verifier",
+            "subagent",
+            "unknown"
+          ]
+        },
+        "argument_skeleton": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_citation_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "episode_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "event_type": {
+          "enum": [
+            "system_message",
+            "user_message",
+            "agent_message",
+            "tool_call",
+            "observation",
+            "state_change",
+            "verifier_check",
+            "verifier_result",
+            "context_management",
+            "subagent_start",
+            "subagent_end",
+            "exception",
+            "infrastructure_event",
+            "checkpoint"
+          ]
+        },
+        "exception": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "exit_semantics": {
+          "enum": [
+            "success",
+            "expected_negative",
+            "error",
+            "timeout",
+            "unobserved",
+            "unknown",
+            null
+          ]
+        },
+        "observed_status": {
+          "enum": [
+            "observed",
+            "unavailable",
+            "ambiguous",
+            "quarantined"
+          ]
+        },
+        "ordinal": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "parent_event_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_span_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "related_event_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "semantics_profile_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_call_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_document_id": {
+          "type": "string"
+        },
+        "source_locator": {
+          "$ref": "#/$defs/CitationLocator"
+        },
+        "span_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state_after_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state_before_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status_owning_program": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tool_call_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "event_id",
+        "ordinal",
+        "event_type",
+        "actor",
+        "phase_id",
+        "episode_id",
+        "source_document_id",
+        "source_locator",
+        "parent_event_id",
+        "related_event_ids",
+        "tool_call_id",
+        "source_call_id",
+        "span_id",
+        "parent_span_id",
+        "action_family",
+        "status_owning_program",
+        "argument_skeleton",
+        "exit_code",
+        "exit_semantics",
+        "semantics_profile_digest",
+        "exception",
+        "content_citation_id",
+        "state_before_ref",
+        "state_after_ref",
+        "observed_status"
+      ],
+      "type": "object"
+    },
+    "IRRef": {
+      "additionalProperties": false,
+      "properties": {
+        "cas_uri": {
+          "pattern": "^cas://sha256/[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "ir_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "ir_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ir_id",
+        "ir_digest",
+        "cas_uri"
+      ],
+      "type": "object"
+    },
+    "JudgmentConfidence": {
+      "additionalProperties": false,
+      "properties": {
+        "calibrated_probability": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "calibration_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "raw_label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "raw_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "raw_label",
+        "raw_score",
+        "calibrated_probability",
+        "calibration_version"
+      ],
+      "type": "object"
+    },
+    "JudgmentLabel": {
+      "additionalProperties": false,
+      "properties": {
+        "class_id": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "ontology_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "ontology_version",
+        "class_id"
+      ],
+      "type": "object"
+    },
+    "MachineJudgment": {
+      "additionalProperties": false,
+      "properties": {
+        "alternative_explanations": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "citation_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "confidence": {
+          "$ref": "#/$defs/JudgmentConfidence"
+        },
+        "coverage_gaps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "earliest_supported_event_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "finding_summary": {
+          "type": "string"
+        },
+        "judgment_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "judgment_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "model_identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output_schema_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "pack_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "pack_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "primary_label": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JudgmentLabel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "produced_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "producer_kind": {
+          "enum": [
+            "model",
+            "deterministic_abstention"
+          ]
+        },
+        "prompt_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposed_discriminator": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "raw_response_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rubric_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema_version": {
+          "const": "machine-judgment/v1"
+        },
+        "validity": {
+          "enum": [
+            "supported",
+            "contradicted",
+            "insufficient_evidence"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "judgment_id",
+        "judgment_digest",
+        "producer_kind",
+        "pack_id",
+        "pack_digest",
+        "validity",
+        "primary_label",
+        "finding_summary",
+        "earliest_supported_event_id",
+        "citation_ids",
+        "alternative_explanations",
+        "coverage_gaps",
+        "proposed_discriminator",
+        "confidence",
+        "model_identity",
+        "prompt_digest",
+        "rubric_digest",
+        "output_schema_digest",
+        "raw_response_digest",
+        "produced_at"
+      ],
+      "type": "object"
+    },
+    "ModelBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "actual_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mandatory_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_tokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "overflow_disposition": {
+          "enum": [
+            "within_budget",
+            "tiered_pack_required",
+            "abstain_required"
+          ]
+        },
+        "tokenizer_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tokenizer_id",
+        "max_tokens",
+        "actual_tokens",
+        "mandatory_tokens",
+        "overflow_disposition"
+      ],
+      "type": "object"
+    },
+    "ModelIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "settings_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "family",
+        "settings_digest"
+      ],
+      "type": "object"
+    },
+    "OmittedRange": {
+      "additionalProperties": false,
+      "properties": {
+        "advisory_only": {
+          "const": true
+        },
+        "end_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "event_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "event_type_counts": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "exclusion_reason": {
+          "type": "string"
+        },
+        "ordered_content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "range_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "reopen_citation_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "start_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "range_id",
+        "start_event_id",
+        "end_event_id",
+        "event_count",
+        "event_type_counts",
+        "exclusion_reason",
+        "ordered_content_digest",
+        "reopen_citation_ids",
+        "summary",
+        "advisory_only"
+      ],
+      "type": "object"
+    },
+    "OpportunityWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "authority_citation_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "unavailable",
+            "ambiguous"
+          ]
+        },
+        "end_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "opportunity_contract_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "opportunity_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "opportunity_type": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "start_event_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "opportunity_id",
+        "namespace",
+        "opportunity_type",
+        "start_event_id",
+        "end_event_id",
+        "authority_citation_ids",
+        "opportunity_contract_digest",
+        "availability",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "OutcomeSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "exception_message_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exception_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "execution_status": {
+          "type": "string"
+        },
+        "primary_reward": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reward_dimensions": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "verifier_status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "execution_status",
+        "verifier_status",
+        "primary_reward",
+        "reward_dimensions",
+        "exception_type",
+        "exception_message_digest"
+      ],
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "config_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "commit",
+        "config_digest"
+      ],
+      "type": "object"
+    },
+    "QualitySummary": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "is_analysis_ready": {
+          "type": "boolean"
+        },
+        "is_ingestable": {
+          "type": "boolean"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "report_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "quarantine",
+            "quality_not_evaluated"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "is_ingestable",
+        "is_analysis_ready",
+        "report_digest",
+        "finding_ids",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "ReconvergenceRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "citation_ids": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "event_id_a": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "event_id_b": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id_a",
+        "event_id_b",
+        "basis",
+        "citation_ids"
+      ],
+      "type": "object"
+    },
+    "TrajectoryIR": {
+      "additionalProperties": false,
+      "properties": {
+        "alignment_record_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AlignmentRecordRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/CitationHandle"
+          },
+          "type": "array"
+        },
+        "configuration": {
+          "$ref": "#/$defs/ConfigurationIdentity"
+        },
+        "coverage": {
+          "$ref": "#/$defs/EvidenceCoverage"
+        },
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/IREdge"
+          },
+          "type": "array"
+        },
+        "episodes": {
+          "items": {
+            "$ref": "#/$defs/IREpisode"
+          },
+          "type": "array"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/IREvent"
+          },
+          "type": "array"
+        },
+        "identity": {
+          "$ref": "#/$defs/TrialIdentity"
+        },
+        "ir_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "ir_id": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "opportunity_windows": {
+          "items": {
+            "$ref": "#/$defs/OpportunityWindow"
+          },
+          "type": "array"
+        },
+        "outcome": {
+          "$ref": "#/$defs/OutcomeSummary"
+        },
+        "produced_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "producer": {
+          "$ref": "#/$defs/ProducerIdentity"
+        },
+        "quality": {
+          "$ref": "#/$defs/QualitySummary"
+        },
+        "schema_version": {
+          "const": "trajectory-ir/v1"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "unknowns": {
+          "items": {
+            "$ref": "#/$defs/UnknownField"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "ir_id",
+        "ir_digest",
+        "producer",
+        "identity",
+        "sources",
+        "configuration",
+        "outcome",
+        "quality",
+        "coverage",
+        "unknowns",
+        "citations",
+        "events",
+        "edges",
+        "episodes",
+        "opportunity_windows",
+        "alignment_record_ref",
+        "produced_at"
+      ],
+      "type": "object"
+    },
+    "TrialIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "campaign_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "experiment_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "pair_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "spec_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trajectory_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trial_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "experiment_id",
+        "campaign_id",
+        "spec_id",
+        "job_id",
+        "trial_id",
+        "document_id",
+        "session_id",
+        "trajectory_id",
+        "pair_id"
+      ],
+      "type": "object"
+    },
+    "UnknownField": {
+      "additionalProperties": false,
+      "properties": {
+        "affected_claim_namespaces": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "field_path": {
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "not_recorded",
+            "redacted",
+            "source_missing",
+            "not_applicable",
+            "ambiguous",
+            "quarantined",
+            "unlinked"
+          ]
+        }
+      },
+      "required": [
+        "field_path",
+        "reason",
+        "affected_claim_namespaces"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://eval-lab.local/contracts/automated-trajectory-interpretation-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/TrajectoryIR"
+    },
+    {
+      "$ref": "#/$defs/EvidencePack"
+    },
+    {
+      "$ref": "#/$defs/MachineJudgment"
+    },
+    {
+      "$ref": "#/$defs/AcceptanceDecision"
+    },
+    {
+      "$ref": "#/$defs/CampaignAnalysisManifest"
+    }
+  ],
+  "title": "Eval Lab Automated Trajectory Interpretation v1 Contracts"
+}

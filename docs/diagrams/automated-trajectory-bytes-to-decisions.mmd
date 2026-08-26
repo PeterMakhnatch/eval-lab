@@ -1,0 +1,31 @@
+flowchart LR
+  RAW["Harbor trial bytes"] --> CAS["CAS archive"]
+  CAS --> IR["TrajectoryIR v1"]
+  Q{{"Quality Ledger"}} --> IR
+  CM["CampaignAnalysisManifest"] --> IR
+  IR --> ALIGN["AlignmentRecord, optional"]
+  IR --> PACK["EvidencePack v1"]
+  ALIGN --> PACK
+  PACK --> JA["Judge family A"]
+  PACK --> JB["Judge family B"]
+  JA --> MJ1["MachineJudgment v1"]
+  JB --> MJ2["MachineJudgment v1"]
+  MJ1 --> GATE{{"Deterministic + calibrated gate"}}
+  MJ2 --> GATE
+  CAL["CalibrationReport v1"] --> GATE
+  GATE --> DEC["AcceptanceDecision v1"]
+  DEC --> SIDE["Immutable CAS sidecars"]
+  DEC --> PG["PostgreSQL index"]
+  DEC --> PQ["Parquet / DuckDB projections"]
+  DEC --> REPORT["Cohort report"]
+  OVER{{"Missing source / mandatory overflow"}} --> ABSTAIN["Abstain; no model call"]
+  classDef gate fill:#fee2e2,stroke:#dc2626,color:#991b1b;
+  classDef data fill:#dcfce7,stroke:#16a34a,color:#14532d;
+  classDef evidence fill:#dbeafe,stroke:#2563eb,color:#1e3a8a;
+  classDef interp fill:#fef3c7,stroke:#d97706,color:#78350f;
+  classDef store fill:#ede9fe,stroke:#7c3aed,color:#4c1d95;
+  class Q,GATE,OVER,ABSTAIN gate;
+  class IR,ALIGN,PACK data;
+  class RAW,CAS,CM evidence;
+  class JA,JB,MJ1,MJ2,CAL interp;
+  class DEC,SIDE,PG,PQ,REPORT store;

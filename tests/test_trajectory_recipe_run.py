@@ -596,3 +596,116 @@ def test_single_trial_pack_digest_still_selects_pinned_generation(
     assert "`digest-old`" in selected
     assert "`digest-new`" not in selected
     assert "selection_mode: pack-digest" in selected
+
+
+def test_report_mode_ignores_unrelated_discovered_trial(tmp_path: Path) -> None:
+    # D2 contract: no --trial + digest_map => scope is exactly the map keys;
+    # unrelated discovered trials are ignored, not required to appear in the map.
+    _write_sidecar(tmp_path, "trial-in-report", "d1" * 32, created_at="")
+    _write_sidecar(tmp_path, "trial-unrelated", "d2" * 32, created_at="")
+    report = tmp_path / "report.json"
+    _write_campaign_report(report, [("trial-in-report", "d1" * 32)])
+    from evallab.trajectory_recipe_run import load_campaign_report_map
+
+    selected = select_trial_sidecars(
+        tmp_path, digest_map=load_campaign_report_map(report), pin_source="report"
+    )
+    assert sorted(selected) == ["trial-in-report"]
+
+
+def test_map_listed_trial_with_missing_sidecar_fails(tmp_path: Path) -> None:
+    _write_sidecar(tmp_path, "trial-present", "d1" * 32, created_at="")
+    report = tmp_path / "report.json"
+    _write_campaign_report(report, [("trial-present", "d1" * 32), ("trial-missing", "d3" * 32)])
+    from evallab.trajectory_recipe_run import load_campaign_report_map
+
+    with pytest.raises(ValueError, match="trial trial-missing listed in report"):
+        select_trial_sidecars(
+            tmp_path, digest_map=load_campaign_report_map(report), pin_source="report"
+        )
+
+
+def test_explicit_requested_trial_absent_from_map_fails(tmp_path: Path) -> None:
+    _write_sidecar(tmp_path, "trial-in-report", "d1" * 32, created_at="")
+    _write_sidecar(tmp_path, "trial-extra", "d2" * 32, created_at="")
+    report = tmp_path / "report.json"
+    _write_campaign_report(report, [("trial-in-report", "d1" * 32)])
+    from evallab.trajectory_recipe_run import load_campaign_report_map
+
+    with pytest.raises(ValueError, match="trial-extra not listed in report"):
+        select_trial_sidecars(
+            tmp_path,
+            digest_map=load_campaign_report_map(report),
+            requested=["trial-in-report", "trial-extra"],
+            pin_source="report",
+        )
+
+
+def test_real_build_campaign_report_source_refs_select_only_report_trials(
+    tmp_path: Path,
+) -> None:
+    # The REAL report builder (trajectory_runtime.build_campaign_report) produces
+    # source_refs; selection must scope to exactly those trials.
+    from types import SimpleNamespace
+
+    from evallab.trajectory_recipe_run import load_campaign_report_map
+    from evallab.trajectory_runtime import build_campaign_report
+
+    manifest = SimpleNamespace(
+        manifest_id="m-1",
+        manifest_digest="sha256:" + "a" * 64,
+        campaign_id="camp-1",
+        items=[SimpleNamespace(attempt_role="primary")],
+        accounting={},
+    )
+    results = [
+        {
+            "trial_id": "trial-in-report",
+            "source_cas_uri": "cas://sha256/" + "b" * 64,
+            "artifact_cas_uri": "cas://sha256/" + "c" * 64,
+            "ir_digest": "sha256:" + "d" * 64,
+            "pack_digest": "sha256:" + "e1" * 32,
+            "judgment_id": "sha256:" + "f" * 64,
+            "decision_id": "sha256:" + "0" * 64,
+            "decision": "abstained",
+        }
+    ]
+    report = build_campaign_report(manifest, results)  # type: ignore[arg-type]
+    report_path = tmp_path / "real_report.json"
+    report_path.write_text(json.dumps(report, sort_keys=True), encoding="utf-8")
+    _write_sidecar(tmp_path, "trial-in-report", "e1" * 32, created_at="")
+    _write_sidecar(tmp_path, "trial-unrelated", "d2" * 32, created_at="")
+    selected = select_trial_sidecars(
+        tmp_path, digest_map=load_campaign_report_map(report_path), pin_source="report"
+    )
+    assert sorted(selected) == ["trial-in-report"]
+
+
+def test_malformed_map_entries_fail_closed(tmp_path: Path) -> None:
+    from evallab.trajectory_recipe_run import load_campaign_report_map, load_pack_map
+
+    bad_map = tmp_path / "map.json"
+    bad_map.write_text(json.dumps({"trial-a": ""}), encoding="utf-8")
+    with pytest.raises(ValueError, match="malformed pack map entry"):
+        load_pack_map(bad_map)
+    bad_report = tmp_path / "report.json"
+    bad_report.write_text(json.dumps({"source_refs": [{"trial_id": "trial-a"}]}), encoding="utf-8")
+    with pytest.raises(ValueError, match="missing pack_digest"):
+        load_campaign_report_map(bad_report)
+
+
+def test_aggregate_only_campaign_report_fails_closed(tmp_path: Path) -> None:
+    # Reviewer P1: a report without a source_refs list must raise, never yield an
+    # empty pin map that silently produces zero findings with exit 0.
+    from evallab.trajectory_recipe_run import load_campaign_report_map
+
+    aggregate = tmp_path / "aggregate.json"
+    aggregate.write_text(
+        json.dumps({"schema_version": "campaign-report/v1", "cohort_accounted": 5}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="no source_refs list"):
+        load_campaign_report_map(aggregate)
+    empty_ok = tmp_path / "empty.json"
+    empty_ok.write_text(json.dumps({"source_refs": []}), encoding="utf-8")
+    assert load_campaign_report_map(empty_ok) == {}

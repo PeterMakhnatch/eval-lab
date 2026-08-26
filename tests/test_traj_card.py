@@ -5,14 +5,11 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+
 import pytest
 
 from evallab.cli import run_cli
-from evallab.traj_card import (
-    build_traj_card_data,
-    generate_traj_card,
-    render_traj_card_markdown,
-)
+from evallab.traj_card import generate_traj_card
 
 
 @pytest.fixture

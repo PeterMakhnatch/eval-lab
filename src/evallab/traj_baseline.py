@@ -12,17 +12,13 @@ Deterministic per-trial mechanical facts over ATIF trajectories, with:
 
 from __future__ import annotations
 
-import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import pyarrow as pa
-import pyarrow.parquet as pq
 
-from evallab.results import JobRecord, TrialRecord, sha256_file
-from evallab.traj import StepOutline, TrajectoryOutline, extract_features, outline_trajectory
+from evallab.traj import StepOutline, TrajectoryOutline, extract_features
 
 
 @dataclass(frozen=True)
@@ -587,7 +583,7 @@ def compute_trace_baseline(outline: TrajectoryOutline) -> TraceBaselineRecord:
         job_name=feat.job_name,
         task_name=feat.task_name,
         agent_name=feat.agent_name,
-        agent_version=feat.agent_version,
+        agent_version=feat.agent_version or "unknown",
         model_name=feat.model_name,
         status=feat.status,
         unavailable_reason=feat.unavailable_reason,

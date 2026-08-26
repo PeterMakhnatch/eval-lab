@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import duckdb
 import pytest
-from pathlib import Path
 
 from evallab.traj import (
     LoopSuspicion,
-    PhaseOutline,
     StepOutline,
     TrajectoryOutline,
     extract_features,
-    outline_trajectory,
 )
 from evallab.traj_baseline import (
     TRACE_BASELINE_PARQUET_SCHEMA,
     TRACE_BASELINE_PROVENANCE,
-    TraceBaselineRecord,
     _compute_cbv_slope,
     _compute_exit_code_cascade,
     _compute_subagent_overhead,
@@ -374,7 +372,7 @@ def test_duckdb_v_trace_baseline_view(repo_root: Path) -> None:
     assert len(result) == 1  # Exactly one deterministic row per trial
 
     cols = [desc[0] for desc in conn.description]
-    row = dict(zip(cols, result[0]))
+    row = dict(zip(cols, result[0], strict=True))
 
     assert row["trial_id"] == "trial-1"
     assert row["primary_reward"] == 1.0
@@ -476,7 +474,7 @@ def test_python_sql_null_and_cardinality_parity(repo_root: Path, sample_steps: l
     rows = conn.execute("SELECT * FROM v_trace_baseline WHERE trial_id = 'parity-trial'").fetchall()
     assert len(rows) == 1
     cols = [desc[0] for desc in conn.description]
-    sql_row = dict(zip(cols, rows[0]))
+    sql_row = dict(zip(cols, rows[0], strict=True))
 
     assert sql_row["linear_innocence_screening"] == pytest.approx(py_baseline.linear_innocence_screening, rel=1e-4)
     assert sql_row["tool_error_rate_screening"] == pytest.approx(py_baseline.tool_error_rate_screening, rel=1e-4)

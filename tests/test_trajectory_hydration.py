@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+
 import pytest
 
-from evallab.traj import StepOutline, TrajectoryOutline, LoopSuspicion
+from evallab.traj import LoopSuspicion, StepOutline, TrajectoryOutline
 from evallab.trajectory_hydration import (
     CitationPathJailError,
     CitationTarget,
-    HydratedEvidence,
     RedactionPolicy,
     apply_redaction,
     hydrate_citation,

@@ -15,22 +15,20 @@ Renders a comprehensive, provenance-grounded diagnostic card for an ATIF traject
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from evallab.results import sha256_file
 from evallab.traj import (
-    AvailabilityStatus,
     PhaseOutline,
-    StepOutline,
     TrajectoryOutline,
     outline_trajectory,
     resolve_trial_target,
 )
 from evallab.traj_baseline import TraceBaselineRecord, compute_trace_baseline
 from evallab.trajectory_hydration import (
-    CitationTarget,
     HydratedEvidence,
     RedactionPolicy,
     hydrate_error_observations,

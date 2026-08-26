@@ -6,7 +6,6 @@ Key invariants:
 - Every piece of hydrated evidence retains exact source provenance:
   digest (sha256), source_path, document_id, step_index, call_index, observation_index.
 """
-
 from __future__ import annotations
 
 import hashlib
@@ -14,11 +13,10 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
-from evallab.evidence_store import load_archive, restore_evidence
-from evallab.traj import StepOutline, TrajectoryOutline
-
+from evallab.evidence_store import load_archive
+from evallab.traj import TrajectoryOutline
 
 _DEFAULT_SECRET_PATTERNS = (
     re.compile(r"sk-(?:proj-)?[A-Za-z0-9_\-]{20,}"),
@@ -361,8 +359,8 @@ def hydrate_error_observations(
         traj_path = trial_dir / "agent" / "trajectory.json"
 
     payload = _load_raw_json(traj_path) if traj_path.is_file() else None
-    steps_payload = payload.get("steps") if payload and isinstance(payload.get("steps"), list) else []
-
+    raw_steps_obj = payload.get("steps") if payload else None
+    steps_payload: list[Any] = raw_steps_obj if isinstance(raw_steps_obj, list) else []
     for step in outline.steps:
         is_failing = (step.exit_code is not None and step.exit_code != 0) or step.is_error
         if not is_failing:

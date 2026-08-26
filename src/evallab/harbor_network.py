@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import json
 import platform
 import re
 import tomllib
@@ -238,11 +237,10 @@ def adapt_task_toml_for_host(
         )
 
     # [verifier].network_mode phase override if present
-    if requested_phase is not None:
+    if requested_phase is not None and effective_phase is not None:
         new_text = _replace_in_section(
             new_text, "verifier", "network_mode", effective_phase
         )
-
     new_config = tomllib.loads(new_text)
 
     # Prove only network_mode values changed.
@@ -257,12 +255,14 @@ def adapt_task_toml_for_host(
     if (
         isinstance(new_config.get("verifier"), dict)
         and isinstance(new_config["verifier"].get("environment"), dict)
+        and new_config["verifier"]["environment"]["network_mode"] != effective_verifier
     ):
-        if new_config["verifier"]["environment"]["network_mode"] != effective_verifier:
-            raise ValueError("verifier.environment.network_mode not set to effective value")
-    if requested_phase is not None:
-        if new_config["verifier"]["network_mode"] != effective_phase:
-            raise ValueError("verifier.network_mode not set to effective value")
+        raise ValueError("verifier.environment.network_mode not set to effective value")
+    if (
+        requested_phase is not None
+        and new_config.get("verifier", {}).get("network_mode") != effective_phase
+    ):
+        raise ValueError("verifier.network_mode not set to effective value")
 
     adaptation = NetworkAdaptation(
         requested_agent_network=requested_agent,

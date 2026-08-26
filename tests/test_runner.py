@@ -12,11 +12,11 @@ from evallab.cli import load_local_env
 from evallab.database import _exception_type, count_consecutive_harness_failures
 from evallab.harbor_network import HarborNetworkPolicy
 from evallab.runner import (
-    ExecutionFailure,
     HARBOR_COMPOSE_CONFIG_LABEL,
     HARBOR_COMPOSE_PROJECT_LABEL,
     HARBOR_COMPOSE_WORKDIR_LABEL,
     LOCAL_TO_HARBOR_MODEL,
+    ExecutionFailure,
     HarborProcessResult,
     RunRequest,
     TransientHarnessFailure,
@@ -107,6 +107,7 @@ def test_antigravity_routes_through_repo_owned_capture_and_keeps_harbor_models(
         "google/gemini-3.7-flash-high",
     }
 
+
 def test_codex_routes_through_repo_owned_pinned_adapter(tmp_path: Path) -> None:
     request = RunRequest(
         task=task(tmp_path),
@@ -144,7 +145,6 @@ def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> 
     assert result.returncode == 0
     pythonpath = log_path.read_text().strip().split(os.pathsep)
     assert str(source_root) in pythonpath
-
 
 
 def test_non_control_agent_requires_billable_acknowledgement(tmp_path: Path) -> None:
@@ -361,9 +361,7 @@ def test_provider_retry_requires_structured_agent_exception() -> None:
         "agent_log": "provider returned status code 503 and recovered",
     }
 
-    assert transient_provider_exception(provider_failure) == (
-        "transient_harness:provider_http_5xx"
-    )
+    assert transient_provider_exception(provider_failure) == ("transient_harness:provider_http_5xx")
     assert transient_provider_exception(task_server_failure) is None
     assert transient_provider_exception(successful_result_with_log_text) is None
 
@@ -444,9 +442,7 @@ def test_generic_agent_failure_classifies_only_stripped_adapter_output() -> None
         }
     }
 
-    assert transient_provider_exception(result) == (
-        "transient_harness:provider_http_5xx"
-    )
+    assert transient_provider_exception(result) == ("transient_harness:provider_http_5xx")
 
 
 def test_successful_harbor_process_with_transient_trial_is_retried(
@@ -581,9 +577,12 @@ def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
     )
 
     assert normalized == "transient_harness"
-    assert count_consecutive_harness_failures(
-        ["AgentRunError", "transient_harness", "VerifierError", None, "OldError"]
-    ) == 2
+    assert (
+        count_consecutive_harness_failures(
+            ["AgentRunError", "transient_harness", "VerifierError", None, "OldError"]
+        )
+        == 2
+    )
 
 
 def test_orphan_cleanup_removes_only_new_harbor_tagged_task_containers(
@@ -680,9 +679,10 @@ def test_cleanup_failure_is_secondary_evidence(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError()),
     )
 
-    assert runner_module._cleanup_failure(
-        request, frozenset(), request.jobs_dir / request.name
-    ) == "cleanup_failed:TimeoutError"
+    assert (
+        runner_module._cleanup_failure(request, frozenset(), request.jobs_dir / request.name)
+        == "cleanup_failed:TimeoutError"
+    )
 
 
 def test_extra_instruction_path_is_forwarded_to_harbor(tmp_path: Path) -> None:
@@ -831,7 +831,6 @@ def test_antigravity_never_sends_reasoning_effort_as_an_agent_kwarg(
     assert not any(arg.startswith("reasoning_effort") for arg in command)
 
 
-
 def test_resolve_harbor_model_variants_and_passthrough() -> None:
     """All Antigravity variants translate to Harbor format; unmapped models pass through."""
     assert (
@@ -847,8 +846,7 @@ def test_resolve_harbor_model_variants_and_passthrough() -> None:
         == "google/gemini-3.1-pro-high"
     )
     assert (
-        resolve_harbor_model("antigravity-cli", "claude-sonnet-4-6")
-        == "google/claude-sonnet-4-6"
+        resolve_harbor_model("antigravity-cli", "claude-sonnet-4-6") == "google/claude-sonnet-4-6"
     )
     # Unmapped models pass through unchanged
     assert resolve_harbor_model("codex", "gpt-5.6-terra") == "gpt-5.6-terra"
@@ -1002,9 +1000,12 @@ def test_staging_cleaned_up_after_harbor_exception(
     assert not staging_dir.exists()
     network_adaptation_path = runner_module._network_adaptation_path(request)
     assert network_adaptation_path.is_file()
-    assert json.loads(network_adaptation_path.read_text())["network_adaptation"][
-        "effective_verifier_network"
-    ] == "public"
+    assert (
+        json.loads(network_adaptation_path.read_text())["network_adaptation"][
+            "effective_verifier_network"
+        ]
+        == "public"
+    )
 
 
 def test_staging_cleaned_up_after_task_toml_write_failure(

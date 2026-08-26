@@ -223,7 +223,9 @@ Required fields:
 - per-class map: `acceptance_enabled=false`, delta, counts, accepted precision/recall, human baseline, margins and lower bounds, citation validity, false accepts, and non-empty HOLD reasons;
 - HOLD summary.
 
-This v1 report is a calibration/falsification bootstrap and **cannot enable automatic acceptance**. Genuine model-family runs, individual human labels, held-out non-inferiority, and accepted-risk evidence require a reviewed successor calibration contract/version; AcceptanceDecision must abstain while either report or class enablement is false.
+This v1 report is a calibration/falsification bootstrap and **cannot enable automatic acceptance**. The sealed genuine Gemini 3.7 Flash High rerun completed at research-context `306b720a2bab14137380f4b888d10b4c9f560e6a` with 14/14 valid rows and no fallback, but accepted count and coverage remain zero. Strict semantic support is only 0.379, calibrated probability is absent, class counts are underpowered, and the human baseline remains unavailable. AcceptanceDecision must abstain while either report or class enablement is false.
+
+The source audit at research-context commit `01ee5d6`, `trajectory-analysis/HUMAN-MULTIRATER-SOURCE-AUDIT-2026-08-26.md`, found no eligible existing corpus across TrajErr, AgentProcessBench, Who&When, AgentErrorBench, ToolPRMBench, TRAIL, ATBench, Counsel, CUAVerifierBench, AgentRewardBench, and TraceJudgeBench. The smallest compliant path is an author release of individual labels with qualification/adjudication metadata for a mappable subset, or a new offline three-qualified-professional-rater calibration under the frozen protocol. Peter does not review production trajectories item by item.
 
 ### 5.6 CampaignAnalysisManifest v1 — `campaign-analysis-manifest/v1`
 

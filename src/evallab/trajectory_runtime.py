@@ -637,9 +637,17 @@ def _pack_payload_structure_errors(
         if canonical_json_digest(omitted_events) != omitted.get("omitted_content_digest"):
             errors.append("omitted_content_digest_mismatch")
         omitted_ids.extend(str(event_id) for event_id in event_ids)
-        omitted_steps = [event.get("step_index") for event in omitted_events]
+        omitted_steps: list[int] = []
+        invalid_omitted_step = False
+        for event in omitted_events:
+            step = event.get("step_index")
+            if isinstance(step, int) and not isinstance(step, bool):
+                omitted_steps.append(step)
+            else:
+                invalid_omitted_step = True
         if (
-            not all(isinstance(step, int) and not isinstance(step, bool) for step in omitted_steps)
+            invalid_omitted_step
+            or not omitted_steps
             or omitted.get("step_start") != min(omitted_steps)
             or omitted.get("step_end") != max(omitted_steps)
         ):

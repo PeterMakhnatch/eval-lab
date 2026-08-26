@@ -25,7 +25,7 @@ inputs:
   - path: docs/authoring.md
     digest: sha256:37669e0ed2770fc1c3b5c9c9baadc2ca4b3d2af4e3844c8da298c08d6ab9b5d9
   - path: docs/automated-trajectory-interpretation-architecture-v1.md
-    digest: sha256:a459145f0ccfa2e36d06114c45795d11f0b42d05f577adb1781bcd344c210746
+    digest: sha256:af6c2f8c506c639e39b5f4a7f2b2373441e5fc21fae255d36141b46027f8067d
   - path: docs/behavior-analysis.md
     digest: sha256:13a91a461b028742a92c3cb5a1f70f46c257794a180bf6d6299154b80ea08f67
   - path: docs/build-plan.md
@@ -85,7 +85,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:274bc5d9dcba50dd38c7e1afc6b29a3f55bf8b21239807950a9eeb5aeb222ce7
+    digest: sha256:383d16a083f301b7f122710efd13186c886d9d10e0f920ea2295aa69b0ecf8ff
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

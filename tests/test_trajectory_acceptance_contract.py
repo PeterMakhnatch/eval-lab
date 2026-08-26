@@ -1,0 +1,306 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from pydantic import ValidationError
+
+from evallab.trajectory_acceptance import (
+    DETERMINISTIC_GATE_ORDER,
+    AcceptanceDecision,
+    CalibrationClassGate,
+    CrossJudgeRecord,
+    GateResult,
+    evaluate_acceptance,
+)
+from evallab.trajectory_judgment import canonical_json_digest
+
+D = {char: "sha256:" + char * 64 for char in "123456789abcdef"}
+NOW = datetime(2026, 8, 26, tzinfo=UTC)
+
+
+def bind_decision_identity(payload: dict) -> dict:
+    payload = dict(payload)
+    id_body = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"produced_at", "decision_id", "decision_digest"}
+    }
+    payload["decision_id"] = canonical_json_digest(id_body)
+    payload["decision_digest"] = canonical_json_digest(
+        {**id_body, "decision_id": payload["decision_id"]}
+    )
+    return payload
+
+
+def class_gate() -> CalibrationClassGate:
+    return CalibrationClassGate(
+        class_id="infrastructure_failure",
+        calibration_version=D["1"],
+        report_digest=D["2"],
+        report_schema="calibration-report-v1",
+        thresholds_digest=D["3"],
+        acceptance_enabling_allowed=False,
+        acceptance_enabled=False,
+        hold_reasons=["acceptance_enabling_disabled"],
+        reliability_snapshot={},
+    )
+
+
+def cross_judge(agreement: str = "exact") -> CrossJudgeRecord:
+    return CrossJudgeRecord.model_validate(
+        {
+            "required": True,
+            "judge_families": ["gemini", "grok"],
+            "class_ids": ["infrastructure_failure", "infrastructure_failure"],
+            "agreement": agreement,
+        }
+    )
+
+
+def gate(
+    gate_id: str = "C1_resolve",
+    status: str = "pass",
+    reason_code: str | None = None,
+) -> GateResult:
+    return GateResult.model_validate(
+        {
+            "gate_id": gate_id,
+            "status": status,
+            "reason_code": reason_code,
+            "citation_ids": [D["4"]],
+        }
+    )
+
+def passing_gates() -> list[GateResult]:
+    return [gate(gate_id) for gate_id in DETERMINISTIC_GATE_ORDER]
+
+
+def gates_with(status: str, reason_code: str) -> list[GateResult]:
+    gates = passing_gates()
+    gates[0] = gate(DETERMINISTIC_GATE_ORDER[0], status, reason_code)
+    return gates
+
+
+
+def evaluate(
+    gates: list[GateResult] | None = None,
+    cross: CrossJudgeRecord | None = None,
+    produced_at: datetime = NOW,
+) -> AcceptanceDecision:
+    return evaluate_acceptance(
+        judgment_ids=[D["5"], D["6"]],
+        pack_digest=D["7"],
+        deterministic_gates=passing_gates() if gates is None else gates,
+        cross_judge=cross or cross_judge(),
+        calibration_class_gate=class_gate(),
+        policy_digest=D["8"],
+        proposed_next_check="collect held-out calibration evidence",
+        produced_at=produced_at,
+    )
+
+
+def test_all_gates_pass_but_disabled_class_abstains() -> None:
+    decision = evaluate()
+    assert decision.decision == "abstained"
+    assert "acceptance_enabling_disabled" in decision.reason_codes
+    assert "class_not_enabled" in decision.reason_codes
+
+
+def test_calibration_gate_is_fail_closed_for_both_report_versions() -> None:
+    payload = class_gate().model_dump(mode="json")
+    payload["report_schema"] = "calibration-report-v1.1"
+    assert CalibrationClassGate.model_validate(payload).acceptance_enabled is False
+    payload["acceptance_enabled"] = True
+    with pytest.raises(ValidationError):
+        CalibrationClassGate.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "digest_mismatch",
+        "source_digest_mismatch",
+        "quarantined_input",
+        "contradicts_verifier_or_state",
+        "schema_invalid",
+        "citation_unresolved",
+    ],
+)
+def test_integrity_or_contradiction_failure_rejects(reason: str) -> None:
+    decision = evaluate(gates_with("fail", reason))
+    assert decision.decision == "rejected"
+    assert reason in decision.reason_codes
+
+
+def test_unknown_or_nonfatal_gate_abstains() -> None:
+    unknown = evaluate(gates_with("unknown", "source_missing"))
+    underpowered = evaluate(gates_with("fail", "calibration_underpowered"))
+    assert unknown.decision == underpowered.decision == "abstained"
+
+
+def test_cross_judge_disagreement_abstains() -> None:
+    decision = evaluate(cross=cross_judge("disagree"))
+    assert decision.decision == "abstained"
+    assert "cross_judge_disagree" in decision.reason_codes
+
+
+def test_pass_gate_rejects_reason_code() -> None:
+    with pytest.raises(ValidationError, match="reason_code"):
+        GateResult.model_validate(
+            {
+                "gate_id": "C1_resolve",
+                "status": "pass",
+                "reason_code": "digest_mismatch",
+                "citation_ids": [D["4"]],
+            }
+        )
+
+
+@pytest.mark.parametrize("status", ["fail", "unknown"])
+@pytest.mark.parametrize("reason_code", [None, ""])
+def test_fail_or_unknown_gate_requires_reason_code(
+    status: str, reason_code: str | None
+) -> None:
+    with pytest.raises(ValidationError, match="reason_code"):
+        GateResult.model_validate(
+            {
+                "gate_id": "C1_resolve",
+                "status": status,
+                "reason_code": reason_code,
+                "citation_ids": [D["4"]],
+            }
+        )
+
+
+def test_required_cross_judge_rejects_fewer_than_two_families() -> None:
+    with pytest.raises(ValidationError, match="distinct families"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini"],
+                "class_ids": ["infrastructure_failure"],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_required_cross_judge_rejects_duplicate_only_families() -> None:
+    with pytest.raises(ValidationError, match="distinct families"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini", "gemini"],
+                "class_ids": ["infrastructure_failure", "infrastructure_failure"],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_required_cross_judge_rejects_cardinality_mismatch() -> None:
+    with pytest.raises(ValidationError, match="align"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini", "grok"],
+                "class_ids": ["infrastructure_failure"],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_required_exact_agreement_rejects_null_class_id() -> None:
+    with pytest.raises(ValidationError, match="null class_id"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini", "grok"],
+                "class_ids": ["infrastructure_failure", None],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_required_exact_agreement_rejects_disagreeing_class_ids() -> None:
+    with pytest.raises(ValidationError, match="identical class_ids"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini", "grok"],
+                "class_ids": ["infrastructure_failure", "verifier_failure"],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_accepted_is_runtime_invalid_while_v1_disabled() -> None:
+    payload = evaluate().model_dump(mode="json")
+    payload["decision"] = "accepted"
+    payload = bind_decision_identity(payload)
+    with pytest.raises(ValidationError, match="acceptance is disabled"):
+        AcceptanceDecision.model_validate(payload)
+
+
+def test_wrong_decision_id_is_rejected() -> None:
+    payload = evaluate().model_dump(mode="json")
+    payload["decision_id"] = D["1"]
+    with pytest.raises(ValidationError, match="decision_id"):
+        AcceptanceDecision.model_validate(payload)
+
+
+def test_wrong_decision_digest_is_rejected() -> None:
+    payload = evaluate().model_dump(mode="json")
+    payload["decision_digest"] = D["2"]
+    with pytest.raises(ValidationError, match="decision_digest"):
+        AcceptanceDecision.model_validate(payload)
+
+
+def test_gate_order_and_publication_time_do_not_change_identity() -> None:
+    reversed_gates = list(reversed(passing_gates()))
+    first = evaluate(reversed_gates, produced_at=NOW)
+    second = evaluate(
+        passing_gates(),
+        produced_at=NOW + timedelta(days=1),
+    )
+    assert first.decision_id == second.decision_id
+    assert first.decision_digest == second.decision_digest
+
+
+def test_duplicate_gate_ids_are_rejected() -> None:
+    gates = passing_gates()
+    with pytest.raises(ValueError, match="must be unique"):
+        evaluate([*gates, gates[0]])
+
+
+def test_missing_frozen_gate_is_rejected() -> None:
+    with pytest.raises(ValueError, match="must match frozen set"):
+        evaluate(passing_gates()[:-1])
+
+
+def test_json_schema_matches_frozen_acceptance_surface() -> None:
+    schema = AcceptanceDecision.model_json_schema()
+    expected = {
+        "schema_version",
+        "decision_id",
+        "decision_digest",
+        "decision",
+        "judgment_ids",
+        "pack_digest",
+        "deterministic_gates",
+        "cross_judge",
+        "calibration_version",
+        "calibration_class_gate",
+        "reason_codes",
+        "proposed_next_check",
+        "policy_digest",
+        "supersedes_decision_id",
+        "produced_at",
+    }
+    assert schema["additionalProperties"] is False
+    assert set(schema["properties"]) == expected
+    assert set(schema["required"]) == expected
+    assert schema["properties"]["decision"]["enum"] == [
+        "accepted",
+        "rejected",
+        "abstained",
+    ]

@@ -1,17 +1,14 @@
 """Characterization and contract tests for the declarative CLI command registry.
 
-Pins the CLI parser surface against `tests/golden/cli_surface.json` so the registry
-conversion is provably behaviour-preserving: every command, flag, metavar, default,
-choice list, required-ness and help string must match the pre-conversion parser.
+Pins the CLI parser surface against `tests/golden/cli_surface.json` so registry
+changes remain explicit: every command, flag, metavar, default, choice list,
+required-ness, and help string must match the committed reviewed contract.
 
 The golden records parser *structure*, not rendered `--help` text. An earlier version
 of this file snapshotted `format_help()` output and passed on Python 3.12 while failing
 on 3.14, because argparse changed its rendering between them. That golden was testing
-CPython's formatter, not this CLI; the surface below is what "behaviour-preserving"
-actually means and it is stable across interpreter versions.
-
-The golden was generated from `origin/main`'s `cli.py` — the parser as it existed
-before the conversion — so it is evidence, not a self-portrait.
+CPython's formatter, not this CLI. Intentional CLI changes regenerate this artifact in
+the same reviewed change; unexpected parser drift still fails the exact comparison.
 """
 
 from __future__ import annotations

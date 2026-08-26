@@ -1396,6 +1396,33 @@ def _analyze_calibrate_command(
     return 0
 
 
+def _select_json_fields(payload: dict[str, Any], fields: str) -> dict[str, Any]:
+    """Select named object paths for concise operator output."""
+    expression = fields.strip()
+    if not (expression.startswith("{") and expression.endswith("}")):
+        raise ValueError("--fields must use {name:.path,...} syntax")
+    selected: dict[str, Any] = {}
+    body = expression[1:-1].strip()
+    if not body:
+        return selected
+    for raw_entry in body.split(","):
+        entry = raw_entry.strip()
+        if ":" not in entry:
+            raise ValueError(f"invalid --fields entry: {entry!r}")
+        name, raw_path = (part.strip() for part in entry.split(":", 1))
+        if not name or not raw_path.startswith("."):
+            raise ValueError(f"invalid --fields entry: {entry!r}")
+        if name in selected:
+            raise ValueError(f"duplicate --fields name: {name}")
+        value: Any = payload
+        for segment in raw_path.removeprefix(".").split("."):
+            if not segment or not isinstance(value, dict) or segment not in value:
+                raise ValueError(f"unknown --fields path: {raw_path}")
+            value = value[segment]
+        selected[name] = value
+    return selected
+
+
 def _analyze_quality_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1414,7 +1441,8 @@ def _analyze_quality_command(
         derived_root=derived_root,
         database_url=args.database_url,
     )
-    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    rendered = _select_json_fields(result, args.fields) if args.fields else result
+    print(json.dumps(rendered, indent=2, sort_keys=True, ensure_ascii=False))
     return 0
 
 
@@ -3289,6 +3317,10 @@ def parser() -> argparse.ArgumentParser:
     analyze_quality.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
     analyze_quality.add_argument("--derived-root", type=Path)
     analyze_quality.add_argument("--database-url")
+    analyze_quality.add_argument(
+        "--fields",
+        help="Select named report paths using {name:.path,...} syntax",
+    )
     analyze_quality.set_defaults(func=_analyze_quality_command)
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")

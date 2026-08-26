@@ -1,6 +1,6 @@
 # Architect — Automated Trajectory Overnight Ledger
 
-Controller: Architect (`wK:p6`). Program: `/Users/petermakhnatch/developer/research-context/trajectory-analysis/OVERNIGHT-TRAJECTORY-AUTOMATION-LOOP-2026-08-26.md`. Goal: `local://architect-trajectory-goal.md`. Worktree: `.worktrees/architect-trajectory-contract-v1`. Base at worktree creation: `61106a1`; current origin/main: `c37b7c7b61b013482fa20a70a0e06e5c945513e6`. Status: active.
+Controller: Architect (`wK:p6`). Program: `/Users/petermakhnatch/developer/research-context/trajectory-analysis/OVERNIGHT-TRAJECTORY-AUTOMATION-LOOP-2026-08-26.md`. Goal: `local://architect-trajectory-goal.md`. Worktree: `.worktrees/architect-trajectory-contract-v1`. Current origin/main: `4876b720da7fbb4fb0f55baac4e7915502bd0d52`. Status: integration complete; external HOLD gates remain.
 
 ## Completion/blocker reporting protocol
 
@@ -10,14 +10,14 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 
 | Track | Owner | Mission | State / evidence |
 |---|---|---|---|
-| E0 | Architect `wK:p6` | Push AlignmentRecord/CalibrationReport de-dup fixes, rerun exact-head review/CI, merge | PR #189 old head `969c153`; two P1 fixed locally |
-| A1/A5 | Eval Platform `wH:p1` | Create isolated worktree; Platform-only judgment/decision/calibration pure contracts | blocked until exact worktree/head report |
-| A2–A4 | Agent Data `wK:p9` | Fix CAS member hydration, CAS-root CLI reuse, and SQL/model projection parity | PR #186 @ `efdc43f`; CI green but exact-head review BLOCK |
-| B1/B3/B6 | Synthetic Research `wH:pE` | Complete normalization, falsification, and report with model identity honest; acceptance disabled | calibration unique paths active; genuine Gemini quota blocked |
+| E0 | Architect `wK:p6` | Maintain controller ledger and exact-head integration reviews | architecture PR #189 and runtime PR #193 merged |
+| A5 | Platform owner | Pack-only worker/runtime/CAS-PG-Parquet/CLI and five-TB3 deterministic abstention batch | PR #193 merged `4876b72`; auto-accept disabled |
+| A2–A4 | Agent Data `wK:p9` | Deterministic IR/EvidencePack/citation/alignment producers | PR #186 merged `b1a74cd`; CAS nested-layout repair PR #192 merged `62101d2` |
+| B1/B3/B6 | Synthetic Research `wH:pE` | HOLD pending genuine Gemini capacity and ≥3-rater human set | final follow-up `292d2a3f`; observed raters 0; zero accepted |
 | B2 | Librarian `wK:p3` | Stand by for exact source/license gaps | commits `14997c2`, `052c5ff`; core handoffs complete |
-| C1 | Research - Eval Capabilities `wH:p9` | Exclude/resolve confounded AgentAbstain pairs and freeze readiness contract | preview_002 HOLD; PR #189 dependency acknowledged |
-| D4 | Synthetic Engineer `wK:p7` | Cleanup merged worktree; then idle/HOLD pending actual external pair | PR #188 merged `c37b7c7`; cleanup pending |
-| E | Ops `wK:p8` | Idle pending Data/Platform batch smoke or existing approved campaign | PR #187 merged `a5faee0`; no ready approved run |
+| C1 | Research - Eval Capabilities `wH:p9` | Exclude/resolve confounded AgentAbstain pairs and freeze readiness contract | preview_002 HOLD; operational-readiness handoff still absent |
+| D4 | Synthetic Engineer `wK:p7` | HOLD pending actual external pair or reviewed construct | PR #188 merged; zero Track D worktrees active |
+| E | Ops `wK:p8` | No new approved campaign | PR #187 merged `a5faee0`; five-TB3 interpretation smoke complete |
 
 ## Completed
 
@@ -33,7 +33,20 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 - TB3 machine-analysis inventory PR #187 merged at `a5faee011e8b2d1383801fef89ab11dd58fa397b`.
 - Librarian automated-interpretation handoffs finalized at `14997c2`; AgentAbstain implementation handoff finalized at `052c5ff`.
 - Track D external ATIF/CAS evidence-gate PR #188 merged at `c37b7c7b61b013482fa20a70a0e06e5c945513e6`; package remains `experimental_hold`.
-- Automated trajectory architecture/schema/field matrix/Excalidraw pack frozen in PR #189 at `969c153`; owner handoff sent to every persistent role and Main.
+- Automated trajectory architecture/schema/field matrix/Excalidraw PR #189 merged at `8befc6ca65269e01da7b14cc5d7dbce1c54d44ae` after exact-head Grok PASS and all CI checks green.
+- Track D merged worktree/branch cleanup completed; Synthetic Engineer is idle/HOLD with no models or registration activity.
+- Track B controlled 14-item calibration/falsification slice completed; signed handoff integrity manifest verified; accepted count 0 and coverage 0 by design.
+- Track B 46-file calibration/falsification package committed in research-context at `cd72d101364c2ce97d120109ebbee25f8f88eee6`; integrity manifest `1b0a827b…`; v1/v1.1 acceptance disabled.
+- Agent Data IR/EvidencePack/CitationHandle/alignment/CLI/query PR #186 merged at `b1a74cd7461dc80aacde928a68462b7625bcd6aa` after green CI and exact-head Grok PASS.
+- Agent Data merged worktree and local feature branch cleanup completed with zero unpushed changes.
+- CalibrationReport v1.1 honesty follow-up committed at research-context `292d2a3f28a3cd3786b36223a5b557de2ff44f0b`: required raters 3, observed raters 0, null unmeasured abstention rate; acceptance disabled.
+- Stalled Platform PR #190 closed; rebased replacement PR #191 opened at `39b00be` with focused ruff/tests/ty/maps/governance PASS and independent Grok review PASS.
+- Replacement Platform pure-contract PR #191 merged at `2c62431f7904f06d4836e5e1747717b2afd242fe` after Platform-owner PASS, Grok PASS, 66 focused tests, and all CI checks green; auto-accept hard-disabled.
+- Integration smoke exposed that job-level CAS archives store trials under `<trial_name>/agent/trajectory.json`; the prior Data path yielded zero-event `accounted_unavailable` IRs. Fail-closed nested trial selection, archive-root-relative citations, sparse-window anchors, no-ATIF callability, and deterministic baseline identity landed in PR #192 at `62101d2ae1bf65d026e4999276c9035d62a71666`.
+- Platform runtime PR #193 merged at `4876b720da7fbb4fb0f55baac4e7915502bd0d52` after exact-head Gemini PASS, Grok adversarial PASS after one CAS error-routing fix, focused 317-test and rebased 252-test slices, and all CI checks green.
+- Real five-TB3 vertical slice produced five featured IRs with 103/56/74/2/104 events, four quality warnings and one pass, bounded packs, zero hydration limitations, five abstentions, zero accepts/rejects, and exact 5-planned/7-executed/retry/control/quarantine accounting.
+- The identical real rerun preserved every IR, pack, judgment, decision, campaign-report ID, and CAS URI. Aggregate report: `sha256:d81c2b4d4d6b4e01bbd876af0a2389e0453cacf69ac117007840743d64d64cf7`; report CAS: `cas://sha256/381af6c33ce178fae22bfa8d64e73d5e6a7b718066dde9c9862885b5f2bab4ed`.
+- Ephemeral PostgreSQL smoke persisted 25 artifact rows, 5 judgments, and 5 abstained decisions with zero missing CAS links. DuckDB/Parquet projections exposed 25/5/5 rows with zero missing CAS links.
 
 ## Decisions
 
@@ -46,22 +59,21 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-005 | Model input is bounded JSON EvidencePack, never Parquet primary prompt | approved | Parquet query projection only |
 | ADR-006 | Synthetic artifacts without immutable external ATIF evidence remain `experimental_hold` | approved | no workbench/registration promotion |
 | ADR-007 | AgentAbstain pairs require deterministic single-delta byte admission | approved | preview_002 and any confounded pair remain HOLD |
+| ADR-008 | CalibrationReport v1 is permanently bootstrap/HOLD; no nullable pairwise workaround | approved | Synthetic must freeze v1.1 with ≥3 independent raters and individual labels before human baseline |
+| ADR-009 | Job-level CAS archives resolve one exact named nested trial; path traversal, missing names, and ambiguity fail closed | approved | Data emits archive-root-relative citation paths and deterministic IR identity |
+| ADR-010 | Judge execution remains disabled while calibration is HOLD | approved | quality-ready inputs receive explicit deterministic abstentions; no billable judge call and no capability label |
+| ADR-011 | Campaign reports are canonical immutable sidecars archived to CAS | approved | every aggregate result links all interpreted trials to source and interpretation CAS identities |
 
 ## Blockers / hard stops
 
-- PR #189 old-head review found two P1 naming/schema-dup issues; fixed locally, new head/CI/review pending.
-- Platform exact isolated-worktree/interface report pending; no Platform implementation may merge before corrected Data contracts.
-- Agent Data PR #186 must fix CAS member hydration, CAS-resolved CLI root reuse, and SQL/model projection parity; new head/CI/review pending.
-- Calibration genuine Gemini run and human baseline are absent; frozen v1 cannot enable acceptance.
+- Genuine Gemini judge evidence, individual human labels, and class-specific human baselines remain absent; no class can enable and no interpreting model is called.
 - Track D actual external qualifying Harbor pair is absent; package remains HOLD.
-- Track D temporary worktree cleanup pending.
-- AgentAbstain pair-diff admission/readiness contract pending; preview_002 remains HOLD.
-- No new billable specs, registration, publication, policy override, or raw-evidence mutation.
+- AgentAbstain operational-pair readiness handoff remains absent; public preview_002 is confounded and remains HOLD.
+- DeepPlanning durable raw evidence and LOCA durable trial evidence remain unavailable for the frozen scenarios.
+- No new billable specs, registration, publication, policy override, or raw-evidence mutation is authorized.
 
 ## Next controller actions
 
-1. Merge reviewed/green PR #189.
-2. Review/merge corrected PR #186.
-3. Review Platform exact head after Data merge; keep acceptance disabled.
-4. Receive calibration and AgentAbstain readiness handoffs; assign next ready slices.
-5. Run five-TB3 batch only after Data/Platform integration and no hard gate failure.
+1. Keep automatic acceptance, calibration, AgentAbstain, DeepPlanning, LOCA, and Track D on HOLD until their named external prerequisites change.
+2. Use merged `evallab analyze trial|batch|inspect|calibrate` for approved evidence only; stop on CAS, digest, quality, schema, or calibration failure.
+3. Do not authorize new billable specs, registration, publication, or policy overrides.

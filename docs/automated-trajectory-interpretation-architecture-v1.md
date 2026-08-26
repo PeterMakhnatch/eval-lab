@@ -276,11 +276,13 @@ Old `.worktrees/tbench3-screen` runs are not this campaign and cannot satisfy th
 
 ### 7.2 AgentAbstain
 
-Current durable evidence includes an oracle control with no ATIF and a documented `no_atif` quality state; superseded 32 control stubs are not Harbor trials.
+Readiness authority is the decision-grade contract at research-context commit `e090a05dc263fdb7c53f45334ef0d7647e1c1e86`, `benchmarks/handoffs/2026-08-26-agentabstain-operational-readiness.md`, over pinned HF revision `842228426c2a703347396501af61c7890972c7ee`.
 
-Acceptance now: IR records missing ATIF/verifier/pair/CAS fields as unavailable; pack is non-model-callable or minimal; judgment is deterministic insufficient; decision abstains `source_missing|pair_unavailable`. No act/abstain capability claim.
+Current disposition is fail-closed `none-ready-pending-audit`: 0 admitted operational pairs, 1 source-verified HOLD pair (`ambiguous_action_specification/preview_002`), 130 operational candidates pending audit, and 132 informational pairs excluded. `preview_002` has unwhitelisted system-prompt divergence, Gmail initial-state drift, and an identity mismatch; it cannot establish act/abstain capability.
 
-Future operational-pair acceptance additionally requires two Harbor/CAS trials with explicit opportunity contract, critical-action argument/target/state effects, active structured abstention, quality-ready ATIF, and pair invariant/delta proof.
+Acceptance now: no AgentAbstain production pair enters a campaign. Pending candidates must first pass the automated `SingleDeltaAdmissionGate` against pinned external bytes and all nine oracle/mutant controls. The existing no-ATIF control remains deterministic insufficient; IR records unavailable evidence, the pack is non-model-callable or minimal, and the decision abstains `source_missing|pair_unavailable`.
+
+Future operational-pair acceptance additionally requires an admitted matched pair materialized as two Harbor/CAS trials with explicit opportunity contract, critical-action argument/target/state effects, failed-attempt observability, active structured abstention, quality-ready ATIF, and pair invariant/delta proof.
 
 ### 7.3 DeepPlanning
 

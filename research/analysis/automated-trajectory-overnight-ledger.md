@@ -1,6 +1,6 @@
 # Architect — Automated Trajectory Overnight Ledger
 
-Controller: Architect (`wK:p6`). Program: `/Users/petermakhnatch/developer/research-context/trajectory-analysis/OVERNIGHT-TRAJECTORY-AUTOMATION-LOOP-2026-08-26.md`. Goal: `local://architect-trajectory-goal.md`. Worktree: `.worktrees/architect-trajectory-contract-v1`. Current origin/main: `4876b720da7fbb4fb0f55baac4e7915502bd0d52`. Status: integration complete; external HOLD gates remain.
+Controller: Architect (`wK:p6`). Program: `/Users/petermakhnatch/developer/research-context/trajectory-analysis/OVERNIGHT-TRAJECTORY-AUTOMATION-LOOP-2026-08-26.md`. Goal: `local://architect-trajectory-goal.md`. Worktree: `.worktrees/agentabstain-readiness-ledger`. Current origin/main: `3c933d36b3f136d3a5a47f23e402374e975fa7b5`. Status: loop reactivated for genuine Gemini calibration and multi-rater source research; acceptance remains disabled.
 
 ## Completion/blocker reporting protocol
 
@@ -13,9 +13,9 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | E0 | Architect `wK:p6` | Maintain controller ledger and exact-head integration reviews | architecture PR #189 and runtime PR #193 merged |
 | A5 | Platform owner | Pack-only worker/runtime/CAS-PG-Parquet/CLI and five-TB3 deterministic abstention batch | PR #193 merged `4876b72`; auto-accept disabled |
 | A2–A4 | Agent Data `wK:p9` | Deterministic IR/EvidencePack/citation/alignment producers | PR #186 merged `b1a74cd`; CAS nested-layout repair PR #192 merged `62101d2` |
-| B1/B3/B6 | Synthetic Research `wH:pE` | HOLD pending genuine Gemini capacity and ≥3-rater human set | final follow-up `292d2a3f`; observed raters 0; zero accepted |
-| B2 | Librarian `wK:p3` | Stand by for exact source/license gaps | commits `14997c2`, `052c5ff`; core handoffs complete |
-| C1 | Research - Eval Capabilities `wH:p9` | Exclude/resolve confounded AgentAbstain pairs and freeze readiness contract | preview_002 HOLD; operational-readiness handoff still absent |
+| B1/B3/B6 | Synthetic Research `wH:pE` | Run the sealed 14-item calibration with genuine Gemini 3.7 Flash High and compare sanitized Grok | active from frozen commits `cd72d101`/`292d2a3`; latest reported Antigravity capacity ~95.9% free; no fallback; acceptance disabled |
+| B2 | Librarian `wK:p3` | Locate source-verified existing ≥3-human-rater trajectory/process labels | active; require individual labels, exact revisions/schemas/licenses, blindness/adjudication evidence, and frozen-protocol gap matrix |
+| C1 | Research - Eval Capabilities `wH:p9` | Freeze AgentAbstain operational readiness | completed at research-context `e090a05`; disposition `none-ready-pending-audit` |
 | D4 | Synthetic Engineer `wK:p7` | HOLD pending actual external pair or reviewed construct | PR #188 merged; zero Track D worktrees active |
 | E | Ops `wK:p8` | No new approved campaign | PR #187 merged `a5faee0`; five-TB3 interpretation smoke complete |
 
@@ -47,6 +47,8 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 - Real five-TB3 vertical slice produced five featured IRs with 103/56/74/2/104 events, four quality warnings and one pass, bounded packs, zero hydration limitations, five abstentions, zero accepts/rejects, and exact 5-planned/7-executed/retry/control/quarantine accounting.
 - The identical real rerun preserved every IR, pack, judgment, decision, campaign-report ID, and CAS URI. Aggregate report: `sha256:d81c2b4d4d6b4e01bbd876af0a2389e0453cacf69ac117007840743d64d64cf7`; report CAS: `cas://sha256/381af6c33ce178fae22bfa8d64e73d5e6a7b718066dde9c9862885b5f2bab4ed`.
 - Ephemeral PostgreSQL smoke persisted 25 artifact rows, 5 judgments, and 5 abstained decisions with zero missing CAS links. DuckDB/Parquet projections exposed 25/5/5 rows with zero missing CAS links.
+- AgentAbstain operational-readiness contract completed at research-context `e090a05dc263fdb7c53f45334ef0d7647e1c1e86`: 0 admitted operational pairs, 1 verified HOLD (`preview_002`), 130 pending single-delta audit, and 132 informational exclusions. No production pair is ready.
+- Latest user-reported Antigravity usage snapshot shows approximately 95.9% daily capacity free, clearing the prior Gemini-capacity blocker. Synthetic Research was reactivated on the sealed 14-item Gemini 3.7 Flash High run with no fallback and acceptance disabled; Librarian was assigned a parallel source-verified ≥3-human-rater label search.
 
 ## Decisions
 
@@ -63,17 +65,19 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-009 | Job-level CAS archives resolve one exact named nested trial; path traversal, missing names, and ambiguity fail closed | approved | Data emits archive-root-relative citation paths and deterministic IR identity |
 | ADR-010 | Judge execution remains disabled while calibration is HOLD | approved | quality-ready inputs receive explicit deterministic abstentions; no billable judge call and no capability label |
 | ADR-011 | Campaign reports are canonical immutable sidecars archived to CAS | approved | every aggregate result links all interpreted trials to source and interpretation CAS identities |
+| ADR-012 | AgentAbstain readiness is `none-ready-pending-audit` | approved | 130 candidates require pinned-byte `SingleDeltaAdmissionGate` and nine controls; `preview_002` remains HOLD; 132 informational pairs remain excluded |
+| ADR-013 | Reported Gemini capacity clears only the invocation-capacity blocker | approved | run the frozen 14-item Gemini 3.7 Flash High slice with no fallback; quota/auth/model/schema/integrity failure hard-stops; acceptance remains disabled |
 
 ## Blockers / hard stops
 
-- Genuine Gemini judge evidence, individual human labels, and class-specific human baselines remain absent; no class can enable and no interpreting model is called.
-- Track D actual external qualifying Harbor pair is absent; package remains HOLD.
-- AgentAbstain operational-pair readiness handoff remains absent; public preview_002 is confounded and remains HOLD.
-- DeepPlanning durable raw evidence and LOCA durable trial evidence remain unavailable for the frozen scenarios.
-- No new billable specs, registration, publication, policy override, or raw-evidence mutation is authorized.
+- Genuine Gemini evidence is still pending, but provider capacity is no longer the known blocker: the sealed 14-item Gemini 3.7 Flash High run is active. Hard-stop on quota, authentication, model-identity/fallback, schema, row-alignment, leakage, or integrity failure.
+- Three independent qualified human labels, adjudication rows, and class-specific baselines remain absent. Librarian source research is active; consensus-only or aggregate IAA cannot satisfy v1.1.
+- AgentAbstain has 0 admitted pairs. `preview_002` remains HOLD; the remaining 130 operational candidates require pinned-byte `SingleDeltaAdmissionGate` plus all nine oracle/mutant controls before any production run.
+- Track D actual external qualifying Harbor pair is absent; DeepPlanning durable raw evidence and LOCA durable trial evidence remain unavailable.
+- No benchmark acceptance enablement, new billable specs, registration, publication, policy override, or raw-evidence mutation is authorized.
 
 ## Next controller actions
 
-1. Keep automatic acceptance, calibration, AgentAbstain, DeepPlanning, LOCA, and Track D on HOLD until their named external prerequisites change.
-2. Use merged `evallab analyze trial|batch|inspect|calibrate` for approved evidence only; stop on CAS, digest, quality, schema, or calibration failure.
-3. Do not authorize new billable specs, registration, publication, or policy overrides.
+1. Receive and validate the genuine Gemini 14-row report and the Librarian multi-rater eligibility handoff; preserve every uncleared HOLD reason.
+2. Admit no AgentAbstain production pair until automated single-delta and nine-control evidence exists on pinned HF bytes.
+3. Keep automatic acceptance, AgentAbstain, DeepPlanning, LOCA, and Track D on HOLD; stop active work on quota/auth/model/schema/integrity failure.

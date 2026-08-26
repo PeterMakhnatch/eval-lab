@@ -64,7 +64,7 @@ Current campaign production smoke must start from the five PR #187 CAS URIs. `.w
 | Family | Durable evidence observed | Required system disposition now |
 |---|---|---|
 | Gemini TB3 | five CAS-backed cohort trials + retry/control/quarantine accounting | build IR/pack; preserve warning coverage; judgments remain calibration-gated |
-| AgentAbstain | free oracle control with no ATIF; superseded stubs are not Harbor trials | deterministic insufficient judgment; abstain `source_missing|pair_unavailable` |
+| AgentAbstain | readiness contract `e090a05`: 0 admitted, 1 verified HOLD, 130 pending single-delta audit, 132 informational exclusions; free control has no ATIF | admit no production pair; pending candidates require pinned-byte `SingleDeltaAdmissionGate` plus nine controls; existing control abstains `source_missing|pair_unavailable` |
 | DeepPlanning | no reopenable local Harbor/CAS identity found | unavailable; do not fabricate six trials from an opinion note |
 | LOCA | task/materializer pins but no durable Harbor trial/ATIF/quality/CAS in audited corpus | unavailable; task folders are not trajectories |
 

@@ -16,7 +16,7 @@ from evallab.cli import parser
 from evallab.database import _ingest_interpretation_artifacts
 from evallab.evidence_pack import build_evidence_pack
 from evallab.evidence_store import archive_evidence
-from evallab.trajectory_acceptance import evaluate_acceptance
+from evallab.trajectory_acceptance import AUTO_ACCEPTANCE_ENABLED, evaluate_acceptance
 from evallab.trajectory_ir import build_trajectory_ir
 from evallab.trajectory_judgment import (
     TRAJECTORY_ONTOLOGY_V1_CLASSES,
@@ -25,6 +25,7 @@ from evallab.trajectory_judgment import (
 )
 from evallab.trajectory_runtime import (
     ArtifactRecord,
+    _data_contract_digest,
     analyze_batch,
     analyze_calibrate,
     analyze_inspect,
@@ -184,7 +185,7 @@ def test_analyze_commands_registered_and_legacy_worker_plan_remains() -> None:
         for action in analyze_parser._actions
         if getattr(action, "dest", None) == "analyze_command"
     )
-    for name in ("trial", "batch", "inspect", "calibrate", "worker-plan"):
+    for name in ("trial", "batch", "inspect", "calibrate", "quality", "worker-plan"):
         assert name in sub.choices
 
 
@@ -531,6 +532,120 @@ def test_tampered_ir_digest_fails_schema_gate(tmp_path: Path) -> None:
     assert schema_gate.reason_code == "schema_invalid"
 
 
+def _recompute_pack_digest(pack) -> object:
+    payload = pack.to_dict()
+    payload.pop("pack_digest", None)
+    return replace(pack, pack_digest=_data_contract_digest(payload))
+
+
+def _schema_gate(ir, pack, judgment, cas_store):
+    gates = evaluate_deterministic_gates(ir=ir, pack=pack, judgment=judgment, cas_store=cas_store)
+    return next(gate for gate in gates if gate.gate_id == "schema_valid")
+
+
+def test_rebuilt_ir_pack_schema_valid_passes(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="schema-valid")
+    store = tmp_path / "cas"
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+    )
+    judgment = build_machine_judgment(pack, ir, [])
+    schema_gate = _schema_gate(ir, pack, judgment, store)
+    assert schema_gate.status == "pass"
+    assert schema_gate.reason_code is None
+    assert "ir_digest" in pack.source_digests
+    assert pack.source_digests["ir_digest"] == ir.ir_digest
+    assert pack.source_digests["redaction_profile_digest"] == pack.redaction_profile_digest
+    assert AUTO_ACCEPTANCE_ENABLED is False
+
+
+def test_wrong_pack_ir_digest_fails_schema_gate(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="wrong-ir-digest")
+    store = tmp_path / "cas"
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+    )
+    judgment = build_machine_judgment(pack, ir, [])
+    mutated = dict(pack.source_digests)
+    mutated["ir_digest"] = "sha256:" + "ff" * 32
+    tampered = _recompute_pack_digest(replace(pack, source_digests=mutated))
+    schema_gate = _schema_gate(ir, tampered, judgment, store)
+    assert schema_gate.status == "fail"
+    assert schema_gate.reason_code == "schema_invalid"
+
+
+def test_wrong_pack_source_digest_fails_schema_gate(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="wrong-source")
+    store = tmp_path / "cas"
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+    )
+    judgment = build_machine_judgment(pack, ir, [])
+    mutated = dict(pack.source_digests)
+    mutated["source_sha256"] = "sha256:" + "00" * 32
+    tampered = _recompute_pack_digest(replace(pack, source_digests=mutated))
+    schema_gate = _schema_gate(ir, tampered, judgment, store)
+    assert schema_gate.status == "fail"
+    assert schema_gate.reason_code == "schema_invalid"
+
+
+def test_wrong_pack_redaction_digest_fails_schema_gate(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="wrong-redaction")
+    store = tmp_path / "cas"
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+    )
+    judgment = build_machine_judgment(pack, ir, [])
+    mutated = dict(pack.source_digests)
+    mutated["redaction_profile_digest"] = "sha256:" + "11" * 32
+    tampered = _recompute_pack_digest(replace(pack, source_digests=mutated))
+    schema_gate = _schema_gate(ir, tampered, judgment, store)
+    assert schema_gate.status == "fail"
+    assert schema_gate.reason_code == "schema_invalid"
+
+
+def test_pack_source_extra_or_missing_key_fails_schema_gate(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="extra-missing")
+    store = tmp_path / "cas"
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+    )
+    judgment = build_machine_judgment(pack, ir, [])
+    extra = dict(pack.source_digests)
+    extra["unexpected_digest"] = "sha256:" + "22" * 32
+    extra_pack = _recompute_pack_digest(replace(pack, source_digests=extra))
+    extra_gate = _schema_gate(ir, extra_pack, judgment, store)
+    assert extra_gate.status == "fail"
+    assert extra_gate.reason_code == "schema_invalid"
+
+    missing = dict(pack.source_digests)
+    missing.pop("ir_digest")
+    missing_pack = _recompute_pack_digest(replace(pack, source_digests=missing))
+    missing_gate = _schema_gate(ir, missing_pack, judgment, store)
+    assert missing_gate.status == "fail"
+    assert missing_gate.reason_code == "schema_invalid"
+
+
 def test_quality_warning_coverage_gaps(tmp_path: Path) -> None:
     trial_dir = _trial_tree(tmp_path, trial_name="warn-trial", unpaired=True)
     store = tmp_path / "cas"
@@ -680,3 +795,116 @@ def test_ingest_records_identity_sql_without_postgres() -> None:
     assert count == 1
     assert captured
     assert any("machine_judgments" in str(sql) for sql, _ in captured)
+
+
+def test_quarantine_mapping_stops_before_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*_args, **_kwargs):
+        raise AssertionError("restore_evidence called for quarantined mapping")
+
+    monkeypatch.setattr("evallab.trajectory_runtime.restore_evidence", boom)
+    with pytest.raises(RuntimeError, match="quarantined_input"):
+        analyze_trial(
+            {
+                "cas_uri": "cas://sha256/" + "ab" * 32,
+                "trial_id": "q-trial",
+                "trial_name": "q-trial",
+                "quality_status": "quarantine",
+            },
+            repo_root=tmp_path,
+            store_root=tmp_path / "cas",
+            output_dir=tmp_path / "interpretation",
+        )
+
+
+def test_warn_mapping_still_restores_missing_cas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    called = {"restore": 0}
+
+    def fake_restore(*_args, **_kwargs):
+        called["restore"] += 1
+        raise FileNotFoundError("evidence blob is missing: cas://sha256/" + "00" * 32)
+
+    monkeypatch.setattr("evallab.trajectory_runtime.restore_evidence", fake_restore)
+    with pytest.raises(RuntimeError, match="missing_cas"):
+        analyze_trial(
+            {
+                "cas_uri": "cas://sha256/" + "00" * 32,
+                "trial_id": "warn-trial",
+                "trial_name": "warn-trial",
+                "quality_status": "warn",
+            },
+            repo_root=tmp_path,
+            store_root=tmp_path / "cas",
+            output_dir=tmp_path / "interpretation",
+        )
+    assert called["restore"] == 1
+
+
+def test_corrupt_restore_is_cas_integrity_error(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="corrupt-restore")
+    store = tmp_path / "cas"
+    cas_uri = _archive_trial(trial_dir, store, "corrupt-restore")
+    digest = cas_uri.removeprefix("cas://sha256/")
+    blob = store / "blobs" / "sha256" / digest[:2] / f"{digest}.tar.gz"
+    payload = bytearray(blob.read_bytes())
+    payload[min(32, len(payload) - 1)] ^= 0xFF
+    blob.write_bytes(payload)
+    with pytest.raises(RuntimeError, match="cas_integrity_error") as excinfo:
+        analyze_trial(
+            {
+                "cas_uri": cas_uri,
+                "trial_id": "corrupt-restore",
+                "trial_name": "corrupt-restore",
+                "quality_status": "pass",
+            },
+            repo_root=tmp_path,
+            store_root=store,
+            output_dir=tmp_path / "interpretation",
+        )
+    assert "missing_cas" not in str(excinfo.value)
+
+
+def test_restore_digest_mismatch_is_cas_integrity_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_restore(*_args, **_kwargs):
+        raise ValueError("restored evidence digest mismatch: expected sha256:aa, got sha256:bb")
+
+    monkeypatch.setattr("evallab.trajectory_runtime.restore_evidence", fake_restore)
+    with pytest.raises(RuntimeError, match="cas_integrity_error") as excinfo:
+        analyze_trial(
+            {
+                "cas_uri": "cas://sha256/" + "aa" * 32,
+                "trial_id": "digest-mismatch",
+                "trial_name": "digest-mismatch",
+                "quality_status": "pass",
+            },
+            repo_root=tmp_path,
+            store_root=tmp_path / "cas",
+            output_dir=tmp_path / "interpretation",
+        )
+    assert "missing_cas" not in str(excinfo.value)
+
+
+def test_restore_path_escape_is_cas_integrity_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_restore(*_args, **_kwargs):
+        raise ValueError("evidence archive path escapes destination: ../outside")
+
+    monkeypatch.setattr("evallab.trajectory_runtime.restore_evidence", fake_restore)
+    with pytest.raises(RuntimeError, match="cas_integrity_error"):
+        analyze_trial(
+            {
+                "cas_uri": "cas://sha256/" + "cc" * 32,
+                "trial_id": "path-escape",
+                "trial_name": "path-escape",
+                "quality_status": "pass",
+            },
+            repo_root=tmp_path,
+            store_root=tmp_path / "cas",
+            output_dir=tmp_path / "interpretation",
+        )

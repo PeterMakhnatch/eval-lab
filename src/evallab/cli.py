@@ -1396,6 +1396,28 @@ def _analyze_calibrate_command(
     return 0
 
 
+def _analyze_quality_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.trajectory_data_quality import campaign_data_quality_report
+
+    inventory = _resolve(root, args.inventory)
+    store_root = _resolve(root, args.store)
+    output_dir = _resolve(root, args.output_dir)
+    derived_root = _resolve(root, args.derived_root) if args.derived_root else output_dir.parent
+    result = campaign_data_quality_report(
+        inventory,
+        repo_root=root,
+        store_root=store_root,
+        output_dir=output_dir,
+        derived_root=derived_root,
+        database_url=args.database_url,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    return 0
+
+
 def _db_init_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3257,6 +3279,17 @@ def parser() -> argparse.ArgumentParser:
     )
     analyze_calibrate.add_argument("path", type=Path)
     analyze_calibrate.set_defaults(func=_analyze_calibrate_command)
+
+    analyze_quality = analyze_commands.add_parser(
+        "quality",
+        help="Report per-campaign data-quality HOLD, coverage, CAS identity, and projections (no judge)",
+    )
+    analyze_quality.add_argument("inventory", type=Path)
+    analyze_quality.add_argument("--store", type=Path, default=Path("derived/evidence-cas"))
+    analyze_quality.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
+    analyze_quality.add_argument("--derived-root", type=Path)
+    analyze_quality.add_argument("--database-url")
+    analyze_quality.set_defaults(func=_analyze_quality_command)
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)

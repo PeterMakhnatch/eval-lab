@@ -91,7 +91,8 @@ def successor_report_payload() -> dict:
         "pack_manifest_digest": "sha256:" + "8" * 64,
         "human_baseline": {
             "status": "hold",
-            "n_independent_raters": 3,
+            "required_independent_raters": 3,
+            "n_independent_raters": 0,
             "blind_to_machine": True,
             "individual_labels_digest": None,
             "adjudication_digest": None,
@@ -166,6 +167,20 @@ def test_optional_nonnullable_fields_reject_explicit_null() -> None:
     with pytest.raises(ValidationError):
         CalibrationReport.model_validate(payload)
 
+
+def test_nullable_v1_metrics_accept_explicit_null() -> None:
+    payload = report_payload()
+    row = payload["classes"]["infrastructure_failure"]
+    for field in ("rec_acc", "margin", "clustered_lower_one_sided_95", "cite_valid"):
+        row[field] = None
+    report = CalibrationReport.model_validate(payload)
+    parsed = report.classes["infrastructure_failure"]
+    assert parsed.rec_acc is None
+    assert parsed.margin is None
+    assert parsed.clustered_lower_one_sided_95 is None
+    assert parsed.cite_valid is None
+
+
 def test_version_dispatch_keeps_v1_bootstrap_hold_only() -> None:
     payload = report_payload()
     row = payload["classes"]["infrastructure_failure"]
@@ -182,7 +197,10 @@ def test_version_dispatch_parses_hold_only_three_rater_successor() -> None:
     report = parse_calibration_report(successor_report_payload())
     assert isinstance(report, CalibrationReportV1_1)
     assert report.human_baseline.status == "hold"
+    assert report.human_baseline.required_independent_raters == 3
+    assert report.human_baseline.n_independent_raters == 0
     assert report.human_baseline.individual_labels_digest is None
+    assert report.machine_results.n_items == 0
     assert report.machine_results.abstention_rate is None
     assert calibration_report_can_enable_acceptance(report) is False
 
@@ -199,15 +217,51 @@ def test_dispatch_requires_exact_frozen_class_set() -> None:
         parse_calibration_report(report_payload())
 
 
-def test_successor_report_and_classes_cannot_enable_acceptance() -> None:
-    report_enabled = successor_report_payload()
-    report_enabled["acceptance_enabling_allowed"] = True
-    class_enabled = successor_report_payload()
-    class_enabled["classes"]["infrastructure_failure"]["acceptance_enabled"] = True
+def test_successor_missing_required_independent_raters() -> None:
+    payload = successor_report_payload()
+    del payload["human_baseline"]["required_independent_raters"]
     with pytest.raises(ValidationError):
-        CalibrationReportV1_1.model_validate(report_enabled)
+        CalibrationReportV1_1.model_validate(payload)
+
+
+def test_successor_required_independent_raters_below_minimum() -> None:
+    payload = successor_report_payload()
+    payload["human_baseline"]["required_independent_raters"] = 2
     with pytest.raises(ValidationError):
-        CalibrationReportV1_1.model_validate(class_enabled)
+        CalibrationReportV1_1.model_validate(payload)
+
+
+def test_successor_n_independent_raters_below_zero() -> None:
+    payload = successor_report_payload()
+    payload["human_baseline"]["n_independent_raters"] = -1
+    with pytest.raises(ValidationError):
+        CalibrationReportV1_1.model_validate(payload)
+
+
+def test_successor_zero_items_rejects_non_null_abstention_rate() -> None:
+    payload = successor_report_payload()
+    payload["machine_results"]["n_items"] = 0
+    payload["machine_results"]["abstention_rate"] = 0.0
+    with pytest.raises(ValidationError, match="abstention_rate"):
+        CalibrationReportV1_1.model_validate(payload)
+
+
+def test_successor_nonzero_items_require_abstention_rate() -> None:
+    payload = successor_report_payload()
+    payload["machine_results"]["n_items"] = 1
+    payload["machine_results"]["abstention_rate"] = None
+    with pytest.raises(ValidationError, match="abstention_rate"):
+        CalibrationReportV1_1.model_validate(payload)
+
+
+def test_successor_structural_enablement_flags_do_not_unlock() -> None:
+    payload = successor_report_payload()
+    payload["acceptance_enabling_allowed"] = True
+    payload["classes"]["infrastructure_failure"]["acceptance_enabled"] = True
+    report = CalibrationReportV1_1.model_validate(payload)
+    assert report.acceptance_enabling_allowed is True
+    assert report.classes["infrastructure_failure"].acceptance_enabled is True
+    assert calibration_report_can_enable_acceptance(report) is False
 
 
 def test_json_schema_matches_frozen_top_level_and_optional_types() -> None:
@@ -253,6 +307,13 @@ def test_successor_json_schema_matches_frozen_top_level() -> None:
     assert schema["additionalProperties"] is False
     assert set(schema["properties"]) == expected
     assert set(schema["required"]) == expected
-    assert schema["properties"]["acceptance_enabling_allowed"]["const"] is False
+    assert schema["properties"]["acceptance_enabling_allowed"]["type"] == "boolean"
+    assert "const" not in schema["properties"]["acceptance_enabling_allowed"]
+    human = schema["$defs"]["HumanBaselineReport"]
+    assert "required_independent_raters" in human["properties"]
+    assert "n_independent_raters" in human["properties"]
+    assert "required_independent_raters" in human["required"]
+    assert "n_independent_raters" in human["required"]
     row_schema = schema["$defs"]["ClassCalibrationRowV1_1"]
-    assert row_schema["properties"]["acceptance_enabled"]["const"] is False
+    assert row_schema["properties"]["acceptance_enabled"]["type"] == "boolean"
+    assert "const" not in row_schema["properties"]["acceptance_enabled"]

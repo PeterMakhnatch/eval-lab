@@ -68,12 +68,36 @@ class GateResult(ContractModel):
                 raise ValueError("citation IDs must be canonical sha256 digests")
         return values
 
+    @model_validator(mode="after")
+    def validate_reason_code_for_status(self) -> GateResult:
+        if self.status == "pass":
+            if self.reason_code is not None:
+                raise ValueError("pass gate cannot carry a reason_code")
+        elif not self.reason_code:
+            raise ValueError("fail and unknown gates require a non-empty reason_code")
+        return self
+
 
 class CrossJudgeRecord(ContractModel):
     required: bool
     judge_families: list[str]
     class_ids: list[str | None]
     agreement: Literal["exact", "disagree", "not_required", "unavailable"]
+
+    @model_validator(mode="after")
+    def validate_required_cross_judge(self) -> CrossJudgeRecord:
+        if not self.required:
+            return self
+        if len(set(self.judge_families)) < 2:
+            raise ValueError("required cross-judge needs at least two distinct families")
+        if len(self.class_ids) != len(self.judge_families):
+            raise ValueError("required cross-judge class_ids must align with judge_families")
+        if self.agreement == "exact":
+            if any(class_id is None for class_id in self.class_ids):
+                raise ValueError("exact agreement cannot include a null class_id")
+            if len(set(self.class_ids)) != 1:
+                raise ValueError("exact agreement requires identical class_ids")
+        return self
 
 
 class CalibrationClassGate(ContractModel):
@@ -126,7 +150,6 @@ class AcceptanceDecision(ContractModel):
             raise ValueError("gate IDs must be unique and deterministically ordered")
         return values
 
-
     @model_validator(mode="after")
     def validate_decision_invariants(self) -> AcceptanceDecision:
         if self.decision == "accepted":
@@ -141,6 +164,24 @@ class AcceptanceDecision(ContractModel):
                 and self.calibration_class_gate.acceptance_enabled
             ):
                 raise ValueError("accepted decision requires an enabled class gate")
+        return self
+
+    @model_validator(mode="after")
+    def validate_content_identity(self) -> AcceptanceDecision:
+        payload = self.model_dump(mode="json")
+        id_body = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"produced_at", "decision_id", "decision_digest"}
+        }
+        expected_id = canonical_json_digest(id_body)
+        if self.decision_id != expected_id:
+            raise ValueError("decision_id does not match canonical content identity")
+        expected_digest = canonical_json_digest(
+            {**id_body, "decision_id": self.decision_id}
+        )
+        if self.decision_digest != expected_digest:
+            raise ValueError("decision_digest does not match canonical content identity")
         return self
 
     def identity_payload(self) -> dict[str, Any]:

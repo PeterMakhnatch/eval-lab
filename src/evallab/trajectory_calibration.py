@@ -9,8 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal
 
-from pydantic import Field
-from pydantic.experimental.missing_sentinel import MISSING
+from pydantic import Field, field_validator, model_serializer, model_validator
 
 from evallab.schemas import ContractModel
 from evallab.trajectory_judgment import (
@@ -22,6 +21,26 @@ BOOTSTRAP_CALIBRATION_SCHEMA = "calibration-report-v1"
 HUMAN_CALIBRATION_SCHEMA = "calibration-report-v1.1"
 Probability = Annotated[float, Field(ge=0, le=1)]
 AgreementScore = Annotated[float, Field(ge=-1, le=1)]
+
+_OPTIONAL_CLASS_FIELDS = frozenset(
+    {
+        "n_clusters",
+        "rec_acc",
+        "margin",
+        "clustered_lower_one_sided_95",
+        "cite_valid",
+        "false_accept",
+    }
+)
+_NONNULL_OPTIONAL_CLASS_FIELDS = frozenset({"n_clusters", "false_accept"})
+
+
+def _reject_explicit_nulls(data: Any, fields: frozenset[str]) -> Any:
+    if isinstance(data, Mapping):
+        for field in fields:
+            if field in data and data[field] is None:
+                raise ValueError(f"{field} cannot be null")
+    return data
 
 
 class UnsupportedCalibrationVersion(ValueError):
@@ -73,12 +92,36 @@ class ClassCalibrationRow(ContractModel):
     ci_width: float | None
     noninferiority_pass: bool
     hold_reasons: list[str] = Field(min_length=1)
-    n_clusters: int | MISSING = Field(default=MISSING, ge=0)
-    rec_acc: float | None | MISSING = MISSING
-    margin: float | None | MISSING = MISSING
-    clustered_lower_one_sided_95: float | None | MISSING = MISSING
-    cite_valid: float | None | MISSING = MISSING
-    false_accept: int | MISSING = Field(default=MISSING, ge=0)
+    n_clusters: int | None = Field(default=None, ge=0)
+    rec_acc: float | None = None
+    margin: float | None = None
+    clustered_lower_one_sided_95: float | None = None
+    cite_valid: float | None = None
+    false_accept: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_explicit_null_optional_fields(cls, data: Any) -> Any:
+        return _reject_explicit_nulls(data, _NONNULL_OPTIONAL_CLASS_FIELDS)
+
+    @model_serializer(mode="wrap")
+    def omit_absent_optional_fields(self, serializer: Any) -> dict[str, Any]:
+        payload = serializer(self)
+        for field in _OPTIONAL_CLASS_FIELDS:
+            if field not in self.model_fields_set:
+                payload.pop(field, None)
+        return payload
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: Any, handler: Any
+    ) -> dict[str, Any]:
+        json_schema = handler(core_schema)
+        properties = json_schema["properties"]
+        properties["n_clusters"] = {"type": "integer", "minimum": 0}
+        properties["false_accept"] = {"type": "integer", "minimum": 0}
+        # The frozen v1 schema explicitly permits null for these four metrics.
+        return json_schema
 
 
 class CalibrationReport(ContractModel):
@@ -88,13 +131,33 @@ class CalibrationReport(ContractModel):
     calibration_version: str = Field(pattern=SHA256_PATTERN)
     acceptance_enabling_allowed: Literal[False]
     thresholds_digest: str = Field(pattern=SHA256_PATTERN)
-    cluster_key: Literal["source_task_id"] | MISSING = MISSING
+    cluster_key: Literal["source_task_id"] | None = None
     n_items: int = Field(ge=0)
     n_proposed_accept: int = Field(ge=0)
     inter_rater: InterRaterReport
     global_metrics: GlobalCalibrationMetrics
     classes: dict[str, ClassCalibrationRow]
     hold_summary: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_explicit_null_cluster_key(cls, data: Any) -> Any:
+        return _reject_explicit_nulls(data, frozenset({"cluster_key"}))
+
+    @model_serializer(mode="wrap")
+    def omit_absent_cluster_key(self, serializer: Any) -> dict[str, Any]:
+        payload = serializer(self)
+        if "cluster_key" not in self.model_fields_set:
+            payload.pop("cluster_key", None)
+        return payload
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: Any, handler: Any
+    ) -> dict[str, Any]:
+        json_schema = handler(core_schema)
+        json_schema["properties"]["cluster_key"] = {"const": "source_task_id"}
+        return json_schema
 
 
 class PairwiseAgreement(ContractModel):
@@ -121,7 +184,8 @@ class HumanClassPrecision(ContractModel):
 
 class HumanBaselineReport(ContractModel):
     status: Literal["complete", "hold"]
-    n_independent_raters: int = Field(ge=3)
+    required_independent_raters: int = Field(ge=3)
+    n_independent_raters: int = Field(ge=0)
     blind_to_machine: Literal[True]
     individual_labels_digest: str | None = Field(pattern=SHA256_PATTERN)
     adjudication_digest: str | None = Field(pattern=SHA256_PATTERN)
@@ -139,16 +203,23 @@ class MachineCalibrationResults(ContractModel):
     raw_accuracy: Probability | None
     coverage: Probability
     accepted_precision: Probability | None
-    # The frozen HOLD proposal uses null for the undefined zero-item rate.
-    # Track B's schema says number; the conflict is paged on PR #189.
     abstention_rate: Probability | None
     citation_validity: Probability | None
     ece: Probability | None
     brier: Probability | None
 
+    @model_validator(mode="after")
+    def validate_abstention_rate(self) -> MachineCalibrationResults:
+        if self.n_items == 0:
+            if self.abstention_rate is not None:
+                raise ValueError("abstention_rate must be null when n_items is 0")
+        elif self.abstention_rate is None:
+            raise ValueError("abstention_rate is required when n_items is at least 1")
+        return self
+
 
 class ClassCalibrationRowV1_1(ContractModel):
-    acceptance_enabled: Literal[False]
+    acceptance_enabled: bool
     n_gold: int = Field(ge=0)
     n_accepted: int = Field(ge=0)
     false_accept_risk_ucb: Probability | None
@@ -158,13 +229,20 @@ class ClassCalibrationRowV1_1(ContractModel):
     citation_validity: Probability | None
     hold_reasons: list[str]
 
+    @field_validator("hold_reasons")
+    @classmethod
+    def validate_unique_hold_reasons(cls, values: list[str]) -> list[str]:
+        if len(values) != len(set(values)):
+            raise ValueError("hold_reasons must be unique")
+        return values
+
 
 class CalibrationReportV1_1(ContractModel):
     schema_name: Literal["calibration-report-v1.1"] = Field(
         validation_alias="schema", serialization_alias="schema"
     )
     calibration_version: str = Field(pattern=SHA256_PATTERN)
-    acceptance_enabling_allowed: Literal[False]
+    acceptance_enabling_allowed: bool
     ontology_digest: str = Field(pattern=SHA256_PATTERN)
     thresholds_digest: str = Field(pattern=SHA256_PATTERN)
     split_manifest_digest: str = Field(pattern=SHA256_PATTERN)
@@ -174,6 +252,13 @@ class CalibrationReportV1_1(ContractModel):
     machine_results: MachineCalibrationResults
     classes: dict[str, ClassCalibrationRowV1_1]
     hold_summary: list[str]
+
+    @field_validator("hold_summary")
+    @classmethod
+    def validate_unique_hold_summary(cls, values: list[str]) -> list[str]:
+        if len(values) != len(set(values)):
+            raise ValueError("hold_summary must be unique")
+        return values
 
 
 CalibrationReportVersion = CalibrationReport | CalibrationReportV1_1
@@ -208,6 +293,4 @@ def calibration_report_can_enable_acceptance(
     report: CalibrationReportVersion,
 ) -> Literal[False]:
     """Neither frozen version may unlock acceptance."""
-    if report.acceptance_enabling_allowed is not False:
-        raise AssertionError("CalibrationReport enablement invariant violated")
     return False

@@ -36,7 +36,6 @@ TRAJECTORY_ONTOLOGY_V1_CLASSES = frozenset(
 )
 
 
-
 def canonical_json_digest(value: Any) -> str:
     """Return the sha256 digest of canonical JSON-compatible content."""
     if isinstance(value, BaseModel):
@@ -147,6 +146,24 @@ class MachineJudgment(ContractModel):
                 raise ValueError(
                     "deterministic abstention requires insufficient_evidence validity"
                 )
+        return self
+
+    @model_validator(mode="after")
+    def validate_content_identity(self) -> MachineJudgment:
+        payload = self.model_dump(mode="json")
+        id_body = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"produced_at", "judgment_id", "judgment_digest"}
+        }
+        expected_id = canonical_json_digest(id_body)
+        if self.judgment_id != expected_id:
+            raise ValueError("judgment_id does not match canonical content identity")
+        expected_digest = canonical_json_digest(
+            {**id_body, "judgment_id": self.judgment_id}
+        )
+        if self.judgment_digest != expected_digest:
+            raise ValueError("judgment_digest does not match canonical content identity")
         return self
 
     def identity_payload(self) -> dict[str, Any]:

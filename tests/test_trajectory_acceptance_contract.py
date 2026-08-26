@@ -13,9 +13,24 @@ from evallab.trajectory_acceptance import (
     GateResult,
     evaluate_acceptance,
 )
+from evallab.trajectory_judgment import canonical_json_digest
 
 D = {char: "sha256:" + char * 64 for char in "123456789abcdef"}
 NOW = datetime(2026, 8, 26, tzinfo=UTC)
+
+
+def bind_decision_identity(payload: dict) -> dict:
+    payload = dict(payload)
+    id_body = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"produced_at", "decision_id", "decision_digest"}
+    }
+    payload["decision_id"] = canonical_json_digest(id_body)
+    payload["decision_digest"] = canonical_json_digest(
+        {**id_body, "decision_id": payload["decision_id"]}
+    )
+    return payload
 
 
 def class_gate() -> CalibrationClassGate:
@@ -130,10 +145,113 @@ def test_cross_judge_disagreement_abstains() -> None:
     assert "cross_judge_disagree" in decision.reason_codes
 
 
+def test_pass_gate_rejects_reason_code() -> None:
+    with pytest.raises(ValidationError, match="reason_code"):
+        GateResult.model_validate(
+            {
+                "gate_id": "C1_resolve",
+                "status": "pass",
+                "reason_code": "digest_mismatch",
+                "citation_ids": [D["4"]],
+            }
+        )
+
+
+@pytest.mark.parametrize("status", ["fail", "unknown"])
+@pytest.mark.parametrize("reason_code", [None, ""])
+def test_fail_or_unknown_gate_requires_reason_code(
+    status: str, reason_code: str | None
+) -> None:
+    with pytest.raises(ValidationError, match="reason_code"):
+        GateResult.model_validate(
+            {
+                "gate_id": "C1_resolve",
+                "status": status,
+                "reason_code": reason_code,
+                "citation_ids": [D["4"]],
+            }
+        )
+
+
+def test_required_cross_judge_rejects_fewer_than_two_families() -> None:
+    with pytest.raises(ValidationError, match="distinct families"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini"],
+                "class_ids": ["infrastructure_failure"],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_required_cross_judge_rejects_duplicate_only_families() -> None:
+    with pytest.raises(ValidationError, match="distinct families"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini", "gemini"],
+                "class_ids": ["infrastructure_failure", "infrastructure_failure"],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_required_cross_judge_rejects_cardinality_mismatch() -> None:
+    with pytest.raises(ValidationError, match="align"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini", "grok"],
+                "class_ids": ["infrastructure_failure"],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_required_exact_agreement_rejects_null_class_id() -> None:
+    with pytest.raises(ValidationError, match="null class_id"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini", "grok"],
+                "class_ids": ["infrastructure_failure", None],
+                "agreement": "exact",
+            }
+        )
+
+
+def test_required_exact_agreement_rejects_disagreeing_class_ids() -> None:
+    with pytest.raises(ValidationError, match="identical class_ids"):
+        CrossJudgeRecord.model_validate(
+            {
+                "required": True,
+                "judge_families": ["gemini", "grok"],
+                "class_ids": ["infrastructure_failure", "verifier_failure"],
+                "agreement": "exact",
+            }
+        )
+
+
 def test_accepted_is_runtime_invalid_while_v1_disabled() -> None:
     payload = evaluate().model_dump(mode="json")
     payload["decision"] = "accepted"
+    payload = bind_decision_identity(payload)
     with pytest.raises(ValidationError, match="acceptance is disabled"):
+        AcceptanceDecision.model_validate(payload)
+
+
+def test_wrong_decision_id_is_rejected() -> None:
+    payload = evaluate().model_dump(mode="json")
+    payload["decision_id"] = D["1"]
+    with pytest.raises(ValidationError, match="decision_id"):
+        AcceptanceDecision.model_validate(payload)
+
+
+def test_wrong_decision_digest_is_rejected() -> None:
+    payload = evaluate().model_dump(mode="json")
+    payload["decision_digest"] = D["2"]
+    with pytest.raises(ValidationError, match="decision_digest"):
         AcceptanceDecision.model_validate(payload)
 
 

@@ -153,16 +153,18 @@ Method: median of N repetitions after one warmup, `time.perf_counter()`.
 | Path | Median | Notes |
 |---|---|---|
 | `uv run ruff check .` | 0.12 s | whole repo, clean |
-| `uv run pytest -q` | 0.82 s | 49 tests, no Docker, no DB |
+| `uv run pytest -q` | 0.82 s | historical 2026-08-14 capture; no Docker, no DB. Live collection: `uv run pytest --collect-only -q` |
 | `uvx ty@0.0.71 check src/` | 0.10 s | warm; excludes the uvx download |
 
 These figures are historical. On the M4 Max hardening workstation, the
 2026-08-25 baseline exercised the full suite serially in 230.91 s and exposed a
 fast-process lease-heartbeat race. The unchanged suite passed with four xdist
 workers and load-scope distribution in 101.84 s. After fixing that race, the
-final hardened suite passed 2,043 tests in 107.38 s: a 53.5% wall-clock
-reduction from the serial baseline. The bounded four-worker default keeps every
-test and Hypothesis setting in the lane.
+hardened suite passed in 107.38 s: a 53.5% wall-clock reduction from the serial
+baseline. The 2026-08-25 capture is a dated wall-clock measurement, not a
+current test census; observe live collection with `uv run pytest --collect-only -q`.
+The bounded four-worker default keeps every test and Hypothesis setting in the
+lane.
 
 CI dependency installation is narrowed by job instead of cached: quality jobs
 omit the observability group, and performance installs only project runtime
@@ -462,39 +464,19 @@ Recorded, not acted on, because the files belong to other roles:
 
 - **Queue tick connection reuse** — the finding above. Needs a
   ceiling-enforcement test first.
-- **33 `ty` diagnostics** — distribution in section 2; flip the job to blocking
-  as modules reach zero. 3 of them are missing optional deps, not defects.
 - **`evallab fleet` does not exist.** `agents/WORKFLOW.md:45` and the header
   of `scripts/fleet-status.sh` both reference it as the successor command.
-  Either build it or correct the references.
-- **`pyproject.toml`, `uv.lock`, and `ci.yml` disagree about Python 3.11, and
-  it breaks CI today.** `pyproject.toml` declares `requires-python = ">=3.11"`
-  and `uv.lock` repeats it, but the lock's `supported-markers` are
-  `python_full_version >= '3.12'`. So `uv sync --locked` on 3.11 fails outright:
-
-  ```
-  error: The current Python platform is not compatible with the lockfile's
-  supported environments: `python_full_version >= '3.12'`
-  ```
-
-  `ci.yml` pins the `lint` job to 3.11 and includes 3.11 in the `test` matrix,
-  so **two of main's three CI jobs cannot pass** regardless of the code. FORGE
-  hit the same wall by copying the 3.11 pin and moved `typecheck.yml` to 3.12.
-
-  The real fix is one of: drop 3.11 from `pyproject.toml` and the CI matrix, or
-  re-lock so 3.11 is genuinely supported. Both touch BUILDER-owned files
-  (`pyproject.toml` / `uv.lock`, per `agents/WORKFLOW.md`), so this is reported
-  rather than fixed.
-
-- **`tests/test_canary.py::test_canaries_run_two_consecutive_nights_with_three_attempts`
-  fails on CI** (`assert 3 == 0` — enqueued 3, dispatched 0) while passing
-  locally. Appeared with the per-agent default-model change (`177b20d`).
-  Local runs are green because they see a different credential/Docker
-  environment than the runner. Not a FORGE-owned file.
-
-- **Python 3.13 is untested.** The worktree venv resolves to 3.13, while the CI
-  matrix tests 3.11 (broken, above) and 3.14. Local development therefore runs
-  on a version CI never exercises.
+  Either build it or correct the references. Live fleet reporting remains
+  `scripts/fleet-status.sh`.
+- **Python 3.13 is not in the CI matrix.** Supported range is Python 3.12 or
+  newer (`pyproject.toml` `requires-python = ">=3.12"`). CI quality/tests run
+  3.12 and 3.14; typecheck runs 3.12. A local 3.13 venv is therefore off-matrix,
+  not a 3.11 support gap. The former open item that `pyproject.toml` /
+  `uv.lock` / `ci.yml` still advertised 3.11 and broke CI is superseded.
+- **The `ty` ratchet is zero, not 33.** §2 records `ty` 0.0.71 / `TY_BASELINE: 0`
+  as of 2026-08-25. Do not restore a positive diagnostic census as the live
+  status; re-measure with `uvx ty@0.0.71 check src/` before claiming a new
+  baseline.
 - **Ingest does not short-circuit.** Re-ingesting an unchanged corpus costs
   ~92% of a cold insert. A content hash per job directory would make repeat
   ingests near-free; worth it only once the corpus is much larger than 10 jobs.

@@ -9,8 +9,10 @@ audience:
 
 M003 (Platform). Code: `src/evallab/profiles.py`; compat layer:
 `src/evallab/credentials.py`; preflight hooks: `runner.profile_for_request` /
-`runner.preflight_request`. Queue/CLI wiring is deliberately absent — it is a
-later integrator change after M002.
+`runner.preflight_request`. Queue dispatch reads `CONTROL_ADAPTERS` from this
+module. Operator preflight is `evallab preflight`. CLI task-to-profile bindings
+use `get_profile` on the semantics path. There is no dedicated `evallab profiles`
+subcommand.
 
 ## The contract
 
@@ -65,7 +67,8 @@ payload that could hold a token. `KeychainProbe` checks existence via exit
 status (never `-w`); `AuthFileProbe` reads the file only to extract an expiry
 timestamp and compares it against an injected clock. All seams (home,
 security runner, clock, environment, runner) are constructor-injected; tests
-run with zero host state (`tests/test_profiles.py`, 22 tests).
+run with zero host state (`uv run pytest tests/test_profiles.py`;
+observe collection with `uv run pytest tests/test_profiles.py --collect-only -q`).
 
 ## What replacing "hard-coded assumptions" means here
 

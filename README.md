@@ -132,8 +132,21 @@ uv run pytest
 uv run ruff check .
 ```
 
-`harbor-lab` remains a deprecated command alias through 2026-08-21 so existing
-automation has one transition week. New commands and documentation use `evallab`.
+`harbor-lab` remains supported as a backwards-compatibility command alias for existing
+automation. Canonical commands and documentation use `evallab`.
+
+Generated navigation and status pages are outputs, not hand-edited sources.
+Refresh them with the live entrypoints (do not patch the files in place):
+
+```bash
+uv run python -m evallab.repomap generate
+uv run python -m evallab.docindex generate
+uv run evallab status --update
+```
+
+`python -m evallab.repomap check` and `python -m evallab.docindex check` fail
+closed on a stale committed copy. `evallab status --generate` prints the same
+STATUS projection without writing `docs/STATUS.md`.
 
 ## Experimental interpretation
 

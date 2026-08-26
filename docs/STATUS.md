@@ -6,14 +6,21 @@ audience:
   - runner
 ---
 
-# Research status — 2026-08-18
+# Research status — 2026-08-26
 
 Projection of live catalog, queue state, and `PROGRAM.json`.
 Answers what happened yesterday and what is running now deterministically.
 
-## RECENT (Yesterday: 2026-08-17)
+## RECENT (Yesterday: 2026-08-25)
 
-No completed trials observed in the reporting window.
+- **agentabstain/ambiguous_action_specification-preview_002-act** — 0/1 `reward==1.0` via oracle [exceptions: ValueError=1]
+- **deepplanning-v1/travel-lisbon-002** — 1/1 `reward==1.0` via codex (gpt-5.6-luna)
+- **loca-bench/ab-testing-seed-42-8k** — 0/1 `reward==1.0` via codex (gpt-5.6-luna) [exceptions: RewardFileNotFoundError=1]
+
+### Evidence Quality Ledger
+
+- **Evaluated Trials:** 7 (Passed: 2, Warnings: 4, Failed: 0, Quarantined: 1)
+- **Top Quarantine/Failure Reasons:** `infrastructure_exception:Traceback (most recent call last):`: 1
 
 ## RUNNING NOW
 

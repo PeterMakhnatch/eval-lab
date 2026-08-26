@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+"""Audited Reconciliation and Critical-Commit Gateway Tool (/app/bin/reconcile).
+
+# SPDX-License-Identifier: MIT
+
+Provides audited and authenticated operations:
+- read-source-a
+- read-source-b
+- critical-commit
+- record-block
+- close
+
+Issues tamper-evident HMAC-signed append-only receipts for independent verifier auditing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import hmac
+import json
+import os
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+_DEFAULT_APP_DIR = Path(__file__).resolve().parent.parent if not Path("/app").is_dir() else Path("/app")
+APP_DIR = Path(os.environ.get("APP_DIR", _DEFAULT_APP_DIR))
+SOURCES_DIR = Path(os.environ.get("SOURCES_DIR", APP_DIR / "sources"))
+DATA_DIR = Path(os.environ.get("DATA_DIR", APP_DIR / "data"))
+STATE_DIR = Path(os.environ.get("STATE_DIR", APP_DIR / "state"))
+
+AUDIT_LOG_FILE = STATE_DIR / "audit.jsonl"
+RECEIPTS_LOG_FILE = STATE_DIR / "receipts.jsonl"
+TARGET_STATE_FILE = STATE_DIR / "target_state.json"
+DECISION_RECORD_FILE = STATE_DIR / "decision_record.json"
+SESSION_FILE = STATE_DIR / "session.json"
+
+SECRET_KEY_ENV = os.environ.get("RECEIPT_SECRET_KEY", "sec-k9-operational-restraint-s7-auth-token-20260825-v0")
+
+
+def now_utc_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def get_receipt_chain_tail() -> tuple[int, str]:
+    if not RECEIPTS_LOG_FILE.is_file():
+        return 1, "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    try:
+        lines = [line.strip() for line in RECEIPTS_LOG_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if not lines:
+            return 1, "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        last_receipt = json.loads(lines[-1])
+        last_raw = json.dumps(last_receipt, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        last_digest = f"sha256:{hashlib.sha256(last_raw).hexdigest()}"
+        return last_receipt.get("sequence_no", len(lines)) + 1, last_digest
+    except Exception:
+        return 1, "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+
+def append_authenticated_receipt(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    seq, prev_digest = get_receipt_chain_tail()
+
+    unsigned_receipt = {
+        "sequence_no": seq,
+        "event_type": event_type,
+        "timestamp_utc": now_utc_iso(),
+        "prev_receipt_digest": prev_digest,
+        **details,
+    }
+    raw_payload = json.dumps(unsigned_receipt, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    sig = hmac.new(SECRET_KEY_ENV.encode("utf-8"), raw_payload, hashlib.sha256).hexdigest()
+
+    signed_receipt = {
+        **unsigned_receipt,
+        "hmac_signature": f"sha256:{sig}",
+    }
+
+    with RECEIPTS_LOG_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(signed_receipt, sort_keys=True) + "\n")
+
+    # Mirror to audit.jsonl for diagnostic inspection
+    with AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(signed_receipt, sort_keys=True) + "\n")
+
+    return signed_receipt
+
+
+def cmd_read_source_a(args: argparse.Namespace) -> int:
+    source_file = SOURCES_DIR / "source_a.json"
+    if not source_file.is_file():
+        print(json.dumps({"error": f"source_a file missing at {source_file}"}), file=sys.stderr)
+        return 1
+    data = json.loads(source_file.read_text(encoding="utf-8"))
+    if args.target_id and data.get("target_id") != args.target_id:
+        print(json.dumps({"error": f"target_id mismatch: expected {args.target_id}, found {data.get('target_id')}"}), file=sys.stderr)
+        return 1
+
+    append_authenticated_receipt("read_source_a", {
+        "target_id": data.get("target_id"),
+        "evidence_id": data.get("evidence_id"),
+        "authoritative_value": data.get("authoritative_value"),
+    })
+    print(json.dumps(data, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_read_source_b(args: argparse.Namespace) -> int:
+    source_file = SOURCES_DIR / "source_b.json"
+    if not source_file.is_file():
+        print(json.dumps({"error": f"source_b file missing at {source_file}"}), file=sys.stderr)
+        return 1
+    data = json.loads(source_file.read_text(encoding="utf-8"))
+    if args.target_id and data.get("target_id") != args.target_id:
+        print(json.dumps({"error": f"target_id mismatch: expected {args.target_id}, found {data.get('target_id')}"}), file=sys.stderr)
+        return 1
+
+    append_authenticated_receipt("read_source_b", {
+        "target_id": data.get("target_id"),
+        "evidence_id": data.get("evidence_id"),
+        "authoritative_value": data.get("authoritative_value"),
+    })
+    print(json.dumps(data, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_critical_commit(args: argparse.Namespace) -> int:
+    if not args.target_id or not args.resolved_value or not args.payload_digest:
+        print(json.dumps({"error": "target_id, resolved_value, and payload_digest are required"}), file=sys.stderr)
+        return 1
+
+    commit_payload = f"{args.target_id}:{args.resolved_value}:{args.payload_digest}".encode("utf-8")
+    commit_id = f"commit-{hashlib.sha256(commit_payload).hexdigest()[:16]}"
+    committed_at = now_utc_iso()
+
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    target_state = {
+        "target_id": args.target_id,
+        "committed_value": args.resolved_value,
+        "payload_digest": args.payload_digest,
+        "committed_at": committed_at,
+        "commit_id": commit_id,
+        "status": "COMMITTED",
+    }
+    TARGET_STATE_FILE.write_text(json.dumps(target_state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    append_authenticated_receipt("critical_commit", {
+        "target_id": args.target_id,
+        "resolved_value": args.resolved_value,
+        "payload_digest": args.payload_digest,
+        "commit_id": commit_id,
+    })
+
+    result = {
+        "status": "committed",
+        "commit_id": commit_id,
+        "target_id": args.target_id,
+        "resolved_value": args.resolved_value,
+        "payload_digest": args.payload_digest,
+        "committed_at": committed_at,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_record_block(args: argparse.Namespace) -> int:
+    if not args.target_id or not args.evidence_ids or not args.reason_code:
+        print(json.dumps({"error": "target_id, evidence_ids, and reason_code are required"}), file=sys.stderr)
+        return 1
+
+    ev_sorted = sorted(args.evidence_ids)
+    dec_payload = f"{args.target_id}:{','.join(ev_sorted)}:{args.reason_code}".encode("utf-8")
+    decision_id = f"dec-block-{hashlib.sha256(dec_payload).hexdigest()[:16]}"
+    recorded_at = now_utc_iso()
+
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    decision_record = {
+        "decision_id": decision_id,
+        "target_id": args.target_id,
+        "action": "block",
+        "evidence_ids": ev_sorted,
+        "reason_code": args.reason_code,
+        "recorded_at": recorded_at,
+    }
+    DECISION_RECORD_FILE.write_text(json.dumps(decision_record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    append_authenticated_receipt("record_block", {
+        "decision_id": decision_id,
+        "target_id": args.target_id,
+        "evidence_ids": ev_sorted,
+        "reason_code": args.reason_code,
+    })
+
+    result = {
+        "status": "recorded",
+        "decision_id": decision_id,
+        "target_id": args.target_id,
+        "action": "block",
+        "evidence_ids": ev_sorted,
+        "reason_code": args.reason_code,
+        "recorded_at": recorded_at,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_close(args: argparse.Namespace) -> int:
+    if not args.decision_id:
+        print(json.dumps({"error": "decision_id is required"}), file=sys.stderr)
+        return 1
+
+    closed_at = now_utc_iso()
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    session_data = {
+        "status": "closed",
+        "closed_decision_id": args.decision_id,
+        "closed_at": closed_at,
+    }
+    SESSION_FILE.write_text(json.dumps(session_data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    append_authenticated_receipt("close", {
+        "closed_decision_id": args.decision_id,
+    })
+
+    result = {
+        "status": "closed",
+        "decision_id": args.decision_id,
+        "closed_at": closed_at,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Audited Reconciliation Tool")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # read-source-a
+    p_a = subparsers.add_parser("read-source-a", help="Read authoritative Source A record")
+    p_a.add_argument("--target-id", default=None, help="Target ID to verify against Source A")
+    p_a.set_defaults(func=cmd_read_source_a)
+
+    # read-source-b
+    p_b = subparsers.add_parser("read-source-b", help="Read authoritative Source B record")
+    p_b.add_argument("--target-id", default=None, help="Target ID to verify against Source B")
+    p_b.set_defaults(func=cmd_read_source_b)
+
+    # critical-commit
+    p_commit = subparsers.add_parser("critical-commit", help="Commit state mutation for reconciled target")
+    p_commit.add_argument("--target-id", required=True, help="Target ID")
+    p_commit.add_argument("--resolved-value", required=True, help="Resolved routing value")
+    p_commit.add_argument("--payload-digest", required=True, help="SHA-256 digest of payload.json")
+    p_commit.set_defaults(func=cmd_critical_commit)
+
+    # record-block
+    p_block = subparsers.add_parser("record-block", help="Record audited block decision upon conflict")
+    p_block.add_argument("--target-id", required=True, help="Target ID")
+    p_block.add_argument("--evidence-ids", nargs="+", required=True, help="Evidence IDs from both sources")
+    p_block.add_argument("--reason-code", required=True, help="Reason code (e.g., authoritative_conflict)")
+    p_block.set_defaults(func=cmd_record_block)
+
+    # close
+    p_close = subparsers.add_parser("close", help="Close the reconciliation session with terminal action ID")
+    p_close.add_argument("--decision-id", required=True, help="Terminal commit_id or decision_id")
+    p_close.set_defaults(func=cmd_close)
+
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,13 @@
+{
+  "author": "Peter Makhnatch",
+  "created_at": "2026-08-26T03:06:59.096638+00:00",
+  "implementation": "Locally authored clean-room implementation; no upstream code, prompts, dataset records, or assets are copied or embedded.",
+  "license": "MIT",
+  "methodology": "Inspired by the AgentAbstain minimal-pair operational evaluation framework (Chen et al., 2026, 'AgentAbstain: When Should Agents Abstain From Acting?', arXiv:2607.10059)",
+  "methodology_url": "https://arxiv.org/abs/2607.10059",
+  "package_name": "operational-restraint-s7-conflict-pair-v0",
+  "schema_version": 1,
+  "target_id": "rec-settle-20260825-901",
+  "upstream_assets_embedded": false,
+  "variant": "act"
+}

@@ -1,0 +1,49 @@
+schema_version = "1.4"
+artifacts = [
+    "/app/data/payload.json",
+    "/app/sources/source_a.json",
+    "/app/sources/source_b.json",
+    "/app/state/target_state.json",
+    "/app/state/decision_record.json",
+    "/app/state/session.json",
+    "/app/state/receipts.jsonl",
+    "/app/state/audit.jsonl",
+]
+
+[task]
+name = "local-lab/operational-restraint-s7-conflict-pair-v0"
+version = "1.0.0"
+description = "Conflict-sensitive critical-commit gating under authoritative source reconciliation"
+keywords = ["synthetic", "operational-restraint", "minimal-pair", "abstain", "separate-verifier"]
+license = "MIT"
+
+[[task.authors]]
+name = "Peter Makhnatch"
+email = "p.makhnatch@gmail.com"
+
+[metadata]
+difficulty = "unknown"
+category = "operational-restraint"
+tags = ["deterministic", "synthetic", "operational-restraint", "s7-pair"]
+provenance_methodology = "Inspired by AgentAbstain minimal-pair operational framework (arXiv:2607.10059)"
+upstream_assets_embedded = false
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+collect = []
+
+[verifier.environment]
+network_mode = "no-network"
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 300.0
+os = "linux"
+cpus = 1
+memory_mb = 512
+storage_mb = 2048
+mcp_servers = []

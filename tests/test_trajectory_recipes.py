@@ -1086,14 +1086,26 @@ def _r1_pair(
     *,
     redact_action: bool = False,
 ):
-    """Build the R1 fixture THROUGH the real producer shape.
+    """Build the R1 fixture THROUGH the real producer shapes.
 
     argument_skeleton comes from trajectory_ir._normalize_argument_skeleton
-    (paths abstracted to <PATH>), status_owning_program is the real program,
-    and the action's hydrated content is the verbatim command as real packs
-    carry it in selected windows.
+    (paths abstracted to <PATH>); the action's hydrated_content is the REAL
+    pack shape: json {"tool_call": {..., "arguments": {"CommandLine": ...}},
+    "observation": {...embedded sibling...}} — the majority shape observed in
+    37/70 sampled real window events.
     """
     program = command.split()[0]
+    hydrated = json.dumps(
+        {
+            "tool_call": {
+                "tool_call_id": "call_2",
+                "function_name": "run_command",
+                "arguments": {"CommandLine": command},
+            },
+            "observation": {"source_call_id": "call_2", "content": obs_content},
+        },
+        indent=2,
+    )
     action = make_event(
         event_id="e-act",
         citation_id="cit_act",
@@ -1105,7 +1117,7 @@ def _r1_pair(
         payload_digest=DIGEST_A,
         matched_result_digest=DIGEST_B,
         summary="run command",
-        hydrated_content="" if redact_action else command,
+        hydrated_content="" if redact_action else hydrated,
     )
     action["argument_skeleton"] = _normalize_argument_skeleton(command, None)
     observation = make_event(
@@ -1234,3 +1246,108 @@ def test_r1_redacted_action_text_fails_closed() -> None:
         run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
     )
     assert findings[0].class_id is None
+
+
+# Captured VERBATIM from a real corrected EvidencePack on disk:
+# derived/analyses/c3cfe5b8-.../0bb0da8bc2f7*/evidence_pack.json, window 1, step 3
+# (terminal-bench/bun-sourcemap-leak, tool_call event). Not hand-authored.
+REAL_BUN_TOOL_CALL_HYDRATED = (
+    '{\n  "tool_call": {\n    "tool_call_id": "call_2",\n    "function_name": "run_command",\n'
+    '    "arguments": {\n      "CommandLine": "ls -la /app"\n    }\n  },\n  "observation": {\n'
+    '    "source_call_id": "call_2",\n    "content": "total 28\\r\\ndrwxr-xr-x 1 root root 4096 '
+    "Aug 26 03:31 .\\r\\n-rw-r--r-- 1 root root  211 Aug 26 03:29 package.json\\r\\ndrwxr-xr-x 1 "
+    'root root 4096 Aug 26 03:29 scripts\\r\\n"\n  }\n}'
+)
+
+
+def _real_bun_action(hydrated: str = REAL_BUN_TOOL_CALL_HYDRATED):
+    action = make_event(
+        event_id="e-act",
+        citation_id="cit_act",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program="ls",
+        family="command_execution",
+        payload_digest=DIGEST_A,
+        matched_result_digest=DIGEST_B,
+        summary="run command",
+        hydrated_content=hydrated,
+    )
+    action["argument_skeleton"] = _normalize_argument_skeleton("ls -la /app", None)
+    return action
+
+
+def _obs(content: str, *, is_error: bool = True):
+    return make_event(
+        event_id="e-obs",
+        citation_id="cit_obs",
+        event_type="observation",
+        actor="environment",
+        ordinal=2,
+        step_index=2,
+        is_error=is_error,
+        payload_digest=DIGEST_B,
+        hydrated_content=content,
+        summary="result",
+    )
+
+
+def test_r1_real_captured_json_embedded_sibling_cannot_self_match() -> None:
+    # 'package.json'/'scripts' exist ONLY in the embedded sibling observation of the
+    # real captured JSON, not in the action's arguments — they must never be targets.
+    action = _real_bun_action()
+    observation = _obs("cat: package.json: No such file or directory")
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id is None
+    assert "no_cited_wrong_content_evidence" in findings[0].coverage_gaps
+
+
+def test_r1_real_captured_json_structural_keys_cannot_match() -> None:
+    # 'content'/'arguments'/'observation' are JSON keys in the real shape; an error
+    # line containing such words must not label.
+    action = _real_bun_action()
+    observation = _obs("error: invalid content in arguments block")
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id is None
+
+
+def test_r1_real_captured_json_argument_value_labels() -> None:
+    # '/app' is the actual CommandLine argument value in the real captured JSON.
+    action = _real_bun_action()
+    observation = _obs("ls: cannot access '/app': No such file or directory")
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id == "wrong_target_or_action"
+    assert "/app" in findings[0].verbatim_quotes[0]["quote"]
+
+
+def test_r1_real_absolutepath_argument_shape_labels() -> None:
+    # Second real argument key observed on disk (view_file): AbsolutePath.
+    hydrated = json.dumps(
+        {
+            "tool_call": {
+                "tool_call_id": "call_102",
+                "function_name": "view_file",
+                "arguments": {"AbsolutePath": "/app/scripts/release.ts"},
+            },
+            "observation": {"source_call_id": "call_102", "content": "325 lines, 9462 bytes"},
+        },
+        indent=2,
+    )
+    action = _real_bun_action(hydrated)
+    observation = _obs("view_file: /app/scripts/release.ts: file not found")
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id == "wrong_target_or_action"
+    assert "release.ts" in findings[0].verbatim_quotes[0]["quote"]

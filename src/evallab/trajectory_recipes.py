@@ -911,17 +911,58 @@ _WRONG_CONTENT_MARKERS = (
 )
 
 
+def _action_argument_text(action: dict[str, Any]) -> str:
+    """Verbatim argument text of the ACTION only.
+
+    Real EvidencePack tool_call windows hydrate as JSON
+    ``{"tool_call": {..., "arguments": {...}}, "observation": {...}}``
+    (``hydrate_citation``/``_extract_content_from_payload``), frequently with the
+    sibling observation embedded. Target text is therefore restricted to the
+    STRING VALUES under ``tool_call.arguments`` (keys observed in real packs:
+    ``CommandLine``, ``AbsolutePath`` — names vary by harness, so all string
+    values are taken). JSON structural keys and any embedded observation
+    content are never target sources. A non-JSON hydrated body (legacy bare
+    command string) is used as-is; a JSON body with a top-level
+    message/content/text/output string uses that string. Anything else fails
+    closed to empty.
+    """
+    raw = action.get("hydrated_content")
+    if not isinstance(raw, str) or not raw.strip():
+        return ""
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    if not isinstance(payload, dict):
+        return ""
+    for key in ("message", "content", "text", "output"):
+        value = payload.get(key)
+        if isinstance(value, str):
+            return value
+    call = payload.get("tool_call")
+    if isinstance(call, dict):
+        args = call.get("arguments")
+        if isinstance(args, dict):
+            return "\n".join(v for v in args.values() if isinstance(v, str))
+        if isinstance(args, str):
+            return args
+        if isinstance(args, list):
+            return "\n".join(v for v in args if isinstance(v, str))
+    return ""
+
+
 def _action_target_tokens(action: dict[str, Any]) -> set[str]:
-    """Target tokens from the action's verbatim (hydrated) window text.
+    """Target tokens exclusively from the action's own argument values.
 
     ``argument_skeleton`` is deliberately NOT used: the IR producer abstracts
     real paths and digests to ``<PATH>``/``<DIGEST>`` placeholders
-    (``trajectory_ir._normalize_argument_skeleton``), so skeleton tokens can
-    never evidence a target contradiction on real packs. Targets come from the
-    action's hydrated content, with the status-owning program name excluded so
-    a bare program-name echo in stderr (e.g. ``cat:``) cannot label.
+    (``trajectory_ir._normalize_argument_skeleton``). Tokens can never derive
+    from JSON structural keys or embedded sibling-observation text
+    (``_action_argument_text`` guarantees this), and the status-owning program
+    name is excluded so a bare program-name echo in stderr (e.g. ``cat:``)
+    cannot label.
     """
-    text = extract_hydrated_text(action)
+    text = _action_argument_text(action)
     if not text:
         return set()
     tokens = {

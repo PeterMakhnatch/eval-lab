@@ -847,15 +847,11 @@ def build_trajectory_ir(
                         redaction_profile_digest=policy.compute_digest(),
                     )
 
-                    payload_data = {"tool_call": tc_dict}
-                    if matching_obs is not None:
-                        payload_data["observation"] = matching_obs
-                    payload_str = json.dumps(payload_data)
-                    p_bytes = len(payload_str.encode("utf-8"))
-                    p_digest = f"sha256:{hashlib.sha256(payload_str.encode('utf-8')).hexdigest()}"
+                    tool_payload = json.dumps({"tool_call": tc_dict})
+                    p_bytes = len(tool_payload.encode("utf-8"))
+                    p_digest = f"sha256:{hashlib.sha256(tool_payload.encode('utf-8')).hexdigest()}"
                     cmd_snip = f": {str(cmd_str)[:60]}" if cmd_str else ""
-                    exit_str = f" [exit {exit_code}]" if exit_code is not None else ""
-                    summary = f"Tool {tc_name}{cmd_snip}{exit_str}"
+                    summary = f"Tool {tc_name}{cmd_snip}"
 
                     event = IREvent(
                         event_id=ev_id,
@@ -870,9 +866,9 @@ def build_trajectory_ir(
                         action_family=action_family,
                         status_owning_program=prog,
                         argument_skeleton=skeleton,
-                        exit_code=exit_code,
-                        exit_semantics=exit_sem,
-                        is_error=is_true_err,
+                        exit_code=None,
+                        exit_semantics="unobserved",
+                        is_error=False,
                         payload_digest=p_digest,
                         payload_bytes=p_bytes,
                         source_citation=citation,
@@ -907,10 +903,10 @@ def build_trajectory_ir(
                                 phase=phase_name,
                                 episode_id=1,
                                 step_index=step.step_id,
-                                call_index=call_idx,
-                                action_family=action_family,
-                                status_owning_program=prog,
-                                argument_skeleton=skeleton,
+                                call_index=None,
+                                action_family="other",
+                                status_owning_program=None,
+                                argument_skeleton=None,
                                 exit_code=exit_code,
                                 exit_semantics=exit_sem,
                                 is_error=is_true_err,

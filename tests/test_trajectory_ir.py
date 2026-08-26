@@ -519,6 +519,9 @@ def test_multi_tool_call_ir_event_preservation(tmp_path: Path, repo_root: Path) 
     )
 
     ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    from evallab.evidence_pack import compute_evidence_coverage_metrics
+
+    coverage = compute_evidence_coverage_metrics(ir, trial_dir=trial_dir)
     # Step 1 message + 3 calls + 3 linked observations + verifier check = 8 events.
     assert len(ir.events) == 8
     tool_events = [event for event in ir.events if event.event_type == "tool_call"]
@@ -526,11 +529,17 @@ def test_multi_tool_call_ir_event_preservation(tmp_path: Path, repo_root: Path) 
     assert len(tool_events) == 3
     assert len(observation_events) == 3
     assert [event.call_index for event in tool_events] == [0, 1, 2]
-    assert [event.call_index for event in observation_events] == [0, 1, 2]
+    # Observation records retain identity through source_call_id, not tool-action semantics.
+    assert [event.call_index for event in observation_events] == [None, None, None]
+    assert [event.action_family for event in observation_events] == ["other", "other", "other"]
     assert [event.step_index for event in tool_events] == [2, 2, 2]
     assert [event.source_citation.tool_call_id for event in tool_events] == ["tc1", "tc2", "tc3"]
     assert [event.source_citation.source_call_id for event in observation_events] == ["tc1", "tc2", "tc3"]
-    assert tool_events[0].status_owning_program == "cat"
+    assert coverage.tool_calls_count == 3
+    assert coverage.observations_count == 3
+    assert coverage.total_errors == 0
+    # The edit call contributes exactly one state mutation; its observation does not duplicate it.
+    assert coverage.state_mutations_count == 1
     assert tool_events[1].status_owning_program == "cat"
     assert tool_events[2].action_family == "file_edit"
     assert ir.final_verdict == "PASS"

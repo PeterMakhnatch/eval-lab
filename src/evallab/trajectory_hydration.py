@@ -460,22 +460,26 @@ def hydrate_citation(
                 with contextlib.suppress(Exception):
                     temp_cas_dir.cleanup()
     # 3. Resolve from trial directory if not loaded from CAS
+    # 3. Resolve only the cited member from trial directory; never substitute a whole trace.
     if raw_text is None and trial_dir is not None:
         candidate_file = trial_dir / citation.source_path
-        if not candidate_file.is_file():
-            alt1 = trial_dir / "agent" / "trajectory.json"
-            if alt1.is_file():
-                candidate_file = alt1
-
         if candidate_file.is_file():
             payload = _load_raw_json(candidate_file)
             if payload is not None:
                 raw_text = _extract_content_from_payload(payload, citation)
             if raw_text is None:
-                raw_text = candidate_file.read_text(encoding="utf-8", errors="replace")
+                limitation_metadata["limitation_reason"] = "cited_element_not_found"
+                raw_text = (
+                    f"[EvidenceLimitation: cited_element_not_found "
+                    f"citation={citation.format_citation()}]"
+                )
         else:
             limitation_metadata["limitation_reason"] = "file_not_found"
             limitation_metadata["source_path"] = citation.source_path
+            raw_text = (
+                f"[EvidenceLimitation: file_not_found "
+                f"path={citation.source_path}]"
+            )
 
     if raw_text is None:
         raw_text = f"[EvidenceLimitation: evidence_unavailable citation={citation.format_citation()}]"

@@ -76,6 +76,19 @@ _IDENTITY_FIELDS = {
 _QUARANTINE_STATUSES = frozenset({"quarantine", "fail", "quarantined"})
 
 
+def _classify_cas_restore_error(exc: BaseException) -> RuntimeError:
+    """Map CAS restore failures onto missing_cas vs cas_integrity_error.
+
+    ``FileNotFoundError`` from a missing blob stays ``missing_cas``. Corrupt
+    gzip/tar bytes, digest mismatch, path-escape, and unsupported URI values
+    are integrity failures. ``FileNotFoundError`` is an ``OSError`` subclass,
+    so it must be classified before a generic OSError path.
+    """
+    if isinstance(exc, FileNotFoundError):
+        return RuntimeError(f"missing_cas: {exc}")
+    return RuntimeError(f"cas_integrity_error: {exc}")
+
+
 # ---------------------------------------------------------------------------
 # Durable filesystem helpers (mirror analysis_worker.py to avoid import cycle)
 # ---------------------------------------------------------------------------
@@ -482,6 +495,18 @@ def _data_contract_digest(payload: dict[str, Any]) -> str:
     return f"sha256:{hashlib.sha256(serialized.encode('utf-8')).hexdigest()}"
 
 
+def _expected_pack_source_digests(ir: TrajectoryIR, pack: EvidencePack) -> dict[str, str]:
+    """Exact pack source map: IR source digests plus ir_digest and pack redaction.
+
+    Pack ``source_digests`` must equal this map. Missing, extra, or mismatched
+    keys are integrity failures; a subset match is not sufficient.
+    """
+    expected = dict(ir.source_digests)
+    expected["ir_digest"] = ir.ir_digest
+    expected["redaction_profile_digest"] = pack.redaction_profile_digest
+    return expected
+
+
 def _validate_artifact_digests(
     ir: TrajectoryIR, pack: EvidencePack, judgment: MachineJudgment
 ) -> None:
@@ -494,7 +519,8 @@ def _validate_artifact_digests(
     pack_digest = pack_payload.pop("pack_digest", "")
     if pack_digest != _data_contract_digest(pack_payload):
         raise ValueError("invalid pack_digest")
-    if pack.source_digests != ir.source_digests:
+    expected_sources = _expected_pack_source_digests(ir, pack)
+    if pack.source_digests != expected_sources:
         raise ValueError("pack source_digests do not match IR")
     if (pack.trial_id, pack.job_id) != (ir.trial_id, ir.job_id):
         raise ValueError("pack trial identity does not match IR")
@@ -1261,6 +1287,8 @@ def _analyze_trial_core(
         cas_uri = inventory.get("cas_uri")
         if not cas_uri:
             raise RuntimeError("missing_cas: mapping target requires cas_uri")
+        if inventory.get("quality_status") in _QUARANTINE_STATUSES:
+            raise RuntimeError(f"quarantined_input: {inventory.get('quality_status')}")
         temp_extract = tempfile.TemporaryDirectory()
         extracted = Path(temp_extract.name)
     elif isinstance(target, str) and target.startswith("cas://"):
@@ -1282,13 +1310,9 @@ def _analyze_trial_core(
             try:
                 restore_evidence(store_root, cas_uri, extracted)
             except FileNotFoundError as exc:
-                raise RuntimeError(f"missing_cas: {exc}") from exc
-
-        if (
-            isinstance(inventory, Mapping)
-            and inventory.get("quality_status") in _QUARANTINE_STATUSES
-        ):
-            raise RuntimeError(f"quarantined_input: {inventory.get('quality_status')}")
+                raise _classify_cas_restore_error(exc) from exc
+            except Exception as exc:
+                raise _classify_cas_restore_error(exc) from exc
 
         try:
             ir = build_trajectory_ir(

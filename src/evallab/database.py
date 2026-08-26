@@ -520,6 +520,33 @@ def ingest_interpretation_artifacts(database_url: str, records: Iterable[Any]) -
         return _ingest_interpretation_artifacts(connection, records)
 
 
+def catalog_availability(database_url: str | None, *, connect_timeout: int = 2) -> dict[str, Any]:
+    """Report catalog reachability without treating unavailability as zero rows.
+
+    A missing or unreachable PostgreSQL catalog is ``unavailable`` with
+    ``row_count=None``. This helper never returns ``0`` for an unread catalog.
+    """
+    if not database_url:
+        return {
+            "status": "unavailable",
+            "reason": "database_url_not_provided",
+            "row_count": None,
+        }
+    try:
+        with psycopg.connect(database_url, connect_timeout=connect_timeout) as connection:
+            connection.execute("SELECT 1")
+    except Exception as exc:
+        detail = str(exc)
+        for candidate in (database_url, database_url.replace("'", "''")):
+            detail = detail.replace(candidate, "<REDACTED DSN>")
+        return {
+            "status": "unavailable",
+            "reason": f"{type(exc).__name__}: {detail}",
+            "row_count": None,
+        }
+    return {"status": "attached", "reason": None, "row_count": None}
+
+
 def quota_today(database_url: str) -> list[tuple[str, int, int]]:
     """Return today's UTC consumption (provider, runs, tokens) from v_quota_today."""
     with psycopg.connect(database_url, connect_timeout=2) as connection:

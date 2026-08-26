@@ -46,7 +46,12 @@ from evallab.trajectory_hydration import (
     RedactionPolicy,
     hydrate_citation,
 )
-from evallab.trajectory_ir import IREvent, TrajectoryIR, build_trajectory_ir
+from evallab.trajectory_ir import (
+    CASTrialResolutionError,
+    IREvent,
+    TrajectoryIR,
+    build_trajectory_ir,
+)
 from evallab.trajectory_judgment import (
     JudgmentConfidence,
     MachineJudgment,
@@ -1291,6 +1296,8 @@ def _analyze_trial_core(
                 repo_root=repo_root,
                 store_root=store_root,
             )
+        except CASTrialResolutionError as exc:
+            raise RuntimeError(f"cas_integrity_error: {exc}") from exc
         except Exception as exc:
             raise RuntimeError(f"schema_mismatch: {exc}") from exc
 
@@ -1429,7 +1436,7 @@ def build_campaign_report(
     for item in manifest.items:
         role_counts[item.attempt_role] = role_counts.get(item.attempt_role, 0) + 1
 
-    return {
+    body = {
         "schema_version": "campaign-report/v1",
         "manifest_id": manifest.manifest_id,
         "manifest_digest": manifest.manifest_digest,
@@ -1452,6 +1459,53 @@ def build_campaign_report(
             "free_local_controls": manifest.accounting.get("free_local_controls"),
             "unresolved_evidence_count": manifest.accounting.get("unresolved_evidence_count"),
         },
+    }
+    report_id = canonical_json_digest(body)
+    return {
+        **body,
+        "report_id": report_id,
+        "report_digest": canonical_json_digest({**body, "report_id": report_id}),
+    }
+
+
+def write_campaign_report(
+    report: dict[str, Any],
+    *,
+    output_dir: Path,
+    store_root: Path,
+) -> dict[str, Any]:
+    """Persist one immutable aggregate report and archive it to CAS."""
+    body = {
+        key: value
+        for key, value in report.items()
+        if key
+        not in {
+            "report_id",
+            "report_digest",
+            "report_cas_uri",
+            "report_artifact_path",
+        }
+    }
+    report_id = report.get("report_id")
+    report_digest = report.get("report_digest")
+    if report_id != canonical_json_digest(body):
+        raise ValueError("campaign report_id does not match canonical content identity")
+    if report_digest != canonical_json_digest({**body, "report_id": report_id}):
+        raise ValueError("campaign report_digest does not match canonical content identity")
+
+    report_dir = output_dir.resolve() / "_campaigns" / str(report_id).removeprefix("sha256:")
+    report_path = report_dir / "campaign_report.json"
+    _write_artifact_sidecar(report_path, report)
+    archive = archive_evidence(
+        source=report_dir,
+        store_root=store_root,
+        record_id=str(report_id),
+        kind="interpretation_campaign",
+    )
+    return {
+        **report,
+        "report_cas_uri": archive.uri,
+        "report_artifact_path": str(report_path),
     }
 
 
@@ -1502,7 +1556,12 @@ def analyze_batch(
         store_root=store_root,
     )
 
-    return build_campaign_report(manifest, results)
+    report = build_campaign_report(manifest, results)
+    return write_campaign_report(
+        report,
+        output_dir=output_dir,
+        store_root=store_root,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -341,6 +341,11 @@ def test_five_tb3_mini_batch_accounting(tmp_path: Path) -> None:
     assert report["role_counts"]["quarantined_attempt"] == 1
     assert report["reason_counts"]
     assert report["coverage_gap_counts"]["judge_execution_disabled"] == 5
+    assert report["report_id"].startswith("sha256:")
+    assert report["report_digest"].startswith("sha256:")
+    assert report["report_cas_uri"].startswith("cas://sha256/")
+    report_sidecar = json.loads(Path(report["report_artifact_path"]).read_text(encoding="utf-8"))
+    assert report_sidecar["report_id"] == report["report_id"]
     assert len(report["source_refs"]) == 5
     for ref in report["source_refs"]:
         assert ref["source_cas_uri"] == cas_uri
@@ -349,6 +354,16 @@ def test_five_tb3_mini_batch_accounting(tmp_path: Path) -> None:
         assert ref["pack_digest"].startswith("sha256:")
         assert ref["judgment_id"].startswith("sha256:")
         assert ref["decision_id"].startswith("sha256:")
+
+    rerun = analyze_batch(
+        inv_path,
+        repo_root=tmp_path,
+        store_root=store,
+        output_dir=tmp_path / "interpretation",
+        derived_root=tmp_path / "derived",
+    )
+    assert rerun["report_id"] == report["report_id"]
+    assert rerun["report_cas_uri"] == report["report_cas_uri"]
 
 
 def test_missing_cas_hard_stops(tmp_path: Path) -> None:
@@ -368,6 +383,24 @@ def test_mapping_without_cas_hard_stops(tmp_path: Path) -> None:
             {"trial_id": "local-only", "trial_name": "local-only"},
             repo_root=tmp_path,
             store_root=tmp_path / "cas",
+            output_dir=tmp_path / "interpretation",
+        )
+
+
+def test_invalid_cas_trial_name_is_integrity_error(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="cas-integrity")
+    store = tmp_path / "cas"
+    cas_uri = _archive_trial(trial_dir, store, "cas-integrity")
+
+    with pytest.raises(RuntimeError, match="cas_integrity_error"):
+        analyze_trial(
+            {
+                "cas_uri": cas_uri,
+                "trial_id": "cas-integrity",
+                "trial_name": "../outside",
+            },
+            repo_root=tmp_path,
+            store_root=store,
             output_dir=tmp_path / "interpretation",
         )
 

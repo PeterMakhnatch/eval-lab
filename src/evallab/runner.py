@@ -150,6 +150,7 @@ def subscription_environment(
     # installed agents onto subscription authentication even when a caller did
     # not source the optional interactive helper. API-key variables are never
     # looked up above and therefore cannot leak into a child process.
+    sanitized["AGY_FORCE_AUTH_JSON"] = "1"
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
     sanitized["REWARDKIT_FORCE_OAUTH"] = "1"

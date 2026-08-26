@@ -241,9 +241,9 @@ def test_subscription_environment_never_forwards_api_keys():
     env = subscription_environment(poisoned)
     assert FAKE_SECRET not in json.dumps(env)
     assert env["HOME"] == "/home/x"
+    assert env["AGY_FORCE_AUTH_JSON"] == "1"
     assert env["CODEX_FORCE_AUTH_JSON"] == "1"
     assert env["CLAUDE_FORCE_OAUTH"] == "1"
-
 
 def test_subscription_environment_forwards_agy_oauth_token_but_not_cursor_key():
     """The AGY lane authenticates with an OAuth token file, so it may cross into

@@ -282,16 +282,6 @@ def _extract_content_from_payload(
                 target_step = s
                 break
 
-    if target_step is None and steps:
-        try:
-            if isinstance(step_id_target, int) and 0 <= step_id_target < len(steps):
-                target_step = steps[step_id_target] if isinstance(steps[step_id_target], dict) else None
-        except Exception:
-            pass
-
-    if target_step is None and steps:
-        target_step = steps[0] if isinstance(steps[0], dict) else None
-
     if target_step is None:
         return None
 

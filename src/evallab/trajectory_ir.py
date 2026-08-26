@@ -761,6 +761,10 @@ def build_trajectory_ir(
                     tc_name = tc_dict.get("name") or (tc_dict.get("function", {}).get("name") if isinstance(tc_dict.get("function"), dict) else None) or step.tool_name or "tool"
                     tc_args = tc_dict.get("arguments") or (tc_dict.get("function", {}).get("arguments") if isinstance(tc_dict.get("function"), dict) else None)
                     tc_call_id = tc_dict.get("tool_call_id") or tc_dict.get("id")
+                    cmd_str = tc_args if isinstance(tc_args, str) else (tc_args.get("command") if isinstance(tc_args, dict) else step.tool_command)
+                    prog = _extract_status_owning_program(cmd_str, tc_name)
+                    skeleton = _normalize_argument_skeleton(cmd_str, tc_args)
+                    action_family = _classify_action_family(prog, tc_name, is_edit=bool(tc_name == "edit"))
 
                     # Find matching observation strictly without fake positional fallback
                     matching_obs: dict[str, Any] | None = None
@@ -770,14 +774,15 @@ def build_trajectory_ir(
                                 matching_obs = obs
                                 break
 
-                    obs_extra = matching_obs.get("extra") if (matching_obs and isinstance(matching_obs.get("extra"), dict)) else {}
-                    exit_code = obs_extra.get("exit_code") if "exit_code" in obs_extra else (matching_obs.get("exit_code", step.exit_code) if matching_obs else step.exit_code)
-                    obs_is_error = bool(obs_extra.get("is_error") or (matching_obs and matching_obs.get("is_error")) or (exit_code is not None and exit_code != 0))
-                    cmd_str = tc_args if isinstance(tc_args, str) else (tc_args.get("command") if isinstance(tc_args, dict) else step.tool_command)
-                    prog = _extract_status_owning_program(cmd_str, tc_name)
-                    skeleton = _normalize_argument_skeleton(cmd_str, tc_args)
-                    action_family = _classify_action_family(prog, tc_name, is_edit=bool(tc_name == "edit"))
-                    exit_sem, is_true_err = _classify_exit_semantics(exit_code, prog, obs_is_error)
+                    if matching_obs is not None:
+                        obs_extra = matching_obs.get("extra") if isinstance(matching_obs.get("extra"), dict) else {}
+                        exit_code = obs_extra.get("exit_code") if "exit_code" in obs_extra else matching_obs.get("exit_code")
+                        obs_is_error = bool(obs_extra.get("is_error") or matching_obs.get("is_error") or (exit_code is not None and exit_code != 0))
+                        exit_sem, is_true_err = _classify_exit_semantics(exit_code, prog, obs_is_error)
+                    else:
+                        exit_code = None
+                        exit_sem = "unobserved"
+                        is_true_err = False
 
                     ev_id = hashlib.sha256(
                         f"{outline.trial_id}:{event_ord_counter}:tool_call:{step.step_id}:{call_idx}".encode()

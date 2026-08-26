@@ -63,7 +63,7 @@ def test_build_evidence_pack_hierarchical_structure(canary_trial_dir: Path, repo
     pack2 = build_evidence_pack(ir, trial_dir=canary_trial_dir, budget_tokens=16000)
     assert pack.pack_digest == pack2.pack_digest
 
-
+def test_evidence_coverage_metrics_categories(canary_trial_dir: Path, repo_root: Path) -> None:
     """Verify complete category-wise coverage metrics computation."""
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
     pack = build_evidence_pack(ir, trial_dir=canary_trial_dir)

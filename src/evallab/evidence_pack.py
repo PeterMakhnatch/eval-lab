@@ -409,8 +409,8 @@ class EvidencePack:
         """Render a concise, model-friendly text prompt from the evidence pack."""
         lines: list[str] = []
         lines.append(f"# Evidence Pack: {self.trial_name} ({self.task_name})")
-        lines.append(f"**Outcome:** {self.final_verdict} (Reward: {self.primary_reward} | Quality: {self.quality_status})")
         lines.append(f"**Agent / Model:** {self.agent_name} | {self.model_name}")
+        lines.append(f"**Execution Quality:** {self.quality_status}")
         callable_str = "YES" if self.is_model_callable else f"NO ({self.overflow_reason or 'uncallable'})"
         lines.append(f"**Model Callable:** {callable_str} | **Pack Digest:** `{self.pack_digest}` (Budget: {self.budget_tokens} tok, Est Consumed: {self.consumed_tokens_est} tok)")
         lines.append("")

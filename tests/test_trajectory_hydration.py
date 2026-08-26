@@ -14,6 +14,7 @@ from evallab.trajectory_hydration import (
     CitationTarget,
     RedactionPolicy,
     apply_redaction,
+    create_citation_handle,
     hydrate_citation,
     hydrate_error_observations,
 )
@@ -81,6 +82,7 @@ def test_hydrate_citation_preserves_raw_file_immutability() -> None:
             trial_id="trial-1",
             source_path="trajectory.json",
             step_index=1,
+            observation_index=0,
             target_type="observation",
         )
 
@@ -267,3 +269,50 @@ def test_hydrate_error_observations_from_outline() -> None:
         assert ev.citation.step_index == 1
         assert "No such file or directory" in ev.raw_content
         assert ev.citation.format_citation().startswith("agent/trajectory.json#step=1")
+
+
+def test_hydrate_v17_observation_results_by_source_call_id(tmp_path: Path) -> None:
+    """ATIF-v1.7 observation.results resolves only the cited source_call_id."""
+    trial_dir = tmp_path / "v17"
+    (trial_dir / "agent").mkdir(parents=True)
+    (trial_dir / "agent" / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ATIF-v1.7",
+                "steps": [
+                    {
+                        "step_id": 7,
+                        "tool_calls": [
+                            {"tool_call_id": "call-a", "function_name": "exec"},
+                            {"tool_call_id": "call-b", "function_name": "exec"},
+                        ],
+                        "observation": {
+                            "results": [
+                                {"source_call_id": "call-a", "content": "only-a"},
+                                {"source_call_id": "call-b", "content": "only-b"},
+                            ]
+                        },
+                    }
+                ],
+            }
+        )
+    )
+    citation = create_citation_handle(
+        source_path="agent/trajectory.json",
+        step_id=7,
+        source_call_id="call-b",
+        observation_index=1,
+        target_type="observation",
+    )
+    hydrated = hydrate_citation(citation, trial_dir=trial_dir, repo_root=tmp_path)
+    assert hydrated.redacted_content == "only-b"
+    assert "only-a" not in hydrated.redacted_content
+
+    missing = create_citation_handle(
+        source_path="agent/trajectory.json",
+        step_id=99,
+        source_call_id="missing",
+        target_type="observation",
+    )
+    absent = hydrate_citation(missing, trial_dir=trial_dir, repo_root=tmp_path)
+    assert "EvidenceLimitation: cited_element_not_found" in absent.redacted_content

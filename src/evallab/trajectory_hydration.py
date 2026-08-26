@@ -2,20 +2,24 @@
 
 Key invariants:
 - Raw evidence files and CAS archives remain strictly immutable.
+- Canonical CitationHandle binds source document digest, CAS URI, typed locator, and content digest.
 - Redaction (secret masking, truncation) occurs only on read / presentation.
-- Every piece of hydrated evidence retains exact source provenance:
-  digest (sha256), source_path, document_id, step_index, call_index, observation_index.
+- Redaction policy computes a deterministic digest; changing policy mints a new pack digest.
+- Strict path jailing: rejects absolute paths and traversal escaping the trial directory.
 """
+
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from evallab.evidence_store import load_archive
+from evallab.evidence_store import restore_evidence
 from evallab.traj import TrajectoryOutline
 
 _DEFAULT_SECRET_PATTERNS = (
@@ -27,46 +31,122 @@ _DEFAULT_SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+ PRIVATE KEY-----"),
 )
 
-_REDACTED_MARKER_PATTERN = re.compile(
-    r"<<evallab-redacted: (?P<bytes>\d+) bytes, (?P<digest>sha256:[0-9a-f]{64})>>"
-)
-
 
 class CitationPathJailError(ValueError):
     """Raised when a citation source_path is absolute or escapes the trial jail directory."""
 
 
-@dataclass(frozen=True)
-class CitationTarget:
-    """Provenance citation to a specific element within trajectory evidence."""
+def _sha256_text(text: str) -> str:
+    return f"sha256:{hashlib.sha256(text.encode('utf-8', errors='replace')).hexdigest()}"
 
-    trial_id: str
-    source_path: str
+@dataclass(frozen=True)
+class CitationHandle:
+    """Canonical citation handle pointing to an exact element in raw/CAS trajectory evidence."""
+
+    citation_id: str = ""
+    trial_id: str | None = None
+    source_document_id: str = "main"
+    source_path: str = "agent/trajectory.json"
     source_sha256: str = ""
-    document_id: str = "main"
-    step_index: int | None = None
+    raw_cas_uri: str | None = None
+    cas_uri: str | None = None
+    ir_event_id: str | None = None
+    step_id: int | str | None = None
+    step_index: int | str | None = None
+    tool_call_id: str | None = None
     call_index: int | None = None
+    source_call_id: str | None = None
     observation_index: int | None = None
     target_type: str = "step"  # "step" | "tool_call" | "observation" | "stderr" | "stdout" | "arguments" | "file"
     content_sha256: str | None = None
-    cas_uri: str | None = None
+    redaction_profile_digest: str | None = None
+    availability: str = "available"
+
+    def __post_init__(self) -> None:
+        if self.step_id is None and self.step_index is not None:
+            object.__setattr__(self, "step_id", self.step_index)
+        elif self.step_index is None and self.step_id is not None:
+            object.__setattr__(self, "step_index", self.step_id)
+        if self.raw_cas_uri is None and self.cas_uri is not None:
+            object.__setattr__(self, "raw_cas_uri", self.cas_uri)
+        elif self.cas_uri is None and self.raw_cas_uri is not None:
+            object.__setattr__(self, "cas_uri", self.raw_cas_uri)
 
     def format_citation(self) -> str:
         parts = [f"{self.source_path}"]
         coords: list[str] = []
-        if self.step_index is not None:
-            coords.append(f"step={self.step_index}")
-        if self.call_index is not None:
-            coords.append(f"call={self.call_index}")
+        if self.step_id is not None:
+            coords.append(f"step={self.step_id}")
+        if self.tool_call_id is not None:
+            coords.append(f"call={self.tool_call_id}")
+        elif self.source_call_id is not None:
+            coords.append(f"call={self.source_call_id}")
         if self.observation_index is not None:
             coords.append(f"obs={self.observation_index}")
         if coords:
             parts.append(f"#{':'.join(coords)}")
         if self.content_sha256:
-            parts.append(f" ({self.content_sha256})")
+            parts.append(f" ({self.content_sha256[:16]}...)")
         elif self.source_sha256:
             parts.append(f" (file {self.source_sha256[:16]}...)")
         return "".join(parts)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+# Backward compatibility alias
+CitationTarget = CitationHandle
+
+
+def create_citation_handle(
+    *,
+    trial_id: str | None = None,
+    source_path: str,
+    source_sha256: str = "",
+    raw_cas_uri: str | None = None,
+    cas_uri: str | None = None,
+    ir_event_id: str | None = None,
+    step_id: int | str | None = None,
+    tool_call_id: str | None = None,
+    source_call_id: str | None = None,
+    observation_index: int | None = None,
+    target_type: str = "step",
+    content_sha256: str | None = None,
+    redaction_profile_digest: str | None = None,
+) -> CitationHandle:
+    """Deterministic factory for canonical CitationHandle with content hashing."""
+    actual_cas = raw_cas_uri or cas_uri
+    loc_parts = [
+        str(trial_id or ""),
+        str(source_path),
+        str(source_sha256),
+        str(actual_cas or ""),
+        str(step_id or ""),
+        str(tool_call_id or ""),
+        str(source_call_id or ""),
+        str(observation_index or ""),
+        str(target_type),
+    ]
+    cit_id = hashlib.sha256(":".join(loc_parts).encode("utf-8")).hexdigest()
+
+    return CitationHandle(
+        citation_id=f"cit_{cit_id[:16]}",
+        trial_id=trial_id,
+        source_path=source_path,
+        source_sha256=source_sha256,
+        raw_cas_uri=actual_cas,
+        cas_uri=actual_cas,
+        ir_event_id=ir_event_id,
+        step_id=step_id,
+        tool_call_id=tool_call_id,
+        source_call_id=source_call_id,
+        observation_index=observation_index,
+        target_type=target_type,
+        content_sha256=content_sha256,
+        redaction_profile_digest=redaction_profile_digest,
+        availability="available",
+    )
 
 
 @dataclass(frozen=True)
@@ -77,12 +157,23 @@ class RedactionPolicy:
     max_display_bytes: int | None = None
     secret_patterns: tuple[re.Pattern[str], ...] = _DEFAULT_SECRET_PATTERNS
 
+    def compute_digest(self) -> str:
+        """Deterministic digest of the redaction policy configuration."""
+        raw_patterns = [p.pattern for p in self.secret_patterns]
+        cfg = {
+            "redact_secrets": self.redact_secrets,
+            "max_display_bytes": self.max_display_bytes,
+            "secret_patterns": sorted(raw_patterns),
+        }
+        serialized = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
+        return f"sha256:{hashlib.sha256(serialized.encode('utf-8')).hexdigest()}"
+
 
 @dataclass(frozen=True)
 class HydratedEvidence:
     """Hydrated content for a cited trajectory element with exact provenance."""
 
-    citation: CitationTarget
+    citation: CitationHandle
     raw_content: str
     redacted_content: str
     content_bytes: int
@@ -92,7 +183,7 @@ class HydratedEvidence:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "citation": asdict(self.citation),
+            "citation": self.citation.to_dict(),
             "raw_content": self.raw_content,
             "redacted_content": self.redacted_content,
             "content_bytes": self.content_bytes,
@@ -100,10 +191,6 @@ class HydratedEvidence:
             "is_redacted": self.is_redacted,
             "redaction_metadata": self.redaction_metadata,
         }
-
-
-def _sha256_text(text: str) -> str:
-    return f"sha256:{hashlib.sha256(text.encode('utf-8', errors='replace')).hexdigest()}"
 
 
 def apply_redaction(
@@ -162,7 +249,7 @@ def _load_raw_json(path: Path) -> dict[str, Any] | None:
 
 def _extract_content_from_payload(
     payload: dict[str, Any],
-    citation: CitationTarget,
+    citation: CitationHandle,
 ) -> str | None:
     """Extract cited string content from a raw ATIF/Harbor payload."""
     target_type = citation.target_type
@@ -175,20 +262,26 @@ def _extract_content_from_payload(
     if not isinstance(steps, list):
         return None
 
-    step_idx = citation.step_index
     target_step: dict[str, Any] | None = None
+    step_id_target = citation.step_id
 
-    if step_idx is not None:
-        if 0 <= step_idx < len(steps) and isinstance(steps[step_idx], dict):
-            target_step = steps[step_idx]
-        else:
-            # Try 1-based index or step_id match
-            for s in steps:
-                if isinstance(s, dict) and (s.get("step_id") == step_idx or s.get("step_id") == str(step_idx)):
-                    target_step = s
-                    break
+    if step_id_target is not None:
+        for s in steps:
+            if isinstance(s, dict) and (
+                s.get("step_id") == step_id_target
+                or str(s.get("step_id")) == str(step_id_target)
+            ):
+                target_step = s
+                break
 
-    if target_step is None and steps and step_idx is None:
+    if target_step is None and steps:
+        try:
+            if isinstance(step_id_target, int) and 0 <= step_id_target < len(steps):
+                target_step = steps[step_id_target] if isinstance(steps[step_id_target], dict) else None
+        except Exception:
+            pass
+
+    if target_step is None and steps:
         target_step = steps[0] if isinstance(steps[0], dict) else None
 
     if target_step is None:
@@ -200,48 +293,62 @@ def _extract_content_from_payload(
     # Handle tool calls
     tool_calls = target_step.get("tool_calls") or []
     if target_type in ("tool_call", "arguments"):
-        call_idx = citation.call_index or 0
-        if 0 <= call_idx < len(tool_calls) and isinstance(tool_calls[call_idx], dict):
-            tc = tool_calls[call_idx]
+        target_tc: dict[str, Any] | None = None
+        if citation.tool_call_id:
+            for tc in tool_calls:
+                if isinstance(tc, dict) and (tc.get("tool_call_id") == citation.tool_call_id or tc.get("id") == citation.tool_call_id):
+                    target_tc = tc
+                    break
+        if target_tc is None and tool_calls and isinstance(tool_calls[0], dict):
+            target_tc = tool_calls[0]
+
+        if target_tc:
             if target_type == "arguments":
-                args = tc.get("arguments") or tc.get("parameters") or tc.get("input")
+                args = target_tc.get("arguments") or target_tc.get("parameters") or target_tc.get("input")
                 return json.dumps(args, indent=2) if not isinstance(args, str) else args
-            return json.dumps(tc, indent=2)
+            return json.dumps(target_tc, indent=2)
         return None
 
     # Handle observations
     observations = target_step.get("observations") or []
     if target_type in ("observation", "stderr", "stdout"):
-        obs_idx = citation.observation_index or 0
-        if 0 <= obs_idx < len(observations) and isinstance(observations[obs_idx], dict):
-            obs = observations[obs_idx]
-            content = obs.get("content") or obs.get("output") or obs.get("result")
+        target_obs: dict[str, Any] | None = None
+        if citation.source_call_id:
+            for obs in observations:
+                if isinstance(obs, dict) and obs.get("source_call_id") == citation.source_call_id:
+                    target_obs = obs
+                    break
+        if target_obs is None and citation.observation_index is not None and 0 <= citation.observation_index < len(observations) and isinstance(observations[citation.observation_index], dict):
+            target_obs = observations[citation.observation_index]
+        if target_obs is None and observations and isinstance(observations[0], dict):
+            target_obs = observations[0]
+
+        if target_obs:
+            content = target_obs.get("content") or target_obs.get("output") or target_obs.get("result")
             if target_type == "stderr":
-                extra = obs.get("extra")
+                extra = target_obs.get("extra")
                 if isinstance(extra, dict) and extra.get("stderr"):
                     return str(extra["stderr"])
-                # Check if content has stderr structure
                 if isinstance(content, dict) and "stderr" in content:
                     return str(content["stderr"])
             elif target_type == "stdout":
-                extra = obs.get("extra")
+                extra = target_obs.get("extra")
                 if isinstance(extra, dict) and extra.get("stdout"):
                     return str(extra["stdout"])
                 if isinstance(content, dict) and "stdout" in content:
                     return str(content["stdout"])
-            
+
             if isinstance(content, str):
                 return content
             elif content is not None:
                 return json.dumps(content, indent=2)
         return None
 
-    # Fallback to entire step
     return json.dumps(target_step, indent=2)
 
 
 def hydrate_citation(
-    citation: CitationTarget,
+    citation: CitationHandle,
     *,
     trial_dir: Path | None = None,
     repo_root: Path | None = None,
@@ -269,38 +376,74 @@ def hydrate_citation(
     raw_text: str | None = None
     limitation_metadata: dict[str, Any] = {}
 
-    # 2. If cas_uri is present, resolve from CAS store and verify digest
-    if citation.cas_uri:
-        store_root = (repo_root / "evidence" / "cas") if repo_root else Path("evidence/cas")
+    # 2. If raw_cas_uri / cas_uri is present, restore the archive to temporary root and extract cited member
+    cas_target = citation.raw_cas_uri or citation.cas_uri
+    temp_cas_dir: tempfile.TemporaryDirectory[str] | None = None
+    if cas_target:
+        if repo_root is not None and (repo_root / "blobs").exists():
+            store_root = repo_root
+        else:
+            store_root = (repo_root / "derived" / "evidence-cas") if repo_root else Path("derived/evidence-cas")
+            if not store_root.exists() and repo_root:
+                alt_cas = repo_root / "evidence" / "cas"
+                if alt_cas.exists():
+                    store_root = alt_cas
         try:
-            archive_path = load_archive(store_root, citation.cas_uri)
-            if not archive_path.is_file():
-                limitation_metadata["limitation_reason"] = "cas_archive_not_found"
-                limitation_metadata["cas_uri"] = citation.cas_uri
-                raw_text = f"[EvidenceLimitation: cas_archive_not_found uri={citation.cas_uri}]"
+            temp_cas_dir = tempfile.TemporaryDirectory()
+            extracted_path = Path(temp_cas_dir.name)
+            restore_evidence(store_root, cas_target, extracted_path)
+            if citation.source_path:
+                raw_src = citation.source_path.strip()
+                if Path(raw_src).is_absolute() or raw_src.startswith("/") or raw_src.startswith("\\"):
+                    raise CitationPathJailError(
+                        f"Citation source_path must be relative, got absolute path: {citation.source_path!r}"
+                    )
+                extracted_resolved = extracted_path.resolve()
+                cand_member_resolved = (extracted_path / raw_src).resolve()
+                if not (cand_member_resolved == extracted_resolved or cand_member_resolved.is_relative_to(extracted_resolved)):
+                    raise CitationPathJailError(
+                        f"Citation source_path {citation.source_path!r} escapes CAS archive root {extracted_path}"
+                    )
+                cand_member = cand_member_resolved
             else:
-                raw_text = archive_path.read_text(encoding="utf-8", errors="replace")
-                expected_digest = citation.cas_uri.removeprefix("cas://sha256/").removeprefix("sha256:")
-                actual_digest = _sha256_text(raw_text).removeprefix("sha256:")
-                if expected_digest and actual_digest != expected_digest:
-                    limitation_metadata["limitation_reason"] = "cas_digest_mismatch"
-                    limitation_metadata["expected_digest"] = expected_digest
-                    limitation_metadata["actual_digest"] = actual_digest
-                    raw_text = f"[EvidenceLimitation: cas_digest_mismatch expected={expected_digest} actual={actual_digest}]"
+                cand_member = extracted_path / "agent" / "trajectory.json"
+
+            if not cand_member.is_file():
+                alt_traj = extracted_path / "agent" / "trajectory.json"
+                if alt_traj.is_file():
+                    cand_member = alt_traj
+                else:
+                    alt_traj2 = extracted_path / "trajectory.json"
+                    if alt_traj2.is_file():
+                        cand_member = alt_traj2
+            if cand_member.is_file():
+                payload = _load_raw_json(cand_member)
+                if payload is not None:
+                    raw_text = _extract_content_from_payload(payload, citation)
+                if raw_text is None:
+                    raw_text = cand_member.read_text(encoding="utf-8", errors="replace")
+            else:
+                limitation_metadata["limitation_reason"] = "cas_member_not_found"
+                limitation_metadata["source_path"] = citation.source_path
+                raw_text = f"[EvidenceLimitation: cas_member_not_found path={citation.source_path} uri={cas_target}]"
+        except CitationPathJailError:
+            raise
         except FileNotFoundError as fnf:
             limitation_metadata["limitation_reason"] = "cas_archive_not_found"
             limitation_metadata["error_detail"] = str(fnf)
-            raw_text = f"[EvidenceLimitation: cas_archive_not_found uri={citation.cas_uri}]"
+            raw_text = f"[EvidenceLimitation: cas_archive_not_found uri={cas_target}]"
         except Exception as exc:
             limitation_metadata["limitation_reason"] = "cas_load_error"
             limitation_metadata["error_detail"] = f"{type(exc).__name__}: {exc}"
             raw_text = f"[EvidenceLimitation: cas_load_error {type(exc).__name__}: {exc}]"
-
+        finally:
+            if temp_cas_dir is not None:
+                with contextlib.suppress(Exception):
+                    temp_cas_dir.cleanup()
     # 3. Resolve from trial directory if not loaded from CAS
     if raw_text is None and trial_dir is not None:
         candidate_file = trial_dir / citation.source_path
         if not candidate_file.is_file():
-            # Try searching agent/ or sessions/
             alt1 = trial_dir / "agent" / "trajectory.json"
             if alt1.is_file():
                 candidate_file = alt1
@@ -341,6 +484,7 @@ def hydrate_citation(
         redaction_metadata=meta,
     )
 
+
 def hydrate_error_observations(
     trial_dir: Path,
     outline: TrajectoryOutline,
@@ -352,8 +496,7 @@ def hydrate_error_observations(
         policy = RedactionPolicy()
 
     error_evidences: list[HydratedEvidence] = []
-    
-    # Load primary trajectory JSON
+
     traj_path = trial_dir / outline.source_path
     if not traj_path.is_file():
         traj_path = trial_dir / "agent" / "trajectory.json"
@@ -361,24 +504,23 @@ def hydrate_error_observations(
     payload = _load_raw_json(traj_path) if traj_path.is_file() else None
     raw_steps_obj = payload.get("steps") if payload else None
     steps_payload: list[Any] = raw_steps_obj if isinstance(raw_steps_obj, list) else []
+
     for step in outline.steps:
         is_failing = (step.exit_code is not None and step.exit_code != 0) or step.is_error
         if not is_failing:
             continue
 
-        citation = CitationTarget(
-            trial_id=outline.trial_id,
+        citation = create_citation_handle(
             source_path=outline.source_path,
             source_sha256=outline.source_sha256,
-            step_index=step.step_id,
+            step_id=step.step_id,
             target_type="observation",
         )
 
         raw_obs_text = ""
-        # Find raw step in payload
         matched_raw_step: dict[str, Any] | None = None
         for s in steps_payload:
-            if isinstance(s, dict) and (s.get("step_id") == step.step_id or s.get("step_id") == str(step.step_id)):
+            if isinstance(s, dict) and (s.get("step_id") == step.step_id or str(s.get("step_id")) == str(step.step_id)):
                 matched_raw_step = s
                 break
 

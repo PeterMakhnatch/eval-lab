@@ -4914,6 +4914,78 @@
       }
     ]
   },
+  "traj align": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Write alignment JSON to file",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "runs_dir",
+        "flags": [
+          "--runs-dir"
+        ],
+        "help": "Override candidate runs root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "trial_a",
+        "flags": [],
+        "help": "First trial identifier, directory, or result.json",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "trial_b",
+        "flags": [],
+        "help": "Second trial identifier, directory, or result.json",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
   "traj card": {
     "options": [
       {
@@ -4969,6 +5041,66 @@
           "-o"
         ],
         "help": "Write card markdown to file",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "runs_dir",
+        "flags": [
+          "--runs-dir"
+        ],
+        "help": "Override candidate runs root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "trial",
+        "flags": [],
+        "help": "Trial identifier, directory, or result.json",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
+        "type": null
+      }
+    ]
+  },
+  "traj ir": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Write IR JSON to file",
         "metavar": null,
         "nargs": null,
         "required": false,
@@ -5160,6 +5292,125 @@
         "metavar": null,
         "nargs": 0,
         "required": false,
+        "type": null
+      }
+    ]
+  },
+  "traj pack": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": 16000,
+        "dest": "budget",
+        "flags": [
+          "--budget"
+        ],
+        "help": "Token budget (default: 16000)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "int"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": [
+          "json",
+          "markdown"
+        ],
+        "default": "markdown",
+        "dest": "format",
+        "flags": [
+          "--format"
+        ],
+        "help": "Output format",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "json",
+        "flags": [
+          "--json"
+        ],
+        "help": "Emit EvidencePack as JSON",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreTrueAction",
+        "choices": null,
+        "default": false,
+        "dest": "no_redact",
+        "flags": [
+          "--no-redact"
+        ],
+        "help": "Disable on-read secret redaction",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "output",
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "help": "Write EvidencePack to file",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "runs_dir",
+        "flags": [
+          "--runs-dir"
+        ],
+        "help": "Override candidate runs root",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "trial",
+        "flags": [],
+        "help": "Trial identifier, directory, or result.json",
+        "metavar": null,
+        "nargs": null,
+        "required": true,
         "type": null
       }
     ]

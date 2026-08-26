@@ -1351,3 +1351,174 @@ def test_r1_real_absolutepath_argument_shape_labels() -> None:
     )
     assert findings[0].class_id == "wrong_target_or_action"
     assert "release.ts" in findings[0].verbatim_quotes[0]["quote"]
+
+
+def _corrected_shape_pack_events():
+    """Real corrected-pack shape: instruction window (steps 1-3) + terminal window
+    (steps N-2..N) whose agent messages carry the REAL silent-termination payload
+    (hydrated json with "message": "" — captured from the gen-3 bun pack)."""
+    silent = json.dumps(
+        {"step_id": 102, "source": "agent", "message": "", "model_name": "m", "llm_call_count": 1}
+    )
+    instruction = [
+        make_event(
+            event_id="e-u",
+            citation_id="cit_u",
+            event_type="user_message",
+            actor="user",
+            ordinal=0,
+            step_index=1,
+            summary="prompt",
+        ),
+        make_event(
+            event_id="e-a1",
+            citation_id="cit_a1",
+            event_type="agent_message",
+            actor="agent",
+            ordinal=1,
+            step_index=2,
+            hydrated_content=silent,
+        ),
+        make_event(
+            event_id="e-t1",
+            citation_id="cit_t1",
+            event_type="tool_call",
+            ordinal=2,
+            step_index=3,
+            program="ls",
+            summary="ls",
+        ),
+    ]
+    terminal = [
+        make_event(
+            event_id="e-a2",
+            citation_id="cit_a2",
+            event_type="agent_message",
+            actor="agent",
+            ordinal=3,
+            step_index=102,
+            hydrated_content=silent,
+        ),
+        make_event(
+            event_id="e-a3",
+            citation_id="cit_a3",
+            event_type="agent_message",
+            actor="agent",
+            ordinal=4,
+            step_index=104,
+            hydrated_content=silent,
+        ),
+    ]
+    return instruction, terminal
+
+
+def _two_window_pack(instruction, terminal, omitted_mid):
+    pack = make_pack(events=instruction, omitted=[omitted_mid])
+    pack["selected_windows"] = [
+        {
+            "window_id": 1,
+            "reason": "instruction_boundary",
+            "step_start": 1,
+            "step_end": 3,
+            "event_count": len(instruction),
+            "events": instruction,
+            "reopening_citation": make_citation("cit_w1"),
+        },
+        {
+            "window_id": 2,
+            "reason": "terminal_boundary",
+            "step_start": 102,
+            "step_end": 104,
+            "event_count": len(terminal),
+            "events": terminal,
+            "reopening_citation": make_citation("cit_w2"),
+        },
+    ]
+    return pack
+
+
+def test_r1_terminal_present_mid_omitted_reports_decisive_context_omitted() -> None:
+    instruction, terminal = _corrected_shape_pack_events()
+    omitted_mid = {
+        "range_id": 1,
+        "step_start": 4,
+        "step_end": 101,
+        "event_count": 98,
+        "action_families": ["command_execution"],
+        "summary": "Omitted 98 routine event(s) across action families: command_execution",
+        "reopening_citation": make_citation("cit_reopen_mid", step_id=4),
+    }
+    pack = _two_window_pack(instruction, terminal, omitted_mid)
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=instruction + terminal))), "r1"
+    )
+    assert findings[0].abstention_reason == "pack_incomplete"
+    assert findings[0].coverage_gaps.count("decisive_context_omitted") == 1
+    assert "terminal_window_absent" not in findings[0].coverage_gaps
+    assert "cit_reopen_mid" in findings[0].citations
+
+
+def test_r1_terminal_window_truly_absent_reports_terminal_window_absent() -> None:
+    # Real old-pack (gen-1) shape: single execution_sample window steps 1-3,
+    # everything after omitted including the terminal steps.
+    instruction, _terminal = _corrected_shape_pack_events()
+    omitted_tail = {
+        "range_id": 1,
+        "step_start": 4,
+        "step_end": 104,
+        "event_count": 101,
+        "action_families": ["command_execution", "other"],
+        "summary": "Omitted 101 routine event(s) across action families: command_execution, other",
+        "reopening_citation": make_citation("cit_reopen_tail", step_id=4),
+    }
+    pack = make_pack(events=instruction, omitted=[omitted_tail])
+    findings = by_recipe(run_recipes(artifacts_from(pack, make_ir(events=instruction))), "r1")
+    assert findings[0].abstention_reason == "pack_incomplete"
+    assert "terminal_window_absent" in findings[0].coverage_gaps
+    assert "decisive_context_omitted" not in findings[0].coverage_gaps
+
+
+def test_r1_representative_cases_never_emit_old_reason_token() -> None:
+    """Behavioral cutover: across representative R1 omission cases (terminal
+    present + mid omitted; terminal truly absent; terminal-marker omitted range),
+    no returned RecipeFinding carries the retired terminal_window_omitted token
+    in coverage_gaps or anywhere in its serialized form."""
+    instruction, terminal = _corrected_shape_pack_events()
+    omitted_mid = {
+        "range_id": 1,
+        "step_start": 4,
+        "step_end": 101,
+        "event_count": 98,
+        "action_families": ["command_execution"],
+        "summary": "Omitted 98 routine event(s)",
+        "reopening_citation": make_citation("cit_reopen_mid", step_id=4),
+    }
+    omitted_tail = {
+        "range_id": 1,
+        "step_start": 4,
+        "step_end": 104,
+        "event_count": 101,
+        "action_families": ["other"],
+        "summary": "Omitted 101 routine event(s)",
+        "reopening_citation": make_citation("cit_reopen_tail", step_id=4),
+    }
+    omitted_marker = {
+        "range_id": 1,
+        "step_start": 10,
+        "step_end": 20,
+        "event_count": 8,
+        "action_families": ["other"],
+        "summary": "terminal outcome omitted",
+        "reopening_citation": make_citation("cit_reopen_marker", step_id=10),
+    }
+    cases = [
+        _two_window_pack(instruction, terminal, omitted_mid),
+        make_pack(events=instruction, omitted=[omitted_tail]),
+        make_pack(events=instruction, omitted=[omitted_marker]),
+    ]
+    for pack in cases:
+        events = [e for w in pack["selected_windows"] for e in w["events"]]
+        findings = run_recipes(artifacts_from(pack, make_ir(events=events)))
+        for finding in findings:
+            assert "terminal_window_omitted" not in finding.coverage_gaps
+            assert "terminal_window_omitted" not in json.dumps(finding.model_dump(mode="json"))

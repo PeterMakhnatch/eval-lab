@@ -574,8 +574,13 @@ def run_harbor_process(
             start_new_session=True,
         )
         started = time.monotonic()
+        if lease_path is not None:
+            try:
+                if lease_path.is_file():
+                    lease_path.touch()
+            except OSError:
+                pass
         last_heartbeat = started
-        first_seen: dict[Path, float] = {}
         while True:
             returncode = process.poll()
             if returncode is not None:

@@ -2,6 +2,7 @@ name: tau-knowledge-lean
 
 on:
   pull_request:
+    branches: [main]
     paths:
       - "library/benchmarks/tau-knowledge/**"
       - "scripts/tau_knowledge/**"

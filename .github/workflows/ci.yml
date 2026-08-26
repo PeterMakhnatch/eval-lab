@@ -28,7 +28,7 @@ jobs:
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
-      - run: uv sync --locked
+      - run: uv sync --locked --no-group observability
       - run: uv run ruff check .
       - name: Documentation front-matter and index freshness
         run: uv run python -m evallab.docindex check
@@ -56,7 +56,7 @@ jobs:
         run: |
           uv python install ${{ matrix.python-version }}
           echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
-      - run: uv sync --locked
+      - run: uv sync --locked --no-group observability
       - run: uv run pytest
       - if: matrix.python-version == '3.12'
         run: uv run python -m evallab.smoke --docker-free

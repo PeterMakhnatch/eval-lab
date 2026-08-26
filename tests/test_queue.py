@@ -1058,28 +1058,47 @@ def test_stale_lease_is_reclaimed_on_acquire(tmp_path: Path) -> None:
     queue.release_lease(s)
 
 
-def test_runner_wrapper_touches_lease_heartbeat(tmp_path: Path) -> None:
+def test_runner_wrapper_touches_lease_for_fast_process(tmp_path: Path) -> None:
     from evallab.runner import run_harbor_process
 
     lease_path = tmp_path / "test.lease"
     lease_path.touch()
-    past = time.time() - 100.0
-    os.utime(lease_path, (past, past))
+    past_ns = lease_path.stat().st_mtime_ns - 100_000_000_000
+    os.utime(lease_path, ns=(past_ns, past_ns))
 
-    log_path = tmp_path / "process.log"
-    # Run a short command (python sleep 0.1) with fast heartbeat interval (0.02s)
     result = run_harbor_process(
-        ["python3", "-c", "import time; time.sleep(0.1)"],
+        ["python3", "-c", "pass"],
         cwd=tmp_path,
         timeout_seconds=5.0,
-        log_path=log_path,
+        log_path=tmp_path / "process.log",
+        lease_path=lease_path,
+        heartbeat_interval_seconds=30.0,
+    )
+
+    assert result.returncode == 0
+    assert not result.timed_out
+    assert lease_path.stat().st_mtime_ns > past_ns
+
+def test_runner_wrapper_keeps_periodic_lease_heartbeat(tmp_path: Path) -> None:
+    from evallab.runner import run_harbor_process
+
+    lease_path = tmp_path / "test.lease"
+    lease_path.touch()
+    past_ns = lease_path.stat().st_mtime_ns - 100_000_000_000
+    os.utime(lease_path, ns=(past_ns, past_ns))
+
+    result = run_harbor_process(
+        ["python3", "-c", "import time; time.sleep(0.3)"],
+        cwd=tmp_path,
+        timeout_seconds=5.0,
+        log_path=tmp_path / "process.log",
         lease_path=lease_path,
         heartbeat_interval_seconds=0.02,
     )
+
     assert result.returncode == 0
     assert not result.timed_out
-    # Lease mtime was refreshed during execution
-    assert lease_path.stat().st_mtime >= time.time() - 5.0
+    assert lease_path.stat().st_mtime_ns > past_ns
 
 
 def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) -> None:

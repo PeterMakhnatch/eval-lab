@@ -1,0 +1,593 @@
+"""Contract counterexamples for analyst recipe engine v1 (R1–R7)."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from evallab.trajectory_judgment import canonical_json_digest
+from evallab.trajectory_recipes import (
+    CONTRACT_DIGEST,
+    PRODUCER,
+    RecipeFinding,
+    TrialArtifacts,
+    assert_citations_in_pack,
+    load_trial_artifacts,
+    run_recipes,
+)
+
+PROFILE = "sha256:" + "a" * 64
+ICO_TRIAL = "69a3ed7f-4303-4fc8-931e-1e842c3cb810"
+ANALYSES = Path("/Users/petermakhnatch/Developer/eval-lab/derived/analyses")
+DIGEST_A = "sha256:" + "1" * 64
+DIGEST_B = "sha256:" + "2" * 64
+TASK_DIGEST = "sha256:" + "3" * 64
+VERIFIER_DIGEST = "sha256:" + "4" * 64
+AGENT_CLASSES = {
+    "wrong_target_or_action",
+    "infrastructure_failure",
+    "successful_recovery",
+    "missed_recovery_opportunity",
+    "false_verification_or_unsupported_terminal_claim",
+}
+LEGACY_METRIC_KEYS = {
+    "linear_innocence",
+    "linear_innocence_screening",
+    "tool_error_rate",
+    "tool_error_rate_screening",
+    "context_burn_velocity",
+    "context_burn_velocity_screening",
+    "cache_hit_rate",
+    "cache_hit_rate_screening",
+    "loop_index",
+}
+
+
+def make_citation(cid: str, step_id: int = 1) -> dict:
+    return {
+        "citation_id": cid,
+        "availability": "available",
+        "call_index": None,
+        "cas_uri": None,
+        "content_sha256": None,
+        "ir_event_id": None,
+        "observation_index": None,
+        "raw_cas_uri": None,
+        "redaction_profile_digest": None,
+        "source_call_id": None,
+        "source_document_id": "main",
+        "source_path": "agent/trajectory.json",
+        "source_sha256": "aa" * 32,
+        "step_id": step_id,
+        "step_index": step_id,
+        "target_type": "step",
+        "tool_call_id": None,
+        "trial_id": None,
+    }
+
+
+def make_event(
+    *,
+    event_id: str,
+    citation_id: str,
+    event_type: str,
+    actor: str = "agent",
+    ordinal: int = 0,
+    step_index: int = 1,
+    exit_code: int | None = None,
+    exit_semantics: str = "unobserved",
+    is_error: bool = False,
+    program: str | None = None,
+    family: str = "other",
+    payload_digest: str | None = None,
+    summary: str = "",
+    hydrated_content: str | None = None,
+    call_index: int | None = 0,
+    matched_result_digest: str | None = None,
+) -> dict:
+    return {
+        "event_id": event_id,
+        "event_ordinal": ordinal,
+        "event_type": event_type,
+        "actor": actor,
+        "timestamp": None,
+        "phase": "work",
+        "episode_id": 1,
+        "step_index": step_index,
+        "call_index": call_index,
+        "action_family": family,
+        "status_owning_program": program,
+        "argument_skeleton": program,
+        "exit_code": exit_code,
+        "exit_semantics": exit_semantics,
+        "is_error": is_error,
+        "payload_digest": payload_digest or DIGEST_A,
+        "payload_bytes": 12,
+        "source_citation": make_citation(citation_id, step_id=step_index),
+        "summary": summary,
+        "hydrated_content": hydrated_content,
+        "matched_result_digest": matched_result_digest,
+        "tool_schema_digest": None,
+        "state_before_digest": None,
+        "state_after_digest": None,
+    }
+
+
+def make_pack(
+    *,
+    trial_id: str = "trial-synth",
+    quality_status: str = "pass",
+    events: list[dict] | None = None,
+    omitted: list[dict] | None = None,
+    exception_class: str | None = None,
+    final_verdict: str = "FAIL",
+    primary_reward: float | None = 0.0,
+    quality_findings: list[str] | None = None,
+    unpaired: int = 0,
+    task_digest: str | None = TASK_DIGEST,
+    verifier_digest: str | None = VERIFIER_DIGEST,
+    is_model_callable: bool = True,
+    abstain_required: bool = False,
+    overflow_reason: str | None = None,
+) -> dict:
+    events = events or [
+        make_event(
+            event_id="e-user",
+            citation_id="cit_user",
+            event_type="user_message",
+            actor="user",
+            ordinal=0,
+            step_index=1,
+            family="other",
+            summary="prompt",
+        )
+    ]
+    return {
+        "pack_version": "1.0",
+        "pack_digest": DIGEST_A,
+        "trial_id": trial_id,
+        "trial_name": "synth",
+        "job_id": "job",
+        "job_name": "job",
+        "task_name": "task",
+        "agent_name": "agent",
+        "model_name": "model",
+        "final_verdict": final_verdict,
+        "primary_reward": primary_reward,
+        "exception_class": exception_class,
+        "quality_status": quality_status,
+        "quality_findings": quality_findings or [],
+        "budget_tokens": 16000,
+        "consumed_tokens_est": 100,
+        "is_model_callable": is_model_callable,
+        "tiered_pack_required": False,
+        "abstain_required": abstain_required,
+        "overflow_reason": overflow_reason,
+        "redaction_profile_digest": DIGEST_B,
+        "global_outline": {"step_count": len(events), "prompt_tokens": 100, "cached_tokens": 10},
+        "episodes": [
+            {
+                "episode_id": 1,
+                "name": "work",
+                "episode_type": "inspection",
+                "start_ordinal": 0,
+                "end_ordinal": max(e.get("event_ordinal", 0) for e in events),
+                "event_count": len(events),
+                "tool_call_count": 0,
+                "error_count": 0,
+                "has_state_mutation": False,
+                "has_verification": False,
+                "summary": "synth",
+                "key_citations": [make_citation("cit_ep")],
+            }
+        ],
+        "selected_windows": [
+            {
+                "window_id": 1,
+                "reason": "execution_sample",
+                "step_start": min(e.get("step_index", 1) for e in events),
+                "step_end": max(e.get("step_index", 1) for e in events),
+                "event_count": len(events),
+                "events": events,
+                "reopening_citation": make_citation("cit_window"),
+            }
+        ],
+        "omitted_ranges": omitted or [],
+        "evidence_coverage": {
+            "unpaired_tool_calls_count": unpaired,
+            "linkage_coverage": "complete" if unpaired == 0 else "degraded",
+        },
+        "source_digests": {
+            "task_digest": task_digest,
+            "verifier_digest": verifier_digest,
+        },
+        "created_at": "2026-08-26T00:00:00Z",
+    }
+
+
+def make_ir(*, trial_id: str = "trial-synth", events: list[dict] | None = None) -> dict:
+    events = events or []
+    return {
+        "ir_version": "1.0",
+        "ir_digest": DIGEST_A,
+        "trial_id": trial_id,
+        "events": events,
+        "quality_status": "pass",
+        "quality_findings": [],
+        "unpaired_tool_calls_count": 0,
+        "linkage_coverage": "complete",
+        "final_verdict": "FAIL",
+        "exception_class": None,
+        "baseline_metrics": {
+            "prompt_tokens": 100,
+            "cached_tokens": 10,
+            "completion_tokens": 5,
+        },
+        "source_digests": {"task_digest": TASK_DIGEST, "verifier_digest": VERIFIER_DIGEST},
+    }
+
+
+def artifacts_from(
+    pack: dict,
+    ir: dict | None = None,
+    alignment: dict | None = None,
+) -> TrialArtifacts:
+    return TrialArtifacts(
+        trial_id=str(pack.get("trial_id") or "trial-synth"),
+        pack=pack,
+        ir=ir,
+        alignment_record_ref=alignment,
+        pack_only=ir is None,
+    )
+
+
+def by_recipe(findings: list[RecipeFinding], recipe_id: str) -> list[RecipeFinding]:
+    return [finding for finding in findings if finding.recipe_id == recipe_id]
+
+
+def test_quarantine_excluded() -> None:
+    grep = make_event(
+        event_id="e-grep",
+        citation_id="cit_grep",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program="grep",
+        family="command_execution",
+        exit_code=1,
+        is_error=True,
+        summary="grep miss",
+    )
+    pack = make_pack(quality_status="quarantined", events=[grep], exception_class=None)
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[grep])))
+    labeled = [f for f in findings if f.recipe_id != "r7" and f.class_id is not None]
+    assert labeled == []
+    assert all(f.class_id not in AGENT_CLASSES for f in findings)
+    assert any("quality_excluded" in f.coverage_gaps for f in findings if f.recipe_id == "r1")
+
+
+def test_grep_exit_1_with_profile_expected_negative() -> None:
+    grep = make_event(
+        event_id="e-grep",
+        citation_id="cit_grep",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program="grep",
+        family="command_execution",
+        exit_code=1,
+        exit_semantics="error",
+        is_error=True,
+        summary="grep pattern",
+        matched_result_digest=DIGEST_B,
+    )
+    pack = make_pack(events=[grep])
+    findings = run_recipes(
+        artifacts_from(pack, make_ir(events=[grep])),
+        semantics_profile_digest=PROFILE,
+    )
+    r2 = by_recipe(findings, "r2")
+    assert r2 and r2[0].class_id == "expected_negative_exit"
+    assert all(f.class_id != "wrong_target_or_action" for f in r2)
+
+
+def test_grep_exit_1_without_profile_unknown() -> None:
+    grep = make_event(
+        event_id="e-grep",
+        citation_id="cit_grep",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program="grep",
+        family="command_execution",
+        exit_code=1,
+        exit_semantics="error",
+        is_error=True,
+        summary="grep pattern",
+        matched_result_digest=DIGEST_B,
+    )
+    pack = make_pack(events=[grep])
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[grep])))
+    r2 = by_recipe(findings, "r2")
+    assert r2
+    assert r2[0].class_id is None
+    assert r2[0].abstention_reason == "profile_missing"
+    assert r2[0].extras.get("exit_semantics") == "unknown"
+    assert all(f.class_id != "expected_negative_exit" for f in findings)
+
+
+def test_adjacency_after_error_is_not_recovery() -> None:
+    err = make_event(
+        event_id="e-err",
+        citation_id="cit_err",
+        event_type="observation",
+        ordinal=1,
+        step_index=2,
+        is_error=True,
+        exit_semantics="error",
+        exit_code=1,
+        summary="tool failed",
+    )
+    nxt = make_event(
+        event_id="e-ok",
+        citation_id="cit_ok",
+        event_type="agent_message",
+        ordinal=2,
+        step_index=3,
+        summary="continuing",
+        hydrated_content=json.dumps({"message": "retrying with a new approach"}),
+    )
+    pack = make_pack(events=[err, nxt], final_verdict="PASS", primary_reward=1.0)
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[err, nxt])))
+    r5 = by_recipe(findings, "r5")
+    assert r5
+    assert all(f.class_id != "successful_recovery" for f in r5)
+    assert any(f.abstention_reason == "replay_oracle_unavailable" for f in r5)
+
+
+def test_identical_retry_thrashing_with_citations() -> None:
+    err = make_event(
+        event_id="e-err",
+        citation_id="cit_err",
+        event_type="observation",
+        actor="environment",
+        ordinal=0,
+        step_index=1,
+        is_error=True,
+        exit_semantics="error",
+        exit_code=2,
+        summary="fault",
+    )
+    a1 = make_event(
+        event_id="e-a1",
+        citation_id="cit_a1",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program="cat",
+        family="file_read",
+        payload_digest=DIGEST_A,
+        summary="cat a",
+        matched_result_digest=DIGEST_B,
+    )
+    a2 = make_event(
+        event_id="e-a2",
+        citation_id="cit_a2",
+        event_type="tool_call",
+        ordinal=2,
+        step_index=3,
+        program="cat",
+        family="file_read",
+        payload_digest=DIGEST_A,
+        summary="cat a again",
+        matched_result_digest=DIGEST_B,
+    )
+    pack = make_pack(events=[err, a1, a2])
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[err, a1, a2])))
+    r5 = by_recipe(findings, "r5")
+    hits = [f for f in r5 if f.class_id == "repeated_failure_or_thrashing"]
+    assert hits
+    assert hits[0].citations
+    allowed = {"cit_err", "cit_a1", "cit_a2", "cit_window", "cit_ep", "cit_user"}
+    assert set(hits[0].citations) <= allowed
+
+
+def test_refusal_claim_not_unsupported_success() -> None:
+    msg = make_event(
+        event_id="e-ref",
+        citation_id="cit_ref",
+        event_type="agent_message",
+        ordinal=1,
+        step_index=2,
+        summary="Sorry, I cannot fulfill your request.",
+        hydrated_content=json.dumps(
+            {
+                "step_id": 2,
+                "source": "agent",
+                "message": "Sorry, I cannot fulfill your request. I am unable to perform reverse engineering.",
+            }
+        ),
+    )
+    pack = make_pack(events=[msg], final_verdict="FAIL")
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[msg])))
+    r4 = by_recipe(findings, "r4")
+    assert r4 and r4[0].extras.get("claim_type") == "refusal"
+    assert all(f.class_id != "false_verification_or_unsupported_terminal_claim" for f in findings)
+
+
+def test_no_terminal_claim_opportunity_unknown() -> None:
+    tool = make_event(
+        event_id="e-tool",
+        citation_id="cit_tool",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program="ls",
+        family="file_read",
+        exit_code=0,
+        exit_semantics="success",
+        matched_result_digest=DIGEST_B,
+    )
+    pack = make_pack(events=[tool], omitted=[])
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[tool])))
+    r4 = by_recipe(findings, "r4")
+    assert r4 and r4[0].abstention_reason == "opportunity_unknown"
+
+
+def test_omitted_span_claim_pack_incomplete() -> None:
+    early = make_event(
+        event_id="e-user",
+        citation_id="cit_user",
+        event_type="user_message",
+        actor="user",
+        ordinal=0,
+        step_index=1,
+    )
+    omitted = {
+        "range_id": 1,
+        "step_start": 10,
+        "step_end": 20,
+        "event_count": 5,
+        "action_families": ["other"],
+        "summary": "terminal omitted",
+        "reopening_citation": make_citation("cit_reopen_terminal", step_id=10),
+    }
+    late = make_event(
+        event_id="e-claim",
+        citation_id="cit_late",
+        event_type="agent_message",
+        ordinal=9,
+        step_index=12,
+        summary="I completed the task successfully.",
+        hydrated_content=json.dumps({"message": "I completed the task successfully."}),
+    )
+    pack = make_pack(events=[early], omitted=[omitted])
+    ir = make_ir(events=[early, late])
+    findings = run_recipes(artifacts_from(pack, ir))
+    r4 = by_recipe(findings, "r4")
+    assert r4 and r4[0].abstention_reason == "pack_incomplete"
+    assert "cit_reopen_terminal" in r4[0].citations
+
+
+def test_no_context_events_opportunity_unknown() -> None:
+    pack = make_pack()
+    findings = run_recipes(artifacts_from(pack, make_ir(events=pack["selected_windows"][0]["events"])))
+    r6 = by_recipe(findings, "r6")
+    assert r6 and r6[0].abstention_reason == "opportunity_unknown"
+    assert all(f.class_id != "context_or_constraint_loss" for f in findings)
+
+
+def test_recovery_positive_replay_oracle_unavailable() -> None:
+    err = make_event(
+        event_id="e-err",
+        citation_id="cit_err",
+        event_type="observation",
+        ordinal=0,
+        step_index=1,
+        is_error=True,
+        exit_semantics="error",
+        exit_code=1,
+        summary="failed",
+    )
+    edit = make_event(
+        event_id="e-edit",
+        citation_id="cit_edit",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program="sed",
+        family="file_edit",
+        payload_digest=DIGEST_B,
+        summary="changed strategy",
+        matched_result_digest=DIGEST_A,
+    )
+    pack = make_pack(events=[err, edit], final_verdict="PASS", primary_reward=1.0)
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[err, edit])))
+    r5 = by_recipe(findings, "r5")
+    assert any(f.abstention_reason == "replay_oracle_unavailable" for f in r5)
+    assert all(f.class_id not in {"successful_recovery", "missed_recovery_opportunity"} for f in r5)
+
+
+def test_legacy_metric_names_absent_from_r7() -> None:
+    pack = make_pack()
+    findings = run_recipes(artifacts_from(pack, make_ir()))
+    r7 = by_recipe(findings, "r7")
+    assert r7
+    dumped = r7[0].model_dump()
+    extras = dumped["extras"]
+    for name in LEGACY_METRIC_KEYS:
+        assert name not in extras
+        assert name not in dumped
+    assert "recipe_loop_index" in extras
+    assert "recipe_error_rate" in extras
+    assert "recipe_cbv" in extras
+    assert "recipe_cache_ratio" in extras
+    blocked = extras.get("blocked_metric") or []
+    assert blocked
+    assert any(item in LEGACY_METRIC_KEYS or item == "linear_innocence" for item in blocked)
+    assert r7[0].disposition == "screening_only"
+    assert r7[0].class_id is None
+    assert r7[0].validity is None
+
+
+def test_citation_validation_raises() -> None:
+    pack = make_pack()
+    finding = RecipeFinding(
+        finding_id=canonical_json_digest({"x": 1}),
+        recipe_id="r1",
+        trial_id="trial-synth",
+        disposition="candidate_hold",
+        validity="insufficient_evidence",
+        class_id=None,
+        support_level="e0",
+        earliest_supported_ir_event_id=None,
+        citations=["cit_not_in_pack"],
+        alternative_explanations=[],
+        coverage_gaps=[],
+        abstention_reason=None,
+        extras={},
+        producer=PRODUCER,
+        contract_digest=CONTRACT_DIGEST,
+        is_machine_judgment=False,
+    )
+    with pytest.raises(ValueError, match="not in pack"):
+        assert_citations_in_pack(finding, pack)
+
+
+def test_pack_only_mode(tmp_path: Path) -> None:
+    pack = make_pack(trial_id="trial-packonly")
+    digest_dir = tmp_path / "trial-packonly" / "deadbeef"
+    digest_dir.mkdir(parents=True)
+    (digest_dir / "evidence_pack.json").write_text(json.dumps(pack), encoding="utf-8")
+    artifacts = load_trial_artifacts(tmp_path, "trial-packonly")
+    assert artifacts.pack_only is True
+    findings = run_recipes(artifacts)
+    assert any("ir_sidecar_missing" in f.coverage_gaps for f in findings)
+    assert {f.producer for f in findings} == {PRODUCER}
+    assert all(f.is_machine_judgment is False for f in findings)
+    assert {f.recipe_id for f in findings} >= {"r1", "r2", "r3", "r4", "r5", "r6", "r7"}
+
+
+def test_r3_pair_unavailable_and_confounded() -> None:
+    pack = make_pack()
+    findings = run_recipes(artifacts_from(pack, make_ir()))
+    r3 = by_recipe(findings, "r3")
+    assert r3 and r3[0].abstention_reason == "pair_unavailable"
+    assert r3[0].class_id is None
+    confounded = run_recipes(
+        artifacts_from(pack, make_ir(), alignment={"validity": "confounded"})
+    )
+    r3c = by_recipe(confounded, "r3")
+    assert r3c and r3c[0].abstention_reason == "confounded"
+
+
+@pytest.mark.skipif(not (ANALYSES / ICO_TRIAL).exists(), reason="ico-path-patch pack absent")
+def test_ico_path_patch_smoke() -> None:
+    artifacts = load_trial_artifacts(ANALYSES, ICO_TRIAL)
+    findings = run_recipes(artifacts)
+    r4 = by_recipe(findings, "r4")
+    assert r4 and any(f.extras.get("claim_type") == "refusal" for f in r4)
+    r1 = by_recipe(findings, "r1")
+    assert r1 and all(f.class_id != "infrastructure_failure" for f in r1)

@@ -154,10 +154,14 @@ def load_campaign_report_map(path: Path) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for item in items:
         if not isinstance(item, Mapping):
-            continue
+            raise ValueError("malformed campaign report source_ref: not an object")
         trial_raw, digest_raw = item.get("trial_id"), item.get("pack_digest")
-        if trial_raw is None or digest_raw is None or digest_raw == "":
-            continue
+        if trial_raw is None or not str(trial_raw):
+            raise ValueError("malformed campaign report source_ref: missing trial_id")
+        if digest_raw is None or not str(digest_raw):
+            raise ValueError(
+                f"malformed campaign report source_ref for trial {trial_raw}: missing pack_digest"
+            )
         trial_id, digest = str(trial_raw), _digest(str(digest_raw))
         previous = mapping.get(trial_id)
         if previous is not None and previous != digest:
@@ -171,9 +175,9 @@ def load_pack_map(path: Path) -> dict[str, str]:
     value = _read_json_object(path, label="pack map")
     mapping: dict[str, str] = {}
     for trial_raw, digest_raw in value.items():
-        if digest_raw is None or digest_raw == "":
-            continue
-        mapping[str(trial_raw)] = _digest(str(digest_raw))
+        if not isinstance(digest_raw, str) or not digest_raw:
+            raise ValueError(f"malformed pack map entry for trial {trial_raw}")
+        mapping[str(trial_raw)] = _digest(digest_raw)
     return mapping
 
 
@@ -232,7 +236,12 @@ def select_trial_sidecars(
     created_at / dirname fallback.
     """
     grouped = _discover_sidecars(analyses_dir)
-    wanted_trials = sorted(set(requested) if requested else grouped)
+    if requested:
+        wanted_trials = sorted(set(requested))
+    elif digest_map is not None:
+        wanted_trials = sorted(digest_map)
+    else:
+        wanted_trials = sorted(grouped)
     selected: dict[str, SelectedPack] = {}
     if digest_map is not None:
         for trial_id in wanted_trials:

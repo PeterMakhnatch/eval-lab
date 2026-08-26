@@ -7,6 +7,7 @@ records. Producer is analyst-recipe/v1; automatic acceptance is disabled.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -899,6 +900,56 @@ def _paired_action_observation(
     return None
 
 
+_WRONG_CONTENT_MARKERS = (
+    "no such file",
+    "not found",
+    "does not exist",
+    "permission denied",
+    "invalid",
+    "unknown option",
+    "error",
+)
+
+
+def _wrong_content_evidence(
+    ctx: _RecipeContext,
+    action: dict[str, Any],
+    obs: dict[str, Any],
+) -> tuple[str, str] | None:
+    """Deterministic wrong-content contradiction tying an error to the action's target.
+
+    Returns (observation citation, verbatim quote line) only when the observation is
+    error-evidenced AND an error line explicitly names a target token the agent chose.
+    Mere action+observation presence is never wrong_target evidence.
+    """
+    obs_cite = _event_citation(obs)
+    if obs_cite is None:
+        return None
+    exit_code = obs.get("exit_code")
+    error_evidenced = obs.get("is_error") is True or (
+        isinstance(exit_code, int)
+        and exit_code != 0
+        and ctx.profile is not None
+        and obs.get("exit_semantics") != "expected_negative"
+    )
+    if not error_evidenced:
+        return None
+    skeleton = action.get("argument_skeleton")
+    if not isinstance(skeleton, str) or not skeleton.strip():
+        return None
+    targets = [tok for tok in re.split(r"[^A-Za-z0-9_./-]+", skeleton) if len(tok) >= 3]
+    if not targets:
+        return None
+    for line in extract_hydrated_text(obs).splitlines():
+        lowered = line.lower()
+        if any(tok in line for tok in targets) and (
+            obs.get("is_error") is True
+            or any(marker in lowered for marker in _WRONG_CONTENT_MARKERS)
+        ):
+            return obs_cite, line
+    return None
+
+
 def _explicit_dependency(event: dict[str, Any], decisive: dict[str, Any]) -> bool:
     decisive_id = _event_id(decisive)
     decisive_cite = _event_citation(decisive)
@@ -1017,24 +1068,30 @@ def _run_r1(ctx: _RecipeContext) -> RecipeFinding:
         )
 
     paired = _paired_action_observation(ctx.window_events)
+    paired_without_evidence = False
     if paired is not None:
         action, obs = paired
         cited = [c for c in (_event_citation(action), _event_citation(obs)) if c]
         if _span_unpaired(ctx, [action, obs]):
             return _abstain(ctx, "r1", "linkage_unresolved", extras=extras, citations=cited)
-        extras["attribution_basis"] = "action_evidence"
-        return _emit(
-            ctx,
-            recipe_id="r1",
-            disposition="candidate_hold",
-            validity="supported",
-            class_id="wrong_target_or_action",
-            support_level="e1",
-            earliest_supported_ir_event_id=_event_id(action),
-            citations=cited,
-            coverage_gaps=ctx.gaps(),
-            extras=extras,
-        )
+        wrong_content = _wrong_content_evidence(ctx, action, obs)
+        if wrong_content is not None:
+            quote_cite, quote = wrong_content
+            extras["attribution_basis"] = "action_evidence"
+            return _emit(
+                ctx,
+                recipe_id="r1",
+                disposition="candidate_hold",
+                validity="supported",
+                class_id="wrong_target_or_action",
+                support_level="e1",
+                earliest_supported_ir_event_id=_event_id(action),
+                citations=cited,
+                coverage_gaps=ctx.gaps(),
+                extras=extras,
+                verbatim_quotes=[{"citation_id": quote_cite, "quote": quote}],
+            )
+        paired_without_evidence = True
 
     omitted = list(ctx.pack.get("omitted_ranges") or [])
     has_terminal = any(
@@ -1053,9 +1110,17 @@ def _run_r1(ctx: _RecipeContext) -> RecipeFinding:
             gaps=["terminal_window_omitted"],
         )
 
-    gaps = ["no_decisive_action_in_windows"]
+    gaps = (
+        ["no_cited_wrong_content_evidence"]
+        if paired_without_evidence
+        else ["no_decisive_action_in_windows"]
+    )
     if not has_terminal:
         gaps.append("no_terminal_claim_in_windows")
+    outline = ctx.pack.get("global_outline") or {}
+    has_calls = any(_is_call_event(event) for event in ctx.window_events)
+    if not has_calls and int(outline.get("step_count") or 0) <= 2:
+        gaps.append("premature_termination_has_no_ontology_class")
     return _emit(
         ctx,
         recipe_id="r1",

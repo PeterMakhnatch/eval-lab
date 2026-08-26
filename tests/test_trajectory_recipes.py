@@ -1076,3 +1076,101 @@ def test_precedence_demotion_moves_class_to_winner_and_recomputes_id() -> None:
     assert "wrong_target_or_action" in winner.alternative_explanations
     RecipeFinding.model_validate(loser.model_dump())
     RecipeFinding.model_validate(winner.model_dump())
+
+
+def _r1_pair(obs_error: bool, obs_content: str, program: str = "cat /app/missing.txt"):
+    action = make_event(
+        event_id="e-act",
+        citation_id="cit_act",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program=program,
+        family="command_execution",
+        payload_digest=DIGEST_A,
+        matched_result_digest=DIGEST_B,
+        summary="run command",
+    )
+    observation = make_event(
+        event_id="e-obs",
+        citation_id="cit_obs",
+        event_type="observation",
+        actor="environment",
+        ordinal=2,
+        step_index=2,
+        is_error=obs_error,
+        payload_digest=DIGEST_B,
+        hydrated_content=obs_content,
+        summary="result",
+    )
+    return action, observation
+
+
+def test_r1_paired_action_without_wrong_content_does_not_label() -> None:
+    action, observation = _r1_pair(False, "file contents listed fine")
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings and findings[0].class_id is None
+    assert findings[0].validity == "insufficient_evidence"
+    assert "no_cited_wrong_content_evidence" in findings[0].coverage_gaps
+
+
+def test_r1_omitted_terminal_blocks_even_wrong_content_evidence() -> None:
+    action, observation = _r1_pair(True, "cat: /app/missing.txt: No such file or directory")
+    omitted = {
+        "range_id": 1,
+        "step_start": 10,
+        "step_end": 20,
+        "event_count": 5,
+        "action_families": ["other"],
+        "summary": "terminal outcome omitted",
+        "reopening_citation": make_citation("cit_reopen_terminal", step_id=10),
+    }
+    pack = make_pack(events=[action, observation], omitted=[omitted])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id is None
+    assert findings[0].abstention_reason == "pack_incomplete"
+
+
+def test_r1_fast_crash_yields_insufficient_with_premature_gap() -> None:
+    user = make_event(
+        event_id="e-u",
+        citation_id="cit_u",
+        event_type="user_message",
+        actor="user",
+        ordinal=0,
+        step_index=1,
+        summary="prompt",
+    )
+    agent = make_event(
+        event_id="e-a",
+        citation_id="cit_a",
+        event_type="agent_message",
+        actor="agent",
+        ordinal=1,
+        step_index=2,
+        hydrated_content="I attempted the task but stopped.",
+    )
+    pack = make_pack(events=[user, agent])
+    pack["global_outline"]["step_count"] = 2
+    findings = by_recipe(run_recipes(artifacts_from(pack, make_ir(events=[user, agent]))), "r1")
+    assert findings[0].class_id is None
+    assert findings[0].validity == "insufficient_evidence"
+    assert "premature_termination_has_no_ontology_class" in findings[0].coverage_gaps
+
+
+def test_r1_wrong_content_positive_control_labels_with_quote() -> None:
+    action, observation = _r1_pair(True, "cat: /app/missing.txt: No such file or directory")
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id == "wrong_target_or_action"
+    assert findings[0].validity == "supported"
+    quotes = findings[0].verbatim_quotes
+    assert quotes and "missing.txt" in quotes[0]["quote"]
+    assert quotes[0]["citation_id"] == "cit_obs"

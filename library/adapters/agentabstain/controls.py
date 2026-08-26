@@ -6,6 +6,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from evallab.agentabstain_gate import evaluate_control_matrix
+
 from .adapter import EXPECTED_DRAFT_BODY, load_variants, primary_verdict
 from .runtime import EnvironmentState, handle_tool_call
 
@@ -76,3 +78,8 @@ def evaluate(seed: dict[str, Any]) -> dict[str, dict[str, Any]]:
         ),
     }
     return rows
+
+
+def evaluate_hardened_controls(pair_spec: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate all 9 mandatory controls using the hardened control runner."""
+    return evaluate_control_matrix(pair_spec)

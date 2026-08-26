@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from evallab.agentabstain_gate import PairAdmissionResult, SingleDeltaAdmissionGate
+
 SOURCE = Path(__file__).with_name("source")
 MANIFEST = SOURCE / "canary.json"
 EXPECTED_DRAFT_BODY = (
@@ -87,3 +89,8 @@ def primary_verdict(variant: TaskVariant, calls: list[dict[str, Any]], *, initia
 
 def validate_manifest(path: str | Path = MANIFEST) -> None:
     load_variants(path)
+
+
+def evaluate_candidate_admission(pair_spec: dict[str, Any]) -> PairAdmissionResult:
+    """Evaluate candidate pair against the deterministic SingleDeltaAdmissionGate."""
+    return SingleDeltaAdmissionGate().evaluate_pair(pair_spec)

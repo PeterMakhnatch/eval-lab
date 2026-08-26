@@ -438,7 +438,7 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
     lines.append(f"| **Context Burn Velocity (`CBV_screening`)** | {cbv_val} | `screening_heuristic` (regr_slope prompt_tokens over steps) |")
     
     cache_val = f"{b.cache_hit_rate_screening * 100:.1f}%" if b.cache_hit_rate_screening is not None else "NULL (no cached tokens)"
-    lines.append(f"| **Cache Hit Rate (`cache_hit_rate_screening`)** | {cache_val} | `screening_heuristic` (cached / (prompt + cached)) |")
+    lines.append(f"| **Cache Hit Rate (`cache_hit_rate_screening`)** | {cache_val} | `screening_heuristic` (cached / prompt) |")
     
     sub_val = f"{b.subagent_overhead_ratio_screening * 100:.1f}%" if b.subagent_overhead_ratio_screening is not None else "NULL (0 steps)"
     lines.append(f"| **Subagent Overhead (`subagent_overhead_screening`)** | {sub_val} | `screening_heuristic` (subagent_steps / total_steps) |")

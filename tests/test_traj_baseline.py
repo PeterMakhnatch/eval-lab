@@ -328,8 +328,8 @@ def test_compute_trace_baseline_populated(sample_steps: list[StepOutline]) -> No
     # TER = 2 errors / 3 tool calls = 0.6667
     assert baseline.tool_error_rate_screening == pytest.approx(0.6667, rel=1e-3)
     assert baseline.max_exit_code_cascade_screening == 2
-    # Cache hit rate = 2000 / (5100 + 2000) = 2000 / 7100 = 0.2817
-    assert baseline.cache_hit_rate_screening == pytest.approx(0.2817, rel=1e-3)
+    # Cache hit rate = 2000 / 5100 = 0.3922 (ATIF cached_tokens is a subset of prompt_tokens)
+    assert baseline.cache_hit_rate_screening == pytest.approx(2000 / 5100, rel=1e-3)
     # Total tokens = 5100 + 390 = 5490
     assert baseline.total_tokens == 5490
 
@@ -380,7 +380,7 @@ def test_duckdb_v_trace_baseline_view(repo_root: Path) -> None:
     assert row["tool_error_rate_screening"] == pytest.approx(1 / 5, rel=1e-3)
     assert row["context_burn_velocity_screening"] == pytest.approx(450.25, rel=1e-3)
     assert row["max_exit_code_cascade_screening"] == 2
-    assert row["cache_hit_rate_screening"] == pytest.approx(2000 / 10000, rel=1e-3)
+    assert row["cache_hit_rate_screening"] == pytest.approx(2000 / 8000, rel=1e-3)
     assert row["total_tokens"] == 8500
     assert row["subagent_overhead_ratio_screening"] == pytest.approx((10 - 8 - 1) / 10, rel=1e-3)
 

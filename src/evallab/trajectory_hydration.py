@@ -108,7 +108,9 @@ def create_citation_handle(
     cas_uri: str | None = None,
     ir_event_id: str | None = None,
     step_id: int | str | None = None,
+    step_index: int | str | None = None,
     tool_call_id: str | None = None,
+    call_index: int | None = None,
     source_call_id: str | None = None,
     observation_index: int | None = None,
     target_type: str = "step",
@@ -117,29 +119,35 @@ def create_citation_handle(
 ) -> CitationHandle:
     """Deterministic factory for canonical CitationHandle with content hashing."""
     actual_cas = raw_cas_uri or cas_uri
+    effective_step = step_id if step_id is not None else step_index
     loc_parts = [
         str(trial_id or ""),
         str(source_path),
         str(source_sha256),
         str(actual_cas or ""),
-        str(step_id or ""),
+        str(effective_step if effective_step is not None else ""),
         str(tool_call_id or ""),
+        str(call_index if call_index is not None else ""),
         str(source_call_id or ""),
-        str(observation_index or ""),
+        str(observation_index if observation_index is not None else ""),
         str(target_type),
     ]
-    cit_id = hashlib.sha256(":".join(loc_parts).encode("utf-8")).hexdigest()
+    loc_str = ":".join(loc_parts)
+    cit_id = f"cit_{hashlib.sha256(loc_str.encode('utf-8')).hexdigest()[:16]}"
 
     return CitationHandle(
-        citation_id=f"cit_{cit_id[:16]}",
+        citation_id=cit_id,
         trial_id=trial_id,
+        source_document_id="main",
         source_path=source_path,
         source_sha256=source_sha256,
         raw_cas_uri=actual_cas,
         cas_uri=actual_cas,
         ir_event_id=ir_event_id,
-        step_id=step_id,
+        step_id=effective_step,
+        step_index=effective_step,
         tool_call_id=tool_call_id,
+        call_index=call_index,
         source_call_id=source_call_id,
         observation_index=observation_index,
         target_type=target_type,
@@ -274,16 +282,6 @@ def _extract_content_from_payload(
                 target_step = s
                 break
 
-    if target_step is None and steps:
-        try:
-            if isinstance(step_id_target, int) and 0 <= step_id_target < len(steps):
-                target_step = steps[step_id_target] if isinstance(steps[step_id_target], dict) else None
-        except Exception:
-            pass
-
-    if target_step is None and steps:
-        target_step = steps[0] if isinstance(steps[0], dict) else None
-
     if target_step is None:
         return None
 
@@ -292,6 +290,7 @@ def _extract_content_from_payload(
 
     # Handle tool calls
     tool_calls = target_step.get("tool_calls") or []
+    observations = target_step.get("observations") or []
     if target_type in ("tool_call", "arguments"):
         target_tc: dict[str, Any] | None = None
         if citation.tool_call_id:
@@ -299,29 +298,39 @@ def _extract_content_from_payload(
                 if isinstance(tc, dict) and (tc.get("tool_call_id") == citation.tool_call_id or tc.get("id") == citation.tool_call_id):
                     target_tc = tc
                     break
-        if target_tc is None and tool_calls and isinstance(tool_calls[0], dict):
-            target_tc = tool_calls[0]
+        elif citation.call_index is not None and 0 <= citation.call_index < len(tool_calls) and isinstance(tool_calls[citation.call_index], dict):
+            target_tc = tool_calls[citation.call_index]
 
         if target_tc:
             if target_type == "arguments":
                 args = target_tc.get("arguments") or target_tc.get("parameters") or target_tc.get("input")
                 return json.dumps(args, indent=2) if not isinstance(args, str) else args
-            return json.dumps(target_tc, indent=2)
+
+            # Match sibling observation without fake positional fallback
+            tc_id = target_tc.get("tool_call_id") or target_tc.get("id")
+            matching_obs: dict[str, Any] | None = None
+            if tc_id is not None:
+                for obs in observations:
+                    if isinstance(obs, dict) and (obs.get("source_call_id") == tc_id or obs.get("tool_call_id") == tc_id):
+                        matching_obs = obs
+                        break
+
+            payload_out = {"tool_call": target_tc}
+            if matching_obs is not None:
+                payload_out["observation"] = matching_obs
+            return json.dumps(payload_out, indent=2)
         return None
 
     # Handle observations
-    observations = target_step.get("observations") or []
     if target_type in ("observation", "stderr", "stdout"):
         target_obs: dict[str, Any] | None = None
-        if citation.source_call_id:
+        if citation.source_call_id is not None:
             for obs in observations:
                 if isinstance(obs, dict) and obs.get("source_call_id") == citation.source_call_id:
                     target_obs = obs
                     break
-        if target_obs is None and citation.observation_index is not None and 0 <= citation.observation_index < len(observations) and isinstance(observations[citation.observation_index], dict):
+        elif citation.observation_index is not None and 0 <= citation.observation_index < len(observations) and isinstance(observations[citation.observation_index], dict):
             target_obs = observations[citation.observation_index]
-        if target_obs is None and observations and isinstance(observations[0], dict):
-            target_obs = observations[0]
 
         if target_obs:
             content = target_obs.get("content") or target_obs.get("output") or target_obs.get("result")

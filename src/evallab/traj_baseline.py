@@ -312,8 +312,8 @@ TRACE_BASELINE_PROVENANCE: dict[str, BaselineProvenance] = {
         category="screening_heuristic",
         is_screening=True,
         source_table="v_trace_baseline",
-        formula_or_rule="round(cached_tokens / (prompt_tokens + cached_tokens), 4)",
-        null_condition="NULL when prompt_tokens + cached_tokens == 0 or cached_tokens is NULL",
+        formula_or_rule="round(cached_tokens / prompt_tokens, 4)",
+        null_condition="NULL when prompt_tokens == 0 or cached_tokens is NULL",
         description="Screening heuristic: token cache hit ratio.",
     ),
     "subagent_overhead_ratio_screening": BaselineProvenance(
@@ -560,14 +560,12 @@ def compute_trace_baseline(outline: TrajectoryOutline) -> TraceBaselineRecord:
     max_cascade = _compute_exit_code_cascade(outline.steps)
 
     # 5. Cache hit rate screening
+    # 5. Cache hit rate screening (ATIF cached_tokens is a subset of prompt_tokens)
     cache_hit_rate: float | None = None
     p_tokens = feat.prompt_tokens
     c_tokens = feat.cached_tokens
-    if p_tokens is not None and c_tokens is not None:
-        total_p = p_tokens + c_tokens
-        if total_p > 0:
-            cache_hit_rate = round(c_tokens / total_p, 4)
-
+    if p_tokens is not None and c_tokens is not None and p_tokens > 0:
+        cache_hit_rate = round(c_tokens / p_tokens, 4)
     # 6. Total tokens (both prompt and completion tokens must be present, else NULL)
     comp_tokens = feat.completion_tokens
     total_tokens: int | None = None

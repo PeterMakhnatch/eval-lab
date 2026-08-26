@@ -163,7 +163,9 @@ def compute_evidence_coverage_metrics(
         has_result = bool(ir.source_digests.get("result_sha256") or ir.primary_reward is not None)
         has_state_journal = any(e.state_before_digest or e.state_after_digest for e in ir.events)
         has_ctrf = any(e.event_type == "verifier_check" for e in ir.events)
+
     has_cas = bool(ir.is_production_cas or ir.source_digests.get("cas_uri"))
+
     user_msgs = sum(1 for e in ir.events if e.event_type == "user_message" or e.actor == "user")
     agent_msgs = sum(1 for e in ir.events if e.event_type == "agent_message" or (e.actor == "agent" and not e.status_owning_program))
     tool_calls = sum(1 for e in ir.events if e.event_type == "tool_call" or e.call_index is not None)
@@ -188,7 +190,7 @@ def compute_evidence_coverage_metrics(
     max_cascade = ir.baseline_metrics.max_exit_code_cascade_screening
 
     state_mutations = sum(1 for e in ir.events if e.action_family in ("file_edit", "file_write"))
-    state_diff_obs = bool(has_state_journal or state_mutations > 0)
+    state_diff_obs = bool(has_state_journal)
     certified_pass = ir.primary_reward is not None and ir.primary_reward >= 1.0
     state_linked = any(e.state_before_digest or e.state_after_digest for e in ir.events) or has_state_journal
 
@@ -262,7 +264,7 @@ class EvidenceWindow:
     """A prioritized sequence of raw hydrated events around critical problem-solving moments."""
 
     window_id: int
-    reason: str  # "critical_error" | "terminal_evaluation" | "state_mutation" | "screening_recovery" | "verification" | "context_compaction" | "execution_sample"
+    reason: str  # "critical_error" | "terminal_evaluation" | "state_mutation" | "screening_recovery" | "verification" | "context_compaction" | "instruction_boundary" | "terminal_boundary" | "execution_sample"
     step_start: int
     step_end: int
     event_count: int
@@ -289,6 +291,7 @@ class OmittedRange:
     step_start: int
     step_end: int
     event_count: int
+    event_ids: tuple[str, ...]
     action_families: tuple[str, ...]
     summary: str
     omitted_content_digest: str  # SHA-256 over canonical JSON of omitted event payloads
@@ -300,6 +303,7 @@ class OmittedRange:
             "step_start": self.step_start,
             "step_end": self.step_end,
             "event_count": self.event_count,
+            "event_ids": list(self.event_ids),
             "action_families": list(self.action_families),
             "summary": self.summary,
             "omitted_content_digest": self.omitted_content_digest,
@@ -434,6 +438,8 @@ class EvidencePack:
                 content = ev.get("hydrated_content")
                 if content:
                     lines.append(f"    ```\n    {content[:300]}\n    ```")
+            lines.append("")
+
         if self.omitted_ranges:
             lines.append("## Omitted Routine Ranges")
             for om in self.omitted_ranges:
@@ -463,7 +469,7 @@ def reopen_omitted_range(
     if policy is None:
         policy = RedactionPolicy()
 
-    # Hydrate all steps across the omitted range
+    # Hydrate all steps across the omitted range and verify digest
     reopened_events: list[dict[str, Any]] = []
     root = (repo_root or Path.cwd()).resolve()
 
@@ -500,6 +506,7 @@ def reopen_omitted_range(
         reopening_citation=target_range.reopening_citation,
     )
 
+
 def build_evidence_pack(
     ir: TrajectoryIR,
     *,
@@ -535,6 +542,7 @@ def build_evidence_pack(
 
     # 2. Episode Summaries
     episodes_summary = [ep.to_dict() for ep in ir.episodes]
+
     all_steps_list = sorted({ev.step_index for ev in ir.events}) if ir.events else [1]
     min_step = all_steps_list[0]
     max_step = all_steps_list[-1]
@@ -555,10 +563,10 @@ def build_evidence_pack(
         if s not in critical_reasons:
             critical_reasons[s] = "terminal_boundary"
 
-    # 3. Critical Errors, Error-Adjacent Context, and Semantic Actions
+    # 3. Critical Errors (profile-aware ev.is_error ONLY), Error-Adjacent Context, and Semantic Actions
     prior_error_step: int | None = None
     for ev in ir.events:
-        if ev.is_error or (ev.exit_code is not None and ev.exit_code != 0):
+        if ev.is_error:
             critical_step_indices.add(ev.step_index)
             critical_reasons[ev.step_index] = "critical_error"
             # Anchor context step before
@@ -608,6 +616,7 @@ def build_evidence_pack(
                 curr_end = s
                 curr_reason = critical_reasons.get(s, "critical_event")
         window_step_ranges.append((curr_start, curr_end, curr_reason))
+
     # 4. Build EvidenceWindows and OmittedRanges (Whole-window selection, no byte-truncation)
     selected_windows: list[EvidenceWindow] = []
     omitted_ranges: list[OmittedRange] = []
@@ -686,6 +695,7 @@ def build_evidence_pack(
                 target_type="step",
                 redaction_profile_digest=policy_digest,
             )
+            om_event_ids = tuple(e.event_id for e in om_events)
             om_payloads = [e.to_dict() for e in om_events]
             om_digest = _sha256_canonical_json(om_payloads)
             summary_str = f"Omitted {len(om_events)} routine event(s) across action families: {', '.join(fams) if fams else 'inspection'}"
@@ -695,6 +705,7 @@ def build_evidence_pack(
                     step_start=om_start,
                     step_end=om_end,
                     event_count=len(om_events),
+                    event_ids=om_event_ids,
                     action_families=fams,
                     summary=summary_str,
                     omitted_content_digest=om_digest,
@@ -718,6 +729,7 @@ def build_evidence_pack(
     tiered_required = False
     abstain_required = False
     overflow_reason: str | None = None
+
     if ir.status == "accounted_unavailable" or ir.quality_status in ("fail", "quarantined", "no_atif"):
         is_callable = False
         abstain_required = True
@@ -729,6 +741,7 @@ def build_evidence_pack(
         is_callable = False
         tiered_required = True
         overflow_reason = f"mandatory_window_budget_overflow ({est_tokens} > {budget_tokens} tokens)"
+
     # 6. Fine-Grained Category Evidence Coverage
     coverage_metrics = compute_evidence_coverage_metrics(ir, trial_dir=trial_dir)
     coverage_dict = coverage_metrics.to_dict()

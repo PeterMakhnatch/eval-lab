@@ -127,3 +127,60 @@ def test_redaction_policy_digest_mints_distinct_pack_digest(canary_trial_dir: Pa
 
     assert pack1.redaction_profile_digest != pack2.redaction_profile_digest
     assert pack1.pack_digest != pack2.pack_digest
+
+
+def test_reopen_omitted_range_invalid_id_raises_value_error(canary_trial_dir: Path, repo_root: Path) -> None:
+    """Reopening a nonexistent omitted range id raises ValueError."""
+    ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
+    pack = build_evidence_pack(ir, trial_dir=canary_trial_dir)
+
+    with pytest.raises(ValueError, match="not found in pack"):
+        reopen_omitted_range(pack, 9999, trial_dir=canary_trial_dir, repo_root=repo_root)
+
+
+def test_multi_call_citation_handle_hydration_identity(tmp_path: Path, repo_root: Path) -> None:
+    """CitationHandle target_type='tool_call' hydrates specific tool call and sibling observation."""
+    import json
+
+    from evallab.trajectory_hydration import create_citation_handle, hydrate_citation
+
+    trial_dir = tmp_path / "t_multi_cit"
+    (trial_dir / "agent").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-cit-test",
+        "steps": [
+            {
+                "step_id": 1,
+                "source": "agent",
+                "tool_calls": [
+                    {"name": "bash", "arguments": {"command": "cat foo.txt"}, "tool_call_id": "call_a"},
+                    {"name": "edit", "arguments": {"file": "bar.txt"}, "tool_call_id": "call_b"},
+                ],
+                "observations": [
+                    {"source_call_id": "call_a", "content": "hello foo"},
+                    {"source_call_id": "call_b", "content": "edited bar"},
+                ],
+            }
+        ],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+
+    cit_a = create_citation_handle(
+        source_path="agent/trajectory.json",
+        step_id=1,
+        call_index=0,
+        tool_call_id="call_a",
+        target_type="tool_call",
+    )
+    assert cit_a.tool_call_id == "call_a"
+    assert cit_a.call_index == 0
+
+    hydrated_a = hydrate_citation(cit_a, trial_dir=trial_dir, repo_root=tmp_path)
+    parsed_a = json.loads(hydrated_a.redacted_content)
+    assert "tool_call" in parsed_a
+    assert parsed_a["tool_call"]["name"] == "bash"
+    assert "observation" in parsed_a
+    assert parsed_a["observation"]["content"] == "hello foo"
+    # Does not duplicate the other tool call
+    assert parsed_a["tool_call"]["tool_call_id"] == "call_a"

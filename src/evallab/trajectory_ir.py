@@ -762,44 +762,49 @@ def build_trajectory_ir(
                     tc_args = tc_dict.get("arguments") or (tc_dict.get("function", {}).get("arguments") if isinstance(tc_dict.get("function"), dict) else None)
                     tc_call_id = tc_dict.get("tool_call_id") or tc_dict.get("id")
 
-                    # Find matching observation
-                    matching_obs: dict[str, Any] = {}
-                    for obs in raw_observations:
-                        if isinstance(obs, dict) and (obs.get("source_call_id") == tc_call_id or obs.get("tool_call_id") == tc_call_id):
-                            matching_obs = obs
-                            break
-                    if not matching_obs and call_idx < len(raw_observations) and isinstance(raw_observations[call_idx], dict):
-                        matching_obs = raw_observations[call_idx]
-                    raw_extra = matching_obs.get("extra")
-                    obs_extra: dict[str, Any] = raw_extra if isinstance(raw_extra, dict) else {}
-                    exit_code = obs_extra.get("exit_code") if "exit_code" in obs_extra else matching_obs.get("exit_code", step.exit_code)
-                    obs_is_error = bool(obs_extra.get("is_error") or matching_obs.get("is_error") or (exit_code is not None and exit_code != 0))
+                    # Find matching observation strictly without fake positional fallback
+                    matching_obs: dict[str, Any] | None = None
+                    if tc_call_id is not None:
+                        for obs in raw_observations:
+                            if isinstance(obs, dict) and (obs.get("source_call_id") == tc_call_id or obs.get("tool_call_id") == tc_call_id):
+                                matching_obs = obs
+                                break
+
+                    obs_extra = matching_obs.get("extra") if (matching_obs and isinstance(matching_obs.get("extra"), dict)) else {}
+                    exit_code = obs_extra.get("exit_code") if "exit_code" in obs_extra else (matching_obs.get("exit_code", step.exit_code) if matching_obs else step.exit_code)
+                    obs_is_error = bool(obs_extra.get("is_error") or (matching_obs and matching_obs.get("is_error")) or (exit_code is not None and exit_code != 0))
                     cmd_str = tc_args if isinstance(tc_args, str) else (tc_args.get("command") if isinstance(tc_args, dict) else step.tool_command)
                     prog = _extract_status_owning_program(cmd_str, tc_name)
                     skeleton = _normalize_argument_skeleton(cmd_str, tc_args)
                     action_family = _classify_action_family(prog, tc_name, is_edit=bool(tc_name == "edit"))
                     exit_sem, is_true_err = _classify_exit_semantics(exit_code, prog, obs_is_error)
 
+                    ev_id = hashlib.sha256(
+                        f"{outline.trial_id}:{event_ord_counter}:tool_call:{step.step_id}:{call_idx}".encode()
+                    ).hexdigest()
+
                     citation = create_citation_handle(
                         source_path=rel_source_path,
                         source_sha256=outline.source_sha256,
                         raw_cas_uri=cas_uri,
                         step_id=step.step_id,
-                        target_type="step",
+                        call_index=call_idx,
+                        tool_call_id=tc_call_id,
+                        source_call_id=tc_call_id,
+                        target_type="tool_call",
+                        ir_event_id=ev_id,
                         redaction_profile_digest=policy.compute_digest(),
                     )
 
-                    payload_str = json.dumps({"tool_call": tc_dict, "observation": matching_obs})
+                    payload_data = {"tool_call": tc_dict}
+                    if matching_obs is not None:
+                        payload_data["observation"] = matching_obs
+                    payload_str = json.dumps(payload_data)
                     p_bytes = len(payload_str.encode("utf-8"))
                     p_digest = f"sha256:{hashlib.sha256(payload_str.encode('utf-8')).hexdigest()}"
-
                     cmd_snip = f": {str(cmd_str)[:60]}" if cmd_str else ""
                     exit_str = f" [exit {exit_code}]" if exit_code is not None else ""
                     summary = f"Tool {tc_name}{cmd_snip}{exit_str}"
-
-                    ev_id = hashlib.sha256(
-                        f"{outline.trial_id}:{event_ord_counter}:tool_call:{step.step_id}:{call_idx}".encode()
-                    ).hexdigest()
 
                     event = IREvent(
                         event_id=ev_id,

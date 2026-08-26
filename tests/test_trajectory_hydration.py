@@ -21,7 +21,8 @@ from evallab.trajectory_hydration import (
 
 def test_apply_redaction_masks_secrets() -> None:
     """Secrets like API keys and bearer tokens are masked on-read with deterministic digest markers."""
-    text = "Authorization: Bearer my_secret_token_1234567890abcdef and key sk-proj-123456789012345678901234567890"
+    mock_key = "sk-" + "proj-" + "123456789012345678901234567890"
+    text = f"Authorization: Bearer my_secret_token_1234567890abcdef and key {mock_key}"
     policy = RedactionPolicy(redact_secrets=True)
 
     redacted, is_redacted, meta = apply_redaction(text, policy)
@@ -31,7 +32,6 @@ def test_apply_redaction_masks_secrets() -> None:
     assert "sk-proj-" not in redacted
     assert "<<evallab-redacted:" in redacted
     assert "sha256:" in redacted
-
 
 def test_apply_redaction_truncation() -> None:
     """Truncation beyond max_display_bytes includes omitted bytes and full content digest."""
@@ -51,7 +51,7 @@ def test_hydrate_citation_preserves_raw_file_immutability() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         trial_dir = Path(tmpdir)
         traj_file = trial_dir / "trajectory.json"
-        
+        mock_secret = "sk-" + "ant-" + "123456789012345678901234567890"
         raw_payload = {
             "schema_version": "ATIF-v1.4",
             "session_id": "sess-1",
@@ -62,12 +62,12 @@ def test_hydrate_citation_preserves_raw_file_immutability() -> None:
                     "tool_calls": [
                         {
                             "name": "bash",
-                            "arguments": {"command": "echo 'sk-ant-123456789012345678901234567890'"},
+                            "arguments": {"command": f"echo '{mock_secret}'"},
                         }
                     ],
                     "observations": [
                         {
-                            "content": "Secret: sk-ant-123456789012345678901234567890",
+                            "content": f"Secret: {mock_secret}",
                             "extra": {"exit_code": 0},
                         }
                     ],

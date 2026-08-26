@@ -131,6 +131,36 @@ def test_z3_jobs_view_reads_job_level_parquet(tmp_path: Path) -> None:
         result.connection.close()
 
 
+def test_z3_jobs_view_prefers_job_level_over_legacy_trial_nested(tmp_path: Path) -> None:
+    """When both a job-level jobs.parquet and a legacy trial-nested jobs.parquet
+    exist for the same job, the job-level file must win — unioning both would
+    double-count job rows since jobs.parquet is keyed by job_id alone.
+    """
+    derived = tmp_path / "derived"
+    job_dir = derived / "job_id=abc123"
+    job_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "abc123", "status": "done"}]),
+        job_dir / "jobs.parquet",
+    )
+    legacy_dir = job_dir / "trial_id=legacytrial"
+    legacy_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "abc123", "status": "done"}]),
+        legacy_dir / "jobs.parquet",
+    )
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        jobs_count = result.connection.execute("SELECT COUNT(*) FROM jobs").fetchone()
+        assert jobs_count is not None
+        assert jobs_count[0] == 1
+        z3_jobs_count = result.connection.execute("SELECT COUNT(*) FROM z3.jobs").fetchone()
+        assert z3_jobs_count is not None
+        assert z3_jobs_count[0] == 1
+    finally:
+        result.connection.close()
+
+
 def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
     tmp_path: Path,
 ) -> None:

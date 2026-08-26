@@ -262,7 +262,7 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     missing = []
     for table in TABLES:
         view_globs: list[str] = []
-        if table in hot_tables:
+        if table in hot_tables and table not in job_tables:
             view_globs.append(str(root / Z3_HOT.format(table=table)))
         if table in job_tables:
             view_globs.append(str(root / Z3_JOB.format(table=table)))

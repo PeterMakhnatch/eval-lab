@@ -7,11 +7,11 @@ audience:
   - operator
 inputs:
   - path: docs/STATUS.md
-    digest: sha256:6af9bf3013bdb0a312dfb43c6fb32bfdc9309194612d60916781763940215c2d
+    digest: sha256:55f23857af607c7619bc568cadc5f4264e38191331823b16aff28982c525e02b
   - path: docs/agent-analysis.md
     digest: sha256:e490de090539722b445fb03f342254afe39f6109a39f5d6cb73fce3146ea8b89
   - path: docs/agent-profiles.md
-    digest: sha256:ee08d680acb7186f25d20565aec4eecfe691f3c4015cd85c93f885d853fe4da6
+    digest: sha256:25a39ca8addc9a13867db38340b7bd3606ca87b733a54dd0facb101d7ef8c5cc
   - path: docs/analysis-loop.md
     digest: sha256:a9a2f6a7763621408c6964f4bdeace731375b496f051e4386b53b879cc0e32b5
   - path: docs/analysis-worker.md
@@ -47,7 +47,7 @@ inputs:
   - path: docs/design-additions.md
     digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md
-    digest: sha256:5296adbaf445acdc3079724fd925fd93e8bd9b7732821b7c73769e7da3b1ff21
+    digest: sha256:f8ff1992bebff72877c2b9068159406fcd0dad15c2f933fbee6f939741dc1dee
   - path: docs/eval-cards.md
     digest: sha256:aef880b03991544c4420b0ca85c12e542aa28160149e5ca5c1207e422c359a36
   - path: docs/execution-tiers.md
@@ -136,7 +136,7 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/STATUS.md` | Research status — 2026-08-18 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
@@ -227,7 +227,7 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/STATUS.md` | Research status — 2026-08-18 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
@@ -257,7 +257,7 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
-| `docs/STATUS.md` | Research status — 2026-08-18 | `living` | `operator, builder, runner` |
+| `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |

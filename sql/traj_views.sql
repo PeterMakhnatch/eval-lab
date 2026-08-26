@@ -54,7 +54,9 @@ CREATE TABLE IF NOT EXISTS traj_features (
     primary_reward DOUBLE,
     exception_class VARCHAR,
     duration_seconds DOUBLE,
-    created_at VARCHAR
+    created_at VARCHAR,
+    context_burn_velocity_screening DOUBLE,
+    max_exit_code_cascade_screening BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS behavior_labels (
@@ -144,7 +146,9 @@ SELECT
     primary_reward,
     exception_class,
     duration_seconds,
-    created_at
+    created_at,
+    context_burn_velocity_screening,
+    max_exit_code_cascade_screening
 FROM traj_features;
 
 CREATE OR REPLACE VIEW v_traj_loops AS
@@ -308,16 +312,10 @@ SELECT
         WHEN tool_call_count > 0 THEN round(error_count * 1.0 / tool_call_count, 4)
         ELSE NULL
     END AS tool_error_rate_screening,
+    context_burn_velocity_screening,
+    max_exit_code_cascade_screening,
     CASE
-        WHEN agent_step_count > 1 AND prompt_tokens IS NOT NULL THEN round(prompt_tokens * 1.0 / agent_step_count, 2)
-        ELSE NULL
-    END AS context_burn_velocity_screening,
-    CASE
-        WHEN error_count > 0 THEN error_count
-        ELSE 0
-    END AS max_exit_code_cascade_screening,
-    CASE
-        WHEN (coalesce(prompt_tokens, 0) + coalesce(cached_tokens, 0)) > 0 AND cached_tokens IS NOT NULL
+        WHEN prompt_tokens IS NOT NULL AND cached_tokens IS NOT NULL AND (prompt_tokens + cached_tokens) > 0
         THEN round(cached_tokens * 1.0 / (prompt_tokens + cached_tokens), 4)
         ELSE NULL
     END AS cache_hit_rate_screening,
@@ -329,8 +327,8 @@ SELECT
     completion_tokens,
     cached_tokens,
     CASE
-        WHEN prompt_tokens IS NOT NULL OR completion_tokens IS NOT NULL
-        THEN coalesce(prompt_tokens, 0) + coalesce(completion_tokens, 0)
+        WHEN prompt_tokens IS NOT NULL AND completion_tokens IS NOT NULL
+        THEN prompt_tokens + completion_tokens
         ELSE NULL
     END AS total_tokens,
     cost_usd,

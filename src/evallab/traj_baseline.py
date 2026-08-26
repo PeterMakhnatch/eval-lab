@@ -572,12 +572,11 @@ def compute_trace_baseline(outline: TrajectoryOutline) -> TraceBaselineRecord:
         if total_p > 0:
             cache_hit_rate = round(c_tokens / total_p, 4)
 
-    # 6. Total tokens
+    # 6. Total tokens (both prompt and completion tokens must be present, else NULL)
     comp_tokens = feat.completion_tokens
     total_tokens: int | None = None
-    if p_tokens is not None or comp_tokens is not None:
-        total_tokens = (p_tokens or 0) + (comp_tokens or 0)
-
+    if p_tokens is not None and comp_tokens is not None:
+        total_tokens = p_tokens + comp_tokens
     # 7. Subagent overhead
     subagent_overhead = _compute_subagent_overhead(outline)
 

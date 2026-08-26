@@ -34,6 +34,10 @@ _REDACTED_MARKER_PATTERN = re.compile(
 )
 
 
+class CitationPathJailError(ValueError):
+    """Raised when a citation source_path is absolute or escapes the trial jail directory."""
+
+
 @dataclass(frozen=True)
 class CitationTarget:
     """Provenance citation to a specific element within trajectory evidence."""
@@ -249,19 +253,52 @@ def hydrate_citation(
     if policy is None:
         policy = RedactionPolicy()
 
-    raw_text: str | None = None
+    # 1. Path jailing enforcement: reject absolute paths and traversal escaping trial_dir
+    if citation.source_path:
+        raw_src = citation.source_path.strip()
+        if Path(raw_src).is_absolute() or raw_src.startswith("/") or raw_src.startswith("\\"):
+            raise CitationPathJailError(
+                f"Citation source_path must be relative, got absolute path: {citation.source_path!r}"
+            )
+        if trial_dir is not None:
+            trial_resolved = trial_dir.resolve()
+            candidate_file = (trial_dir / raw_src).resolve()
+            if not (candidate_file == trial_resolved or candidate_file.is_relative_to(trial_resolved)):
+                raise CitationPathJailError(
+                    f"Citation source_path {citation.source_path!r} escapes trial directory {trial_dir}"
+                )
 
-    # 1. If cas_uri is present, resolve from CAS store
+    raw_text: str | None = None
+    limitation_metadata: dict[str, Any] = {}
+
+    # 2. If cas_uri is present, resolve from CAS store and verify digest
     if citation.cas_uri:
         store_root = (repo_root / "evidence" / "cas") if repo_root else Path("evidence/cas")
         try:
             archive_path = load_archive(store_root, citation.cas_uri)
-            if archive_path.is_file():
+            if not archive_path.is_file():
+                limitation_metadata["limitation_reason"] = "cas_archive_not_found"
+                limitation_metadata["cas_uri"] = citation.cas_uri
+                raw_text = f"[EvidenceLimitation: cas_archive_not_found uri={citation.cas_uri}]"
+            else:
                 raw_text = archive_path.read_text(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
+                expected_digest = citation.cas_uri.removeprefix("cas://sha256/").removeprefix("sha256:")
+                actual_digest = _sha256_text(raw_text).removeprefix("sha256:")
+                if expected_digest and actual_digest != expected_digest:
+                    limitation_metadata["limitation_reason"] = "cas_digest_mismatch"
+                    limitation_metadata["expected_digest"] = expected_digest
+                    limitation_metadata["actual_digest"] = actual_digest
+                    raw_text = f"[EvidenceLimitation: cas_digest_mismatch expected={expected_digest} actual={actual_digest}]"
+        except FileNotFoundError as fnf:
+            limitation_metadata["limitation_reason"] = "cas_archive_not_found"
+            limitation_metadata["error_detail"] = str(fnf)
+            raw_text = f"[EvidenceLimitation: cas_archive_not_found uri={citation.cas_uri}]"
+        except Exception as exc:
+            limitation_metadata["limitation_reason"] = "cas_load_error"
+            limitation_metadata["error_detail"] = f"{type(exc).__name__}: {exc}"
+            raw_text = f"[EvidenceLimitation: cas_load_error {type(exc).__name__}: {exc}]"
 
-    # 2. Resolve from trial directory if not loaded from CAS
+    # 3. Resolve from trial directory if not loaded from CAS
     if raw_text is None and trial_dir is not None:
         candidate_file = trial_dir / citation.source_path
         if not candidate_file.is_file():
@@ -269,22 +306,32 @@ def hydrate_citation(
             alt1 = trial_dir / "agent" / "trajectory.json"
             if alt1.is_file():
                 candidate_file = alt1
-        
+
         if candidate_file.is_file():
             payload = _load_raw_json(candidate_file)
             if payload is not None:
                 raw_text = _extract_content_from_payload(payload, citation)
             if raw_text is None:
                 raw_text = candidate_file.read_text(encoding="utf-8", errors="replace")
+        else:
+            limitation_metadata["limitation_reason"] = "file_not_found"
+            limitation_metadata["source_path"] = citation.source_path
 
     if raw_text is None:
-        raw_text = f"[Evidence unavailable for citation: {citation.format_citation()}]"
+        raw_text = f"[EvidenceLimitation: evidence_unavailable citation={citation.format_citation()}]"
 
     content_bytes = len(raw_text.encode("utf-8"))
     content_sha256 = _sha256_text(raw_text)
 
+    # Verify content digest if specified in citation
+    if citation.content_sha256 and content_sha256 != citation.content_sha256:
+        limitation_metadata["content_digest_mismatch"] = True
+        limitation_metadata["expected_content_sha256"] = citation.content_sha256
+        limitation_metadata["actual_content_sha256"] = content_sha256
+
     # Apply on-read redactions
     redacted_text, is_redacted, meta = apply_redaction(raw_text, policy)
+    meta.update(limitation_metadata)
 
     return HydratedEvidence(
         citation=citation,
@@ -295,7 +342,6 @@ def hydrate_citation(
         is_redacted=is_redacted,
         redaction_metadata=meta,
     )
-
 
 def hydrate_error_observations(
     trial_dir: Path,

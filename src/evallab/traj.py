@@ -224,6 +224,8 @@ class TrajectoryFeatures:
     exception_class: str | None
     duration_seconds: float | None
     created_at: str
+    context_burn_velocity_screening: float | None = None
+    max_exit_code_cascade_screening: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -282,6 +284,8 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
         pa.field("exception_class", pa.string(), nullable=True),
         pa.field("duration_seconds", pa.float64(), nullable=True),
         pa.field("created_at", pa.string(), nullable=False),
+        pa.field("context_burn_velocity_screening", pa.float64(), nullable=True),
+        pa.field("max_exit_code_cascade_screening", pa.int64(), nullable=False),
     ]
 )
 
@@ -434,6 +438,49 @@ def _analyze_loop_suspicion(steps: Sequence[StepOutline]) -> LoopSuspicion:
         repeated_error_count=repeated_errors,
         cyclic_patterns_count=cyclic_patterns,
     )
+
+def _compute_cbv_slope(steps: Sequence[StepOutline]) -> float | None:
+    """Compute regression slope of prompt_tokens over step_ordinal.
+
+    Returns None if fewer than 2 steps have prompt_tokens or if step indices have 0 variance.
+    """
+    points: list[tuple[int, int]] = []
+    for step in steps:
+        if step.prompt_tokens is not None:
+            points.append((step.step_id, step.prompt_tokens))
+
+    if len(points) < 2:
+        return None
+
+    n = len(points)
+    sum_x = sum(x for x, _ in points)
+    sum_y = sum(y for _, y in points)
+    sum_xy = sum(x * y for x, y in points)
+    sum_x2 = sum(x * x for x, _ in points)
+
+    denom = (n * sum_x2) - (sum_x * sum_x)
+    if denom == 0:
+        return None
+
+    slope = ((n * sum_xy) - (sum_x * sum_y)) / denom
+    return round(slope, 4)
+
+
+def _compute_exit_code_cascade(steps: Sequence[StepOutline]) -> int:
+    """Compute the maximum streak of consecutive steps with non-zero exit codes."""
+    max_streak = 0
+    current_streak = 0
+
+    for step in steps:
+        is_failing = (step.exit_code is not None and step.exit_code != 0) or step.is_error
+        if is_failing:
+            current_streak += 1
+            if current_streak > max_streak:
+                max_streak = current_streak
+        else:
+            current_streak = 0
+
+    return max_streak
 
 
 def _build_phases(steps: Sequence[StepOutline]) -> tuple[PhaseOutline, ...]:
@@ -1171,6 +1218,8 @@ def extract_features(outline: TrajectoryOutline) -> TrajectoryFeatures:
         exception_class=outline.exception_class,
         duration_seconds=outline.duration_seconds,
         created_at=(outline.steps[0].timestamp or "") if outline.steps else "",
+        context_burn_velocity_screening=_compute_cbv_slope(outline.steps),
+        max_exit_code_cascade_screening=_compute_exit_code_cascade(outline.steps),
     )
 
 

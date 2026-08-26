@@ -11,6 +11,7 @@ from evallab.traj import (
     PhaseOutline,
     StepOutline,
     TrajectoryOutline,
+    extract_features,
     outline_trajectory,
 )
 from evallab.traj_baseline import (
@@ -352,7 +353,8 @@ def test_duckdb_v_trace_baseline_view(repo_root: Path) -> None:
             loop_suspicion_score, loop_suspicion_detected, loop_reasons_json, repeated_command_count,
             step_to_first_tool, step_to_first_edit, time_to_first_tool_seconds, time_to_first_edit_seconds,
             prompt_tokens, completion_tokens, cached_tokens, cost_usd, primary_reward,
-            exception_class, duration_seconds, created_at
+            exception_class, duration_seconds, created_at,
+            context_burn_velocity_screening, max_exit_code_cascade_screening
         ) VALUES (
             'trial-1', 'job-1', 'trial_one', 'job_one', 'task_a', 'codex', '1.0',
             'gpt-5', 'featured', NULL, 'trajectory.json', 'sha256_mock',
@@ -361,22 +363,129 @@ def test_duckdb_v_trace_baseline_view(repo_root: Path) -> None:
             0.0, FALSE, '[]', 0,
             2, 4, 1.5, 3.0,
             8000, 500, 2000, 0.02, 1.0,
-            NULL, 25.0, '2026-08-25T12:00:00Z'
+            NULL, 25.0, '2026-08-25T12:00:00Z',
+            450.25, 2
         )
         """
     )
 
     # Query v_trace_baseline
-    result = conn.execute("SELECT * FROM v_trace_baseline WHERE trial_id = 'trial-1'").fetchone()
-    assert result is not None
+    result = conn.execute("SELECT * FROM v_trace_baseline WHERE trial_id = 'trial-1'").fetchall()
+    assert len(result) == 1  # Exactly one deterministic row per trial
 
     cols = [desc[0] for desc in conn.description]
-    row = dict(zip(cols, result))
+    row = dict(zip(cols, result[0]))
 
     assert row["trial_id"] == "trial-1"
     assert row["primary_reward"] == 1.0
     assert row["linear_innocence_screening"] == pytest.approx(3 / 5, rel=1e-3)
     assert row["tool_error_rate_screening"] == pytest.approx(1 / 5, rel=1e-3)
+    assert row["context_burn_velocity_screening"] == pytest.approx(450.25, rel=1e-3)
+    assert row["max_exit_code_cascade_screening"] == 2
     assert row["cache_hit_rate_screening"] == pytest.approx(2000 / 10000, rel=1e-3)
     assert row["total_tokens"] == 8500
     assert row["subagent_overhead_ratio_screening"] == pytest.approx((10 - 8 - 1) / 10, rel=1e-3)
+
+
+def test_python_sql_null_and_cardinality_parity(repo_root: Path, sample_steps: list[StepOutline]) -> None:
+    """Verify exact formula parity and null semantics between Python and DuckDB SQL."""
+    outline = TrajectoryOutline(
+        trial_id="parity-trial",
+        job_id="parity-job",
+        trial_name="parity_trial",
+        job_name="parity_job",
+        task_name="task_parity",
+        agent_name="codex",
+        agent_version="1.0",
+        model_name="gpt-5.6-luna",
+        status="featured",
+        unavailable_reason=None,
+        source_path="agent/trajectory.json",
+        source_sha256="sha_parity",
+        duration_seconds=10.0,
+        primary_reward=1.0,
+        exception_class=None,
+        total_steps=len(sample_steps),
+        agent_steps=3,
+        system_steps=2,
+        user_steps=1,
+        total_tool_calls=3,
+        total_errors=2,
+        recovery_count=1,
+        step_to_first_tool=3,
+        step_to_first_edit=5,
+        time_to_first_tool_seconds=3.5,
+        time_to_first_edit_seconds=7.0,
+        total_prompt_tokens=5100,
+        total_completion_tokens=390,
+        total_cached_tokens=2000,
+        total_cost_usd=0.015,
+        phases=(),
+        loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
+        steps=tuple(sample_steps),
+        citations=(),
+        tool_mix={"bash": 2, "edit": 1},
+    )
+
+    py_baseline = compute_trace_baseline(outline)
+    feat = extract_features(outline)
+
+    # Insert into DuckDB
+    conn = duckdb.connect(":memory:")
+    sql_file = repo_root / "sql" / "traj_views.sql"
+    conn.execute(sql_file.read_text())
+
+    conn.execute(
+        """
+        INSERT INTO traj_features (
+            trial_id, job_id, trial_name, job_name, task_name, agent_name, agent_version,
+            model_name, status, unavailable_reason, source_path, source_sha256,
+            step_count, agent_step_count, system_step_count, user_step_count,
+            tool_call_count, unique_tools_count, tool_mix_json, error_count, recovery_count,
+            loop_suspicion_score, loop_suspicion_detected, loop_reasons_json, repeated_command_count,
+            step_to_first_tool, step_to_first_edit, time_to_first_tool_seconds, time_to_first_edit_seconds,
+            prompt_tokens, completion_tokens, cached_tokens, cost_usd, primary_reward,
+            exception_class, duration_seconds, created_at,
+            context_burn_velocity_screening, max_exit_code_cascade_screening
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?
+        )
+        """,
+        [
+            feat.trial_id, feat.job_id, feat.trial_name, feat.job_name,
+            feat.task_name, feat.agent_name, feat.agent_version, feat.model_name,
+            feat.status, feat.unavailable_reason, feat.source_path, feat.source_sha256,
+            feat.step_count, feat.agent_step_count, feat.system_step_count, feat.user_step_count,
+            feat.tool_call_count, feat.unique_tools_count, feat.tool_mix_json, feat.error_count,
+            feat.recovery_count, feat.loop_suspicion_score, feat.loop_suspicion_detected,
+            feat.loop_reasons_json, feat.repeated_command_count, feat.step_to_first_tool,
+            feat.step_to_first_edit, feat.time_to_first_tool_seconds, feat.time_to_first_edit_seconds,
+            feat.prompt_tokens, feat.completion_tokens, feat.cached_tokens, feat.cost_usd,
+            feat.primary_reward, feat.exception_class, feat.duration_seconds, feat.created_at,
+            feat.context_burn_velocity_screening, feat.max_exit_code_cascade_screening,
+        ],
+    )
+    rows = conn.execute("SELECT * FROM v_trace_baseline WHERE trial_id = 'parity-trial'").fetchall()
+    assert len(rows) == 1
+    cols = [desc[0] for desc in conn.description]
+    sql_row = dict(zip(cols, rows[0]))
+
+    assert sql_row["linear_innocence_screening"] == pytest.approx(py_baseline.linear_innocence_screening, rel=1e-4)
+    assert sql_row["tool_error_rate_screening"] == pytest.approx(py_baseline.tool_error_rate_screening, rel=1e-4)
+    assert sql_row["context_burn_velocity_screening"] == pytest.approx(py_baseline.context_burn_velocity_screening, rel=1e-4)
+    assert sql_row["max_exit_code_cascade_screening"] == py_baseline.max_exit_code_cascade_screening
+    assert sql_row["cache_hit_rate_screening"] == pytest.approx(py_baseline.cache_hit_rate_screening, rel=1e-4)
+    assert sql_row["total_tokens"] == py_baseline.total_tokens
+
+    # Test partial missing inputs in SQL: missing completion_tokens must yield NULL total_tokens
+    conn.execute("UPDATE traj_features SET completion_tokens = NULL WHERE trial_id = 'parity-trial'")
+    null_res = conn.execute("SELECT total_tokens FROM v_trace_baseline WHERE trial_id = 'parity-trial'").fetchone()
+    assert null_res[0] is None

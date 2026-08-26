@@ -115,3 +115,64 @@ def test_cli_traj_card_command(canary_trial_dir: Path, repo_root: Path, capsys: 
     assert "baseline_metrics" in parsed
     assert "quality" in parsed
     assert "semantic_coverage" in parsed
+
+
+def test_unavailable_trajectory_shape_contract(repo_root: Path) -> None:
+    """When trajectory is missing, card explicitly classifies it as EVIDENCE_UNAVAILABLE limitation."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trial_dir = Path(tmpdir)
+        # result.json exists with reward 1.0, but no trajectory.json
+        result_payload = {
+            "task_name": "agentabstain/ambiguous_action_specification__preview_002__abstain",
+            "trial_name": "ambiguous_action_specification__yfy2TpX",
+            "config": {
+                "job_id": "job-abstain-1",
+                "agent": {"name": "oracle", "version": "1.0.0"},
+            },
+            "agent_info": {"model_info": {"name": "unknown"}},
+            "verifier_result": {"rewards": {"reward": 1.0}},
+        }
+        (trial_dir / "result.json").write_text(json.dumps(result_payload))
+
+        rendered, card = generate_traj_card(trial_dir, repo_root=repo_root)
+
+        assert card.status == "accounted_unavailable"
+        assert "EVIDENCE_UNAVAILABLE" in card.final_verdict
+        assert card.evidence_limitation is not None
+        assert "missing_trajectory_file" in card.evidence_limitation
+        assert "- **Evidence Limitation:**" in rendered
+        assert "EVIDENCE_UNAVAILABLE" in rendered
+
+
+def test_verifier_missing_reward_shape_contract(repo_root: Path) -> None:
+    """When verifier crashes with RewardFileNotFoundError, card classifies it as VERIFIER_ERROR limitation."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trial_dir = Path(tmpdir)
+        (trial_dir / "agent").mkdir(parents=True)
+        (trial_dir / "agent" / "trajectory.json").write_text(
+            json.dumps({"schema_version": "ATIF-v1.4", "session_id": "sess-1", "steps": [{"step_id": 1, "actor": "agent", "tool_calls": [{"name": "bash"}]}]})
+        )
+        result_payload = {
+            "task_name": "loca-bench/ab-testing-seed-42-8k",
+            "trial_name": "ab-testing-seed-42-8k__Feakk6K",
+            "config": {
+                "job_id": "job-loca-1",
+                "agent": {"name": "codex", "version": "0.148.0"},
+            },
+            "agent_info": {"model_info": {"name": "gpt-5.6-luna"}},
+            "verifier_result": None,
+            "exception_info": {
+                "exception_type": "RewardFileNotFoundError",
+                "exception_message": "No reward file found at verifier/reward.txt",
+            },
+        }
+        (trial_dir / "result.json").write_text(json.dumps(result_payload))
+
+        rendered, card = generate_traj_card(trial_dir, repo_root=repo_root)
+
+        assert card.status == "featured"
+        assert card.final_verdict == "VERIFIER_ERROR (RewardFileNotFoundError)"
+        assert card.evidence_limitation is not None
+        assert "RewardFileNotFoundError" in card.evidence_limitation
+        assert "- **Evidence Limitation:**" in rendered
+        assert "VERIFIER_ERROR (RewardFileNotFoundError)" in rendered

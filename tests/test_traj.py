@@ -557,13 +557,14 @@ def test_sql_traj_views_with_data() -> None:
         # Insert fixture feature
         con.execute(
             """
-            INSERT INTO traj_features VALUES (
-                't-001', 'j-001', 'trial-001', 'job-001', 'task-a',
-                'codex', '0.1.0', 'gpt-5.6', 'featured', NULL,
-                'path/to/traj', 'sha256:abc', 10, 8, 1, 1,
-                6, 2, '{"exec":6}', 2, 2, 0.75, true, '["repeated_cmd"]', 2,
-                2, 4, 1.2, 5.4, 5000, 500, 4000, 0.05, 1.0, NULL, 35.0, '2026-08-19'
-            )
+                INSERT INTO traj_features VALUES (
+                    't-001', 'j-001', 'trial-001', 'job-001', 'task-a',
+                    'codex', '0.1.0', 'gpt-5.6', 'featured', NULL,
+                    'path/to/traj', 'sha256:abc', 10, 8, 1, 1,
+                    6, 2, '{"exec":6}', 2, 2, 0.75, true, '["repeated_cmd"]', 2,
+                    2, 4, 1.2, 5.4, 5000, 500, 4000, 0.05, 1.0, NULL, 35.0, '2026-08-19',
+                    450.0, 2
+                )
             """
         )
         con.execute(

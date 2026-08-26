@@ -83,6 +83,7 @@ class TrajectoryCardData:
     model_name: str
     status: str
     final_verdict: str
+    evidence_limitation: str | None
     primary_reward: float | None
     exception_class: str | None
     exception_message: str | None
@@ -119,6 +120,7 @@ class TrajectoryCardData:
             "model_name": self.model_name,
             "status": self.status,
             "final_verdict": self.final_verdict,
+            "evidence_limitation": self.evidence_limitation,
             "primary_reward": self.primary_reward,
             "exception_class": self.exception_class,
             "exception_message": self.exception_message,
@@ -143,7 +145,6 @@ class TrajectoryCardData:
             "result_path": self.result_path,
             "result_sha256": self.result_sha256,
         }
-
 
 def _inspect_quality_status(trial_dir: Path) -> QualityInspection:
     """Inspect quality ledger output when available, otherwise returning unknown."""
@@ -290,21 +291,33 @@ def build_traj_card_data(
         except Exception:
             result_data = {}
 
-    # Extract outcome
+    # Extract outcome and classify evidence limitations vs normal execution
     primary_reward = baseline.primary_reward
     exception_class = baseline.exception_class
     exception_message: str | None = None
+    evidence_limitation: str | None = None
+
     if isinstance(result_data.get("exception_info"), dict):
         exception_message = result_data["exception_info"].get("exception_message")
     elif isinstance(result_data.get("exception"), dict):
         exception_message = result_data["exception"].get("message")
 
-    if exception_class or outline.status == "accounted_unavailable":
-        final_verdict = f"EXCEPTION ({exception_class or outline.unavailable_reason or 'Unavailable'})"
+    if outline.status == "accounted_unavailable":
+        unavail_reason = outline.unavailable_reason or "missing_trajectory_file"
+        final_verdict = f"EVIDENCE_UNAVAILABLE ({unavail_reason})"
+        evidence_limitation = f"Trajectory evidence is unavailable ({unavail_reason}). This represents a harness/evidence limitation, not a verified agent task execution."
+    elif exception_class:
+        if "Reward" in exception_class or "Verifier" in exception_class:
+            final_verdict = f"VERIFIER_ERROR ({exception_class})"
+            evidence_limitation = f"Verifier reward output is missing or crashed ({exception_class}). The evaluation harness could not establish a verified outcome."
+        else:
+            final_verdict = f"EXCEPTION ({exception_class})"
+            evidence_limitation = f"Harness or runtime exception occurred ({exception_class})."
     elif primary_reward is not None:
-        final_verdict = "PASS" if primary_reward >= 1.0 else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward})")
+        final_verdict = "PASS" if primary_reward >= 1.0 else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
     else:
         final_verdict = "UNKNOWN"
+        evidence_limitation = "No verifier reward or runtime exception was emitted."
 
     # Quality inspection
     quality = _inspect_quality_status(trial_dir)
@@ -335,6 +348,7 @@ def build_traj_card_data(
         model_name=baseline.model_name,
         status=baseline.status,
         final_verdict=final_verdict,
+        evidence_limitation=evidence_limitation,
         primary_reward=primary_reward,
         exception_class=exception_class,
         exception_message=exception_message,
@@ -377,13 +391,14 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
     lines.append(f"- **Agent / Model:** `{card.agent_name}` (v: {card.agent_version}) | `{card.model_name}`")
     
     reward_str = f"{card.primary_reward:.2f}" if card.primary_reward is not None else "none"
-    lines.append(f"- **Final Verdict:** **{card.final_verdict}** (Primary Reward: `{reward_str}`)")
+    lines.append(f"- **Final Verdict:** **{card.final_verdict}** (Primary Reward: `{reward_str}` | Trajectory Status: `{card.status}`)")
+    if card.evidence_limitation:
+        lines.append(f"- **Evidence Limitation:** *{card.evidence_limitation}*")
     if card.exception_class:
         msg_str = f" — {card.exception_message}" if card.exception_message else ""
-        lines.append(f"- **Exception:** `{card.exception_class}`{msg_str}")
+        lines.append(f"- **Exception Details:** `{card.exception_class}`{msg_str}")
     else:
-        lines.append("- **Exception:** none")
-
+        lines.append("- **Exception Details:** none")
     # Quality status
     q_reasons_str = f" ({', '.join(card.quality.reasons)})" if card.quality.reasons else ""
     lines.append(f"- **Quality Status:** `{card.quality.status}`{q_reasons_str} — *{card.quality.detail}*")

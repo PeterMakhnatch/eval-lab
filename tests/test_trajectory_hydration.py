@@ -9,6 +9,7 @@ import pytest
 
 from evallab.traj import StepOutline, TrajectoryOutline, LoopSuspicion
 from evallab.trajectory_hydration import (
+    CitationPathJailError,
     CitationTarget,
     HydratedEvidence,
     RedactionPolicy,
@@ -100,6 +101,45 @@ def test_hydrate_citation_preserves_raw_file_immutability() -> None:
         assert hydrated.citation.step_index == 1
         assert hydrated.content_bytes > 0
         assert hydrated.content_sha256.startswith("sha256:")
+
+
+def test_hydrate_citation_rejects_absolute_path_and_traversal() -> None:
+    """Citation source_path is strictly jailed; absolute paths and .. escapes raise CitationPathJailError."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trial_dir = Path(tmpdir)
+
+        # Test 1: Absolute path rejected
+        abs_citation = CitationTarget(
+            trial_id="trial-1",
+            source_path="/etc/passwd",
+        )
+        with pytest.raises(CitationPathJailError, match="must be relative, got absolute path"):
+            hydrate_citation(abs_citation, trial_dir=trial_dir)
+
+        # Test 2: Traversal escaping trial_dir rejected
+        traversal_citation = CitationTarget(
+            trial_id="trial-1",
+            source_path="../outside.json",
+        )
+        with pytest.raises(CitationPathJailError, match="escapes trial directory"):
+            hydrate_citation(traversal_citation, trial_dir=trial_dir)
+
+
+def test_hydrate_citation_surfaces_typed_cas_limitations() -> None:
+    """Missing or corrupted CAS archives surface typed evidence limitations with reason codes."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fake_repo = Path(tmpdir)
+
+        # Test: CAS archive not found
+        missing_cas_citation = CitationTarget(
+            trial_id="trial-cas-1",
+            source_path="trajectory.json",
+            cas_uri="cas://sha256/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+        hydrated = hydrate_citation(missing_cas_citation, repo_root=fake_repo)
+
+        assert hydrated.redaction_metadata.get("limitation_reason") == "cas_archive_not_found"
+        assert "[EvidenceLimitation: cas_archive_not_found" in hydrated.raw_content
 
 
 def test_hydrate_error_observations_from_outline() -> None:

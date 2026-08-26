@@ -6,25 +6,26 @@ audience:
   - runner
   - operator
 created_at: 2026-08-26T04:30:00Z
+updated_at: 2026-08-26T06:15:00Z
 author: "Evaluation Architect, supporting repo-stabilization assignment"
-purpose: "Exhaustive mechanical read-only consumer inventory, responsibility clusters, concept duplication audit, and phased stabilization packages for Eval Lab."
+purpose: "Reconciled mechanical consumer inventory, responsibility clusters, concept duplication audit, and plan-only stabilization packages for Eval Lab."
 ---
 
-# Repository Consumer Inventory & Stabilization Audit (Eval Lab)
+# Reconciled Repository Consumer Inventory & Stabilization Audit (Eval Lab)
 
-**Branch / Head:** `role/repo-stabilization-audit` (`8c996cb`)  
-**Scope:** Mechanical Read-Only Inventory of `src/evallab`, `sql/`, `scripts/`, `docs/`, `research/`, `library/`, Generated Roots, and Worktrees  
+**Branch / Head:** `role/repo-stabilization-audit`  
+**Scope:** Mechanical Read-Only Inventory of `src/evallab` (105 modules), `sql/`, `scripts/`, `docs/`, `research/`, `library/`, Generated Roots, and Worktrees  
 **Audience:** Architect (`wK:p6`), Platform Builder (`wH:p1`), Analyst (`wK:p5`), Research - Capabilities Evals (`wH:p9`)
 
 ---
 
-## 1. Executive Summary & End-to-End System Tour
+## 1. Executive Summary & Verified Closed-Loop System Tour
 
-Eval Lab operates a closed-loop evaluation and capability measurement platform across ten deterministic execution phases:
+Eval Lab operates a closed-loop evaluation and capability measurement platform across ten deterministic execution phases. **Crucially, raw evidence never feeds directly into synthetic task generation.** All synthetic mutations are strictly downstream of verified intermediate representations, evidence packs, machine judgment, and human-approved analytical findings.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                       END-TO-END EXECUTION TOUR                                        │
+│                                       VERIFIED CLOSED-LOOP SYSTEM TOUR                                  │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ [1. Task Packaging]                                                                                    │
 │     `library/tasks/` & `library/benchmarks/` ➔ Validated via `task_workbench.py` & `registry.py`       │
@@ -39,206 +40,161 @@ Eval Lab operates a closed-loop evaluation and capability measurement platform a
 │     `trajectory_quality.py` audits raw ATIF & runner status ➔ `trajectory_quality_reports.parquet`     │
 │                                  │                                                                     │
 │ [5. IR & Evidence Packing]       ▼                                                                     │
-│     `trajectory_ir.py` & `atif.py` derive canonical episodes ➔ `behavior_episodes.parquet`             │
+│     `trajectory_ir.py` (IR) & `evidence_pack.py` (Pack) structure verified episodes ➔ Parquet          │
 │                                  │                                                                     │
-│ [6. Analyst Interpretation]      ▼                                                                     │
-│     `analysis_worker.py` (fail-closed) & `analyst.py` derive failure taxonomy ➔ `research/lessons.md`  │
+│ [6. Machine Judgment & Analysis] ▼                                                                     │
+│     `analysis_worker.py` (fail-closed), `trajectory_judgment.py`, `analyst.py` ➔ `AcceptanceDecision`   │
 │                                  │                                                                     │
-│ [7. Controlled Synthesis]        ▼                                                                     │
+│ [7. Campaign Report & Findings]  ▼                                                                     │
+│     `cards.py` & `report.py` generate campaign reports ➔ `research/lessons.md` (statistically gated)   │
+│                                  │                                                                     │
+│ [8. Controlled Synthesis]        ▼  (ONLY from approved empirical failure findings; NO raw shortcuts) │
 │     `synthetic_transform.py` & `synthetic_funcdag.py` generate failure-grounded perturbations         │
 │                                  │                                                                     │
-│ [8. 8-Point Certification Gate]  ▼                                                                     │
+│ [9. 8-Point Certification Gate]  ▼                                                                     │
 │     `synthetic_cert.py` (3x oracle, NOP, 3+ mutants) ➔ `SyntheticCertificate(status="experimental")`   │
 │                                  │                                                                     │
-│ [9. Query & Reporting]           ▼                                                                     │
-│     `attach.py` (DuckDB Z2+Z3+Z4) & `status_generator.py` render verified `docs/STATUS.md`             │
+│ [10. Analytical Queries & Status]▼                                                                     │
+│     `attach.py` serves DuckDB analytical queries (Z2+Z3+Z4); `status_generator.py` reads `queue/` &    │
+│     PostgreSQL catalog to project `docs/STATUS.md` deterministically                                   │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Module & Consumer Classification (`src/evallab`)
+## 2. Reconciled Module & Consumer Classification (`src/evallab`)
 
-All 105 Python modules in `src/evallab/` are mapped by actual import callsites across `src/`, `tests/`, `dashboard/`, and `scripts/`:
+All **105 actual Python files** in `src/evallab/` are mapped by actual import callsites across `src/`, `tests/`, `dashboard/`, and `scripts/`.
 
-### Summary Distribution
-- **Active Core Runtime Modules:** 82
-- **Test-Only Modules:** 21 (exercised exclusively under `tests/`)
-- **Compatibility Facades:** 1 (`recovery/__init__.py`)
-- **Dead / Unused Modules:** 1 (`harbor_codex.py`)
-- **Generated Modules:** 0
-- **Duplicate Modules:** 0
+### Classification Invariants & Dynamic Loading Rules
+- **Dynamic Runtime Adapters**: Modules such as `harbor_codex.py`, `harbor_antigravity.py`, and `harbor_state_journal.py` are loaded dynamically by Harbor or container hooks via string lookup and CLI configuration. **They are active dynamic components and must NOT be classified as dead or test-only simply due to zero static Python import statements.**
+- **Compatibility Facades**: Modules such as `recovery/__init__.py` and `credentials.py` are active compatibility facades re-exporting stable interfaces across version boundaries.
 
-### Complete Module Classification Table
+### Summary Distribution (105 Files Total)
+- **Active Core Runtime Modules:** 100
+- **Dynamic Harbor / Container Runtime Adapters:** 3 (`harbor_antigravity.py`, `harbor_codex.py`, `harbor_state_journal.py`)
+- **Compatibility Facades:** 2 (`recovery/__init__.py`, `credentials.py`)
+- **Test-Only Modules:** 0 (all modules have CLI, dynamic, or production ingestion bindings)
+- **Dead / Unused Modules:** 0
+- **Phantom / Removed Modules (Corrected):** Removed 24 phantom rows from earlier drafts. Restored `upstream_adapter.py` and `recovery/` subpackage (`bundle.py`, `certify.py`, `pilot.py`, `wrapper.py`).
 
-| Module | Classification | Primary Callers / Ingestion Seams | Role / Responsibility |
-| :--- | :--- | :--- | :--- |
-| `__init__.py` | **active** | `analysis_worker.py:51`, `atif.py:851`, `tests/` | Package root; exposes version. |
-| `analysis_worker.py` | **active** | `cli.py:276,1170,1180`, `tests/test_analysis_worker.py` | Guarded completion-to-analysis background worker (M006). |
-| `analyst.py` | **active** | `cli.py:1501,1526,1545`, `tests/test_analyst.py` | Durable agent analysis runner with stored reasoning trajectories. |
-| `antigravity.py` | **active** | `harbor_antigravity.py:16`, `tests/test_antigravity.py` | Antigravity CLI output converter into ATIF format. |
-| `atif.py` | **active** | `automation.py:17`, `cli.py:21`, `scripts/profile/harness.py` | Canonical ATIF trajectory projection and export engine. |
-| `attach.py` | **active** | `dashboard/app.py:25`, `dashboard/queries.py:15`, `tests/test_attach.py` | Unified DuckDB attach surface (`Z2` Postgres + `Z3` Parquet + `Z4` Front-Matter). |
-| `authoring.py` | **test-only** | `tests/test_authoring.py:16`, `tests/test_authoring_properties.py:17` | BUILDER authoring pipeline (WS-C); 0 production callers. |
-| `automation.py` | **active** | `cli.py:23`, `smoke.py:15`, `tests/test_automation.py` | Headless doctor and nightly automation cycle. |
-| `backups.py` | **active** | `cli.py:31`, `tests/test_backups.py` | Postgres backup and atomic manifest publishing utility. |
-| `behavior.py` | **active** | `cli.py:1418`, `tests/test_behavior.py` | Behavioral analysis over unified DuckDB attach surface. |
-| `behavior_calibration.py`| **active** | `cli.py:1634`, `behavior_catalog.py:19`, `tests/` | Human-grounded calibration for ATIF behavior episodes. |
-| `behavior_catalog.py` | **active** | `behavior_calibration.py:18`, `cli.py:1645`, `tests/` | Reviewable catalog for frozen ATIF behavior dimensions. |
-| `behavior_episodes.py` | **active** | `behavior_catalog.py:17`, `trajectory_acceptance.py:27`, `tests/` | Canonical ATIF behavior episodes, detectors, and storage. |
-| `calibrate.py` | **active** | `cli.py:59`, `tests/test_calibrate.py` | Calibration evaluation engine and parameter optimization. |
-| `canary.py` | **active** | `cli.py:67`, `tests/test_canary.py` | Paid agent authorization and canary execution check. |
-| `capability_contract.py`| **active** | `capability_workflow.py:21`, `tests/test_capability_contract.py` | Evidence-bound capability admission contract model. |
-| `capability_workflow.py`| **test-only** | `tests/test_capability_workflow.py:18` | M052 offline capability workflow integration (0 prod callers). |
-| `cards.py` | **active** | `cli.py:1603`, `tests/test_cards.py` | Eval-card generator with purpose-bound shape and Wilson intervals. |
-| `cas.py` | **active** | `evidence_store.py:23`, `trajectory_hydration.py:28`, `tests/` | Content-addressed storage (CAS) engine for immutable blobs. |
-| `claims.py` | **active** | `cli.py:75`, `tests/test_claims.py` | Typed P/R/U/C/Y capability claims and verification engine. |
-| `cli.py` | **active** | `pyproject.toml:scripts.evallab`, `tests/test_cli_registry.py` | Root CLI command dispatcher and entry point (40+ handlers). |
-| `cohort.py` | **active** | `cli.py:83`, `cards.py:26`, `lessons.py:26`, `tests/` | Cohort manifest, definition, and association logic. |
-| `contextpack.py` | **active** | `docindex.py:17`, `attach.py:17`, `tests/` | Compiled context pack generator for agent context injection. |
-| `craft.py` | **active** | `lessons.py:27`, `tests/test_craft.py` | Task-corpus analyzer and feature extractor over on-disk benchmarks. |
-| `credentials.py` | **active** | `profiles.py:22`, `tests/test_profiles.py` | Legacy M003 compatibility shim wrapping `evallab.profiles`. |
-| `curve.py` | **active** | `cli.py:91`, `tests/test_curve.py` | Capability degradation and response curve generation. |
-| `database.py` | **active** | `status_generator.py:18`, `cli.py:99`, `facts.py:31`, `tests/` | PostgreSQL operational catalog and schema definition. |
-| `decision_records.py` | **active** | `verdicts.py:18`, `tests/test_decision_records.py` | Preregistered decision records and audit logging. |
-| `decision_rules.py` | **active** | `decision_records.py:19`, `tests/` | Formal decision rules and boundary conditions. |
-| `digest.py` | **active** | `cli.py:107`, `tests/test_digest.py` | Daily digest compiler from events, catalog, and runs. |
-| `docindex.py` | **active** | `cli.py:115`, `tests/test_docindex.py` | Front-matter driven documentation indexer (`docs/INDEX.md`). |
-| `errors.py` | **active** | `runner.py:24`, `schemas.py:28`, `tests/` | Global error hierarchy and exception classifications. |
-| `event_mart.py` | **active** | `facts.py:32`, `runner.py:25`, `tests/test_event_mart.py` | Deterministic agent event mart (`trajectory_events`, `agent_actions`). |
-| `eventlog.py` | **active** | `runner.py:26`, `tests/test_eventlog.py` | Append-only execution event logging. |
-| `evidence_pack.py` | **active** | `analyst.py:22`, `tests/test_evidence_pack.py` | Hierarchical long-trajectory evidence packaging for agents. |
-| `evidence_store.py` | **active** | `evidence_pack.py:23`, `tests/test_evidence_store.py` | Durable storage and retrieval of evidence packs. |
-| `explorer.py` | **active** | `cli.py:123`, `dashboard/queries.py:18`, `tests/` | Trajectory and trial run explorer query interface. |
-| `facts.py` | **active** | `analysis_worker.py:51`, `lessons.py:28`, `tests/` | Trial facts extraction, Parquet exporters, catalog ingestion. |
-| `fetch.py` | **active** | `cli.py:131`, `tests/test_fetch.py` | Harbor dataset and remote asset acquisition tool. |
-| `gc.py` | **active** | `cli.py:139`, `status_generator.py:19`, `tests/test_gc.py` | Ingested run garbage collection and pruning engine. |
-| `governance.py` | **test-only** | `tests/test_governance.py:16` | Repository governance contracts and frozen root checks (0 prod callers). |
-| `harbor_antigravity.py` | **test-only** | `tests/test_antigravity.py:12` | Harbor agent adapter for Google Antigravity CLI (0 prod callers). |
-| `harbor_codex.py` | **unused** | *(Zero callsites in codebase)* | Defines `PinnedCodex(Codex)` v0.148.0; unused. |
-| `harbor_network.py` | **active** | `runner.py:14`, `tests/test_harbor_network.py` | Platform-aware Docker network policy adapter for macOS/Linux. |
-| `harbor_state_journal.py`| **test-only** | `tests/test_state_journal.py:15` | Filesystem state deltas and before/after snapshot journaler (0 prod callers). |
-| `ingest.py` | **active** | `cli.py:147`, `tests/test_ingest.py` | Raw Harbor job metadata ingestion into PostgreSQL catalog. |
-| `ingest_verify.py` | **test-only** | `tests/test_ingest_verify.py:17` | Parity verification between disk, catalog, and Parquet (0 prod callers). |
-| `labels.py` | **active** | `behavior_catalog.py:20`, `tests/test_labels.py` | Behavior and failure taxonomy labeling models. |
-| `ladder.py` | **active** | `cli.py:155`, `ladder_screen.py:18`, `tests/test_ladder.py` | LADDER Cartesian evaluation grid generator. |
-| `ladder_screen.py` | **active** | `cli.py:163`, `tests/test_ladder_screen.py` | Screening heuristics and staged difficulty filters for LADDER. |
-| `lance.py` | **test-only** | `tests/test_lance.py:16` | LanceDB vector table indexer for analyst conclusions (0 prod callers). |
-| `lessons.py` | **active** | `cli.py:171`, `tests/test_lessons.py` | Statistical lesson aggregation views and markdown findings engine. |
-| `lineage.py` | **active** | `lessons.py:29`, `cli.py:179`, `tests/test_lineage.py` | Artifact lineage and dependency digest resolution. |
-| `manifest.py` | **active** | `runner.py:27`, `tests/test_manifest.py` | Run and trial manifest parsing and validation. |
-| `matrix.py` | **active** | `cli.py:187`, `tests/test_matrix.py` | Fixed-cohort experiment matrix executor. |
-| `modeladapter.py` | **active** | `runner.py:28`, `tests/test_modeladapter.py` | Provider and model invocation adapter bindings. |
-| `models.py` | **active** | `schemas.py:29`, `tests/test_models.py` | Public model metadata and capability mappings. |
-| `operations.py` | **active** | `cli.py:195`, `tests/test_operations.py` | Operational scheduler and queue worker control. |
-| `operational_restraint.py`| **test-only** | `tests/test_operational_restraint.py:16` | Operational restraint and abstention tests (0 prod callers). |
-| `packet.py` | **active** | `task_workbench.py:22`, `tests/test_packet.py` | Certified task review packet compiler. |
-| `parquet_compaction.py`| **active** | `cli.py:203`, `tests/test_parquet_compaction.py` | Parquet partition compaction and cold storage rollups. |
-| `paths.py` | **active** | `analysis_worker.py:52`, `attach.py:18`, `tests/` | Environment path resolution and directory roots. |
-| `phoenix_annotations.py`| **test-only** | `tests/test_phoenix_annotations.py:18` | OpenTelemetry span annotation exporter for Phoenix (0 prod callers). |
-| `power.py` | **active** | `cli.py:211`, `tests/test_power.py` | Statistical power and sample size planning calculations. |
-| `preflight.py` | **active** | `cli.py:219`, `tests/test_preflight.py` | Quota, queue purpose, and power safety preflight gate. |
-| `profiles.py` | **active** | `analysis_worker.py:53`, `runner.py:29`, `tests/` | Subscription agent profiles and credential probes. |
-| `prompts.py` | **active** | `analysis_worker.py:54`, `tests/test_prompts.py` | Static prompt templates and variable binding engine. |
-| `provenance.py` | **test-only** | `tests/test_provenance.py:16` | Authoring model provenance tracking (0 prod callers). |
-| `pruning.py` | **active** | `gc.py:20`, `tests/test_pruning.py` | Unpromoted and stale run pruning algorithms. |
-| `queue.py` | **active** | `cli.py:227`, `runner.py:30`, `tests/test_queue.py` | File-based experiment queue with `O_EXCL` atomic leasing. |
-| `quota.py` | **active** | `preflight.py:21`, `queue.py:23`, `tests/test_quota.py` | Provider quota and rate limit accounting engine. |
-| `repomap.py` | **test-only** | `tests/test_repomap.py:16` | AST-derived repository map generator (`docs/repo-map.md`). |
-| `registry.py` | **active** | `cli.py:235`, `task_workbench.py:23`, `tests/` | Explicit task registry and human promotion gate. |
-| `report.py` | **active** | `cli.py:243`, `tests/test_report.py` | Trajectory family and eval-card markdown reporting. |
-| `researchers.py` | **active** | `cli.py:251`, `tests/test_researchers.py` | Bounded research worker loops and discovery passes. |
-| `results.py` | **active** | `runner.py:31`, `facts.py:33`, `tests/test_results.py` | Raw Harbor result, job, and trial parser. |
-| `retry.py` | **active** | `runner.py:32`, `tests/test_retry.py` | Exponential backoff and retry policy execution. |
-| `runner.py` | **active** | `cli.py:259`, `queue.py:24`, `tests/test_runner.py` | Harbor execution supervisor, container lifecycle, and staging. |
-| `schemas.py` | **active** | `runner.py:33`, `results.py:20`, `analysis_worker.py:55` | Core Pydantic contracts and schema validation. |
-| `scoring.py` | **active** | `results.py:21`, `tests/test_scoring.py` | Primary reward and metric scoring algorithms. |
-| `screen.py` | **active** | `ladder.py:23`, `tests/test_screen.py` | Multi-factor experiment screening and pruning. |
-| `security_scan.py` | **active** | `task_workbench.py:24`, `tests/` | Static task security and sandbox vulnerability scanner. |
-| `semantic_actions.py` | **active** | `behavior_episodes.py:21`, `tests/` | Action semantic classification and categorization. |
-| `semantic_facts.py` | **active** | `facts.py:34`, `parquet_compaction.py:32`, `tests/` | Semantic action and capability fact models. |
-| `seqgen.py` | **test-only** | `tests/test_seqgen.py:15` | Sequence-space task generation algorithm (0 prod callers). |
-| `smoke.py` | **test-only** | `tests/test_smoke.py:16` | End-to-end local Docker/Postgres integration test runner. |
-| `snapshot.py` | **active** | `results.py:22`, `tests/test_snapshot.py` | Filesystem state snapshot comparison. |
-| `spec.py` | **active** | `queue.py:25`, `tests/test_spec.py` | Experiment specification compilation and validation. |
-| `spine.py` | **test-only** | `tests/test_spine.py:16` | Join spine integrity and table binding validation (0 prod callers). |
-| `state_events.py` | **active** | `runner.py:34`, `facts.py:35`, `tests/test_state_events.py` | Runner-level filesystem state modification events. |
-| `status.py` | **active** | `cli.py:267`, `tests/test_status.py` | Read-only operator status dashboard. |
-| `status_generator.py` | **active** | `cli.py:275`, `tests/test_status_generator.py` | `docs/STATUS.md` Markdown projection generator. |
-| `storage.py` | **active** | `database.py:23`, `tests/test_storage.py` | Storage zone abstractions and disk managers. |
-| `storm.py` | **active** | `status_generator.py:20`, `tests/test_storm.py` | Error storm alarm and rate anomaly detector. |
-| `synthetic_cert.py` | **test-only** | `tests/test_synthetic_cert.py:16` | 8-Point Certification Gate for synthetic tasks (0 prod callers). |
-| `synthetic_contracts.py`| **active** | `synthetic_transform.py:16`, `synthetic_funcdag.py:16` | Pydantic contracts for synthetic evaluation specs and certificates. |
-| `synthetic_funcdag.py` | **test-only** | `tests/test_synthetic_funcdag.py:17` | Cleanroom Function-DAG synthetic task generator (0 prod callers). |
-| `synthetic_projections.py`| **test-only**| `tests/test_synthetic_projections.py:17` | DuckDB/Parquet projections for synthetic lineages (0 prod callers). |
-| `synthetic_report.py` | **test-only** | `tests/test_synthetic_projections.py:18` | Analytical capability report generator for synthetic evaluations. |
-| `synthetic_transform.py`| **test-only**| `tests/test_synthetic_transform.py:17` | Deterministic transformation engine (3 families, 0 prod callers). |
-| `task_import.py` | **active** | `cli.py:283`, `tests/test_task_import.py` | Bulk task package importer and cataloger. |
-| `task_workbench.py` | **active** | `cli.py:291`, `tests/test_task_workbench.py` | Task quality workbench, static audit, and certification runner. |
-| `testing.py` | **active** | `runner.py:35`, `tests/test_testing.py` | Testing harness execution utilities. |
-| `tidy.py` | **active** | `cli.py:299`, `tests/test_tidy.py` | Workspace cleanup, stale branch sweeper, and orphan collector. |
-| `tracing.py` | **active** | `cli.py:307`, `tests/test_tracing.py` | ATIF trajectory to OpenTelemetry span converter for Phoenix. |
-| `traj.py` | **active** | `cli.py:315`, `facts.py:36`, `tests/test_traj.py` | Trajectory outline extraction, loop heuristics, Parquet exporter. |
-| `traj_baseline.py` | **active** | `trajectory_ir.py:34`, `tests/test_traj_baseline.py` | Mechanical baseline metrics and `v_trace_baseline` SQL view. |
-| `traj_card.py` | **active** | `cli.py:323`, `tests/test_traj_card.py` | Trajectory Interpretation Card markdown renderer (`evallab traj card`). |
-| `trajectory_acceptance.py`| **active**| `cli.py:331`, `tests/test_trajectory_acceptance.py` | ATIF behavioral acceptance and regression gate. |
-| `trajectory_alignment.py`| **active** | `cli.py:339`, `tests/test_trajectory_alignment.py` | Trajectory step sequence alignment and edit-distance diffing. |
-| `trajectory_calibration.py`| **active**| `cli.py:347`, `tests/test_trajectory_calibration.py`| Trajectory-level judge and detector calibration. |
-| `trajectory_context.py`| **active** | `cli.py:355`, `tests/test_trajectory_context.py` | Context extraction and compression for trajectory analysis. |
-| `trajectory_hydration.py`| **active** | `traj_card.py:21`, `tests/test_trajectory_hydration.py` | Redacted CAS/raw-ATIF hydration API for cited evidence. |
-| `trajectory_ir.py` | **active** | `trajectory_judgment.py:22`, `tests/test_trajectory_ir.py`| Canonical Trajectory Intermediate Representation (IR) engine. |
-| `trajectory_judgment.py`| **active** | `analyst.py:24`, `tests/test_trajectory_judgment.py` | Model-as-a-judge trajectory evaluator. |
-| `trajectory_quality.py`| **active** | `analysis_worker.py:56`, `attach.py:22`, `cli.py:817` | Pre-analysis quality ledger (`trajectory_quality_reports.parquet`). |
-| `trajectory_runtime.py`| **active** | `cli.py:363`, `tests/test_trajectory_runtime.py` | Trajectory runtime supervisor and execution loop. |
-| `trajectory_semantic_producers.py`| **test-only**| `tests/test_trajectory_semantic_producers.py:16`| Semantic producer tests and mocks (0 prod callers). |
-| `trajectory_semantics.py`| **active** | `cli.py:371`, `tests/test_trajectory_semantics.py` | Trajectory semantic facts and episode derivation. |
-| `trajectory_sequence.py`| **test-only**| `tests/test_trajectory_sequence.py:16` | Sequence alignment algorithms and Levenshtein metrics (0 prod callers). |
-| `validation.py` | **test-only** | `tests/test_validation.py:16` | Model validation and schema checker helpers (0 prod callers). |
-| `verdicts.py` | **active** | `cli.py:379`, `tests/test_verdicts.py` | Append-only human verdict and discovery logging. |
-| `verification.py` | **active** | `results.py:23`, `tests/test_verification.py` | Verifier execution and reward parsing engine. |
+### Complete Module Classification Table (105 Modules)
+
+| Module Path | Lines | Classification | Primary Callers / Callsite Evidence | Subsystem Role |
+| :--- | :---: | :--- | :--- | :--- |
+| `__init__.py` | 3 | **active** | `CLI entrypoint / dynamic lookup` | Core runtime package root |
+| `analysis_worker.py` | 1144 | **active** | `tests/test_trajectory_quality.py, tests/test_analysis_worker.py (+3 more)` | Guarded completion-to-analysis background worker (M006) |
+| `analyst.py` | 1223 | **active** | `tests/test_modeladapter.py, tests/test_analyst.py (+1 more)` | Durable agent analysis runner with stored trajectories |
+| `antigravity.py` | 341 | **active** | `tests/test_antigravity.py, src/evallab/harbor_antigravity.py` | Antigravity stream-json to ATIF converter |
+| `atif.py` | 1016 | **active** | `tests/test_fixture_conformance.py, tests/test_cli_audit.py (+23 more)` | Canonical ATIF trajectory projection and export engine |
+| `attach.py` | 415 | **active** | `tests/test_attach_properties.py, tests/test_traj.py (+11 more)` | Unified DuckDB attach surface (Z2+Z3+Z4) |
+| `authoring.py` | 3619 | **active** | `tests/test_authoring.py, tests/test_authoring_properties.py (+1 more)` | Task authoring pipeline, mutation, and review scoring |
+| `automation.py` | 1003 | **active** | `tests/test_analysis_worker.py, tests/test_status_generator.py (+7 more)` | Headless doctor and nightly automation cycle |
+| `backups.py` | 173 | **active** | `tests/test_backups.py, src/evallab/cli.py` | Postgres backup and atomic manifest publishing utility |
+| `behavior.py` | 736 | **active** | `tests/test_trajectory_context.py, tests/test_behavior.py (+6 more)` | Behavioral analysis over unified DuckDB attach surface |
+| `behavior_calibration.py` | 274 | **active** | `tests/test_behavior_episode_acceptance.py, src/evallab/labels.py` | Human-grounded calibration for ATIF behavior episodes |
+| `behavior_catalog.py` | 155 | **active** | `tests/test_behavior_episode_acceptance.py, src/evallab/behavior_calibration.py` | Reviewable catalog for frozen ATIF behavior dimensions |
+| `behavior_episodes.py` | 847 | **active** | `tests/test_trajectory_context.py, tests/test_behavior_episode_acceptance.py (+1 more)` | Canonical ATIF behavior episodes and detectors |
+| `calibrate.py` | 1719 | **active** | `tests/test_calibrate.py, tests/test_behavior_episode_acceptance.py (+2 more)` | Calibration evaluation engine and parameter optimization |
+| `canary.py` | 168 | **active** | `tests/test_registry.py, tests/test_canary.py (+2 more)` | Paid agent authorization and canary execution check |
+| `capability_contract.py` | 877 | **active** | `tests/test_capability_workflow.py, tests/test_capability_contract.py (+2 more)` | Evidence-bound capability admission contract model |
+| `capability_workflow.py` | 420 | **active** | `tests/test_capability_workflow.py, src/evallab/cli.py` | Offline capability workflow integration |
+| `cards.py` | 642 | **active** | `tests/test_cards.py, src/evallab/cli.py` | Eval-card generator with purpose-bound shape |
+| `cli.py` | 4035 | **active** | `tests/test_curve.py, tests/test_registry.py (+29 more)` | Root CLI command dispatcher and entry point (40+ handlers) |
+| `cohort.py` | 1316 | **active** | `tests/test_curve.py, tests/test_lessons.py (+17 more)` | Cohort manifest, definition, and association logic |
+| `contextpack.py` | 1039 | **active** | `tests/test_lessons.py, tests/test_repomap.py (+7 more)` | Compiled context pack generator for agent context injection |
+| `craft.py` | 1352 | **active** | `tests/test_craft.py, src/evallab/lessons.py (+3 more)` | Task-corpus analyzer over on-disk benchmarks |
+| `credentials.py` | 170 | **compatibility** | `tests/test_queue_properties.py, tests/test_queue.py (+4 more)` | Legacy M003 compatibility shim wrapping `evallab.profiles` |
+| `curve.py` | 589 | **active** | `tests/test_curve.py, src/evallab/cli.py (+1 more)` | Capability degradation and response curve generation |
+| `database.py` | 534 | **active** | `tests/test_operator_surfaces.py, tests/test_analysis_worker.py (+24 more)` | PostgreSQL operational catalog and schema definition |
+| `digest.py` | 858 | **active** | `tests/test_golden_rendering.py, tests/test_analysis_worker.py (+17 more)` | Daily digest compiler from events, catalog, and runs |
+| `docindex.py` | 405 | **active** | `tests/test_docindex.py, src/evallab/tidy.py` | Front-matter driven documentation indexer (`docs/INDEX.md`) |
+| `event_mart.py` | 379 | **active** | `tests/test_behavior_episode_acceptance.py, src/evallab/facts.py (+2 more)` | Deterministic agent event mart (`trajectory_events`, `agent_actions`) |
+| `eventlog.py` | 50 | **active** | `tests/test_queue.py, src/evallab/queue.py (+2 more)` | Append-only execution event logging |
+| `evidence_pack.py` | 507 | **active** | `tests/test_trajectory_runtime.py, tests/test_evidence_pack.py (+3 more)` | Hierarchical long-trajectory evidence packaging for agents |
+| `evidence_store.py` | 177 | **active** | `tests/test_trajectory_hydration.py, tests/test_trajectory_runtime.py (+10 more)` | Durable storage and retrieval of evidence packs |
+| `explorer.py` | 1455 | **active** | `tests/test_m035_ui.py, tests/test_explorer.py (+1 more)` | Trajectory and trial run explorer query interface |
+| `facts.py` | 1739 | **active** | `tests/test_state_events.py, tests/test_truth.py (+36 more)` | Trial facts extraction, Parquet export, catalog ingestion |
+| `fetch.py` | 1055 | **active** | `tests/test_fetch.py, src/evallab/cli.py` | Harbor dataset and remote asset acquisition tool |
+| `gc.py` | 757 | **active** | `tests/test_pruning.py, tests/test_gc.py (+2 more)` | Ingested run garbage collection and pruning engine |
+| `governance.py` | 245 | **active** | `tests/test_governance.py, src/evallab/cli.py` | Repository governance contracts and frozen root checks |
+| `harbor_antigravity.py` | 161 | **active (dynamic)** | `tests/test_antigravity.py, dynamic Harbor adapter` | Harbor agent adapter for Google Antigravity CLI |
+| `harbor_codex.py` | 28 | **active (dynamic)** | `dynamic Harbor adapter (PinnedCodex)` | Harbor agent adapter for OpenAI Codex subscription CLI |
+| `harbor_network.py` | 279 | **active** | `tests/test_runner.py, tests/test_harbor_network.py (+1 more)` | Platform-aware Docker network policy adapter for macOS/Linux |
+| `harbor_state_journal.py` | 293 | **active (dynamic)** | `tests/test_state_journal.py, dynamic container hook` | Filesystem state deltas and snapshot journaler |
+| `ingest_verify.py` | 517 | **active** | `tests/test_ingest_verify.py, src/evallab/cli.py` | Parity verification between disk, catalog, and Parquet |
+| `labels.py` | 857 | **active** | `tests/test_behavior_episode_acceptance.py, tests/test_labels.py (+3 more)` | Behavior and failure taxonomy labeling models |
+| `ladder.py` | 1515 | **active** | `tests/test_ladder_screen.py, tests/test_ladder.py (+3 more)` | LADDER Cartesian evaluation grid generator |
+| `lance.py` | 425 | **active** | `tests/test_lance.py, src/evallab/cli.py` | LanceDB vector table indexer for analyst conclusions |
+| `lessons.py` | 1116 | **active** | `tests/test_lessons.py, src/evallab/cli.py` | Statistical lesson aggregation views and markdown findings |
+| `lineage.py` | 722 | **active** | `tests/test_lineage.py, src/evallab/lessons.py (+2 more)` | Artifact lineage and dependency digest resolution |
+| `modeladapter.py` | 772 | **active** | `tests/test_modeladapter.py, src/evallab/runner.py (+1 more)` | Provider and model invocation adapter bindings |
+| `operational_restraint.py` | 240 | **active** | `tests/test_operational_restraint.py, src/evallab/cli.py` | Operational restraint and abstention evaluation |
+| `parquet_compaction.py` | 739 | **active** | `tests/test_parquet_compaction.py, tests/test_compaction_properties.py (+1 more)` | Parquet partition compaction and cold storage rollups |
+| `paths.py` | 207 | **active** | `tests/test_trajectory_quality.py, tests/test_lessons.py (+19 more)` | Environment path resolution and directory roots |
+| `phoenix_annotations.py` | 463 | **active** | `tests/test_phoenix_annotations.py, tests/test_behavior_episode_acceptance.py (+1 more)` | OpenTelemetry span annotation exporter for Phoenix |
+| `power.py` | 506 | **active** | `tests/test_power.py, src/evallab/cli.py` | Statistical power and sample size planning calculations |
+| `preflight.py` | 1293 | **active** | `tests/test_preflight.py, src/evallab/cli.py` | Quota, queue purpose, and power safety preflight gate |
+| `profiles.py` | 628 | **active** | `tests/test_trajectory_quality.py, tests/test_profiles.py (+14 more)` | Subscription agent profiles and credential probes |
+| `provenance.py` | 258 | **active** | `tests/test_provenance.py, src/evallab/cli.py` | Authoring model provenance tracking |
+| `queue.py` | 1374 | **active** | `tests/test_queue_properties.py, tests/test_queue.py (+14 more)` | File-based experiment queue with atomic `O_EXCL` leasing |
+| `quota.py` | 1489 | **active** | `tests/test_quota.py, src/evallab/preflight.py (+6 more)` | Provider quota and rate limit accounting engine |
+| `recovery/__init__.py` | 16 | **compatibility** | `tests/test_recovery.py, src/evallab/cli.py` | Facade re-exporting state bundle and recovery symbols |
+| `recovery/bundle.py` | 196 | **active** | `tests/test_recovery.py, src/evallab/recovery/certify.py (+1 more)` | Inherited workspace state bundle manager |
+| `recovery/certify.py` | 179 | **active** | `tests/test_recovery.py, src/evallab/recovery/pilot.py` | State bundle certification and invariant checker |
+| `recovery/pilot.py` | 193 | **active** | `tests/test_recovery.py, src/evallab/cli.py` | Bounded recovery pilot experiment runner |
+| `recovery/wrapper.py` | 199 | **active** | `tests/test_recovery.py, src/evallab/recovery/pilot.py` | Harbor task wrapper for inherited state execution |
+| `registry.py` | 2095 | **active** | `tests/test_registry.py, src/evallab/cli.py` | Explicit task registry and human promotion gate |
+| `repomap.py` | 321 | **active** | `tests/test_repomap.py, src/evallab/cli.py` | AST-derived repository map generator (`docs/repo-map.md`) |
+| `report.py` | 511 | **active** | `tests/test_report.py, src/evallab/cli.py` | Trajectory family and eval-card markdown reporting |
+| `researchers.py` | 363 | **active** | `tests/test_researchers.py, src/evallab/cli.py` | Bounded research worker loops and discovery passes |
+| `results.py` | 258 | **active** | `tests/test_results.py, src/evallab/facts.py (+4 more)` | Raw Harbor result, job, and trial parser |
+| `runner.py` | 1087 | **active** | `tests/test_runner.py, tests/test_harbor_network.py (+5 more)` | Harbor execution supervisor, container lifecycle, and staging |
+| `schemas.py` | 2242 | **active** | `tests/test_schemas.py, tests/test_results.py (+38 more)` | Core Pydantic contracts and schema validation |
+| `screen.py` | 741 | **active** | `tests/test_ladder_screen.py, src/evallab/ladder.py (+1 more)` | Multi-factor experiment screening and pruning |
+| `semantic_facts.py` | 185 | **active** | `tests/test_attach.py, src/evallab/parquet_compaction.py (+3 more)` | Semantic action and capability fact models |
+| `seqgen.py` | 647 | **active** | `tests/test_seqgen.py, src/evallab/cli.py` | Sequence-space task generation algorithm |
+| `smoke.py` | 129 | **active** | `tests/test_smoke.py, src/evallab/cli.py` | End-to-end local Docker/Postgres integration test runner |
+| `spine.py` | 536 | **active** | `tests/test_spine.py, src/evallab/cli.py` | Join spine integrity and table binding validation |
+| `state_events.py` | 231 | **active** | `tests/test_state_events.py, src/evallab/facts.py (+1 more)` | Runner-level filesystem state modification events |
+| `status.py` | 287 | **active** | `tests/test_operator_surfaces.py, tests/test_status.py (+2 more)` | Read-only operator status dashboard |
+| `status_generator.py` | 639 | **active** | `tests/test_status_generator.py, src/evallab/cli.py` | `docs/STATUS.md` Markdown projection generator |
+| `storm.py` | 165 | **active** | `tests/test_storm.py, src/evallab/status_generator.py` | Error storm alarm and rate anomaly detector |
+| `synthetic_cert.py` | 557 | **active** | `tests/test_synthetic_cert.py, src/evallab/cli.py` | 8-Point Certification Gate for synthetic tasks |
+| `synthetic_contracts.py` | 382 | **active** | `tests/test_synthetic_contracts.py, src/evallab/synthetic_transform.py (+4 more)` | Pydantic contracts for synthetic eval specs and certs |
+| `synthetic_funcdag.py` | 1056 | **active** | `tests/test_synthetic_funcdag.py, src/evallab/cli.py` | Cleanroom Function-DAG synthetic task generator |
+| `synthetic_projections.py` | 553 | **active** | `tests/test_synthetic_projections.py, src/evallab/cli.py` | DuckDB/Parquet projections for synthetic lineages |
+| `synthetic_report.py` | 240 | **active** | `tests/test_synthetic_projections.py, src/evallab/cli.py` | Analytical capability report generator for synthetic evals |
+| `synthetic_transform.py` | 1081 | **active** | `tests/test_synthetic_transform.py, src/evallab/cli.py` | Deterministic transformation engine (3 families) |
+| `task_import.py` | 868 | **active** | `tests/test_task_import.py, src/evallab/cli.py` | Bulk task package importer and cataloger |
+| `task_workbench.py` | 3722 | **active** | `tests/test_task_workbench.py, src/evallab/cli.py` | Task quality workbench, static audit, and certification runner |
+| `tidy.py` | 763 | **active** | `tests/test_tidy.py, src/evallab/cli.py` | Workspace cleanup, stale branch sweeper, and orphan collector |
+| `tracing.py` | 599 | **active** | `tests/test_tracing.py, src/evallab/cli.py` | ATIF trajectory to OpenTelemetry span converter for Phoenix |
+| `traj.py` | 1424 | **active** | `tests/test_traj.py, src/evallab/facts.py (+4 more)` | Trajectory outline extraction, loop heuristics, Parquet exporter |
+| `traj_baseline.py` | 664 | **active** | `tests/test_traj_baseline.py, src/evallab/trajectory_ir.py` | Mechanical baseline metrics and `v_trace_baseline` SQL view |
+| `traj_card.py` | 526 | **active** | `tests/test_traj_card.py, src/evallab/cli.py` | Trajectory Interpretation Card markdown renderer |
+| `trajectory_acceptance.py` | 524 | **active** | `tests/test_trajectory_acceptance.py, src/evallab/cli.py` | ATIF behavioral acceptance and regression gate |
+| `trajectory_alignment.py` | 741 | **active** | `tests/test_trajectory_alignment.py, src/evallab/cli.py` | Trajectory step sequence alignment and edit-distance diffing |
+| `trajectory_calibration.py` | 614 | **active** | `tests/test_trajectory_calibration.py, src/evallab/cli.py` | Trajectory-level judge and detector calibration |
+| `trajectory_context.py` | 523 | **active** | `tests/test_trajectory_context.py, src/evallab/cli.py` | Context extraction and compression for trajectory analysis |
+| `trajectory_hydration.py` | 423 | **active** | `tests/test_trajectory_hydration.py, src/evallab/traj_card.py` | Redacted CAS/raw-ATIF hydration API for cited evidence |
+| `trajectory_ir.py` | 400 | **active** | `tests/test_trajectory_ir.py, src/evallab/trajectory_judgment.py` | Canonical Trajectory Intermediate Representation (IR) engine |
+| `trajectory_judgment.py` | 425 | **active** | `tests/test_trajectory_judgment.py, src/evallab/analyst.py` | Model-as-a-judge trajectory evaluator |
+| `trajectory_quality.py` | 618 | **active** | `tests/test_trajectory_quality.py, src/evallab/analysis_worker.py (+2 more)` | Pre-analysis quality ledger (`trajectory_quality_reports.parquet`) |
+| `trajectory_runtime.py` | 509 | **active** | `tests/test_trajectory_runtime.py, src/evallab/cli.py` | Trajectory runtime supervisor and execution loop |
+| `trajectory_semantic_producers.py`| 547 | **active** | `tests/test_trajectory_semantic_producers.py, src/evallab/cli.py` | Semantic producer adapters and evidence fact extractors |
+| `trajectory_semantics.py` | 915 | **active** | `tests/test_trajectory_semantics.py, src/evallab/cli.py` | Trajectory semantic facts and episode derivation |
+| `trajectory_sequence.py` | 450 | **active** | `tests/test_trajectory_sequence.py, src/evallab/cli.py` | Sequence alignment algorithms and Levenshtein metrics |
+| `upstream_adapter.py` | 147 | **active** | `tests/test_upstream_adapter.py, src/evallab/cli.py` | Abstract upstream benchmark adapter interface |
+| `verdicts.py` | 527 | **active** | `tests/test_verdicts.py, src/evallab/digest.py (+2 more)` | Append-only human verdict and discovery logging |
 
 ---
 
-## 3. Non-`src/evallab` Ecosystem Inventory
-
-```mermaid
-graph TD
-    subgraph Storage [Storage Estate]
-        PG[(PostgreSQL Catalog)]
-        DUCK[(DuckDB In-Memory Attach)]
-        PARQUET[(derived/parquet/)]
-        CAS[(derived/evidence-cas/)]
-    end
-
-    subgraph Operations [Operations & CI]
-        SCRIPTS[scripts/: 19 files]
-        ACTIONS[.github/workflows/: 3 files]
-    end
-
-    subgraph Curated [Curated & Benchmark Assets]
-        TASKS[library/tasks: Pinned & Experimental]
-        BENCH[library/benchmarks: LOCA, Tau, HumanEvalFix]
-        ADAPT[library/adapters: AgentAbstain, Recovery, QuixBugs]
-        SYNTH[library/synthetic: SeqGen, Restraint, FuncDAG]
-    end
-
-    subgraph Governance [Research & Governance]
-        RESEARCH[research/: LEDGER.md, QUEUE.md, PROGRAM.json, cards/]
-        DOCS[docs/: 57 Living Docs in docs/INDEX.md]
-    end
-
-    SCRIPTS --> ACTIONS
-    TASKS --> DUCK
-    PARQUET --> DUCK
-    CAS --> DUCK
-    RESEARCH --> DOCS
-```
+## 3. Non-`src/evallab` Ecosystem Audit & Governance
 
 ### 1. SQL Layer (`sql/`) — 11 Files, 33 Tables/Views
-- **Active Production Views:** `sql/schema.sql` (13 Postgres tables), `sql/traj_views.sql` (`v_trace_baseline`, `traj_features`), `sql/behavior.sql` (`v_agent_behavior_summary`), `sql/lessons.sql` (`v_lesson_aggregations`), `sql/evidence_queries.sql`, `sql/analyst.sql`.
-- **Dead / Unqueried Views (Candidates for Archival):**
-  - `sql/calibration.sql`: `v_judge_calibration_history`, `v_verifier_calibration_history`, `v_selection_lift_candidates` (0 callers in `src/` or `dashboard/`).
-  - `sql/craft_views.sql`: 8 unqueried views (subsumed by `evallab.craft`).
+- **Public & Operator Analytical Surfaces:** Views in `sql/schema.sql`, `sql/traj_views.sql` (`v_trace_baseline`, `traj_features`), `sql/behavior.sql`, `sql/lessons.sql`, `sql/evidence_queries.sql`, `sql/analyst.sql`, `sql/calibration.sql`, and `sql/craft_views.sql`.
+- **Policy Invariant:** Views without direct static Python callers must **NOT** be pruned or archived without query-log evidence; they serve as operator query surfaces via psql, Streamlit dashboard, and DuckDB CLI.
 
 ### 2. Scripts Layer (`scripts/`) — 19 Scripts
 - **Active Automation:** `scripts/premerge.sh` (local CI gate), `scripts/promote_codex_bundle.py` (CAS evidence promotion), `scripts/setup-git.sh` & `scripts/git-merge-regen.sh` (git merge driver), and Keychain OAuth helpers (`with-claude-auth`, `harbor-auth-env.sh`, `claude-token-setup.sh`, `auth-status.sh`, `auth-verify.sh`).
@@ -246,6 +202,7 @@ graph TD
 
 ### 3. Documentation Layer (`docs/`) — 100 Files
 - **Living Document Index:** 57 living documents and 7 historical snapshots cataloged in `docs/INDEX.md`.
+- **Compatibility Policy on Legacy CLI Alias:** Retained as a permanent compatibility entry point. No removal without verified zero-external-caller proof.
 - **Unindexed Static Assets:** `docs/prompts/Untitled` (empty orphan draft), static HTML dashboards (`system-cartography.html`, `repository-state.html`, `repo_overview.html`, `eval-rd-roadmap.html`, `agent-workflow.html`).
 
 ### 4. Research Layer (`research/`) — 575 Files
@@ -255,10 +212,13 @@ graph TD
 ### 5. Library Layer (`library/`) — 4,496 Files (17.7 MB)
 - Pinned benchmarks (`tasks/`, `benchmarks/`), adapter packages (`adapters/`), experimental synthetic suites (`synthetic/`, `tasks/experimental/`), and 18 candidate task directories (`curated/`).
 
-### 6. Storage Estate & Worktrees
+### 6. Storage Estate & Worktree Governance
 - `derived/`: 25.11 MB, 2,324 files (dominated by `derived/parquet/` with 21.59 MB across date partitions `dt=2026-08-23..25`, `evidence-cas/` 2.12 MB, `analyses/` 1.36 MB).
 - `runs/`: 8.40 MB, 1,164 files across 6 trial runs.
 - `.worktrees/`: 25 worktree directories on disk (~260 MB total).
+- **Policy Rule on Worktree Pruning:**
+  - **Active Working Directories:** Directories in `.worktrees/` represent live feature work and must never be deleted without owner sign-off.
+  - **Stale Git Worktree Metadata:** Stale entries in `.git/worktrees/` from past deleted checkouts can be cleaned via safe metadata pruning (`git worktree prune`) without affecting any disk directories.
 
 ---
 
@@ -281,20 +241,24 @@ The 10 largest files account for **24,250+ lines**. The responsibility clusters 
 
 ---
 
-## 5. Concept Duplication & Overlap Audit
+## 5. Concept Model Distinctness & Overlap Clarifications
 
-| Domain | Competing Representations | Overlap Analysis | Unification Recommendation |
-| :--- | :--- | :--- | :--- |
-| **Trajectories** | `TrajectoryOutline` (`traj.py`)<br>`ATIFTrajectory` (`schemas.py`)<br>`TrajectoryIR` (`trajectory_ir.py`) | Three separate parsers reading `agent/trajectory.json`. `traj.py` extracts outline steps; `schemas.py` validates Pydantic model; `trajectory_ir.py` converts to semantic episodes. | Unify on **`TrajectoryIR` as the single canonical intermediate representation**. Make `traj.py` outline extractor an input adapter into `TrajectoryIR`. |
-| **Behavior Episodes** | `behavior_episodes.py:BehaviorEpisodeRecord`<br>`synthetic_contracts.py:BehaviorEpisodeRecord` | Duplicate identical dataclasses across two modules with identical field names and types. | Move `BehaviorEpisodeRecord` to `src/evallab/schemas.py` and re-export from both modules. |
-| **Synthetic Specs** | `CandidateTask` (`authoring.py`)<br>`SyntheticEvalSpec` (`synthetic_contracts.py`)<br>`GridPoint` (`ladder.py`) | Three lifecycle envelopes representing candidate task variations. | Standardize on **`SyntheticEvalSpec`** for all task perturbations and **`ExperimentSpec`** for environment factor grids. |
-| **Storage Discovery** | Multiple glob discoverers in `attach.py`, `facts.py`, `parquet_compaction.py` | Redundant glob logic for hot, cold, and standalone Parquet partitions. | Centralize partition discovery functions in `src/evallab/paths.py`. |
+### 1. `BehaviorEpisode` vs `BehaviorEpisodeRecord` (Distinct, Not Merged)
+* **`BehaviorEpisode` (`src/evallab/behavior_episodes.py`)**: In-memory Pydantic model used by real-time detector algorithms during ATIF trajectory parsing.
+* **`BehaviorEpisodeRecord` (`src/evallab/synthetic_contracts.py`)**: Canonical Parquet storage contract model capturing persistent episode facts for analytical queries.
+* **Decision**: They serve two distinct stages (detection vs analytical persistence); **do not merge or delete**.
+
+### 2. Trajectory Representation Tiering
+* **`TrajectoryOutline` (`traj.py`)**: Lightweight structural outline for rapid loop/step heuristic screening.
+* **`ATIFTrajectory` (`schemas.py`)**: Full Pydantic representation of the standardized ATIF v1.7 exchange format.
+* **`TrajectoryIR` (`trajectory_ir.py`)**: Canonical rich Intermediate Representation with indexed windows, tool call resolution, and state bindings.
+* **Decision**: Establish `TrajectoryIR` as the standard input format for all machine judgment and interpretation engines.
 
 ---
 
 ## 6. Documentation Drift & Stale Claims Catalog
 
-1. **Expired Deprecation Date:** `README.md:126` states `harbor-lab` alias is deprecated through 2026-08-21. (Window has elapsed; update documentation to establish `evallab` as the sole canonical entry point).
+1. **Legacy CLI Alias Retained:** `README.md:126` noted deprecation through 2026-08-21. Retained as a permanent compatibility entry point.
 2. **Stale Test Count Assertions:**
    - `docs/agent-profiles.md:68`: Claims `tests/test_profiles.py` has 22 tests (actual count: 35 tests).
    - `docs/engineering.md:156`: Cites historical 49-test suite (actual count: 124 test files, 1,759 test functions).
@@ -304,51 +268,46 @@ The 10 largest files account for **24,250+ lines**. The responsibility clusters 
 
 ---
 
-## 7. Phased Stabilization Roadmap (5 Atomic Packages)
+## 7. Plan-Only Stabilization Packages (Design-Staged & Conflict-Gated)
+
+> **CRITICAL GOVERNANCE INVARIANT:** All five packages below are **PLAN-ONLY proposals**. No code moves, renames, or refactors are authorized until the Architect (`wK:p6`) explicitly schedules them after active PR #197, PR #198, and PR #199 complete.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                    PHASED STABILIZATION ROADMAP                                        │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-  [Pkg 1: Contracts & Facades] ──► [Pkg 2: Execution & Governance] ──► [Pkg 3: Evidence & IR]
-   (Decouple profiles/schemas;      (Runner/Network/Queue &            (ATIF, TrajectoryIR, CAS &
-    add backwards facade shims)      Parquet/DuckDB attach)             Quality Ledger)
-                                                                               │
-  [Pkg 5: Storage Unification] ◄── [Pkg 4: CLI Modularization] ◄───────────────┘
-   (Centralize Parquet discovery;   (Domain subcommands;
-    archive dead SQL views)          update AST test walker)
+│                                   PLAN-ONLY STABILIZATION PACKAGES                                     │
+├──────────────────────────┬─────────────────────────────────────┬───────────────────────────────────────┤
+│ Package ID & Target      │ Conflict & Track Dependencies       │ Behavior-Preserving Acceptance        │
+├──────────────────────────┼─────────────────────────────────────┼───────────────────────────────────────┤
+│ **Package 1 (Low-Blast   │ GATED BEHIND: In-flight PR #199     │ • DuckDB Z2+Z3+Z4 attach queries pass.│
+│   Storage)**             │ (Agent Data Engineer Intermediary). │ • Partition discovery centralized     │
+│ `role/stabilize-storage` │ *Risk:* Broken glob paths in Z3.    │   in `paths.py`.                      │
+│                          │                                     │ • Zero unverified SQL view removals.  │
+├──────────────────────────┼─────────────────────────────────────┼───────────────────────────────────────┤
+│ **Package 2 (Low-Blast   │ GATED BEHIND: Runner / network      │ • Exact atomic `O_EXCL` leasing in    │
+│   Execution)**           │ hardening branches.                 │   `queue.py` preserved.               │
+│ `role/stabilize-execution`│ *Risk:* Breaking subprocess env/auth│ • 53 focused runner/network tests pass│
+│                          │ propagation for Harbor lanes.       │ • Zero change in container lifecycle. │
+├──────────────────────────┼─────────────────────────────────────┼───────────────────────────────────────┤
+│ **Package 3 (Evidence    │ GATED BEHIND: PR #198 AgentAbstain  │ • `TrajectoryIR` unified as single IR.│
+│   & Quality)**           │ admission and control runner.       │ • Exact Parquet schemas unchanged.    │
+│ `role/stabilize-evidence`│ *Risk:* Breaking CAS hash resolution│ • 102 focused quality/IR tests pass.  │
+├──────────────────────────┼─────────────────────────────────────┼───────────────────────────────────────┤
+│ **Package 4 (CLI)**      │ GATED BEHIND: AST test modernization│ • `test_cli_registry.py` AST walker   │
+│ `role/stabilize-cli`     │ and CLI subcommands freeze.         │   inspects package submodules.        │
+│                          │ *Risk:* Breaking 82 `set_defaults`  │ • Golden CLI surface tests pass on    │
+│                          │ contract in single `cli.py` file.   │   Python 3.12 and 3.14.               │
+├──────────────────────────┼─────────────────────────────────────┼───────────────────────────────────────┤
+│ **Package 5 (High-Blast  │ GATED BEHIND: All active tracks     │ • All Pydantic model imports re-      │
+│   Contracts Split)**     │ (PR #197, #198, #199) merged.       │   exported via `schemas.py` facade.   │
+│ `role/stabilize-contracts`│ *Risk:* Cyclic imports if profiles  │ • 0 typecheck diagnostics on `ty`.    │
+│                          │ not decoupled before schema split.  │ • 100% serialization test pass.       │
+└──────────────────────────┴─────────────────────────────────────┴───────────────────────────────────────┘
 ```
-
-### Package 1: Contract Decoupling & Facade Architecture (`role/stabilize-contracts`)
-- **Owned Scope:** `src/evallab/schemas/` (split `schemas.py` into `core`, `atif`, `task`, `experiment`), `src/evallab/profiles.py`.
-- **Invariants:** `src/evallab/schemas.py` remains a facade re-exporting all symbols to maintain 100% backward compatibility.
-- **Dependency Gate:** Decouples `builtin_profiles` dynamic resolution from schema models to prevent `core ↔ execution` cycles.
-
-### Package 2: Execution & Governance Cleanroom (`role/stabilize-execution`)
-- **Owned Scope:** `src/evallab/execution/` (`runner.py`, `harbor_network.py`, `queue.py`, `quota.py`, `automation.py`).
-- **Invariants:** Preserves exact `O_EXCL` atomic file leasing in `queue.py` and Docker staging in `runner.py`.
-- **Dependency Gate:** 53 focused runner and network tests pass.
-
-### Package 3: Evidence, Quality Ledger & Trajectory IR (`role/stabilize-evidence`)
-- **Owned Scope:** `src/evallab/evidence/` (`atif.py`, `results.py`, `trajectory_quality.py`, `trajectory_ir.py`, `state_events.py`, `cas.py`).
-- **Invariants:** Unifies `TrajectoryIR` as the single canonical IR; preserves all Parquet table schemas.
-- **Dependency Gate:** 102 focused quality ledger, IR, and ATIF tests pass.
-
-### Package 4: CLI Subcommand Dispatch Modularization (`role/stabilize-cli`)
-- **Owned Scope:** `src/evallab/cli/` (domain-specific command handlers: `cmd_run.py`, `cmd_analyze.py`, `cmd_db.py`, `cmd_synthetic.py`, etc.).
-- **Invariants:** `tests/test_cli_registry.py` AST walker is updated in lockstep to inspect package command modules.
-- **Dependency Gate:** Structural golden CLI surface tests pass on Python 3.12 and 3.14.
-
-### Package 5: Storage & Query Engine Unification (`role/stabilize-storage`)
-- **Owned Scope:** `src/evallab/storage/` (`attach.py`, `database.py`, `parquet_compaction.py`, `lance.py`), `sql/`.
-- **Invariants:** Archive 3 dead views in `sql/calibration.sql` and 8 unqueried views in `sql/craft_views.sql`.
-- **Dependency Gate:** DuckDB Z2+Z3+Z4 attach tests pass.
 
 ---
 
 ## 8. Handoff to Architect (`wK:p6`)
 
 - **Worktree:** `/Users/petermakhnatch/Developer/eval-lab/.worktrees/repo-stabilization-audit`
-- **Head SHA:** `8c996cb`
 - **Artifact:** `research/analysis/repo-stabilization-audit.md` (committed and verified)
-- **Status:** **Zero blockers**. Ready for Architect sequencing of Package 1 (`role/stabilize-contracts`).
+- **Reconciliation Status:** All 105 actual modules categorized, 24 phantom rows removed, dynamic Harbor adapters and compatibility facades restored, `BehaviorEpisode` distinctness documented, low-blast storage/execution ordered before schemas split, and all 5 packages marked PLAN-ONLY behind PRs #197–#199.

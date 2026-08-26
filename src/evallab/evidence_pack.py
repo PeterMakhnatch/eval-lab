@@ -469,8 +469,13 @@ class EvidencePack:
 
         lines.append("## Execution Episodes")
         for ep in self.episodes:
-            lines.append(f"- **Episode {ep.get('episode_id', 1)} [{ep.get('name', 'ep')}]:** {ep.get('summary', '')}")
-        lines.append("")
+            episode_type = str(ep.get("episode_type", ""))
+            summary = str(ep.get("summary", ""))[:300]
+            marker = " [SCREENING ONLY]" if episode_type == "screening_recovery" else ""
+            lines.append(
+                f"- **Episode {ep.get('episode_id', 1)} [{ep.get('name', 'ep')}]{marker}:** "
+                f"{summary}"
+            )
 
         lines.append("## Detailed Evidence Windows")
         for win in self.selected_windows:
@@ -500,71 +505,47 @@ def reopen_omitted_range(
     pack: EvidencePack,
     range_id: int,
     *,
-    ir: TrajectoryIR | None = None,
+    ir: TrajectoryIR,
     trial_dir: Path | None = None,
     store_root: Path | None = None,
     repo_root: Path | None = None,
     policy: RedactionPolicy | None = None,
 ) -> EvidenceWindow:
-    """Losslessly reopen and hydrate an omitted range into a detailed EvidenceWindow.
-
-    Reopens per-event citations, recomputes canonical JSON hash over payloads,
-    and raises ValueError if the hash does not match target_range.omitted_content_digest.
-    """
+    """Reopen exactly the omitted IR events and reject incomplete or mismatched evidence."""
     target_range = next((r for r in pack.omitted_ranges if r.range_id == range_id), None)
-    if not target_range:
+    if target_range is None:
         raise ValueError(f"Omitted range id {range_id} not found in pack {pack.pack_digest}")
+    if not target_range.event_ids:
+        raise ValueError(f"Omitted range {range_id} has no event identities")
 
-    if policy is None:
-        policy = RedactionPolicy()
+    event_by_id = {event.event_id: event for event in ir.events}
+    missing_ids = [event_id for event_id in target_range.event_ids if event_id not in event_by_id]
+    if missing_ids:
+        raise ValueError(
+            f"Omitted range {range_id} references missing event ids: {', '.join(missing_ids)}"
+        )
 
+    target_events = [event_by_id[event_id] for event_id in target_range.event_ids]
+    recomputed_digest = _sha256_canonical_json([event.to_dict() for event in target_events])
+    if recomputed_digest != target_range.omitted_content_digest:
+        raise ValueError(
+            f"Omitted content digest mismatch for range {range_id}: "
+            f"expected {target_range.omitted_content_digest} vs actual {recomputed_digest}"
+        )
+
+    active_policy = policy or RedactionPolicy()
     root = (repo_root or Path.cwd()).resolve()
-
-    target_events: list[IREvent] = []
-    if ir is not None:
-        id_set = set(target_range.event_ids)
-        target_events = [e for e in ir.events if e.event_id in id_set]
-
-    # Verify digest over canonical event payload representations
-    if target_events:
-        reconstructed_payloads = [e.to_dict() for e in target_events]
-        recomputed_digest = _sha256_canonical_json(reconstructed_payloads)
-        if recomputed_digest != target_range.omitted_content_digest:
-            raise ValueError(
-                f"Omitted content digest mismatch for range {range_id}: "
-                f"expected {target_range.omitted_content_digest} vs actual {recomputed_digest}"
-            )
-
     reopened_events: list[dict[str, Any]] = []
-    if target_events:
-        for ev in target_events:
-            hydrated = hydrate_citation(ev.source_citation, trial_dir=trial_dir, repo_root=store_root or root, policy=policy)
-            ev_dict = ev.to_dict()
-            ev_dict["hydrated_content"] = hydrated.redacted_content
-            reopened_events.append(ev_dict)
-    else:
-        for step_id in range(target_range.step_start, target_range.step_end + 1):
-            step_cit = create_citation_handle(
-                source_path=target_range.reopening_citation.source_path,
-                source_sha256=target_range.reopening_citation.source_sha256,
-                raw_cas_uri=target_range.reopening_citation.raw_cas_uri,
-                step_id=step_id,
-                target_type="step",
-                redaction_profile_digest=policy.compute_digest(),
-            )
-            hydrated = hydrate_citation(
-                step_cit,
-                trial_dir=trial_dir,
-                repo_root=store_root or root,
-                policy=policy,
-            )
-            reopened_events.append({
-                "step_index": step_id,
-                "action_family": target_range.action_families[0] if target_range.action_families else "inspection",
-                "hydrated_content": hydrated.redacted_content,
-                "summary": f"Step {step_id} in {target_range.summary}",
-                "reopening_citation": step_cit.to_dict(),
-            })
+    for event in target_events:
+        hydrated = hydrate_citation(
+            event.source_citation,
+            trial_dir=trial_dir,
+            repo_root=store_root or root,
+            policy=active_policy,
+        )
+        event_dict = event.to_dict()
+        event_dict["hydrated_content"] = hydrated.redacted_content
+        reopened_events.append(event_dict)
 
     return EvidenceWindow(
         window_id=target_range.range_id + 1000,
@@ -811,26 +792,8 @@ def build_evidence_pack(
         tiered_required = True
         overflow_reason = f"mandatory_window_budget_overflow ({est_tokens} > {budget_tokens} tokens)"
 
-    # 6. Single-Producer Evidence Coverage
-    coverage_metrics = compute_evidence_coverage_metrics(
-        events=ir.events,
-        episodes=ir.episodes,
-        status=ir.status,
-        unavailable_reason=ir.unavailable_reason,
-        quality_status=ir.quality_status,
-        unpaired_count=ir.unpaired_tool_calls_count,
-        linkage_coverage=ir.linkage_coverage,
-        is_production_cas=ir.is_production_cas,
-        cas_uri=ir.source_digests.get("cas_uri"),
-        result_sha=ir.source_digests.get("result_sha256"),
-        primary_reward=ir.primary_reward,
-        exception_class=ir.exception_class,
-        final_verdict=ir.final_verdict,
-        recovery_count=bm.recovery_count,
-        max_cascade=bm.max_exit_code_cascade_screening,
-        trial_dir=trial_dir,
-    )
-    coverage_dict = coverage_metrics.to_dict()
+    # Pack coverage is IR coverage plus the pack-local boundedness fact.
+    coverage_dict = dict(ir.evidence_coverage)
     coverage_dict["is_bounded"] = bool(est_tokens <= budget_tokens)
 
     source_digests = dict(ir.source_digests)

@@ -141,6 +141,23 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
     tampered_pack = replace(pack, omitted_ranges=tuple(tampered_ranges))
     with pytest.raises(ValueError, match="Omitted content digest mismatch"):
         reopen_omitted_range(tampered_pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path)
+
+    # 3. Missing stored event identity rejects rather than falling back to step range.
+    missing_id_ranges = list(pack.omitted_ranges)
+    missing_id_ranges[0] = OmittedRange(
+        range_id=om.range_id,
+        step_start=om.step_start,
+        step_end=om.step_end,
+        event_count=om.event_count,
+        event_ids=(*om.event_ids, "missing-event-id"),
+        action_families=om.action_families,
+        summary=om.summary,
+        omitted_content_digest=om.omitted_content_digest,
+        reopening_citation=om.reopening_citation,
+    )
+    missing_id_pack = replace(pack, omitted_ranges=tuple(missing_id_ranges))
+    with pytest.raises(ValueError, match="references missing event ids"):
+        reopen_omitted_range(missing_id_pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path)
 def test_budget_overflow_marks_pack_uncallable(canary_trial_dir: Path, repo_root: Path) -> None:
     """When mandatory windows exceed token budget, pack is marked uncallable with tiered_pack_required."""
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
@@ -172,7 +189,7 @@ def test_reopen_omitted_range_invalid_id_raises_value_error(canary_trial_dir: Pa
     pack = build_evidence_pack(ir, trial_dir=canary_trial_dir)
 
     with pytest.raises(ValueError, match="not found in pack"):
-        reopen_omitted_range(pack, 9999, trial_dir=canary_trial_dir, repo_root=repo_root)
+        reopen_omitted_range(pack, 9999, ir=ir, trial_dir=canary_trial_dir, repo_root=repo_root)
 
 
 def test_multi_call_citation_handle_hydration_identity(tmp_path: Path, repo_root: Path) -> None:
@@ -232,8 +249,18 @@ def test_five_tb3_cas_packs_determinism_and_rebuild() -> None:
     assert cas_store.is_dir(), f"Central CAS store missing: {cas_store}"
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    tb3_entries = [e for e in manifest["entries"] if e.get("atif_steps_count", 0) > 0 and e.get("role") != "free_control"]
-    assert len(tb3_entries) >= 5, f"Expected at least 5 TB3 entries, got {len(tb3_entries)}"
+    expected_uris = {
+        "cas://sha256/99d86c6c0f895d6063aa3ed61755d4f0ae910f41b7c0607009f1a2a6c299c6b6",
+        "cas://sha256/5441dd3b6d3692fd39cf1fe68edb78552df5183c7110df1bc3cb17c7a18daf66",
+        "cas://sha256/79c7deaf508e8c092e19dd1fd5e5f804273daae069d1dd931c0f5d3e9d025e12",
+        "cas://sha256/0fec243197641545068cf6baf252639643e1216e44a760104d50a4423964a181",
+        "cas://sha256/6615a273b10c8e2a152b1ace7e282059c1e53a623a06f506aba52d3f70633cb7",
+    }
+    tb3_entries = [
+        entry for entry in manifest["entries"] if entry.get("cas_uri") in expected_uris
+    ]
+    assert len(tb3_entries) == 5
+    assert {entry["cas_uri"] for entry in tb3_entries} == expected_uris
 
     for entry in tb3_entries:
         trial_name = entry["trial_name"]

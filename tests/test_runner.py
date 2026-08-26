@@ -10,11 +10,13 @@ import pytest
 import evallab.runner as runner_module
 from evallab.cli import load_local_env
 from evallab.database import _exception_type, count_consecutive_harness_failures
+from evallab.harbor_network import HarborNetworkPolicy
 from evallab.runner import (
     HARBOR_COMPOSE_CONFIG_LABEL,
     HARBOR_COMPOSE_PROJECT_LABEL,
     HARBOR_COMPOSE_WORKDIR_LABEL,
     LOCAL_TO_HARBOR_MODEL,
+    ExecutionFailure,
     HarborProcessResult,
     RunRequest,
     TransientHarnessFailure,
@@ -37,6 +39,22 @@ def task(tmp_path: Path) -> Path:
     task_dir = tmp_path / "task"
     task_dir.mkdir()
     (task_dir / "task.toml").write_text('schema_version = "1.4"\n')
+    return task_dir
+
+
+def no_network_task(tmp_path: Path) -> Path:
+    """A package that requires network adaptation on a non-Linux host."""
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text(
+        'schema_version = "1.4"\n'
+        "\n"
+        "[environment]\n"
+        'network_mode = "no-network"\n'
+        "\n"
+        "[verifier.environment]\n"
+        'network_mode = "no-network"\n'
+    )
     return task_dir
 
 
@@ -89,6 +107,7 @@ def test_antigravity_routes_through_repo_owned_capture_and_keeps_harbor_models(
         "google/gemini-3.7-flash-high",
     }
 
+
 def test_codex_routes_through_repo_owned_pinned_adapter(tmp_path: Path) -> None:
     request = RunRequest(
         task=task(tmp_path),
@@ -126,7 +145,6 @@ def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> 
     assert result.returncode == 0
     pythonpath = log_path.read_text().strip().split(os.pathsep)
     assert str(source_root) in pythonpath
-
 
 
 def test_non_control_agent_requires_billable_acknowledgement(tmp_path: Path) -> None:
@@ -343,9 +361,7 @@ def test_provider_retry_requires_structured_agent_exception() -> None:
         "agent_log": "provider returned status code 503 and recovered",
     }
 
-    assert transient_provider_exception(provider_failure) == (
-        "transient_harness:provider_http_5xx"
-    )
+    assert transient_provider_exception(provider_failure) == ("transient_harness:provider_http_5xx")
     assert transient_provider_exception(task_server_failure) is None
     assert transient_provider_exception(successful_result_with_log_text) is None
 
@@ -426,9 +442,7 @@ def test_generic_agent_failure_classifies_only_stripped_adapter_output() -> None
         }
     }
 
-    assert transient_provider_exception(result) == (
-        "transient_harness:provider_http_5xx"
-    )
+    assert transient_provider_exception(result) == ("transient_harness:provider_http_5xx")
 
 
 def test_successful_harbor_process_with_transient_trial_is_retried(
@@ -563,9 +577,12 @@ def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
     )
 
     assert normalized == "transient_harness"
-    assert count_consecutive_harness_failures(
-        ["AgentRunError", "transient_harness", "VerifierError", None, "OldError"]
-    ) == 2
+    assert (
+        count_consecutive_harness_failures(
+            ["AgentRunError", "transient_harness", "VerifierError", None, "OldError"]
+        )
+        == 2
+    )
 
 
 def test_orphan_cleanup_removes_only_new_harbor_tagged_task_containers(
@@ -662,9 +679,10 @@ def test_cleanup_failure_is_secondary_evidence(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError()),
     )
 
-    assert runner_module._cleanup_failure(
-        request, frozenset(), request.jobs_dir / request.name
-    ) == "cleanup_failed:TimeoutError"
+    assert (
+        runner_module._cleanup_failure(request, frozenset(), request.jobs_dir / request.name)
+        == "cleanup_failed:TimeoutError"
+    )
 
 
 def test_extra_instruction_path_is_forwarded_to_harbor(tmp_path: Path) -> None:
@@ -813,7 +831,6 @@ def test_antigravity_never_sends_reasoning_effort_as_an_agent_kwarg(
     assert not any(arg.startswith("reasoning_effort") for arg in command)
 
 
-
 def test_resolve_harbor_model_variants_and_passthrough() -> None:
     """All Antigravity variants translate to Harbor format; unmapped models pass through."""
     assert (
@@ -829,8 +846,7 @@ def test_resolve_harbor_model_variants_and_passthrough() -> None:
         == "google/gemini-3.1-pro-high"
     )
     assert (
-        resolve_harbor_model("antigravity-cli", "claude-sonnet-4-6")
-        == "google/claude-sonnet-4-6"
+        resolve_harbor_model("antigravity-cli", "claude-sonnet-4-6") == "google/claude-sonnet-4-6"
     )
     # Unmapped models pass through unchanged
     assert resolve_harbor_model("codex", "gpt-5.6-terra") == "gpt-5.6-terra"
@@ -839,3 +855,231 @@ def test_resolve_harbor_model_variants_and_passthrough() -> None:
         == "anthropic/claude-fable-5"
     )
     assert resolve_harbor_model("oracle", None) is None
+
+
+def _darwin_public_policy() -> HarborNetworkPolicy:
+    """Return the policy used to force staging on any test host."""
+    return HarborNetworkPolicy(
+        network_mode="public",
+        network_isolation_enforced=False,
+        network_isolation_reason="darwin-docker-cannot-enforce-no-network",
+    )
+
+
+def test_staging_cleaned_up_after_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful run removes the temporary copy and keeps the metadata."""
+    request = RunRequest(
+        task=no_network_task(tmp_path),
+        agent="oracle",
+        name="staging-success",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    def completed(*_args, **kwargs) -> HarborProcessResult:
+        kwargs["job_dir"].mkdir(parents=True)
+        return HarborProcessResult(
+            returncode=0,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    monkeypatch.setattr(
+        "evallab.harbor_network.host_harbor_network_policy",
+        _darwin_public_policy,
+    )
+    monkeypatch.setattr(
+        runner_module,
+        "load_job",
+        lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
+    )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed)
+    monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")
+    monkeypatch.setattr(
+        runner_module,
+        "git_state",
+        lambda _root: {"commit": None, "dirty": None},
+    )
+
+    job_dir = run_experiment(request, repo_root=tmp_path)
+
+    staging_dir = request.jobs_dir / ".exec-stage" / request.name
+    assert not staging_dir.exists()
+    network_adaptation_path = runner_module._network_adaptation_path(request)
+    assert network_adaptation_path.is_file()
+    manifest = json.loads(network_adaptation_path.read_text())
+    assert manifest["schema_version"] == "1.0"
+    assert manifest["network_adaptation"]["effective_verifier_network"] == "public"
+    metadata = json.loads((job_dir / "lab-metadata.json").read_text())
+    assert metadata["network_adaptation"]["effective_verifier_network"] == "public"
+
+
+def test_staging_cleaned_up_after_harbor_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-zero exit removes the copy after container cleanup and keeps metadata."""
+    request = RunRequest(
+        task=no_network_task(tmp_path),
+        agent="oracle",
+        name="staging-failure",
+        jobs_dir=tmp_path / "runs",
+    )
+    cleaned: list[Path] = []
+
+    def failed(*_args, **kwargs) -> HarborProcessResult:
+        kwargs["job_dir"].mkdir(parents=True)
+        return HarborProcessResult(
+            returncode=1,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    monkeypatch.setattr(
+        "evallab.harbor_network.host_harbor_network_policy",
+        _darwin_public_policy,
+    )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", failed)
+    monkeypatch.setattr(
+        runner_module,
+        "_cleanup_failure",
+        lambda _request, _before, job_dir: cleaned.append(job_dir) or None,
+    )
+    monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")
+    monkeypatch.setattr(
+        runner_module,
+        "git_state",
+        lambda _root: {"commit": None, "dirty": None},
+    )
+
+    with pytest.raises(ExecutionFailure, match="Harbor exited with 1"):
+        run_experiment(request, repo_root=tmp_path)
+
+    assert cleaned == [request.jobs_dir / request.name]
+    staging_dir = request.jobs_dir / ".exec-stage" / request.name
+    assert not staging_dir.exists()
+    network_adaptation_path = runner_module._network_adaptation_path(request)
+    assert network_adaptation_path.is_file()
+    manifest = json.loads(network_adaptation_path.read_text())
+    assert manifest["network_adaptation"]["network_isolation_enforced"] is False
+    assert manifest["network_adaptation"]["network_isolation_reason"] is not None
+
+
+def test_staging_cleaned_up_after_harbor_exception(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An early runtime exception still removes the copy and keeps metadata."""
+    request = RunRequest(
+        task=no_network_task(tmp_path),
+        agent="oracle",
+        name="staging-exception",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    def boom(*_args, **_kwargs) -> None:
+        raise RuntimeError("harbor build failed")
+
+    monkeypatch.setattr(
+        "evallab.harbor_network.host_harbor_network_policy",
+        _darwin_public_policy,
+    )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", boom)
+
+    with pytest.raises(RuntimeError, match="harbor build failed"):
+        run_experiment(request, repo_root=tmp_path)
+
+    staging_dir = request.jobs_dir / ".exec-stage" / request.name
+    assert not staging_dir.exists()
+    network_adaptation_path = runner_module._network_adaptation_path(request)
+    assert network_adaptation_path.is_file()
+    assert (
+        json.loads(network_adaptation_path.read_text())["network_adaptation"][
+            "effective_verifier_network"
+        ]
+        == "public"
+    )
+
+
+def test_staging_cleaned_up_after_task_toml_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failure writing the adapted task.toml into the copy still cleans the copy."""
+    request = RunRequest(
+        task=no_network_task(tmp_path),
+        agent="oracle",
+        name="staging-toml-fail",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    original_write_text = Path.write_text
+
+    def write_text(self, data, *args, **kwargs):
+        if ".exec-stage" in str(self.parent) and self.name == "task.toml":
+            raise OSError("disk full")
+        return original_write_text(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "evallab.harbor_network.host_harbor_network_policy",
+        _darwin_public_policy,
+    )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(Path, "write_text", write_text)
+
+    with pytest.raises(OSError, match="disk full"):
+        run_experiment(request, repo_root=tmp_path)
+
+    staging_dir = request.jobs_dir / ".exec-stage" / request.name
+    assert not staging_dir.exists()
+    source_toml = (request.task / "task.toml").read_text()
+    assert 'network_mode = "no-network"' in source_toml
+    assert 'network_mode = "public"' not in source_toml
+
+
+def test_staging_cleaned_up_after_network_adaptation_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failure writing durable network-adaptation metadata still cleans the copy."""
+    request = RunRequest(
+        task=no_network_task(tmp_path),
+        agent="oracle",
+        name="staging-meta-fail",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    original_write_text = Path.write_text
+
+    def write_text(self, data, *args, **kwargs):
+        if ".executor" in str(self.parent) and "network-adaptation" in self.name:
+            raise OSError("disk full")
+        return original_write_text(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "evallab.harbor_network.host_harbor_network_policy",
+        _darwin_public_policy,
+    )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(Path, "write_text", write_text)
+
+    with pytest.raises(OSError, match="disk full"):
+        run_experiment(request, repo_root=tmp_path)
+
+    staging_dir = request.jobs_dir / ".exec-stage" / request.name
+    assert not staging_dir.exists()
+    network_adaptation_path = runner_module._network_adaptation_path(request)
+    assert not network_adaptation_path.exists()
+    tmp_path_file = network_adaptation_path.with_name(f".{network_adaptation_path.name}.tmp")
+    assert not tmp_path_file.exists()
+    source_toml = (request.task / "task.toml").read_text()
+    assert 'network_mode = "no-network"' in source_toml
+    assert 'network_mode = "public"' not in source_toml

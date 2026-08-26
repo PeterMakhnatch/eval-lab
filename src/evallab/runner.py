@@ -11,13 +11,14 @@ import sys
 import time
 from collections.abc import Mapping
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from evallab.harbor_network import NetworkAdaptation, adapt_task_toml_for_host
 from evallab.results import load_job
 from evallab.schemas import ExperimentMatrix, MatrixRun, RunProvenance
 
@@ -732,6 +733,7 @@ def _write_run_metadata(
     started: datetime,
     finished: datetime,
     process: HarborProcessResult,
+    network_adaptation: NetworkAdaptation | None = None,
 ) -> None:
     job_dir = request.jobs_dir / request.name
     if not job_dir.exists():
@@ -760,10 +762,94 @@ def _write_run_metadata(
     }
     if request.provenance is not None:
         metadata["experiment"] = request.provenance.model_dump(mode="json")
+    if network_adaptation is not None:
+        metadata["network_adaptation"] = asdict(network_adaptation)
     (job_dir / "lab-metadata.json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n"
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
 
+
+def _network_adaptation_path(request: RunRequest) -> Path:
+    return request.jobs_dir / ".executor" / f"{request.name}.network-adaptation.json"
+
+
+def _write_network_adaptation(
+    request: RunRequest,
+    adaptation: NetworkAdaptation | None,
+) -> None:
+    """Persist compact network adaptation metadata outside the staging copy.
+
+    This is written as soon as staging is created so that early build/runtime
+    failures still retain the requested and effective modes, adapter version,
+    adapter digest, and isolation reason even if the temporary staging copy is
+    later deleted.
+    """
+    if adaptation is None:
+        return
+    path = _network_adaptation_path(request)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "schema_version": "1.0",
+        "network_adaptation": asdict(adaptation),
+    }
+    temporary = path.with_name(f".{path.name}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True, default=str) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        with suppress(OSError):
+            temporary.unlink()
+        raise
+    temporary.replace(path)
+
+
+def _cleanup_stage(staging_dir: Path | None) -> None:
+    """Remove the temporary execution copy, including any copied task secrets.
+
+    The compact adaptation metadata has already been persisted to
+    ``.executor/<name>.network-adaptation.json`` and, when the run reached the
+    metadata step, ``<job-dir>/lab-metadata.json``.
+    """
+    if staging_dir is not None and staging_dir.is_dir():
+        shutil.rmtree(staging_dir)
+
+def _stage_task_for_host(
+    source: Path,
+    staging_dir: Path,
+) -> tuple[Path | None, NetworkAdaptation | None]:
+    """Create a host-compatible execution copy of the task package.
+
+    The source package is never modified. Only ``task.toml`` is rewritten, and
+    a ``run_manifest.json`` is added to the copy when a network adaptation is
+    required. Returns ``(None, None)`` when the host can execute the canonical
+    policy directly.
+    """
+    task_toml_path = source / "task.toml"
+    if not task_toml_path.is_file():
+        raise ValueError(f"task.toml missing in {source}")
+    original_text = task_toml_path.read_text(encoding="utf-8")
+    adapted_text, adaptation = adapt_task_toml_for_host(original_text)
+    if adaptation is None:
+        return None, None
+
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    staging_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, staging_dir)
+    (staging_dir / "task.toml").write_text(adapted_text, encoding="utf-8")
+
+    manifest = {
+        "schema_version": "1.0",
+        "network_adaptation": asdict(adaptation),
+    }
+    (staging_dir / "run_manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
+    )
+    return staging_dir, adaptation
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
@@ -777,108 +863,121 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         )
 
     request.jobs_dir.mkdir(parents=True, exist_ok=True)
-    harbor_command = build_command(request)
-    command = subscription_command(request, harbor_command, repo_root=repo_root)
+    staging_dir = request.jobs_dir / ".exec-stage" / request.name
     executor_log = _executor_log_path(request)
-    containers_before = harbor_container_ids(request.task)
     started = datetime.now(UTC)
-    _write_executor_state(
-        request,
-        started_at=started,
-        status="running",
-        log_path=executor_log,
-    )
     try:
-        process = run_harbor_process(
-            command,
-            cwd=repo_root,
-            timeout_seconds=request.job_timeout_seconds,
-            log_path=executor_log,
-            job_dir=job_dir,
-            trial_timeout_seconds=request.timeout_seconds,
-            lease_path=request.lease_path,
-        )
-    except BaseException:
+        staged_task, adaptation = _stage_task_for_host(request.task, staging_dir)
+        if staged_task is not None:
+            staged_request: RunRequest = replace(request, task=staged_task)
+        else:
+            staged_request = request
+
+        _write_network_adaptation(request, adaptation)
+
+        harbor_command = build_command(staged_request)
+        command = subscription_command(staged_request, harbor_command, repo_root=repo_root)
+        containers_before = harbor_container_ids(staged_request.task)
         _write_executor_state(
             request,
             started_at=started,
-            status="failed",
+            status="running",
             log_path=executor_log,
-            finished_at=datetime.now(UTC),
         )
-        raise
-    finished = datetime.now(UTC)
-    _write_executor_state(
-        request,
-        started_at=started,
-        status="failed" if process.timed_out or process.returncode != 0 else "running",
-        log_path=executor_log,
-        finished_at=finished,
-        process=process,
-    )
-    _write_run_metadata(
-        request,
-        repo_root=repo_root,
-        command=command,
-        started=started,
-        finished=finished,
-        process=process,
-    )
+        try:
+            process = run_harbor_process(
+                command,
+                cwd=repo_root,
+                timeout_seconds=request.job_timeout_seconds,
+                log_path=executor_log,
+                job_dir=job_dir,
+                trial_timeout_seconds=request.timeout_seconds,
+                lease_path=request.lease_path,
+            )
+        except BaseException:
+            _write_executor_state(
+                request,
+                started_at=started,
+                status="failed",
+                log_path=executor_log,
+                finished_at=datetime.now(UTC),
+            )
+            raise
+        finished = datetime.now(UTC)
+        _write_executor_state(
+            request,
+            started_at=started,
+            status="failed" if process.timed_out or process.returncode != 0 else "running",
+            log_path=executor_log,
+            finished_at=finished,
+            process=process,
+        )
+        _write_run_metadata(
+            request,
+            repo_root=repo_root,
+            command=command,
+            started=started,
+            finished=finished,
+            process=process,
+            network_adaptation=adaptation,
+        )
 
-    if process.timed_out:
-        cleanup_failure = _cleanup_failure(request, containers_before, job_dir)
-        scope = (
-            f"trial {process.timed_out_trial!r} exceeded {request.timeout_seconds}s"
-            if process.timed_out_trial is not None
-            else f"Harbor exceeded aggregate fail-safe {request.job_timeout_seconds}s"
+        if process.timed_out:
+            cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+            scope = (
+                f"trial {process.timed_out_trial!r} exceeded {request.timeout_seconds}s"
+                if process.timed_out_trial is not None
+                else f"Harbor exceeded aggregate fail-safe {request.job_timeout_seconds}s"
+            )
+            cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            raise TrialTimeoutFailure(f"{scope}; inspect {executor_log}{cleanup_detail}")
+        transient_reason = _transient_reason_from_job(job_dir)
+        if process.returncode != 0:
+            cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+            cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            if transient_reason is not None:
+                raise TransientHarnessFailure(
+                    transient_reason,
+                    message=transient_reason + cleanup_detail,
+                )
+            raise ExecutionFailure(
+                f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
+            )
+        job = load_job(job_dir)
+        _write_executor_state(
+            request,
+            started_at=started,
+            status="failed" if transient_reason is not None else "completed",
+            log_path=executor_log,
+            finished_at=finished,
+            process=process,
         )
-        cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
-        raise TrialTimeoutFailure(f"{scope}; inspect {executor_log}{cleanup_detail}")
-    transient_reason = _transient_reason_from_job(job_dir)
-    if process.returncode != 0:
-        cleanup_failure = _cleanup_failure(request, containers_before, job_dir)
-        cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
         if transient_reason is not None:
+            cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+            cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
             raise TransientHarnessFailure(
                 transient_reason,
                 message=transient_reason + cleanup_detail,
             )
-        raise ExecutionFailure(
-            f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
-        )
-    job = load_job(job_dir)
-    _write_executor_state(
-        request,
-        started_at=started,
-        status="failed" if transient_reason is not None else "completed",
-        log_path=executor_log,
-        finished_at=finished,
-        process=process,
-    )
-    if transient_reason is not None:
-        cleanup_failure = _cleanup_failure(request, containers_before, job_dir)
-        cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
-        raise TransientHarnessFailure(
-            transient_reason,
-            message=transient_reason + cleanup_detail,
-        )
-    evidence_root = os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
-    if evidence_root:
-        try:
-            from evallab.evidence_store import archive_evidence
+        evidence_root = os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
+        if evidence_root:
+            try:
+                from evallab.evidence_store import archive_evidence
 
-            archive_evidence(
-                job_dir,
-                Path(evidence_root),
-                record_id=str(job.id),
-                kind="job",
-            )
-        except Exception as exc:
-            with suppress(Exception):
-                (job_dir / "evidence-archive-error.txt").write_text(
-                    f"{type(exc).__name__}: {exc}\n"
+                archive_evidence(
+                    job_dir,
+                    Path(evidence_root),
+                    record_id=str(job.id),
+                    kind="job",
                 )
-    return job_dir
+            except Exception as exc:
+                with suppress(Exception):
+                    (job_dir / "evidence-archive-error.txt").write_text(
+                        f"{type(exc).__name__}: {exc}\n"
+                    )
+        return job_dir
+    finally:
+        _cleanup_stage(staging_dir)
 
 
 def load_matrix(path: Path) -> ExperimentMatrix:

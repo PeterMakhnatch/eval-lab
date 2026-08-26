@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from evallab.trajectory_ir import _normalize_argument_skeleton
 from evallab.trajectory_judgment import canonical_json_digest
 from evallab.trajectory_recipes import (
     CONTRACT_DIGEST,
@@ -1078,7 +1079,21 @@ def test_precedence_demotion_moves_class_to_winner_and_recomputes_id() -> None:
     RecipeFinding.model_validate(winner.model_dump())
 
 
-def _r1_pair(obs_error: bool, obs_content: str, program: str = "cat /app/missing.txt"):
+def _r1_pair(
+    obs_error: bool,
+    obs_content: str,
+    command: str = "cat /app/missing.txt",
+    *,
+    redact_action: bool = False,
+):
+    """Build the R1 fixture THROUGH the real producer shape.
+
+    argument_skeleton comes from trajectory_ir._normalize_argument_skeleton
+    (paths abstracted to <PATH>), status_owning_program is the real program,
+    and the action's hydrated content is the verbatim command as real packs
+    carry it in selected windows.
+    """
+    program = command.split()[0]
     action = make_event(
         event_id="e-act",
         citation_id="cit_act",
@@ -1090,7 +1105,9 @@ def _r1_pair(obs_error: bool, obs_content: str, program: str = "cat /app/missing
         payload_digest=DIGEST_A,
         matched_result_digest=DIGEST_B,
         summary="run command",
+        hydrated_content="" if redact_action else command,
     )
+    action["argument_skeleton"] = _normalize_argument_skeleton(command, None)
     observation = make_event(
         event_id="e-obs",
         citation_id="cit_obs",
@@ -1174,3 +1191,46 @@ def test_r1_wrong_content_positive_control_labels_with_quote() -> None:
     quotes = findings[0].verbatim_quotes
     assert quotes and "missing.txt" in quotes[0]["quote"]
     assert quotes[0]["citation_id"] == "cit_obs"
+
+
+def test_r1_short_program_with_real_path_in_error_labels() -> None:
+    # Producer shape: skeleton is 'ls <PATH>' (2-char program, abstracted path).
+    # The real target must come from hydrated text, not the skeleton.
+    action, observation = _r1_pair(
+        True,
+        "ls: cannot access '/app/reports': No such file or directory",
+        command="ls -la /app/reports",
+    )
+    assert action["argument_skeleton"] == "ls -la <PATH>"
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id == "wrong_target_or_action"
+    assert "/app/reports" in findings[0].verbatim_quotes[0]["quote"]
+
+
+def test_r1_program_name_echo_alone_does_not_label() -> None:
+    # stderr echoes only the program prefix, never the chosen target.
+    action, observation = _r1_pair(True, "cat: cannot open input", command="cat /app/missing.txt")
+    assert action["argument_skeleton"] == "cat <PATH>"
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id is None
+    assert "no_cited_wrong_content_evidence" in findings[0].coverage_gaps
+
+
+def test_r1_redacted_action_text_fails_closed() -> None:
+    action, observation = _r1_pair(
+        True,
+        "cat: /app/missing.txt: No such file or directory",
+        command="cat /app/missing.txt",
+        redact_action=True,
+    )
+    pack = make_pack(events=[action, observation])
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id is None

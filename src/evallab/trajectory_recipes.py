@@ -911,6 +911,31 @@ _WRONG_CONTENT_MARKERS = (
 )
 
 
+def _action_target_tokens(action: dict[str, Any]) -> set[str]:
+    """Target tokens from the action's verbatim (hydrated) window text.
+
+    ``argument_skeleton`` is deliberately NOT used: the IR producer abstracts
+    real paths and digests to ``<PATH>``/``<DIGEST>`` placeholders
+    (``trajectory_ir._normalize_argument_skeleton``), so skeleton tokens can
+    never evidence a target contradiction on real packs. Targets come from the
+    action's hydrated content, with the status-owning program name excluded so
+    a bare program-name echo in stderr (e.g. ``cat:``) cannot label.
+    """
+    text = extract_hydrated_text(action)
+    if not text:
+        return set()
+    tokens = {
+        tok
+        for tok in re.split(r"[^A-Za-z0-9_./-]+", text)
+        if len(tok) >= 3 and (any(ch.isalpha() for ch in tok) or "/" in tok)
+    }
+    program = action.get("status_owning_program")
+    if isinstance(program, str) and program:
+        drop = {program, program.rsplit("/", 1)[-1]}
+        tokens = {tok for tok in tokens if tok not in drop and tok.rsplit("/", 1)[-1] not in drop}
+    return {tok for tok in tokens if tok.upper() not in {"PATH", "DIGEST"}}
+
+
 def _wrong_content_evidence(
     ctx: _RecipeContext,
     action: dict[str, Any],
@@ -918,9 +943,10 @@ def _wrong_content_evidence(
 ) -> tuple[str, str] | None:
     """Deterministic wrong-content contradiction tying an error to the action's target.
 
-    Returns (observation citation, verbatim quote line) only when the observation is
-    error-evidenced AND an error line explicitly names a target token the agent chose.
-    Mere action+observation presence is never wrong_target evidence.
+    Returns (observation citation, verbatim quote line) only when the observation
+    is error-evidenced AND an error line names an actual non-program target token
+    the agent chose (from the action's verbatim hydrated text). Program-name echo
+    alone never labels; redacted/absent action text fails closed.
     """
     obs_cite = _event_citation(obs)
     if obs_cite is None:
@@ -934,10 +960,7 @@ def _wrong_content_evidence(
     )
     if not error_evidenced:
         return None
-    skeleton = action.get("argument_skeleton")
-    if not isinstance(skeleton, str) or not skeleton.strip():
-        return None
-    targets = [tok for tok in re.split(r"[^A-Za-z0-9_./-]+", skeleton) if len(tok) >= 3]
+    targets = _action_target_tokens(action)
     if not targets:
         return None
     for line in extract_hydrated_text(obs).splitlines():

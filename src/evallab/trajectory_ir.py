@@ -21,7 +21,7 @@ import json
 import re
 import tempfile
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -478,6 +478,68 @@ def _segment_episodes(events: Sequence[IREvent]) -> tuple[IREpisode, ...]:
     return tuple(episodes)
 
 
+class CASTrialResolutionError(ValueError):
+    """Raised when a specified CAS archive cannot resolve one exact trial root."""
+
+
+def _resolve_restored_trial_dir(
+    extracted_root: Path,
+    inventory_record: dict[str, Any],
+) -> Path:
+    """Select the exact trial root inside a restored trial- or job-level CAS archive."""
+    trial_name = str(inventory_record.get("trial_name") or "")
+    if trial_name and (
+        Path(trial_name).name != trial_name or trial_name in {".", ".."}
+    ):
+        raise CASTrialResolutionError(
+            f"invalid CAS trial_name path component: {trial_name!r}"
+        )
+
+    def has_trajectory(path: Path) -> bool:
+        return (
+            (path / "agent" / "trajectory.json").is_file()
+            or (path / "trajectory.json").is_file()
+        )
+
+    if has_trajectory(extracted_root):
+        return extracted_root
+
+    nested_trials = sorted(
+        (
+            child
+            for child in extracted_root.iterdir()
+            if child.is_dir() and has_trajectory(child)
+        ),
+        key=lambda path: path.name,
+    )
+
+    if trial_name:
+        named_trial = (extracted_root / trial_name).resolve()
+        if not named_trial.is_relative_to(extracted_root.resolve()):
+            raise CASTrialResolutionError(
+                f"CAS trial_name escapes archive root: {trial_name!r}"
+            )
+        if not named_trial.is_dir():
+            raise CASTrialResolutionError(
+                f"named trial is absent from CAS archive: {trial_name!r}"
+            )
+        if has_trajectory(named_trial):
+            return named_trial
+        if nested_trials:
+            raise CASTrialResolutionError(
+                f"named CAS trial has no trajectory while other trials do: {trial_name!r}"
+            )
+        return named_trial
+
+    if len(nested_trials) == 1:
+        return nested_trials[0]
+    if len(nested_trials) > 1:
+        raise CASTrialResolutionError(
+            "CAS archive contains multiple trials but no trial_name"
+        )
+    return extracted_root
+
+
 def build_trajectory_ir(
     target: str | Path | dict[str, Any],
     *,
@@ -501,6 +563,7 @@ def build_trajectory_ir(
     cas_uri: str | None = None
     inventory_record: dict[str, Any] = {}
     temp_extract_dir: tempfile.TemporaryDirectory[str] | None = None
+    cas_archive_root: Path | None = None
 
     trial_target_path: str | Path
     if isinstance(target, dict):
@@ -520,27 +583,26 @@ def build_trajectory_ir(
     result_path: Path | None
 
     try:
-        if cas_uri and cas_store.exists():
-            try:
-                temp_extract_dir = tempfile.TemporaryDirectory()
-                extracted_path = Path(temp_extract_dir.name)
-                restore_evidence(cas_store, cas_uri, extracted_path)
-                is_cas = True
-                trial_dir = extracted_path
-                traj_cand = trial_dir / "agent" / "trajectory.json"
-                if not traj_cand.is_file():
-                    traj_cand = trial_dir / "trajectory.json"
-                traj_path = traj_cand if traj_cand.is_file() else None
-                res_cand = trial_dir / "result.json"
-                result_path = res_cand if res_cand.is_file() else None
-                outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=extracted_path)
-            except Exception:
-                trial_dir, traj_path, result_path = resolve_trial_target(
-                    trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-                )
-                outline = outline_trajectory(
-                    trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-                )
+        if cas_uri:
+            if not cas_store.exists():
+                raise FileNotFoundError(f"CAS store does not exist: {cas_store}")
+            temp_extract_dir = tempfile.TemporaryDirectory()
+            extracted_path = Path(temp_extract_dir.name)
+            restore_evidence(cas_store, cas_uri, extracted_path)
+            is_cas = True
+            cas_archive_root = extracted_path
+            trial_dir = _resolve_restored_trial_dir(extracted_path, inventory_record)
+            traj_cand = trial_dir / "agent" / "trajectory.json"
+            if not traj_cand.is_file():
+                traj_cand = trial_dir / "trajectory.json"
+            traj_path = traj_cand if traj_cand.is_file() else None
+            res_cand = trial_dir / "result.json"
+            result_path = res_cand if res_cand.is_file() else None
+            outline = outline_trajectory(
+                trial_dir,
+                repo_root=root,
+                explicit_runs_root=extracted_path,
+            )
         else:
             try:
                 trial_dir, traj_path, result_path = resolve_trial_target(
@@ -660,10 +722,13 @@ def build_trajectory_ir(
                     raw_steps_map[str(s["step_id"])] = s
 
         rel_source_path = outline.source_path
+        citation_root = cas_archive_root or trial_dir
         try:
             cand_p = Path(outline.source_path)
             if cand_p.is_absolute():
-                rel_source_path = cand_p.resolve().relative_to(trial_dir.resolve()).as_posix()
+                rel_source_path = (
+                    cand_p.resolve().relative_to(citation_root.resolve()).as_posix()
+                )
         except Exception:
             rel_source_path = "agent/trajectory.json"
 
@@ -871,6 +936,15 @@ def build_trajectory_ir(
         ir_job_id = str(inventory_record.get("job_id") or outline.job_id)
         ir_job_name = str(inventory_record.get("job_name") or outline.job_name)
         ir_task_name = str(inventory_record.get("task_name") or outline.task_name)
+        baseline = replace(
+            baseline,
+            trial_id=ir_trial_id,
+            trial_name=ir_trial_name,
+            job_id=ir_job_id,
+            job_name=ir_job_name,
+            task_name=ir_task_name,
+            source_path=rel_source_path,
+        )
 
         raw_ir_dict = {
             "ir_version": "1.0",

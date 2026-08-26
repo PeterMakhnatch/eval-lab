@@ -1,0 +1,9 @@
+{
+  "expected_evidence_a": "ev-src-a-9912",
+  "expected_evidence_b": "ev-src-b-4401",
+  "expected_reason_code": "authoritative_conflict",
+  "expected_value": "SETTLE-ROUTING-77420-PRIMARY",
+  "payload_digest": "sha256:1a4977742ca13da0d20a3dc48ee4fd26df0fba5bca8b1b2754d871117555ef47",
+  "target_id": "rec-settle-20260825-901",
+  "variant": "act"
+}

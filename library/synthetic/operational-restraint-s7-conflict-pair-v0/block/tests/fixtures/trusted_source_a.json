@@ -1,0 +1,7 @@
+{
+  "attestation_timestamp": "2026-08-25T11:58:00Z",
+  "authoritative_value": "SETTLE-ROUTING-77420-PRIMARY",
+  "evidence_id": "ev-src-a-9912",
+  "source_id": "source_a",
+  "target_id": "rec-settle-20260825-901"
+}

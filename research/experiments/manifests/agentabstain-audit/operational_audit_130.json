@@ -1,0 +1,2292 @@
+{
+  "admitted_pairs": [],
+  "audit_timestamp": "2026-08-26T20:05:28.982509+00:00",
+  "excluded_informational_pairs": [
+    "ambiguous_action_specification/preview_001",
+    "ambiguous_action_specification/preview_016",
+    "ambiguous_action_specification/preview_017",
+    "ambiguous_action_specification/preview_018",
+    "ambiguous_action_specification/preview_019",
+    "ambiguous_action_specification/preview_020",
+    "ambiguous_action_specification/preview_021",
+    "ambiguous_action_specification/preview_022",
+    "ambiguous_action_specification/preview_023",
+    "ambiguous_action_specification/preview_024",
+    "ambiguous_action_specification/preview_026",
+    "ambiguous_action_specification/preview_027",
+    "ambiguous_action_specification/preview_028",
+    "ambiguous_action_specification/preview_029",
+    "ambiguous_action_specification/preview_030",
+    "conflicting_constraints/preview_001",
+    "conflicting_constraints/preview_002",
+    "conflicting_constraints/preview_003",
+    "conflicting_constraints/preview_004",
+    "conflicting_constraints/preview_007",
+    "conflicting_constraints/preview_008",
+    "conflicting_constraints/preview_011",
+    "conflicting_constraints/preview_012",
+    "conflicting_constraints/preview_018",
+    "conflicting_constraints/preview_025",
+    "conflicting_constraints/preview_026",
+    "conflicting_constraints/preview_027",
+    "conflicting_constraints/preview_028",
+    "conflicting_constraints/preview_029",
+    "conflicting_constraints/preview_030",
+    "conflicting_constraints/preview_031",
+    "conflicting_constraints/preview_032",
+    "conflicting_evidence/preview_001",
+    "conflicting_evidence/preview_002",
+    "conflicting_evidence/preview_003",
+    "conflicting_evidence/preview_004",
+    "conflicting_evidence/preview_005",
+    "conflicting_evidence/preview_006",
+    "conflicting_evidence/preview_007",
+    "conflicting_evidence/preview_014",
+    "conflicting_evidence/preview_019",
+    "conflicting_evidence/preview_021",
+    "conflicting_evidence/preview_025",
+    "conflicting_evidence/preview_026",
+    "conflicting_evidence/preview_027",
+    "conflicting_evidence/preview_029",
+    "conflicting_evidence/preview_030",
+    "critical_tool_failure/preview_001",
+    "critical_tool_failure/preview_003",
+    "critical_tool_failure/preview_004",
+    "critical_tool_failure/preview_005",
+    "critical_tool_failure/preview_006",
+    "critical_tool_failure/preview_008",
+    "critical_tool_failure/preview_011",
+    "critical_tool_failure/preview_012",
+    "critical_tool_failure/preview_013",
+    "critical_tool_failure/preview_014",
+    "critical_tool_failure/preview_015",
+    "critical_tool_failure/preview_016",
+    "critical_tool_failure/preview_017",
+    "critical_tool_failure/preview_018",
+    "critical_tool_failure/preview_020",
+    "critical_tool_failure/preview_021",
+    "critical_tool_failure/preview_024",
+    "critical_tool_failure/preview_027",
+    "critical_tool_failure/preview_031",
+    "emergent_risk_discovery/preview_001",
+    "emergent_risk_discovery/preview_002",
+    "emergent_risk_discovery/preview_005",
+    "emergent_risk_discovery/preview_007",
+    "emergent_risk_discovery/preview_014",
+    "emergent_risk_discovery/preview_015",
+    "emergent_risk_discovery/preview_016",
+    "emergent_risk_discovery/preview_020",
+    "emergent_risk_discovery/preview_022",
+    "emergent_risk_discovery/preview_025",
+    "emergent_risk_discovery/preview_026",
+    "emergent_risk_discovery/preview_027",
+    "emergent_risk_discovery/preview_030",
+    "emergent_risk_discovery/preview_031",
+    "emergent_risk_discovery/preview_032",
+    "emergent_risk_discovery/preview_033",
+    "high_stakes_action/preview_001",
+    "high_stakes_action/preview_002",
+    "high_stakes_action/preview_004",
+    "high_stakes_action/preview_008",
+    "high_stakes_action/preview_010",
+    "high_stakes_action/preview_015",
+    "high_stakes_action/preview_017",
+    "high_stakes_action/preview_019",
+    "high_stakes_action/preview_020",
+    "high_stakes_action/preview_021",
+    "high_stakes_action/preview_022",
+    "high_stakes_action/preview_024",
+    "high_stakes_action/preview_028",
+    "high_stakes_action/preview_029",
+    "high_stakes_action/preview_030",
+    "high_stakes_action/preview_031",
+    "insufficient_tool_capability/preview_013",
+    "insufficient_tool_capability/preview_017",
+    "insufficient_tool_capability/preview_018",
+    "insufficient_tool_capability/preview_019",
+    "insufficient_tool_capability/preview_020",
+    "insufficient_tool_capability/preview_021",
+    "insufficient_tool_capability/preview_022",
+    "insufficient_tool_capability/preview_023",
+    "insufficient_tool_capability/preview_024",
+    "insufficient_tool_capability/preview_025",
+    "insufficient_tool_capability/preview_026",
+    "insufficient_tool_capability/preview_027",
+    "insufficient_tool_capability/preview_028",
+    "insufficient_tool_capability/preview_029",
+    "insufficient_tool_capability/preview_030",
+    "missing_critical_parameter/preview_006",
+    "missing_critical_parameter/preview_010",
+    "missing_critical_parameter/preview_011",
+    "missing_critical_parameter/preview_013",
+    "missing_critical_parameter/preview_017",
+    "missing_critical_parameter/preview_018",
+    "missing_critical_parameter/preview_020",
+    "missing_critical_parameter/preview_021",
+    "missing_critical_parameter/preview_022",
+    "missing_critical_parameter/preview_023",
+    "missing_critical_parameter/preview_024",
+    "missing_critical_parameter/preview_025",
+    "missing_critical_parameter/preview_026",
+    "missing_critical_parameter/preview_027",
+    "missing_critical_parameter/preview_029",
+    "missing_critical_parameter/preview_030",
+    "missing_critical_parameter/preview_031",
+    "missing_critical_parameter/preview_032",
+    "missing_critical_parameter/preview_033"
+  ],
+  "hold_pairs": [
+    {
+      "category": "ambiguous_action_specification",
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_002",
+      "reason_codes": [
+        "identity_mismatch_preview_vs_numeric",
+        "pair_unwhitelisted_difference",
+        "state_object_drift_gmail_and_email_records",
+        "system_prompt_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "identity_mismatch",
+        "initial_state_gmail_and_email_records",
+        "system_prompt"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_003",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "state_object_drift_drafts",
+        "system_prompt_mismatch",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_drafts",
+        "system_prompt",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_004",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "state_object_drift_reservations",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_reservations",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_005",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "state_object_drift_medications",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_medications",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_006",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_007",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_008",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "state_object_drift_mood_entries",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_mood_entries",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_009",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "state_object_drift_mailbox",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_mailbox",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_010",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "state_object_drift_publication_targets",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_publication_targets",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_011",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "state_object_drift_portal_records",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_portal_records",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_012",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "state_object_drift_orders",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_orders",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_013",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "state_object_drift_housing_applications",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_housing_applications",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_014",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "state_object_drift_reservations",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_reservations",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_015",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "state_object_drift_current_time",
+        "state_object_drift_cwd",
+        "state_object_drift_entries",
+        "state_object_drift_filesystem",
+        "state_object_drift_gmail",
+        "state_object_drift_home_dir",
+        "state_object_drift_household",
+        "state_object_drift_phone_messages",
+        "state_object_drift_route_optimization",
+        "state_object_drift_twitter",
+        "state_object_drift_venmo",
+        "state_object_drift_websites",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_current_time",
+        "initial_state_cwd",
+        "initial_state_entries",
+        "initial_state_filesystem",
+        "initial_state_gmail",
+        "initial_state_home_dir",
+        "initial_state_household",
+        "initial_state_phone_messages",
+        "initial_state_route_optimization",
+        "initial_state_twitter",
+        "initial_state_venmo",
+        "initial_state_websites",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "ambiguous_action_specification",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "ambiguous_action_specification/preview_025",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "state_object_drift_calendar_events",
+        "state_object_drift_chat_threads",
+        "state_object_drift_contacts",
+        "state_object_drift_deliveries",
+        "state_object_drift_events",
+        "state_object_drift_flights",
+        "state_object_drift_user_profile",
+        "state_object_drift_work_absence_log",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_calendar_events",
+        "initial_state_chat_threads",
+        "initial_state_contacts",
+        "initial_state_deliveries",
+        "initial_state_events",
+        "initial_state_flights",
+        "initial_state_user_profile",
+        "initial_state_work_absence_log",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_005",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_006",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_009",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_010",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_013",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_014",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_015",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_016",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_017",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_019",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_020",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_021",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_022",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_023",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_constraints",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_constraints/preview_024",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_008",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_009",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_010",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_011",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_012",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_013",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_015",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_016",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_017",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_018",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_020",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_022",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_023",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_024",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "conflicting_evidence",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "conflicting_evidence/preview_028",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_002",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_007",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_009",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_010",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_019",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_022",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_023",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_025",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_026",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_028",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_029",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_030",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_032",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_033",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "critical_tool_failure",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "critical_tool_failure/preview_034",
+      "reason_codes": [
+        "invalid_dimension_tool_behavior"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool_behavior"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_003",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_004",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_006",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_008",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_009",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_010",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_011",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_012",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_013",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_017",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_018",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_019",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_021",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_023",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_024",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_028",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "emergent_risk_discovery",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "emergent_risk_discovery/preview_029",
+      "reason_codes": [
+        "invalid_dimension_data"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_data"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_003",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_005",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_006",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_007",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_009",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_011",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_012",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_013",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_014",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_016",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_018",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_023",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_025",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_026",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "high_stakes_action",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "high_stakes_action/preview_027",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_001",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_002",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_003",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_004",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_005",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_006",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_007",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_008",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_009",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_010",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_011",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_012",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_014",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_015",
+      "reason_codes": [
+        "control_validation_failed",
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_016",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_031",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_032",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_033",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "insufficient_tool_capability",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "insufficient_tool_capability/preview_034",
+      "reason_codes": [
+        "invalid_dimension_tool"
+      ],
+      "unwhitelisted_diffs": [
+        "unknown_dimension_tool"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_001",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_002",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_003",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_004",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_005",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_007",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_008",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_009",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_012",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_014",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_015",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_016",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "state_object_drift_gmail",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "initial_state_gmail",
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_019",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_028",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_034",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_035",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_036",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_037",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": false,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_038",
+      "reason_codes": [
+        "control_validation_failed",
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    },
+    {
+      "category": "missing_critical_parameter",
+      "controls_verified": true,
+      "digests_verified": true,
+      "disposition": "hold",
+      "is_minimal_pair": false,
+      "materialization_input": null,
+      "pair_id": "missing_critical_parameter/preview_039",
+      "reason_codes": [
+        "pair_unwhitelisted_difference",
+        "tool_schema_mismatch"
+      ],
+      "unwhitelisted_diffs": [
+        "tool_schemas"
+      ]
+    }
+  ],
+  "pending_audit_pairs": [],
+  "schema_version": 1,
+  "status": "experimental_hold",
+  "summary": {
+    "admitted_count": 0,
+    "hold_count": 131,
+    "informational_excluded_count": 132,
+    "operational_candidates_count": 131,
+    "pending_audit_count": 0,
+    "total_upstream_pairs": 263
+  },
+  "upstream_authority": {
+    "code_commit": "f581249704b26804e28a39e37396f1be00b71a4d",
+    "dataset_repo": "antiquality/agentabstain",
+    "dataset_revision": "842228426c2a703347396501af61c7890972c7ee"
+  }
+}

@@ -114,29 +114,33 @@ def _digest(value: str) -> str:
     return value.removeprefix("sha256:")
 
 
+def _matches_digest(item: SelectedPack, wanted: str) -> bool:
+    pack_digest = _digest(str(item.payload.get("pack_digest") or ""))
+    return item.digest == wanted or pack_digest == wanted
+
+
 def select_trial_sidecars(
     analyses_dir: Path, *, pack_digest: str | None = None
 ) -> dict[str, SelectedPack]:
-    """Select exactly one sidecar per trial: explicit digest or newest created_at."""
+    """Select exactly one sidecar per trial: explicit digest or newest created_at.
+
+    Matches ``load_trial_artifacts``: pin by directory name or ``pack_digest``;
+    blank ``created_at`` sorts as empty and ties on dirname.
+    """
     wanted = _digest(pack_digest) if pack_digest else None
     candidates: dict[str, list[SelectedPack]] = {}
     for path in sorted(analyses_dir.glob("*/*/evidence_pack.json")):
-        if not path.is_file() or (wanted is not None and path.parent.name != wanted):
+        if not path.is_file():
             continue
         item = SelectedPack(path.parent.parent.name, path.parent.name, path, _read_pack(path))
+        if wanted is not None and not _matches_digest(item, wanted):
+            continue
         candidates.setdefault(item.trial_id, []).append(item)
     selected: dict[str, SelectedPack] = {}
     for trial_id, options in candidates.items():
-        if wanted is not None or len(options) == 1:
-            selected[trial_id] = options[0]
-            continue
-        missing = [str(item.path) for item in options if not item.payload.get("created_at")]
-        if missing:
-            raise ValueError(
-                "cannot select newest pack: missing created_at in " + ", ".join(missing)
-            )
         selected[trial_id] = max(
-            options, key=lambda item: (str(item.payload["created_at"]), item.digest)
+            options,
+            key=lambda item: (str(item.payload.get("created_at") or ""), item.digest),
         )
     return dict(sorted(selected.items()))
 

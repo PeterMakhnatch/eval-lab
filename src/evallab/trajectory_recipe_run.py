@@ -150,7 +150,7 @@ def load_campaign_report_map(path: Path) -> dict[str, str]:
     refs = value.get("source_refs")
     items = refs if isinstance(refs, list) else value.get("items")
     if not isinstance(items, list):
-        items = []
+        raise ValueError(f"campaign report has no source_refs list; cannot pin trials: {path}")
     mapping: dict[str, str] = {}
     for item in items:
         if not isinstance(item, Mapping):

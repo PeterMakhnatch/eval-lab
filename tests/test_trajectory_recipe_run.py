@@ -692,3 +692,20 @@ def test_malformed_map_entries_fail_closed(tmp_path: Path) -> None:
     bad_report.write_text(json.dumps({"source_refs": [{"trial_id": "trial-a"}]}), encoding="utf-8")
     with pytest.raises(ValueError, match="missing pack_digest"):
         load_campaign_report_map(bad_report)
+
+
+def test_aggregate_only_campaign_report_fails_closed(tmp_path: Path) -> None:
+    # Reviewer P1: a report without a source_refs list must raise, never yield an
+    # empty pin map that silently produces zero findings with exit 0.
+    from evallab.trajectory_recipe_run import load_campaign_report_map
+
+    aggregate = tmp_path / "aggregate.json"
+    aggregate.write_text(
+        json.dumps({"schema_version": "campaign-report/v1", "cohort_accounted": 5}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="no source_refs list"):
+        load_campaign_report_map(aggregate)
+    empty_ok = tmp_path / "empty.json"
+    empty_ok.write_text(json.dumps({"source_refs": []}), encoding="utf-8")
+    assert load_campaign_report_map(empty_ok) == {}

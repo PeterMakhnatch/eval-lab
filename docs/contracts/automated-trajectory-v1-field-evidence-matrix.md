@@ -53,11 +53,11 @@ Current campaign production smoke must start from the five PR #187 CAS URIs. `.w
 
 | Contract | Current source | Status |
 |---|---|---|
-| MachineJudgment v1 | no current main producer; Track B1 ontology/prompt freeze | new Platform artifact; output label closed to frozen ontology |
-| AcceptanceDecision v1 | no current main producer | new pure Platform gate; default abstain-only |
-| CalibrationReport v1 | research-context calibration schema/protocol; executable results pending | `experimental_hold`; no class enabled |
-| human baseline | future multi-rater local held-out set | APB/TrajErr consensus rows do not provide production human baseline |
-| citation entailment | deterministic resolution first; calibrated semantic blocker later | no current three-way corpus; semantic pass cannot open acceptance yet |
+| MachineJudgment v1 | merged Platform runtime PR #193 plus frozen Track B ontology/prompt | main emits deterministic abstentions; model output remains closed to the frozen ontology |
+| AcceptanceDecision v1 | merged Platform runtime PR #193 | pure Platform gate; automatic acceptance disabled |
+| CalibrationReport v1 | research-context `306b720`: genuine Gemini 3.7 Flash High, 14/14 valid rows, no fallback | `experimental_hold`; accepted 0, coverage 0, no class enabled |
+| human baseline | source audit `01ee5d6` plus frozen v1.1 protocol | no eligible existing corpus; require author raw-label release or new offline three-qualified-rater calibration |
+| citation entailment | deterministic resolution plus Track B strict-support scoring | resolution/completeness 1.0 but strict support 0.379; semantic pass cannot open acceptance |
 
 ## Benchmark-specific evidence checks
 

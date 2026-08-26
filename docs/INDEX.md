@@ -25,7 +25,7 @@ inputs:
   - path: docs/authoring.md
     digest: sha256:37669e0ed2770fc1c3b5c9c9baadc2ca4b3d2af4e3844c8da298c08d6ab9b5d9
   - path: docs/automated-trajectory-interpretation-architecture-v1.md
-    digest: sha256:8776af85255e03223a8a7ac0329481b50f232dbd10026889dfd4e3bc9f96b1e4
+    digest: sha256:a459145f0ccfa2e36d06114c45795d11f0b42d05f577adb1781bcd344c210746
   - path: docs/behavior-analysis.md
     digest: sha256:13a91a461b028742a92c3cb5a1f70f46c257794a180bf6d6299154b80ea08f67
   - path: docs/build-plan.md

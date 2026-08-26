@@ -182,7 +182,7 @@ def test_registry_contract_func_count_equals_leaf_command_count() -> None:
         (path, subp) for path, subp in leaves if callable(subp.get_default("func"))
     ]
     assert len(leaves) == len(leaves_with_func)
-    assert len(leaves) == 74, f"Expected exactly 74 leaf commands, found {len(leaves)}"
+    assert len(leaves) == 75, f"Expected exactly 75 leaf commands, found {len(leaves)}"
 
 def test_registry_contract_ast_set_defaults_count_equals_leaf_count() -> None:
     """AST check: set_defaults(func=...) registrations in cli.py match the leaf command count."""
@@ -202,7 +202,7 @@ def test_registry_contract_ast_set_defaults_count_equals_leaf_count() -> None:
 
     leaves = find_leaf_parsers(cli.parser())
     assert len(ast_set_defaults_func_calls) == len(leaves)
-    assert len(ast_set_defaults_func_calls) == 74
+    assert len(ast_set_defaults_func_calls) == 75
 
 def test_registry_contract_handlers_accept_uniform_signature() -> None:
     """All registered command handlers accept uniform parameters (args, root, *, harbor)."""

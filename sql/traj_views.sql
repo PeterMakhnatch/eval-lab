@@ -8,6 +8,7 @@
 --   v_traj_labels: unified human, heuristic, and model behavior labels
 --   v_traj_queue: candidate review queue for unlabeled real-agent trials
 --   v_traj_summary: headline trajectory coverage and feature summary
+--   v_trace_baseline: deterministic mechanical facts & screening metrics per trial
 --
 -- Run standalone in DuckDB:
 --   duckdb -c ".read sql/traj_views.sql" -c "SELECT * FROM v_traj_summary"
@@ -53,7 +54,9 @@ CREATE TABLE IF NOT EXISTS traj_features (
     primary_reward DOUBLE,
     exception_class VARCHAR,
     duration_seconds DOUBLE,
-    created_at VARCHAR
+    created_at VARCHAR,
+    context_burn_velocity_screening DOUBLE,
+    max_exit_code_cascade_screening BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS behavior_labels (
@@ -143,7 +146,9 @@ SELECT
     primary_reward,
     exception_class,
     duration_seconds,
-    created_at
+    created_at,
+    context_burn_velocity_screening,
+    max_exit_code_cascade_screening
 FROM traj_features;
 
 CREATE OR REPLACE VIEW v_traj_loops AS
@@ -268,4 +273,68 @@ SELECT
     round(sum(cost_usd), 4) AS total_cost_usd,
     (SELECT count(*) FROM behavior_labels WHERE provenance = 'human') AS human_labels_count,
     (SELECT count(*) FROM behavior_labels WHERE provenance = 'heuristic') AS heuristic_labels_count
+FROM traj_features;
+
+-- --------------------------------------------------------------------------- --
+-- Deterministic Trace Baseline View (Phase 1 Baseline)
+-- --------------------------------------------------------------------------- --
+
+CREATE OR REPLACE VIEW v_trace_baseline AS
+SELECT
+    trial_id,
+    job_id,
+    trial_name,
+    job_name,
+    task_name,
+    agent_name,
+    agent_version,
+    model_name,
+    status,
+    unavailable_reason,
+    source_path,
+    source_sha256,
+    primary_reward,
+    exception_class,
+    duration_seconds,
+    step_count,
+    agent_step_count,
+    system_step_count,
+    user_step_count,
+    tool_call_count,
+    unique_tools_count,
+    error_count,
+    recovery_count,
+    CASE
+        WHEN tool_call_count > 0 THEN round(unique_tools_count * 1.0 / tool_call_count, 4)
+        ELSE NULL
+    END AS linear_innocence_screening,
+    CASE
+        WHEN tool_call_count > 0 THEN round(error_count * 1.0 / tool_call_count, 4)
+        ELSE NULL
+    END AS tool_error_rate_screening,
+    context_burn_velocity_screening,
+    max_exit_code_cascade_screening,
+    CASE
+        WHEN prompt_tokens IS NOT NULL AND cached_tokens IS NOT NULL AND (prompt_tokens + cached_tokens) > 0
+        THEN round(cached_tokens * 1.0 / (prompt_tokens + cached_tokens), 4)
+        ELSE NULL
+    END AS cache_hit_rate_screening,
+    CASE
+        WHEN step_count > 0 THEN round((step_count - agent_step_count - user_step_count) * 1.0 / step_count, 4)
+        ELSE NULL
+    END AS subagent_overhead_ratio_screening,
+    prompt_tokens,
+    completion_tokens,
+    cached_tokens,
+    CASE
+        WHEN prompt_tokens IS NOT NULL AND completion_tokens IS NOT NULL
+        THEN prompt_tokens + completion_tokens
+        ELSE NULL
+    END AS total_tokens,
+    cost_usd,
+    loop_suspicion_score,
+    loop_suspicion_detected,
+    loop_reasons_json,
+    repeated_command_count,
+    created_at
 FROM traj_features;

@@ -87,7 +87,11 @@ def make_event(
     call_index: int | None = 0,
     matched_result_digest: str | None = None,
 ) -> dict:
-    hydrated_content = hydrated_content if hydrated_content is not None else json.dumps({"message": summary or f"{event_type} {event_id}"})
+    hydrated_content = (
+        hydrated_content
+        if hydrated_content is not None
+        else json.dumps({"message": summary or f"{event_type} {event_id}"})
+    )
     return {
         "event_id": event_id,
         "event_ordinal": ordinal,
@@ -474,7 +478,9 @@ def test_omitted_span_claim_pack_incomplete() -> None:
 
 def test_no_context_events_opportunity_unknown() -> None:
     pack = make_pack()
-    findings = run_recipes(artifacts_from(pack, make_ir(events=pack["selected_windows"][0]["events"])))
+    findings = run_recipes(
+        artifacts_from(pack, make_ir(events=pack["selected_windows"][0]["events"]))
+    )
     r6 = by_recipe(findings, "r6")
     assert r6 and r6[0].abstention_reason == "opportunity_unknown"
     assert all(f.class_id != "context_or_constraint_loss" for f in findings)
@@ -577,9 +583,7 @@ def test_r3_pair_unavailable_and_confounded() -> None:
     r3 = by_recipe(findings, "r3")
     assert r3 and r3[0].abstention_reason == "pair_unavailable"
     assert r3[0].class_id is None
-    confounded = run_recipes(
-        artifacts_from(pack, make_ir(), alignment={"validity": "confounded"})
-    )
+    confounded = run_recipes(artifacts_from(pack, make_ir(), alignment={"validity": "confounded"}))
     r3c = by_recipe(confounded, "r3")
     assert r3c and r3c[0].abstention_reason == "confounded"
 
@@ -594,18 +598,50 @@ def test_ico_path_patch_smoke() -> None:
     assert r1 and all(f.class_id != "infrastructure_failure" for f in r1)
 
 
-
 def test_v11_provenance_tuple_and_r2_target() -> None:
-    event = make_event(event_id="e", citation_id="cit", event_type="tool_call", program="grep", exit_code=1, is_error=True, summary="pattern", matched_result_digest=DIGEST_B)
-    findings = run_recipes(artifacts_from(make_pack(events=[event]), make_ir(events=[event])), semantics_profile_digest=PROFILE)
+    event = make_event(
+        event_id="e",
+        citation_id="cit",
+        event_type="tool_call",
+        program="grep",
+        exit_code=1,
+        is_error=True,
+        summary="pattern",
+        matched_result_digest=DIGEST_B,
+    )
+    findings = run_recipes(
+        artifacts_from(make_pack(events=[event]), make_ir(events=[event])),
+        semantics_profile_digest=PROFILE,
+    )
     r2 = by_recipe(findings, "r2")[0]
     assert r2.namespace == "traj.judge.v1" and r2.ontology_version == "traj.judge.ontology.v1"
     assert r2.target_definition == "decisive_evidential"
-    assert {"pack_digest", "taxonomy_digest", "pack_builder_digest", "reason_alias", "prompt_hash", "model_hash"} <= set(r2.extras)
+    assert {
+        "pack_digest",
+        "taxonomy_digest",
+        "pack_builder_digest",
+        "reason_alias",
+        "prompt_hash",
+        "model_hash",
+    } <= set(r2.extras)
 
 
 def test_v11_hard_label_validator() -> None:
-    base = dict(finding_id="x", recipe_id="r1", trial_id="t", validity="supported", class_id="wrong_target_or_action", support_level="e1", earliest_supported_ir_event_id=None, citations=[], alternative_explanations=[], coverage_gaps=[], abstention_reason=None, extras={}, verbatim_quotes=[{"citation_id": "x", "quote": "x"}])
+    base = dict(
+        finding_id="x",
+        recipe_id="r1",
+        trial_id="t",
+        validity="supported",
+        class_id="wrong_target_or_action",
+        support_level="e1",
+        earliest_supported_ir_event_id=None,
+        citations=[],
+        alternative_explanations=[],
+        coverage_gaps=[],
+        abstention_reason=None,
+        extras={},
+        verbatim_quotes=[{"citation_id": "x", "quote": "x"}],
+    )
     with pytest.raises(ValueError, match="carry a class"):
         RecipeFinding(disposition="screening_only", **base)
     with pytest.raises(ValueError, match="deterministic abstention"):
@@ -613,20 +649,75 @@ def test_v11_hard_label_validator() -> None:
 
 
 def test_v11_quote_validator_rejects_summary_only_evidence() -> None:
-    event = make_event(event_id="e", citation_id="cit", event_type="tool_call", program="bad", exit_code=2, is_error=True, summary="schema", hydrated_content="")
-    finding = RecipeFinding(finding_id="x", recipe_id="r2", trial_id="t", disposition="candidate_hold", validity="supported", class_id="tool_schema_misuse", support_level="e1", earliest_supported_ir_event_id="e", citations=["cit"], alternative_explanations=[], coverage_gaps=[], abstention_reason=None, extras={}, target_definition="decisive_evidential", verbatim_quotes=[{"citation_id":"cit", "quote":"schema"}])
+    event = make_event(
+        event_id="e",
+        citation_id="cit",
+        event_type="tool_call",
+        program="bad",
+        exit_code=2,
+        is_error=True,
+        summary="schema",
+        hydrated_content="",
+    )
+    finding = RecipeFinding(
+        finding_id="x",
+        recipe_id="r2",
+        trial_id="t",
+        disposition="candidate_hold",
+        validity="supported",
+        class_id="tool_schema_misuse",
+        support_level="e1",
+        earliest_supported_ir_event_id="e",
+        citations=["cit"],
+        alternative_explanations=[],
+        coverage_gaps=[],
+        abstention_reason=None,
+        extras={},
+        target_definition="decisive_evidential",
+        verbatim_quotes=[{"citation_id": "cit", "quote": "schema"}],
+    )
     with pytest.raises(ValueError, match="verbatim"):
         assert_citations_in_pack(finding, make_pack(events=[event]))
 
 
 def test_v11_censored_and_expected_identical_guard() -> None:
-    fault = make_event(event_id="fault", citation_id="fault", event_type="observation", actor="environment", is_error=True, exit_code=2)
-    censored = by_recipe(run_recipes(artifacts_from(make_pack(events=[fault]), make_ir(events=[fault]))), "r5")[0]
-    assert censored.extras["censored"] is True and censored.abstention_reason == "opportunity_unknown"
-    a = make_event(event_id="a", citation_id="a", event_type="tool_call", program="poll", payload_digest=DIGEST_A)
-    b = make_event(event_id="b", citation_id="b", event_type="tool_call", program="poll", payload_digest=DIGEST_A)
-    guarded = by_recipe(run_recipes(artifacts_from(make_pack(events=[fault, a, b]), make_ir(events=[fault, a, b]))), "r5")
-    assert all("repeated_failure_or_thrashing" not in item.alternative_explanations and item.class_id != "repeated_failure_or_thrashing" for item in guarded)
+    fault = make_event(
+        event_id="fault",
+        citation_id="fault",
+        event_type="observation",
+        actor="environment",
+        is_error=True,
+        exit_code=2,
+    )
+    censored = by_recipe(
+        run_recipes(artifacts_from(make_pack(events=[fault]), make_ir(events=[fault]))), "r5"
+    )[0]
+    assert (
+        censored.extras["censored"] is True and censored.abstention_reason == "opportunity_unknown"
+    )
+    a = make_event(
+        event_id="a",
+        citation_id="a",
+        event_type="tool_call",
+        program="poll",
+        payload_digest=DIGEST_A,
+    )
+    b = make_event(
+        event_id="b",
+        citation_id="b",
+        event_type="tool_call",
+        program="poll",
+        payload_digest=DIGEST_A,
+    )
+    guarded = by_recipe(
+        run_recipes(artifacts_from(make_pack(events=[fault, a, b]), make_ir(events=[fault, a, b]))),
+        "r5",
+    )
+    assert all(
+        "repeated_failure_or_thrashing" not in item.alternative_explanations
+        and item.class_id != "repeated_failure_or_thrashing"
+        for item in guarded
+    )
 
 
 def test_v11_r7_zero_exposure_unknown_metrics() -> None:
@@ -636,36 +727,86 @@ def test_v11_r7_zero_exposure_unknown_metrics() -> None:
 
 
 def test_v11_precedence_demotes_lower_candidate() -> None:
-    action = make_event(event_id="a", citation_id="a", event_type="tool_call", program="bad", exit_code=2, is_error=True, matched_result_digest=DIGEST_B)
-    observation = make_event(event_id="o", citation_id="o", event_type="observation", actor="environment", ordinal=1, is_error=True, exit_code=2)
-    findings = run_recipes(artifacts_from(make_pack(events=[action, observation], exception_class="TimeoutError"), make_ir(events=[action, observation])))
+    action = make_event(
+        event_id="a",
+        citation_id="a",
+        event_type="tool_call",
+        program="bad",
+        exit_code=2,
+        is_error=True,
+        matched_result_digest=DIGEST_B,
+    )
+    observation = make_event(
+        event_id="o",
+        citation_id="o",
+        event_type="observation",
+        actor="environment",
+        ordinal=1,
+        is_error=True,
+        exit_code=2,
+    )
+    findings = run_recipes(
+        artifacts_from(
+            make_pack(events=[action, observation], exception_class="TimeoutError"),
+            make_ir(events=[action, observation]),
+        )
+    )
     labeled = [item for item in findings if item.class_id]
     assert len(labeled) == 1 and labeled[0].class_id == "infrastructure_failure"
     assert any(item.extras.get("demoted_by_precedence") for item in findings)
 
 
 def test_v11_new_abstention_codes_and_aliases() -> None:
-    for code in {"digest_mismatch", "citation_unresolved", "contradicts_verifier_or_state", "quality_fail"}:
-        finding = RecipeFinding(finding_id=code, recipe_id="r1", trial_id="t", disposition="deterministic_abstention", validity=None, class_id=None, support_level="e0", earliest_supported_ir_event_id=None, citations=[], alternative_explanations=[], coverage_gaps=[], abstention_reason=code, extras={})
+    for code in {
+        "digest_mismatch",
+        "citation_unresolved",
+        "contradicts_verifier_or_state",
+        "quality_fail",
+    }:
+        finding = RecipeFinding(
+            finding_id=code,
+            recipe_id="r1",
+            trial_id="t",
+            disposition="deterministic_abstention",
+            validity=None,
+            class_id=None,
+            support_level="e0",
+            earliest_supported_ir_event_id=None,
+            citations=[],
+            alternative_explanations=[],
+            coverage_gaps=[],
+            abstention_reason=code,
+            extras={},
+        )
         assert finding.abstention_reason == code
 
 
 def test_v11_loads_newest_or_explicit_digest(tmp_path: Path) -> None:
-    old = make_pack(trial_id="t"); old.update(pack_digest="old", created_at="2026-01-01T00:00:00Z")
-    new = make_pack(trial_id="t"); new.update(pack_digest="new", created_at="2026-02-01T00:00:00Z")
+    old = make_pack(trial_id="t")
+    old.update(pack_digest="old", created_at="2026-01-01T00:00:00Z")
+    new = make_pack(trial_id="t")
+    new.update(pack_digest="new", created_at="2026-02-01T00:00:00Z")
     for name, pack in (("old", old), ("new", new)):
-        directory = tmp_path / "t" / name; directory.mkdir(parents=True)
+        directory = tmp_path / "t" / name
+        directory.mkdir(parents=True)
         (directory / "evidence_pack.json").write_text(json.dumps(pack))
     assert load_trial_artifacts(tmp_path, "t").pack["pack_digest"] == "new"
     assert load_trial_artifacts(tmp_path, "t", "old").pack["pack_digest"] == "old"
 
 
 def test_v11_refusal_is_ontology_gap_with_verbatim_quote() -> None:
-    refusal = make_event(event_id="r", citation_id="r", event_type="agent_message", hydrated_content=json.dumps({"message":"I cannot fulfill this legitimate task."}))
+    refusal = make_event(
+        event_id="r",
+        citation_id="r",
+        event_type="agent_message",
+        hydrated_content=json.dumps({"message": "I cannot fulfill this legitimate task."}),
+    )
     findings = run_recipes(artifacts_from(make_pack(events=[refusal]), make_ir(events=[refusal])))
     r1, r4 = by_recipe(findings, "r1")[0], by_recipe(findings, "r4")[0]
     assert r1.abstention_reason == r4.abstention_reason == "ontology_gap"
-    assert r4.extras["claim_type"] == "refusal" and r4.verbatim_quotes[0]["quote"] in extract_message(refusal)
+    assert r4.extras["claim_type"] == "refusal" and r4.verbatim_quotes[0][
+        "quote"
+    ] in extract_message(refusal)
 
 
 def extract_message(event: dict) -> str:

@@ -37,9 +37,7 @@ REQUIRED_JSONL_KEYS = frozenset(
         "contract_digest",
     }
 )
-ALLOWED_DISPOSITIONS = frozenset(
-    {"candidate_hold", "deterministic_abstention", "screening_only"}
-)
+ALLOWED_DISPOSITIONS = frozenset({"candidate_hold", "deterministic_abstention", "screening_only"})
 ALLOWED_RECIPES = frozenset({"r1", "r2", "r3", "r4", "r5", "r6", "r7"})
 DATA_REQUIREMENT_PHRASES = (
     "arms executed: 1",
@@ -216,7 +214,9 @@ def test_runner_selects_one_newest_pack_and_writes_deterministic_reports(
     _write_sidecar(analyses, "trial-b", "digest-b", created_at="2026-08-02T00:00:00Z")
     selections = select_trial_sidecars(analyses)
     assert selections["trial-a"].digest == "digest-new"
-    assert select_trial_sidecars(analyses, pack_digest="digest-old")["trial-a"].digest == "digest-old"
+    assert (
+        select_trial_sidecars(analyses, pack_digest="digest-old")["trial-a"].digest == "digest-old"
+    )
 
     seeded = seed_findings()
     by_trial: dict[str, list[RecipeFinding]] = {"trial-a": [], "trial-b": []}
@@ -246,7 +246,7 @@ def test_runner_selects_one_newest_pack_and_writes_deterministic_reports(
         parsed.append(row)
         assert list(row) == sorted(row)
         assert "produced_at" not in row
-        assert REQUIRED_JSONL_KEYS <= set(row)
+        assert set(row) >= REQUIRED_JSONL_KEYS
         assert row["recipe_id"] in ALLOWED_RECIPES
         assert row["disposition"] in ALLOWED_DISPOSITIONS
     assert [(row["trial_id"], row["recipe_id"], row["finding_id"]) for row in parsed] == sorted(
@@ -256,13 +256,18 @@ def test_runner_selects_one_newest_pack_and_writes_deterministic_reports(
     report = report_path.read_text(encoding="utf-8")
     assert "EMBARGOED: produced from pre-rebuild EvidencePacks" in report
     assert "PR #199 original exact review" in report
-    assert "multi-call citations/observations, expected-negative anchors, coverage producer/state-journal units, omitted digest reopen" in report
+    assert (
+        "multi-call citations/observations, expected-negative anchors, coverage producer/state-journal units, omitted digest reopen"
+        in report
+    )
     assert "index convention" in report
     assert "grouped only by (benchmark, target_definition)" in report
     assert "no decisive-step depth or propagation distribution is pooled" in report
     assert "Unit: RecipeFindings; aggregation: micro-count" in report
     assert "## Selected EvidencePacks" in report
-    assert "`digest-new`" in report and "`digest-old`" not in _section(report, "Selected EvidencePacks")
+    assert "`digest-new`" in report and "`digest-old`" not in _section(
+        report, "Selected EvidencePacks"
+    )
     assert "verbatim quote" in report
     for phrase in DATA_REQUIREMENT_PHRASES:
         assert phrase in report
@@ -302,11 +307,14 @@ def test_runner_old_pack_selection_emits_materialization_request(
         lambda *_args, **_kwargs: [make_finding(trial_id="trial-a")],
     )
     out = tmp_path / "out"
-    assert main(
-        ["--analyses-dir", str(analyses), "--out", str(out), "--pack-digest", "digest-old"]
-    ) == 0
+    assert (
+        main(["--analyses-dir", str(analyses), "--out", str(out), "--pack-digest", "digest-old"])
+        == 0
+    )
     request = (out / IMPROVEMENT_REQUESTS).read_text(encoding="utf-8")
-    materialization = _section(request, "rebuilt packs pinned but unmaterialized; request materialization to shared root")
+    materialization = _section(
+        request, "rebuilt packs pinned but unmaterialized; request materialization to shared root"
+    )
     assert "- owner: Agent Data" in materialization
     assert "amended heads b01d417 then 519f542" in materialization
     assert "`trial-a`" in materialization

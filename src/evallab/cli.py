@@ -2480,8 +2480,9 @@ def _traj_ir_command(
         except Exception:
             pass
 
+    store_root = explicit_root if (explicit_root and (explicit_root / "blobs").exists()) else None
     try:
-        ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root)
+        ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root, store_root=store_root)
         output_str = json.dumps(ir.to_dict(), indent=2)
         if getattr(args, "output", None):
             out_path = _resolve(root, args.output)
@@ -2517,8 +2518,9 @@ def _traj_pack_command(
     budget = getattr(args, "budget", 16000) or 16000
     policy = RedactionPolicy(redact_secrets=not getattr(args, "no_redact", False))
 
+    store_root = explicit_root if (explicit_root and (explicit_root / "blobs").exists()) else None
     try:
-        ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root)
+        ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root, store_root=store_root)
         trial_str = str(args.trial)
         trial_dir: Path | None = None
         if not trial_str.startswith("cas://"):
@@ -2528,7 +2530,7 @@ def _traj_pack_command(
                     trial_dir = tp if tp.is_dir() else tp.parent
             except Exception:
                 pass
-        pack = build_evidence_pack(ir, trial_dir=trial_dir, repo_root=root, budget_tokens=budget, policy=policy)
+        pack = build_evidence_pack(ir, trial_dir=trial_dir, repo_root=root, store_root=store_root, budget_tokens=budget, policy=policy)
         fmt = getattr(args, "format", "markdown")
         if getattr(args, "json", False) or fmt == "json":
             rendered = json.dumps(pack.to_dict(), indent=2)

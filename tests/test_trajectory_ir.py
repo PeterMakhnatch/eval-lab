@@ -278,3 +278,10 @@ def test_synthetic_cas_archive_ingestion(repo_root: Path) -> None:
         # Verify hydrated content was extracted from the archived trajectory.json
         first_window = pack.selected_windows[0]
         assert any("def main(): return 42" in str(ev.get("hydrated_content")) for ev in first_window.events)
+
+        # 5. CLI smoke test on CAS URI
+        from evallab.cli import run_cli
+        ir_code = run_cli(["traj", "ir", archive.uri, "--runs-dir", str(cas_store)], workspace=repo_root)
+        assert ir_code == 0
+        pack_code = run_cli(["traj", "pack", archive.uri, "--runs-dir", str(cas_store)], workspace=repo_root)
+        assert pack_code == 0

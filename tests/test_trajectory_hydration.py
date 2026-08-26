@@ -125,6 +125,40 @@ def test_hydrate_citation_rejects_absolute_path_and_traversal() -> None:
             hydrate_citation(traversal_citation, trial_dir=trial_dir)
 
 
+
+def test_hydrate_citation_cas_member_path_jailing() -> None:
+    """Citation source_path inside CAS archive is strictly jailed; ../ escapes raise CitationPathJailError."""
+    from evallab.evidence_store import archive_evidence
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        temp_path = Path(tmpdir)
+        source_dir = temp_path / "source_trial"
+        cas_store = temp_path / "cas_store"
+        source_dir.mkdir(parents=True)
+        cas_store.mkdir(parents=True)
+
+        (source_dir / "agent").mkdir()
+        (source_dir / "agent" / "trajectory.json").write_text(json.dumps({"schema_version": "ATIF-v1.4", "steps": []}))
+        (source_dir / "result.json").write_text(json.dumps({"trial_name": "t1"}))
+
+        archive = archive_evidence(source_dir, cas_store, record_id="t1", kind="trial")
+
+        # Test 1: Absolute path in CAS citation raises CitationPathJailError
+        abs_cit = CitationTarget(
+            source_path="/etc/shadow",
+            raw_cas_uri=archive.uri,
+        )
+        with pytest.raises(CitationPathJailError, match="must be relative, got absolute path"):
+            hydrate_citation(abs_cit, repo_root=cas_store)
+
+        # Test 2: Traversal escaping CAS archive root raises CitationPathJailError
+        traversal_cit = CitationTarget(
+            source_path="../outside.json",
+            raw_cas_uri=archive.uri,
+        )
+        with pytest.raises(CitationPathJailError, match="escapes CAS archive root"):
+            hydrate_citation(traversal_cit, repo_root=cas_store)
+
 def test_hydrate_citation_surfaces_typed_cas_limitations() -> None:
     """Missing or corrupted CAS archives surface typed evidence limitations with reason codes."""
     with tempfile.TemporaryDirectory() as tmpdir:

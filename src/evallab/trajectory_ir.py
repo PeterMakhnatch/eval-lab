@@ -515,7 +515,7 @@ def build_trajectory_ir(
             traj_path = traj_cand if traj_cand.is_file() else None
             res_cand = trial_dir / "result.json"
             result_path = res_cand if res_cand.is_file() else None
-            outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=extracted_path.parent)
+            outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=extracted_path)
         except Exception:
             trial_dir, traj_path, result_path = resolve_trial_target(
                 trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root

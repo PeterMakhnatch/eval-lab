@@ -483,31 +483,51 @@ def _resolve_restored_trial_dir(
     inventory_record: dict[str, Any],
 ) -> Path:
     """Select the exact trial root inside a restored trial- or job-level CAS archive."""
-    if (
-        (extracted_root / "agent" / "trajectory.json").is_file()
-        or (extracted_root / "trajectory.json").is_file()
-    ):
-        return extracted_root
-
     trial_name = str(inventory_record.get("trial_name") or "")
-    if trial_name:
-        named_trial = extracted_root / trial_name
-        if named_trial.is_dir():
-            return named_trial
+    if trial_name and (
+        Path(trial_name).name != trial_name or trial_name in {".", ".."}
+    ):
+        raise ValueError(f"invalid CAS trial_name path component: {trial_name!r}")
+
+    def has_trajectory(path: Path) -> bool:
+        return (
+            (path / "agent" / "trajectory.json").is_file()
+            or (path / "trajectory.json").is_file()
+        )
+
+    if has_trajectory(extracted_root):
+        return extracted_root
 
     nested_trials = sorted(
         (
             child
             for child in extracted_root.iterdir()
-            if child.is_dir()
-            and (
-                (child / "agent" / "trajectory.json").is_file()
-                or (child / "trajectory.json").is_file()
-            )
+            if child.is_dir() and has_trajectory(child)
         ),
         key=lambda path: path.name,
     )
-    return nested_trials[0] if len(nested_trials) == 1 else extracted_root
+
+    if trial_name:
+        named_trial = (extracted_root / trial_name).resolve()
+        if not named_trial.is_relative_to(extracted_root.resolve()):
+            raise ValueError(f"CAS trial_name escapes archive root: {trial_name!r}")
+        if not named_trial.is_dir():
+            raise FileNotFoundError(
+                f"named trial is absent from CAS archive: {trial_name!r}"
+            )
+        if has_trajectory(named_trial):
+            return named_trial
+        if nested_trials:
+            raise ValueError(
+                f"named CAS trial has no trajectory while other trials do: {trial_name!r}"
+            )
+        return named_trial
+
+    if len(nested_trials) == 1:
+        return nested_trials[0]
+    if len(nested_trials) > 1:
+        raise ValueError("CAS archive contains multiple trials but no trial_name")
+    return extracted_root
 
 
 def build_trajectory_ir(

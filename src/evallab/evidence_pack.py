@@ -332,12 +332,12 @@ def build_evidence_pack(
             w_start, w_end, w_reason = in_range
             window_events_list: list[dict[str, Any]] = []
 
-            source_citation = events_by_step[w_start][0].source_citation
+            source_citation = events_by_step[s_idx][0].source_citation
             reopening_cit = create_citation_handle(
                 source_path=source_citation.source_path,
                 source_sha256=source_citation.source_sha256,
                 raw_cas_uri=source_citation.raw_cas_uri,
-                step_id=w_start,
+                step_id=s_idx,
                 target_type="step",
                 redaction_profile_digest=policy_digest,
             )
@@ -415,7 +415,12 @@ def build_evidence_pack(
     abstain_required = False
     overflow_reason: str | None = None
 
-    if consumed_est > budget_tokens:
+    if ir.status != "featured" or not ir.evidence_coverage.get("has_atif", False):
+        is_model_callable = False
+        abstain_required = True
+        unavailable_reason = ir.unavailable_reason or "missing_atif"
+        overflow_reason = f"source_missing ({unavailable_reason})"
+    elif consumed_est > budget_tokens:
         is_model_callable = False
         tiered_pack_required = True
         overflow_reason = f"mandatory_window_budget_overflow ({consumed_est} > {budget_tokens})"

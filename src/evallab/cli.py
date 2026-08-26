@@ -2363,6 +2363,33 @@ def _traj_report_command(
     return 0
 
 
+def _traj_card_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.traj_card import generate_traj_card
+    from evallab.trajectory_hydration import RedactionPolicy
+
+    runs_roots = [_resolve(root, args.runs_dir)] if args.runs_dir else None
+    output_path = _resolve(root, args.output) if args.output else None
+    fmt = "json" if args.json else "markdown"
+    policy = RedactionPolicy(redact_secrets=not args.no_redact)
+
+    try:
+        rendered, card = generate_traj_card(
+            target=args.trial,
+            repo_root=root,
+            runs_roots=runs_roots,
+            output_path=output_path,
+            output_format=fmt,
+            policy=policy,
+        )
+        print(rendered)
+        return 0 if card.status == "featured" else 1
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
 # ---------------------------------------------------------------------------
 # Declarative CLI Parser Construction
 # ---------------------------------------------------------------------------
@@ -3588,6 +3615,16 @@ def parser() -> argparse.ArgumentParser:
     )
     traj_report.add_argument("--json", action="store_true", help="Emit report as JSON")
     traj_report.set_defaults(func=_traj_report_command)
+
+    traj_card = traj_commands.add_parser(
+        "card", help="Render a Trajectory Interpretation Card for a trial"
+    )
+    traj_card.add_argument("trial", help="Trial identifier, directory, or result.json")
+    traj_card.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
+    traj_card.add_argument("--output", "-o", type=Path, help="Write card markdown to file")
+    traj_card.add_argument("--json", action="store_true", help="Emit card data as JSON")
+    traj_card.add_argument("--no-redact", action="store_true", help="Disable on-read secret redaction")
+    traj_card.set_defaults(func=_traj_card_command)
     return root
 
 

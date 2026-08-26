@@ -142,12 +142,12 @@ class AnalysisRequest(BaseModel):
         payload.pop("request_id")
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+
+
 AnalyzerFactory = Callable[
     [JobRecord, TrialRecord, AnalysisRequest],
     AnalyzerCallable,
 ]
-
-
 
 
 @dataclass(frozen=True)
@@ -235,12 +235,14 @@ class RequestStore:
             if not line.strip():
                 continue
             payload = json.loads(line)
-            out.append(Transition(
-                at=str(payload.get("at")),
-                state=payload.get("state"),
-                reason=payload.get("reason"),
-                actor=str(payload.get("actor", "analysis-worker")),
-            ))
+            out.append(
+                Transition(
+                    at=str(payload.get("at")),
+                    state=payload.get("state"),
+                    reason=payload.get("reason"),
+                    actor=str(payload.get("actor", "analysis-worker")),
+                )
+            )
         return out
 
     def state(self, request_id: str) -> State | None:
@@ -506,9 +508,7 @@ def freeze_request(
     # existing record instead of silently minting a runnable new identity.
     identity = f"{body['job_id']}:{body['trial_id']}"
     request_id = hashlib.sha256(identity.encode()).hexdigest()[:16]
-    return AnalysisRequest.model_validate(
-        {"request_id": request_id, "created_at": clock(), **body}
-    )
+    return AnalysisRequest.model_validate({"request_id": request_id, "created_at": clock(), **body})
 
 
 def eligible_trials(jobs: Iterable[JobRecord]) -> list[tuple[JobRecord, TrialRecord, str | None]]:
@@ -521,10 +521,8 @@ def eligible_trials(jobs: Iterable[JobRecord]) -> list[tuple[JobRecord, TrialRec
             if not result:
                 out.append((job, trial, "quarantine:result_unreadable"))
             elif result.get("exception_info"):
-                out.append((job, trial,
-                            "defer:harness_exception_not_agent_failure"))
-            elif ((result.get("verifier_result") or {}).get("rewards") or {}).get(
-                "reward") is None:
+                out.append((job, trial, "defer:harness_exception_not_agent_failure"))
+            elif ((result.get("verifier_result") or {}).get("rewards") or {}).get("reward") is None:
                 out.append((job, trial, "defer:no_verdict_recorded"))
             else:
                 out.append((job, trial, None))
@@ -556,7 +554,9 @@ class Admission:
 
 
 def admit(
-    request: AnalysisRequest, store: RequestStore, context: AdmissionContext,
+    request: AnalysisRequest,
+    store: RequestStore,
+    context: AdmissionContext,
     repo_root: Path,
     *,
     job: JobRecord | None = None,
@@ -586,6 +586,29 @@ def admit(
         return Admission("quarantine", "evidence_missing:lock.json")
     if current_lock != request.lock_sha256:
         return Admission("quarantine", "evidence_tampered:lock.json")
+
+    # Quality Ledger Gate: Failed, quarantined, or unevaluated evidence cannot enter analysis.
+    # Missing historical reports defer as quality_not_evaluated, never assumed good.
+    from evallab.paths import derived_root_from_environment
+    from evallab.trajectory_quality import QualityStatus, load_quality_report_for_trial
+
+    derived_root = derived_root_from_environment(repo_root)
+    quality_report = load_quality_report_for_trial(request.trial_id, derived_root)
+    if quality_report is None:
+        quality_report = load_quality_report_for_trial(request.trial_name, derived_root)
+
+    if quality_report is None:
+        return Admission("defer", "quality_not_evaluated")
+    if quality_report.status == QualityStatus.QUARANTINE:
+        return Admission(
+            "quarantine",
+            f"quality_quarantined:{quality_report.quarantine_reason or 'infrastructure_fault'}",
+        )
+    if not quality_report.is_analysis_ready or quality_report.status == QualityStatus.FAIL:
+        return Admission(
+            "quarantine",
+            f"quality_failed:{quality_report.quarantine_reason or 'malformed_evidence'}",
+        )
     if job is not None and trial is not None:
         # Harbor locks are the digest truth: prove the frozen task/verifier
         # values from the CURRENT lock bytes, not from memory.
@@ -608,9 +631,7 @@ def admit(
     if context.profile.digest != request.profile_digest:
         return Admission("defer", "stale_identity:profile_changed")
 
-    rule = next(
-        (r for r in context.policy.auto_run if r.name == RESEARCHER_RULE), None
-    )
+    rule = next((r for r in context.policy.auto_run if r.name == RESEARCHER_RULE), None)
     if rule is None:
         return Admission("defer", f"policy_rule_absent:{RESEARCHER_RULE}")
     if request.adapter not in rule.agents:
@@ -658,10 +679,7 @@ def _is_permanent_deferral(transition: Transition) -> bool:
     trial, not a transient condition: analysing it anyway would spend money
     and record a harness failure as an agent failure.
     """
-    return bool(
-        transition.reason
-        and transition.reason.startswith(_PERMANENT_DEFERRAL_PREFIXES)
-    )
+    return bool(transition.reason and transition.reason.startswith(_PERMANENT_DEFERRAL_PREFIXES))
 
 
 def _no_adapter(prompt: str, schema: dict[str, Any]):
@@ -687,21 +705,43 @@ class AnalysisWorker:
 
     def stage(self, job_roots: list[Path]) -> CycleReport:
         """Discover and freeze. Never calls a model, never admits."""
+        from evallab.paths import derived_root_from_environment
+        from evallab.trajectory_quality import evaluate_trial_quality, persist_quality_ledger
+
         jobs = load_jobs(job_roots)
         discovered = staged = 0
         deferred: dict[str, int] = {}
         quarantined: dict[str, int] = {}
+
+        derived_root = derived_root_from_environment(self.repo_root)
+        q_reports = []
+        q_findings = []
+        for job in jobs:
+            for trial in job.trials:
+                rep, fnds = evaluate_trial_quality(
+                    trial.path,
+                    job.path,
+                    job_id_override=str(job.id),
+                    trial_id_override=str(trial.id),
+                )
+                q_reports.append(rep)
+                q_findings.extend(fnds)
+        if q_reports:
+            persist_quality_ledger(q_reports, q_findings, derived_root)
+
         for job, trial, reason in eligible_trials(jobs):
             discovered += 1
             request = freeze_request(
-                job, trial, profile=self.context.profile,
-                prompt_path=self.prompt_path, rubric_path=self.rubric_path,
-                repo_root=self.repo_root, clock=self.clock,
+                job,
+                trial,
+                profile=self.context.profile,
+                prompt_path=self.prompt_path,
+                rubric_path=self.rubric_path,
+                repo_root=self.repo_root,
+                clock=self.clock,
             )
             if request is None:
-                quarantined["evidence_unreadable"] = (
-                    quarantined.get("evidence_unreadable", 0) + 1
-                )
+                quarantined["evidence_unreadable"] = quarantined.get("evidence_unreadable", 0) + 1
                 continue
             if self.store.freeze(request):
                 staged += 1
@@ -712,8 +752,13 @@ class AnalysisWorker:
                     bucket = deferred if state == "deferred" else quarantined
                     bucket[detail] = bucket.get(detail, 0) + 1
         return CycleReport(
-            discovered=discovered, staged=staged, calls=0, completed=0,
-            adopted=0, deferred=deferred, quarantined=quarantined,
+            discovered=discovered,
+            staged=staged,
+            calls=0,
+            completed=0,
+            adopted=0,
+            deferred=deferred,
+            quarantined=quarantined,
         )
 
     # -- execution ----------------------------------------------------------
@@ -755,20 +800,21 @@ class AnalysisWorker:
             job_dir = (self.repo_root / request.trial_path).parent
             jobs = load_jobs([job_dir.parent])
             match = next(
-                ((j, t) for j in jobs for t in j.trials
-                 if str(t.id) == request.trial_id), None,
+                ((j, t) for j in jobs for t in j.trials if str(t.id) == request.trial_id),
+                None,
             )
             admission = admit(
-                request, self.store, self.context, self.repo_root,
+                request,
+                self.store,
+                self.context,
+                self.repo_root,
                 job=match[0] if match else None,
                 trial=match[1] if match else None,
                 prompt_path=self.prompt_path,
                 rubric_path=self.rubric_path,
             )
             if admission.kind != "admit":
-                target: State = (
-                    "deferred" if admission.kind == "defer" else "quarantined"
-                )
+                target: State = "deferred" if admission.kind == "defer" else "quarantined"
                 self.store.append(request_id, target, admission.reason)
                 return self.store.transitions(request_id)[-1]
             if match is None:
@@ -803,7 +849,8 @@ class AnalysisWorker:
             # persist sidecar/'s own entry in the request directory.
             _durable_mkdir(sidecar_path.parent)
             written_path, _sidecar = run_trial_analysis(
-                job, trial,
+                job,
+                trial,
                 analyzer=analyzer,
                 repo_root=self.repo_root,
                 destination_root=sidecar_path.parent,
@@ -876,9 +923,7 @@ class AnalysisWorker:
             if attempt_id is None:
                 raise ValueError("request has no ambiguous invocation to resolve")
             resolution = (
-                "operator_retry_authorized"
-                if action == "retry"
-                else "operator_quarantined"
+                "operator_retry_authorized" if action == "retry" else "operator_quarantined"
             )
             self.store.resolve_invocation(
                 request_id,
@@ -931,9 +976,13 @@ class AnalysisWorker:
                 key = transition.reason or "unspecified"
                 quarantined[key] = quarantined.get(key, 0) + 1
         return CycleReport(
-            discovered=stage_report.discovered, staged=stage_report.staged,
-            calls=calls, completed=completed, adopted=adopted,
-            deferred=deferred, quarantined=quarantined,
+            discovered=stage_report.discovered,
+            staged=stage_report.staged,
+            calls=calls,
+            completed=completed,
+            adopted=adopted,
+            deferred=deferred,
+            quarantined=quarantined,
         )
 
     # -- read-only surfaces --------------------------------------------------
@@ -944,19 +993,23 @@ class AnalysisWorker:
         rows: list[dict[str, Any]] = []
         for job, trial, reason in eligible_trials(jobs):
             request = freeze_request(
-                job, trial, profile=self.context.profile,
-                prompt_path=self.prompt_path, rubric_path=self.rubric_path,
-                repo_root=self.repo_root, clock=self.clock,
+                job,
+                trial,
+                profile=self.context.profile,
+                prompt_path=self.prompt_path,
+                rubric_path=self.rubric_path,
+                repo_root=self.repo_root,
+                clock=self.clock,
             )
-            rows.append({
-                "job": job.path.name,
-                "trial": trial.path.name,
-                "request_id": request.request_id if request else None,
-                "current_state": (
-                    self.store.state(request.request_id) if request else None
-                ),
-                "eligibility": reason or "eligible",
-            })
+            rows.append(
+                {
+                    "job": job.path.name,
+                    "trial": trial.path.name,
+                    "request_id": request.request_id if request else None,
+                    "current_state": (self.store.state(request.request_id) if request else None),
+                    "eligibility": reason or "eligible",
+                }
+            )
         return rows
 
     def status(self) -> dict[str, Any]:
@@ -967,15 +1020,17 @@ class AnalysisWorker:
             state = self.store.state(request_id) or "pending"
             counts[state] = counts.get(state, 0) + 1
             last = (self.store.transitions(request_id) or [None])[-1]
-            requests.append({
-                "request_id": request_id,
-                "state": state,
-                "reason": last.reason if last else None,
-                "ambiguous_invocation": (
-                    self.store.unresolved_invocation(request_id) is not None
-                ),
-                "provenance": "observed",
-            })
+            requests.append(
+                {
+                    "request_id": request_id,
+                    "state": state,
+                    "reason": last.reason if last else None,
+                    "ambiguous_invocation": (
+                        self.store.unresolved_invocation(request_id) is not None
+                    ),
+                    "provenance": "observed",
+                }
+            )
         return {"counts": counts, "requests": requests, "provenance": "observed"}
 
 
@@ -984,9 +1039,7 @@ class AnalysisWorker:
 # ---------------------------------------------------------------------------
 
 
-def _has_calibrated_model(
-    root: Path, model: str | None, rubric_digest: str | None
-) -> bool:
+def _has_calibrated_model(root: Path, model: str | None, rubric_digest: str | None) -> bool:
     if model is None or rubric_digest is None:
         return False
     records_root = root / "research/calibration/records"
@@ -1041,8 +1094,8 @@ def default_worker(
         est_call_cost_usd=0.05,
         services_healthy=lambda: True,
         requirement_checks={
-            "schema_valid": lambda: True,   # enforced structurally by the schema
-            "dedup_pass": lambda: True,     # enforced structurally by identity
+            "schema_valid": lambda: True,  # enforced structurally by the schema
+            "dedup_pass": lambda: True,  # enforced structurally by identity
             "calibrated_judges_only": lambda: _has_calibrated_model(
                 root, profile.model, _sha256_file(root / "research/analysis/stage5-rubric.json")
             ),

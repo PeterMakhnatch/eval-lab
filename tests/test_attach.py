@@ -12,7 +12,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.attach import SEMANTIC_COMPARISON_COLUMNS, attach
+from evallab.attach import SEMANTIC_COMPARISON_COLUMNS, TABLES, attach
 from evallab.cli import run_cli
 from evallab.runner import database_url_from_environment
 
@@ -30,6 +30,7 @@ def _catalog_reachable(dsn: str | None = None) -> bool:
 
 
 _DSN_FOR_TEST = database_url_from_environment()
+
 
 def _write_parquet_tree(root: Path, table: str, rows: list[dict]) -> None:
     job_dir = root / "job_id=testjob" / "trial_id=testtrial"
@@ -55,22 +56,26 @@ def test_z3_views_return_written_rows(tmp_path: Path) -> None:
     _write_parquet_tree(
         derived,
         "behavior_labels",
-        [{
-            "label_id": "label-1",
-            "trial_id": "t1",
-            "target_type": "trajectory",
-            "model_name": "judge-model",
-        }],
+        [
+            {
+                "label_id": "label-1",
+                "trial_id": "t1",
+                "target_type": "trajectory",
+                "model_name": "judge-model",
+            }
+        ],
     )
     _write_parquet_tree(
         derived,
         "behavior_episodes",
-        [{
-            "episode_id": "episode-1",
-            "trial_id": "t1",
-            "document_id": "document-1",
-            "label": "tool_error",
-        }],
+        [
+            {
+                "episode_id": "episode-1",
+                "trial_id": "t1",
+                "document_id": "document-1",
+                "label": "tool_error",
+            }
+        ],
     )
     result = attach(repo_root=tmp_path, explicit_derived=derived)
     try:
@@ -167,20 +172,17 @@ def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
         )
         columns = tuple(
             item[0]
-            for item in result.connection.execute(
-                "DESCRIBE v_semantic_vs_mechanical"
-            ).fetchall()
+            for item in result.connection.execute("DESCRIBE v_semantic_vs_mechanical").fetchall()
         )
         assert columns == SEMANTIC_COMPARISON_COLUMNS
         assert "mechanical.*" not in result.sql_preamble
         assert "semantic.outcome_detail" not in result.sql_preamble
         assert "semantic.reason_code" in result.sql_preamble
         assert "mechanical.document_id = semantic.document_id" in result.sql_preamble
-        assert result.connection.execute(
-            "SELECT * FROM v_semantic_vs_mechanical"
-        ).fetchall() == result.connection.execute(
-            "SELECT * FROM z3.v_semantic_vs_mechanical"
-        ).fetchall()
+        assert (
+            result.connection.execute("SELECT * FROM v_semantic_vs_mechanical").fetchall()
+            == result.connection.execute("SELECT * FROM z3.v_semantic_vs_mechanical").fetchall()
+        )
     finally:
         result.connection.close()
 
@@ -313,8 +315,7 @@ def test_semantic_comparison_matches_null_tool_ids_by_action_identity(
     result = attach(repo_root=tmp_path, explicit_derived=derived)
     try:
         row = result.connection.execute(
-            "SELECT tool_call_id, semantic_outcome, reason_code "
-            "FROM v_semantic_vs_mechanical"
+            "SELECT tool_call_id, semantic_outcome, reason_code FROM v_semantic_vs_mechanical"
         ).fetchone()
         assert row == (None, "unknown_semantics", "missing_call_id")
     finally:
@@ -344,6 +345,8 @@ def test_standalone_parquet_is_attached_once_and_preamble_has_one_glob(
         assert result.sql_preamble.count("behavior_labels/*.parquet") == 2
     finally:
         result.connection.close()
+
+
 def test_z2_unavailable_reports_reason_not_empty_view(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
     result = attach(repo_root=Path.cwd())
@@ -377,6 +380,7 @@ def test_z4_front_matter_populates_from_docs(tmp_path: Path) -> None:
     finally:
         result.connection.close()
 
+
 def test_sql_preamble_is_byte_identical(tmp_path: Path) -> None:
     derived = tmp_path / "derived"
     derived.mkdir()
@@ -397,21 +401,39 @@ def test_cross_zone_join_when_postgres_unavailable_skips(monkeypatch: pytest.Mon
         assert z2.attached is False
     finally:
         result.connection.close()
-def test_cli_zones_reports_z3_with_row_counts(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
+
+
+def test_cli_zones_reports_z3_with_row_counts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:  # noqa: E501
     derived = tmp_path / "derived"
     derived.mkdir()
     _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1"}, {"trial_id": "t2"}])
     _write_parquet_tree(derived, "jobs", [{"job_id": "j1"}])
-    for t in ["reward_facts", "artifact_facts", "trajectories", "steps", "tool_calls", "tool_usage", "observations", "state_changes"]:  # noqa: E501
+    for t in [
+        "reward_facts",
+        "artifact_facts",
+        "trajectories",
+        "steps",
+        "tool_calls",
+        "tool_usage",
+        "observations",
+        "state_changes",
+    ]:  # noqa: E501
         _write_parquet_tree(derived, t, [{"trial_id": "t1"}])
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
     code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
     out, _ = capsys.readouterr()
     assert code == 0
     assert "z3: attached" in out
-    assert "10/29 tables" in out
+    from evallab.attach import TABLES
 
-def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
+    assert f"10/{len(TABLES)} tables" in out
+
+
+def test_cli_zones_exit_codes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:  # noqa: E501
     # every zone unavailable -> non-zero
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
     code = run_cli(["db", "attach", "--derived-root", "derived", "--zones"], workspace=tmp_path)
@@ -424,24 +446,42 @@ def test_cli_zones_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     assert code == 0
 
 
-def test_cli_print_sql_byte_identical(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
+def test_cli_print_sql_byte_identical(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:  # noqa: E501
     derived = tmp_path / "derived"
     derived.mkdir()
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code1 = run_cli(["db", "attach", "--derived-root", "derived", "--print-sql"], workspace=tmp_path)  # noqa: E501
+    code1 = run_cli(
+        ["db", "attach", "--derived-root", "derived", "--print-sql"], workspace=tmp_path
+    )  # noqa: E501
     out1, _ = capsys.readouterr()
-    code2 = run_cli(["db", "attach", "--derived-root", "derived", "--print-sql"], workspace=tmp_path)  # noqa: E501
+    code2 = run_cli(
+        ["db", "attach", "--derived-root", "derived", "--print-sql"], workspace=tmp_path
+    )  # noqa: E501
     out2, _ = capsys.readouterr()
     assert code1 == 0 and code2 == 0
     assert out1 == out2
 
 
-def test_cli_query_returns_fixture_rows(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
+def test_cli_query_returns_fixture_rows(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:  # noqa: E501
     derived = tmp_path / "derived"
     derived.mkdir()
     _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1", "reward": 1.0}])
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid:5432/nowhere")
-    code = run_cli(["db", "attach", "--derived-root", "derived", "--query", "select count(*) from trial_facts"], workspace=tmp_path)  # noqa: E501
+    code = run_cli(
+        [
+            "db",
+            "attach",
+            "--derived-root",
+            "derived",
+            "--query",
+            "select count(*) from trial_facts",
+        ],
+        workspace=tmp_path,
+    )  # noqa: E501
     out, _ = capsys.readouterr()
     assert code == 0
     assert out.strip() == "(1,)"
@@ -487,7 +527,17 @@ def test_cli_query_with_real_postgres(tmp_path: Path, capsys: pytest.CaptureFixt
     derived = tmp_path / "derived"
     derived.mkdir()
     _write_parquet_tree(derived, "trial_facts", [{"trial_id": "t1", "job_id": "j1"}])
-    code = run_cli(["db", "attach", "--derived-root", "derived", "--query", "SELECT COUNT(*) FROM z2.verdicts"], workspace=tmp_path)  # noqa: E501
+    code = run_cli(
+        [
+            "db",
+            "attach",
+            "--derived-root",
+            "derived",
+            "--query",
+            "SELECT COUNT(*) FROM z2.verdicts",
+        ],
+        workspace=tmp_path,
+    )  # noqa: E501
     out, _ = capsys.readouterr()
     assert code == 0
     assert out.strip().startswith("(")
@@ -526,22 +576,24 @@ def test_semantic_tables_hot_cold_standalone_discovery(tmp_path: Path) -> None:
     standalone_dir = derived / "capability_opportunities"
     standalone_dir.mkdir(parents=True)
     pq.write_table(
-        pa.Table.from_pylist([
-            {
-                "source_ref": "ref1",
-                "source_digest": "sha256:" + "a" * 64,
-                "provenance_kind": "mechanical",
-                "opportunity_id": "opp-standalone-1",
-                "trial_id": "t1",
-                "benchmark": "b1",
-                "construct": "c1",
-                "start_step": 0,
-                "end_step": 1,
-                "eligible": True,
-                "required_evidence": ["e1"],
-                "missing_evidence": [],
-            }
-        ]),
+        pa.Table.from_pylist(
+            [
+                {
+                    "source_ref": "ref1",
+                    "source_digest": "sha256:" + "a" * 64,
+                    "provenance_kind": "mechanical",
+                    "opportunity_id": "opp-standalone-1",
+                    "trial_id": "t1",
+                    "benchmark": "b1",
+                    "construct": "c1",
+                    "start_step": 0,
+                    "end_step": 1,
+                    "eligible": True,
+                    "required_evidence": ["e1"],
+                    "missing_evidence": [],
+                }
+            ]
+        ),
         standalone_dir / "data.parquet",
     )
 
@@ -569,21 +621,23 @@ def test_semantic_tables_hot_cold_standalone_discovery(tmp_path: Path) -> None:
     cold_dir = derived / "compact" / "constraint_facts" / "dt=2026-08-25"
     cold_dir.mkdir(parents=True)
     pq.write_table(
-        pa.Table.from_pylist([
-            {
-                "source_ref": "ref3",
-                "source_digest": "sha256:" + "c" * 64,
-                "provenance_kind": "benchmark_verifier",
-                "trial_id": "t1",
-                "plan_id": "p1",
-                "action_id": None,
-                "constraint_id": "c1",
-                "constraint_scope": "local",
-                "required": True,
-                "verdict": "satisfied",
-                "verifier_evidence": "verified",
-            }
-        ]),
+        pa.Table.from_pylist(
+            [
+                {
+                    "source_ref": "ref3",
+                    "source_digest": "sha256:" + "c" * 64,
+                    "provenance_kind": "benchmark_verifier",
+                    "trial_id": "t1",
+                    "plan_id": "p1",
+                    "action_id": None,
+                    "constraint_id": "c1",
+                    "constraint_scope": "local",
+                    "required": True,
+                    "verdict": "satisfied",
+                    "verifier_evidence": "verified",
+                }
+            ]
+        ),
         cold_dir / "part0.parquet",
     )
 
@@ -652,44 +706,48 @@ def test_semantic_tables_multi_layout_union(tmp_path: Path) -> None:
     cold_dir = derived / "compact" / "context_operation_facts" / "dt=2026-08-20"
     cold_dir.mkdir(parents=True)
     pq.write_table(
-        pa.Table.from_pylist([
-            {
-                "source_ref": "ref-cold",
-                "source_digest": "sha256:" + "2" * 64,
-                "provenance_kind": "mechanical",
-                "trial_id": "t2",
-                "operation_id": "op-cold",
-                "operation": "clear",
-                "configured_size": None,
-                "realized_size": None,
-                "prompt_tokens": None,
-                "before_token_count": None,
-                "after_token_count": None,
-                "content_digest": None,
-            }
-        ]),
+        pa.Table.from_pylist(
+            [
+                {
+                    "source_ref": "ref-cold",
+                    "source_digest": "sha256:" + "2" * 64,
+                    "provenance_kind": "mechanical",
+                    "trial_id": "t2",
+                    "operation_id": "op-cold",
+                    "operation": "clear",
+                    "configured_size": None,
+                    "realized_size": None,
+                    "prompt_tokens": None,
+                    "before_token_count": None,
+                    "after_token_count": None,
+                    "content_digest": None,
+                }
+            ]
+        ),
         cold_dir / "part0.parquet",
     )
     # Standalone
     standalone_dir = derived / "context_operation_facts"
     standalone_dir.mkdir(parents=True)
     pq.write_table(
-        pa.Table.from_pylist([
-            {
-                "source_ref": "ref-standalone",
-                "source_digest": "sha256:" + "3" * 64,
-                "provenance_kind": "mechanical",
-                "trial_id": "t3",
-                "operation_id": "op-standalone",
-                "operation": "evict",
-                "configured_size": None,
-                "realized_size": None,
-                "prompt_tokens": None,
-                "before_token_count": None,
-                "after_token_count": None,
-                "content_digest": None,
-            }
-        ]),
+        pa.Table.from_pylist(
+            [
+                {
+                    "source_ref": "ref-standalone",
+                    "source_digest": "sha256:" + "3" * 64,
+                    "provenance_kind": "mechanical",
+                    "trial_id": "t3",
+                    "operation_id": "op-standalone",
+                    "operation": "evict",
+                    "configured_size": None,
+                    "realized_size": None,
+                    "prompt_tokens": None,
+                    "before_token_count": None,
+                    "after_token_count": None,
+                    "content_digest": None,
+                }
+            ]
+        ),
         standalone_dir / "batch1.parquet",
     )
 
@@ -703,7 +761,9 @@ def test_semantic_tables_multi_layout_union(tmp_path: Path) -> None:
             ("op-cold", "t2", "clear"),
             ("op-standalone", "t3", "evict"),
         ]
-        assert result.connection.execute("SELECT COUNT(*) FROM z3.context_operation_facts").fetchone() == (3,)
+        assert result.connection.execute(
+            "SELECT COUNT(*) FROM z3.context_operation_facts"
+        ).fetchone() == (3,)
     finally:
         result.connection.close()
 
@@ -737,7 +797,7 @@ def test_honest_missing_semantic_tables_and_empty_views(tmp_path: Path) -> None:
     try:
         z3_status = next(z for z in result.zones if z.name == "z3")
         assert z3_status.attached is True
-        assert "1/29 tables" in z3_status.detail
+        assert f"1/{len(TABLES)} tables" in z3_status.detail
         assert "missing: " in z3_status.detail
         assert "capability_opportunities" in z3_status.detail
         assert "paired_condition_facts" in z3_status.detail
@@ -758,9 +818,7 @@ def test_honest_missing_semantic_tables_and_empty_views(tmp_path: Path) -> None:
         ).fetchone() == (0,)
         comparison_columns = tuple(
             item[0]
-            for item in result.connection.execute(
-                "DESCRIBE v_semantic_vs_mechanical"
-            ).fetchall()
+            for item in result.connection.execute("DESCRIBE v_semantic_vs_mechanical").fetchall()
         )
         assert comparison_columns == SEMANTIC_COMPARISON_COLUMNS
 

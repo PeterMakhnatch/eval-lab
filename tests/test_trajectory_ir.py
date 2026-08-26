@@ -333,10 +333,17 @@ def test_nested_job_cas_archive_resolves_exact_trial(
         repo_root=repo_root,
     )
     pack = build_evidence_pack(ir, store_root=cas_store, repo_root=repo_root)
+    rerun_ir = build_trajectory_ir(
+        inventory,
+        store_root=cas_store,
+        repo_root=repo_root,
+    )
 
     assert ir.status == "featured"
     assert len(ir.events) == 2
     expected_path = "nested-trial/agent/trajectory.json"
+    assert ir.ir_digest == rerun_ir.ir_digest
+    assert ir.baseline_metrics.source_path == expected_path
     assert {event.source_citation.source_path for event in ir.events} == {
         expected_path
     }

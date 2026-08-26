@@ -21,7 +21,7 @@ import json
 import re
 import tempfile
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -478,6 +478,10 @@ def _segment_episodes(events: Sequence[IREvent]) -> tuple[IREpisode, ...]:
     return tuple(episodes)
 
 
+class CASTrialResolutionError(ValueError):
+    """Raised when a specified CAS archive cannot resolve one exact trial root."""
+
+
 def _resolve_restored_trial_dir(
     extracted_root: Path,
     inventory_record: dict[str, Any],
@@ -487,7 +491,9 @@ def _resolve_restored_trial_dir(
     if trial_name and (
         Path(trial_name).name != trial_name or trial_name in {".", ".."}
     ):
-        raise ValueError(f"invalid CAS trial_name path component: {trial_name!r}")
+        raise CASTrialResolutionError(
+            f"invalid CAS trial_name path component: {trial_name!r}"
+        )
 
     def has_trajectory(path: Path) -> bool:
         return (
@@ -510,15 +516,17 @@ def _resolve_restored_trial_dir(
     if trial_name:
         named_trial = (extracted_root / trial_name).resolve()
         if not named_trial.is_relative_to(extracted_root.resolve()):
-            raise ValueError(f"CAS trial_name escapes archive root: {trial_name!r}")
+            raise CASTrialResolutionError(
+                f"CAS trial_name escapes archive root: {trial_name!r}"
+            )
         if not named_trial.is_dir():
-            raise FileNotFoundError(
+            raise CASTrialResolutionError(
                 f"named trial is absent from CAS archive: {trial_name!r}"
             )
         if has_trajectory(named_trial):
             return named_trial
         if nested_trials:
-            raise ValueError(
+            raise CASTrialResolutionError(
                 f"named CAS trial has no trajectory while other trials do: {trial_name!r}"
             )
         return named_trial
@@ -526,7 +534,9 @@ def _resolve_restored_trial_dir(
     if len(nested_trials) == 1:
         return nested_trials[0]
     if len(nested_trials) > 1:
-        raise ValueError("CAS archive contains multiple trials but no trial_name")
+        raise CASTrialResolutionError(
+            "CAS archive contains multiple trials but no trial_name"
+        )
     return extracted_root
 
 
@@ -926,6 +936,15 @@ def build_trajectory_ir(
         ir_job_id = str(inventory_record.get("job_id") or outline.job_id)
         ir_job_name = str(inventory_record.get("job_name") or outline.job_name)
         ir_task_name = str(inventory_record.get("task_name") or outline.task_name)
+        baseline = replace(
+            baseline,
+            trial_id=ir_trial_id,
+            trial_name=ir_trial_name,
+            job_id=ir_job_id,
+            job_name=ir_job_name,
+            task_name=ir_task_name,
+            source_path=rel_source_path,
+        )
 
         raw_ir_dict = {
             "ir_version": "1.0",

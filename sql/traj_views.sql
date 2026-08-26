@@ -400,8 +400,8 @@ SELECT
     context_burn_velocity_screening,
     max_exit_code_cascade_screening,
     CASE
-        WHEN prompt_tokens IS NOT NULL AND cached_tokens IS NOT NULL AND (prompt_tokens + cached_tokens) > 0
-        THEN round(cached_tokens * 1.0 / (prompt_tokens + cached_tokens), 4)
+        WHEN prompt_tokens IS NOT NULL AND cached_tokens IS NOT NULL AND prompt_tokens > 0
+        THEN round(cached_tokens * 1.0 / prompt_tokens, 4)
         ELSE NULL
     END AS cache_hit_rate_screening,
     CASE

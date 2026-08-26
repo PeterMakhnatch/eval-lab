@@ -732,59 +732,19 @@ def build_trajectory_ir(
         except Exception:
             rel_source_path = "agent/trajectory.json"
 
-        for event_ord, step in enumerate(outline.steps):
+        event_ord_counter = 0
+        for step in outline.steps:
             raw_step = raw_steps_map.get(str(step.step_id)) or {}
+            raw_tool_calls = raw_step.get("tool_calls")
+            raw_observations = raw_step.get("observations") or []
 
             is_user = step.source == "user"
             is_system = step.source in ("system", "setup")
             is_verifier = step.source == "verifier"
-            is_compaction = bool(raw_step.get("extra", {}).get("context_management") or raw_step.get("context_management"))
-
-            event_type = (
-                "context_management"
-                if is_compaction
-                else (
-                    "tool_call"
-                    if step.tool_name
-                    else (
-                        "user_message"
-                        if is_user
-                        else ("verifier_check" if is_verifier else ("agent_message" if step.source == "agent" else "observation"))
-                    )
-                )
+            is_compaction = bool(
+                raw_step.get("extra", {}).get("context_management")
+                or raw_step.get("context_management")
             )
-
-            prog = _extract_status_owning_program(step.tool_command, step.tool_name)
-            skeleton = _normalize_argument_skeleton(step.tool_command, raw_step.get("tool_calls"))
-            action_family = "context_control" if is_compaction else _classify_action_family(prog, step.tool_name, is_edit=bool(step.tool_name == "edit"))
-            exit_sem, is_true_err = _classify_exit_semantics(step.exit_code, prog, step.is_error)
-
-            citation = create_citation_handle(
-                source_path=rel_source_path,
-                source_sha256=outline.source_sha256,
-                raw_cas_uri=cas_uri,
-                step_id=step.step_id,
-                target_type="step",
-                redaction_profile_digest=policy.compute_digest(),
-            )
-
-            payload_str = json.dumps(raw_step) if raw_step else (step.thought_snippet or step.tool_command or "")
-            p_bytes = len(payload_str.encode("utf-8"))
-            p_digest = f"sha256:{hashlib.sha256(payload_str.encode('utf-8')).hexdigest()}"
-
-            summary_parts = []
-            if step.tool_name:
-                cmd_snip = f": {step.tool_command[:60]}" if step.tool_command else ""
-                summary_parts.append(f"Tool {step.tool_name}{cmd_snip}")
-            elif step.thought_snippet:
-                summary_parts.append(step.thought_snippet[:80])
-            else:
-                summary_parts.append(f"Step {step.step_id} ({step.source})")
-
-            if step.exit_code is not None:
-                summary_parts.append(f"[exit {step.exit_code}]")
-
-            summary = " ".join(summary_parts)
 
             phase_name = "work"
             if is_system:
@@ -794,30 +754,151 @@ def build_trajectory_ir(
             elif is_verifier:
                 phase_name = "verifier"
 
-            ev_id = hashlib.sha256(f"{outline.trial_id}:{event_ord}:{event_type}:{step.step_id}".encode()).hexdigest()
+            if isinstance(raw_tool_calls, list) and raw_tool_calls:
+                # Multi-call preservation: unpack every individual tool call
+                for call_idx, tc in enumerate(raw_tool_calls):
+                    tc_dict = tc if isinstance(tc, dict) else {}
+                    tc_name = tc_dict.get("name") or (tc_dict.get("function", {}).get("name") if isinstance(tc_dict.get("function"), dict) else None) or step.tool_name or "tool"
+                    tc_args = tc_dict.get("arguments") or (tc_dict.get("function", {}).get("arguments") if isinstance(tc_dict.get("function"), dict) else None)
+                    tc_call_id = tc_dict.get("tool_call_id") or tc_dict.get("id")
 
-            event = IREvent(
-                event_id=ev_id,
-                event_ordinal=event_ord,
-                event_type=event_type,
-                actor=step.source,
-                timestamp=step.timestamp,
-                phase=phase_name,
-                episode_id=1,
-                step_index=step.step_id,
-                call_index=0 if step.tool_name else None,
-                action_family=action_family,
-                status_owning_program=prog,
-                argument_skeleton=skeleton,
-                exit_code=step.exit_code,
-                exit_semantics=exit_sem,
-                is_error=is_true_err,
-                payload_digest=p_digest,
-                payload_bytes=p_bytes,
-                source_citation=citation,
-                summary=summary,
-            )
-            events.append(event)
+                    # Find matching observation
+                    matching_obs: dict[str, Any] = {}
+                    for obs in raw_observations:
+                        if isinstance(obs, dict) and (obs.get("source_call_id") == tc_call_id or obs.get("tool_call_id") == tc_call_id):
+                            matching_obs = obs
+                            break
+                    if not matching_obs and call_idx < len(raw_observations) and isinstance(raw_observations[call_idx], dict):
+                        matching_obs = raw_observations[call_idx]
+                    raw_extra = matching_obs.get("extra")
+                    obs_extra: dict[str, Any] = raw_extra if isinstance(raw_extra, dict) else {}
+                    exit_code = obs_extra.get("exit_code") if "exit_code" in obs_extra else matching_obs.get("exit_code", step.exit_code)
+                    obs_is_error = bool(obs_extra.get("is_error") or matching_obs.get("is_error") or (exit_code is not None and exit_code != 0))
+                    cmd_str = tc_args if isinstance(tc_args, str) else (tc_args.get("command") if isinstance(tc_args, dict) else step.tool_command)
+                    prog = _extract_status_owning_program(cmd_str, tc_name)
+                    skeleton = _normalize_argument_skeleton(cmd_str, tc_args)
+                    action_family = _classify_action_family(prog, tc_name, is_edit=bool(tc_name == "edit"))
+                    exit_sem, is_true_err = _classify_exit_semantics(exit_code, prog, obs_is_error)
+
+                    citation = create_citation_handle(
+                        source_path=rel_source_path,
+                        source_sha256=outline.source_sha256,
+                        raw_cas_uri=cas_uri,
+                        step_id=step.step_id,
+                        target_type="step",
+                        redaction_profile_digest=policy.compute_digest(),
+                    )
+
+                    payload_str = json.dumps({"tool_call": tc_dict, "observation": matching_obs})
+                    p_bytes = len(payload_str.encode("utf-8"))
+                    p_digest = f"sha256:{hashlib.sha256(payload_str.encode('utf-8')).hexdigest()}"
+
+                    cmd_snip = f": {str(cmd_str)[:60]}" if cmd_str else ""
+                    exit_str = f" [exit {exit_code}]" if exit_code is not None else ""
+                    summary = f"Tool {tc_name}{cmd_snip}{exit_str}"
+
+                    ev_id = hashlib.sha256(
+                        f"{outline.trial_id}:{event_ord_counter}:tool_call:{step.step_id}:{call_idx}".encode()
+                    ).hexdigest()
+
+                    event = IREvent(
+                        event_id=ev_id,
+                        event_ordinal=event_ord_counter,
+                        event_type="tool_call",
+                        actor=step.source,
+                        timestamp=step.timestamp,
+                        phase=phase_name,
+                        episode_id=1,
+                        step_index=step.step_id,
+                        call_index=call_idx,
+                        action_family=action_family,
+                        status_owning_program=prog,
+                        argument_skeleton=skeleton,
+                        exit_code=exit_code,
+                        exit_semantics=exit_sem,
+                        is_error=is_true_err,
+                        payload_digest=p_digest,
+                        payload_bytes=p_bytes,
+                        source_citation=citation,
+                        summary=summary,
+                    )
+                    events.append(event)
+                    event_ord_counter += 1
+            else:
+                # Single non-tool or single-step event
+                event_type = (
+                    "context_management"
+                    if is_compaction
+                    else (
+                        "tool_call"
+                        if step.tool_name
+                        else (
+                            "user_message"
+                            if is_user
+                            else ("verifier_check" if is_verifier else ("agent_message" if step.source == "agent" else "observation"))
+                        )
+                    )
+                )
+
+                prog = _extract_status_owning_program(step.tool_command, step.tool_name)
+                skeleton = _normalize_argument_skeleton(step.tool_command, raw_step.get("tool_calls"))
+                action_family = "context_control" if is_compaction else _classify_action_family(prog, step.tool_name, is_edit=bool(step.tool_name == "edit"))
+                exit_sem, is_true_err = _classify_exit_semantics(step.exit_code, prog, step.is_error)
+
+                citation = create_citation_handle(
+                    source_path=rel_source_path,
+                    source_sha256=outline.source_sha256,
+                    raw_cas_uri=cas_uri,
+                    step_id=step.step_id,
+                    target_type="step",
+                    redaction_profile_digest=policy.compute_digest(),
+                )
+
+                payload_str = json.dumps(raw_step) if raw_step else (step.thought_snippet or step.tool_command or "")
+                p_bytes = len(payload_str.encode("utf-8"))
+                p_digest = f"sha256:{hashlib.sha256(payload_str.encode('utf-8')).hexdigest()}"
+
+                summary_parts = []
+                if step.tool_name:
+                    cmd_snip = f": {step.tool_command[:60]}" if step.tool_command else ""
+                    summary_parts.append(f"Tool {step.tool_name}{cmd_snip}")
+                elif step.thought_snippet:
+                    summary_parts.append(step.thought_snippet[:80])
+                else:
+                    summary_parts.append(f"Step {step.step_id} ({step.source})")
+
+                if step.exit_code is not None:
+                    summary_parts.append(f"[exit {step.exit_code}]")
+
+                summary = " ".join(summary_parts)
+
+                ev_id = hashlib.sha256(
+                    f"{outline.trial_id}:{event_ord_counter}:{event_type}:{step.step_id}".encode()
+                ).hexdigest()
+
+                event = IREvent(
+                    event_id=ev_id,
+                    event_ordinal=event_ord_counter,
+                    event_type=event_type,
+                    actor=step.source,
+                    timestamp=step.timestamp,
+                    phase=phase_name,
+                    episode_id=1,
+                    step_index=step.step_id,
+                    call_index=0 if step.tool_name else None,
+                    action_family=action_family,
+                    status_owning_program=prog,
+                    argument_skeleton=skeleton,
+                    exit_code=step.exit_code,
+                    exit_semantics=exit_sem,
+                    is_error=is_true_err,
+                    payload_digest=p_digest,
+                    payload_bytes=p_bytes,
+                    source_citation=citation,
+                    summary=summary,
+                )
+                events.append(event)
+                event_ord_counter += 1
 
         episodes = _segment_episodes(events)
 
@@ -919,18 +1000,99 @@ def build_trajectory_ir(
         unknowns_list.append({"field": "matched_result_digest", "reason": "unset_in_raw_atif_steps"})
         unknowns_list.append({"field": "state_before_after_digests", "reason": "unobserved_without_state_journal"})
 
+        user_msgs = sum(1 for e in updated_events if e.event_type == "user_message" or e.actor == "user")
+        agent_msgs = sum(1 for e in updated_events if e.event_type == "agent_message" or (e.actor == "agent" and not e.status_owning_program))
+        tool_calls = sum(1 for e in updated_events if e.event_type == "tool_call" or e.call_index is not None)
+        observations = sum(1 for e in updated_events if e.event_type == "observation")
+        state_changes = sum(1 for e in updated_events if e.event_type == "state_change")
+        verifier_checks = sum(1 for e in updated_events if e.event_type == "verifier_check" or e.phase == "verifier")
+        context_mgmt = sum(1 for e in updated_events if e.event_type == "context_management" or e.action_family == "context_control")
+
+        setup_eps = sum(1 for ep in episodes if ep.episode_type == "setup")
+        inst_eps = sum(1 for ep in episodes if ep.episode_type == "instruction")
+        insp_eps = sum(1 for ep in episodes if ep.episode_type == "inspection")
+        mut_eps = sum(1 for ep in episodes if ep.episode_type == "mutation")
+        ver_eps = sum(1 for ep in episodes if ep.episode_type == "verification")
+        rec_eps = sum(1 for ep in episodes if ep.episode_type == "screening_recovery")
+        term_eps = sum(1 for ep in episodes if ep.episode_type == "terminal")
+
+        total_errs = sum(1 for e in updated_events if e.is_error)
+        tool_errs = sum(1 for e in updated_events if e.is_error and e.event_type == "tool_call")
+        unhandled_exc = 1 if exception_class else 0
+        rec_errs = baseline.recovery_count
+        unrec_errs = max(0, total_errs - rec_errs)
+        max_cascade = baseline.max_exit_code_cascade_screening
+
+        state_mutations = sum(1 for e in updated_events if e.action_family in ("file_edit", "file_write"))
+        state_diff_obs = state_mutations > 0
+        certified_pass = primary_reward is not None and primary_reward >= 1.0
+        state_linked = any(e.state_before_digest or e.state_after_digest for e in updated_events)
+
+        verifier_exec = verifier_checks > 0
+        verifier_reward_obs = primary_reward is not None
+        verifier_tests = 1 if verifier_exec else 0
+        verifier_passed = 1 if (primary_reward and primary_reward >= 1.0) else 0
+        unsupported_claims = 1 if (final_verdict == "PASS" and not verifier_exec and not verifier_reward_obs) else 0
+
+        hold_reasons: list[str] = []
+        if outline.status != "featured" and not is_cas:
+            hold_reasons.append("missing_atif_evidence")
+        if unpaired_count > 0:
+            hold_reasons.append("degraded_tool_linkage")
+        if quality_status in ("fail", "quarantined"):
+            hold_reasons.append(f"quarantine_quality_status_{quality_status}")
+        if len(updated_events) == 0 and outline.status != "accounted_unavailable":
+            hold_reasons.append("empty_event_sequence")
+        if unsupported_claims > 0:
+            hold_reasons.append("unsupported_terminal_claim")
+
+        analysis_ready = len(hold_reasons) == 0
+
         evidence_coverage = {
-            "total_steps": outline.total_steps,
-            "total_events": len(updated_events),
-            "total_episodes": len(episodes),
             "has_atif": outline.status == "featured",
             "has_result": result_path is not None and result_path.is_file(),
+            "has_state_journal": state_diff_obs,
+            "has_ctrf_verifier": verifier_exec,
+            "has_cas_archive": is_cas or bool(cas_uri),
+            "is_production_cas": is_cas,
+            "total_steps": outline.total_steps,
+            "total_events": len(updated_events),
+            "user_messages_count": user_msgs,
+            "agent_messages_count": agent_msgs,
+            "tool_calls_count": tool_calls,
+            "observations_count": observations,
+            "state_changes_count": state_changes,
+            "verifier_checks_count": verifier_checks,
+            "context_management_count": context_mgmt,
+            "total_episodes": len(episodes),
+            "setup_episodes_count": setup_eps,
+            "instruction_episodes_count": inst_eps,
+            "inspection_episodes_count": insp_eps,
+            "mutation_episodes_count": mut_eps,
+            "verification_episodes_count": ver_eps,
+            "recovery_episodes_count": rec_eps,
+            "terminal_episodes_count": term_eps,
+            "total_errors": total_errs,
+            "unhandled_exceptions_count": unhandled_exc,
+            "tool_errors_count": tool_errs,
+            "exit_code_cascades_max": max_cascade,
+            "recovered_errors_count": rec_errs,
+            "unrecovered_errors_count": unrec_errs,
+            "state_diff_observed": state_diff_obs,
+            "state_mutations_count": state_mutations,
+            "certified_state_pass": certified_pass,
+            "state_before_after_linked": state_linked,
+            "verifier_executed": verifier_exec,
+            "verifier_reward_observed": verifier_reward_obs,
+            "verifier_tests_count": verifier_tests,
+            "verifier_passed_count": verifier_passed,
+            "unsupported_terminal_claims_count": unsupported_claims,
             "unpaired_tool_calls_count": unpaired_count,
             "linkage_coverage": linkage_coverage,
             "linkage_dependent_claims_prohibited": unpaired_count > 0,
-            "is_production_cas": is_cas,
+            "analysis_ready": analysis_ready,
+            "hold_reasons": hold_reasons,
         }
-
         ir_trial_id = str(inventory_record.get("trial_id") or outline.trial_id)
         ir_trial_name = str(inventory_record.get("trial_name") or outline.trial_name)
         ir_job_id = str(inventory_record.get("job_id") or outline.job_id)

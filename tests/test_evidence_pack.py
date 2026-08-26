@@ -1,4 +1,4 @@
-"""Tests for EvidencePack v1: hierarchical compression, token budgeting, and citation reopening."""
+"""Tests for EvidencePack v1: hierarchical compression, token budgeting, citation reopening, and coverage metrics."""
 
 from __future__ import annotations
 
@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 
 from evallab.evidence_pack import (
+    EvidenceCoverageMetrics,
     build_evidence_pack,
+    compute_evidence_coverage_metrics,
+    reopen_omitted_range,
 )
 from evallab.trajectory_hydration import RedactionPolicy
 from evallab.trajectory_ir import build_trajectory_ir
@@ -59,6 +62,47 @@ def test_build_evidence_pack_hierarchical_structure(canary_trial_dir: Path, repo
     # Pack digest determinism
     pack2 = build_evidence_pack(ir, trial_dir=canary_trial_dir, budget_tokens=16000)
     assert pack.pack_digest == pack2.pack_digest
+
+
+    """Verify complete category-wise coverage metrics computation."""
+    ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
+    pack = build_evidence_pack(ir, trial_dir=canary_trial_dir)
+    assert pack.pack_digest.startswith("sha256:")
+
+    metrics = compute_evidence_coverage_metrics(ir, trial_dir=canary_trial_dir)
+    assert isinstance(metrics, EvidenceCoverageMetrics)
+    assert metrics.has_atif is True
+    assert metrics.has_result is True
+    assert metrics.total_events > 0
+    assert metrics.total_episodes > 0
+    assert metrics.analysis_ready is True
+    assert len(metrics.hold_reasons) == 0
+
+    # Test dictionary serialization
+    cov_dict = metrics.to_dict()
+    assert cov_dict["has_atif"] is True
+    assert cov_dict["analysis_ready"] is True
+    assert "user_messages_count" in cov_dict
+    assert "state_mutations_count" in cov_dict
+    assert "verifier_executed" in cov_dict
+
+
+def test_omitted_range_digest_and_reopening(canary_trial_dir: Path, repo_root: Path) -> None:
+    """Verify omitted ranges carry SHA-256 digests and can be losslessly reopened."""
+    ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
+    pack = build_evidence_pack(ir, trial_dir=canary_trial_dir)
+
+    if pack.omitted_ranges:
+        om = pack.omitted_ranges[0]
+        assert om.omitted_content_digest.startswith("sha256:")
+        assert om.reopening_citation.step_index is not None
+
+        # Reopen the omitted range
+        reopened = reopen_omitted_range(pack, om.range_id, trial_dir=canary_trial_dir, repo_root=repo_root)
+        assert reopened.window_id == om.range_id + 1000
+        assert reopened.step_start == om.step_start
+        assert len(reopened.events) > 0
+
 
 def test_budget_overflow_marks_pack_uncallable(canary_trial_dir: Path, repo_root: Path) -> None:
     """When mandatory windows exceed token budget, pack is marked uncallable with tiered_pack_required."""

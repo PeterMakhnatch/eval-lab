@@ -467,3 +467,62 @@ def test_cas_temp_dir_leak_cleanup_on_exception(repo_root: Path, monkeypatch: py
 
         assert len(created_temp_dirs) == 1
         assert not created_temp_dirs[0].exists(), "Temporary directory leaked on exception!"
+
+
+def test_multi_tool_call_ir_event_preservation(tmp_path: Path, repo_root: Path) -> None:
+    """Verify multiple tool calls in a single ATIF step are unpacked into distinct IREvents with call_index."""
+    trial_dir = tmp_path / "multi-call-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-multi-call",
+        "steps": [
+            {
+                "step_id": 1,
+                "source": "user",
+                "message": "Find and edit both files",
+            },
+            {
+                "step_id": 2,
+                "source": "agent",
+                "tool_calls": [
+                    {"name": "bash", "arguments": {"command": "cat file1.py"}, "tool_call_id": "tc1"},
+                    {"name": "bash", "arguments": {"command": "cat file2.py"}, "tool_call_id": "tc2"},
+                    {"name": "edit", "arguments": {"file": "file1.py", "patch": "foo"}, "tool_call_id": "tc3"},
+                ],
+                "observations": [
+                    {"source_call_id": "tc1", "content": "print(1)\n", "extra": {"exit_code": 0}},
+                    {"source_call_id": "tc2", "content": "print(2)\n", "extra": {"exit_code": 0}},
+                    {"source_call_id": "tc3", "content": "success", "extra": {"exit_code": 0}},
+                ],
+            },
+            {
+                "step_id": 3,
+                "source": "verifier",
+                "message": "Verifier check passed",
+            },
+        ],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "multi-call-id",
+                "trial_name": "multi-call-trial",
+                "task_name": "synthetic/multi-call",
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    # Step 1 (user message: 1 event) + Step 2 (3 tool calls: 3 events) + Step 3 (verifier check: 1 event) = 5 events
+    assert len(ir.events) == 5
+    tool_events = [e for e in ir.events if e.event_type == "tool_call"]
+    assert len(tool_events) == 3
+    assert [e.call_index for e in tool_events] == [0, 1, 2]
+    assert [e.step_index for e in tool_events] == [2, 2, 2]
+    assert tool_events[0].status_owning_program == "cat"
+    assert tool_events[1].status_owning_program == "cat"
+    assert tool_events[2].action_family == "file_edit"
+    assert ir.final_verdict == "PASS"

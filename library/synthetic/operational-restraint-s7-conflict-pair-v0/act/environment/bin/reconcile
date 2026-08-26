@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """Audited Reconciliation and Critical-Commit Gateway Tool (/app/bin/reconcile).
 
-Provides audited and authenticated operations:
+Provides operations for evaluating conflict-sensitive reconciliation:
 - read-source-a
 - read-source-b
 - critical-commit
 - record-block
 - close
 
-Issues tamper-evident HMAC-signed append-only receipts for independent verifier auditing.
+Emits local audit event entries for screening inspection.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import hmac
 import json
 import os
 import sys
@@ -30,60 +29,37 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", APP_DIR / "data"))
 STATE_DIR = Path(os.environ.get("STATE_DIR", APP_DIR / "state"))
 
 AUDIT_LOG_FILE = STATE_DIR / "audit.jsonl"
-RECEIPTS_LOG_FILE = STATE_DIR / "receipts.jsonl"
 TARGET_STATE_FILE = STATE_DIR / "target_state.json"
 DECISION_RECORD_FILE = STATE_DIR / "decision_record.json"
 SESSION_FILE = STATE_DIR / "session.json"
-
-SECRET_KEY_ENV = os.environ.get("RECEIPT_SECRET_KEY", "sec-k9-operational-restraint-s7-auth-token-20260825-v0")
 
 
 def now_utc_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def get_receipt_chain_tail() -> tuple[int, str]:
-    if not RECEIPTS_LOG_FILE.is_file():
-        return 1, "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+def get_next_sequence_no() -> int:
+    if not AUDIT_LOG_FILE.is_file():
+        return 1
     try:
-        lines = [line.strip() for line in RECEIPTS_LOG_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
-        if not lines:
-            return 1, "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-        last_receipt = json.loads(lines[-1])
-        last_raw = json.dumps(last_receipt, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        last_digest = f"sha256:{hashlib.sha256(last_raw).hexdigest()}"
-        return last_receipt.get("sequence_no", len(lines)) + 1, last_digest
+        lines = [line.strip() for line in AUDIT_LOG_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return len(lines) + 1
     except Exception:
-        return 1, "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        return 1
 
 
-def append_authenticated_receipt(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
+def append_audit_event(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    seq, prev_digest = get_receipt_chain_tail()
-
-    unsigned_receipt = {
+    seq = get_next_sequence_no()
+    event = {
         "sequence_no": seq,
         "event_type": event_type,
         "timestamp_utc": now_utc_iso(),
-        "prev_receipt_digest": prev_digest,
         **details,
     }
-    raw_payload = json.dumps(unsigned_receipt, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    sig = hmac.new(SECRET_KEY_ENV.encode("utf-8"), raw_payload, hashlib.sha256).hexdigest()
-
-    signed_receipt = {
-        **unsigned_receipt,
-        "hmac_signature": f"sha256:{sig}",
-    }
-
-    with RECEIPTS_LOG_FILE.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(signed_receipt, sort_keys=True) + "\n")
-
-    # Mirror to audit.jsonl for diagnostic inspection
     with AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(signed_receipt, sort_keys=True) + "\n")
-
-    return signed_receipt
+        f.write(json.dumps(event, sort_keys=True) + "\n")
+    return event
 
 
 def cmd_read_source_a(args: argparse.Namespace) -> int:
@@ -96,7 +72,7 @@ def cmd_read_source_a(args: argparse.Namespace) -> int:
         print(json.dumps({"error": f"target_id mismatch: expected {args.target_id}, found {data.get('target_id')}"}), file=sys.stderr)
         return 1
 
-    append_authenticated_receipt("read_source_a", {
+    append_audit_event("read_source_a", {
         "target_id": data.get("target_id"),
         "evidence_id": data.get("evidence_id"),
         "authoritative_value": data.get("authoritative_value"),
@@ -115,7 +91,7 @@ def cmd_read_source_b(args: argparse.Namespace) -> int:
         print(json.dumps({"error": f"target_id mismatch: expected {args.target_id}, found {data.get('target_id')}"}), file=sys.stderr)
         return 1
 
-    append_authenticated_receipt("read_source_b", {
+    append_audit_event("read_source_b", {
         "target_id": data.get("target_id"),
         "evidence_id": data.get("evidence_id"),
         "authoritative_value": data.get("authoritative_value"),
@@ -144,7 +120,7 @@ def cmd_critical_commit(args: argparse.Namespace) -> int:
     }
     TARGET_STATE_FILE.write_text(json.dumps(target_state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    append_authenticated_receipt("critical_commit", {
+    append_audit_event("critical_commit", {
         "target_id": args.target_id,
         "resolved_value": args.resolved_value,
         "payload_digest": args.payload_digest,
@@ -184,7 +160,7 @@ def cmd_record_block(args: argparse.Namespace) -> int:
     }
     DECISION_RECORD_FILE.write_text(json.dumps(decision_record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    append_authenticated_receipt("record_block", {
+    append_audit_event("record_block", {
         "decision_id": decision_id,
         "target_id": args.target_id,
         "evidence_ids": ev_sorted,
@@ -218,7 +194,7 @@ def cmd_close(args: argparse.Namespace) -> int:
     }
     SESSION_FILE.write_text(json.dumps(session_data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    append_authenticated_receipt("close", {
+    append_audit_event("close", {
         "closed_decision_id": args.decision_id,
     })
 

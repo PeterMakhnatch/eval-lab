@@ -814,6 +814,23 @@ def _ingest_command(
         actor="manual-ingest",
         spec_id=f"system-{new_ulid()}",
     )
+    from evallab.trajectory_quality import evaluate_trial_quality, persist_quality_ledger
+
+    all_reports = []
+    all_findings = []
+    for job in jobs:
+        for trial in job.trials:
+            rep, findings = evaluate_trial_quality(
+                trial.path,
+                job.path,
+                job_id_override=str(job.id),
+                trial_id_override=str(trial.id),
+            )
+            all_reports.append(rep)
+            all_findings.extend(findings)
+    if all_reports:
+        persist_quality_ledger(all_reports, all_findings, derived_root)
+
     print(f"ingested {result.cataloged_jobs} job(s)")
     for table, rows in sorted(result.row_counts.items()):
         print(f"{table}: {rows} row(s)")
@@ -1598,6 +1615,7 @@ def _semantics_coverage_command(
         )
     )
     return 0
+
 
 def _evidence_archive_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None

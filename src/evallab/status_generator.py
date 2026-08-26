@@ -86,6 +86,8 @@ class StatusReportData:
     storm_error: str | None = None
     operational_smoke_count: int = 0
     raw_notes: list[str] = field(default_factory=list)
+    quality_summary: dict[str, Any] = field(default_factory=dict)
+
 
 def _safe_load_spec(path: Path) -> tuple[ExperimentSpec | None, str | None]:
     try:
@@ -169,9 +171,7 @@ def collect_status_data(
             catalog_error = f"{type(exc).__name__}: {exc}"
     else:
         target_db_url = (
-            database_url
-            if database_url is not None
-            else database_url_from_environment()
+            database_url if database_url is not None else database_url_from_environment()
         )
         if target_db_url:
             try:
@@ -286,11 +286,7 @@ def collect_status_data(
 
                     cfg_task = job.config.get("task") if isinstance(job.config, dict) else None
                     cfg_task_dict = cfg_task if isinstance(cfg_task, dict) else {}
-                    task_name = str(
-                        res.get("task_name")
-                        or cfg_task_dict.get("name")
-                        or job.name
-                    )
+                    task_name = str(res.get("task_name") or cfg_task_dict.get("name") or job.name)
                     recent_trials.append(
                         TrialSummary(
                             job_name=job.name,
@@ -361,6 +357,38 @@ def collect_status_data(
     except Exception as exc:
         storm_error = f"{type(exc).__name__}: {exc}"
 
+    # 5. Quality ledger summary
+    import pyarrow.parquet as pq
+
+    from evallab.paths import derived_root_from_environment
+    from evallab.trajectory_quality import QUALITY_REPORT_TABLE
+
+    derived_root = derived_root_from_environment(resolved_root)
+    quality_summary: dict[str, Any] = {
+        "total": 0,
+        "pass": 0,
+        "warn": 0,
+        "fail": 0,
+        "quarantine": 0,
+        "reasons": {},
+    }
+    q_path = derived_root / f"{QUALITY_REPORT_TABLE}.parquet"
+    if q_path.is_file():
+        try:
+            q_table = pq.read_table(q_path)
+            for row in q_table.to_pylist():
+                quality_summary["total"] += 1
+                st = row.get("status")
+                if st in quality_summary:
+                    quality_summary[st] += 1
+                r_reason = row.get("quarantine_reason")
+                if r_reason:
+                    quality_summary["reasons"][r_reason] = (
+                        quality_summary["reasons"].get(r_reason, 0) + 1
+                    )
+        except Exception:
+            pass
+
     return StatusReportData(
         target_date=current_date,
         reporting_date=yesterday,
@@ -378,6 +406,7 @@ def collect_status_data(
         storm_alarms=storm_alarms,
         storm_error=storm_error,
         operational_smoke_count=smoke_count,
+        quality_summary=quality_summary,
     )
 
 
@@ -423,12 +452,8 @@ def render_status_markdown(data: StatusReportData) -> str:
         for task_name in sorted(by_task.keys()):
             task_trials = by_task[task_name]
             total_trials = len(task_trials)
-            success_count = sum(
-                1 for t in task_trials if t.reward is not None and t.reward >= 1.0
-            )
-            exceptions = Counter(
-                t.exception_type for t in task_trials if t.exception_type
-            )
+            success_count = sum(1 for t in task_trials if t.reward is not None and t.reward >= 1.0)
+            exceptions = Counter(t.exception_type for t in task_trials if t.exception_type)
             agent_names = sorted({t.agent_name for t in task_trials if t.agent_name})
             model_names = sorted({t.model_name for t in task_trials if t.model_name})
 
@@ -474,6 +499,24 @@ def render_status_markdown(data: StatusReportData) -> str:
             msg = f"- *Warning:* {data.unreadable_jobs_count} job director{plural} unreadable."
             lines.append(msg)
             lines.append("")
+    if data.quality_summary and data.quality_summary.get("total", 0) > 0:
+        lines.extend(
+            [
+                "### Evidence Quality Ledger",
+                "",
+                f"- **Evaluated Trials:** {data.quality_summary['total']} "
+                f"(Passed: {data.quality_summary['pass']}, "
+                f"Warnings: {data.quality_summary['warn']}, "
+                f"Failed: {data.quality_summary['fail']}, "
+                f"Quarantined: {data.quality_summary['quarantine']})",
+            ]
+        )
+        reasons = data.quality_summary.get("reasons", {})
+        if reasons:
+            top_reasons = sorted(reasons.items(), key=lambda x: -x[1])[:5]
+            reasons_str = ", ".join(f"`{k}`: {v}" for k, v in top_reasons)
+            lines.append(f"- **Top Quarantine/Failure Reasons:** {reasons_str}")
+        lines.append("")
     # Section 2: RUNNING NOW
     lines.extend(
         [

@@ -5,6 +5,7 @@ CI has no derived/, runs/, or PostgreSQL — tests must pass without them.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import duckdb
@@ -12,12 +13,14 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.attach import SEMANTIC_COMPARISON_COLUMNS, TABLES, attach
-from evallab.cli import run_cli
+from evallab.attach import SEMANTIC_COMPARISON_COLUMNS, TABLES, attach, build_sql_preamble
+from evallab.cli import _redact_database_dsn, run_cli
 from evallab.runner import database_url_from_environment
 
 
 def _catalog_reachable(dsn: str | None = None) -> bool:
+    if os.environ.get("EVALLAB_RUN_POSTGRES_TESTS") != "1":
+        return False
     try:
         import psycopg
 
@@ -462,6 +465,77 @@ def test_cli_print_sql_byte_identical(
     out2, _ = capsys.readouterr()
     assert code1 == 0 and code2 == 0
     assert out1 == out2
+
+
+
+def test_sql_preamble_escapes_quote_bearing_dsn_and_parquet_paths(tmp_path: Path) -> None:
+    derived = tmp_path / "derived'root"
+    dsn = "postgresql://evallab:p'ass@invalid.example/evallab"
+
+    preamble = build_sql_preamble(dsn, derived, tmp_path)
+
+    escaped_dsn = dsn.replace("'", "''")
+    escaped_glob = str(derived / "job_id=*/trial_id=*/trial_facts.parquet").replace(
+        "'", "''"
+    )
+    assert f"'{escaped_dsn}' AS z2" in preamble
+    assert f"'{escaped_glob}'" in preamble
+    assert "p'ass" not in preamble
+
+
+def test_cli_print_sql_redacts_password_and_attach_repr(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    secret = "not-for-output"
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        f"postgresql://evallab:{secret}@invalid.example/evallab",
+    )
+
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        assert secret not in repr(result)
+    finally:
+        result.connection.close()
+
+    code = run_cli(
+        ["db", "attach", "--derived-root", "derived", "--print-sql"],
+        workspace=tmp_path,
+    )
+    out, _ = capsys.readouterr()
+    assert code == 0
+    assert secret not in out
+    assert "REDACTED" in out
+    assert "NON-EXECUTABLE" in out
+
+
+@pytest.mark.parametrize(
+    "dsn, secret",
+    [
+        (
+            r"host=invalid.example user=evallab password='pa\'ss word' dbname=evallab",
+            r"pa\'ss word",
+        ),
+        (
+            r"host=invalid.example user=evallab sslpassword=pa\ ss dbname=evallab",
+            r"pa\ ss",
+        ),
+    ],
+)
+def test_database_dsn_redaction_consumes_backslash_escaped_keyword_values(
+    dsn: str, secret: str
+) -> None:
+    redacted, had_credentials = _redact_database_dsn(dsn)
+
+    assert had_credentials is True
+    assert secret not in redacted
+    assert "invalid.example" in redacted
+    assert "dbname=evallab" in redacted
+    assert "<REDACTED>" in redacted
 
 
 def test_cli_query_returns_fixture_rows(

@@ -7,6 +7,7 @@ Missing or invalid trajectories raise `TraceError` with a one-line message.
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import re
@@ -395,7 +396,7 @@ def instrument_openinference(*, enabled: bool = True) -> dict[str, bool]:
     if not enabled:
         return wired
     try:
-        import litellm  # noqa: F401
+        importlib.import_module("litellm")
         from openinference.instrumentation.litellm import LiteLLMInstrumentor
 
         LiteLLMInstrumentor().instrument()
@@ -403,7 +404,7 @@ def instrument_openinference(*, enabled: bool = True) -> dict[str, bool]:
     except Exception:
         pass
     try:
-        import dspy  # noqa: F401
+        importlib.import_module("dspy")
         from openinference.instrumentation.dspy import DSPyInstrumentor
 
         DSPyInstrumentor().instrument()

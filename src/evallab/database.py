@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, LiteralString, cast
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
@@ -12,6 +12,22 @@ from psycopg.types.json import Jsonb
 from evallab.results import JobRecord, duration_seconds
 from evallab.runner import transient_provider_exception
 from evallab.schemas import CanaryDriftObservation
+
+CanaryDriftReason = Literal[
+    "task_version_changed",
+    "reward_excursion",
+    "canary_exception",
+]
+
+
+def _drift_reason(value: object) -> CanaryDriftReason | None:
+    if value == "task_version_changed":
+        return "task_version_changed"
+    if value == "reward_excursion":
+        return "reward_excursion"
+    if value == "canary_exception":
+        return "canary_exception"
+    return None
 
 
 def schema_path() -> Path:
@@ -23,7 +39,7 @@ def views_path() -> Path:
 
 
 def initialize(database_url: str) -> None:
-    schema = schema_path().read_text()
+    schema = cast(LiteralString, schema_path().read_text())
     with psycopg.connect(database_url) as connection:
         connection.execute(schema)
 
@@ -57,7 +73,7 @@ def count_consecutive_harness_failures(exception_types: Iterable[str | None]) ->
 
 
 def _executemany(
-    connection: psycopg.Connection[Any], query: str, parameters: list[tuple[Any, ...]]
+    connection: psycopg.Connection[Any], query: LiteralString, parameters: list[tuple[Any, ...]]
 ) -> None:
     with connection.cursor() as cursor:
         cursor.executemany(query, parameters)
@@ -391,7 +407,7 @@ def canary_drift_observations(
             previous_task_version=str(row[9]) if row[9] is not None else None,
             task_version_changed=bool(row[10]),
             is_harness_drift_suspect=bool(row[11]),
-            drift_reason=str(row[12]) if row[12] is not None else None,
+            drift_reason=_drift_reason(row[12]),
         )
         for row in rows
     ]

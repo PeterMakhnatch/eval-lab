@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -1316,6 +1317,55 @@ def _db_list_command(
     return 0
 
 
+_URI_PASSWORD_QUERY = re.compile(
+    r"(?i)([?&](?:password|sslpassword)=)([^&#]*)"
+)
+_KEYWORD_PASSWORD = re.compile(
+    r"(?i)(\b(?:password|sslpassword)\s*=\s*)"
+    r"(?:'(?:\\.|''|[^'\\])*'|\"(?:\\.|\"\"|[^\"\\])*\"|(?:\\.|[^\s])+)"
+)
+
+
+def _redact_database_dsn(dsn: str) -> tuple[str, bool]:
+    """Remove password values from URI and libpq keyword DSNs."""
+    redacted = dsn
+    had_credentials = False
+
+    scheme_end = redacted.find("://")
+    if scheme_end >= 0:
+        authority_start = scheme_end + 3
+        authority_end = len(redacted)
+        for delimiter in "/?#":
+            position = redacted.find(delimiter, authority_start)
+            if position >= 0:
+                authority_end = min(authority_end, position)
+        authority = redacted[authority_start:authority_end]
+        at = authority.rfind("@")
+        if at >= 0:
+            userinfo = authority[:at]
+            separator = userinfo.find(":")
+            if separator >= 0:
+                authority = (
+                    userinfo[:separator]
+                    + ":<REDACTED>@"
+                    + authority[at + 1 :]
+                )
+                redacted = (
+                    redacted[:authority_start]
+                    + authority
+                    + redacted[authority_end:]
+                )
+                had_credentials = True
+
+    redacted, query_count = _URI_PASSWORD_QUERY.subn(
+        r"\1<REDACTED>", redacted
+    )
+    redacted, keyword_count = _KEYWORD_PASSWORD.subn(
+        r"\1'<REDACTED>'", redacted
+    )
+    return redacted, had_credentials or query_count > 0 or keyword_count > 0
+
+
 def _db_attach_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1330,7 +1380,13 @@ def _db_attach_command(
         return 0 if attached > 0 else 1
     if args.print_sql:
         dsn = database_url_from_environment()
-        print(build_sql_preamble(dsn, derived, root))
+        safe_dsn, had_credentials = _redact_database_dsn(dsn)
+        if had_credentials:
+            print(
+                "-- REDACTED / NON-EXECUTABLE: credentials were removed "
+                "from this SQL preamble."
+            )
+        print(build_sql_preamble(safe_dsn, derived, root))
         result.connection.close()
         return 0
     if args.query:
@@ -3668,7 +3724,6 @@ def run_cli(
 
 def main(argv: Sequence[str] | None = None) -> None:
     raise SystemExit(run_cli(argv))
-
 
 def legacy_main() -> None:
     print("warning: harbor-lab is deprecated; use evallab", file=sys.stderr)

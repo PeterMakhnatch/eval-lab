@@ -2,11 +2,13 @@ name: loca-lean
 
 on:
   push:
+    branches: [main]
     paths:
       - "library/benchmarks/loca-lean-v1/**"
       - "tests/test_loca_lean.py"
       - ".github/workflows/loca-lean.yml"
   pull_request:
+    branches: [main]
     paths:
       - "library/benchmarks/loca-lean-v1/**"
       - "tests/test_loca_lean.py"

@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, Literal, get_args
 from uuid import UUID, uuid4
 
 import psycopg
@@ -38,6 +38,7 @@ from evallab.state_events import (
 )
 
 JsonObject = dict[str, Any]
+ReviewDisposition = Literal["accepted", "needs_revision", "rejected", "superseded"]
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -411,10 +412,10 @@ def extract_trial_fact(
     projection = project_trial(job, trial)
     journal = state_journal or load_state_journal(trial)
     result = trial.result
-    agent_info = result.get("agent_info") if isinstance(result.get("agent_info"), dict) else {}
-    model_info = (
-        agent_info.get("model_info") if isinstance(agent_info.get("model_info"), dict) else {}
-    )
+    raw_agent_info = result.get("agent_info")
+    agent_info = raw_agent_info if isinstance(raw_agent_info, dict) else {}
+    raw_model_info = agent_info.get("model_info")
+    model_info = raw_model_info if isinstance(raw_model_info, dict) else {}
     raw_agent_result = _agent_result(result)
     root_trajectories = [item for item in projection.trajectories if item.embedded_path is None]
     root_metrics = root_trajectories[0] if root_trajectories else None
@@ -1333,7 +1334,7 @@ def run_trial_analysis(
 def write_analysis_review(
     sidecar_path: Path,
     *,
-    disposition: str,
+    disposition: ReviewDisposition,
     rationale: str,
     reviewer: str,
     superseded_by: UUID | None = None,

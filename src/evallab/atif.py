@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 from collections import defaultdict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol, TypeGuard
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -242,6 +243,33 @@ class ProjectionInvariant:
         return f"{base} missing={len(self.missing_job_ids)} extra={len(self.extra_job_ids)}"
 
 
+
+class _HarborTrajectory(Protocol):
+    @classmethod
+    def model_validate(cls, payload: JsonObject) -> object: ...
+
+
+def _is_harbor_trajectory(value: object) -> TypeGuard[type[_HarborTrajectory]]:
+    return isinstance(value, type) and callable(getattr(value, "model_validate", None))
+
+
+def _as_object(value: object) -> JsonObject | None:
+    return value if isinstance(value, dict) else None
+
+
+def _as_list(value: object) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _string_or_none(value: object) -> str | None:
+    return str(value) if value is not None else None
+
+
+def _error_location(error: Mapping[str, Any]) -> list[Any]:
+    location = error.get("loc")
+    return list(location) if isinstance(location, list | tuple) else []
+
+
 CatalogRowsLoader = Callable[[str], list[tuple[str, str, str | None]]]
 
 
@@ -255,16 +283,19 @@ def _load_json(path: Path) -> tuple[Any | None, str | None]:
 def _validate_with_harbor(payload: JsonObject) -> tuple[str, str | None] | None:
     """Use Harbor's installed model when it is importable in this interpreter."""
     try:
-        from harbor.models.trajectories import Trajectory  # type: ignore[import-not-found]
+        module = importlib.import_module("harbor.models.trajectories")
     except ImportError:
         return None
+    trajectory = getattr(module, "Trajectory", None)
+    if not _is_harbor_trajectory(trajectory):
+        return None
     try:
-        Trajectory.model_validate(payload)
+        trajectory.model_validate(payload)
     except ValidationError as exc:
         sanitized = [
             {
                 "type": item.get("type"),
-                "loc": list(item.get("loc") or ()),
+                "loc": _error_location(item),
                 "msg": item.get("msg"),
             }
             for item in exc.errors(include_input=False, include_url=False)
@@ -279,14 +310,15 @@ def _validate_fallback(payload: JsonObject) -> str | None:
     schema_version = payload.get("schema_version")
     if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         return f"unsupported schema_version {schema_version!r}"
-    agent = payload.get("agent")
-    if not isinstance(agent, dict) or not isinstance(agent.get("name"), str):
+    agent = _as_object(payload.get("agent"))
+    if agent is None or not isinstance(agent.get("name"), str):
         return "agent.name must be a string"
     if not isinstance(agent.get("version"), str):
         return "agent.version must be a string"
-    steps = payload.get("steps")
-    if not isinstance(steps, list) or not steps:
+    steps_value = payload.get("steps")
+    if not isinstance(steps_value, list) or not steps_value:
         return "steps must be a non-empty array"
+    steps = steps_value
     for index, step in enumerate(steps, start=1):
         if not isinstance(step, dict):
             return f"steps[{index - 1}] must be an object"
@@ -294,10 +326,15 @@ def _validate_fallback(payload: JsonObject) -> str | None:
             return f"steps[{index - 1}].step_id must equal {index}"
         if step.get("source") not in {"system", "user", "agent"}:
             return f"steps[{index - 1}].source is invalid"
-        if "message" not in step or not isinstance(step["message"], str | list):
+        message = step.get("message")
+        if not isinstance(message, str | list):
             return f"steps[{index - 1}].message must be text or content parts"
-        calls = step.get("tool_calls") or []
-        if not isinstance(calls, list):
+        calls_value = step.get("tool_calls")
+        if not calls_value:
+            calls: list[Any] = []
+        elif isinstance(calls_value, list):
+            calls = calls_value
+        else:
             return f"steps[{index - 1}].tool_calls must be an array"
         call_ids: set[str] = set()
         for call_index, call in enumerate(calls):
@@ -311,9 +348,10 @@ def _validate_fallback(payload: JsonObject) -> str | None:
             if not isinstance(call.get("arguments"), dict):
                 return f"steps[{index - 1}] has non-object tool arguments"
             call_ids.add(call_id)
-        observation = step.get("observation")
-        if observation is not None:
-            results = observation.get("results") if isinstance(observation, dict) else None
+        observation_value = step.get("observation")
+        if observation_value is not None:
+            observation = _as_object(observation_value)
+            results = observation.get("results") if observation is not None else None
             if not isinstance(results, list):
                 return f"steps[{index - 1}].observation.results must be an array"
             for result in results:
@@ -322,8 +360,12 @@ def _validate_fallback(payload: JsonObject) -> str | None:
                 source_call_id = result.get("source_call_id")
                 if source_call_id is not None and source_call_id not in call_ids:
                     return f"step {index} observation references unknown tool call"
-    embedded = payload.get("subagent_trajectories") or []
-    if not isinstance(embedded, list):
+    embedded_value = payload.get("subagent_trajectories")
+    if not embedded_value:
+        embedded: list[Any] = []
+    elif isinstance(embedded_value, list):
+        embedded = embedded_value
+    else:
         return "subagent_trajectories must be an array"
     embedded_ids: set[str] = set()
     for index, child in enumerate(embedded):
@@ -344,35 +386,40 @@ def _referenced_paths(payload: JsonObject) -> list[str]:
     continued = payload.get("continued_trajectory_ref")
     if isinstance(continued, str):
         references.append(continued)
-    for step in payload.get("steps") or []:
+    for step in _as_list(payload.get("steps")):
         if not isinstance(step, dict):
             continue
-        observation = step.get("observation") or {}
-        for result in observation.get("results") or []:
+        observation = _as_object(step.get("observation"))
+        if observation is None:
+            continue
+        for result in _as_list(observation.get("results")):
             if not isinstance(result, dict):
                 continue
-            for reference in result.get("subagent_trajectory_ref") or []:
-                if isinstance(reference, dict) and isinstance(
-                    reference.get("trajectory_path"), str
-                ):
-                    references.append(reference["trajectory_path"])
+            for reference in _as_list(result.get("subagent_trajectory_ref")):
+                if not isinstance(reference, dict):
+                    continue
+                trajectory_path = reference.get("trajectory_path")
+                if isinstance(trajectory_path, str):
+                    references.append(trajectory_path)
     return references
 
 
 def _embedded_reference_error(payload: JsonObject) -> str | None:
     available = {
         child.get("trajectory_id")
-        for child in payload.get("subagent_trajectories") or []
+        for child in _as_list(payload.get("subagent_trajectories"))
         if isinstance(child, dict)
     }
-    for step in payload.get("steps") or []:
+    for step in _as_list(payload.get("steps")):
         if not isinstance(step, dict):
             continue
-        observation = step.get("observation") or {}
-        for result in observation.get("results") or []:
+        observation = _as_object(step.get("observation"))
+        if observation is None:
+            continue
+        for result in _as_list(observation.get("results")):
             if not isinstance(result, dict):
                 continue
-            for reference in result.get("subagent_trajectory_ref") or []:
+            for reference in _as_list(result.get("subagent_trajectory_ref")):
                 if not isinstance(reference, dict):
                     continue
                 trajectory_id = reference.get("trajectory_id")
@@ -424,7 +471,7 @@ def _flatten_payloads(
     embedded_path: str | None = None,
 ) -> list[tuple[JsonObject, str | None]]:
     flattened = [(payload, embedded_path)]
-    for index, child in enumerate(payload.get("subagent_trajectories") or []):
+    for index, child in enumerate(_as_list(payload.get("subagent_trajectories"))):
         if not isinstance(child, dict):
             continue
         identifier = child.get("trajectory_id") or str(index)
@@ -490,20 +537,24 @@ def _project_payload(
     else:
         status, validator, validation_error = _document_validation(payload, source_file, trial.path)
 
-    raw_steps = payload.get("steps") if isinstance(payload.get("steps"), list) else []
+    raw_steps = _as_list(payload.get("steps"))
     step_facts: list[StepFact] = []
     tool_facts: list[ToolCallFact] = []
     observation_facts: list[ObservationFact] = []
     for raw_step in raw_steps:
-        if not isinstance(raw_step, dict) or _optional_int(raw_step.get("step_id")) is None:
+        if not isinstance(raw_step, dict):
             continue
-        step_id = int(raw_step["step_id"])
-        metrics = raw_step.get("metrics") if isinstance(raw_step.get("metrics"), dict) else {}
-        calls = raw_step.get("tool_calls") if isinstance(raw_step.get("tool_calls"), list) else []
-        observation = (
-            raw_step.get("observation") if isinstance(raw_step.get("observation"), dict) else {}
-        )
-        results = observation.get("results") if isinstance(observation.get("results"), list) else []
+        step_id = _optional_int(raw_step.get("step_id"))
+        if step_id is None:
+            continue
+        metrics = _as_object(raw_step.get("metrics"))
+        if metrics is None:
+            metrics = {}
+        calls = _as_list(raw_step.get("tool_calls"))
+        observation = _as_object(raw_step.get("observation"))
+        if observation is None:
+            observation = {}
+        results = _as_list(observation.get("results"))
         step_facts.append(
             StepFact(
                 job_id=job.id,
@@ -513,12 +564,8 @@ def _project_payload(
                 source_sha256=source_sha256,
                 step_id=step_id,
                 source=str(raw_step.get("source", "")),
-                timestamp=(
-                    str(raw_step["timestamp"]) if raw_step.get("timestamp") is not None else None
-                ),
-                model_name=(
-                    str(raw_step["model_name"]) if raw_step.get("model_name") is not None else None
-                ),
+                timestamp=_string_or_none(raw_step.get("timestamp")),
+                model_name=_string_or_none(raw_step.get("model_name")),
                 is_copied_context=bool(raw_step.get("is_copied_context", False)),
                 llm_call_count=_optional_int(raw_step.get("llm_call_count")) or 0,
                 prompt_tokens=_optional_int(metrics.get("prompt_tokens")),
@@ -554,7 +601,8 @@ def _project_payload(
             if not isinstance(result, dict):
                 continue
             content = _content_bytes(result.get("content"))
-            references = result.get("subagent_trajectory_ref") or []
+            references = _as_list(result.get("subagent_trajectory_ref"))
+            source_call_id = _string_or_none(result.get("source_call_id"))
             observation_facts.append(
                 ObservationFact(
                     job_id=job.id,
@@ -564,27 +612,21 @@ def _project_payload(
                     source_sha256=source_sha256,
                     step_id=step_id,
                     observation_index=observation_index,
-                    source_call_id=(
-                        str(result["source_call_id"])
-                        if result.get("source_call_id") is not None
-                        else None
-                    ),
+                    source_call_id=source_call_id,
                     content_size_bytes=len(content),
                     content_sha256=_digest_bytes(content),
-                    subagent_ref_count=len(references) if isinstance(references, list) else 0,
-                    subagent_refs_sha256=(
-                        _digest_json(references)
-                        if isinstance(references, list) and references
-                        else None
-                    ),
+                    subagent_ref_count=len(references),
+                    subagent_refs_sha256=_digest_json(references) if references else None,
                     command_exit_code=_command_exit_code(result),
                 )
             )
 
-    agent = payload.get("agent") if isinstance(payload.get("agent"), dict) else {}
-    final_metrics = (
-        payload.get("final_metrics") if isinstance(payload.get("final_metrics"), dict) else {}
-    )
+    agent = _as_object(payload.get("agent"))
+    if agent is None:
+        agent = {}
+    final_metrics = _as_object(payload.get("final_metrics"))
+    if final_metrics is None:
+        final_metrics = {}
     trajectory = TrajectoryFact(
         job_id=job.id,
         trial_id=trial.id,
@@ -592,24 +634,16 @@ def _project_payload(
         source_path=source_path,
         source_sha256=source_sha256,
         embedded_path=embedded_path,
-        schema_version=(
-            str(payload["schema_version"]) if payload.get("schema_version") is not None else None
-        ),
-        session_id=str(payload["session_id"]) if payload.get("session_id") is not None else None,
-        trajectory_id=(
-            str(payload["trajectory_id"]) if payload.get("trajectory_id") is not None else None
-        ),
+        schema_version=_string_or_none(payload.get("schema_version")),
+        session_id=_string_or_none(payload.get("session_id")),
+        trajectory_id=_string_or_none(payload.get("trajectory_id")),
         validation_status=status,
         validator=validator,
         validation_error=validation_error,
-        agent_name=str(agent["name"]) if agent.get("name") is not None else None,
-        agent_version=str(agent["version"]) if agent.get("version") is not None else None,
-        model_name=str(agent["model_name"]) if agent.get("model_name") is not None else None,
-        continued_trajectory_ref=(
-            str(payload["continued_trajectory_ref"])
-            if payload.get("continued_trajectory_ref") is not None
-            else None
-        ),
+        agent_name=_string_or_none(agent.get("name")),
+        agent_version=_string_or_none(agent.get("version")),
+        model_name=_string_or_none(agent.get("model_name")),
+        continued_trajectory_ref=_string_or_none(payload.get("continued_trajectory_ref")),
         step_count=len(step_facts),
         llm_call_count=sum(step.llm_call_count for step in step_facts),
         prompt_tokens=_optional_int(final_metrics.get("total_prompt_tokens")),

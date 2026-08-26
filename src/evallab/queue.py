@@ -17,7 +17,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import yaml
 from pydantic import ValidationError
@@ -859,7 +859,7 @@ class DirectoryQueue:
                 spec_id=str(spec.spec_id),
                 occurred_at=datetime.now(UTC),
                 event=event,
-                from_state=cast(QueueState, source_state),
+                from_state=source_state,
                 to_state=destination_state,
                 actor=actor,
                 policy_rule=policy_rule or spec.policy_rule,

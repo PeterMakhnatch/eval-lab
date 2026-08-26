@@ -261,7 +261,9 @@ def test_synthetic_cas_archive_ingestion(repo_root: Path) -> None:
         ir = build_trajectory_ir(archive.uri, store_root=cas_store, repo_root=repo_root)
         assert ir.is_production_cas is True
         assert ir.source_digests.get("cas_uri") == archive.uri
-        assert len(ir.events) == 2
+        # User message, tool call, and linked observation have distinct event identities.
+        assert len(ir.events) == 3
+        assert [event.event_type for event in ir.events] == ["agent_message", "tool_call", "observation"]
         assert ir.final_verdict == "PASS"
 
         # 4. Build EvidencePack from IR and verify member hydration from CAS
@@ -517,12 +519,17 @@ def test_multi_tool_call_ir_event_preservation(tmp_path: Path, repo_root: Path) 
     )
 
     ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
-    # Step 1 (user message: 1 event) + Step 2 (3 tool calls: 3 events) + Step 3 (verifier check: 1 event) = 5 events
-    assert len(ir.events) == 5
-    tool_events = [e for e in ir.events if e.event_type == "tool_call"]
+    # Step 1 message + 3 calls + 3 linked observations + verifier check = 8 events.
+    assert len(ir.events) == 8
+    tool_events = [event for event in ir.events if event.event_type == "tool_call"]
+    observation_events = [event for event in ir.events if event.event_type == "observation"]
     assert len(tool_events) == 3
-    assert [e.call_index for e in tool_events] == [0, 1, 2]
-    assert [e.step_index for e in tool_events] == [2, 2, 2]
+    assert len(observation_events) == 3
+    assert [event.call_index for event in tool_events] == [0, 1, 2]
+    assert [event.call_index for event in observation_events] == [0, 1, 2]
+    assert [event.step_index for event in tool_events] == [2, 2, 2]
+    assert [event.source_citation.tool_call_id for event in tool_events] == ["tc1", "tc2", "tc3"]
+    assert [event.source_citation.source_call_id for event in observation_events] == ["tc1", "tc2", "tc3"]
     assert tool_events[0].status_owning_program == "cat"
     assert tool_events[1].status_owning_program == "cat"
     assert tool_events[2].action_family == "file_edit"

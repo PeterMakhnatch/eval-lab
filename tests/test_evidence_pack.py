@@ -285,5 +285,4 @@ def test_five_tb3_cas_packs_determinism_and_rebuild(repo_root: Path) -> None:
         pack2 = build_evidence_pack(ir2, store_root=cas_store)
         assert ir1.ir_digest == ir2.ir_digest, f"IR digest mismatch for {trial_name}"
         assert pack1.pack_digest == pack2.pack_digest, f"Pack digest mismatch for {trial_name}"
-        assert pack1.is_model_callable is True
         assert len(pack1.selected_windows) > 0

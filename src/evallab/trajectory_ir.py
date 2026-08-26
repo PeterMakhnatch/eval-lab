@@ -682,7 +682,9 @@ def build_trajectory_ir(
                 except Exception:
                     pass
 
-        unpaired_count = sum(1 for f in quality_findings if "UNPAIRED" in f)
+        ledger_unpaired_count = sum(1 for finding in quality_findings if "UNPAIRED" in finding)
+        # Raw ATIF linkage is authoritative; stale ledger findings are retained as unknowns below.
+        unpaired_count = ledger_unpaired_count
         linkage_coverage = "degraded" if unpaired_count > 0 else "complete"
 
         primary_reward = baseline.primary_reward if baseline.primary_reward is not None else inventory_record.get("reward")
@@ -736,7 +738,20 @@ def build_trajectory_ir(
         for step in outline.steps:
             raw_step = raw_steps_map.get(str(step.step_id)) or {}
             raw_tool_calls = raw_step.get("tool_calls")
-            raw_observations = raw_step.get("observations") or []
+            raw_observations = raw_step.get("observations")
+            raw_observation = raw_step.get("observation")
+            raw_results = (
+                raw_observation.get("results")
+                if isinstance(raw_observation, dict)
+                else None
+            )
+            if (
+                not isinstance(raw_observations, list)
+                or (not raw_observations and isinstance(raw_results, list) and raw_results)
+            ):
+                raw_observations = raw_results
+            if not isinstance(raw_observations, list):
+                raw_observations = []
 
             is_user = step.source == "user"
             is_system = step.source in ("system", "setup")
@@ -758,20 +773,51 @@ def build_trajectory_ir(
                 # Multi-call preservation: unpack every individual tool call
                 for call_idx, tc in enumerate(raw_tool_calls):
                     tc_dict = tc if isinstance(tc, dict) else {}
-                    tc_name = tc_dict.get("name") or (tc_dict.get("function", {}).get("name") if isinstance(tc_dict.get("function"), dict) else None) or step.tool_name or "tool"
-                    tc_args = tc_dict.get("arguments") or (tc_dict.get("function", {}).get("arguments") if isinstance(tc_dict.get("function"), dict) else None)
+                    tc_name = (
+                        tc_dict.get("name")
+                        or tc_dict.get("function_name")
+                        or (
+                            tc_dict.get("function", {}).get("name")
+                            if isinstance(tc_dict.get("function"), dict)
+                            else None
+                        )
+                        or step.tool_name
+                        or "tool"
+                    )
+                    tc_args = tc_dict.get("arguments") or (
+                        tc_dict.get("function", {}).get("arguments")
+                        if isinstance(tc_dict.get("function"), dict)
+                        else None
+                    )
                     tc_call_id = tc_dict.get("tool_call_id") or tc_dict.get("id")
-                    cmd_str = tc_args if isinstance(tc_args, str) else (tc_args.get("command") if isinstance(tc_args, dict) else step.tool_command)
+                    raw_command = (
+                        tc_args.get("cmd") or tc_args.get("command") or tc_args.get("input")
+                        if isinstance(tc_args, dict)
+                        else tc_args if isinstance(tc_args, str) else step.tool_command
+                    )
+                    wrapped_command = re.search(r'"cmd"\s*:\s*"((?:\\.|[^"])*)"', raw_command or "")
+                    cmd_str = (
+                        json.loads(f'"{wrapped_command.group(1)}"')
+                        if wrapped_command is not None
+                        else raw_command
+                    )
+                    if cmd_str and "exec_command({" in cmd_str:
+                        cmd_str = None
                     prog = _extract_status_owning_program(cmd_str, tc_name)
                     skeleton = _normalize_argument_skeleton(cmd_str, tc_args)
                     action_family = _classify_action_family(prog, tc_name, is_edit=bool(tc_name == "edit"))
 
-                    # Find matching observation strictly without fake positional fallback
+                    # Join only exact source_call_id identities; positional fallback is forbidden.
                     matching_obs: dict[str, Any] | None = None
+                    matching_obs_index: int | None = None
                     if tc_call_id is not None:
-                        for obs in raw_observations:
-                            if isinstance(obs, dict) and (obs.get("source_call_id") == tc_call_id or obs.get("tool_call_id") == tc_call_id):
+                        for obs_index, obs in enumerate(raw_observations):
+                            if isinstance(obs, dict) and (
+                                obs.get("source_call_id") == tc_call_id
+                                or obs.get("tool_call_id") == tc_call_id
+                            ):
                                 matching_obs = obs
+                                matching_obs_index = obs_index
                                 break
 
                     if matching_obs is not None:
@@ -834,6 +880,47 @@ def build_trajectory_ir(
                     )
                     events.append(event)
                     event_ord_counter += 1
+                    if matching_obs is not None and matching_obs_index is not None:
+                        observation_event_id = hashlib.sha256(
+                            f"{outline.trial_id}:{event_ord_counter}:observation:{step.step_id}:{matching_obs_index}".encode()
+                        ).hexdigest()
+                        observation_citation = create_citation_handle(
+                            trial_id=outline.trial_id,
+                            source_path=rel_source_path,
+                            source_sha256=outline.source_sha256,
+                            raw_cas_uri=cas_uri,
+                            step_id=step.step_id,
+                            source_call_id=tc_call_id,
+                            observation_index=matching_obs_index,
+                            target_type="observation",
+                            ir_event_id=observation_event_id,
+                            redaction_profile_digest=policy.compute_digest(),
+                        )
+                        observation_payload = json.dumps({"observation": matching_obs})
+                        events.append(
+                            IREvent(
+                                event_id=observation_event_id,
+                                event_ordinal=event_ord_counter,
+                                event_type="observation",
+                                actor="environment",
+                                timestamp=step.timestamp,
+                                phase=phase_name,
+                                episode_id=1,
+                                step_index=step.step_id,
+                                call_index=call_idx,
+                                action_family=action_family,
+                                status_owning_program=prog,
+                                argument_skeleton=skeleton,
+                                exit_code=exit_code,
+                                exit_semantics=exit_sem,
+                                is_error=is_true_err,
+                                payload_digest=f"sha256:{hashlib.sha256(observation_payload.encode('utf-8')).hexdigest()}",
+                                payload_bytes=len(observation_payload.encode("utf-8")),
+                                source_citation=observation_citation,
+                                summary=f"Observation for {tc_name}",
+                            )
+                        )
+                        event_ord_counter += 1
             else:
                 # Single non-tool or single-step event
                 event_type = (
@@ -949,6 +1036,22 @@ def build_trajectory_ir(
                 )
             else:
                 updated_events.append(ev)
+        observed_call_ids = {
+            event.source_citation.source_call_id
+            for event in updated_events
+            if event.event_type == "observation" and event.source_citation.source_call_id
+        }
+        raw_unpaired_count = sum(
+            1
+            for event in updated_events
+            if event.event_type == "tool_call"
+            and (
+                event.source_citation.tool_call_id is None
+                or event.source_citation.tool_call_id not in observed_call_ids
+            )
+        )
+        unpaired_count = raw_unpaired_count
+        linkage_coverage = "degraded" if raw_unpaired_count > 0 else "complete"
 
         source_digests: dict[str, str] = {
             "source_sha256": outline.source_sha256,

@@ -2464,6 +2464,123 @@ def _traj_card_command(
         return 1
 
 
+def _traj_ir_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.trajectory_ir import build_trajectory_ir
+
+    explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
+    if explicit_root is None:
+        try:
+            target_path = Path(args.trial)
+            target_resolved = target_path.resolve()
+            repo_resolved = root.resolve()
+            if target_resolved != repo_resolved and repo_resolved not in target_resolved.parents:
+                explicit_root = target_resolved.parent if target_resolved.is_file() else target_resolved
+        except Exception:
+            pass
+
+    try:
+        ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root)
+        output_str = json.dumps(ir.to_dict(), indent=2)
+        if getattr(args, "output", None):
+            out_path = _resolve(root, args.output)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(output_str, encoding="utf-8")
+            print(f"Wrote TrajectoryIR (digest: {ir.ir_digest}) -> {out_path}")
+        else:
+            print(output_str)
+        return 0 if ir.status == "featured" else 1
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+def _traj_pack_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.evidence_pack import build_evidence_pack
+    from evallab.trajectory_hydration import RedactionPolicy
+    from evallab.trajectory_ir import build_trajectory_ir
+
+    explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
+    if explicit_root is None:
+        try:
+            target_path = Path(args.trial)
+            target_resolved = target_path.resolve()
+            repo_resolved = root.resolve()
+            if target_resolved != repo_resolved and repo_resolved not in target_resolved.parents:
+                explicit_root = target_resolved.parent if target_resolved.is_file() else target_resolved
+        except Exception:
+            pass
+
+    budget = getattr(args, "budget", 16000) or 16000
+    policy = RedactionPolicy(redact_secrets=not getattr(args, "no_redact", False))
+
+    try:
+        ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root)
+        trial_p = Path(args.trial)
+        trial_dir = trial_p if trial_p.is_dir() else trial_p.parent
+        pack = build_evidence_pack(ir, trial_dir=trial_dir, budget_tokens=budget, policy=policy)
+
+        fmt = getattr(args, "format", "markdown")
+        if getattr(args, "json", False) or fmt == "json":
+            rendered = json.dumps(pack.to_dict(), indent=2)
+        else:
+            rendered = pack.render_markdown()
+
+        if getattr(args, "output", None):
+            out_path = _resolve(root, args.output)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(rendered, encoding="utf-8")
+            print(f"Wrote EvidencePack (digest: {pack.pack_digest}) -> {out_path}")
+        else:
+            print(rendered)
+        return 0 if ir.status == "featured" else 1
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+def _traj_align_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.trajectory_alignment import align_trajectory_pair
+    from evallab.trajectory_ir import build_trajectory_ir
+
+    explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
+
+    def _resolve_candidate(cand_str: str) -> Path | None:
+        if explicit_root:
+            return explicit_root
+        try:
+            tp = Path(cand_str).resolve()
+            rp = root.resolve()
+            if tp != rp and rp not in tp.parents:
+                return tp.parent if tp.is_file() else tp
+        except Exception:
+            pass
+        return None
+
+    try:
+        ir_a = build_trajectory_ir(args.trial_a, repo_root=root, explicit_runs_root=_resolve_candidate(args.trial_a))
+        ir_b = build_trajectory_ir(args.trial_b, repo_root=root, explicit_runs_root=_resolve_candidate(args.trial_b))
+        result = align_trajectory_pair(ir_a, ir_b)
+
+        output_str = json.dumps(result.to_dict(), indent=2)
+        if getattr(args, "output", None):
+            out_path = _resolve(root, args.output)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(output_str, encoding="utf-8")
+            print(f"Wrote PairedAlignment (id: {result.alignment_id}) -> {out_path}")
+        else:
+            print(output_str)
+        return 0
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
 # ---------------------------------------------------------------------------
 # Declarative CLI Parser Construction
 # ---------------------------------------------------------------------------
@@ -3699,6 +3816,35 @@ def parser() -> argparse.ArgumentParser:
     traj_card.add_argument("--json", action="store_true", help="Emit card data as JSON")
     traj_card.add_argument("--no-redact", action="store_true", help="Disable on-read secret redaction")
     traj_card.set_defaults(func=_traj_card_command)
+
+    traj_ir = traj_commands.add_parser(
+        "ir", help="Build a deterministic TrajectoryIR intermediate representation"
+    )
+    traj_ir.add_argument("trial", help="Trial identifier, directory, or result.json")
+    traj_ir.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
+    traj_ir.add_argument("--output", "-o", type=Path, help="Write IR JSON to file")
+    traj_ir.set_defaults(func=_traj_ir_command)
+
+    traj_pack = traj_commands.add_parser(
+        "pack", help="Build a bounded, citation-preserving EvidencePack for model interpretation"
+    )
+    traj_pack.add_argument("trial", help="Trial identifier, directory, or result.json")
+    traj_pack.add_argument("--budget", type=int, default=16000, help="Token budget (default: 16000)")
+    traj_pack.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
+    traj_pack.add_argument("--output", "-o", type=Path, help="Write EvidencePack to file")
+    traj_pack.add_argument("--format", choices=["markdown", "json"], default="markdown", help="Output format")
+    traj_pack.add_argument("--json", action="store_true", help="Emit EvidencePack as JSON")
+    traj_pack.add_argument("--no-redact", action="store_true", help="Disable on-read secret redaction")
+    traj_pack.set_defaults(func=_traj_pack_command)
+
+    traj_align = traj_commands.add_parser(
+        "align", help="Align two counterfactual trajectory branches and detect divergence k*"
+    )
+    traj_align.add_argument("trial_a", help="First trial identifier, directory, or result.json")
+    traj_align.add_argument("trial_b", help="Second trial identifier, directory, or result.json")
+    traj_align.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
+    traj_align.add_argument("--output", "-o", type=Path, help="Write alignment JSON to file")
+    traj_align.set_defaults(func=_traj_align_command)
     return root
 
 

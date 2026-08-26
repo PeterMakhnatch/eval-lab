@@ -104,6 +104,60 @@ CREATE TABLE IF NOT EXISTS trial_facts (
     duration_seconds DOUBLE
 );
 
+CREATE TABLE IF NOT EXISTS trajectory_ir (
+    ir_digest VARCHAR,
+    trial_id VARCHAR,
+    job_id VARCHAR,
+    trial_name VARCHAR,
+    task_name VARCHAR,
+    agent_scaffold VARCHAR,
+    model_name VARCHAR,
+    status VARCHAR,
+    final_verdict VARCHAR,
+    primary_reward DOUBLE,
+    total_events BIGINT,
+    total_episodes BIGINT,
+    total_opportunities BIGINT,
+    created_at VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS evidence_packs (
+    pack_digest VARCHAR,
+    ir_digest VARCHAR,
+    trial_id VARCHAR,
+    trial_name VARCHAR,
+    task_name VARCHAR,
+    agent_name VARCHAR,
+    model_name VARCHAR,
+    final_verdict VARCHAR,
+    budget_tokens BIGINT,
+    consumed_tokens_est BIGINT,
+    selected_windows_count BIGINT,
+    omitted_ranges_count BIGINT,
+    is_bounded BOOLEAN,
+    created_at VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS paired_alignments (
+    alignment_id VARCHAR,
+    trial_id_a VARCHAR,
+    trial_id_b VARCHAR,
+    trial_name_a VARCHAR,
+    trial_name_b VARCHAR,
+    task_name VARCHAR,
+    config_delta VARCHAR,
+    outcome_delta VARCHAR,
+    divergence_step_a BIGINT,
+    divergence_step_b BIGINT,
+    has_reconvergence BOOLEAN,
+    reconvergence_step_a BIGINT,
+    reconvergence_step_b BIGINT,
+    alignment_score DOUBLE,
+    total_aligned_steps BIGINT,
+    summary VARCHAR,
+    created_at VARCHAR
+);
+
 -- --------------------------------------------------------------------------- --
 -- Feature & Loop Views
 -- --------------------------------------------------------------------------- --
@@ -338,3 +392,63 @@ SELECT
     repeated_command_count,
     created_at
 FROM traj_features;
+
+-- --------------------------------------------------------------------------- --
+-- TrajectoryIR, EvidencePack, and Paired Alignment Views
+-- --------------------------------------------------------------------------- --
+
+CREATE OR REPLACE VIEW v_trajectory_ir_summary AS
+SELECT
+    ir_digest,
+    trial_id,
+    trial_name,
+    task_name,
+    agent_scaffold,
+    model_name,
+    status,
+    final_verdict,
+    primary_reward,
+    total_events,
+    total_episodes,
+    total_opportunities,
+    created_at
+FROM trajectory_ir;
+
+CREATE OR REPLACE VIEW v_evidence_packs AS
+SELECT
+    pack_digest,
+    ir_digest,
+    trial_id,
+    trial_name,
+    task_name,
+    agent_name,
+    model_name,
+    final_verdict,
+    budget_tokens,
+    consumed_tokens_est,
+    selected_windows_count,
+    omitted_ranges_count,
+    is_bounded,
+    created_at
+FROM evidence_packs;
+
+CREATE OR REPLACE VIEW v_paired_alignments AS
+SELECT
+    alignment_id,
+    trial_id_a,
+    trial_id_b,
+    trial_name_a,
+    trial_name_b,
+    task_name,
+    config_delta,
+    outcome_delta,
+    divergence_step_a,
+    divergence_step_b,
+    has_reconvergence,
+    reconvergence_step_a,
+    reconvergence_step_b,
+    alignment_score,
+    total_aligned_steps,
+    summary,
+    created_at
+FROM paired_alignments;

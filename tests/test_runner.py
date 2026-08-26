@@ -1005,3 +1005,79 @@ def test_staging_cleaned_up_after_harbor_exception(
     assert json.loads(network_adaptation_path.read_text())["network_adaptation"][
         "effective_verifier_network"
     ] == "public"
+
+
+def test_staging_cleaned_up_after_task_toml_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failure writing the adapted task.toml into the copy still cleans the copy."""
+    request = RunRequest(
+        task=no_network_task(tmp_path),
+        agent="oracle",
+        name="staging-toml-fail",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    original_write_text = Path.write_text
+
+    def write_text(self, data, *args, **kwargs):
+        if ".exec-stage" in str(self.parent) and self.name == "task.toml":
+            raise OSError("disk full")
+        return original_write_text(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "evallab.harbor_network.host_harbor_network_policy",
+        _darwin_public_policy,
+    )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(Path, "write_text", write_text)
+
+    with pytest.raises(OSError, match="disk full"):
+        run_experiment(request, repo_root=tmp_path)
+
+    staging_dir = request.jobs_dir / ".exec-stage" / request.name
+    assert not staging_dir.exists()
+    source_toml = (request.task / "task.toml").read_text()
+    assert 'network_mode = "no-network"' in source_toml
+    assert 'network_mode = "public"' not in source_toml
+
+
+def test_staging_cleaned_up_after_network_adaptation_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failure writing durable network-adaptation metadata still cleans the copy."""
+    request = RunRequest(
+        task=no_network_task(tmp_path),
+        agent="oracle",
+        name="staging-meta-fail",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    original_write_text = Path.write_text
+
+    def write_text(self, data, *args, **kwargs):
+        if ".executor" in str(self.parent) and "network-adaptation" in self.name:
+            raise OSError("disk full")
+        return original_write_text(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "evallab.harbor_network.host_harbor_network_policy",
+        _darwin_public_policy,
+    )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(Path, "write_text", write_text)
+
+    with pytest.raises(OSError, match="disk full"):
+        run_experiment(request, repo_root=tmp_path)
+
+    staging_dir = request.jobs_dir / ".exec-stage" / request.name
+    assert not staging_dir.exists()
+    network_adaptation_path = runner_module._network_adaptation_path(request)
+    assert not network_adaptation_path.exists()
+    tmp_path_file = network_adaptation_path.with_name(f".{network_adaptation_path.name}.tmp")
+    assert not tmp_path_file.exists()
+    source_toml = (request.task / "task.toml").read_text()
+    assert 'network_mode = "no-network"' in source_toml
+    assert 'network_mode = "public"' not in source_toml

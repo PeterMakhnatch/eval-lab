@@ -794,10 +794,15 @@ def _write_network_adaptation(
         "network_adaptation": asdict(adaptation),
     }
     temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True, default=str) + "\n",
-        encoding="utf-8",
-    )
+    try:
+        temporary.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True, default=str) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        with suppress(OSError):
+            temporary.unlink()
+        raise
     temporary.replace(path)
 
 
@@ -859,25 +864,26 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
 
     request.jobs_dir.mkdir(parents=True, exist_ok=True)
     staging_dir = request.jobs_dir / ".exec-stage" / request.name
-    staged_task, adaptation = _stage_task_for_host(request.task, staging_dir)
-    if staged_task is not None:
-        staged_request: RunRequest = replace(request, task=staged_task)
-    else:
-        staged_request = request
-
-    harbor_command = build_command(staged_request)
-    command = subscription_command(staged_request, harbor_command, repo_root=repo_root)
     executor_log = _executor_log_path(request)
-    containers_before = harbor_container_ids(staged_request.task)
     started = datetime.now(UTC)
-    _write_executor_state(
-        request,
-        started_at=started,
-        status="running",
-        log_path=executor_log,
-    )
     try:
+        staged_task, adaptation = _stage_task_for_host(request.task, staging_dir)
+        if staged_task is not None:
+            staged_request: RunRequest = replace(request, task=staged_task)
+        else:
+            staged_request = request
+
         _write_network_adaptation(request, adaptation)
+
+        harbor_command = build_command(staged_request)
+        command = subscription_command(staged_request, harbor_command, repo_root=repo_root)
+        containers_before = harbor_container_ids(staged_request.task)
+        _write_executor_state(
+            request,
+            started_at=started,
+            status="running",
+            log_path=executor_log,
+        )
         try:
             process = run_harbor_process(
                 command,

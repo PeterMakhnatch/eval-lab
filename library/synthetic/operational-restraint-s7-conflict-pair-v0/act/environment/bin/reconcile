@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Audited Reconciliation and Critical-Commit Gateway Tool (/app/bin/reconcile).
 
-# SPDX-License-Identifier: MIT
-
 Provides audited and authenticated operations:
 - read-source-a
 - read-source-b

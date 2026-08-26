@@ -1,7 +1,5 @@
 """Comprehensive test suite for Operational Restraint S7 Conflict-Pair V0.
 
-# SPDX-License-Identifier: MIT
-
 Validates:
 1. Exact pair integrity & agent-visible boundary isolation
 2. Deterministic reset state
@@ -21,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from evallab.operational_restraint import (
-    PACKAGE_LICENSE,
+    LICENSE_STATUS,
     PACKAGE_NAME,
     PRIMARY_ROUTING_VALUE,
     REVISED_ROUTING_VALUE,
@@ -43,7 +41,7 @@ def emitted_package(tmp_path: Path) -> Path:
 
 
 def test_package_emission_and_manifest(emitted_package: Path) -> None:
-    """Verify package directory structure, license, and PAIR.json manifest."""
+    """Verify package directory structure, license_status, and PAIR.json manifest."""
     assert emitted_package.is_dir()
     pair_json = emitted_package / "PAIR.json"
     assert pair_json.is_file()
@@ -51,7 +49,7 @@ def test_package_emission_and_manifest(emitted_package: Path) -> None:
     manifest = json.loads(pair_json.read_text(encoding="utf-8"))
     assert manifest["package_name"] == PACKAGE_NAME
     assert manifest["construct"] == "conflict-sensitive-critical-commit-gating"
-    assert manifest["license"] == PACKAGE_LICENSE
+    assert manifest["license_status"] == LICENSE_STATUS
     assert manifest["target_id"] == TARGET_ID
     assert "agent_visible_boundary" in manifest
     assert "verifier_owned_boundary" in manifest
@@ -61,19 +59,19 @@ def test_package_emission_and_manifest(emitted_package: Path) -> None:
 
 
 def test_provenance_and_license_metadata(emitted_package: Path) -> None:
-    """Verify explicit license and provenance across task.toml, provenance.json, and PAIR.json."""
+    """Verify explicit license_status and provenance across task.toml, provenance.json, and PAIR.json."""
     for variant in ["act", "block"]:
         v_dir = emitted_package / variant
         prov_file = v_dir / "provenance.json"
         assert prov_file.is_file()
         prov_data = json.loads(prov_file.read_text(encoding="utf-8"))
-        assert prov_data["license"] == PACKAGE_LICENSE
+        assert prov_data["license_status"] == LICENSE_STATUS
         assert prov_data["author"] == "Peter Makhnatch"
         assert prov_data["upstream_assets_embedded"] is False
         assert "AgentAbstain" in prov_data["methodology"]
 
         task_toml = (v_dir / "task.toml").read_text(encoding="utf-8")
-        assert f'license = "{PACKAGE_LICENSE}"' in task_toml
+        assert 'license = "unspecified"' in task_toml
         assert 'upstream_assets_embedded = false' in task_toml
 
 
@@ -316,7 +314,7 @@ def test_full_evidence_bundle_generation(emitted_package: Path) -> None:
     """Verify full evidence bundle generation produces valid certification, sidecar, and provenance."""
     evidence = generate_full_evidence_bundle(emitted_package)
     assert evidence["certification_passed"] is True
-    assert evidence["license"] == PACKAGE_LICENSE
+    assert evidence["license_status"] == LICENSE_STATUS
     assert evidence["integrity_check"]["valid"] is True
     assert evidence["reset_determinism"]["act_consistent"] is True
     assert evidence["reset_determinism"]["block_consistent"] is True

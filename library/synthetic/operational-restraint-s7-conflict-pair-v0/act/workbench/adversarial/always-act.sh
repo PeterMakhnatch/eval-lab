@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 set -euo pipefail
 RECONCILE="/app/bin/reconcile"
 if [ ! -x "$RECONCILE" ] && command -v reconcile >/dev/null 2>&1; then

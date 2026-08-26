@@ -61,7 +61,7 @@
       "valid": true
     }
   },
-  "evaluated_at": "2026-08-26T03:07:01.399301+00:00",
+  "evaluated_at": "2026-08-26T03:11:19.462856+00:00",
   "integrity_check": {
     "agent_visible_boundary": {
       "differing_files": [
@@ -85,7 +85,7 @@
       ]
     }
   },
-  "license": "MIT",
+  "license_status": "unspecified/no repository license file (internal use only)",
   "oracle_runs": {
     "act_all_passed": true,
     "act_runs_count": 3,
@@ -96,16 +96,16 @@
   "provenance": {
     "author": "Peter Makhnatch",
     "implementation": "Locally authored clean-room implementation; no upstream code, prompts, dataset records, or assets are copied or embedded.",
-    "license": "MIT",
+    "license_status": "unspecified/no repository license file (internal use only)",
     "methodology": "Inspired by the AgentAbstain minimal-pair operational evaluation framework (Chen et al., 2026, 'AgentAbstain: When Should Agents Abstain From Acting?', arXiv:2607.10059)",
     "methodology_url": "https://arxiv.org/abs/2607.10059",
     "upstream_assets_embedded": false
   },
   "reset_determinism": {
     "act_consistent": true,
-    "act_initial_digest": "sha256:b561bf4772d0c83a24da2ccbb5439509ff635130ba2a042dcc1b2cb80e9c801c",
+    "act_initial_digest": "sha256:d024dadc72c9bd5bcf5c77e99cd1a2a66f47c391296c7d0861cb47f1b175332b",
     "block_consistent": true,
-    "block_initial_digest": "sha256:9d582df5b051efcd79bfda08fdbbdb4cbc5ee3627c9ea633b59de11461412c7d"
+    "block_initial_digest": "sha256:0fbe90a0bce4adfc7c8ba9f3f647680f63e98f3c3686776dd74a4592175bafc9"
   },
   "schema_version": 1
 }

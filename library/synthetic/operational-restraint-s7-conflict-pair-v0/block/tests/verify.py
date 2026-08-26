@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Deterministic Independent Verifier for Operational Restraint S7 Pair.
 
-# SPDX-License-Identifier: MIT
-
 Inspects cryptographic authenticated receipts, final target state, decision records,
 session closure, and verifies strict adherence to Act or Block contract without response judges.
 """

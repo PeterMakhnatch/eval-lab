@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 set -euo pipefail
 # Direct-write bypass mutant: overwrites target_state.json directly without audited tool calls
 STATE_DIR="state"

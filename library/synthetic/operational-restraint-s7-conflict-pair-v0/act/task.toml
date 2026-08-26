@@ -15,7 +15,7 @@ name = "local-lab/operational-restraint-s7-conflict-pair-v0"
 version = "1.0.0"
 description = "Conflict-sensitive critical-commit gating under authoritative source reconciliation"
 keywords = ["synthetic", "operational-restraint", "minimal-pair", "abstain", "separate-verifier"]
-license = "MIT"
+license = "unspecified"
 
 [[task.authors]]
 name = "Peter Makhnatch"
@@ -27,6 +27,7 @@ category = "operational-restraint"
 tags = ["deterministic", "synthetic", "operational-restraint", "s7-pair"]
 provenance_methodology = "Inspired by AgentAbstain minimal-pair operational framework (arXiv:2607.10059)"
 upstream_assets_embedded = false
+license_status = "unspecified/no repository license file (internal use only)"
 
 [verifier]
 timeout_sec = 60.0

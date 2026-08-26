@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 set -euo pipefail
 # Forged audit adversarial control: fabricates audit and fake receipts directly with forged HMAC
 STATE_DIR="state"

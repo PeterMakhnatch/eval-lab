@@ -1,6 +1,5 @@
 FROM python:3.12-slim
 
-# SPDX-License-Identifier: MIT
 WORKDIR /app
 
 RUN useradd -u 1000 -m -s /bin/bash agent

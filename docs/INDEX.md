@@ -24,6 +24,8 @@ inputs:
     digest: sha256:9331c616efea61c692dbca6b95043e3d0f7ec71e669430772cfc4460384282f4
   - path: docs/authoring.md
     digest: sha256:37669e0ed2770fc1c3b5c9c9baadc2ca4b3d2af4e3844c8da298c08d6ab9b5d9
+  - path: docs/automated-trajectory-interpretation-architecture-v1.md
+    digest: sha256:6da808783a56558e93d9d684d100d3e725f3c5b963767408445bed92c7967209
   - path: docs/behavior-analysis.md
     digest: sha256:13a91a461b028742a92c3cb5a1f70f46c257794a180bf6d6299154b80ea08f67
   - path: docs/build-plan.md
@@ -139,6 +141,7 @@ an operator can see what is archived.
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
+| `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `living` | `builder, analyst, operator` |
 | `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
@@ -182,6 +185,7 @@ an operator can see what is archived.
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
+| `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `living` | `builder, analyst, operator` |
 | `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
@@ -259,6 +263,7 @@ an operator can see what is archived.
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
+| `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `living` | `builder, analyst, operator` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |

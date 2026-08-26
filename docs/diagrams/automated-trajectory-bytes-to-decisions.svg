@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="940" viewBox="0 0 1800 940"><defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker></defs><rect width="100%" height="100%" fill="white"/><text x="40" y="50" font-family="Inter,Arial,sans-serif" font-size="30" fill="#1f2937"><tspan x="40" dy="0">Automated Trajectory Interpretation — Bytes to Decisions</tspan></text>
+<text x="42" y="74" font-family="Inter,Arial,sans-serif" font-size="16" fill="#475569"><tspan x="42" dy="0">Deterministic evidence spine; calibrated machine acceptance; no human review per production trajectory</tspan></text>
+<rect x="30" y="100" width="390" height="800" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="52" y="144" font-family="Inter,Arial,sans-serif" font-size="22" fill="#1d4ed8"><tspan x="52" dy="0">1  AUTHORITATIVE EVIDENCE</tspan></text>
+<rect x="70" y="185" width="310" height="100" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text x="92" y="222" font-family="Inter,Arial,sans-serif" font-size="17" fill="#1e3a8a"><tspan x="92" dy="0">Harbor job / trial bytes</tspan><tspan x="92" dy="21.25">result • lock • ATIF • verifier • state</tspan></text>
+<rect x="70" y="335" width="310" height="100" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text x="92" y="372" font-family="Inter,Arial,sans-serif" font-size="17" fill="#1e3a8a"><tspan x="92" dy="0">CAS archive</tspan><tspan x="92" dy="21.25">cas://sha256/... + source digests</tspan></text>
+<rect x="70" y="485" width="310" height="100" rx="14" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+<text x="92" y="522" font-family="Inter,Arial,sans-serif" font-size="17" fill="#991b1b"><tspan x="92" dy="0">Quality Ledger</tspan><tspan x="92" dy="21.25">pass • warn • fail • quarantine</tspan></text>
+<rect x="70" y="650" width="310" height="120" rx="14" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+<text x="92" y="687" font-family="Inter,Arial,sans-serif" font-size="17" fill="#334155"><tspan x="92" dy="0">CampaignAnalysisManifest</tspan><tspan x="92" dy="21.25">exact trials + CAS + quality</tspan><tspan x="92" dy="21.25">retry/control accounting</tspan></text>
+<rect x="460" y="100" width="390" height="800" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="3"/>
+<text x="482" y="144" font-family="Inter,Arial,sans-serif" font-size="22" fill="#166534"><tspan x="482" dy="0">2  AGENT DATA PRODUCTS</tspan></text>
+<rect x="500" y="195" width="310" height="110" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="522" y="232" font-family="Inter,Arial,sans-serif" font-size="17" fill="#14532d"><tspan x="522" dy="0">TrajectoryIR v1</tspan><tspan x="522" dy="21.25">normalized events + exact citations</tspan><tspan x="522" dy="21.25">unknowns + coverage</tspan></text>
+<rect x="500" y="365" width="310" height="100" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="522" y="401" font-family="Inter,Arial,sans-serif" font-size="16" fill="#14532d"><tspan x="522" dy="0">AlignmentRecord v1 (optional)</tspan><tspan x="522" dy="20">confound refusal • divergence</tspan><tspan x="522" dy="20">reconvergence + both citations</tspan></text>
+<rect x="500" y="535" width="310" height="135" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="3"/>
+<text x="522" y="572" font-family="Inter,Arial,sans-serif" font-size="17" fill="#14532d"><tspan x="522" dy="0">EvidencePack v1</tspan><tspan x="522" dy="21.25">outline → episode index</tspan><tspan x="522" dy="21.25">→ selected whole raw windows</tspan><tspan x="522" dy="21.25">omissions + reopen handles</tspan></text>
+<rect x="500" y="735" width="310" height="85" rx="14" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+<text x="522" y="769" font-family="Inter,Arial,sans-serif" font-size="16" fill="#991b1b"><tspan x="522" dy="0">Mandatory overflow / missing source</tspan><tspan x="522" dy="20">→ abstain; do not call model</tspan></text>
+<rect x="890" y="100" width="460" height="800" rx="14" fill="#fefce8" stroke="#d97706" stroke-width="3"/>
+<text x="912" y="144" font-family="Inter,Arial,sans-serif" font-size="22" fill="#92400e"><tspan x="912" dy="0">3  CALIBRATED INTERPRETATION</tspan></text>
+<rect x="925" y="190" width="175" height="95" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+<text x="948" y="229" font-family="Inter,Arial,sans-serif" font-size="17" fill="#78350f"><tspan x="948" dy="0">Judge family A</tspan><tspan x="948" dy="21.25">Gemini first</tspan></text>
+<rect x="1140" y="190" width="175" height="95" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+<text x="1163" y="229" font-family="Inter,Arial,sans-serif" font-size="17" fill="#78350f"><tspan x="1163" dy="0">Judge family B</tspan><tspan x="1163" dy="21.25">independent family</tspan></text>
+<rect x="925" y="345" width="390" height="100" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+<text x="947" y="382" font-family="Inter,Arial,sans-serif" font-size="17" fill="#78350f"><tspan x="947" dy="0">MachineJudgment v1</tspan><tspan x="947" dy="21.25">supported • contradicted • insufficient</tspan><tspan x="947" dy="21.25">exact CitationHandle IDs</tspan></text>
+<rect x="925" y="505" width="390" height="120" rx="14" fill="#fee2e2" stroke="#dc2626" stroke-width="3"/>
+<text x="947" y="542" font-family="Inter,Arial,sans-serif" font-size="17" fill="#991b1b"><tspan x="947" dy="0">AcceptanceDecision v1</tspan><tspan x="947" dy="21.25">digest + citation + contradiction gates</tspan><tspan x="947" dy="21.25">class enabled + exact judge agreement</tspan><tspan x="947" dy="21.25">otherwise abstain/reject</tspan></text>
+<rect x="925" y="700" width="390" height="105" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text x="947" y="736" font-family="Inter,Arial,sans-serif" font-size="16" fill="#4c1d95"><tspan x="947" dy="0">CalibrationReport v1</tspan><tspan x="947" dy="20">per-class accepted precision / risk</tspan><tspan x="947" dy="20">held-out human non-inferiority</tspan></text>
+<rect x="1390" y="100" width="380" height="800" rx="14" fill="#faf5ff" stroke="#7c3aed" stroke-width="3"/>
+<text x="1412" y="144" font-family="Inter,Arial,sans-serif" font-size="22" fill="#6b21a8"><tspan x="1412" dy="0">4  DURABLE OUTPUTS</tspan></text>
+<rect x="1430" y="190" width="300" height="90" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text x="1452" y="227" font-family="Inter,Arial,sans-serif" font-size="17" fill="#4c1d95"><tspan x="1452" dy="0">CAS sidecars</tspan><tspan x="1452" dy="21.25">IR • pack • judgment • decision</tspan></text>
+<rect x="1430" y="335" width="300" height="90" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text x="1452" y="372" font-family="Inter,Arial,sans-serif" font-size="17" fill="#4c1d95"><tspan x="1452" dy="0">PostgreSQL index</tspan><tspan x="1452" dy="21.25">identities • digests • status</tspan></text>
+<rect x="1430" y="480" width="300" height="90" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text x="1452" y="517" font-family="Inter,Arial,sans-serif" font-size="17" fill="#4c1d95"><tspan x="1452" dy="0">Parquet / DuckDB</tspan><tspan x="1452" dy="21.25">rebuildable query projections</tspan></text>
+<rect x="1430" y="640" width="300" height="105" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="1452" y="677" font-family="Inter,Arial,sans-serif" font-size="17" fill="#14532d"><tspan x="1452" dy="0">Cohort report</tspan><tspan x="1452" dy="21.25">accepted • rejected • abstained</tspan><tspan x="1452" dy="21.25">all source-cited</tspan></text>
+<rect x="1430" y="795" width="300" height="65" rx="14" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+<text x="1452" y="827" font-family="Inter,Arial,sans-serif" font-size="15" fill="#991b1b"><tspan x="1452" dy="0">Auto-accept disabled until calibrated</tspan></text>
+<line x1="225" y1="285" x2="225" y2="335" stroke="#2563eb" stroke-width="2" marker-end="url(#a)"/>
+<line x1="380" y1="385" x2="500" y2="250" stroke="#16a34a" stroke-width="2" marker-end="url(#a)"/>
+<line x1="380" y1="535" x2="500" y2="250" stroke="#dc2626" stroke-width="2" marker-end="url(#a)"/>
+<line x1="380" y1="710" x2="500" y2="250" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+<line x1="655" y1="305" x2="655" y2="365" stroke="#16a34a" stroke-width="2" marker-end="url(#a)"/>
+<line x1="655" y1="465" x2="655" y2="535" stroke="#16a34a" stroke-width="2" marker-end="url(#a)"/>
+<line x1="810" y1="600" x2="925" y2="250" stroke="#d97706" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1010" y1="285" x2="1010" y2="345" stroke="#d97706" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1225" y1="285" x2="1225" y2="345" stroke="#d97706" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1120" y1="445" x2="1120" y2="505" stroke="#dc2626" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1120" y1="700" x2="1120" y2="625" stroke="#7c3aed" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1315" y1="565" x2="1430" y2="235" stroke="#7c3aed" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1315" y1="565" x2="1430" y2="380" stroke="#7c3aed" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1315" y1="565" x2="1430" y2="525" stroke="#7c3aed" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1315" y1="565" x2="1430" y2="690" stroke="#16a34a" stroke-width="2" marker-end="url(#a)"/>
+<text x="500" y="869" font-family="Inter,Arial,sans-serif" font-size="14" fill="#166534"><tspan x="500" dy="0">Agent Data is sole producer of IR / pack / alignment</tspan></text>
+<text x="925" y="869" font-family="Inter,Arial,sans-serif" font-size="14" fill="#92400e"><tspan x="925" dy="0">Platform is sole producer of judgments / decisions</tspan></text>
+<line x1="810" y1="600" x2="1140" y2="250" stroke="#d97706" stroke-width="2" marker-end="url(#a)"/></svg>

@@ -831,9 +831,7 @@ def _stored_analysis_views(
                     "stored analyst conclusion; not ground truth",
                 ),
                 confidence=Labeled(
-                    redact_mapping(payload.get("confidence"))
-                    if isinstance(payload.get("confidence"), dict)
-                    else {},
+                    redact_mapping(_as_mapping(payload.get("confidence"))),
                     "draft",
                 ),
                 provenance=observed(redact_mapping(provenance)),

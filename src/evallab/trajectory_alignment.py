@@ -12,6 +12,7 @@ Key invariants:
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -111,8 +112,11 @@ class PairedAlignmentResult:
         """Flat projection row matching DuckDB paired_alignments table and v_paired_alignments view."""
         return {
             "alignment_id": self.alignment_id,
+            "alignment_version": self.alignment_version,
             "trial_id_a": self.trial_id_a,
             "trial_id_b": self.trial_id_b,
+            "ir_digest_a": self.ir_digest_a,
+            "ir_digest_b": self.ir_digest_b,
             "trial_name_a": self.trial_name_a,
             "trial_name_b": self.trial_name_b,
             "task_name": self.task_name,
@@ -120,11 +124,15 @@ class PairedAlignmentResult:
             "outcome_delta": self.outcome_delta,
             "divergence_step_a": self.divergence_step_a,
             "divergence_step_b": self.divergence_step_b,
-            "has_reconvergence": self.has_local_divergences,
-            "reconvergence_step_a": self.local_divergences[0].reconvergence_step_a if self.local_divergences else None,
-            "reconvergence_step_b": self.local_divergences[0].reconvergence_step_b if self.local_divergences else None,
+            "citation_a_json": json.dumps(self.citation_a.to_dict()) if self.citation_a else "",
+            "citation_b_json": json.dumps(self.citation_b.to_dict()) if self.citation_b else "",
+            "has_local_divergences": self.has_local_divergences,
+            "local_divergences_json": json.dumps([asdict(d) for d in self.local_divergences]),
+            "unmatched_ranges_a_json": json.dumps(list(self.unmatched_ranges_a)),
+            "unmatched_ranges_b_json": json.dumps(list(self.unmatched_ranges_b)),
             "alignment_score": self.alignment_score,
             "total_aligned_steps": self.total_aligned_steps,
+            "aligned_pairs_count": len(self.aligned_pairs),
             "summary": self.summary,
             "created_at": self.created_at,
         }

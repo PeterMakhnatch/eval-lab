@@ -119,50 +119,44 @@ def test_sql_projection_views_round_trip(canary_trial_dir: Path, repo_root: Path
     sql_file = repo_root / "sql" / "traj_views.sql"
     conn.execute(sql_file.read_text())
 
-    # 1. Test trajectory_ir and v_trajectory_ir_summary
+    # 1. Test trajectory_ir and v_trajectory_ir_summary (28 columns)
     ir_proj = ir.to_projection_dict()
+    placeholders_ir = ", ".join(["?"] * len(ir_proj))
     conn.execute(
-        """
-        INSERT INTO trajectory_ir VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
-        """,
+        f"INSERT INTO trajectory_ir VALUES ({placeholders_ir})",
         list(ir_proj.values()),
     )
     ir_rows = conn.execute("SELECT * FROM v_trajectory_ir_summary WHERE ir_digest = ?", [ir.ir_digest]).fetchall()
     assert len(ir_rows) == 1
     ir_cols = [desc[0] for desc in conn.description]
-    assert len(ir_cols) == 13
+    assert len(ir_cols) == 28
+    assert ir_cols == list(ir_proj.keys())
 
-    # 2. Test evidence_packs and v_evidence_packs
+    # 2. Test evidence_packs and v_evidence_packs (24 columns)
     pack_proj = pack.to_projection_dict()
+    placeholders_pack = ", ".join(["?"] * len(pack_proj))
     conn.execute(
-        """
-        INSERT INTO evidence_packs VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
-        """,
+        f"INSERT INTO evidence_packs VALUES ({placeholders_pack})",
         list(pack_proj.values()),
     )
     pack_rows = conn.execute("SELECT * FROM v_evidence_packs WHERE pack_digest = ?", [pack.pack_digest]).fetchall()
     assert len(pack_rows) == 1
     pack_cols = [desc[0] for desc in conn.description]
-    assert len(pack_cols) == 14
+    assert len(pack_cols) == 24
+    assert pack_cols == list(pack_proj.keys())
 
-    # 3. Test paired_alignments and v_paired_alignments
+    # 3. Test paired_alignments and v_paired_alignments (24 columns)
     align_proj = alignment.to_projection_dict()
+    placeholders_align = ", ".join(["?"] * len(align_proj))
     conn.execute(
-        """
-        INSERT INTO paired_alignments VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
-        """,
+        f"INSERT INTO paired_alignments VALUES ({placeholders_align})",
         list(align_proj.values()),
     )
     align_rows = conn.execute("SELECT * FROM v_paired_alignments WHERE alignment_id = ?", [alignment.alignment_id]).fetchall()
     assert len(align_rows) == 1
     align_cols = [desc[0] for desc in conn.description]
-    assert len(align_cols) == 17
+    assert len(align_cols) == 24
+    assert align_cols == list(align_proj.keys())
 
 
 def test_inventory_cas_entries_smoke(repo_root: Path) -> None:
@@ -285,3 +279,41 @@ def test_synthetic_cas_archive_ingestion(repo_root: Path) -> None:
         assert ir_code == 0
         pack_code = run_cli(["traj", "pack", archive.uri, "--runs-dir", str(cas_store)], workspace=repo_root)
         assert pack_code == 0
+
+def test_cas_temp_dir_leak_cleanup_on_exception(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify CAS TemporaryDirectory is guaranteed cleaned up when an exception occurs during IR assembly."""
+    import evallab.trajectory_ir as tir_mod
+    from evallab.evidence_store import archive_evidence
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        temp_path = Path(tmpdir)
+        source_dir = temp_path / "source_trial"
+        cas_store = temp_path / "cas_store"
+        source_dir.mkdir(parents=True)
+        cas_store.mkdir(parents=True)
+
+        (source_dir / "agent").mkdir()
+        (source_dir / "agent" / "trajectory.json").write_text(json.dumps({"schema_version": "ATIF-v1.4", "steps": []}))
+        (source_dir / "result.json").write_text(json.dumps({"trial_name": "t_leak"}))
+
+        archive = archive_evidence(source_dir, cas_store, record_id="t_leak", kind="trial")
+
+        created_temp_dirs: list[Path] = []
+
+        class TrackingTempDir(tempfile.TemporaryDirectory):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                created_temp_dirs.append(Path(self.name))
+
+        monkeypatch.setattr(tir_mod.tempfile, "TemporaryDirectory", TrackingTempDir)
+
+        def _raise_error(*args, **kwargs):
+            raise RuntimeError("Forced post-restore assembly error")
+
+        monkeypatch.setattr(tir_mod, "compute_trace_baseline", _raise_error)
+
+        with pytest.raises(RuntimeError, match="Forced post-restore assembly error"):
+            tir_mod.build_trajectory_ir(archive.uri, store_root=cas_store, repo_root=repo_root)
+
+        assert len(created_temp_dirs) == 1
+        assert not created_temp_dirs[0].exists(), "Temporary directory leaked on exception!"

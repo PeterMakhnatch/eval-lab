@@ -3,6 +3,7 @@
 Translates raw Harbor trials, ATIF documents, verifier results, and state events
 into an immutable, typed, citation-preserving intermediate representation:
 - Supports CAS URI and inventory record ingestion directly from evidence-cas/
+- Guaranteed TemporaryDirectory cleanup via try/finally across the entire post-restore assembly
 - Normalized events with action family, status-owning program, and argument skeletons
 - Expected-negative exit semantics conditioned on pinned semantics profiles
 - Episode segmentation and explicit candidate screening windows (non-causal)
@@ -11,6 +12,7 @@ into an immutable, typed, citation-preserving intermediate representation:
 - Explicit unknowns and coverage tracking for downstream judge calibration
 - Rebuildable Parquet and JSON representations with deterministic content digests
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -377,12 +379,26 @@ class TrajectoryIR:
             "trial_id": self.trial_id,
             "job_id": self.job_id,
             "trial_name": self.trial_name,
+            "job_name": self.job_name,
             "task_name": self.task_name,
+            "task_digest": self.task_digest or "",
+            "verifier_digest": self.verifier_digest or "",
             "agent_scaffold": self.agent_scaffold,
+            "agent_version": self.agent_version or "",
             "model_name": self.model_name,
             "status": self.status,
+            "unavailable_reason": self.unavailable_reason or "",
             "final_verdict": self.final_verdict,
             "primary_reward": self.primary_reward,
+            "exception_class": self.exception_class or "",
+            "duration_seconds": self.duration_seconds,
+            "total_tokens": self.total_tokens,
+            "cost_usd": self.cost_usd,
+            "quality_status": self.quality_status,
+            "quality_findings_json": json.dumps(list(self.quality_findings)),
+            "unpaired_tool_calls_count": self.unpaired_tool_calls_count,
+            "linkage_coverage": self.linkage_coverage,
+            "is_production_cas": self.is_production_cas,
             "total_events": len(self.events),
             "total_episodes": len(self.episodes),
             "total_opportunities": len(self.opportunity_windows),
@@ -399,6 +415,7 @@ def _segment_episodes(events: Sequence[IREvent]) -> tuple[IREpisode, ...]:
     curr_events: list[IREvent] = []
     curr_type: str = "setup"
     episode_id = 1
+
     def _flush_episode() -> None:
         nonlocal episode_id, curr_events, curr_type
         if not curr_events:
@@ -502,433 +519,434 @@ def build_trajectory_ir(
     traj_path: Path | None
     result_path: Path | None
 
-    if cas_uri and cas_store.exists():
-        try:
-            temp_extract_dir = tempfile.TemporaryDirectory()
-            extracted_path = Path(temp_extract_dir.name)
-            restore_evidence(cas_store, cas_uri, extracted_path)
-            is_cas = True
-            trial_dir = extracted_path
-            traj_cand = trial_dir / "agent" / "trajectory.json"
-            if not traj_cand.is_file():
-                traj_cand = trial_dir / "trajectory.json"
-            traj_path = traj_cand if traj_cand.is_file() else None
-            res_cand = trial_dir / "result.json"
-            result_path = res_cand if res_cand.is_file() else None
-            outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=extracted_path)
-        except Exception:
-            trial_dir, traj_path, result_path = resolve_trial_target(
-                trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-            )
-            outline = outline_trajectory(
-                trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-            )
-    else:
-        try:
-            trial_dir, traj_path, result_path = resolve_trial_target(
-                trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-            )
-            outline = outline_trajectory(
-                trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-            )
-        except Exception:
-            # Check if job_name exists in explicit_runs_root
-            job_name = inventory_record.get("job_name")
-            if explicit_runs_root and job_name and (explicit_runs_root / job_name).is_dir():
-                job_dir = explicit_runs_root / job_name
-                sub_trials = [p for p in job_dir.iterdir() if p.is_dir() and not p.name.startswith(".")]
-                if sub_trials:
-                    trial_dir = sub_trials[0]
-                    traj_cand = trial_dir / "agent" / "trajectory.json"
-                    if not traj_cand.is_file():
-                        traj_cand = trial_dir / "trajectory.json"
-                    traj_path = traj_cand if traj_cand.is_file() else None
-                    res_cand = trial_dir / "result.json"
-                    result_path = res_cand if res_cand.is_file() else None
-                    outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=explicit_runs_root)
+    try:
+        if cas_uri and cas_store.exists():
+            try:
+                temp_extract_dir = tempfile.TemporaryDirectory()
+                extracted_path = Path(temp_extract_dir.name)
+                restore_evidence(cas_store, cas_uri, extracted_path)
+                is_cas = True
+                trial_dir = extracted_path
+                traj_cand = trial_dir / "agent" / "trajectory.json"
+                if not traj_cand.is_file():
+                    traj_cand = trial_dir / "trajectory.json"
+                traj_path = traj_cand if traj_cand.is_file() else None
+                res_cand = trial_dir / "result.json"
+                result_path = res_cand if res_cand.is_file() else None
+                outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=extracted_path)
+            except Exception:
+                trial_dir, traj_path, result_path = resolve_trial_target(
+                    trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
+                )
+                outline = outline_trajectory(
+                    trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
+                )
+        else:
+            try:
+                trial_dir, traj_path, result_path = resolve_trial_target(
+                    trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
+                )
+                outline = outline_trajectory(
+                    trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
+                )
+            except Exception:
+                job_name = inventory_record.get("job_name")
+                if explicit_runs_root and job_name and (explicit_runs_root / job_name).is_dir():
+                    job_dir = explicit_runs_root / job_name
+                    sub_trials = [p for p in job_dir.iterdir() if p.is_dir() and not p.name.startswith(".")]
+                    if sub_trials:
+                        trial_dir = sub_trials[0]
+                        traj_cand = trial_dir / "agent" / "trajectory.json"
+                        if not traj_cand.is_file():
+                            traj_cand = trial_dir / "trajectory.json"
+                        traj_path = traj_cand if traj_cand.is_file() else None
+                        res_cand = trial_dir / "result.json"
+                        result_path = res_cand if res_cand.is_file() else None
+                        outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=explicit_runs_root)
+                    else:
+                        raise
                 else:
                     raise
-            else:
-                raise
 
-    baseline = compute_trace_baseline(outline)
+        baseline = compute_trace_baseline(outline)
 
-    result_data: dict[str, Any] = {}
-    result_sha: str | None = None
-    if result_path and result_path.is_file():
-        result_sha = sha256_file(result_path)
-        try:
-            result_data = json.loads(result_path.read_text(encoding="utf-8", errors="replace"))
-        except Exception:
-            result_data = {}
-
-    task_digest = (
-        inventory_record.get("task_digest")
-        or str(result_data.get("task_checksum") or result_data.get("task_digest") or "")
-        or None
-    )
-    verifier_digest = (
-        inventory_record.get("verifier_digest")
-        or str(result_data.get("verifier_digest") or "")
-        or None
-    )
-
-    raw_agent_info = result_data.get("agent_info")
-    agent_info: dict[str, Any] = raw_agent_info if isinstance(raw_agent_info, dict) else {}
-    raw_config = result_data.get("config")
-    config_dict: dict[str, Any] = raw_config if isinstance(raw_config, dict) else {}
-    raw_agent_cfg = config_dict.get("agent")
-    agent_cfg: dict[str, Any] = raw_agent_cfg if isinstance(raw_agent_cfg, dict) else {}
-    raw_model_info = agent_info.get("model_info")
-    model_info: dict[str, Any] = raw_model_info if isinstance(raw_model_info, dict) else {}
-
-    agent_scaffold = (
-        str(inventory_record.get("agent_scaffold") or agent_info.get("name") or agent_cfg.get("name") or outline.agent_name)
-    )
-    model_name = (
-        str(inventory_record.get("model_name") or model_info.get("name") or outline.model_name)
-    )
-
-    quality_status = str(inventory_record.get("quality_status") or "unknown")
-    quality_findings: list[str] = list(inventory_record.get("quality_findings") or [])
-
-    if quality_status == "unknown":
-        q_file = trial_dir / "quality.json"
-        if q_file.is_file():
+        result_data: dict[str, Any] = {}
+        result_sha: str | None = None
+        if result_path and result_path.is_file():
+            result_sha = sha256_file(result_path)
             try:
-                q_data = json.loads(q_file.read_text(encoding="utf-8", errors="replace"))
-                if isinstance(q_data, dict):
-                    quality_status = str(q_data.get("quality_status") or q_data.get("status") or "unknown")
-                    quality_findings = list(q_data.get("quality_findings") or q_data.get("findings") or q_data.get("reasons") or [])
+                result_data = json.loads(result_path.read_text(encoding="utf-8", errors="replace"))
             except Exception:
-                pass
+                result_data = {}
 
-    unpaired_count = sum(1 for f in quality_findings if "UNPAIRED" in f)
-    linkage_coverage = "degraded" if unpaired_count > 0 else "complete"
+        task_digest = (
+            inventory_record.get("task_digest")
+            or str(result_data.get("task_checksum") or result_data.get("task_digest") or "")
+            or None
+        )
+        verifier_digest = (
+            inventory_record.get("verifier_digest")
+            or str(result_data.get("verifier_digest") or "")
+            or None
+        )
 
-    primary_reward = baseline.primary_reward if baseline.primary_reward is not None else inventory_record.get("reward")
-    exception_class = baseline.exception_class or inventory_record.get("exception_type")
-    exception_message: str | None = None
-    if isinstance(result_data.get("exception_info"), dict):
-        exception_message = result_data["exception_info"].get("exception_message")
-    elif isinstance(result_data.get("exception"), dict):
-        exception_message = result_data["exception"].get("message")
+        raw_agent_info = result_data.get("agent_info")
+        agent_info: dict[str, Any] = raw_agent_info if isinstance(raw_agent_info, dict) else {}
+        raw_config = result_data.get("config")
+        config_dict: dict[str, Any] = raw_config if isinstance(raw_config, dict) else {}
+        raw_agent_cfg = config_dict.get("agent")
+        agent_cfg: dict[str, Any] = raw_agent_cfg if isinstance(raw_agent_cfg, dict) else {}
+        raw_model_info = agent_info.get("model_info")
+        model_info: dict[str, Any] = raw_model_info if isinstance(raw_model_info, dict) else {}
 
-    if outline.status == "accounted_unavailable" or quality_status == "no_atif":
-        unavail = outline.unavailable_reason or quality_status or "missing_trajectory_file"
-        final_verdict = f"EVIDENCE_UNAVAILABLE ({unavail})"
-    elif exception_class:
-        if "Reward" in str(exception_class) or "Verifier" in str(exception_class):
-            final_verdict = f"VERIFIER_ERROR ({exception_class})"
+        agent_scaffold = (
+            str(inventory_record.get("agent_scaffold") or agent_info.get("name") or agent_cfg.get("name") or outline.agent_name)
+        )
+        model_name = (
+            str(inventory_record.get("model_name") or model_info.get("name") or outline.model_name)
+        )
+
+        quality_status = str(inventory_record.get("quality_status") or "unknown")
+        quality_findings: list[str] = list(inventory_record.get("quality_findings") or [])
+
+        if quality_status == "unknown":
+            q_file = trial_dir / "quality.json"
+            if q_file.is_file():
+                try:
+                    q_data = json.loads(q_file.read_text(encoding="utf-8", errors="replace"))
+                    if isinstance(q_data, dict):
+                        quality_status = str(q_data.get("quality_status") or q_data.get("status") or "unknown")
+                        quality_findings = list(q_data.get("quality_findings") or q_data.get("findings") or q_data.get("reasons") or [])
+                except Exception:
+                    pass
+
+        unpaired_count = sum(1 for f in quality_findings if "UNPAIRED" in f)
+        linkage_coverage = "degraded" if unpaired_count > 0 else "complete"
+
+        primary_reward = baseline.primary_reward if baseline.primary_reward is not None else inventory_record.get("reward")
+        exception_class = baseline.exception_class or inventory_record.get("exception_type")
+        exception_message: str | None = None
+        if isinstance(result_data.get("exception_info"), dict):
+            exception_message = result_data["exception_info"].get("exception_message")
+        elif isinstance(result_data.get("exception"), dict):
+            exception_message = result_data["exception"].get("message")
+
+        if outline.status == "accounted_unavailable" or quality_status == "no_atif":
+            unavail = outline.unavailable_reason or quality_status or "missing_trajectory_file"
+            final_verdict = f"EVIDENCE_UNAVAILABLE ({unavail})"
+        elif exception_class:
+            if "Reward" in str(exception_class) or "Verifier" in str(exception_class):
+                final_verdict = f"VERIFIER_ERROR ({exception_class})"
+            else:
+                final_verdict = f"EXCEPTION ({exception_class})"
+        elif primary_reward is not None:
+            final_verdict = "PASS" if primary_reward >= 1.0 else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
         else:
-            final_verdict = f"EXCEPTION ({exception_class})"
-    elif primary_reward is not None:
-        final_verdict = "PASS" if primary_reward >= 1.0 else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
-    else:
-        final_verdict = "UNKNOWN"
+            final_verdict = "UNKNOWN"
 
-    events: list[IREvent] = []
+        events: list[IREvent] = []
 
-    traj_payload: dict[str, Any] | None = None
-    if traj_path and traj_path.is_file():
+        traj_payload: dict[str, Any] | None = None
+        if traj_path and traj_path.is_file():
+            try:
+                traj_payload = json.loads(traj_path.read_text(encoding="utf-8", errors="replace"))
+            except Exception:
+                traj_payload = None
+
+        raw_steps_map: dict[str, dict[str, Any]] = {}
+        if traj_payload and isinstance(traj_payload.get("steps"), list):
+            for s in traj_payload["steps"]:
+                if isinstance(s, dict) and s.get("step_id") is not None:
+                    raw_steps_map[str(s["step_id"])] = s
+
+        rel_source_path = outline.source_path
         try:
-            traj_payload = json.loads(traj_path.read_text(encoding="utf-8", errors="replace"))
+            cand_p = Path(outline.source_path)
+            if cand_p.is_absolute():
+                rel_source_path = cand_p.resolve().relative_to(trial_dir.resolve()).as_posix()
         except Exception:
-            traj_payload = None
+            rel_source_path = "agent/trajectory.json"
 
-    raw_steps_map: dict[str, dict[str, Any]] = {}
-    if traj_payload and isinstance(traj_payload.get("steps"), list):
-        for s in traj_payload["steps"]:
-            if isinstance(s, dict) and s.get("step_id") is not None:
-                raw_steps_map[str(s["step_id"])] = s
+        for event_ord, step in enumerate(outline.steps):
+            raw_step = raw_steps_map.get(str(step.step_id)) or {}
 
-    rel_source_path = outline.source_path
-    try:
-        cand_p = Path(outline.source_path)
-        if cand_p.is_absolute():
-            rel_source_path = cand_p.resolve().relative_to(trial_dir.resolve()).as_posix()
-    except Exception:
-        rel_source_path = "agent/trajectory.json"
+            is_user = step.source == "user"
+            is_system = step.source in ("system", "setup")
+            is_verifier = step.source == "verifier"
+            is_compaction = bool(raw_step.get("extra", {}).get("context_management") or raw_step.get("context_management"))
 
-    for event_ord, step in enumerate(outline.steps):
-        raw_step = raw_steps_map.get(str(step.step_id)) or {}
-
-        is_user = step.source == "user"
-        is_system = step.source in ("system", "setup")
-        is_verifier = step.source == "verifier"
-        is_compaction = bool(raw_step.get("extra", {}).get("context_management") or raw_step.get("context_management"))
-
-        event_type = (
-            "context_management"
-            if is_compaction
-            else (
-                "tool_call"
-                if step.tool_name
+            event_type = (
+                "context_management"
+                if is_compaction
                 else (
-                    "user_message"
-                    if is_user
-                    else ("verifier_check" if is_verifier else ("agent_message" if step.source == "agent" else "observation"))
-                )
-            )
-        )
-
-        prog = _extract_status_owning_program(step.tool_command, step.tool_name)
-        skeleton = _normalize_argument_skeleton(step.tool_command, raw_step.get("tool_calls"))
-        action_family = "context_control" if is_compaction else _classify_action_family(prog, step.tool_name, is_edit=bool(step.tool_name == "edit"))
-        exit_sem, is_true_err = _classify_exit_semantics(step.exit_code, prog, step.is_error)
-
-        citation = create_citation_handle(
-            source_path=rel_source_path,
-            source_sha256=outline.source_sha256,
-            raw_cas_uri=cas_uri,
-            step_id=step.step_id,
-            target_type="step",
-            redaction_profile_digest=policy.compute_digest(),
-        )
-
-        payload_str = json.dumps(raw_step) if raw_step else (step.thought_snippet or step.tool_command or "")
-        p_bytes = len(payload_str.encode("utf-8"))
-        p_digest = f"sha256:{hashlib.sha256(payload_str.encode('utf-8')).hexdigest()}"
-
-        summary_parts = []
-        if step.tool_name:
-            cmd_snip = f": {step.tool_command[:60]}" if step.tool_command else ""
-            summary_parts.append(f"Tool {step.tool_name}{cmd_snip}")
-        elif step.thought_snippet:
-            summary_parts.append(step.thought_snippet[:80])
-        else:
-            summary_parts.append(f"Step {step.step_id} ({step.source})")
-
-        if step.exit_code is not None:
-            summary_parts.append(f"[exit {step.exit_code}]")
-
-        summary = " ".join(summary_parts)
-
-        phase_name = "work"
-        if is_system:
-            phase_name = "setup"
-        elif is_user:
-            phase_name = "prompt"
-        elif is_verifier:
-            phase_name = "verifier"
-
-        ev_id = hashlib.sha256(f"{outline.trial_id}:{event_ord}:{event_type}:{step.step_id}".encode()).hexdigest()
-
-        event = IREvent(
-            event_id=ev_id,
-            event_ordinal=event_ord,
-            event_type=event_type,
-            actor=step.source,
-            timestamp=step.timestamp,
-            phase=phase_name,
-            episode_id=1,
-            step_index=step.step_id,
-            call_index=0 if step.tool_name else None,
-            action_family=action_family,
-            status_owning_program=prog,
-            argument_skeleton=skeleton,
-            exit_code=step.exit_code,
-            exit_semantics=exit_sem,
-            is_error=is_true_err,
-            payload_digest=p_digest,
-            payload_bytes=p_bytes,
-            source_citation=citation,
-            summary=summary,
-        )
-        events.append(event)
-
-    episodes = _segment_episodes(events)
-
-    updated_events: list[IREvent] = []
-    for ev in events:
-        assigned_ep_id = 1
-        for ep in episodes:
-            if ep.start_ordinal <= ev.event_ordinal <= ep.end_ordinal:
-                assigned_ep_id = ep.episode_id
-                break
-        if assigned_ep_id != ev.episode_id:
-            updated_events.append(
-                IREvent(
-                    event_id=ev.event_id,
-                    event_ordinal=ev.event_ordinal,
-                    event_type=ev.event_type,
-                    actor=ev.actor,
-                    timestamp=ev.timestamp,
-                    phase=ev.phase,
-                    episode_id=assigned_ep_id,
-                    step_index=ev.step_index,
-                    call_index=ev.call_index,
-                    action_family=ev.action_family,
-                    status_owning_program=ev.status_owning_program,
-                    argument_skeleton=ev.argument_skeleton,
-                    exit_code=ev.exit_code,
-                    exit_semantics=ev.exit_semantics,
-                    is_error=ev.is_error,
-                    payload_digest=ev.payload_digest,
-                    payload_bytes=ev.payload_bytes,
-                    source_citation=ev.source_citation,
-                    summary=ev.summary,
-                    tool_schema_digest=ev.tool_schema_digest,
-                    matched_result_digest=ev.matched_result_digest,
-                    state_before_digest=ev.state_before_digest,
-                    state_after_digest=ev.state_after_digest,
-                )
-            )
-        else:
-            updated_events.append(ev)
-
-    source_digests: dict[str, str] = {
-        "source_sha256": outline.source_sha256,
-        "result_sha256": result_sha or "",
-        "redaction_profile_digest": policy.compute_digest(),
-    }
-    if cas_uri:
-        source_digests["cas_uri"] = cas_uri
-    if task_digest:
-        source_digests["task_digest"] = task_digest
-    if verifier_digest:
-        source_digests["verifier_digest"] = verifier_digest
-
-    opportunity_windows: list[IROpportunityWindow] = []
-    prior_error = False
-    for ev in updated_events:
-        opp_type = None
-        if ev.is_error:
-            opp_type = "error_recovery_candidate"
-            prior_error = True
-        elif prior_error and ev.exit_semantics == "success":
-            opp_type = "error_recovery_candidate"
-            prior_error = False
-        elif ev.action_family == "verification" or ev.event_type == "verifier_check":
-            opp_type = "verification_candidate"
-        elif ev.action_family in ("file_edit", "file_write"):
-            opp_type = "state_mutation_candidate"
-        elif ev.event_type == "tool_call":
-            opp_type = "tool_selection_candidate"
-        elif ev.event_type == "context_management":
-            opp_type = "context_compaction_candidate"
-        if opp_type:
-            opp_id = hashlib.sha256(f"{outline.trial_id}:{ev.step_index}:{opp_type}:{ev.event_ordinal}".encode()).hexdigest()
-            opportunity_windows.append(
-                IROpportunityWindow(
-                    opportunity_id=opp_id,
-                    opportunity_type=opp_type,
-                    step_index=ev.step_index,
-                    action_family=ev.action_family,
-                    status_owning_program=ev.status_owning_program,
-                    has_prior_error=prior_error,
-                    has_subsequent_recovery=not ev.is_error and prior_error,
-                    state_before_digest=ev.state_before_digest,
-                    state_after_digest=ev.state_after_digest,
-                    reopening_citation=ev.source_citation,
-                    description=f"{opp_type} at step {ev.step_index} ({ev.status_owning_program or ev.action_family}): {ev.summary}",
-                    is_screening_only=True,
-                    evidence_basis="screening_heuristic",
+                    "tool_call"
+                    if step.tool_name
+                    else (
+                        "user_message"
+                        if is_user
+                        else ("verifier_check" if is_verifier else ("agent_message" if step.source == "agent" else "observation"))
+                    )
                 )
             )
 
-    unknowns_list: list[dict[str, str]] = []
-    if not task_digest:
-        unknowns_list.append({"field": "task_digest", "reason": "not_recorded_in_trial_evidence"})
-    if not verifier_digest:
-        unknowns_list.append({"field": "verifier_digest", "reason": "not_recorded_in_trial_evidence"})
-    unknowns_list.append({"field": "tool_schema_digest", "reason": "unset_in_raw_atif_steps"})
-    unknowns_list.append({"field": "matched_result_digest", "reason": "unset_in_raw_atif_steps"})
-    unknowns_list.append({"field": "state_before_after_digests", "reason": "unobserved_without_state_journal"})
+            prog = _extract_status_owning_program(step.tool_command, step.tool_name)
+            skeleton = _normalize_argument_skeleton(step.tool_command, raw_step.get("tool_calls"))
+            action_family = "context_control" if is_compaction else _classify_action_family(prog, step.tool_name, is_edit=bool(step.tool_name == "edit"))
+            exit_sem, is_true_err = _classify_exit_semantics(step.exit_code, prog, step.is_error)
 
-    evidence_coverage = {
-        "total_steps": outline.total_steps,
-        "total_events": len(updated_events),
-        "total_episodes": len(episodes),
-        "has_atif": outline.status == "featured",
-        "has_result": result_path is not None and result_path.is_file(),
-        "unpaired_tool_calls_count": unpaired_count,
-        "linkage_coverage": linkage_coverage,
-        "linkage_dependent_claims_prohibited": unpaired_count > 0,
-        "is_production_cas": is_cas,
-    }
+            citation = create_citation_handle(
+                source_path=rel_source_path,
+                source_sha256=outline.source_sha256,
+                raw_cas_uri=cas_uri,
+                step_id=step.step_id,
+                target_type="step",
+                redaction_profile_digest=policy.compute_digest(),
+            )
 
-    ir_trial_id = str(inventory_record.get("trial_id") or outline.trial_id)
-    ir_trial_name = str(inventory_record.get("trial_name") or outline.trial_name)
-    ir_job_id = str(inventory_record.get("job_id") or outline.job_id)
-    ir_job_name = str(inventory_record.get("job_name") or outline.job_name)
-    ir_task_name = str(inventory_record.get("task_name") or outline.task_name)
+            payload_str = json.dumps(raw_step) if raw_step else (step.thought_snippet or step.tool_command or "")
+            p_bytes = len(payload_str.encode("utf-8"))
+            p_digest = f"sha256:{hashlib.sha256(payload_str.encode('utf-8')).hexdigest()}"
 
-    raw_ir_dict = {
-        "ir_version": "1.0",
-        "trial_id": ir_trial_id,
-        "job_id": ir_job_id,
-        "trial_name": ir_trial_name,
-        "job_name": ir_job_name,
-        "task_name": ir_task_name,
-        "task_digest": task_digest,
-        "verifier_digest": verifier_digest,
-        "agent_scaffold": agent_scaffold,
-        "agent_version": outline.agent_version,
-        "model_name": model_name,
-        "status": outline.status,
-        "unavailable_reason": outline.unavailable_reason,
-        "final_verdict": final_verdict,
-        "primary_reward": primary_reward,
-        "exception_class": exception_class,
-        "exception_message": exception_message,
-        "duration_seconds": outline.duration_seconds,
-        "total_tokens": baseline.total_tokens,
-        "cost_usd": baseline.cost_usd,
-        "quality_status": quality_status,
-        "quality_findings": quality_findings,
-        "unpaired_tool_calls_count": unpaired_count,
-        "linkage_coverage": linkage_coverage,
-        "is_production_cas": is_cas,
-        "events": [e.to_dict() for e in updated_events],
-        "episodes": [ep.to_dict() for ep in episodes],
-        "opportunity_windows": [op.to_dict() for op in opportunity_windows],
-        "unknowns": unknowns_list,
-        "baseline_metrics": baseline.to_dict(),
-        "evidence_coverage": evidence_coverage,
-        "source_digests": source_digests,
-        "created_at": baseline.created_at,
-    }
+            summary_parts = []
+            if step.tool_name:
+                cmd_snip = f": {step.tool_command[:60]}" if step.tool_command else ""
+                summary_parts.append(f"Tool {step.tool_name}{cmd_snip}")
+            elif step.thought_snippet:
+                summary_parts.append(step.thought_snippet[:80])
+            else:
+                summary_parts.append(f"Step {step.step_id} ({step.source})")
 
-    ir_digest = _sha256_canonical_json(raw_ir_dict)
+            if step.exit_code is not None:
+                summary_parts.append(f"[exit {step.exit_code}]")
 
-    if temp_extract_dir is not None:
-        with contextlib.suppress(Exception):
-            temp_extract_dir.cleanup()
+            summary = " ".join(summary_parts)
 
-    return TrajectoryIR(
-        ir_version="1.0",
-        ir_digest=ir_digest,
-        trial_id=ir_trial_id,
-        job_id=ir_job_id,
-        trial_name=ir_trial_name,
-        job_name=ir_job_name,
-        task_name=ir_task_name,
-        task_digest=task_digest,
-        verifier_digest=verifier_digest,
-        agent_scaffold=agent_scaffold,
-        agent_version=outline.agent_version,
-        model_name=model_name,
-        status=outline.status,
-        unavailable_reason=outline.unavailable_reason,
-        final_verdict=final_verdict,
-        primary_reward=primary_reward,
-        exception_class=exception_class,
-        exception_message=exception_message,
-        duration_seconds=outline.duration_seconds,
-        total_tokens=baseline.total_tokens,
-        cost_usd=baseline.cost_usd,
-        quality_status=quality_status,
-        quality_findings=tuple(quality_findings),
-        unpaired_tool_calls_count=unpaired_count,
-        linkage_coverage=linkage_coverage,
-        is_production_cas=is_cas,
-        events=tuple(updated_events),
-        episodes=tuple(episodes),
-        opportunity_windows=tuple(opportunity_windows),
-        unknowns=tuple(unknowns_list),
-        baseline_metrics=baseline,
-        evidence_coverage=evidence_coverage,
-        source_digests=source_digests,
-        created_at=baseline.created_at,
-    )
+            phase_name = "work"
+            if is_system:
+                phase_name = "setup"
+            elif is_user:
+                phase_name = "prompt"
+            elif is_verifier:
+                phase_name = "verifier"
+
+            ev_id = hashlib.sha256(f"{outline.trial_id}:{event_ord}:{event_type}:{step.step_id}".encode()).hexdigest()
+
+            event = IREvent(
+                event_id=ev_id,
+                event_ordinal=event_ord,
+                event_type=event_type,
+                actor=step.source,
+                timestamp=step.timestamp,
+                phase=phase_name,
+                episode_id=1,
+                step_index=step.step_id,
+                call_index=0 if step.tool_name else None,
+                action_family=action_family,
+                status_owning_program=prog,
+                argument_skeleton=skeleton,
+                exit_code=step.exit_code,
+                exit_semantics=exit_sem,
+                is_error=is_true_err,
+                payload_digest=p_digest,
+                payload_bytes=p_bytes,
+                source_citation=citation,
+                summary=summary,
+            )
+            events.append(event)
+
+        episodes = _segment_episodes(events)
+
+        updated_events: list[IREvent] = []
+        for ev in events:
+            assigned_ep_id = 1
+            for ep in episodes:
+                if ep.start_ordinal <= ev.event_ordinal <= ep.end_ordinal:
+                    assigned_ep_id = ep.episode_id
+                    break
+            if assigned_ep_id != ev.episode_id:
+                updated_events.append(
+                    IREvent(
+                        event_id=ev.event_id,
+                        event_ordinal=ev.event_ordinal,
+                        event_type=ev.event_type,
+                        actor=ev.actor,
+                        timestamp=ev.timestamp,
+                        phase=ev.phase,
+                        episode_id=assigned_ep_id,
+                        step_index=ev.step_index,
+                        call_index=ev.call_index,
+                        action_family=ev.action_family,
+                        status_owning_program=ev.status_owning_program,
+                        argument_skeleton=ev.argument_skeleton,
+                        exit_code=ev.exit_code,
+                        exit_semantics=ev.exit_semantics,
+                        is_error=ev.is_error,
+                        payload_digest=ev.payload_digest,
+                        payload_bytes=ev.payload_bytes,
+                        source_citation=ev.source_citation,
+                        summary=ev.summary,
+                        tool_schema_digest=ev.tool_schema_digest,
+                        matched_result_digest=ev.matched_result_digest,
+                        state_before_digest=ev.state_before_digest,
+                        state_after_digest=ev.state_after_digest,
+                    )
+                )
+            else:
+                updated_events.append(ev)
+
+        source_digests: dict[str, str] = {
+            "source_sha256": outline.source_sha256,
+            "result_sha256": result_sha or "",
+            "redaction_profile_digest": policy.compute_digest(),
+        }
+        if cas_uri:
+            source_digests["cas_uri"] = cas_uri
+        if task_digest:
+            source_digests["task_digest"] = task_digest
+        if verifier_digest:
+            source_digests["verifier_digest"] = verifier_digest
+
+        opportunity_windows: list[IROpportunityWindow] = []
+        prior_error = False
+        for ev in updated_events:
+            opp_type = None
+            if ev.is_error:
+                opp_type = "error_recovery_candidate"
+                prior_error = True
+            elif prior_error and ev.exit_semantics == "success":
+                opp_type = "error_recovery_candidate"
+                prior_error = False
+            elif ev.action_family == "verification" or ev.event_type == "verifier_check":
+                opp_type = "verification_candidate"
+            elif ev.action_family in ("file_edit", "file_write"):
+                opp_type = "state_mutation_candidate"
+            elif ev.event_type == "tool_call":
+                opp_type = "tool_selection_candidate"
+            elif ev.event_type == "context_management":
+                opp_type = "context_compaction_candidate"
+
+            if opp_type:
+                opp_id = hashlib.sha256(f"{outline.trial_id}:{ev.step_index}:{opp_type}:{ev.event_ordinal}".encode()).hexdigest()
+                opportunity_windows.append(
+                    IROpportunityWindow(
+                        opportunity_id=opp_id,
+                        opportunity_type=opp_type,
+                        step_index=ev.step_index,
+                        action_family=ev.action_family,
+                        status_owning_program=ev.status_owning_program,
+                        has_prior_error=prior_error,
+                        has_subsequent_recovery=not ev.is_error and prior_error,
+                        state_before_digest=ev.state_before_digest,
+                        state_after_digest=ev.state_after_digest,
+                        reopening_citation=ev.source_citation,
+                        description=f"{opp_type} at step {ev.step_index} ({ev.status_owning_program or ev.action_family}): {ev.summary}",
+                        is_screening_only=True,
+                        evidence_basis="screening_heuristic",
+                    )
+                )
+
+        unknowns_list: list[dict[str, str]] = []
+        if not task_digest:
+            unknowns_list.append({"field": "task_digest", "reason": "not_recorded_in_trial_evidence"})
+        if not verifier_digest:
+            unknowns_list.append({"field": "verifier_digest", "reason": "not_recorded_in_trial_evidence"})
+        unknowns_list.append({"field": "tool_schema_digest", "reason": "unset_in_raw_atif_steps"})
+        unknowns_list.append({"field": "matched_result_digest", "reason": "unset_in_raw_atif_steps"})
+        unknowns_list.append({"field": "state_before_after_digests", "reason": "unobserved_without_state_journal"})
+
+        evidence_coverage = {
+            "total_steps": outline.total_steps,
+            "total_events": len(updated_events),
+            "total_episodes": len(episodes),
+            "has_atif": outline.status == "featured",
+            "has_result": result_path is not None and result_path.is_file(),
+            "unpaired_tool_calls_count": unpaired_count,
+            "linkage_coverage": linkage_coverage,
+            "linkage_dependent_claims_prohibited": unpaired_count > 0,
+            "is_production_cas": is_cas,
+        }
+
+        ir_trial_id = str(inventory_record.get("trial_id") or outline.trial_id)
+        ir_trial_name = str(inventory_record.get("trial_name") or outline.trial_name)
+        ir_job_id = str(inventory_record.get("job_id") or outline.job_id)
+        ir_job_name = str(inventory_record.get("job_name") or outline.job_name)
+        ir_task_name = str(inventory_record.get("task_name") or outline.task_name)
+
+        raw_ir_dict = {
+            "ir_version": "1.0",
+            "trial_id": ir_trial_id,
+            "job_id": ir_job_id,
+            "trial_name": ir_trial_name,
+            "job_name": ir_job_name,
+            "task_name": ir_task_name,
+            "task_digest": task_digest,
+            "verifier_digest": verifier_digest,
+            "agent_scaffold": agent_scaffold,
+            "agent_version": outline.agent_version,
+            "model_name": model_name,
+            "status": outline.status,
+            "unavailable_reason": outline.unavailable_reason,
+            "final_verdict": final_verdict,
+            "primary_reward": primary_reward,
+            "exception_class": exception_class,
+            "exception_message": exception_message,
+            "duration_seconds": outline.duration_seconds,
+            "total_tokens": baseline.total_tokens,
+            "cost_usd": baseline.cost_usd,
+            "quality_status": quality_status,
+            "quality_findings": quality_findings,
+            "unpaired_tool_calls_count": unpaired_count,
+            "linkage_coverage": linkage_coverage,
+            "is_production_cas": is_cas,
+            "events": [e.to_dict() for e in updated_events],
+            "episodes": [ep.to_dict() for ep in episodes],
+            "opportunity_windows": [op.to_dict() for op in opportunity_windows],
+            "unknowns": unknowns_list,
+            "baseline_metrics": baseline.to_dict(),
+            "evidence_coverage": evidence_coverage,
+            "source_digests": source_digests,
+            "created_at": baseline.created_at,
+        }
+
+        ir_digest = _sha256_canonical_json(raw_ir_dict)
+
+        return TrajectoryIR(
+            ir_version="1.0",
+            ir_digest=ir_digest,
+            trial_id=ir_trial_id,
+            job_id=ir_job_id,
+            trial_name=ir_trial_name,
+            job_name=ir_job_name,
+            task_name=ir_task_name,
+            task_digest=task_digest,
+            verifier_digest=verifier_digest,
+            agent_scaffold=agent_scaffold,
+            agent_version=outline.agent_version,
+            model_name=model_name,
+            status=outline.status,
+            unavailable_reason=outline.unavailable_reason,
+            final_verdict=final_verdict,
+            primary_reward=primary_reward,
+            exception_class=exception_class,
+            exception_message=exception_message,
+            duration_seconds=outline.duration_seconds,
+            total_tokens=baseline.total_tokens,
+            cost_usd=baseline.cost_usd,
+            quality_status=quality_status,
+            quality_findings=tuple(quality_findings),
+            unpaired_tool_calls_count=unpaired_count,
+            linkage_coverage=linkage_coverage,
+            is_production_cas=is_cas,
+            events=tuple(updated_events),
+            episodes=tuple(episodes),
+            opportunity_windows=tuple(opportunity_windows),
+            unknowns=tuple(unknowns_list),
+            baseline_metrics=baseline,
+            evidence_coverage=evidence_coverage,
+            source_digests=source_digests,
+            created_at=baseline.created_at,
+        )
+    finally:
+        if temp_extract_dir is not None:
+            with contextlib.suppress(Exception):
+                temp_extract_dir.cleanup()

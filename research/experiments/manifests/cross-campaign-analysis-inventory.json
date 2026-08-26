@@ -3,9 +3,9 @@
   "inventory_type": "cross_campaign_analysis_inventory",
   "generated_at": "2026-08-26T16:30:00Z",
   "status_summary": {
-    "total_indexed_trials": 20,
-    "analysis_ready_trials": 16,
-    "batch_interpreted_trials": 16,
+    "total_indexed_trials": 21,
+    "analysis_ready_trials": 17,
+    "batch_interpreted_trials": 17,
     "manifest_blocked_analysis_ready_trials": 0,
     "quarantined_hold_trials": 4,
     "active_interpretation_campaigns": 5
@@ -93,11 +93,21 @@
         0.0,
         0.4345
       ],
+      "task_bootstrap_ci": "suppressed (degenerate [0, 0] all-zero sample; fake-tight)",
+      "prohibited_claims": [
+        "ranking",
+        "capability",
+        "reliability",
+        "causality",
+        "precise_zero"
+      ],
+      "estimator_semantics": "Eval Lab pass@k and pass_power_k are first-k task indicators, not Chen/Yao unbiased combinatorics; unbiased pass_at_k estimators require n>=k repeated attempts.",
       "interpretation_rules": [
-        "Do not treat 0/5 as precise zero, ranking, or reliability claim.",
-        "Quarantined infrastructure attempts and controls are excluded from capability denominators.",
-        "No k=3 pooling before preregistered two-stage stopping rule.",
-        "No paired comparison or second-arm claims until matched arm runs on identical task digests."
+        "Do not treat 0/5 as precise zero, ranking, capability, reliability, or causal claim.",
+        "Quarantined infrastructure attempts and controls are strictly excluded from capability denominators.",
+        "No k=3 pooling before a preregistered two-stage stopping rule or e-process is frozen.",
+        "No paired comparison or second-arm claims until matched arm runs on identical task digests.",
+        "For fixed budget buy more tasks first, then repeats; T=1 cannot identify within-task variance or ICC."
       ]
     }
   }

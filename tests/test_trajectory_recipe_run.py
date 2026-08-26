@@ -80,15 +80,57 @@ def _write_sidecar(
     *,
     created_at: str,
     execution_sample_only: bool = False,
+    pack_digest: str | None = None,
 ) -> None:
     pack_dir = analyses_dir / trial_id / digest
     pack_dir.mkdir(parents=True, exist_ok=True)
-    payload: dict[str, Any] = {"trial_id": trial_id, "created_at": created_at}
+    payload: dict[str, Any] = {
+        "trial_id": trial_id,
+        "created_at": created_at,
+        "pack_digest": pack_digest if pack_digest is not None else digest,
+    }
     if execution_sample_only:
         payload["selected_windows"] = [{"reason": "execution_sample"}]
     (pack_dir / "evidence_pack.json").write_text(
         json.dumps(payload, sort_keys=True), encoding="utf-8"
     )
+
+
+def _write_campaign_report(path: Path, items: list[tuple[str, str]]) -> None:
+    payload = {
+        "schema_version": "campaign-report/v1",
+        "source_refs": [
+            {"trial_id": trial_id, "pack_digest": f"sha256:{digest}"} for trial_id, digest in items
+        ],
+    }
+    path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+
+
+def _write_pack_map(path: Path, mapping: dict[str, str]) -> None:
+    path.write_text(json.dumps(mapping, sort_keys=True), encoding="utf-8")
+
+
+def _stub_engine(
+    monkeypatch: pytest.MonkeyPatch, findings: list[RecipeFinding] | None = None
+) -> None:
+    seeded = findings if findings is not None else seed_findings()
+    by_trial: dict[str, list[RecipeFinding]] = {}
+    for finding in seeded:
+        by_trial.setdefault(str(finding.trial_id), []).append(finding)
+    monkeypatch.setattr(
+        "evallab.trajectory_recipe_run.load_trial_artifacts",
+        lambda analyses_dir, trial_id, digest=None: trial_id,
+    )
+    monkeypatch.setattr(
+        "evallab.trajectory_recipe_run.run_recipes",
+        lambda artifacts, *, semantics_profile_digest=None: list(by_trial.get(str(artifacts), [])),
+    )
+
+
+def _assert_no_outputs(out: Path) -> None:
+    assert not (out / FINDINGS_JSONL).exists()
+    assert not (out / FINDINGS_REPORT).exists()
+    assert not (out / IMPROVEMENT_REQUESTS).exists()
 
 
 def make_finding(**overrides: Any) -> RecipeFinding:
@@ -208,8 +250,8 @@ def test_runner_selects_one_newest_pack_and_writes_deterministic_reports(
     analyses = tmp_path / "analyses"
     out1 = tmp_path / "out1"
     out2 = tmp_path / "out2"
-    # Two rebuilt sidecars for trial-a. Newest created_at must win; the old one also
-    # seeds the mechanical materialization request only when explicitly selected.
+    # Two rebuilt sidecars for trial-a. Multi-generation dirs require an explicit pin;
+    # the old pack seeds the mechanical materialization request only when selected.
     _write_sidecar(
         analyses,
         "trial-a",
@@ -219,27 +261,22 @@ def test_runner_selects_one_newest_pack_and_writes_deterministic_reports(
     )
     _write_sidecar(analyses, "trial-a", "digest-new", created_at="2026-08-02T00:00:00Z")
     _write_sidecar(analyses, "trial-b", "digest-b", created_at="2026-08-02T00:00:00Z")
-    selections = select_trial_sidecars(analyses)
-    assert selections["trial-a"].digest == "digest-new"
+    with pytest.raises(ValueError, match="ambiguous pack generations"):
+        select_trial_sidecars(analyses)
     assert (
-        select_trial_sidecars(analyses, pack_digest="digest-old")["trial-a"].digest == "digest-old"
+        select_trial_sidecars(analyses, pack_digest="digest-old", requested=["trial-a"])[
+            "trial-a"
+        ].digest
+        == "digest-old"
     )
 
-    seeded = seed_findings()
-    by_trial: dict[str, list[RecipeFinding]] = {"trial-a": [], "trial-b": []}
-    for finding in seeded:
-        by_trial[str(finding.trial_id)].append(finding)
-    monkeypatch.setattr(
-        "evallab.trajectory_recipe_run.load_trial_artifacts",
-        lambda analyses_dir, trial_id: trial_id,
-    )
-    monkeypatch.setattr(
-        "evallab.trajectory_recipe_run.run_recipes",
-        lambda artifacts, *, semantics_profile_digest=None: list(by_trial[str(artifacts)]),
-    )
+    pack_map = tmp_path / "pack-map.json"
+    _write_pack_map(pack_map, {"trial-a": "digest-new", "trial-b": "digest-b"})
+    _stub_engine(monkeypatch)
 
-    assert main(["--analyses-dir", str(analyses), "--out", str(out1)]) == 0
-    assert main(["--analyses-dir", str(analyses), "--out", str(out2)]) == 0
+    argv = ["--analyses-dir", str(analyses), "--pack-map", str(pack_map)]
+    assert main([*argv, "--out", str(out1)]) == 0
+    assert main([*argv, "--out", str(out2)]) == 0
 
     jsonl_path = out1 / FINDINGS_JSONL
     report_path = out1 / FINDINGS_REPORT
@@ -272,9 +309,9 @@ def test_runner_selects_one_newest_pack_and_writes_deterministic_reports(
     assert "no decisive-step depth or propagation distribution is pooled" in report
     assert "Unit: RecipeFindings; aggregation: micro-count" in report
     assert "## Selected EvidencePacks" in report
-    assert "`digest-new`" in report and "`digest-old`" not in _section(
-        report, "Selected EvidencePacks"
-    )
+    selected = _section(report, "Selected EvidencePacks")
+    assert "`digest-new`" in selected and "`digest-old`" not in selected
+    assert "selection_mode: pack-map" in selected
     assert "verbatim quote" in report
     for phrase in DATA_REQUIREMENT_PHRASES:
         assert phrase in report
@@ -308,14 +345,21 @@ def test_runner_old_pack_selection_emits_materialization_request(
         created_at="2026-08-01T00:00:00Z",
         execution_sample_only=True,
     )
-    monkeypatch.setattr("evallab.trajectory_recipe_run.load_trial_artifacts", lambda *_: "trial-a")
-    monkeypatch.setattr(
-        "evallab.trajectory_recipe_run.run_recipes",
-        lambda *_args, **_kwargs: [make_finding(trial_id="trial-a")],
-    )
+    _stub_engine(monkeypatch, [make_finding(trial_id="trial-a")])
     out = tmp_path / "out"
     assert (
-        main(["--analyses-dir", str(analyses), "--out", str(out), "--pack-digest", "digest-old"])
+        main(
+            [
+                "--analyses-dir",
+                str(analyses),
+                "--out",
+                str(out),
+                "--trial",
+                "trial-a",
+                "--pack-digest",
+                "digest-old",
+            ]
+        )
         == 0
     )
     request = (out / IMPROVEMENT_REQUESTS).read_text(encoding="utf-8")
@@ -354,3 +398,201 @@ def test_runner_real_pack_smoke_skip_if_absent(tmp_path: Path) -> None:
         assert phrase in report
     assert (out / IMPROVEMENT_REQUESTS).is_file()
     assert not (REAL_ANALYSES / FINDINGS_JSONL).exists()
+
+
+def test_blank_created_at_two_generations_without_pin_is_hard_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    analyses = tmp_path / "analyses"
+    out = tmp_path / "out"
+    _write_sidecar(analyses, "trial-a", "digest-old", created_at="")
+    _write_sidecar(analyses, "trial-a", "digest-new", created_at="")
+    assert main(["--analyses-dir", str(analyses), "--out", str(out)]) == 1
+    err = capsys.readouterr().err
+    assert "ambiguous pack generations; supply --campaign-report or --pack-map" in err
+    _assert_no_outputs(out)
+
+
+def test_campaign_report_pins_listed_digests_across_generations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    analyses = tmp_path / "analyses"
+    out = tmp_path / "out"
+    _write_sidecar(analyses, "trial-a", "digest-old", created_at="")
+    _write_sidecar(analyses, "trial-a", "digest-new", created_at="")
+    _write_sidecar(analyses, "trial-b", "digest-old-b", created_at="")
+    _write_sidecar(analyses, "trial-b", "digest-new-b", created_at="")
+    report_path = tmp_path / "campaign_report.json"
+    _write_campaign_report(report_path, [("trial-a", "digest-old"), ("trial-b", "digest-new-b")])
+    _stub_engine(monkeypatch)
+    assert (
+        main(
+            [
+                "--analyses-dir",
+                str(analyses),
+                "--out",
+                str(out),
+                "--campaign-report",
+                str(report_path),
+                "--report-id",
+                "report-xyz",
+                "--cas-id",
+                "cas-xyz",
+            ]
+        )
+        == 0
+    )
+    selected = _section(
+        (out / FINDINGS_REPORT).read_text(encoding="utf-8"), "Selected EvidencePacks"
+    )
+    assert "`digest-old`" in selected
+    assert "`digest-new-b`" in selected
+    assert "`digest-new`" not in selected
+    assert "`digest-old-b`" not in selected
+    assert "selection_mode: campaign-report" in selected
+    assert "report-xyz" in selected
+    assert "cas-xyz" in selected
+
+
+def test_campaign_report_missing_on_disk_pack_names_trial(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    analyses = tmp_path / "analyses"
+    out = tmp_path / "out"
+    _write_sidecar(analyses, "trial-a", "digest-on-disk", created_at="")
+    report_path = tmp_path / "campaign_report.json"
+    _write_campaign_report(report_path, [("trial-a", "digest-missing")])
+    assert (
+        main(
+            [
+                "--analyses-dir",
+                str(analyses),
+                "--out",
+                str(out),
+                "--campaign-report",
+                str(report_path),
+            ]
+        )
+        == 1
+    )
+    err = capsys.readouterr().err
+    assert "trial-a" in err
+    assert "listed in report but pack missing on disk" in err
+    _assert_no_outputs(out)
+
+
+def test_duplicate_on_disk_packs_matching_report_digest_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    analyses = tmp_path / "analyses"
+    out = tmp_path / "out"
+    _write_sidecar(analyses, "trial-a", "dir-one", created_at="", pack_digest="same-digest")
+    _write_sidecar(analyses, "trial-a", "dir-two", created_at="", pack_digest="same-digest")
+    report_path = tmp_path / "campaign_report.json"
+    _write_campaign_report(report_path, [("trial-a", "same-digest")])
+    assert (
+        main(
+            [
+                "--analyses-dir",
+                str(analyses),
+                "--out",
+                str(out),
+                "--campaign-report",
+                str(report_path),
+            ]
+        )
+        == 1
+    )
+    err = capsys.readouterr().err
+    assert "trial-a" in err
+    assert "duplicate on-disk packs matching report entry" in err
+    _assert_no_outputs(out)
+
+
+def test_requested_trial_absent_from_report_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    analyses = tmp_path / "analyses"
+    out = tmp_path / "out"
+    _write_sidecar(analyses, "trial-a", "digest-a", created_at="")
+    _write_sidecar(analyses, "trial-b", "digest-b", created_at="")
+    report_path = tmp_path / "campaign_report.json"
+    _write_campaign_report(report_path, [("trial-a", "digest-a")])
+    assert (
+        main(
+            [
+                "--analyses-dir",
+                str(analyses),
+                "--out",
+                str(out),
+                "--campaign-report",
+                str(report_path),
+                "--trial",
+                "trial-a",
+                "--trial",
+                "trial-b",
+            ]
+        )
+        == 1
+    )
+    err = capsys.readouterr().err
+    assert "requested trial trial-b not listed in report" in err
+    _assert_no_outputs(out)
+
+
+def test_global_pack_digest_rejects_multiple_trials(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    analyses = tmp_path / "analyses"
+    out = tmp_path / "out"
+    analyses.mkdir()
+    assert (
+        main(
+            [
+                "--analyses-dir",
+                str(analyses),
+                "--out",
+                str(out),
+                "--pack-digest",
+                "digest-a",
+                "--trial",
+                "trial-a",
+                "--trial",
+                "trial-b",
+            ]
+        )
+        == 1
+    )
+    assert "global digest requires single-trial mode" in capsys.readouterr().err
+    _assert_no_outputs(out)
+
+
+def test_single_trial_pack_digest_still_selects_pinned_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    analyses = tmp_path / "analyses"
+    out = tmp_path / "out"
+    _write_sidecar(analyses, "trial-a", "digest-old", created_at="")
+    _write_sidecar(analyses, "trial-a", "digest-new", created_at="")
+    _stub_engine(monkeypatch, [make_finding(trial_id="trial-a")])
+    assert (
+        main(
+            [
+                "--analyses-dir",
+                str(analyses),
+                "--out",
+                str(out),
+                "--trial",
+                "trial-a",
+                "--pack-digest",
+                "digest-old",
+            ]
+        )
+        == 0
+    )
+    selected = _section(
+        (out / FINDINGS_REPORT).read_text(encoding="utf-8"), "Selected EvidencePacks"
+    )
+    assert "`digest-old`" in selected
+    assert "`digest-new`" not in selected
+    assert "selection_mode: pack-digest" in selected

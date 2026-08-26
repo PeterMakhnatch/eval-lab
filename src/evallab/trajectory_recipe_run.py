@@ -94,9 +94,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--analyses-dir", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--trial", dest="trial_ids", nargs="+", action="extend", default=[])
-    parser.add_argument(
-        "--pack-digest", help="pin one pack directory/pack digest per selected trial"
+    pin = parser.add_mutually_exclusive_group()
+    pin.add_argument(
+        "--campaign-report",
+        type=Path,
+        help="pin trial packs from a CampaignReport JSON (source_refs)",
     )
+    pin.add_argument(
+        "--pack-map",
+        type=Path,
+        help="pin trial packs from a JSON object {trial_id: pack_digest}",
+    )
+    pin.add_argument(
+        "--pack-digest",
+        help="pin one pack directory/pack digest; requires a single --trial",
+    )
+    parser.add_argument("--report-id", default=None, help="echoed verbatim in the findings report")
+    parser.add_argument("--cas-id", default=None, help="echoed verbatim in the findings report")
     return parser
 
 
@@ -116,37 +130,141 @@ def _digest(value: str) -> str:
 
 def _matches_digest(item: SelectedPack, wanted: str) -> bool:
     pack_digest = _digest(str(item.payload.get("pack_digest") or ""))
-    return item.digest == wanted or pack_digest == wanted
+    target = _digest(wanted)
+    return _digest(item.digest) == target or (bool(pack_digest) and pack_digest == target)
 
 
-def select_trial_sidecars(
-    analyses_dir: Path, *, pack_digest: str | None = None
-) -> dict[str, SelectedPack]:
-    """Select exactly one sidecar per trial: explicit digest or newest created_at.
+def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid {label}: {path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} is not a JSON object: {path}")
+    return value
 
-    Matches ``load_trial_artifacts``: pin by directory name or ``pack_digest``;
-    blank ``created_at`` sorts as empty and ties on dirname.
-    """
-    wanted = _digest(pack_digest) if pack_digest else None
+
+def load_campaign_report_map(path: Path) -> dict[str, str]:
+    """Build a deterministic trial_id → pack_digest map from a CampaignReport."""
+    value = _read_json_object(path, label="campaign report")
+    refs = value.get("source_refs")
+    items = refs if isinstance(refs, list) else value.get("items")
+    if not isinstance(items, list):
+        items = []
+    mapping: dict[str, str] = {}
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        trial_raw, digest_raw = item.get("trial_id"), item.get("pack_digest")
+        if trial_raw is None or digest_raw is None or digest_raw == "":
+            continue
+        trial_id, digest = str(trial_raw), _digest(str(digest_raw))
+        previous = mapping.get(trial_id)
+        if previous is not None and previous != digest:
+            raise ValueError(f"conflicting report pack digests for trial {trial_id}")
+        mapping[trial_id] = digest
+    return mapping
+
+
+def load_pack_map(path: Path) -> dict[str, str]:
+    """Load a plain JSON object {trial_id: pack_digest}."""
+    value = _read_json_object(path, label="pack map")
+    mapping: dict[str, str] = {}
+    for trial_raw, digest_raw in value.items():
+        if digest_raw is None or digest_raw == "":
+            continue
+        mapping[str(trial_raw)] = _digest(str(digest_raw))
+    return mapping
+
+
+def _discover_sidecars(analyses_dir: Path) -> dict[str, list[SelectedPack]]:
     candidates: dict[str, list[SelectedPack]] = {}
     for path in sorted(analyses_dir.glob("*/*/evidence_pack.json")):
         if not path.is_file():
             continue
         item = SelectedPack(path.parent.parent.name, path.parent.name, path, _read_pack(path))
-        if wanted is not None and not _matches_digest(item, wanted):
-            continue
         candidates.setdefault(item.trial_id, []).append(item)
+    return candidates
+
+
+def _pin_one(
+    trial_id: str,
+    options: Sequence[SelectedPack],
+    wanted: str,
+    *,
+    source: str,
+) -> SelectedPack:
+    matches = [item for item in options if _matches_digest(item, wanted)]
+    if not matches:
+        raise ValueError(f"trial {trial_id} listed in {source} but pack missing on disk")
+    if len(matches) > 1:
+        raise ValueError(f"duplicate on-disk packs matching {source} entry for trial {trial_id}")
+    return matches[0]
+
+
+def _assert_map_digests(
+    selected: Mapping[str, SelectedPack], digest_map: Mapping[str, str], *, source: str
+) -> None:
+    allowed = {_digest(value) for value in digest_map.values()}
+    for trial_id, item in selected.items():
+        identities = {_digest(item.digest)}
+        payload = item.payload.get("pack_digest")
+        if payload:
+            identities.add(_digest(str(payload)))
+        if identities.isdisjoint(allowed):
+            raise ValueError(
+                f"selected pack digest for trial {trial_id} is not in the {source} map"
+            )
+
+
+def select_trial_sidecars(
+    analyses_dir: Path,
+    *,
+    pack_digest: str | None = None,
+    digest_map: Mapping[str, str] | None = None,
+    requested: Sequence[str] | None = None,
+    pin_source: str = "report",
+) -> dict[str, SelectedPack]:
+    """Select exactly one sidecar per trial from a pin map, digest, or unique sidecar.
+
+    Pin maps (campaign-report / pack-map) require exactly one on-disk pack matching
+    the mapped digest. Unpinned multi-generation dirs are rejected; there is no
+    created_at / dirname fallback.
+    """
+    grouped = _discover_sidecars(analyses_dir)
+    wanted_trials = sorted(set(requested) if requested else grouped)
     selected: dict[str, SelectedPack] = {}
-    for trial_id, options in candidates.items():
-        selected[trial_id] = max(
-            options,
-            key=lambda item: (str(item.payload.get("created_at") or ""), item.digest),
-        )
+    if digest_map is not None:
+        for trial_id in wanted_trials:
+            if trial_id not in digest_map:
+                raise ValueError(f"requested trial {trial_id} not listed in {pin_source}")
+            selected[trial_id] = _pin_one(
+                trial_id, grouped.get(trial_id, ()), digest_map[trial_id], source=pin_source
+            )
+        _assert_map_digests(selected, digest_map, source=pin_source)
+        return dict(sorted(selected.items()))
+    if pack_digest is not None:
+        wanted = _digest(pack_digest)
+        for trial_id in wanted_trials:
+            matches = [item for item in grouped.get(trial_id, ()) if _matches_digest(item, wanted)]
+            if len(matches) > 1:
+                raise ValueError(
+                    f"duplicate on-disk packs matching report entry for trial {trial_id}"
+                )
+            if len(matches) == 1:
+                selected[trial_id] = matches[0]
+        return dict(sorted(selected.items()))
+    for trial_id in wanted_trials:
+        options = grouped.get(trial_id, [])
+        if len(options) > 1:
+            raise ValueError("ambiguous pack generations; supply --campaign-report or --pack-map")
+        if len(options) == 1:
+            selected[trial_id] = options[0]
     return dict(sorted(selected.items()))
 
 
 def discover_trial_ids(analyses_dir: Path) -> list[str]:
-    return list(select_trial_sidecars(analyses_dir))
+    return sorted(_discover_sidecars(analyses_dir))
 
 
 def _row(finding: RecipeFinding | Mapping[str, Any]) -> dict[str, Any]:
@@ -264,7 +382,13 @@ def _jsonl(rows: Sequence[Mapping[str, Any]]) -> str:
 
 
 def _report(
-    rows: Sequence[Mapping[str, Any]], selections: Mapping[str, SelectedPack], digest: str
+    rows: Sequence[Mapping[str, Any]],
+    selections: Mapping[str, SelectedPack],
+    digest: str,
+    *,
+    selection_mode: str = "single-generation",
+    report_id: str | None = None,
+    cas_id: str | None = None,
 ) -> str:
     trial_ids = sorted({str(row["trial_id"]) for row in rows})
     lines = [
@@ -282,11 +406,21 @@ def _report(
         "",
         "## Selected EvidencePacks",
         "",
-        "| trial | digest | created_at |",
-        "|---|---|---|",
+        f"- selection_mode: {selection_mode}",
     ]
+    if report_id:
+        lines.append(f"- report_id: {report_id}")
+    if cas_id:
+        lines.append(f"- cas_id: {cas_id}")
     lines.extend(
-        f"| `{trial_id}` | `{item.digest}` | {_cell(item.payload.get('created_at'))} |"
+        [
+            "",
+            "| trial | digest | created_at | selection_mode |",
+            "|---|---|---|---|",
+        ]
+    )
+    lines.extend(
+        f"| `{trial_id}` | `{item.digest}` | {_cell(item.payload.get('created_at'))} | `{selection_mode}` |"
         for trial_id, item in sorted(selections.items())
     )
     for trial_id in trial_ids:
@@ -416,6 +550,10 @@ def write_outputs(
     out_dir: Path,
     findings: Sequence[RecipeFinding | Mapping[str, Any]],
     selections: Mapping[str, SelectedPack],
+    *,
+    selection_mode: str = "single-generation",
+    report_id: str | None = None,
+    cas_id: str | None = None,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = _rows(findings)
@@ -423,7 +561,17 @@ def write_outputs(
     jsonl = _jsonl(rows)
     digest = hashlib.sha256(jsonl.encode("utf-8")).hexdigest()
     (out_dir / FINDINGS_JSONL).write_text(jsonl, encoding="utf-8")
-    (out_dir / FINDINGS_REPORT).write_text(_report(rows, selections, digest), encoding="utf-8")
+    (out_dir / FINDINGS_REPORT).write_text(
+        _report(
+            rows,
+            selections,
+            digest,
+            selection_mode=selection_mode,
+            report_id=report_id,
+            cas_id=cas_id,
+        ),
+        encoding="utf-8",
+    )
     (out_dir / IMPROVEMENT_REQUESTS).write_text(
         _requests(rows, selections, digest), encoding="utf-8"
     )
@@ -455,18 +603,47 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.analyses_dir.expanduser().resolve(),
         args.out.expanduser().resolve(),
     )
+    requested = sorted(set(args.trial_ids))
+    if args.pack_digest is not None and len(requested) != 1:
+        print("error: global digest requires single-trial mode", file=sys.stderr)
+        return 1
     if not analyses_dir.is_dir():
         print(f"error: analyses dir not found: {analyses_dir}", file=sys.stderr)
         return 1
     try:
-        selections = select_trial_sidecars(analyses_dir, pack_digest=args.pack_digest)
-        requested = sorted(set(args.trial_ids))
+        digest_map: dict[str, str] | None = None
+        pin_source = "report"
+        selection_mode = "single-generation"
+        if args.campaign_report is not None:
+            digest_map = load_campaign_report_map(args.campaign_report.expanduser().resolve())
+            pin_source = "report"
+            selection_mode = "campaign-report"
+        elif args.pack_map is not None:
+            digest_map = load_pack_map(args.pack_map.expanduser().resolve())
+            pin_source = "pack map"
+            selection_mode = "pack-map"
+        elif args.pack_digest is not None:
+            selection_mode = "pack-digest"
+        selections = select_trial_sidecars(
+            analyses_dir,
+            pack_digest=args.pack_digest,
+            digest_map=digest_map,
+            requested=requested or None,
+            pin_source=pin_source,
+        )
         missing = [trial for trial in requested if trial not in selections]
         if missing:
             raise ValueError("no selected evidence pack for trial(s): " + ", ".join(missing))
         if requested:
             selections = {trial: selections[trial] for trial in requested}
-        write_outputs(out_dir, collect_findings(analyses_dir, selections), selections)
+        write_outputs(
+            out_dir,
+            collect_findings(analyses_dir, selections),
+            selections,
+            selection_mode=selection_mode,
+            report_id=args.report_id,
+            cas_id=args.cas_id,
+        )
     except (OSError, TypeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

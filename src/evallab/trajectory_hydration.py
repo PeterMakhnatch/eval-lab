@@ -380,12 +380,14 @@ def hydrate_citation(
     cas_target = citation.raw_cas_uri or citation.cas_uri
     temp_cas_dir: tempfile.TemporaryDirectory[str] | None = None
     if cas_target:
-        store_root = (repo_root / "derived" / "evidence-cas") if repo_root else Path("derived/evidence-cas")
-        if not store_root.exists() and repo_root:
-            alt_cas = repo_root / "evidence" / "cas"
-            if alt_cas.exists():
-                store_root = alt_cas
-
+        if repo_root is not None and (repo_root / "blobs").exists():
+            store_root = repo_root
+        else:
+            store_root = (repo_root / "derived" / "evidence-cas") if repo_root else Path("derived/evidence-cas")
+            if not store_root.exists() and repo_root:
+                alt_cas = repo_root / "evidence" / "cas"
+                if alt_cas.exists():
+                    store_root = alt_cas
         try:
             temp_cas_dir = tempfile.TemporaryDirectory()
             extracted_path = Path(temp_cas_dir.name)

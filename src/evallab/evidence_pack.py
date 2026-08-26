@@ -220,6 +220,7 @@ def build_evidence_pack(
     *,
     trial_dir: Path | None = None,
     repo_root: Path | None = None,
+    store_root: Path | None = None,
     budget_tokens: int = DEFAULT_TOKEN_BUDGET,
     policy: RedactionPolicy | None = None,
 ) -> EvidencePack:
@@ -334,7 +335,7 @@ def build_evidence_pack(
                 cur_step = all_steps[step_ptr]
                 for ev in events_by_step.get(cur_step, []):
                     ev_dict = ev.to_dict()
-                    hydrated = hydrate_citation(ev.source_citation, trial_dir=trial_dir, repo_root=repo_root, policy=policy)
+                    hydrated = hydrate_citation(ev.source_citation, trial_dir=trial_dir, repo_root=store_root or repo_root, policy=policy)
                     ev_dict["hydrated_content"] = hydrated.redacted_content
                     window_events_list.append(ev_dict)
                 step_ptr += 1

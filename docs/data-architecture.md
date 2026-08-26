@@ -161,3 +161,27 @@ refetched only while its immutable public revision remains available, so a
 publication dependency should be retained locally. Zone 03 rejected candidates
 may be compressed after their rejection metadata and generator lineage are
 preserved. All Parquet projections are disposable caches.
+
+`derived/analyses/` is a rebuildable Zone 03 working tree, not the immutable
+artifact authority. An IR, pack, judgment, decision, or campaign report is
+eligible for working-tree cleanup only after its exact bytes have been archived
+to CAS, the archive restores with the recorded content digest, and the current
+report or decision records that CAS URI and digest. Missing, corrupt,
+unrestorable, unlinked, or ambiguous-generation sidecars remain on HOLD; cleanup
+must not turn them into zero rows or select a replacement generation.
+
+Superseded or duplicate working copies may be moved under
+`derived/analyses/_quarantine/<reason>/` during reconciliation. Quarantine
+preserves bytes for investigation but is excluded from current-generation
+discovery and capability denominators. A quarantined working copy may be pruned
+only when all of these checks pass:
+
+1. its authoritative CAS object restores byte-for-byte and matches the recorded
+   digest;
+2. the canonical current report or decision identifies the retained generation;
+3. no unresolved worker invocation, citation, or provenance record points only
+   to the working copy.
+
+Cleanup never deletes CAS evidence, rewrites append-only reports, or repairs
+ambiguity by modification time. If any check is unavailable, retain the
+quarantine and report `unknown` or a reason-coded HOLD.

@@ -2519,10 +2519,16 @@ def _traj_pack_command(
 
     try:
         ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root)
-        trial_p = Path(args.trial)
-        trial_dir = trial_p if trial_p.is_dir() else trial_p.parent
-        pack = build_evidence_pack(ir, trial_dir=trial_dir, budget_tokens=budget, policy=policy)
-
+        trial_str = str(args.trial)
+        trial_dir: Path | None = None
+        if not trial_str.startswith("cas://"):
+            try:
+                tp = Path(args.trial)
+                if tp.exists():
+                    trial_dir = tp if tp.is_dir() else tp.parent
+            except Exception:
+                pass
+        pack = build_evidence_pack(ir, trial_dir=trial_dir, repo_root=root, budget_tokens=budget, policy=policy)
         fmt = getattr(args, "format", "markdown")
         if getattr(args, "json", False) or fmt == "json":
             rendered = json.dumps(pack.to_dict(), indent=2)

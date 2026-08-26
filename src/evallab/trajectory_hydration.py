@@ -10,14 +10,16 @@ Key invariants:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from evallab.evidence_store import load_archive
+from evallab.evidence_store import restore_evidence
 from evallab.traj import TrajectoryOutline
 
 _DEFAULT_SECRET_PATTERNS = (
@@ -374,28 +376,41 @@ def hydrate_citation(
     raw_text: str | None = None
     limitation_metadata: dict[str, Any] = {}
 
-    # 2. If raw_cas_uri / cas_uri is present, resolve from CAS store and verify digest
+    # 2. If raw_cas_uri / cas_uri is present, restore the archive to temporary root and extract cited member
     cas_target = citation.raw_cas_uri or citation.cas_uri
+    temp_cas_dir: tempfile.TemporaryDirectory[str] | None = None
     if cas_target:
         store_root = (repo_root / "derived" / "evidence-cas") if repo_root else Path("derived/evidence-cas")
         if not store_root.exists() and repo_root:
-            store_root = repo_root / "evidence" / "cas"
+            alt_cas = repo_root / "evidence" / "cas"
+            if alt_cas.exists():
+                store_root = alt_cas
 
         try:
-            archive_path = load_archive(store_root, cas_target)
-            if not archive_path.is_file():
-                limitation_metadata["limitation_reason"] = "cas_archive_not_found"
-                limitation_metadata["cas_uri"] = cas_target
-                raw_text = f"[EvidenceLimitation: cas_archive_not_found uri={cas_target}]"
+            temp_cas_dir = tempfile.TemporaryDirectory()
+            extracted_path = Path(temp_cas_dir.name)
+            restore_evidence(store_root, cas_target, extracted_path)
+
+            cand_member = extracted_path / citation.source_path
+            if not cand_member.is_file():
+                alt_traj = extracted_path / "agent" / "trajectory.json"
+                if alt_traj.is_file():
+                    cand_member = alt_traj
+                else:
+                    alt_traj2 = extracted_path / "trajectory.json"
+                    if alt_traj2.is_file():
+                        cand_member = alt_traj2
+
+            if cand_member.is_file():
+                payload = _load_raw_json(cand_member)
+                if payload is not None:
+                    raw_text = _extract_content_from_payload(payload, citation)
+                if raw_text is None:
+                    raw_text = cand_member.read_text(encoding="utf-8", errors="replace")
             else:
-                raw_text = archive_path.read_text(encoding="utf-8", errors="replace")
-                expected_digest = cas_target.removeprefix("cas://sha256/").removeprefix("sha256:")
-                actual_digest = _sha256_text(raw_text).removeprefix("sha256:")
-                if expected_digest and actual_digest != expected_digest:
-                    limitation_metadata["limitation_reason"] = "cas_digest_mismatch"
-                    limitation_metadata["expected_digest"] = expected_digest
-                    limitation_metadata["actual_digest"] = actual_digest
-                    raw_text = f"[EvidenceLimitation: cas_digest_mismatch expected={expected_digest} actual={actual_digest}]"
+                limitation_metadata["limitation_reason"] = "cas_member_not_found"
+                limitation_metadata["source_path"] = citation.source_path
+                raw_text = f"[EvidenceLimitation: cas_member_not_found path={citation.source_path} uri={cas_target}]"
         except FileNotFoundError as fnf:
             limitation_metadata["limitation_reason"] = "cas_archive_not_found"
             limitation_metadata["error_detail"] = str(fnf)
@@ -404,7 +419,10 @@ def hydrate_citation(
             limitation_metadata["limitation_reason"] = "cas_load_error"
             limitation_metadata["error_detail"] = f"{type(exc).__name__}: {exc}"
             raw_text = f"[EvidenceLimitation: cas_load_error {type(exc).__name__}: {exc}]"
-
+        finally:
+            if temp_cas_dir is not None:
+                with contextlib.suppress(Exception):
+                    temp_cas_dir.cleanup()
     # 3. Resolve from trial directory if not loaded from CAS
     if raw_text is None and trial_dir is not None:
         candidate_file = trial_dir / citation.source_path

@@ -154,6 +154,24 @@ class EvidencePack:
             "created_at": self.created_at,
         }
 
+    def to_projection_dict(self) -> dict[str, Any]:
+        """Flat projection row matching DuckDB evidence_packs table and v_evidence_packs view."""
+        return {
+            "pack_digest": self.pack_digest,
+            "ir_digest": self.source_digests.get("ir_digest", ""),
+            "trial_id": self.trial_id,
+            "trial_name": self.trial_name,
+            "task_name": self.task_name,
+            "agent_name": self.agent_name,
+            "model_name": self.model_name,
+            "final_verdict": self.final_verdict,
+            "budget_tokens": self.budget_tokens,
+            "consumed_tokens_est": self.consumed_tokens_est,
+            "selected_windows_count": len(self.selected_windows),
+            "omitted_ranges_count": len(self.omitted_ranges),
+            "is_bounded": self.evidence_coverage.get("is_bounded", True),
+            "created_at": self.created_at,
+        }
     def render_markdown(self) -> str:
         """Render a concise, model-friendly text prompt from the evidence pack."""
         lines: list[str] = []
@@ -201,6 +219,7 @@ def build_evidence_pack(
     ir: TrajectoryIR,
     *,
     trial_dir: Path | None = None,
+    repo_root: Path | None = None,
     budget_tokens: int = DEFAULT_TOKEN_BUDGET,
     policy: RedactionPolicy | None = None,
 ) -> EvidencePack:
@@ -209,8 +228,6 @@ def build_evidence_pack(
         policy = RedactionPolicy()
 
     policy_digest = policy.compute_digest()
-
-    # 1. Global Outline
     bm = ir.baseline_metrics
     global_outline = {
         "step_count": bm.step_count,
@@ -317,9 +334,8 @@ def build_evidence_pack(
                 cur_step = all_steps[step_ptr]
                 for ev in events_by_step.get(cur_step, []):
                     ev_dict = ev.to_dict()
-                    if trial_dir is not None:
-                        hydrated = hydrate_citation(ev.source_citation, trial_dir=trial_dir, policy=policy)
-                        ev_dict["hydrated_content"] = hydrated.redacted_content
+                    hydrated = hydrate_citation(ev.source_citation, trial_dir=trial_dir, repo_root=repo_root, policy=policy)
+                    ev_dict["hydrated_content"] = hydrated.redacted_content
                     window_events_list.append(ev_dict)
                 step_ptr += 1
 

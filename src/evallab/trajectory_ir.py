@@ -370,6 +370,25 @@ class TrajectoryIR:
             "created_at": self.created_at,
         }
 
+    def to_projection_dict(self) -> dict[str, Any]:
+        """Flat projection row matching DuckDB trajectory_ir table and v_trajectory_ir_summary view."""
+        return {
+            "ir_digest": self.ir_digest,
+            "trial_id": self.trial_id,
+            "job_id": self.job_id,
+            "trial_name": self.trial_name,
+            "task_name": self.task_name,
+            "agent_scaffold": self.agent_scaffold,
+            "model_name": self.model_name,
+            "status": self.status,
+            "final_verdict": self.final_verdict,
+            "primary_reward": self.primary_reward,
+            "total_events": len(self.events),
+            "total_episodes": len(self.episodes),
+            "total_opportunities": len(self.opportunity_windows),
+            "created_at": self.created_at,
+        }
+
 
 def _segment_episodes(events: Sequence[IREvent]) -> tuple[IREpisode, ...]:
     """Segment ordered IR events into cohesive problem-solving episodes."""
@@ -380,7 +399,6 @@ def _segment_episodes(events: Sequence[IREvent]) -> tuple[IREpisode, ...]:
     curr_events: list[IREvent] = []
     curr_type: str = "setup"
     episode_id = 1
-
     def _flush_episode() -> None:
         nonlocal episode_id, curr_events, curr_type
         if not curr_events:
@@ -471,7 +489,7 @@ def build_trajectory_ir(
     if isinstance(target, dict):
         inventory_record = target
         cas_uri = target.get("cas_uri")
-        trial_target_path = str(target.get("trial_dir") or target.get("atif_path") or target.get("trial_name") or target.get("trial_id") or "")
+        trial_target_path = str(target.get("trial_name") or target.get("trial_dir") or target.get("atif_path") or target.get("trial_id") or "")
     elif isinstance(target, str) and target.startswith("cas://"):
         cas_uri = target
         trial_target_path = target
@@ -506,12 +524,32 @@ def build_trajectory_ir(
                 trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
             )
     else:
-        trial_dir, traj_path, result_path = resolve_trial_target(
-            trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-        )
-        outline = outline_trajectory(
-            trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-        )
+        try:
+            trial_dir, traj_path, result_path = resolve_trial_target(
+                trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
+            )
+            outline = outline_trajectory(
+                trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
+            )
+        except Exception:
+            # Check if job_name exists in explicit_runs_root
+            job_name = inventory_record.get("job_name")
+            if explicit_runs_root and job_name and (explicit_runs_root / job_name).is_dir():
+                job_dir = explicit_runs_root / job_name
+                sub_trials = [p for p in job_dir.iterdir() if p.is_dir() and not p.name.startswith(".")]
+                if sub_trials:
+                    trial_dir = sub_trials[0]
+                    traj_cand = trial_dir / "agent" / "trajectory.json"
+                    if not traj_cand.is_file():
+                        traj_cand = trial_dir / "trajectory.json"
+                    traj_path = traj_cand if traj_cand.is_file() else None
+                    res_cand = trial_dir / "result.json"
+                    result_path = res_cand if res_cand.is_file() else None
+                    outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=explicit_runs_root)
+                else:
+                    raise
+            else:
+                raise
 
     baseline = compute_trace_baseline(outline)
 
@@ -769,7 +807,6 @@ def build_trajectory_ir(
             opp_type = "tool_selection_candidate"
         elif ev.event_type == "context_management":
             opp_type = "context_compaction_candidate"
-
         if opp_type:
             opp_id = hashlib.sha256(f"{outline.trial_id}:{ev.step_index}:{opp_type}:{ev.event_ordinal}".encode()).hexdigest()
             opportunity_windows.append(
@@ -811,13 +848,19 @@ def build_trajectory_ir(
         "is_production_cas": is_cas,
     }
 
+    ir_trial_id = str(inventory_record.get("trial_id") or outline.trial_id)
+    ir_trial_name = str(inventory_record.get("trial_name") or outline.trial_name)
+    ir_job_id = str(inventory_record.get("job_id") or outline.job_id)
+    ir_job_name = str(inventory_record.get("job_name") or outline.job_name)
+    ir_task_name = str(inventory_record.get("task_name") or outline.task_name)
+
     raw_ir_dict = {
         "ir_version": "1.0",
-        "trial_id": outline.trial_id,
-        "job_id": outline.job_id,
-        "trial_name": outline.trial_name,
-        "job_name": outline.job_name,
-        "task_name": outline.task_name,
+        "trial_id": ir_trial_id,
+        "job_id": ir_job_id,
+        "trial_name": ir_trial_name,
+        "job_name": ir_job_name,
+        "task_name": ir_task_name,
         "task_digest": task_digest,
         "verifier_digest": verifier_digest,
         "agent_scaffold": agent_scaffold,
@@ -856,11 +899,11 @@ def build_trajectory_ir(
     return TrajectoryIR(
         ir_version="1.0",
         ir_digest=ir_digest,
-        trial_id=outline.trial_id,
-        job_id=outline.job_id,
-        trial_name=outline.trial_name,
-        job_name=outline.job_name,
-        task_name=outline.task_name,
+        trial_id=ir_trial_id,
+        job_id=ir_job_id,
+        trial_name=ir_trial_name,
+        job_name=ir_job_name,
+        task_name=ir_task_name,
         task_digest=task_digest,
         verifier_digest=verifier_digest,
         agent_scaffold=agent_scaffold,

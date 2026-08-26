@@ -107,6 +107,27 @@ class PairedAlignmentResult:
             "created_at": self.created_at,
         }
 
+    def to_projection_dict(self) -> dict[str, Any]:
+        """Flat projection row matching DuckDB paired_alignments table and v_paired_alignments view."""
+        return {
+            "alignment_id": self.alignment_id,
+            "trial_id_a": self.trial_id_a,
+            "trial_id_b": self.trial_id_b,
+            "trial_name_a": self.trial_name_a,
+            "trial_name_b": self.trial_name_b,
+            "task_name": self.task_name,
+            "config_delta": self.config_delta,
+            "outcome_delta": self.outcome_delta,
+            "divergence_step_a": self.divergence_step_a,
+            "divergence_step_b": self.divergence_step_b,
+            "has_reconvergence": self.has_local_divergences,
+            "reconvergence_step_a": self.local_divergences[0].reconvergence_step_a if self.local_divergences else None,
+            "reconvergence_step_b": self.local_divergences[0].reconvergence_step_b if self.local_divergences else None,
+            "alignment_score": self.alignment_score,
+            "total_aligned_steps": self.total_aligned_steps,
+            "summary": self.summary,
+            "created_at": self.created_at,
+        }
 
 def _action_token(ev: IREvent) -> tuple[str, str, str]:
     """Tuple signature for sequence alignment: (family, program, skeleton)."""

@@ -168,5 +168,5 @@ def test_adapter_admission_evaluation_and_control_matrix() -> None:
     assert any("state_object_drift" in code for code in admission_res.reason_codes)
 
     control_res = evaluate_hardened_controls(pair_spec)
-    assert control_res["all_controls_valid"] is True
-    assert len(control_res["controls"]) == 9
+    assert control_res["all_controls_valid"] is False
+    assert control_res["error_code"] == "control_contract_incomplete"

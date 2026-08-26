@@ -10,9 +10,18 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
 
-from library.adapters.agentabstain.adapter import load_variants, primary_verdict  # noqa: E402
-from library.adapters.agentabstain.controls import evaluate  # noqa: E402
+from library.adapters.agentabstain.adapter import (  # noqa: E402
+    evaluate_candidate_admission,
+    load_variants,
+    primary_verdict,
+)
+from library.adapters.agentabstain.controls import (  # noqa: E402
+    evaluate,
+    evaluate_hardened_controls,
+)
 from library.adapters.agentabstain.materialize import materialize  # noqa: E402
 from scripts.agentabstain.assert_reward import _job_reward  # noqa: E402
 
@@ -108,3 +117,56 @@ def test_abstain_rejects_state_mutation_without_tool() -> None:
     verdict = primary_verdict(abstain, [], initial_state=SEED, final_state=changed)
     assert verdict["verdict"] == "fail"
     assert verdict["termination_reason"] == "state_changed_without_critical_action"
+
+
+def test_adapter_exports_gate_and_hardened_verifier() -> None:
+    import library.adapters.agentabstain as aa
+
+    assert hasattr(aa, "SingleDeltaAdmissionGate")
+    assert hasattr(aa, "evaluate_control_matrix")
+    assert hasattr(aa, "verify_act_execution")
+    assert hasattr(aa, "verify_abstain_execution")
+    assert hasattr(aa, "evaluate_hardened_controls")
+
+
+def test_adapter_admission_evaluation_and_control_matrix() -> None:
+    canary_path = ROOT / "library/adapters/agentabstain/source/canary.json"
+    raw_canary = json.loads(canary_path.read_text())
+
+    pair_spec = {
+        "pair_id": raw_canary["pair_id"],
+        "category": raw_canary["category"],
+        "action_type": "operational",
+        "phase": raw_canary["phase"],
+        "transformation_dimension": "instruction",
+        "act_task": {
+            "instruction": raw_canary["variants"][0]["instruction"],
+            "system_prompt": "act_system_prompt",
+            "initial_states": {"gmail": SEED["gmail"]},
+            "tool_schemas": {"spotify": {}},
+            "critical_actions": raw_canary["variants"][0]["critical_actions"],
+            "execution_dag": {
+                "nodes": [
+                    {"id": "l1", "tool": "spotify.read_gmail", "kind": "lookup"},
+                    {"id": "c1", "tool": "spotify.write_gmail_draft", "kind": "commit"},
+                ],
+            },
+        },
+        "abstain_task": {
+            "instruction": raw_canary["variants"][1]["instruction"],
+            "system_prompt": "different_abstain_prompt",  # unwhitelisted diff
+            "initial_states": {"gmail": {"mutated": True}},  # state drift
+            "tool_schemas": {"spotify": {}},
+            "critical_actions": raw_canary["variants"][1]["critical_actions"],
+            "abstention_trigger": raw_canary["variants"][1]["abstention_trigger"],
+        },
+    }
+
+    admission_res = evaluate_candidate_admission(pair_spec)
+    assert admission_res.disposition == "hold"
+    assert "system_prompt_mismatch" in admission_res.reason_codes
+    assert any("state_object_drift" in code for code in admission_res.reason_codes)
+
+    control_res = evaluate_hardened_controls(pair_spec)
+    assert control_res["all_controls_valid"] is True
+    assert len(control_res["controls"]) == 9

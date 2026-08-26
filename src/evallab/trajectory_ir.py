@@ -1010,99 +1010,27 @@ def build_trajectory_ir(
         unknowns_list.append({"field": "matched_result_digest", "reason": "unset_in_raw_atif_steps"})
         unknowns_list.append({"field": "state_before_after_digests", "reason": "unobserved_without_state_journal"})
 
-        user_msgs = sum(1 for e in updated_events if e.event_type == "user_message" or e.actor == "user")
-        agent_msgs = sum(1 for e in updated_events if e.event_type == "agent_message" or (e.actor == "agent" and not e.status_owning_program))
-        tool_calls = sum(1 for e in updated_events if e.event_type == "tool_call" or e.call_index is not None)
-        observations = sum(1 for e in updated_events if e.event_type == "observation")
-        state_changes = sum(1 for e in updated_events if e.event_type == "state_change")
-        verifier_checks = sum(1 for e in updated_events if e.event_type == "verifier_check" or e.phase == "verifier")
-        context_mgmt = sum(1 for e in updated_events if e.event_type == "context_management" or e.action_family == "context_control")
+        from evallab.evidence_pack import compute_evidence_coverage_metrics
 
-        setup_eps = sum(1 for ep in episodes if ep.episode_type == "setup")
-        inst_eps = sum(1 for ep in episodes if ep.episode_type == "instruction")
-        insp_eps = sum(1 for ep in episodes if ep.episode_type == "inspection")
-        mut_eps = sum(1 for ep in episodes if ep.episode_type == "mutation")
-        ver_eps = sum(1 for ep in episodes if ep.episode_type == "verification")
-        rec_eps = sum(1 for ep in episodes if ep.episode_type == "screening_recovery")
-        term_eps = sum(1 for ep in episodes if ep.episode_type == "terminal")
-
-        total_errs = sum(1 for e in updated_events if e.is_error)
-        tool_errs = sum(1 for e in updated_events if e.is_error and e.event_type == "tool_call")
-        unhandled_exc = 1 if exception_class else 0
-        rec_errs = baseline.recovery_count
-        unrec_errs = max(0, total_errs - rec_errs)
-        max_cascade = baseline.max_exit_code_cascade_screening
-
-        state_mutations = sum(1 for e in updated_events if e.action_family in ("file_edit", "file_write"))
-        state_diff_obs = state_mutations > 0
-        certified_pass = primary_reward is not None and primary_reward >= 1.0
-        state_linked = any(e.state_before_digest or e.state_after_digest for e in updated_events)
-
-        verifier_exec = verifier_checks > 0
-        verifier_reward_obs = primary_reward is not None
-        verifier_tests = 1 if verifier_exec else 0
-        verifier_passed = 1 if (primary_reward and primary_reward >= 1.0) else 0
-        unsupported_claims = 1 if (final_verdict == "PASS" and not verifier_exec and not verifier_reward_obs) else 0
-
-        hold_reasons: list[str] = []
-        if outline.status != "featured" and not is_cas:
-            hold_reasons.append("missing_atif_evidence")
-        if unpaired_count > 0:
-            hold_reasons.append("degraded_tool_linkage")
-        if quality_status in ("fail", "quarantined"):
-            hold_reasons.append(f"quarantine_quality_status_{quality_status}")
-        if len(updated_events) == 0 and outline.status != "accounted_unavailable":
-            hold_reasons.append("empty_event_sequence")
-        if unsupported_claims > 0:
-            hold_reasons.append("unsupported_terminal_claim")
-
-        analysis_ready = len(hold_reasons) == 0
-
-        evidence_coverage = {
-            "has_atif": outline.status == "featured",
-            "has_result": result_path is not None and result_path.is_file(),
-            "has_state_journal": state_diff_obs,
-            "has_ctrf_verifier": verifier_exec,
-            "has_cas_archive": is_cas or bool(cas_uri),
-            "is_production_cas": is_cas,
-            "total_steps": outline.total_steps,
-            "total_events": len(updated_events),
-            "user_messages_count": user_msgs,
-            "agent_messages_count": agent_msgs,
-            "tool_calls_count": tool_calls,
-            "observations_count": observations,
-            "state_changes_count": state_changes,
-            "verifier_checks_count": verifier_checks,
-            "context_management_count": context_mgmt,
-            "total_episodes": len(episodes),
-            "setup_episodes_count": setup_eps,
-            "instruction_episodes_count": inst_eps,
-            "inspection_episodes_count": insp_eps,
-            "mutation_episodes_count": mut_eps,
-            "verification_episodes_count": ver_eps,
-            "recovery_episodes_count": rec_eps,
-            "terminal_episodes_count": term_eps,
-            "total_errors": total_errs,
-            "unhandled_exceptions_count": unhandled_exc,
-            "tool_errors_count": tool_errs,
-            "exit_code_cascades_max": max_cascade,
-            "recovered_errors_count": rec_errs,
-            "unrecovered_errors_count": unrec_errs,
-            "state_diff_observed": state_diff_obs,
-            "state_mutations_count": state_mutations,
-            "certified_state_pass": certified_pass,
-            "state_before_after_linked": state_linked,
-            "verifier_executed": verifier_exec,
-            "verifier_reward_observed": verifier_reward_obs,
-            "verifier_tests_count": verifier_tests,
-            "verifier_passed_count": verifier_passed,
-            "unsupported_terminal_claims_count": unsupported_claims,
-            "unpaired_tool_calls_count": unpaired_count,
-            "linkage_coverage": linkage_coverage,
-            "linkage_dependent_claims_prohibited": unpaired_count > 0,
-            "analysis_ready": analysis_ready,
-            "hold_reasons": hold_reasons,
-        }
+        coverage_metrics = compute_evidence_coverage_metrics(
+            events=updated_events,
+            episodes=episodes,
+            status=outline.status,
+            unavailable_reason=outline.unavailable_reason,
+            quality_status=quality_status,
+            unpaired_count=unpaired_count,
+            linkage_coverage=linkage_coverage,
+            is_production_cas=is_cas,
+            cas_uri=cas_uri,
+            result_sha=result_sha,
+            primary_reward=primary_reward,
+            exception_class=exception_class,
+            final_verdict=final_verdict,
+            recovery_count=baseline.recovery_count,
+            max_cascade=baseline.max_exit_code_cascade_screening,
+            trial_dir=trial_dir,
+        )
+        evidence_coverage = coverage_metrics.to_dict()
         ir_trial_id = str(inventory_record.get("trial_id") or outline.trial_id)
         ir_trial_name = str(inventory_record.get("trial_name") or outline.trial_name)
         ir_job_id = str(inventory_record.get("job_id") or outline.job_id)

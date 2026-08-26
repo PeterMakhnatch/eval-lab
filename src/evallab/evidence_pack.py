@@ -8,13 +8,14 @@ Key invariants:
 - Deterministic token budgeting and pack content hashing (pack_digest).
 - Redaction changes mint a new pack digest; raw source digest remains separate.
 - Fine-grained category coverage metrics (raw_source, events, episodes, errors, state, verifier, linkage).
-- Lossless on-demand reopening of omitted ranges via reopen_omitted_range().
+- Lossless on-demand reopening of omitted ranges via reopen_omitted_range() with canonical hash verification.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ from evallab.trajectory_hydration import (
     hydrate_citation,
 )
 from evallab.trajectory_ir import (
+    IREpisode,
     IREvent,
     TrajectoryIR,
 )
@@ -72,7 +74,7 @@ class EvidenceCoverageMetrics:
     inspection_episodes_count: int
     mutation_episodes_count: int
     verification_episodes_count: int
-    recovery_episodes_count: int
+    screening_recovery_episodes_count: int
     terminal_episodes_count: int
 
     # 4. Error Coverage
@@ -80,7 +82,7 @@ class EvidenceCoverageMetrics:
     unhandled_exceptions_count: int
     tool_errors_count: int
     exit_code_cascades_max: int
-    recovered_errors_count: int
+    screening_recovered_errors_count: int
     unrecovered_errors_count: int
 
     # 5. State Coverage
@@ -124,13 +126,13 @@ class EvidenceCoverageMetrics:
             "inspection_episodes_count": self.inspection_episodes_count,
             "mutation_episodes_count": self.mutation_episodes_count,
             "verification_episodes_count": self.verification_episodes_count,
-            "recovery_episodes_count": self.recovery_episodes_count,
+            "screening_recovery_episodes_count": self.screening_recovery_episodes_count,
             "terminal_episodes_count": self.terminal_episodes_count,
             "total_errors": self.total_errors,
             "unhandled_exceptions_count": self.unhandled_exceptions_count,
             "tool_errors_count": self.tool_errors_count,
             "exit_code_cascades_max": self.exit_code_cascades_max,
-            "recovered_errors_count": self.recovered_errors_count,
+            "screening_recovered_errors_count": self.screening_recovered_errors_count,
             "unrecovered_errors_count": self.unrecovered_errors_count,
             "state_diff_observed": self.state_diff_observed,
             "state_mutations_count": self.state_mutations_count,
@@ -149,79 +151,125 @@ class EvidenceCoverageMetrics:
 
 
 def compute_evidence_coverage_metrics(
-    ir: TrajectoryIR,
+    ir: TrajectoryIR | None = None,
+    *,
+    events: Sequence[IREvent] | None = None,
+    episodes: Sequence[IREpisode] | None = None,
+    status: str | None = None,
+    unavailable_reason: str | None = None,
+    quality_status: str | None = None,
+    unpaired_count: int | None = None,
+    linkage_coverage: str | None = None,
+    is_production_cas: bool | None = None,
+    cas_uri: str | None = None,
+    result_sha: str | None = None,
+    primary_reward: float | None = None,
+    exception_class: str | None = None,
+    final_verdict: str | None = None,
+    recovery_count: int | None = None,
+    max_cascade: int | None = None,
     trial_dir: Path | None = None,
 ) -> EvidenceCoverageMetrics:
-    """Compute deterministic, category-wise evidence coverage metrics."""
+    """Canonical, single-producer computation of category-wise evidence coverage metrics."""
+    if ir is not None:
+        ev_list = ir.events
+        ep_list = ir.episodes
+        stat = ir.status
+        q_stat = ir.quality_status
+        unpaired = ir.unpaired_tool_calls_count
+        linkage = ir.linkage_coverage
+        is_cas = ir.is_production_cas
+        c_uri = ir.source_digests.get("cas_uri")
+        r_sha = ir.source_digests.get("result_sha256")
+        p_reward = ir.primary_reward
+        exc_class = ir.exception_class
+        verdict = ir.final_verdict
+        rec_count = ir.baseline_metrics.recovery_count
+        m_cascade = ir.baseline_metrics.max_exit_code_cascade_screening
+    else:
+        ev_list = events or ()
+        ep_list = episodes or ()
+        stat = status or "unknown"
+        q_stat = quality_status or "unknown"
+        unpaired = unpaired_count or 0
+        linkage = linkage_coverage or "complete"
+        is_cas = bool(is_production_cas)
+        c_uri = cas_uri
+        r_sha = result_sha
+        p_reward = primary_reward
+        exc_class = exception_class
+        verdict = final_verdict or "UNKNOWN"
+        rec_count = recovery_count or 0
+        m_cascade = max_cascade or 0
+
     t_dir = trial_dir if (trial_dir and trial_dir.is_dir()) else None
-    has_atif = ir.status == "featured"
+    has_atif = stat == "featured"
+
     if t_dir:
         has_result = (t_dir / "result.json").is_file()
         has_state_journal = (t_dir / "state-journal" / "state-diff.json").is_file() or (t_dir / "state-diff.json").is_file()
         has_ctrf = (t_dir / "verifier" / "ctrf.json").is_file() or (t_dir / "verifier" / "reward.json").is_file()
     else:
-        has_result = bool(ir.source_digests.get("result_sha256") or ir.primary_reward is not None)
-        has_state_journal = any(e.state_before_digest or e.state_after_digest for e in ir.events)
-        has_ctrf = any(e.event_type == "verifier_check" for e in ir.events)
+        has_result = bool(r_sha or p_reward is not None)
+        has_state_journal = any(e.state_before_digest or e.state_after_digest for e in ev_list)
+        has_ctrf = any(e.event_type == "verifier_check" for e in ev_list)
 
-    has_cas = bool(ir.is_production_cas or ir.source_digests.get("cas_uri"))
+    has_cas = bool(is_cas or c_uri)
 
-    user_msgs = sum(1 for e in ir.events if e.event_type == "user_message" or e.actor == "user")
-    agent_msgs = sum(1 for e in ir.events if e.event_type == "agent_message" or (e.actor == "agent" and not e.status_owning_program))
-    tool_calls = sum(1 for e in ir.events if e.event_type == "tool_call" or e.call_index is not None)
-    observations = sum(1 for e in ir.events if e.event_type == "observation")
-    state_changes = sum(1 for e in ir.events if e.event_type == "state_change")
-    verifier_checks = sum(1 for e in ir.events if e.event_type == "verifier_check" or e.phase == "verifier")
-    context_mgmt = sum(1 for e in ir.events if e.event_type == "context_management" or e.action_family == "context_control")
+    user_msgs = sum(1 for e in ev_list if e.event_type == "user_message" or e.actor == "user")
+    agent_msgs = sum(1 for e in ev_list if e.event_type == "agent_message" or (e.actor == "agent" and not e.status_owning_program))
+    tool_calls = sum(1 for e in ev_list if e.event_type == "tool_call" or e.call_index is not None)
+    observations = sum(1 for e in ev_list if e.event_type == "observation" or (e.event_type == "tool_call" and e.exit_semantics != "unobserved"))
+    state_changes = sum(1 for e in ev_list if e.event_type == "state_change")
+    verifier_checks = sum(1 for e in ev_list if e.event_type == "verifier_check" or e.phase == "verifier")
+    context_mgmt = sum(1 for e in ev_list if e.event_type == "context_management" or e.action_family == "context_control")
 
-    setup_eps = sum(1 for ep in ir.episodes if ep.episode_type == "setup")
-    inst_eps = sum(1 for ep in ir.episodes if ep.episode_type == "instruction")
-    insp_eps = sum(1 for ep in ir.episodes if ep.episode_type == "inspection")
-    mut_eps = sum(1 for ep in ir.episodes if ep.episode_type == "mutation")
-    ver_eps = sum(1 for ep in ir.episodes if ep.episode_type == "verification")
-    rec_eps = sum(1 for ep in ir.episodes if ep.episode_type == "screening_recovery")
-    term_eps = sum(1 for ep in ir.episodes if ep.episode_type == "terminal")
+    setup_eps = sum(1 for ep in ep_list if ep.episode_type == "setup")
+    inst_eps = sum(1 for ep in ep_list if ep.episode_type == "instruction")
+    insp_eps = sum(1 for ep in ep_list if ep.episode_type == "inspection")
+    mut_eps = sum(1 for ep in ep_list if ep.episode_type == "mutation")
+    ver_eps = sum(1 for ep in ep_list if ep.episode_type == "verification")
+    rec_eps = sum(1 for ep in ep_list if ep.episode_type == "screening_recovery")
+    term_eps = sum(1 for ep in ep_list if ep.episode_type == "terminal")
 
-    total_errs = sum(1 for e in ir.events if e.is_error)
-    tool_errs = sum(1 for e in ir.events if e.is_error and e.event_type == "tool_call")
-    unhandled_exc = 1 if ir.exception_class else 0
-    rec_errs = ir.baseline_metrics.recovery_count
+    total_errs = sum(1 for e in ev_list if e.is_error)
+    tool_errs = sum(1 for e in ev_list if e.is_error and e.event_type == "tool_call")
+    unhandled_exc = 1 if exc_class else 0
+    rec_errs = rec_count
     unrec_errs = max(0, total_errs - rec_errs)
-    max_cascade = ir.baseline_metrics.max_exit_code_cascade_screening
 
-    state_mutations = sum(1 for e in ir.events if e.action_family in ("file_edit", "file_write"))
+    state_mutations = sum(1 for e in ev_list if e.action_family in ("file_edit", "file_write"))
     state_diff_obs = bool(has_state_journal)
-    certified_pass = ir.primary_reward is not None and ir.primary_reward >= 1.0
-    state_linked = any(e.state_before_digest or e.state_after_digest for e in ir.events) or has_state_journal
+    certified_pass = p_reward is not None and p_reward >= 1.0
+    state_linked = any(e.state_before_digest or e.state_after_digest for e in ev_list) or has_state_journal
 
     verifier_exec = verifier_checks > 0 or has_ctrf
-    verifier_reward_obs = ir.primary_reward is not None
+    verifier_reward_obs = p_reward is not None
     verifier_tests = 1 if verifier_exec else 0
-    verifier_passed = 1 if (ir.primary_reward and ir.primary_reward >= 1.0) else 0
-    unsupported_claims = 1 if (ir.final_verdict == "PASS" and not verifier_exec and not verifier_reward_obs) else 0
+    verifier_passed = 1 if (p_reward and p_reward >= 1.0) else 0
+    unsupported_claims = 1 if (verdict == "PASS" and not verifier_exec and not verifier_reward_obs) else 0
 
     hold_reasons: list[str] = []
-    if not has_atif and not ir.is_production_cas:
+    if not has_atif and not is_cas:
         hold_reasons.append("missing_atif_evidence")
-    if ir.unpaired_tool_calls_count > 0:
+    if unpaired > 0:
         hold_reasons.append("degraded_tool_linkage")
-    if ir.quality_status in ("fail", "quarantined"):
-        hold_reasons.append(f"quarantine_quality_status_{ir.quality_status}")
-    if len(ir.events) == 0 and ir.status != "accounted_unavailable":
+    if q_stat in ("fail", "quarantined"):
+        hold_reasons.append(f"quarantine_quality_status_{q_stat}")
+    if len(ev_list) == 0 and stat != "accounted_unavailable":
         hold_reasons.append("empty_event_sequence")
     if unsupported_claims > 0:
         hold_reasons.append("unsupported_terminal_claim")
 
     analysis_ready = len(hold_reasons) == 0
-
     return EvidenceCoverageMetrics(
         has_atif=has_atif,
         has_result=has_result,
         has_state_journal=has_state_journal,
         has_ctrf_verifier=has_ctrf,
         has_cas_archive=has_cas,
-        is_production_cas=ir.is_production_cas,
-        total_events=len(ir.events),
+        is_production_cas=is_cas,
+        total_events=len(ev_list),
         user_messages_count=user_msgs,
         agent_messages_count=agent_msgs,
         tool_calls_count=tool_calls,
@@ -229,19 +277,19 @@ def compute_evidence_coverage_metrics(
         state_changes_count=state_changes,
         verifier_checks_count=verifier_checks,
         context_management_count=context_mgmt,
-        total_episodes=len(ir.episodes),
+        total_episodes=len(ep_list),
         setup_episodes_count=setup_eps,
         instruction_episodes_count=inst_eps,
         inspection_episodes_count=insp_eps,
         mutation_episodes_count=mut_eps,
         verification_episodes_count=ver_eps,
-        recovery_episodes_count=rec_eps,
+        screening_recovery_episodes_count=rec_eps,
         terminal_episodes_count=term_eps,
         total_errors=total_errs,
         unhandled_exceptions_count=unhandled_exc,
         tool_errors_count=tool_errs,
-        exit_code_cascades_max=max_cascade,
-        recovered_errors_count=rec_errs,
+        exit_code_cascades_max=m_cascade,
+        screening_recovered_errors_count=rec_errs,
         unrecovered_errors_count=unrec_errs,
         state_diff_observed=state_diff_obs,
         state_mutations_count=state_mutations,
@@ -252,12 +300,11 @@ def compute_evidence_coverage_metrics(
         verifier_tests_count=verifier_tests,
         verifier_passed_count=verifier_passed,
         unsupported_terminal_claims_count=unsupported_claims,
-        unpaired_tool_calls_count=ir.unpaired_tool_calls_count,
-        linkage_coverage=ir.linkage_coverage,
+        unpaired_tool_calls_count=unpaired,
+        linkage_coverage=linkage,
         analysis_ready=analysis_ready,
         hold_reasons=tuple(hold_reasons),
     )
-
 
 @dataclass(frozen=True)
 class EvidenceWindow:
@@ -406,7 +453,7 @@ class EvidencePack:
         }
 
     def render_markdown(self) -> str:
-        """Render a concise, model-friendly text prompt from the evidence pack."""
+        """Render a concise, model-friendly text prompt from the evidence pack without leaking ground truth outcome."""
         lines: list[str] = []
         lines.append(f"# Evidence Pack: {self.trial_name} ({self.task_name})")
         lines.append(f"**Agent / Model:** {self.agent_name} | {self.model_name}")
@@ -453,6 +500,7 @@ def reopen_omitted_range(
     pack: EvidencePack,
     range_id: int,
     *,
+    ir: TrajectoryIR | None = None,
     trial_dir: Path | None = None,
     store_root: Path | None = None,
     repo_root: Path | None = None,
@@ -460,7 +508,8 @@ def reopen_omitted_range(
 ) -> EvidenceWindow:
     """Losslessly reopen and hydrate an omitted range into a detailed EvidenceWindow.
 
-    Verifies that the reopened content matches omitted_content_digest.
+    Reopens per-event citations, recomputes canonical JSON hash over payloads,
+    and raises ValueError if the hash does not match target_range.omitted_content_digest.
     """
     target_range = next((r for r in pack.omitted_ranges if r.range_id == range_id), None)
     if not target_range:
@@ -469,32 +518,53 @@ def reopen_omitted_range(
     if policy is None:
         policy = RedactionPolicy()
 
-    # Hydrate all steps across the omitted range and verify digest
-    reopened_events: list[dict[str, Any]] = []
     root = (repo_root or Path.cwd()).resolve()
 
-    for step_id in range(target_range.step_start, target_range.step_end + 1):
-        step_cit = create_citation_handle(
-            source_path=target_range.reopening_citation.source_path,
-            source_sha256=target_range.reopening_citation.source_sha256,
-            raw_cas_uri=target_range.reopening_citation.raw_cas_uri,
-            step_id=step_id,
-            target_type="step",
-            redaction_profile_digest=policy.compute_digest(),
-        )
-        hydrated = hydrate_citation(
-            step_cit,
-            trial_dir=trial_dir,
-            repo_root=store_root or root,
-            policy=policy,
-        )
-        reopened_events.append({
-            "step_index": step_id,
-            "action_family": target_range.action_families[0] if target_range.action_families else "inspection",
-            "hydrated_content": hydrated.redacted_content,
-            "summary": f"Step {step_id} in {target_range.summary}",
-            "reopening_citation": step_cit.to_dict(),
-        })
+    target_events: list[IREvent] = []
+    if ir is not None:
+        id_set = set(target_range.event_ids)
+        target_events = [e for e in ir.events if e.event_id in id_set]
+
+    # Verify digest over canonical event payload representations
+    if target_events:
+        reconstructed_payloads = [e.to_dict() for e in target_events]
+        recomputed_digest = _sha256_canonical_json(reconstructed_payloads)
+        if recomputed_digest != target_range.omitted_content_digest:
+            raise ValueError(
+                f"Omitted content digest mismatch for range {range_id}: "
+                f"expected {target_range.omitted_content_digest} vs actual {recomputed_digest}"
+            )
+
+    reopened_events: list[dict[str, Any]] = []
+    if target_events:
+        for ev in target_events:
+            hydrated = hydrate_citation(ev.source_citation, trial_dir=trial_dir, repo_root=store_root or root, policy=policy)
+            ev_dict = ev.to_dict()
+            ev_dict["hydrated_content"] = hydrated.redacted_content
+            reopened_events.append(ev_dict)
+    else:
+        for step_id in range(target_range.step_start, target_range.step_end + 1):
+            step_cit = create_citation_handle(
+                source_path=target_range.reopening_citation.source_path,
+                source_sha256=target_range.reopening_citation.source_sha256,
+                raw_cas_uri=target_range.reopening_citation.raw_cas_uri,
+                step_id=step_id,
+                target_type="step",
+                redaction_profile_digest=policy.compute_digest(),
+            )
+            hydrated = hydrate_citation(
+                step_cit,
+                trial_dir=trial_dir,
+                repo_root=store_root or root,
+                policy=policy,
+            )
+            reopened_events.append({
+                "step_index": step_id,
+                "action_family": target_range.action_families[0] if target_range.action_families else "inspection",
+                "hydrated_content": hydrated.redacted_content,
+                "summary": f"Step {step_id} in {target_range.summary}",
+                "reopening_citation": step_cit.to_dict(),
+            })
 
     return EvidenceWindow(
         window_id=target_range.range_id + 1000,
@@ -540,7 +610,6 @@ def build_evidence_pack(
         "linkage_coverage": ir.linkage_coverage,
     }
 
-    # 2. Episode Summaries
     episodes_summary = [ep.to_dict() for ep in ir.episodes]
 
     all_steps_list = sorted({ev.step_index for ev in ir.events}) if ir.events else [1]
@@ -742,8 +811,25 @@ def build_evidence_pack(
         tiered_required = True
         overflow_reason = f"mandatory_window_budget_overflow ({est_tokens} > {budget_tokens} tokens)"
 
-    # 6. Fine-Grained Category Evidence Coverage
-    coverage_metrics = compute_evidence_coverage_metrics(ir, trial_dir=trial_dir)
+    # 6. Single-Producer Evidence Coverage
+    coverage_metrics = compute_evidence_coverage_metrics(
+        events=ir.events,
+        episodes=ir.episodes,
+        status=ir.status,
+        unavailable_reason=ir.unavailable_reason,
+        quality_status=ir.quality_status,
+        unpaired_count=ir.unpaired_tool_calls_count,
+        linkage_coverage=ir.linkage_coverage,
+        is_production_cas=ir.is_production_cas,
+        cas_uri=ir.source_digests.get("cas_uri"),
+        result_sha=ir.source_digests.get("result_sha256"),
+        primary_reward=ir.primary_reward,
+        exception_class=ir.exception_class,
+        final_verdict=ir.final_verdict,
+        recovery_count=bm.recovery_count,
+        max_cascade=bm.max_exit_code_cascade_screening,
+        trial_dir=trial_dir,
+    )
     coverage_dict = coverage_metrics.to_dict()
     coverage_dict["is_bounded"] = bool(est_tokens <= budget_tokens)
 

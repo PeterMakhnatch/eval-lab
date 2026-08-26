@@ -87,23 +87,60 @@ def test_evidence_coverage_metrics_categories(canary_trial_dir: Path, repo_root:
     assert "verifier_executed" in cov_dict
 
 
-def test_omitted_range_digest_and_reopening(canary_trial_dir: Path, repo_root: Path) -> None:
-    """Verify omitted ranges carry SHA-256 digests and can be losslessly reopened."""
-    ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
-    pack = build_evidence_pack(ir, trial_dir=canary_trial_dir)
+def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, repo_root: Path) -> None:
+    """Mandatory test: omitted ranges carry canonical digest, reopen losslessly, and reject tampered digests."""
+    import json
+    from dataclasses import replace
 
-    if pack.omitted_ranges:
-        om = pack.omitted_ranges[0]
-        assert om.omitted_content_digest.startswith("sha256:")
-        assert om.reopening_citation.step_index is not None
+    from evallab.evidence_pack import OmittedRange
 
-        # Reopen the omitted range
-        reopened = reopen_omitted_range(pack, om.range_id, trial_dir=canary_trial_dir, repo_root=repo_root)
-        assert reopened.window_id == om.range_id + 1000
-        assert reopened.step_start == om.step_start
-        assert len(reopened.events) > 0
+    trial_dir = tmp_path / "t_long_omitted"
+    (trial_dir / "agent").mkdir(parents=True)
+    # Create trajectory with 10 steps (steps 1-3 instruction boundary, steps 4-7 routine inspection omitted, steps 8-10 terminal boundary)
+    steps = [
+        {"step_id": 1, "source": "user", "message": "initial task prompt"},
+        {"step_id": 2, "source": "agent", "message": "planning"},
+        {"step_id": 3, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "pwd"}}]},
+        {"step_id": 4, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "ls -la"}}]},
+        {"step_id": 5, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "ls src/"}}]},
+        {"step_id": 6, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "cat README.md"}}]},
+        {"step_id": 7, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "cat config.json"}}]},
+        {"step_id": 8, "source": "agent", "message": "finishing up"},
+        {"step_id": 9, "source": "agent", "message": "all done"},
+        {"step_id": 10, "source": "verifier", "message": "verifier pass"},
+    ]
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps({"schema_version": "ATIF-v1.4", "steps": steps}))
+    (trial_dir / "result.json").write_text(json.dumps({"id": "t_long", "trial_name": "t_long", "task_name": "synthetic/omitted-test", "verifier_result": {"rewards": {"reward": 1.0}}}))
 
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    pack = build_evidence_pack(ir, trial_dir=trial_dir, repo_root=tmp_path)
 
+    assert len(pack.omitted_ranges) > 0, "Omitted ranges must be non-empty for long routine sequence"
+    om = pack.omitted_ranges[0]
+    assert len(om.event_ids) > 0
+    assert om.omitted_content_digest.startswith("sha256:")
+
+    # 1. Lossless reopening succeeds with digest match
+    reopened = reopen_omitted_range(pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path)
+    assert reopened.event_count == om.event_count
+    assert len(reopened.events) == om.event_count
+
+    # 2. Tampered digest raises ValueError
+    tampered_ranges = list(pack.omitted_ranges)
+    tampered_ranges[0] = OmittedRange(
+        range_id=om.range_id,
+        step_start=om.step_start,
+        step_end=om.step_end,
+        event_count=om.event_count,
+        event_ids=om.event_ids,
+        action_families=om.action_families,
+        summary=om.summary,
+        omitted_content_digest="sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        reopening_citation=om.reopening_citation,
+    )
+    tampered_pack = replace(pack, omitted_ranges=tuple(tampered_ranges))
+    with pytest.raises(ValueError, match="Omitted content digest mismatch"):
+        reopen_omitted_range(tampered_pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path)
 def test_budget_overflow_marks_pack_uncallable(canary_trial_dir: Path, repo_root: Path) -> None:
     """When mandatory windows exceed token budget, pack is marked uncallable with tiered_pack_required."""
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
@@ -184,3 +221,28 @@ def test_multi_call_citation_handle_hydration_identity(tmp_path: Path, repo_root
     assert parsed_a["observation"]["content"] == "hello foo"
     # Does not duplicate the other tool call
     assert parsed_a["tool_call"]["tool_call_id"] == "call_a"
+
+
+def test_five_tb3_cas_packs_determinism_and_rebuild() -> None:
+    """Verify all five PR187 TB3 CAS packs rebuild byte-identically without exception fallbacks."""
+    import json
+    manifest_path = Path("/Users/petermakhnatch/Developer/eval-lab/research/experiments/manifests/terminal-bench-v3-k1-gemini-low-campaign-manifest.json")
+    assert manifest_path.is_file(), f"Manifest missing: {manifest_path}"
+    cas_store = Path("/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas")
+    assert cas_store.is_dir(), f"Central CAS store missing: {cas_store}"
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    tb3_entries = [e for e in manifest["entries"] if e.get("atif_steps_count", 0) > 0 and e.get("role") != "free_control"]
+    assert len(tb3_entries) >= 5, f"Expected at least 5 TB3 entries, got {len(tb3_entries)}"
+
+    for entry in tb3_entries:
+        trial_name = entry["trial_name"]
+        ir1 = build_trajectory_ir(entry, store_root=cas_store)
+        pack1 = build_evidence_pack(ir1, store_root=cas_store)
+
+        ir2 = build_trajectory_ir(entry, store_root=cas_store)
+        pack2 = build_evidence_pack(ir2, store_root=cas_store)
+        assert ir1.ir_digest == ir2.ir_digest, f"IR digest mismatch for {trial_name}"
+        assert pack1.pack_digest == pack2.pack_digest, f"Pack digest mismatch for {trial_name}"
+        assert pack1.is_model_callable is True
+        assert len(pack1.selected_windows) > 0

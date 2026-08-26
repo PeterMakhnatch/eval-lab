@@ -332,10 +332,11 @@ def build_evidence_pack(
             w_start, w_end, w_reason = in_range
             window_events_list: list[dict[str, Any]] = []
 
+            source_citation = events_by_step[w_start][0].source_citation
             reopening_cit = create_citation_handle(
-                source_path=ir.source_digests.get("source_sha256", "agent/trajectory.json"),
-                source_sha256=ir.source_digests.get("source_sha256", ""),
-                raw_cas_uri=ir.source_digests.get("cas_uri"),
+                source_path=source_citation.source_path,
+                source_sha256=source_citation.source_sha256,
+                raw_cas_uri=source_citation.raw_cas_uri,
                 step_id=w_start,
                 target_type="step",
                 redaction_profile_digest=policy_digest,
@@ -374,10 +375,11 @@ def build_evidence_pack(
 
             om_end = all_steps[step_ptr - 1] if step_ptr > 0 else om_start
             fams = tuple(sorted({e.action_family for e in om_events}))
+            source_citation = om_events[0].source_citation
             om_cit = create_citation_handle(
-                source_path=ir.source_digests.get("source_sha256", "agent/trajectory.json"),
-                source_sha256=ir.source_digests.get("source_sha256", ""),
-                raw_cas_uri=ir.source_digests.get("cas_uri"),
+                source_path=source_citation.source_path,
+                source_sha256=source_citation.source_sha256,
+                raw_cas_uri=source_citation.raw_cas_uri,
                 step_id=om_start,
                 target_type="step",
                 redaction_profile_digest=policy_digest,

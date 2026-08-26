@@ -280,6 +280,74 @@ def test_synthetic_cas_archive_ingestion(repo_root: Path) -> None:
         pack_code = run_cli(["traj", "pack", archive.uri, "--runs-dir", str(cas_store)], workspace=repo_root)
         assert pack_code == 0
 
+
+def test_nested_job_cas_archive_resolves_exact_trial(
+    tmp_path: Path, repo_root: Path
+) -> None:
+    """Job-level CAS archives retain nested trial paths and exact hydration."""
+    from evallab.evidence_pack import build_evidence_pack
+    from evallab.evidence_store import archive_evidence
+
+    job_dir = tmp_path / "job"
+    trial_dir = job_dir / "nested-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    (trial_dir / "agent" / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ATIF-v1.7",
+                "session_id": "nested-session",
+                "steps": [
+                    {"step_id": 1, "source": "user", "message": "inspect evidence"},
+                    {"step_id": 2, "source": "agent", "message": "evidence present"},
+                ],
+            }
+        )
+    )
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "nested-trial-id",
+                "trial_name": "nested-trial",
+                "task_name": "synthetic/nested-cas",
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
+    (job_dir / "result.json").write_text(json.dumps({"job_name": "nested-job"}))
+    cas_store = tmp_path / "cas"
+    archive = archive_evidence(job_dir, cas_store, record_id="nested-job", kind="job")
+
+    ir = build_trajectory_ir(
+        {
+            "cas_uri": archive.uri,
+            "trial_name": "nested-trial",
+            "trial_id": "nested-trial-id",
+            "job_id": "nested-job-id",
+            "job_name": "nested-job",
+            "quality_status": "pass",
+        },
+        store_root=cas_store,
+        repo_root=repo_root,
+    )
+    pack = build_evidence_pack(ir, store_root=cas_store, repo_root=repo_root)
+
+    assert ir.status == "featured"
+    assert len(ir.events) == 2
+    expected_path = "nested-trial/agent/trajectory.json"
+    assert {event.source_citation.source_path for event in ir.events} == {
+        expected_path
+    }
+    assert all(
+        "EvidenceLimitation" not in str(event["hydrated_content"])
+        for window in pack.selected_windows
+        for event in window.events
+    )
+    assert all(
+        window.reopening_citation.source_path == expected_path
+        for window in pack.selected_windows
+    )
+
+
 def test_cas_temp_dir_leak_cleanup_on_exception(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify CAS TemporaryDirectory is guaranteed cleaned up when an exception occurs during IR assembly."""
     import evallab.trajectory_ir as tir_mod

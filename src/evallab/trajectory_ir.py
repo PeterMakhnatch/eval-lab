@@ -478,6 +478,38 @@ def _segment_episodes(events: Sequence[IREvent]) -> tuple[IREpisode, ...]:
     return tuple(episodes)
 
 
+def _resolve_restored_trial_dir(
+    extracted_root: Path,
+    inventory_record: dict[str, Any],
+) -> Path:
+    """Select the exact trial root inside a restored trial- or job-level CAS archive."""
+    if (
+        (extracted_root / "agent" / "trajectory.json").is_file()
+        or (extracted_root / "trajectory.json").is_file()
+    ):
+        return extracted_root
+
+    trial_name = str(inventory_record.get("trial_name") or "")
+    if trial_name:
+        named_trial = extracted_root / trial_name
+        if named_trial.is_dir():
+            return named_trial
+
+    nested_trials = sorted(
+        (
+            child
+            for child in extracted_root.iterdir()
+            if child.is_dir()
+            and (
+                (child / "agent" / "trajectory.json").is_file()
+                or (child / "trajectory.json").is_file()
+            )
+        ),
+        key=lambda path: path.name,
+    )
+    return nested_trials[0] if len(nested_trials) == 1 else extracted_root
+
+
 def build_trajectory_ir(
     target: str | Path | dict[str, Any],
     *,
@@ -501,6 +533,7 @@ def build_trajectory_ir(
     cas_uri: str | None = None
     inventory_record: dict[str, Any] = {}
     temp_extract_dir: tempfile.TemporaryDirectory[str] | None = None
+    cas_archive_root: Path | None = None
 
     trial_target_path: str | Path
     if isinstance(target, dict):
@@ -520,27 +553,26 @@ def build_trajectory_ir(
     result_path: Path | None
 
     try:
-        if cas_uri and cas_store.exists():
-            try:
-                temp_extract_dir = tempfile.TemporaryDirectory()
-                extracted_path = Path(temp_extract_dir.name)
-                restore_evidence(cas_store, cas_uri, extracted_path)
-                is_cas = True
-                trial_dir = extracted_path
-                traj_cand = trial_dir / "agent" / "trajectory.json"
-                if not traj_cand.is_file():
-                    traj_cand = trial_dir / "trajectory.json"
-                traj_path = traj_cand if traj_cand.is_file() else None
-                res_cand = trial_dir / "result.json"
-                result_path = res_cand if res_cand.is_file() else None
-                outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=extracted_path)
-            except Exception:
-                trial_dir, traj_path, result_path = resolve_trial_target(
-                    trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-                )
-                outline = outline_trajectory(
-                    trial_target_path, repo_root=root, explicit_runs_root=explicit_runs_root
-                )
+        if cas_uri:
+            if not cas_store.exists():
+                raise FileNotFoundError(f"CAS store does not exist: {cas_store}")
+            temp_extract_dir = tempfile.TemporaryDirectory()
+            extracted_path = Path(temp_extract_dir.name)
+            restore_evidence(cas_store, cas_uri, extracted_path)
+            is_cas = True
+            cas_archive_root = extracted_path
+            trial_dir = _resolve_restored_trial_dir(extracted_path, inventory_record)
+            traj_cand = trial_dir / "agent" / "trajectory.json"
+            if not traj_cand.is_file():
+                traj_cand = trial_dir / "trajectory.json"
+            traj_path = traj_cand if traj_cand.is_file() else None
+            res_cand = trial_dir / "result.json"
+            result_path = res_cand if res_cand.is_file() else None
+            outline = outline_trajectory(
+                trial_dir,
+                repo_root=root,
+                explicit_runs_root=extracted_path,
+            )
         else:
             try:
                 trial_dir, traj_path, result_path = resolve_trial_target(
@@ -660,10 +692,13 @@ def build_trajectory_ir(
                     raw_steps_map[str(s["step_id"])] = s
 
         rel_source_path = outline.source_path
+        citation_root = cas_archive_root or trial_dir
         try:
             cand_p = Path(outline.source_path)
             if cand_p.is_absolute():
-                rel_source_path = cand_p.resolve().relative_to(trial_dir.resolve()).as_posix()
+                rel_source_path = (
+                    cand_p.resolve().relative_to(citation_root.resolve()).as_posix()
+                )
         except Exception:
             rel_source_path = "agent/trajectory.json"
 

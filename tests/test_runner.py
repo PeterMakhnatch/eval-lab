@@ -895,6 +895,7 @@ def test_staging_cleaned_up_after_success(
         "load_job",
         lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
     )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
     monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
     monkeypatch.setattr(runner_module, "run_harbor_process", completed)
     monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")

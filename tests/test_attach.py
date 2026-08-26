@@ -14,7 +14,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from evallab.attach import SEMANTIC_COMPARISON_COLUMNS, TABLES, attach, build_sql_preamble
-from evallab.cli import run_cli
+from evallab.cli import _redact_database_dsn, run_cli
 from evallab.runner import database_url_from_environment
 
 
@@ -511,6 +511,31 @@ def test_cli_print_sql_redacts_password_and_attach_repr(
     assert secret not in out
     assert "REDACTED" in out
     assert "NON-EXECUTABLE" in out
+
+
+@pytest.mark.parametrize(
+    "dsn, secret",
+    [
+        (
+            r"host=invalid.example user=evallab password='pa\'ss word' dbname=evallab",
+            r"pa\'ss word",
+        ),
+        (
+            r"host=invalid.example user=evallab sslpassword=pa\ ss dbname=evallab",
+            r"pa\ ss",
+        ),
+    ],
+)
+def test_database_dsn_redaction_consumes_backslash_escaped_keyword_values(
+    dsn: str, secret: str
+) -> None:
+    redacted, had_credentials = _redact_database_dsn(dsn)
+
+    assert had_credentials is True
+    assert secret not in redacted
+    assert "invalid.example" in redacted
+    assert "dbname=evallab" in redacted
+    assert "<REDACTED>" in redacted
 
 
 def test_cli_query_returns_fixture_rows(

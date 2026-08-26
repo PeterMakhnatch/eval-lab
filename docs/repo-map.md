@@ -43,7 +43,7 @@ inputs:
   - path: src/evallab/cards.py
     digest: sha256:5a9d15946f4494712d053e45e86d4e014efcdeff1d1dd4ae6d615b331d130a86
   - path: src/evallab/cli.py
-    digest: sha256:f9f2c92e6d857c5a4694028371f6d9502f8f71ff4ca3d086912f5b4de5916c2b
+    digest: sha256:9c805efb46a6b7c262705fb5b50ab8f34e77e632ad45d55f2786147a92c8c6a2
   - path: src/evallab/cohort.py
     digest: sha256:8c824f5595ab6f78414a69bf00c52f9162c395a0ce4c312a670fec6a39b88778
   - path: src/evallab/contextpack.py

@@ -1322,7 +1322,7 @@ _URI_PASSWORD_QUERY = re.compile(
 )
 _KEYWORD_PASSWORD = re.compile(
     r"(?i)(\b(?:password|sslpassword)\s*=\s*)"
-    r"(?:'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"|[^\s]+)"
+    r"(?:'(?:\\.|''|[^'\\])*'|\"(?:\\.|\"\"|[^\"\\])*\"|(?:\\.|[^\s])+)"
 )
 
 

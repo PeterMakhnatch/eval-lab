@@ -1,6 +1,6 @@
 {
   "author": "Peter Makhnatch",
-  "created_at": "2026-08-26T03:13:42.161351+00:00",
+  "created_at": "2026-08-26T06:39:48.087290+00:00",
   "implementation": "Locally authored clean-room implementation; no upstream code, prompts, dataset records, or assets are copied or embedded.",
   "license_status": "unspecified_no_repository_license",
   "methodology": "Inspired by the AgentAbstain minimal-pair operational evaluation framework (Chen et al., 2026, 'AgentAbstain: When Should Agents Abstain From Acting?', arXiv:2607.10059)",

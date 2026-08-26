@@ -1,4 +1,4 @@
-"""Comprehensive test suite for Operational Restraint S7 Conflict-Pair V0 (HOLD State).
+"""Comprehensive test suite for Operational Restraint S7 Conflict-Pair V0.
 
 Validates:
 1. Experimental HOLD status & explicit production gate blocker documentation
@@ -12,6 +12,16 @@ Validates:
 9. Secret/canary isolation (no secret keys or answers in agent workspace)
 10. Package regeneration idempotency
 11. Full machine-readable evidence sidecar and hold acknowledgement
+12. Immutable External ATIF/CAS Process-Evidence Gate:
+    - Positive controlled external-evidence paired fixture
+    - Negative: missing CAS evidence
+    - Negative: digest mismatch (verifier / source / payload)
+    - Negative: task mismatch
+    - Negative: quarantined trial
+    - Negative: unpaired evidence
+    - Negative: direct-write bypass without ATIF tool step
+    - Negative: unlinked / tampered observation IDs
+    - Negative: non-monotonic trajectory timestamps
 """
 
 from __future__ import annotations
@@ -30,10 +40,13 @@ from evallab.operational_restraint import (
     TARGET_ID,
     check_pair_integrity,
     compute_environment_state_digest,
+    create_synthetic_atif_trial_evidence,
     emit_operational_restraint_package,
     generate_full_evidence_bundle,
     reset_task_environment,
     run_control_test,
+    verify_external_trial_process_evidence,
+    verify_paired_external_restraint_gate,
 )
 
 
@@ -339,3 +352,98 @@ def test_full_evidence_bundle_generation(emitted_package: Path) -> None:
 
     evidence_file = emitted_package / "EVIDENCE.json"
     assert evidence_file.is_file()
+
+
+# --- External ATIF/CAS Process-Evidence Gate Tests -------------------------
+
+def test_external_gate_positive_paired_fixture(emitted_package: Path) -> None:
+    """Verify controlled positive Act + Block external ATIF trial pair passes the gate."""
+    act_trial = create_synthetic_atif_trial_evidence("act", emitted_package)
+    block_trial = create_synthetic_atif_trial_evidence("block", emitted_package)
+
+    res = verify_paired_external_restraint_gate(act_trial, block_trial, emitted_package)
+    assert res["gate_passed"] is True
+    assert res["verification_grade"] == "external_process_evidence_verified"
+    assert res["checks"]["act_external_verified"] is True
+    assert res["checks"]["block_external_verified"] is True
+    assert res["checks"]["paired_binding_valid"] is True
+    assert res["checks"]["quarantine_free"] is True
+    assert res["checks"]["digests_bound"] is True
+    assert res["checks"]["direct_write_free"] is True
+    assert res["checks"]["observation_linkage_verified"] is True
+
+
+def test_external_gate_rejects_missing_cas(emitted_package: Path) -> None:
+    """Verify external gate rejects trials with missing/malformed CAS manifest digest."""
+    act_trial = create_synthetic_atif_trial_evidence("act", emitted_package)
+    # Tamper metadata with empty CAS digest
+    bad_meta = act_trial.metadata.__class__(
+        **{**act_trial.metadata.__dict__, "cas_manifest_digest": ""}
+    )
+    bad_trial = act_trial.__class__(
+        metadata=bad_meta,
+        atif_steps=act_trial.atif_steps,
+        terminal_environment_state=act_trial.terminal_environment_state,
+    )
+
+    res = verify_external_trial_process_evidence(bad_trial, "act", emitted_package)
+    assert res["passed"] is False
+    assert res["error_code"] == "missing_cas_evidence"
+
+
+def test_external_gate_rejects_digest_mismatch(emitted_package: Path) -> None:
+    """Verify external gate rejects trials with mismatched verifier or source digests."""
+    act_trial = create_synthetic_atif_trial_evidence("act", emitted_package, tamper_digest=True)
+    res = verify_external_trial_process_evidence(act_trial, "act", emitted_package)
+    assert res["passed"] is False
+    assert res["error_code"] == "digest_mismatch"
+
+
+def test_external_gate_rejects_task_mismatch(emitted_package: Path) -> None:
+    """Verify external gate rejects trials for unrelated tasks."""
+    act_trial = create_synthetic_atif_trial_evidence("act", emitted_package, tamper_task_name=True)
+    res = verify_external_trial_process_evidence(act_trial, "act", emitted_package)
+    assert res["passed"] is False
+    assert res["error_code"] == "task_mismatch"
+
+
+def test_external_gate_rejects_quarantined_trial(emitted_package: Path) -> None:
+    """Verify external gate rejects quarantined trials."""
+    act_trial = create_synthetic_atif_trial_evidence("act", emitted_package, quality_status="quarantined")
+    res = verify_external_trial_process_evidence(act_trial, "act", emitted_package)
+    assert res["passed"] is False
+    assert res["error_code"] == "quarantined_trial"
+
+
+def test_external_gate_rejects_unpaired_evidence(emitted_package: Path) -> None:
+    """Verify paired gate rejects unpaired single trials or two act trials."""
+    act_trial_1 = create_synthetic_atif_trial_evidence("act", emitted_package, trial_id="trial-act-1")
+    act_trial_2 = create_synthetic_atif_trial_evidence("act", emitted_package, trial_id="trial-act-2")
+
+    res = verify_paired_external_restraint_gate(act_trial_1, act_trial_2, emitted_package)
+    assert res["gate_passed"] is False
+    assert res["error_code"] == "unpaired_evidence"
+
+
+def test_external_gate_rejects_direct_write_bypass(emitted_package: Path) -> None:
+    """Verify external gate rejects trials where state was modified without ATIF tool step."""
+    act_trial = create_synthetic_atif_trial_evidence("act", emitted_package, direct_write=True)
+    res = verify_external_trial_process_evidence(act_trial, "act", emitted_package)
+    assert res["passed"] is False
+    assert res["error_code"] == "action_mismatch"
+
+
+def test_external_gate_rejects_unlinked_or_tampered_observation(emitted_package: Path) -> None:
+    """Verify external gate rejects trials with tampered evidence IDs in tool stdout."""
+    act_trial = create_synthetic_atif_trial_evidence("act", emitted_package, tamper_observation=True)
+    res = verify_external_trial_process_evidence(act_trial, "act", emitted_package)
+    assert res["passed"] is False
+    assert res["error_code"] == "unlinked_observation"
+
+
+def test_external_gate_rejects_non_monotonic_timestamps(emitted_package: Path) -> None:
+    """Verify external gate rejects trajectories with non-monotonic step timestamps."""
+    act_trial = create_synthetic_atif_trial_evidence("act", emitted_package, non_monotonic_time=True)
+    res = verify_external_trial_process_evidence(act_trial, "act", emitted_package)
+    assert res["passed"] is False
+    assert res["error_code"] == "tampered_trajectory"

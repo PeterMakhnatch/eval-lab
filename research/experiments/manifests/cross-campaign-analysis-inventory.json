@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0",
+  "inventory_type": "cross_campaign_analysis_inventory",
+  "generated_at": "2026-08-26T16:30:00Z",
+  "status_summary": {
+    "total_indexed_trials": 21,
+    "analysis_ready_trials": 17,
+    "batch_interpreted_trials": 17,
+    "manifest_blocked_analysis_ready_trials": 0,
+    "quarantined_hold_trials": 4,
+    "active_interpretation_campaigns": 5
+  },
+  "batch_interpreted_campaigns": [
+    {
+      "campaign_id": "terminal-bench-v3-k1-gemini-low-screen",
+      "report_id": "sha256:317d0210afa851a5e071de5d01da4a37bf72e2a634df2eef88f966fb7a978d7d",
+      "report_cas_uri": "cas://sha256/982b9dbf28dc96c79d961b3465d3baf9903cc6efa32fe1fe6732757a9df88cd1",
+      "manifest_path": "research/experiments/manifests/terminal-bench-v3-k1-gemini-low-machine-analysis-inventory.json",
+      "manifest_pr": "https://github.com/PeterMakhnatch/eval-lab/pull/187",
+      "status": "HOLD (Auto-accept disabled, 5 abstained, 0 accepted, 0 rejected)",
+      "trial_count": 5
+    },
+    {
+      "campaign_id": "canary-event-summary-codex-20260815",
+      "report_id": "sha256:64f3964a196c4da516ae1ab98482be80acc2a15b498f52ad7bfd4edc7ca1fcbe",
+      "report_cas_uri": "cas://sha256/701cdfd00300f2906be65af99c19a97c20ba48c61d833d6c8f772b4c6f22fe6e",
+      "manifest_path": "research/experiments/manifests/canary-event-summary-codex-20260815-analysis-manifest.json",
+      "status": "HOLD (Auto-accept disabled, 3 abstained, 0 accepted, 0 rejected)",
+      "trial_count": 3
+    },
+    {
+      "campaign_id": "canary-terminal-bench-html-js-filter-codex-20260815",
+      "report_id": "sha256:49d2dc31b6ba731e299d93f71c2065552be010222e767bc504ac3b0de2769fc8",
+      "report_cas_uri": "cas://sha256/19990e17cfd717eb9319cf525aa015c60a7c033ae8e65255e57ecc2ba1bd82d7",
+      "manifest_path": "research/experiments/manifests/canary-terminal-bench-html-js-filter-codex-20260815-analysis-manifest.json",
+      "status": "HOLD (Auto-accept disabled, 3 abstained, 0 accepted, 0 rejected)",
+      "trial_count": 3
+    },
+    {
+      "campaign_id": "canary-transaction-reconciliation-codex-20260815",
+      "report_id": "sha256:0adcacd5977978236a9de5327245a92992574b1169a51b44c3d41608a9767890",
+      "report_cas_uri": "cas://sha256/5fad557d56f7c96c33f1d5b8b82559e02221c78e5c6c8868aaefebcbb6cb98bb",
+      "manifest_path": "research/experiments/manifests/canary-transaction-reconciliation-codex-20260815-analysis-manifest.json",
+      "status": "HOLD (Auto-accept disabled, 3 abstained, 0 accepted, 0 rejected)",
+      "trial_count": 3
+    },
+    {
+      "campaign_id": "canary-syn-funcdag-suite",
+      "report_id": "sha256:18c5af7ca6606205b7fb0158066f9ecdc000a18c10741a8c018b34f8a88df2f5",
+      "report_cas_uri": "cas://sha256/c2f90e414e0eef267535955f3fc16d5ca497c30aa683a06e4034a9c077114cc0",
+      "manifest_path": "research/experiments/manifests/canary-syn-funcdag-suite-analysis-manifest.json",
+      "status": "HOLD (Auto-accept disabled, 3 abstained, 0 accepted, 0 rejected)",
+      "trial_count": 3
+    }
+  ],
+  "quarantined_and_hold_trials": [
+    {
+      "trial_id": "7eaa33ed-d10e-4269-9358-1062a073a91b",
+      "trial_name": "bun-sourcemap-leak__BKZ7rHT",
+      "task_name": "terminal-bench/bun-sourcemap-leak",
+      "reason": "quarantined_auth_timeout (pre-PR #184 fix)",
+      "cas_uri": "cas://sha256/04c749b948df2250cdd43ccca232c3bcfcf80326c25433590c291d34dcd52736"
+    },
+    {
+      "trial_id": "39aa34f4-3886-42eb-bc41-58f1af5dc43d",
+      "trial_name": "agentabstain-ambiguous-action-pr__UP5smzd",
+      "task_name": "agentabstain/ambiguous_action_specification-preview_002-act",
+      "reason": "quarantined_darwin_docker_network_mode (pre-PR #183 fix)",
+      "cas_uri": "cas://sha256/5cecdc95b7953231c9fcaaefd29c6e0076e895f13194a0d7c528dde1c25ea58a"
+    },
+    {
+      "trial_id": "e8a3b99d-de23-4eab-aacc-047b62c94529",
+      "trial_name": "agentabstain-ambiguous-action-pr__hTVLvAS",
+      "task_name": "agentabstain/ambiguous_action_specification-preview_002-abstain",
+      "reason": "quarantined_darwin_docker_network_mode (pre-PR #183 fix)",
+      "cas_uri": "cas://sha256/4da3ef0abe287cd7c1c53f0cff3ad8d4dd609710880ad96f2bf80119ec6fe51e"
+    },
+    {
+      "trial_id": "loca-abtesting-8k-seed42__jgjejBX",
+      "trial_name": "loca-abtesting-8k-seed42__jgjejBX",
+      "task_name": "loca-bench/ab-testing-seed-42-8k",
+      "reason": "quarantined_darwin_docker_network_mode (pre-PR #183 fix)",
+      "cas_uri": "cas://sha256/25006755e3288f82eaa719985bd816b8d87a14f671c371f2eca598f1e486f0b8"
+    }
+  ],
+  "statistical_notes": {
+    "tb3_k1_screen": {
+      "status": "screening_only",
+      "n_tasks": 5,
+      "k": 1,
+      "observed_successes": 0,
+      "wilson_95_ci": [
+        0.0,
+        0.4345
+      ],
+      "task_bootstrap_ci": "suppressed (degenerate [0, 0] all-zero sample; fake-tight)",
+      "prohibited_claims": [
+        "ranking",
+        "capability",
+        "reliability",
+        "causality",
+        "precise_zero"
+      ],
+      "estimator_semantics": "Eval Lab pass@k and pass_power_k are first-k task indicators, not Chen/Yao unbiased combinatorics; unbiased pass_at_k estimators require n>=k repeated attempts.",
+      "interpretation_rules": [
+        "Do not treat 0/5 as precise zero, ranking, capability, reliability, or causal claim.",
+        "Quarantined infrastructure attempts and controls are strictly excluded from capability denominators.",
+        "No k=3 pooling before a preregistered two-stage stopping rule or e-process is frozen.",
+        "No paired comparison or second-arm claims until matched arm runs on identical task digests.",
+        "For fixed budget buy more tasks first, then repeats; T=1 cannot identify within-task variance or ICC."
+      ]
+    }
+  }
+}

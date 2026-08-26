@@ -43,7 +43,7 @@ inputs:
   - path: docs/dashboard.md
     digest: sha256:a9b3ecb34ff41bb82ab79ae2daaaea469ed66e21dcfb06f6defea0ce7ab24ffe
   - path: docs/data-architecture.md
-    digest: sha256:7ff42ba0b6616fd40124fb6b0028b8288982398d55157106fc6717d44d3c5036
+    digest: sha256:d90ec1143b9ffaa6f8db6402fb3b29ea9f48c80630bc795dbf2969b2f61dbd2c
   - path: docs/design-additions.md
     digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md

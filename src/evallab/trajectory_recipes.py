@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from evallab.schemas import ContractModel
 from evallab.trajectory_ir import (
@@ -27,7 +27,7 @@ CONTRACT_ID = "analysis-recipe-contracts-v1"
 CONTRACT_DIGEST = canonical_json_digest({"contract": CONTRACT_ID, "producer": PRODUCER})
 
 RecipeId = Literal["r1", "r2", "r3", "r4", "r5", "r6", "r7"]
-Disposition = Literal["candidate_hold", "deterministic_abstention", "screening_only"]
+Disposition = Literal["candidate_hold", "deterministic_abstention", "screening_only", "alternative_explanations"]
 Validity = Literal["supported", "contradicted", "insufficient_evidence"]
 SupportLevel = Literal["e0", "e1", "e2", "e3"]
 ClaimType = Literal["success", "partial", "failure", "refusal", "none"]
@@ -42,6 +42,10 @@ AbstentionReason = Literal[
     "confounded",
     "mandatory_window_overflow",
     "ontology_gap",
+    "digest_mismatch",
+    "citation_unresolved",
+    "contradicts_verifier_or_state",
+    "quality_fail",
 ]
 
 ABSTENTION_CODES: frozenset[str] = frozenset(
@@ -56,8 +60,25 @@ ABSTENTION_CODES: frozenset[str] = frozenset(
         "confounded",
         "mandatory_window_overflow",
         "ontology_gap",
+        "digest_mismatch",
+        "citation_unresolved",
+        "contradicts_verifier_or_state",
+        "quality_fail",
     }
 )
+
+REASON_ALIASES: dict[str, str] = {
+    "source_missing": "omitted_range", "pack_incomplete": "omitted_range",
+    "linkage_unresolved": "citation_unresolved", "profile_missing": "profile_unpinned",
+    "opportunity_unknown": "unknown_opportunity_window",
+    "replay_oracle_unavailable": "replay_oracle_unavailable", "pair_unavailable": "pair_unavailable",
+    "confounded": "confounded", "mandatory_window_overflow": "mandatory_window_overflow",
+    "ontology_gap": "ontology_gap", "digest_mismatch": "digest_mismatch",
+    "citation_unresolved": "citation_unresolved",
+    "contradicts_verifier_or_state": "contradicts_verifier_or_state", "quality_fail": "quality_fail",
+}
+TAXONOMY_DIGEST = canonical_json_digest(sorted(TRAJECTORY_ONTOLOGY_V1_CLASSES))
+
 
 LEGACY_BLOCKED_METRIC_NAMES: tuple[str, ...] = (
     "linear_innocence",
@@ -159,6 +180,11 @@ class RecipeFinding(ContractModel):
     coverage_gaps: list[str]
     abstention_reason: str | None
     extras: dict[str, Any]
+    namespace: Literal["traj.judge.v1"] = "traj.judge.v1"
+    ontology_version: Literal["traj.judge.ontology.v1"] = "traj.judge.ontology.v1"
+    index_convention: str = "undeclared"
+    target_definition: str | None = None
+    verbatim_quotes: list[dict[str, str]] = Field(default_factory=list)
     producer: Literal["analyst-recipe/v1"] = PRODUCER
     contract_digest: str = CONTRACT_DIGEST
     is_machine_judgment: Literal[False] = False
@@ -195,6 +221,11 @@ class RecipeFinding(ContractModel):
                 raise ValueError("screening_only cannot carry validity")
         if self.disposition == "deterministic_abstention" and self.class_id is not None:
             raise ValueError("deterministic abstention cannot assign a class")
+        if self.class_id is not None:
+            if self.disposition != "candidate_hold":
+                raise ValueError("only candidate_hold can carry a class")
+            if self.validity not in {"supported", "contradicted"} or self.support_level not in {"e1", "e2", "e3"}:
+                raise ValueError("a class requires supported/contradicted E1+ evidence")
         return self
 
 
@@ -241,17 +272,23 @@ def assert_citations_in_pack(finding: RecipeFinding, pack: dict[str, Any]) -> No
     unknown = [cid for cid in finding.citations if cid not in allowed]
     if unknown:
         raise ValueError(f"citation ids not in pack: {unknown}")
+    _validate_evidence(finding, pack)
 
 
-def load_trial_artifacts(analyses_dir: str | Path, trial_id: str) -> TrialArtifacts:
+def load_trial_artifacts(analyses_dir: str | Path, trial_id: str, digest: str | None = None) -> TrialArtifacts:
     """Load evidence_pack.json and optional trajectory_ir.json for a trial."""
 
     trial_root = Path(analyses_dir) / trial_id
     pack_paths = sorted(trial_root.glob("*/evidence_pack.json"))
     if not pack_paths:
         raise FileNotFoundError(f"no evidence_pack.json under {trial_root}")
-    pack_path = pack_paths[0]
-    pack = json.loads(pack_path.read_text(encoding="utf-8"))
+    candidates = [(path, json.loads(path.read_text(encoding="utf-8"))) for path in pack_paths]
+    if digest is not None:
+        candidates = [(path, candidate) for path, candidate in candidates
+                      if candidate.get("pack_digest") == digest or path.parent.name == digest]
+        if not candidates:
+            raise FileNotFoundError(f"no evidence pack matching digest {digest!r}")
+    pack_path, pack = max(candidates, key=lambda item: (str(item[1].get("created_at") or ""), item[0].parent.name))
     ir_path = pack_path.parent / "trajectory_ir.json"
     ir: dict[str, Any] | None = None
     pack_only = True
@@ -278,10 +315,11 @@ def run_recipes(
     artifacts: TrialArtifacts,
     *,
     semantics_profile_digest: str | None = None,
+    expected_identical_families: set[str] | None = None,
 ) -> list[RecipeFinding]:
     """Run R1–R7. Always emits at least one finding per recipe."""
 
-    ctx = _RecipeContext(artifacts, semantics_profile_digest)
+    ctx = _RecipeContext(artifacts, semantics_profile_digest, expected_identical_families)
     findings: list[RecipeFinding] = [
         _run_r1(ctx),
         _run_r2(ctx),
@@ -291,8 +329,10 @@ def run_recipes(
     findings.extend(_run_r5(ctx))
     findings.append(_run_r6(ctx))
     findings.append(_run_r7(ctx))
+    findings = _apply_precedence(findings)
     for finding in findings:
         assert_citations_in_pack(finding, artifacts.pack)
+        _validate_evidence(finding, artifacts.pack)
     return findings
 
 
@@ -301,12 +341,14 @@ class _RecipeContext:
         self,
         artifacts: TrialArtifacts,
         semantics_profile_digest: str | None,
+        expected_identical_families: set[str] | None,
     ) -> None:
         self.artifacts = artifacts
         self.pack = artifacts.pack
         self.ir = artifacts.ir
         self.trial_id = artifacts.trial_id
         self.profile = semantics_profile_digest
+        self.expected_identical_families = frozenset((expected_identical_families or {"poll", "wait", "status", "sleep"}))
         self.pack_only = artifacts.pack_only or artifacts.ir is None
         self.windows = list(self.pack.get("selected_windows") or [])
         self.window_events = selected_window_events(self.pack)
@@ -354,22 +396,16 @@ def classify_terminal_claim(text: str | None) -> ClaimType:
 
 
 def extract_hydrated_text(event: dict[str, Any]) -> str:
-    parts: list[str] = []
-    summary = event.get("summary")
-    if isinstance(summary, str):
-        parts.append(summary)
     raw = event.get("hydrated_content")
-    if isinstance(raw, str) and raw.strip():
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            parts.append(raw)
-        else:
-            if isinstance(parsed, dict) and isinstance(parsed.get("message"), str):
-                parts.append(parsed["message"])
-            else:
-                parts.append(raw)
-    return "\n".join(parts)
+    if not isinstance(raw, str):
+        return ""
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    if isinstance(parsed, dict):
+        return next((parsed[key] for key in ("message", "content", "text", "output") if isinstance(parsed.get(key), str)), raw)
+    return raw
 
 
 def action_digest(event: dict[str, Any]) -> str:
@@ -481,6 +517,47 @@ def _event_id(event: dict[str, Any]) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _index_convention(ctx: _RecipeContext) -> str:
+    for name, source in (("ir", ctx.ir), ("pack", ctx.pack)):
+        if isinstance(source, dict):
+            for key in ("step_id_base", "step_index_base", "index_base"):
+                if isinstance(source.get(key), int):
+                    return f"{name}.{key}:{source[key]}"
+    return "undeclared"
+
+
+def _provenance_extras(ctx: _RecipeContext, extras: dict[str, Any] | None) -> dict[str, Any]:
+    result = dict(extras or {})
+    result.update({"pack_digest": ctx.pack.get("pack_digest"), "taxonomy_digest": TAXONOMY_DIGEST,
+                   "pack_builder_digest": ctx.pack.get("pack_builder_digest"),
+                   "reason_alias": dict(REASON_ALIASES), "prompt_hash": None, "model_hash": None})
+    return result
+
+
+def _quote_records(ctx: _RecipeContext, citations: list[str]) -> list[dict[str, str]]:
+    for event in ctx.window_events:
+        citation = _event_citation(event)
+        content = extract_hydrated_text(event)
+        raw = event.get("hydrated_content")
+        if citation in citations and isinstance(raw, str) and raw:
+            quote = content if content and content.encode() in raw.encode() else raw
+            return [{"citation_id": citation, "quote": quote}]
+    return []
+
+
+def _validate_evidence(finding: RecipeFinding, pack: dict[str, Any]) -> None:
+    content = {(_event_citation(event)): event.get("hydrated_content") if isinstance(event.get("hydrated_content"), str) else "" for event in selected_window_events(pack)}
+    for quote in finding.verbatim_quotes:
+        citation, text = quote.get("citation_id"), quote.get("quote")
+        if citation not in content or not isinstance(text, str) or text.encode() not in content[citation].encode():
+            raise ValueError("verbatim quote is not a selected-window event byte-substring")
+    if finding.class_id is not None and finding.validity in {"supported", "contradicted"} and finding.support_level in {"e1", "e2", "e3"}:
+        if not finding.verbatim_quotes:
+            raise ValueError("e1 label requires verbatim quote")
+        if not set(finding.citations).issubset(set(content)):
+            raise ValueError("e1 labels may cite only selected-window event citations")
+
+
 def _emit(
     ctx: _RecipeContext,
     *,
@@ -495,7 +572,15 @@ def _emit(
     coverage_gaps: list[str] | None = None,
     abstention_reason: str | None = None,
     extras: dict[str, Any] | None = None,
+    verbatim_quotes: list[dict[str, str]] | None = None,
 ) -> RecipeFinding:
+    cited = list(citations or [])
+    quotes = list(verbatim_quotes or [])
+    if class_id is not None and validity in {"supported", "contradicted"} and support_level in {"e1", "e2", "e3"}:
+        quotes = quotes or _quote_records(ctx, cited)
+        if not quotes:
+            return _abstain(ctx, recipe_id, "pack_incomplete", extras=extras, citations=cited,
+                            gaps=["verbatim_quote_unavailable"], earliest=earliest_supported_ir_event_id)
     payload: dict[str, Any] = {
         "recipe_id": recipe_id,
         "trial_id": ctx.trial_id,
@@ -504,11 +589,15 @@ def _emit(
         "class_id": class_id,
         "support_level": support_level,
         "earliest_supported_ir_event_id": earliest_supported_ir_event_id,
-        "citations": list(citations or []),
+        "citations": cited,
         "alternative_explanations": list(alternative_explanations or []),
         "coverage_gaps": list(coverage_gaps or []),
         "abstention_reason": abstention_reason,
-        "extras": extras or {},
+        "extras": _provenance_extras(ctx, extras),
+        "namespace": "traj.judge.v1", "ontology_version": "traj.judge.ontology.v1",
+        "index_convention": _index_convention(ctx),
+        "target_definition": "decisive_evidential" if recipe_id == "r2" else None,
+        "verbatim_quotes": quotes,
         "producer": PRODUCER,
         "contract_digest": CONTRACT_DIGEST,
         "is_machine_judgment": False,
@@ -516,6 +605,7 @@ def _emit(
     payload["finding_id"] = canonical_json_digest(payload)
     finding = RecipeFinding.model_validate(payload)
     assert_citations_in_pack(finding, ctx.pack)
+    _validate_evidence(finding, ctx.pack)
     return finding
 
 
@@ -580,7 +670,7 @@ def _common_block(ctx: _RecipeContext, recipe_id: RecipeId) -> RecipeFinding | N
     elif recipe_id == "r5":
         extras = _r5_extras()
     if ctx.quality_excluded:
-        return _abstain(ctx, recipe_id, None, extras=extras, gaps=["quality_excluded"])
+        return _abstain(ctx, recipe_id, "quality_fail", extras=extras, gaps=["quality_excluded"])
     if ctx.source_missing:
         return _abstain(ctx, recipe_id, "source_missing", extras=extras)
     if ctx.overflow and recipe_id != "r7":
@@ -683,6 +773,12 @@ def _run_r1(ctx: _RecipeContext) -> RecipeFinding:
             gaps=["task_package_suspect"],
         )
 
+    refusal = next((event for event in ctx.window_events if event.get("event_type") == "agent_message"
+                    and classify_terminal_claim(extract_hydrated_text(event)) == "refusal"), None)
+    if refusal is not None:
+        citation = _event_citation(refusal)
+        return _abstain(ctx, "r1", "ontology_gap", extras=extras,
+                        citations=[citation] if citation else None, gaps=["refusal_has_no_frozen_class"])
     action_events = [event for event in ctx.window_events if _is_call_event(event)]
     observations = [
         event for event in ctx.window_events if event.get("event_type") == "observation"
@@ -828,7 +924,7 @@ def _run_r2(ctx: _RecipeContext) -> RecipeFinding:
         extras["propagated_event_ids"] = [
             item["event_id"] for item in dependents[:3] if isinstance(item.get("event_id"), str)
         ]
-        summary = f"{decisive.get('summary') or ''} {decisive.get('argument_skeleton') or ''}".lower()
+        summary = f"{extract_hydrated_text(decisive)} {decisive.get('argument_skeleton') or ''}".lower()
         class_id = "tool_schema_misuse" if "schema" in summary else "wrong_target_or_action"
         return _emit(
             ctx,
@@ -1000,19 +1096,16 @@ def _run_r4(ctx: _RecipeContext) -> RecipeFinding:
 
     if claim_type == "none":
         return _abstain(ctx, "r4", "opportunity_unknown", extras=extras, citations=citations)
-    if claim_type in {"refusal", "failure", "partial"}:
-        return _emit(
-            ctx,
-            recipe_id="r4",
-            disposition="candidate_hold",
-            validity="insufficient_evidence",
-            class_id=None,
-            support_level="e1",
-            earliest_supported_ir_event_id=_event_id(claim_event),
-            citations=citations,
-            coverage_gaps=ctx.gaps(),
-            extras=extras,
-        )
+    if claim_type == "refusal":
+        return _emit(ctx, recipe_id="r4", disposition="deterministic_abstention", validity=None,
+                     class_id=None, support_level="e0", earliest_supported_ir_event_id=_event_id(claim_event),
+                     citations=citations, coverage_gaps=ctx.gaps("refusal_has_no_frozen_class"),
+                     abstention_reason="ontology_gap", extras=extras,
+                     verbatim_quotes=_quote_records(ctx, citations))
+    if claim_type in {"failure", "partial"}:
+        return _emit(ctx, recipe_id="r4", disposition="candidate_hold", validity="insufficient_evidence",
+                     class_id=None, support_level="e1", earliest_supported_ir_event_id=_event_id(claim_event),
+                     citations=citations, coverage_gaps=ctx.gaps(), extras=extras)
 
     verdict = str(ctx.pack.get("final_verdict") or "")
     reward = ctx.pack.get("primary_reward")
@@ -1078,76 +1171,37 @@ def _response_pattern(post_events: list[dict[str, Any]]) -> str:
 
 
 def _fault_episodes(ctx: _RecipeContext) -> list[tuple[dict[str, Any], list[dict[str, Any]]]]:
-    episodes: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
-    events = ctx.ir_events or ctx.window_events
-    for index, event in enumerate(events):
-        if not _is_error_observation(event, ctx.profile):
-            continue
-        subsequent = [
-            item
-            for item in events[index + 1 :]
-            if item.get("actor") == "agent" or _is_call_event(item)
-        ]
-        if not subsequent:
-            continue
-        episodes.append((event, subsequent))
-    return episodes
+    events = ctx.window_events
+    return [(event, [item for item in events[index + 1:] if item.get("actor") == "agent"])
+            for index, event in enumerate(events) if _is_error_observation(event, ctx.profile)]
 
 
 def _run_r5(ctx: _RecipeContext) -> list[RecipeFinding]:
     blocked = _common_block(ctx, "r5")
-    if blocked:
-        return [blocked]
+    if blocked: return [blocked]
     episodes = _fault_episodes(ctx)
-    if not episodes:
-        return [_abstain(ctx, "r5", "opportunity_unknown", extras=_r5_extras())]
+    if not episodes: return [_abstain(ctx, "r5", "opportunity_unknown", extras=_r5_extras())]
     findings: list[RecipeFinding] = []
-    verdict = str(ctx.pack.get("final_verdict") or "")
     for fault, subsequent in episodes:
-        pattern = _response_pattern(subsequent)
-        provenance = _intervention_provenance(subsequent)
-        extras = {
-            "fault_event_id": fault.get("event_id"),
-            "response_pattern": pattern,
-            "intervention_provenance": provenance,
-            "accidental_success_suspect": bool(
-                verdict == "PASS"
-                and (pattern == "identical_retry" or provenance != "autonomous")
-            ),
-        }
-        citations = [c for c in [_event_citation(fault)] if c]
-        for item in subsequent:
-            cid = _event_citation(item)
-            if cid:
-                citations.append(cid)
-        if pattern == "identical_retry":
-            retry_events = [item for item in subsequent if _is_call_event(item)]
-            cited = [c for c in (_event_citation(item) for item in retry_events) if c]
-            findings.append(
-                _emit(
-                    ctx,
-                    recipe_id="r5",
-                    disposition="candidate_hold",
-                    validity="supported",
-                    class_id="repeated_failure_or_thrashing",
-                    support_level="e1",
-                    earliest_supported_ir_event_id=_event_id(fault),
-                    citations=cited or citations,
-                    coverage_gaps=ctx.gaps(),
-                    extras=extras,
-                )
-            )
+        citations = [citation for item in [fault, *subsequent] if (citation := _event_citation(item))]
+        extras = _r5_extras(); extras["fault_event_id"] = fault.get("event_id")
+        if not subsequent:
+            extras["censored"] = True
+            findings.append(_abstain(ctx, "r5", "opportunity_unknown", extras=extras, citations=citations,
+                                     earliest=_event_id(fault), gaps=["right_censored_no_autonomous_turn"]))
             continue
-        findings.append(
-            _abstain(
-                ctx,
-                "r5",
-                "replay_oracle_unavailable",
-                extras=extras,
-                citations=citations,
-                earliest=_event_id(fault),
-            )
-        )
+        actions = [item for item in subsequent if _is_call_event(item)]
+        repeated = len({action_digest(item) for item in actions}) < len(actions)
+        expected = actions and all(any(family in str(item.get("status_owning_program") or item.get("tool_name") or "").lower()
+                                        for family in ctx.expected_identical_families) for item in actions)
+        extras.update({"censored": False, "response_pattern": "identical_retry" if repeated else "changed_strategy",
+                       "intervention_provenance": "autonomous", "accidental_success_suspect": False})
+        if repeated and not expected:
+            findings.append(_emit(ctx, recipe_id="r5", disposition="candidate_hold", validity="supported",
+                class_id="repeated_failure_or_thrashing", support_level="e1",
+                earliest_supported_ir_event_id=_event_id(fault), citations=citations, coverage_gaps=ctx.gaps(), extras=extras))
+        else:
+            findings.append(_abstain(ctx, "r5", "replay_oracle_unavailable", extras=extras, citations=citations, earliest=_event_id(fault)))
     return findings
 
 
@@ -1268,74 +1322,46 @@ def _baseline_tokens(ctx: _RecipeContext) -> tuple[int | None, int | None]:
 
 def _run_r7(ctx: _RecipeContext) -> RecipeFinding:
     events = ctx.ir_events or ctx.window_events
-    action_events = [event for event in events if _is_call_event(event)]
-    digests = [action_digest(event) for event in action_events]
-    loop_index = round(1.0 - (len(set(digests)) / len(digests)), 4) if digests else None
-
-    unknown_n = 0
-    error_n = 0
-    call_n = 0
-    for event in action_events:
-        bucket = exit_bucket(event, ctx.profile)
-        if bucket == "unknown":
-            unknown_n += 1
-            continue
-        call_n += 1
-        if bucket == "error":
-            error_n += 1
-    error_rate = round(error_n / call_n, 4) if call_n else None
+    actions = [event for event in events if _is_call_event(event)]
     xs, ys = _prompt_token_points(events)
-    prompt_tokens, cached_tokens = _baseline_tokens(ctx)
-    cache_ratio = None
-    if prompt_tokens and prompt_tokens > 0 and cached_tokens is not None:
-        cache_ratio = round(cached_tokens / prompt_tokens, 4)
+    blocked_metric = [*LEGACY_BLOCKED_METRIC_NAMES]
+    unknown = not actions or len(xs) < 2
+    if unknown:
+        blocked_metric.extend(["opportunity_unknown", "multi_call_dependent_metrics"])
+        metrics = {"recipe_loop_index": None, "recipe_error_rate": None, "recipe_cbv": None,
+                   "recipe_cache_ratio": None, "digest_ngram_recurrence": None,
+                   "unchanged_read_count": None, "dead_branch_ratio": None}
+    else:
+        digests = [action_digest(event) for event in actions]
+        metrics = {"recipe_loop_index": round(1 - len(set(digests)) / len(digests), 4),
+                   "recipe_error_rate": None, "recipe_cbv": ols_slope(xs, ys), "recipe_cache_ratio": None,
+                   "digest_ngram_recurrence": _ngram_recurrence(digests), "unchanged_read_count": 0,
+                   "dead_branch_ratio": "unknown"}
+    return _emit(ctx, recipe_id="r7", disposition="screening_only", validity=None, class_id=None,
+                 support_level="e0", coverage_gaps=ctx.gaps("opportunity_unknown") if unknown else ctx.gaps(),
+                 extras={**metrics, "blocked_metric": blocked_metric, "corpus_limits": CORPUS_LIMITS_BLOCK})
 
-    reads = [
-        event
-        for event in events
-        if event.get("action_family") == "file_read"
-        or str(event.get("status_owning_program") or "") in {"cat", "read", "read_file", "view"}
-    ]
-    seen: set[str] = set()
-    unchanged = 0
-    for event in reads:
-        digest = str(event.get("payload_digest") or action_digest(event))
-        if digest in seen:
-            unchanged += 1
-        else:
-            seen.add(digest)
 
-    call_indexes = [event.get("call_index") for event in events if _is_call_event(event)]
-    collapsed = (not call_indexes) or all(index in {0, None} for index in call_indexes)
-    blocked_metric: list[str] = list(LEGACY_BLOCKED_METRIC_NAMES)
-    if collapsed:
-        blocked_metric.append("multi_call_collapsed_counts")
-
-    extras: dict[str, Any] = {
-        "recipe_loop_index": loop_index,
-        "recipe_error_rate": error_rate,
-        "recipe_cbv": ols_slope(xs, ys),
-        "recipe_cache_ratio": cache_ratio,
-        "digest_ngram_recurrence": _ngram_recurrence(digests),
-        "unchanged_read_count": unchanged,
-        "dead_branch_ratio": "unknown",
-        "blocked_metric": blocked_metric,
-        "unknown_n": unknown_n,
-        "corpus_limits": CORPUS_LIMITS_BLOCK,
-    }
-    gaps = ctx.gaps("quality_excluded") if ctx.quality_excluded else ctx.gaps()
-    if ctx.quality_excluded:
-        extras["quality_excluded"] = True
-    return _emit(
-        ctx,
-        recipe_id="r7",
-        disposition="screening_only",
-        validity=None,
-        class_id=None,
-        support_level="e0",
-        coverage_gaps=gaps,
-        extras=extras,
-    )
+def _apply_precedence(findings: list[RecipeFinding]) -> list[RecipeFinding]:
+    order = {"infrastructure_failure": 0, "verifier_failure": 1, "expected_negative_exit": 2,
+             "tool_schema_misuse": 3, "wrong_target_or_action": 4,
+             "false_verification_or_unsupported_terminal_claim": 5,
+             "repeated_failure_or_thrashing": 6, "context_or_constraint_loss": 7,
+             "missed_recovery_opportunity": 8, "successful_recovery": 8, "appropriate_action": 9,
+             "appropriate_abstention": 10}
+    candidates = [finding for finding in findings if finding.disposition == "candidate_hold" and finding.class_id]
+    if len(candidates) < 2: return findings
+    winner = min(candidates, key=lambda finding: order.get(finding.class_id or "", 99))
+    output=[]
+    for finding in findings:
+        if finding is winner or finding.class_id is None:
+            output.append(finding); continue
+        data=finding.model_dump(); old=finding.class_id
+        data.update({"disposition": "alternative_explanations", "class_id": None,
+                     "alternative_explanations": sorted(set([*finding.alternative_explanations, old])),
+                     "extras": {**finding.extras, "demoted_by_precedence": True}})
+        output.append(RecipeFinding.model_validate(data))
+    return output
 
 
 __all__ = [

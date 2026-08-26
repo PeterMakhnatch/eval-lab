@@ -8,9 +8,11 @@ import pytest
 
 from evallab.trajectory_alignment import (
     ConfoundedPairError,
+    align_action_sequences,
     align_trajectory_pair,
 )
-from evallab.trajectory_ir import build_trajectory_ir
+from evallab.trajectory_hydration import create_citation_handle
+from evallab.trajectory_ir import IREvent, build_trajectory_ir
 
 
 @pytest.fixture
@@ -63,3 +65,51 @@ def test_confounded_pair_rejection(repo_root: Path) -> None:
 
     with pytest.raises(ConfoundedPairError, match="Cannot align trials with mismatched task names"):
         align_trajectory_pair(ir_recon, ir_filter)
+
+
+def test_symmetric_unmatched_ranges_on_gap_pairs() -> None:
+    """Symmetric alignment populates unmatched_ranges_a for gap_b and unmatched_ranges_b for gap_a."""
+    cit = create_citation_handle(source_path="trajectory.json", step_id=1)
+    
+    # Create mock event sequence A with extra steps at the beginning
+    ev_a1 = IREvent(
+        event_id="ev_a1", event_ordinal=0, event_type="tool_call", actor="agent",
+        timestamp=None, phase="work", episode_id=1, step_index=1, call_index=0,
+        action_family="file_read", status_owning_program="cat", argument_skeleton="cat <PATH>",
+        exit_code=0, exit_semantics="success", is_error=False, payload_digest="d1",
+        payload_bytes=10, source_citation=cit, summary="cat file",
+    )
+    ev_a2 = IREvent(
+        event_id="ev_a2", event_ordinal=1, event_type="tool_call", actor="agent",
+        timestamp=None, phase="work", episode_id=1, step_index=2, call_index=0,
+        action_family="verification", status_owning_program="pytest", argument_skeleton="pytest <PATH>",
+        exit_code=0, exit_semantics="success", is_error=False, payload_digest="d2",
+        payload_bytes=10, source_citation=cit, summary="pytest",
+    )
+
+    # Create mock event sequence B with extra steps at the end
+    ev_b1 = IREvent(
+        event_id="ev_b1", event_ordinal=0, event_type="tool_call", actor="agent",
+        timestamp=None, phase="work", episode_id=1, step_index=1, call_index=0,
+        action_family="verification", status_owning_program="pytest", argument_skeleton="pytest <PATH>",
+        exit_code=0, exit_semantics="success", is_error=False, payload_digest="d2",
+        payload_bytes=10, source_citation=cit, summary="pytest",
+    )
+    ev_b2 = IREvent(
+        event_id="ev_b2", event_ordinal=1, event_type="tool_call", actor="agent",
+        timestamp=None, phase="work", episode_id=1, step_index=2, call_index=0,
+        action_family="file_write", status_owning_program="echo", argument_skeleton="echo <STR>",
+        exit_code=0, exit_semantics="success", is_error=False, payload_digest="d3",
+        payload_bytes=10, source_citation=cit, summary="echo",
+    )
+
+    seq_a = [(1, 0, ("file_read", "cat", "cat <PATH>"), ev_a1), (2, 0, ("verification", "pytest", "pytest <PATH>"), ev_a2)]
+    seq_b = [(1, 0, ("verification", "pytest", "pytest <PATH>"), ev_b1), (2, 0, ("file_write", "echo", "echo <STR>"), ev_b2)]
+
+    aligned, score = align_action_sequences(seq_a, seq_b)
+
+    # Verify gap_b (unmatched in A) and gap_a (unmatched in B) both exist
+    gap_b = [p for p in aligned if p.match_quality == "gap_b"]
+    gap_a = [p for p in aligned if p.match_quality == "gap_a"]
+    assert len(gap_b) >= 1
+    assert len(gap_a) >= 1

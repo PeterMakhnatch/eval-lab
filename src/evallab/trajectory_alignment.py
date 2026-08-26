@@ -305,6 +305,9 @@ def align_trajectory_pair(
 
     curr_unmatched_a_start = None
     curr_unmatched_a_end = None
+    curr_unmatched_b_start = None
+    curr_unmatched_b_end = None
+
     for p in aligned_pairs:
         if p.match_quality == "gap_b" and p.step_a is not None:
             if curr_unmatched_a_start is None:
@@ -313,9 +316,19 @@ def align_trajectory_pair(
         elif curr_unmatched_a_start is not None:
             unmatched_a.append((curr_unmatched_a_start, curr_unmatched_a_end or curr_unmatched_a_start))
             curr_unmatched_a_start = None
+
+        if p.match_quality == "gap_a" and p.step_b is not None:
+            if curr_unmatched_b_start is None:
+                curr_unmatched_b_start = p.step_b
+            curr_unmatched_b_end = p.step_b
+        elif curr_unmatched_b_start is not None:
+            unmatched_b.append((curr_unmatched_b_start, curr_unmatched_b_end or curr_unmatched_b_start))
+            curr_unmatched_b_start = None
+
     if curr_unmatched_a_start is not None:
         unmatched_a.append((curr_unmatched_a_start, curr_unmatched_a_end or curr_unmatched_a_start))
-
+    if curr_unmatched_b_start is not None:
+        unmatched_b.append((curr_unmatched_b_start, curr_unmatched_b_end or curr_unmatched_b_start))
     cit_a: CitationHandle | None = None
     cit_b: CitationHandle | None = None
 

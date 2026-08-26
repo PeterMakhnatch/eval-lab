@@ -165,9 +165,10 @@ reduction from the serial baseline. The bounded four-worker default keeps every
 test and Hypothesis setting in the lane.
 
 CI dependency installation is narrowed by job instead of cached: quality jobs
-omit the observability group, while typecheck and performance jobs install only
-project runtime dependencies. `docs/operations.md` records why no cache trust
-root is added.
+omit the observability group, and performance installs only project runtime
+dependencies. Typecheck installs the default development and observability
+groups because it analyzes every source module, including optional integrations.
+`docs/operations.md` records why no cache trust root is added.
 
 ### Application paths
 

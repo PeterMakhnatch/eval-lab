@@ -1,7 +1,7 @@
 name: typecheck
 
-# Static type checking stays in its own workflow so the 33-diagnostic
-# non-regression ratchet is independently visible. See docs/engineering.md.
+# Static type checking stays in its own workflow so the zero-diagnostic
+# gate is independently visible. See docs/engineering.md.
 
 on:
   pull_request:
@@ -35,7 +35,7 @@ jobs:
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
-      - run: uv sync --locked --no-default-groups
+      - run: uv sync --locked
 
       - name: ty check
         run: |

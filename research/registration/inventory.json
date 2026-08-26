@@ -1,6 +1,6 @@
 {
-  "total_packages": 512,
-  "runnable_packages": 492,
+  "total_packages": 514,
+  "runnable_packages": 494,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -5000,6 +5000,26 @@
     {
       "task_id": "skeleton",
       "path": "library/meta/synthesize-task@1/environment/skeleton",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "act",
+      "path": "library/synthetic/operational-restraint-s7-conflict-pair-v0/act",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "block",
+      "path": "library/synthetic/operational-restraint-s7-conflict-pair-v0/block",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,

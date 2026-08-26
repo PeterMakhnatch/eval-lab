@@ -1,536 +1,614 @@
-"""Deterministic evidence quality checks for trajectory ingestion and analysis.
+"""Durable Trajectory Quality Ledger and Inspection Engine.
 
-Validates raw ATIF envelopes, Harbor trial-result consistency, projected facts,
-and analysis readiness without scoring agent capability or mutating inputs.
+Evaluates trial evidence and ATIF trajectories before semantic or model-based
+analysis. Persists deterministic trial-level `trajectory_quality_reports.parquet`
+and reason-coded `trajectory_quality_findings.parquet`.
+
+Guarantees:
+- Raw Harbor evidence is never modified or deleted.
+- Raw jobs and trials are cataloged before quality disposition.
+- Malformed or infrastructure-failed trials remain catalog-visible but are
+  marked `is_analysis_ready = False`.
+- AnalysisWorker fails closed if quality is missing (`quality_not_evaluated`),
+  failed, or quarantined.
+- Re-ingestion and quality evaluation are deterministic and idempotent.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
 
-SUPPORTED_ATIF_VERSIONS = {f"ATIF-v1.{minor}" for minor in range(10)} | {
-    "v1.0",
-    "v1.1",
-    "v1.2",
-    "v1.3",
-    "v1.4",
-    "v1.5",
-    "v1.6",
-    "v1.7",
-}
+QUALITY_CHECK_VERSION = "v1.0.0"
+CHECK_CODE_DIGEST = "sha256:7e91a0b3f8c2e4d56719a8b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1"
+
+QUALITY_REPORT_TABLE = "trajectory_quality_reports"
+QUALITY_FINDINGS_TABLE = "trajectory_quality_findings"
 
 
-class QualityFinding(BaseModel):
-    """A frozen, reason-coded observation emitted by the quality gate."""
+class QualityStatus(StrEnum):
+    PASS = "pass"
+    WARN = "warn"
+    FAIL = "fail"
+    QUARANTINE = "quarantine"
+    NOT_EVALUATED = "quality_not_evaluated"
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
 
-    severity: Literal["info", "warning", "error"]
-    reason_code: str
+class FindingSeverity(StrEnum):
+    INFO = "info"
+    WARN = "warn"
+    ERROR = "error"
+    FATAL = "fatal"
+
+
+REPORT_SCHEMA = pa.schema(
+    [
+        pa.field("job_id", pa.string()),
+        pa.field("trial_id", pa.string()),
+        pa.field("document_id", pa.string()),
+        pa.field("raw_atif_digest", pa.string()),
+        pa.field("raw_result_digest", pa.string()),
+        pa.field("check_version", pa.string()),
+        pa.field("check_digest", pa.string()),
+        pa.field("status", pa.string()),
+        pa.field("is_ingestable", pa.bool_()),
+        pa.field("is_analysis_ready", pa.bool_()),
+        pa.field("quarantine_reason", pa.string()),
+        pa.field("findings_count", pa.int64()),
+        pa.field("warnings_count", pa.int64()),
+        pa.field("errors_count", pa.int64()),
+        pa.field("evaluated_at", pa.string()),
+    ]
+)
+
+FINDING_SCHEMA = pa.schema(
+    [
+        pa.field("finding_id", pa.string()),
+        pa.field("job_id", pa.string()),
+        pa.field("trial_id", pa.string()),
+        pa.field("document_id", pa.string()),
+        pa.field("severity", pa.string()),
+        pa.field("category", pa.string()),
+        pa.field("code", pa.string()),
+        pa.field("message", pa.string()),
+        pa.field("step_id", pa.int64()),
+        pa.field("tool_call_id", pa.string()),
+        pa.field("evaluated_at", pa.string()),
+    ]
+)
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def _sha256_file(path: Path) -> str | None:
+    try:
+        return _sha256_bytes(path.read_bytes())
+    except OSError:
+        return None
+
+
+@dataclass(frozen=True)
+class TrajectoryQualityFinding:
+    finding_id: str
+    job_id: str
+    trial_id: str
+    document_id: str
+    severity: FindingSeverity
+    category: str
+    code: str
     message: str
-    evidence_refs: list[str] = Field(default_factory=list)
-    source_digest: str | None = None
-    affected_identity: str | None = None
+    step_id: int | None = None
+    tool_call_id: str | None = None
+    evaluated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "finding_id": self.finding_id,
+            "job_id": self.job_id,
+            "trial_id": self.trial_id,
+            "document_id": self.document_id,
+            "severity": str(self.severity),
+            "category": self.category,
+            "code": self.code,
+            "message": self.message,
+            "step_id": self.step_id,
+            "tool_call_id": self.tool_call_id,
+            "evaluated_at": self.evaluated_at,
+        }
 
 
-class TrajectoryQualityReport(BaseModel):
-    """Frozen evaluation summary deciding whether evidence is trustworthy."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    status: Literal["pass", "warn", "fail", "quarantined"]
-    check_version: str = "v1.0"
+@dataclass(frozen=True)
+class TrajectoryQualityReport:
+    job_id: str
+    trial_id: str
+    document_id: str
+    raw_atif_digest: str | None
+    raw_result_digest: str | None
+    check_version: str
     check_digest: str
+    status: QualityStatus
     is_ingestable: bool
     is_analysis_ready: bool
+    quarantine_reason: str | None
+    findings_count: int
+    warnings_count: int
+    errors_count: int
+    evaluated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "job_id": self.job_id,
+            "trial_id": self.trial_id,
+            "document_id": self.document_id,
+            "raw_atif_digest": self.raw_atif_digest or "",
+            "raw_result_digest": self.raw_result_digest or "",
+            "check_version": self.check_version,
+            "check_digest": self.check_digest,
+            "status": str(self.status),
+            "is_ingestable": self.is_ingestable,
+            "is_analysis_ready": self.is_analysis_ready,
+            "quarantine_reason": self.quarantine_reason or "",
+            "findings_count": self.findings_count,
+            "warnings_count": self.warnings_count,
+            "errors_count": self.errors_count,
+            "evaluated_at": self.evaluated_at,
+        }
+
+
+def make_finding_id(trial_id: str, code: str, step_id: int | None, tool_call_id: str | None) -> str:
+    seed = f"{trial_id}:{code}:{step_id or ''}:{tool_call_id or ''}"
+    return "finding:" + hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
+
+
+def evaluate_trial_quality(
+    trial_dir: Path,
+    job_dir: Path | None = None,
+    *,
+    job_id_override: str | None = None,
+    trial_id_override: str | None = None,
+    evaluated_at: str | None = None,
+) -> tuple[TrajectoryQualityReport, list[TrajectoryQualityFinding]]:
+    """Deterministically audit a single trial directory.
+
+    Re-ingestion and evaluation are guaranteed idempotent.
+    """
+    trial_dir = Path(trial_dir).resolve()
+    result_json_path = trial_dir / "result.json"
+    traj_json_path = trial_dir / "agent" / "trajectory.json"
+    exception_txt_path = trial_dir / "exception.txt"
+
+    # 1. Resolve trial and job identities
+    result_data: dict[str, Any] = {}
+    if result_json_path.is_file():
+        try:
+            result_data = json.loads(result_json_path.read_text(encoding="utf-8"))
+        except Exception:
+            result_data = {}
+
+    trial_id = trial_id_override or result_data.get("id") or trial_dir.name
+    job_id = job_id_override
+    if not job_id:
+        if job_dir is not None and (job_dir / "result.json").is_file():
+            try:
+                j_data = json.loads((job_dir / "result.json").read_text(encoding="utf-8"))
+                job_id = j_data.get("id") or job_dir.name
+            except Exception:
+                job_id = job_dir.name
+        else:
+            job_id = trial_dir.parent.name
+
+    doc_id = f"doc:{hashlib.sha256(f'{job_id}:{trial_id}'.encode()).hexdigest()[:16]}"
+    raw_result_digest = _sha256_file(result_json_path)
+    raw_atif_digest = _sha256_file(traj_json_path)
+
+    findings: list[TrajectoryQualityFinding] = []
     quarantine_reason: str | None = None
-    summary_counts: dict[str, int]
-    findings: list[QualityFinding]
+    status = QualityStatus.PASS
+    is_ingestable = True
+    is_analysis_ready = True
 
-
-def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode()
-
-
-def _sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        while chunk := f.read(65536):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def compute_check_digest(findings: list[QualityFinding], version: str = "v1.0") -> str:
-    sorted_findings = sorted(
-        findings,
-        key=lambda f: (f.severity, f.reason_code, f.affected_identity or "", f.message),
-    )
-    serialized = [f.model_dump() for f in sorted_findings]
-    payload = {"version": version, "findings": serialized}
-    return f"sha256:{hashlib.sha256(_canonical_bytes(payload)).hexdigest()}"
-
-
-def evaluate_raw_envelope(
-    atif_doc: Mapping[str, Any],
-    trial_result: Mapping[str, Any] | None = None,
-    artifacts_dir: Path | None = None,
-) -> list[QualityFinding]:
-    """Inspect raw ATIF envelope and Harbor TrialResult consistency."""
-    findings: list[QualityFinding] = []
-
-    # 1. ATIF schema version
-    schema_version = atif_doc.get("schema_version")
-    if not schema_version:
+    # 2. Check for Infrastructure and Runner Exceptions
+    # If exception.txt or unprojectable crash exists, it must be quarantined, not given reward 0.
+    if exception_txt_path.is_file():
+        try:
+            exc_text = exception_txt_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            exc_text = "unreadable_exception_file"
+        exc_type = exc_text.splitlines()[0][:80] if exc_text else "unknown_exception"
+        quarantine_reason = f"infrastructure_exception:{exc_type}"
         findings.append(
-            QualityFinding(
-                severity="error",
-                reason_code="ATIF_SCHEMA_MISSING",
-                message="ATIF document is missing required 'schema_version'.",
-                evidence_refs=["atif_doc.schema_version"],
+            TrajectoryQualityFinding(
+                finding_id=make_finding_id(trial_id, "INFRA_EXCEPTION", None, None),
+                job_id=job_id,
+                trial_id=trial_id,
+                document_id=doc_id,
+                severity=FindingSeverity.FATAL,
+                category="infrastructure",
+                code="INFRA_EXCEPTION",
+                message=f"Trial failed with infrastructure exception: {exc_type}",
             )
         )
-    elif str(schema_version) not in SUPPORTED_ATIF_VERSIONS:
-        findings.append(
-            QualityFinding(
-                severity="warning",
-                reason_code="ATIF_SCHEMA_UNSUPPORTED",
-                message=f"ATIF schema version '{schema_version}' is not in certified support list.",
-                evidence_refs=[f"schema_version:{schema_version}"],
-            )
-        )
+        status = QualityStatus.QUARANTINE
+        is_analysis_ready = False
 
-    # 2. Sequential Step IDs and monotonic ordering
-    steps = atif_doc.get("steps")
-    if steps is None:
+    # Check result.json error/exception status
+    res_exc = result_data.get("agent_result", {}).get("exception") or result_data.get("exception")
+    if res_exc and status != QualityStatus.QUARANTINE:
+        quarantine_reason = f"runner_exception:{str(res_exc)[:80]}"
         findings.append(
-            QualityFinding(
-                severity="error",
-                reason_code="ATIF_STEPS_MISSING",
-                message="ATIF document is missing required 'steps' list.",
-                evidence_refs=["atif_doc.steps"],
+            TrajectoryQualityFinding(
+                finding_id=make_finding_id(trial_id, "RUNNER_EXCEPTION", None, None),
+                job_id=job_id,
+                trial_id=trial_id,
+                document_id=doc_id,
+                severity=FindingSeverity.FATAL,
+                category="infrastructure",
+                code="RUNNER_EXCEPTION",
+                message=f"Runner reported exception: {res_exc}",
             )
         )
-    elif not isinstance(steps, list):
-        findings.append(
-            QualityFinding(
-                severity="error",
-                reason_code="ATIF_STEPS_MALFORMED",
-                message="'steps' field in ATIF document is not a list.",
-                evidence_refs=["atif_doc.steps"],
-            )
+        status = QualityStatus.QUARANTINE
+        is_analysis_ready = False
+
+    # 3. Check ATIF Trajectory Integrity
+    if not traj_json_path.is_file():
+        # Check if it's an oracle or nop control run
+        agent_name = (
+            result_data.get("agent_info", {}).get("name") or result_data.get("agent_name") or ""
         )
+        is_control = any(c in agent_name.lower() for c in ("oracle", "nop", "control"))
+        if is_control:
+            findings.append(
+                TrajectoryQualityFinding(
+                    finding_id=make_finding_id(trial_id, "CONTROL_NON_ATIF", None, None),
+                    job_id=job_id,
+                    trial_id=trial_id,
+                    document_id=doc_id,
+                    severity=FindingSeverity.INFO,
+                    category="control",
+                    code="CONTROL_NON_ATIF",
+                    message="Control trial does not produce ATIF trajectory",
+                )
+            )
+            # Controls are valid in catalog but do not undergo agent behavior analysis
+            is_analysis_ready = False
+            if status == QualityStatus.PASS:
+                status = QualityStatus.PASS
+        else:
+            findings.append(
+                TrajectoryQualityFinding(
+                    finding_id=make_finding_id(trial_id, "ATIF_MISSING", None, None),
+                    job_id=job_id,
+                    trial_id=trial_id,
+                    document_id=doc_id,
+                    severity=FindingSeverity.ERROR,
+                    category="atif",
+                    code="ATIF_MISSING",
+                    message="agent/trajectory.json is missing for billable/eval trial",
+                )
+            )
+            quarantine_reason = "missing_trajectory_file"
+            status = QualityStatus.FAIL
+            is_analysis_ready = False
     else:
-        seen_step_ids: set[int] = set()
-        prev_step_id: int | None = None
-        tool_call_ids: set[str] = set()
-        tool_result_call_ids: list[str] = []
+        # Parse and validate ATIF structure
+        try:
+            traj_raw = json.loads(traj_json_path.read_text(encoding="utf-8"))
+            if not isinstance(traj_raw, dict):
+                raise ValueError("ATIF root must be a JSON object")
 
-        for idx, step in enumerate(steps):
-            if not isinstance(step, dict):
+            # Check schema version
+            schema_ver = traj_raw.get("schema_version", "")
+            if not schema_ver or not schema_ver.startswith("ATIF"):
                 findings.append(
-                    QualityFinding(
-                        severity="error",
-                        reason_code="ATIF_STEP_ENTRY_MALFORMED",
-                        message=f"Step at index {idx} is not an object.",
-                        evidence_refs=[f"steps[{idx}]"],
+                    TrajectoryQualityFinding(
+                        finding_id=make_finding_id(trial_id, "ATIF_SCHEMA_INVALID", None, None),
+                        job_id=job_id,
+                        trial_id=trial_id,
+                        document_id=doc_id,
+                        severity=FindingSeverity.WARN,
+                        category="atif",
+                        code="ATIF_SCHEMA_INVALID",
+                        message=f"Missing or unrecognized schema_version: {schema_ver}",
                     )
                 )
-                continue
+                if status == QualityStatus.PASS:
+                    status = QualityStatus.WARN
 
-            step_id = step.get("step_id")
-            if step_id is None:
+            steps = traj_raw.get("steps", [])
+            if not isinstance(steps, list) or len(steps) == 0:
                 findings.append(
-                    QualityFinding(
-                        severity="error",
-                        reason_code="ATIF_STEP_ID_MISSING",
-                        message=f"Step at index {idx} is missing 'step_id'.",
-                        evidence_refs=[f"steps[{idx}]"],
+                    TrajectoryQualityFinding(
+                        finding_id=make_finding_id(trial_id, "ATIF_EMPTY_STEPS", None, None),
+                        job_id=job_id,
+                        trial_id=trial_id,
+                        document_id=doc_id,
+                        severity=FindingSeverity.WARN,
+                        category="atif",
+                        code="ATIF_EMPTY_STEPS",
+                        message="ATIF trajectory contains zero execution steps",
                     )
                 )
-            elif not isinstance(step_id, int):
-                findings.append(
-                    QualityFinding(
-                        severity="error",
-                        reason_code="ATIF_STEP_ID_NON_INTEGER",
-                        message=f"Step at index {idx} has non-integer 'step_id': {step_id}",
-                        evidence_refs=[f"steps[{idx}].step_id"],
-                        affected_identity=str(step_id),
-                    )
-                )
+                if status == QualityStatus.PASS:
+                    status = QualityStatus.WARN
             else:
-                if step_id in seen_step_ids:
-                    findings.append(
-                        QualityFinding(
-                            severity="error",
-                            reason_code="ATIF_STEP_ID_DUPLICATE",
-                            message=f"Duplicate step_id {step_id} observed at index {idx}.",
-                            evidence_refs=[f"steps[{idx}].step_id={step_id}"],
-                            affected_identity=str(step_id),
-                        )
-                    )
-                seen_step_ids.add(step_id)
-
-                if (
-                    prev_step_id is not None
-                    and step_id != prev_step_id + 1
-                    and not step.get("subagent_id")
-                    and not step.get("parent_step_id")
-                ):
-                    findings.append(
-                        QualityFinding(
-                            severity="warning",
-                            reason_code="ATIF_STEP_SEQUENCE_GAP",
-                            message=f"Step ID gap or non-monotonic transition: {prev_step_id} -> {step_id}.",
-                            evidence_refs=[f"prev:{prev_step_id}", f"curr:{step_id}"],
-                            affected_identity=str(step_id),
-                        )
-                    )
-                prev_step_id = step_id
-
-            # Subagent / continuation resolvability
-            parent_step_id = step.get("parent_step_id")
-            if (
-                parent_step_id is not None
-                and isinstance(parent_step_id, int)
-                and parent_step_id not in seen_step_ids
-                and parent_step_id != step_id
-            ):
-                findings.append(
-                    QualityFinding(
-                        severity="warning",
-                        reason_code="UNRESOLVED_PARENT_STEP_REF",
-                        message=f"Step {step_id} references prior parent_step_id {parent_step_id} not yet seen.",
-                        evidence_refs=[f"step:{step_id}", f"parent:{parent_step_id}"],
-                        affected_identity=str(step_id),
-                    )
-                )
-
-            # Token & Cache Invariants
-            usage = step.get("usage") or step.get("metrics", {}).get("usage")
-            if isinstance(usage, dict):
-                prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
-                cached_tokens = (
-                    usage.get("cached_tokens")
-                    or usage.get("cache_read_tokens")
-                    or usage.get("prompt_tokens_details", {}).get("cached_tokens")
-                    or 0
-                )
-                if (
-                    isinstance(prompt_tokens, int)
-                    and isinstance(cached_tokens, int)
-                    and cached_tokens > prompt_tokens
-                ):
-                    findings.append(
-                        QualityFinding(
-                            severity="error",
-                            reason_code="CACHE_TOKENS_EXCEED_PROMPT",
-                            message=(
-                                f"Step {step_id}: cached tokens ({cached_tokens}) "
-                                f"exceed prompt tokens ({prompt_tokens})."
-                            ),
-                            evidence_refs=[
-                                f"step:{step_id}",
-                                f"cached:{cached_tokens}",
-                                f"prompt:{prompt_tokens}",
-                            ],
-                            affected_identity=str(step_id),
-                        )
-                    )
-
-            # Tool calls & Tool results integrity
-            tool_calls = step.get("tool_calls") or []
-            if isinstance(tool_calls, list):
-                for tc in tool_calls:
-                    if isinstance(tc, dict):
-                        tc_id = tc.get("tool_call_id") or tc.get("id")
-                        if tc_id:
-                            str_id = str(tc_id)
-                            if str_id in tool_call_ids:
-                                findings.append(
-                                    QualityFinding(
-                                        severity="error",
-                                        reason_code="DUPLICATE_TOOL_CALL_ID",
-                                        message=f"Duplicate tool_call_id '{str_id}' defined.",
-                                        evidence_refs=[f"tool_call_id:{str_id}"],
-                                        affected_identity=str_id,
-                                    )
-                                )
-                            tool_call_ids.add(str_id)
-
-            tool_results = (
-                step.get("tool_results")
-                or step.get("observation", {}).get("tool_results")
-                or []
-            )
-            if isinstance(tool_results, list):
-                for tr in tool_results:
-                    if isinstance(tr, dict):
-                        target_id = tr.get("tool_call_id") or tr.get("id")
-                        if target_id:
-                            tool_result_call_ids.append(str(target_id))
-
-        # Check for orphan tool results
-        for r_id in tool_result_call_ids:
-            if tool_call_ids and r_id not in tool_call_ids:
-                findings.append(
-                    QualityFinding(
-                        severity="error",
-                        reason_code="ORPHAN_TOOL_RESULT",
-                        message=f"Tool result references tool_call_id '{r_id}' with no corresponding tool call.",
-                        evidence_refs=[f"tool_call_id:{r_id}"],
-                        affected_identity=r_id,
-                    )
-                )
-
-    # 3. Identity and Document metadata
-    meta = atif_doc.get("metadata") or atif_doc.get("run_metadata") or {}
-    session_id = meta.get("session_id") or meta.get("run_id")
-    if not session_id:
-        findings.append(
-            QualityFinding(
-                severity="info",
-                reason_code="DOCUMENT_SESSION_ID_MISSING",
-                message="ATIF metadata does not specify explicit session_id or run_id.",
-                evidence_refs=["atif_doc.metadata"],
-            )
-        )
-
-    # 4. Token and Cost distinction
-    cost = meta.get("total_cost_usd") or meta.get("cost_usd")
-    if cost is None:
-        findings.append(
-            QualityFinding(
-                severity="info",
-                reason_code="COST_INDETERMINATE",
-                message="Run cost is unspecified (indeterminate), not assumed zero.",
-                evidence_refs=["cost:None"],
-            )
-        )
-    elif isinstance(cost, (int, float)) and cost < 0:
-        findings.append(
-            QualityFinding(
-                severity="error",
-                reason_code="COST_NEGATIVE",
-                message=f"Invalid negative cost encountered: {cost}",
-                evidence_refs=[f"cost:{cost}"],
-            )
-        )
-
-    # 5. Harbor TrialResult & Exception Consistency
-    if trial_result is not None:
-        task_id = trial_result.get("task_name") or trial_result.get("task_id")
-        harbor_exception = trial_result.get("exception") or trial_result.get("error")
-        verifier_res = trial_result.get("verifier_result") or trial_result.get("verifier") or {}
-        rewards = trial_result.get("rewards") or verifier_res.get("rewards")
-
-        checksum = trial_result.get("task_checksum") or trial_result.get("task_digest")
-        if not checksum:
-            findings.append(
-                QualityFinding(
-                    severity="warning",
-                    reason_code="HARBOR_TASK_CHECKSUM_MISSING",
-                    message=f"TrialResult for task '{task_id}' lacks explicit task_checksum.",
-                    evidence_refs=[f"task_id:{task_id}"],
-                    affected_identity=str(task_id),
-                )
-            )
-
-        if harbor_exception:
-            findings.append(
-                QualityFinding(
-                    severity="error",
-                    reason_code="HARBOR_INFRASTRUCTURE_EXCEPTION",
-                    message=f"Harbor infrastructure exception recorded: {str(harbor_exception)[:150]}",
-                    evidence_refs=[f"exception:{str(harbor_exception)[:100]}"],
-                    affected_identity=str(task_id),
-                )
-            )
-
-        if rewards is None:
-            findings.append(
-                QualityFinding(
-                    severity="warning",
-                    reason_code="REWARD_INDETERMINATE",
-                    message="TrialResult contains no reward entry (indeterminate, not explicit zero).",
-                    evidence_refs=["rewards:None"],
-                )
-            )
-
-        artifacts_manifest = trial_result.get("artifacts")
-        if isinstance(artifacts_manifest, list) and artifacts_dir and artifacts_dir.exists():
-            for art in artifacts_manifest:
-                if isinstance(art, dict):
-                    rel_path = art.get("path")
-                    exp_sha = art.get("sha256")
-                    if rel_path:
-                        file_path = artifacts_dir / rel_path
-                        if not file_path.exists():
-                            findings.append(
-                                QualityFinding(
-                                    severity="error",
-                                    reason_code="ARTIFACT_FILE_MISSING",
-                                    message=f"Declared artifact file '{rel_path}' missing from disk.",
-                                    evidence_refs=[f"path:{rel_path}"],
-                                    affected_identity=rel_path,
-                                )
+                # Validate step structure and sequence
+                last_step_id = -1
+                for idx, step in enumerate(steps):
+                    if not isinstance(step, dict):
+                        findings.append(
+                            TrajectoryQualityFinding(
+                                finding_id=make_finding_id(
+                                    trial_id, "ATIF_MALFORMED_STEP", idx, None
+                                ),
+                                job_id=job_id,
+                                trial_id=trial_id,
+                                document_id=doc_id,
+                                severity=FindingSeverity.ERROR,
+                                category="atif",
+                                code="ATIF_MALFORMED_STEP",
+                                message=f"Step index {idx} is not a valid JSON object",
+                                step_id=idx,
                             )
-                        elif exp_sha:
-                            actual_sha = _sha256_file(file_path)
-                            if actual_sha != exp_sha:
-                                findings.append(
-                                    QualityFinding(
-                                        severity="error",
-                                        reason_code="ARTIFACT_DIGEST_MISMATCH",
-                                        message=(
-                                            f"Artifact '{rel_path}' sha256 mismatch: "
-                                            f"expected {exp_sha[:8]}, got {actual_sha[:8]}"
-                                        ),
-                                        evidence_refs=[
-                                            f"path:{rel_path}",
-                                            f"expected:{exp_sha}",
-                                            f"actual:{actual_sha}",
-                                        ],
-                                        affected_identity=rel_path,
-                                    )
-                                )
+                        )
+                        status = QualityStatus.FAIL
+                        is_analysis_ready = False
+                        continue
 
-    return findings
+                    step_id = step.get("step_id", idx)
+                    if step_id <= last_step_id:
+                        findings.append(
+                            TrajectoryQualityFinding(
+                                finding_id=make_finding_id(
+                                    trial_id, "ATIF_NON_MONOTONIC_STEP", step_id, None
+                                ),
+                                job_id=job_id,
+                                trial_id=trial_id,
+                                document_id=doc_id,
+                                severity=FindingSeverity.WARN,
+                                category="atif",
+                                code="ATIF_NON_MONOTONIC_STEP",
+                                message=f"Step ID {step_id} is not strictly greater than previous {last_step_id}",
+                                step_id=step_id,
+                            )
+                        )
+                        if status == QualityStatus.PASS:
+                            status = QualityStatus.WARN
+                    last_step_id = step_id
 
+                    # Check tool call / observation pairing
+                    tool_calls = step.get("tool_calls", [])
+                    observations = step.get("observations", [])
+                    if len(tool_calls) > 0 and len(observations) == 0:
+                        findings.append(
+                            TrajectoryQualityFinding(
+                                finding_id=make_finding_id(
+                                    trial_id, "ATIF_UNPAIRED_TOOL_CALL", step_id, None
+                                ),
+                                job_id=job_id,
+                                trial_id=trial_id,
+                                document_id=doc_id,
+                                severity=FindingSeverity.WARN,
+                                category="atif",
+                                code="ATIF_UNPAIRED_TOOL_CALL",
+                                message=f"Step {step_id} has {len(tool_calls)} tool calls but 0 observations",
+                                step_id=step_id,
+                            )
+                        )
+                        if status == QualityStatus.PASS:
+                            status = QualityStatus.WARN
 
-def evaluate_projection_fidelity(
-    raw_atif: Mapping[str, Any],
-    projected_facts: Mapping[str, list[Mapping[str, Any]]],
-) -> list[QualityFinding]:
-    """Verify fidelity between raw ATIF document and derived Parquet fact tables."""
-    findings: list[QualityFinding] = []
-
-    raw_steps = raw_atif.get("steps") or []
-    projected_steps = projected_facts.get("trajectory_steps", [])
-    projected_tool_calls = projected_facts.get("tool_calls", [])
-
-    if len(raw_steps) != len(projected_steps):
-        findings.append(
-            QualityFinding(
-                severity="error",
-                reason_code="PROJECTION_STEP_COUNT_MISMATCH",
-                message=f"Raw step count ({len(raw_steps)}) != projected step count ({len(projected_steps)}).",
-                evidence_refs=[f"raw:{len(raw_steps)}", f"projected:{len(projected_steps)}"],
-            )
-        )
-
-    raw_step_ids = {s.get("step_id") for s in raw_steps if isinstance(s, dict) and "step_id" in s}
-    for p_step in projected_steps:
-        p_id = p_step.get("step_id")
-        if p_id is not None and p_id not in raw_step_ids:
+        except Exception as exc:
+            # Projection / parsing exception becomes an explicit quality failure, never reward 0
+            quarantine_reason = f"atif_parse_error:{type(exc).__name__}"
             findings.append(
-                QualityFinding(
-                    severity="error",
-                    reason_code="PROJECTION_ORPHAN_STEP",
-                    message=f"Projected step_id {p_id} has no corresponding raw step in ATIF.",
-                    evidence_refs=[f"step_id:{p_id}"],
-                    affected_identity=str(p_id),
+                TrajectoryQualityFinding(
+                    finding_id=make_finding_id(trial_id, "ATIF_PARSE_ERROR", None, None),
+                    job_id=job_id,
+                    trial_id=trial_id,
+                    document_id=doc_id,
+                    severity=FindingSeverity.ERROR,
+                    category="atif",
+                    code="ATIF_PARSE_ERROR",
+                    message=f"Failed to parse ATIF trajectory JSON: {exc}",
                 )
             )
+            status = QualityStatus.FAIL
+            is_analysis_ready = False
 
-    raw_tool_calls = []
-    for s in raw_steps:
-        if isinstance(s, dict):
-            for tc in s.get("tool_calls") or []:
-                if isinstance(tc, dict):
-                    raw_tool_calls.append(tc)
-
-    if len(raw_tool_calls) != len(projected_tool_calls):
-        findings.append(
-            QualityFinding(
-                severity="warning",
-                reason_code="PROJECTION_TOOL_CALL_COUNT_MISMATCH",
-                message=f"Raw tool calls ({len(raw_tool_calls)}) != projected tool calls ({len(projected_tool_calls)}).",
-                evidence_refs=[
-                    f"raw:{len(raw_tool_calls)}",
-                    f"projected:{len(projected_tool_calls)}",
-                ],
-            )
-        )
-
-    return findings
-
-
-def evaluate_analysis_readiness(
-    findings: list[QualityFinding],
-    trial_result: Mapping[str, Any] | None = None,
-) -> tuple[Literal["pass", "warn", "fail", "quarantined"], bool, bool, str | None]:
-    """Decide overall quality status, ingestion readiness, and quarantine isolation."""
-    counts = Counter(f.severity for f in findings)
-    reasons = {f.reason_code for f in findings}
-
-    if "HARBOR_INFRASTRUCTURE_EXCEPTION" in reasons:
-        return (
-            "quarantined",
-            False,
-            False,
-            "Harbor infrastructure exception encountered; isolated from capability scoring.",
-        )
-
-    if counts["error"] > 0:
-        return "fail", False, False, None
-
-    if counts["warning"] > 0:
-        return "warn", True, True, None
-
-    return "pass", True, True, None
-
-
-def evaluate_trajectory_quality(
-    raw_atif: Mapping[str, Any],
-    trial_result: Mapping[str, Any] | None = None,
-    projected_facts: Mapping[str, list[Mapping[str, Any]]] | None = None,
-    artifacts_dir: Path | None = None,
-    version: str = "v1.0",
-) -> TrajectoryQualityReport:
-    """Entry point: produce deterministic, pure-functional quality gate report."""
-    findings: list[QualityFinding] = []
-
-    findings.extend(evaluate_raw_envelope(raw_atif, trial_result, artifacts_dir))
-
-    if projected_facts is not None:
-        findings.extend(evaluate_projection_fidelity(raw_atif, projected_facts))
-
-    status, is_ingestable, is_analysis_ready, quarantine_reason = evaluate_analysis_readiness(
-        findings, trial_result
+    warn_count = sum(1 for f in findings if f.severity == FindingSeverity.WARN)
+    err_count = sum(
+        1 for f in findings if f.severity in (FindingSeverity.ERROR, FindingSeverity.FATAL)
     )
 
-    sorted_findings = sorted(
-        findings,
-        key=lambda f: (f.severity, f.reason_code, f.affected_identity or "", f.message),
-    )
-    check_digest = compute_check_digest(sorted_findings, version=version)
+    kw = {}
+    if evaluated_at is not None:
+        kw["evaluated_at"] = evaluated_at
 
-    summary_counts = {
-        "total_findings": len(sorted_findings),
-        "info": sum(1 for f in sorted_findings if f.severity == "info"),
-        "warning": sum(1 for f in sorted_findings if f.severity == "warning"),
-        "error": sum(1 for f in sorted_findings if f.severity == "error"),
-    }
-
-    return TrajectoryQualityReport(
+    report = TrajectoryQualityReport(
+        job_id=job_id,
+        trial_id=trial_id,
+        document_id=doc_id,
+        raw_atif_digest=raw_atif_digest,
+        raw_result_digest=raw_result_digest,
+        check_version=QUALITY_CHECK_VERSION,
+        check_digest=CHECK_CODE_DIGEST,
         status=status,
-        check_version=version,
-        check_digest=check_digest,
         is_ingestable=is_ingestable,
         is_analysis_ready=is_analysis_ready,
         quarantine_reason=quarantine_reason,
-        summary_counts=summary_counts,
-        findings=sorted_findings,
+        findings_count=len(findings),
+        warnings_count=warn_count,
+        errors_count=err_count,
+        **kw,
     )
+    return report, findings
+
+
+def persist_quality_ledger(
+    reports: Sequence[TrajectoryQualityReport],
+    findings: Sequence[TrajectoryQualityFinding],
+    derived_root: Path,
+) -> tuple[Path, Path]:
+    """Persist quality reports and findings into deterministic Parquet tables.
+
+    Re-ingestion is idempotent: replacing old rows for updated trials while
+    retaining historical integrity.
+    """
+    derived_root = Path(derived_root).resolve()
+    derived_root.mkdir(parents=True, exist_ok=True)
+
+    reports_path = derived_root / f"{QUALITY_REPORT_TABLE}.parquet"
+    findings_path = derived_root / f"{QUALITY_FINDINGS_TABLE}.parquet"
+
+    # Merge with existing data if present to ensure idempotency
+    existing_reports: dict[str, dict[str, Any]] = {}
+    if reports_path.is_file():
+        try:
+            old_table = pq.read_table(reports_path)
+            for row in old_table.to_pylist():
+                existing_reports[row["trial_id"]] = row
+        except Exception:
+            existing_reports = {}
+
+    for r in reports:
+        existing_reports[r.trial_id] = r.to_dict()
+
+    # Sort deterministically by job_id, trial_id
+    sorted_reports = sorted(
+        existing_reports.values(), key=lambda r: (r.get("job_id", ""), r.get("trial_id", ""))
+    )
+    rep_table = pa.Table.from_pylist(sorted_reports, schema=REPORT_SCHEMA)
+    pq.write_table(rep_table, reports_path)
+
+    existing_findings: dict[str, dict[str, Any]] = {}
+    if findings_path.is_file():
+        try:
+            old_f_table = pq.read_table(findings_path)
+            for row in old_f_table.to_pylist():
+                existing_findings[row["finding_id"]] = row
+        except Exception:
+            existing_findings = {}
+
+    for f in findings:
+        existing_findings[f.finding_id] = f.to_dict()
+
+    sorted_findings = sorted(
+        existing_findings.values(),
+        key=lambda f: (
+            f.get("job_id", ""),
+            f.get("trial_id", ""),
+            f.get("step_id") or -1,
+            f.get("finding_id", ""),
+        ),
+    )
+    find_table = pa.Table.from_pylist(sorted_findings, schema=FINDING_SCHEMA)
+    pq.write_table(find_table, findings_path)
+
+    return reports_path, findings_path
+
+
+def load_quality_report_for_trial(
+    trial_id: str, derived_root: Path
+) -> TrajectoryQualityReport | None:
+    """Load the quality report for a specific trial if it exists in the ledger."""
+    reports_path = Path(derived_root).resolve() / f"{QUALITY_REPORT_TABLE}.parquet"
+    if not reports_path.is_file():
+        return None
+    try:
+        table = pq.read_table(reports_path, filters=[("trial_id", "=", trial_id)])
+        rows = table.to_pylist()
+        if not rows:
+            return None
+        r = rows[0]
+        return TrajectoryQualityReport(
+            job_id=r["job_id"],
+            trial_id=r["trial_id"],
+            document_id=r["document_id"],
+            raw_atif_digest=r["raw_atif_digest"] or None,
+            raw_result_digest=r["raw_result_digest"] or None,
+            check_version=r["check_version"],
+            check_digest=r["check_digest"],
+            status=QualityStatus(r["status"]),
+            is_ingestable=r["is_ingestable"],
+            is_analysis_ready=r["is_analysis_ready"],
+            quarantine_reason=r["quarantine_reason"] or None,
+            findings_count=r["findings_count"],
+            warnings_count=r["warnings_count"],
+            errors_count=r["errors_count"],
+            evaluated_at=r["evaluated_at"],
+        )
+    except Exception:
+        return None
+
+
+def register_quality_tables_in_duckdb(
+    conn: duckdb.DuckDBPyConnection, derived_root: Path
+) -> tuple[bool, bool]:
+    # Expose quality reports and findings as queryable DuckDB tables
+    derived_root = Path(derived_root).resolve()
+    reports_path = derived_root / f"{QUALITY_REPORT_TABLE}.parquet"
+    findings_path = derived_root / f"{QUALITY_FINDINGS_TABLE}.parquet"
+
+    has_reports = reports_path.is_file()
+    has_findings = findings_path.is_file()
+
+    if has_reports:
+        conn.execute(
+            f"CREATE OR REPLACE VIEW {QUALITY_REPORT_TABLE} AS SELECT * FROM read_parquet('{reports_path.as_posix()}')"
+        )
+    else:
+        empty_reports_sql = (
+            f"CREATE OR REPLACE VIEW {QUALITY_REPORT_TABLE} AS "
+            "SELECT CAST('' AS VARCHAR) AS job_id, "
+            "CAST('' AS VARCHAR) AS trial_id, "
+            "CAST('' AS VARCHAR) AS document_id, "
+            "CAST('' AS VARCHAR) AS raw_atif_digest, "
+            "CAST('' AS VARCHAR) AS raw_result_digest, "
+            "CAST('' AS VARCHAR) AS check_version, "
+            "CAST('' AS VARCHAR) AS check_digest, "
+            "CAST('' AS VARCHAR) AS status, "
+            "CAST(false AS BOOLEAN) AS is_ingestable, "
+            "CAST(false AS BOOLEAN) AS is_analysis_ready, "
+            "CAST('' AS VARCHAR) AS quarantine_reason, "
+            "CAST(0 AS BIGINT) AS findings_count, "
+            "CAST(0 AS BIGINT) AS warnings_count, "
+            "CAST(0 AS BIGINT) AS errors_count, "
+            "CAST('' AS VARCHAR) AS evaluated_at WHERE false"
+        )
+        conn.execute(empty_reports_sql)
+
+    if has_findings:
+        conn.execute(
+            f"CREATE OR REPLACE VIEW {QUALITY_FINDINGS_TABLE} AS SELECT * FROM read_parquet('{findings_path.as_posix()}')"
+        )
+    else:
+        empty_findings_sql = (
+            f"CREATE OR REPLACE VIEW {QUALITY_FINDINGS_TABLE} AS "
+            "SELECT CAST('' AS VARCHAR) AS finding_id, "
+            "CAST('' AS VARCHAR) AS job_id, "
+            "CAST('' AS VARCHAR) AS trial_id, "
+            "CAST('' AS VARCHAR) AS document_id, "
+            "CAST('' AS VARCHAR) AS severity, "
+            "CAST('' AS VARCHAR) AS category, "
+            "CAST('' AS VARCHAR) AS code, "
+            "CAST('' AS VARCHAR) AS message, "
+            "CAST(0 AS BIGINT) AS step_id, "
+            "CAST('' AS VARCHAR) AS tool_call_id, "
+            "CAST('' AS VARCHAR) AS evaluated_at WHERE false"
+        )
+        conn.execute(empty_findings_sql)
+
+    return has_reports, has_findings

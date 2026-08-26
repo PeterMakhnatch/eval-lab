@@ -68,6 +68,8 @@ TABLES = (
     "evidence_coverage",
     "semantic_action_facts",
     "semantic_action_coverage",
+    "trajectory_quality_reports",
+    "trajectory_quality_findings",
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"
@@ -108,6 +110,7 @@ def _z3_globs(root: Path) -> list[str]:
     standalone_dir = str(root / Z3_STANDALONE_DIR)
     return [hot, cold, standalone_dir]
 
+
 SEMANTIC_COMPARISON_COLUMNS = (
     "job_id",
     "trial_id",
@@ -136,13 +139,12 @@ SEMANTIC_COMPARISON_COLUMNS = (
     "intervention_reason",
 )
 
+
 def _empty_semantic_comparison_sql() -> str:
     columns = []
     for name in SEMANTIC_COMPARISON_COLUMNS:
         sql_type = (
-            "BIGINT"
-            if name in {"exit_code", "detail_size", "intervention_length"}
-            else "VARCHAR"
+            "BIGINT" if name in {"exit_code", "detail_size", "intervention_length"} else "VARCHAR"
         )
         columns.append(f"CAST(NULL AS {sql_type}) AS {name}")
     return "SELECT " + ", ".join(columns) + " WHERE FALSE"
@@ -206,19 +208,13 @@ def _attach_semantic_comparison(
 ) -> None:
     if {"agent_actions", "semantic_action_facts"} <= available_tables:
         comparison = _semantic_comparison_sql("agent_actions", "semantic_action_facts")
-        z3_comparison = _semantic_comparison_sql(
-            "z3.agent_actions", "z3.semantic_action_facts"
-        )
+        z3_comparison = _semantic_comparison_sql("z3.agent_actions", "z3.semantic_action_facts")
     else:
         comparison = _empty_semantic_comparison_sql()
         z3_comparison = comparison
     try:
-        conn.execute(
-            f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {comparison}"
-        )
-        conn.execute(
-            f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {z3_comparison}"
-        )
+        conn.execute(f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {comparison}")
+        conn.execute(f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {z3_comparison}")
     except Exception:
         # A discovered file can still be malformed or use an older schema. Do not
         # expose a partial or guessed comparison in that case.
@@ -241,6 +237,7 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
         and not p.parent.name.startswith("job_id=")
         and p.parent.name != "compact"
     }
+    root_tables = {p.stem for p in root.glob("*.parquet") if p.parent == root}
 
     created = 0
     missing = []
@@ -252,7 +249,8 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
             view_globs.append(str(root / Z3_COLD.format(table=table)))
         if table in standalone_tables:
             view_globs.append(str(root / Z3_STANDALONE_DIR.format(table=table)))
-
+        if table in root_tables:
+            view_globs.append(str(root / f"{table}.parquet"))
         if not view_globs:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"

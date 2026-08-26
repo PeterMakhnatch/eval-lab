@@ -66,6 +66,10 @@ NESTED_COMMANDS = (
     ("report", "family"),
     ("report", "card"),
     ("analyze", "plan"),
+    ("analyze", "trial"),
+    ("analyze", "batch"),
+    ("analyze", "inspect"),
+    ("analyze", "calibrate"),
     ("analyze", "stub"),
     ("analyze", "ingest-sidecar"),
     ("analyze", "review"),
@@ -94,11 +98,10 @@ NESTED_COMMANDS = (
 )
 HELP_PATHS = tuple((command,) for command in TOP_LEVEL_COMMANDS) + NESTED_COMMANDS
 
+
 def test_cli_inventory_matches_help_audit() -> None:
     command_action = next(
-        action
-        for action in cli.parser()._actions
-        if isinstance(action, argparse._SubParsersAction)
+        action for action in cli.parser()._actions if isinstance(action, argparse._SubParsersAction)
     )
     assert tuple(command_action.choices) == TOP_LEVEL_COMMANDS
 
@@ -143,16 +146,15 @@ def test_trajectories_export_rebuilds_derived_stores(tmp_path: Path, monkeypatch
     monkeypatch.setattr(
         cli,
         "ingest_and_project",
-        lambda *args, **kwargs: calls.append("ingest-and-project")
-        or SimpleNamespace(tables=(), row_counts={}, failures=()),
+        lambda *args, **kwargs: (
+            calls.append("ingest-and-project")
+            or SimpleNamespace(tables=(), row_counts={}, failures=())
+        ),
     )
     monkeypatch.setattr(cli, "record_projection_failures", lambda *args, **kwargs: None)
     monkeypatch.setattr(atif, "project_trial", lambda job, trial: None)
 
-    assert (
-        cli.run_cli(["trajectories", "evidence", "--export"], workspace=tmp_path)
-        == 0
-    )
+    assert cli.run_cli(["trajectories", "evidence", "--export"], workspace=tmp_path) == 0
     assert calls == ["ingest-and-project"]
 
 

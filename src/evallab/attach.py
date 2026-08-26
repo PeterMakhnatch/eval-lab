@@ -70,6 +70,9 @@ TABLES = (
     "semantic_action_coverage",
     "trajectory_quality_reports",
     "trajectory_quality_findings",
+    "interpretation_artifacts",
+    "machine_judgments",
+    "acceptance_decisions",
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"

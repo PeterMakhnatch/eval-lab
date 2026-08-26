@@ -8,7 +8,7 @@ still returned.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +35,7 @@ class AttachResult:
 
     connection: duckdb.DuckDBPyConnection
     zones: tuple[ZoneStatus, ...]
-    sql_preamble: str
+    sql_preamble: str = field(repr=False)
 
 
 TABLES = (
@@ -77,6 +77,11 @@ Z3_COLD = "compact/{table}/dt=*/part*.parquet"
 Z3_STANDALONE_DIR = "{table}/*.parquet"
 
 
+def _sql_string_literal(value: str) -> str:
+    """Return *value* as a safely quoted SQL string literal."""
+    return "'" + value.replace("'", "''") + "'"
+
+
 def _postgres_dsn() -> str:
     return database_url_from_environment()
 
@@ -98,10 +103,12 @@ def _attach_z2(conn: duckdb.DuckDBPyConnection, dsn: str) -> ZoneStatus:
     try:
         conn.execute("INSTALL postgres_scanner")
         conn.execute("LOAD postgres_scanner")
-        conn.execute(f"ATTACH '{dsn}' AS z2 (TYPE postgres)")
-        return ZoneStatus("z2", True, detail=_postgres_identity(dsn))
+        conn.execute(f"ATTACH {_sql_string_literal(dsn)} AS z2 (TYPE postgres)")
     except Exception as exc:
-        return ZoneStatus("z2", False, reason=f"{type(exc).__name__}: {exc}")
+        detail = str(exc)
+        for candidate in (dsn, dsn.replace("'", "''")):
+            detail = detail.replace(candidate, "<REDACTED DSN>")
+        return ZoneStatus("z2", False, reason=f"{type(exc).__name__}: {detail}")
 
 
 def _z3_globs(root: Path) -> list[str]:
@@ -260,7 +267,7 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
             )
             missing.append(table)
             continue
-        glob_list = ", ".join(f"'{g}'" for g in view_globs)
+        glob_list = ", ".join(_sql_string_literal(g) for g in view_globs)
         try:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS "
@@ -355,14 +362,14 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
     lines = [
         "INSTALL postgres_scanner;",
         "LOAD postgres_scanner;",
-        f"ATTACH '{dsn}' AS z2 (TYPE postgres);",
+        f"ATTACH {_sql_string_literal(dsn)} AS z2 (TYPE postgres);",
         "CREATE SCHEMA IF NOT EXISTS z3;",
         "CREATE SCHEMA IF NOT EXISTS z4;",
     ]
     globs = _z3_globs(derived)
     for table in TABLES:
         view_globs = [g.format(table=table) for g in globs]
-        glob_list = ", ".join(f"'{g}'" for g in view_globs)
+        glob_list = ", ".join(_sql_string_literal(g) for g in view_globs)
         lines.append(
             f"CREATE OR REPLACE VIEW {table} AS "
             f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true);"

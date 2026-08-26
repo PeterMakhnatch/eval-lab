@@ -6,8 +6,12 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 from evallab.cli import parser
 from evallab.trajectory_data_quality import (
+    _jobs_parquet_projection,
     campaign_data_quality_report,
     load_cross_campaign_inventory,
 )
@@ -118,6 +122,42 @@ def test_quality_report_unknown_vs_zero(tmp_path: Path) -> None:
     assert trial["citation_reopen"]["available"] is None
     assert "postgres_unavailable" in report["hold_reasons"]
     assert "jobs_parquet_missing" in report["hold_reasons"]
+
+
+def test_jobs_parquet_projection_present_for_job_level_hive(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    job_dir = derived / "parquet" / "job_id=abc123"
+    job_dir.mkdir(parents=True)
+    rows = [
+        {"job_id": "abc123", "status": "done"},
+        {"job_id": "abc123", "status": "running"},
+    ]
+    hive_path = job_dir / "jobs.parquet"
+    pq.write_table(pa.Table.from_pylist(rows), hive_path)
+
+    projection = _jobs_parquet_projection(derived)
+    assert projection["status"] == "present"
+    assert projection["reason"] is None
+    assert projection["row_count"] == 2
+    assert projection["stray_jobs_parquet_paths"] == []
+    assert str(hive_path) not in projection["stray_jobs_parquet_paths"]
+
+
+def test_jobs_parquet_projection_treats_trial_nested_jobs_as_stray(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    nested = derived / "parquet" / "job_id=abc123" / "trial_id=t1"
+    nested.mkdir(parents=True)
+    stray_path = nested / "jobs.parquet"
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "abc123", "status": "done"}]),
+        stray_path,
+    )
+
+    projection = _jobs_parquet_projection(derived)
+    assert projection["status"] == "missing"
+    assert projection["reason"] == "jobs_parquet_hive_absent"
+    assert projection["row_count"] is None
+    assert projection["stray_jobs_parquet_paths"] == [str(stray_path)]
 
 
 def test_current_manifest_accounting_tb3_and_cross_campaign() -> None:

@@ -32,13 +32,12 @@ DETERMINISTIC_GATE_ORDER = (
     "not_quarantined",
     "not_hold_gold",
 )
-_GATE_ORDER_INDEX = {
-    gate_id: index for index, gate_id in enumerate(DETERMINISTIC_GATE_ORDER)
-}
+_GATE_ORDER_INDEX = {gate_id: index for index, gate_id in enumerate(DETERMINISTIC_GATE_ORDER)}
 
 
 def _gate_sort_key(gate: GateResult) -> tuple[int, str]:
     return (_GATE_ORDER_INDEX.get(gate.gate_id, len(DETERMINISTIC_GATE_ORDER)), gate.gate_id)
+
 
 _FATAL_REASON_CODES = frozenset(
     {
@@ -48,6 +47,9 @@ _FATAL_REASON_CODES = frozenset(
         "contradicts_verifier_or_state",
         "schema_invalid",
         "citation_unresolved",
+        "actor_not_in_cone",
+        "false_verification",
+        "no_future",
     }
 )
 
@@ -177,9 +179,7 @@ class AcceptanceDecision(ContractModel):
         expected_id = canonical_json_digest(id_body)
         if self.decision_id != expected_id:
             raise ValueError("decision_id does not match canonical content identity")
-        expected_digest = canonical_json_digest(
-            {**id_body, "decision_id": self.decision_id}
-        )
+        expected_digest = canonical_json_digest({**id_body, "decision_id": self.decision_id})
         if self.decision_digest != expected_digest:
             raise ValueError("decision_digest does not match canonical content identity")
         return self
@@ -225,28 +225,27 @@ def evaluate_acceptance(
     """Evaluate immutable gate inputs; current v1 can only reject or abstain."""
     gates = _ordered_gates(deterministic_gates)
     failed_reasons = {
-        gate.reason_code
-        for gate in gates
-        if gate.status == "fail" and gate.reason_code is not None
+        gate.reason_code for gate in gates if gate.status == "fail" and gate.reason_code is not None
     }
     fatal = bool(failed_reasons & _FATAL_REASON_CODES)
-    decision: Literal["rejected", "abstained"] = (
-        "rejected" if fatal else "abstained"
-    )
+    decision: Literal["rejected", "abstained"] = "rejected" if fatal else "abstained"
 
     reason_codes: list[str] = []
     for gate in gates:
-        if (
-            gate.status != "pass"
-            and gate.reason_code
-            and gate.reason_code not in reason_codes
-        ):
+        if gate.status != "pass" and gate.reason_code and gate.reason_code not in reason_codes:
             reason_codes.append(gate.reason_code)
-    if cross_judge.required and cross_judge.agreement != "exact":
+    if (
+        cross_judge.required
+        and cross_judge.agreement != "exact"
+        and "cross_judge_disagree" not in reason_codes
+    ):
         reason_codes.append("cross_judge_disagree")
-    if not calibration_class_gate.acceptance_enabling_allowed:
+    if (
+        not calibration_class_gate.acceptance_enabling_allowed
+        and "acceptance_enabling_disabled" not in reason_codes
+    ):
         reason_codes.append("acceptance_enabling_disabled")
-    if not calibration_class_gate.acceptance_enabled:
+    if not calibration_class_gate.acceptance_enabled and "class_not_enabled" not in reason_codes:
         reason_codes.append("class_not_enabled")
     for hold_reason in calibration_class_gate.hold_reasons:
         if hold_reason not in reason_codes:

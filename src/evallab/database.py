@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Literal, LiteralString, cast
 
@@ -367,9 +367,7 @@ def digest_trials(database_url: str, day: date) -> list[tuple[Any, ...]]:
         )
 
 
-def canary_drift_observations(
-    database_url: str, day: date
-) -> list[CanaryDriftObservation]:
+def canary_drift_observations(database_url: str, day: date) -> list[CanaryDriftObservation]:
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         rows = connection.execute(
             """
@@ -411,6 +409,115 @@ def canary_drift_observations(
         )
         for row in rows
     ]
+
+
+def _ingest_interpretation_artifacts(connection: Any, records: Iterable[Any]) -> int:
+    """Insert interpretation records into identity/index tables.
+
+    Accepts any iterable of objects exposing the ``ArtifactRecord`` shape.
+    This helper is public so tests can call it with a fake connection.
+    """
+    count = 0
+    for record in records:
+        kind = getattr(record, "kind", None)
+        artifact_digest = getattr(record, "artifact_digest", None)
+        if not artifact_digest:
+            continue
+
+        connection.execute(
+            cast(
+                LiteralString,
+                """
+                INSERT INTO interpretation_artifacts (
+                    artifact_digest, kind, trial_id, job_id, content_digest, artifact_path,
+                    cas_uri, pack_digest, judgment_id, decision_id, ingested_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (artifact_digest) DO NOTHING
+                """,
+            ),
+            (
+                artifact_digest,
+                kind,
+                getattr(record, "trial_id", None),
+                getattr(record, "job_id", None),
+                getattr(record, "content_digest", None),
+                str(getattr(record, "artifact_path", "")),
+                getattr(record, "cas_uri", None) or None,
+                getattr(record, "pack_digest", None) or None,
+                getattr(record, "judgment_id", None) or None,
+                getattr(record, "decision_id", None) or None,
+            ),
+        )
+
+        if kind == "judgment":
+            produced_at = getattr(record, "produced_at", None)
+            produced_at = produced_at if isinstance(produced_at, datetime) else None
+            connection.execute(
+                cast(
+                    LiteralString,
+                    """
+                    INSERT INTO machine_judgments (
+                        judgment_id, judgment_digest, pack_digest, producer_kind, validity,
+                        citation_ids, coverage_gaps, artifact_path, cas_uri, produced_at, ingested_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                    ON CONFLICT (judgment_id) DO NOTHING
+                    """,
+                ),
+                (
+                    artifact_digest,
+                    getattr(record, "judgment_digest", None) or None,
+                    getattr(record, "pack_digest", None) or None,
+                    getattr(record, "producer_kind", None),
+                    getattr(record, "validity", None),
+                    Jsonb(list(getattr(record, "citation_ids", []) or [])),
+                    Jsonb(list(getattr(record, "coverage_gaps", []) or [])),
+                    str(getattr(record, "artifact_path", "")),
+                    getattr(record, "cas_uri", None) or None,
+                    produced_at,
+                ),
+            )
+
+        if kind == "decision":
+            produced_at = getattr(record, "produced_at", None)
+            if not isinstance(produced_at, datetime):
+                produced_at = None
+            connection.execute(
+                cast(
+                    LiteralString,
+                    """
+                    INSERT INTO acceptance_decisions (
+                        decision_id, decision_digest, decision, judgment_ids, pack_digest,
+                        reason_codes, calibration_version, calibration_schema, status,
+                        supersedes_decision_id, artifact_path, cas_uri, produced_at, ingested_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                    ON CONFLICT (decision_id) DO NOTHING
+                    """,
+                ),
+                (
+                    artifact_digest,
+                    getattr(record, "decision_digest", None) or None,
+                    getattr(record, "decision", None),
+                    Jsonb(list(getattr(record, "judgment_ids", []) or [])),
+                    getattr(record, "pack_digest", None) or None,
+                    Jsonb(list(getattr(record, "reason_codes", []) or [])),
+                    getattr(record, "calibration_version", None) or None,
+                    getattr(record, "calibration_schema", None) or None,
+                    getattr(record, "status", None),
+                    getattr(record, "supersedes_decision_id", None) or None,
+                    str(getattr(record, "artifact_path", "")),
+                    getattr(record, "cas_uri", None) or None,
+                    produced_at,
+                ),
+            )
+
+        count += 1
+    return count
+
+
+def ingest_interpretation_artifacts(database_url: str, records: Iterable[Any]) -> int:
+    """Open a real PostgreSQL connection and insert ``ArtifactRecord`` rows."""
+    with psycopg.connect(database_url) as connection:
+        return _ingest_interpretation_artifacts(connection, records)
 
 
 def quota_today(database_url: str) -> list[tuple[str, int, int]]:

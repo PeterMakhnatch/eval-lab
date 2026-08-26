@@ -12,8 +12,10 @@ from dataclasses import asdict
 from datetime import UTC, date, datetime
 from importlib import import_module
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
+import evallab.trajectory_runtime as trajectory_runtime
 from evallab import __version__, database
 from evallab import queue as queue_module
 from evallab.atif import check_projection_invariant, ingest_and_project
@@ -1296,6 +1298,104 @@ def _analyze_agreement_command(
     return 0
 
 
+def _analyze_trial_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    store_root = _resolve(root, args.store)
+    output_dir = _resolve(root, args.output_dir)
+    derived_root = output_dir.parent
+    calibration_report = (
+        _resolve(root, args.calibration_report) if args.calibration_report else None
+    )
+
+    target: dict[str, Any] | str
+    if args.cas_uri:
+        target = {"cas_uri": args.cas_uri}
+    elif args.inventory and args.trial_id:
+        inv_path = _resolve(root, args.inventory)
+        if inv_path.is_file():
+            inv_data = json.loads(inv_path.read_text(encoding="utf-8"))
+            if isinstance(inv_data, dict) and "analysis_cohort_5_trials" in inv_data:
+                manifest = trajectory_runtime.load_campaign_analysis_manifest(inv_path)
+                item = next((i for i in manifest.items if i.trial_id == args.trial_id), None)
+                if item is None:
+                    raise ValueError(f"trial_id {args.trial_id} not found in inventory")
+                target = item.as_inventory_dict()
+            else:
+                records = inv_data if isinstance(inv_data, list) else []
+                record = next((r for r in records if r.get("trial_id") == args.trial_id), None)
+                if record is None:
+                    raise ValueError(f"trial_id {args.trial_id} not found in inventory")
+                target = record
+        else:
+            raise ValueError(f"inventory not found: {args.inventory}")
+    else:
+        raise ValueError("must pass --cas-uri or --inventory with --trial-id")
+
+    result = trajectory_runtime.analyze_trial(
+        target,
+        repo_root=root,
+        store_root=store_root,
+        output_dir=output_dir,
+        derived_root=derived_root,
+        database_url=args.database_url,
+        calibration_report=calibration_report,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    return 0
+
+
+def _analyze_batch_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    inventory = _resolve(root, args.inventory)
+    store_root = _resolve(root, args.store)
+    output_dir = _resolve(root, args.output_dir)
+    derived_root = output_dir.parent
+    calibration_report = (
+        _resolve(root, args.calibration_report) if args.calibration_report else None
+    )
+    report = trajectory_runtime.analyze_batch(
+        inventory,
+        repo_root=root,
+        store_root=store_root,
+        output_dir=output_dir,
+        derived_root=derived_root,
+        database_url=args.database_url,
+        calibration_report=calibration_report,
+    )
+    print(json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
+    return 0
+
+
+def _analyze_inspect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    output_dir = _resolve(root, args.output_dir)
+    store_root = _resolve(root, args.store)
+    result = trajectory_runtime.analyze_inspect(
+        args.target,
+        output_dir=output_dir,
+        store_root=store_root,
+        repo_root=root,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    return 0
+
+
+def _analyze_calibrate_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    report_path = _resolve(root, args.path)
+    result = trajectory_runtime.analyze_calibrate(report_path)
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    return 0
+
+
 def _db_init_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -1317,9 +1417,7 @@ def _db_list_command(
     return 0
 
 
-_URI_PASSWORD_QUERY = re.compile(
-    r"(?i)([?&](?:password|sslpassword)=)([^&#]*)"
-)
+_URI_PASSWORD_QUERY = re.compile(r"(?i)([?&](?:password|sslpassword)=)([^&#]*)")
 _KEYWORD_PASSWORD = re.compile(
     r"(?i)(\b(?:password|sslpassword)\s*=\s*)"
     r"(?:'(?:\\.|''|[^'\\])*'|\"(?:\\.|\"\"|[^\"\\])*\"|(?:\\.|[^\s])+)"
@@ -1345,24 +1443,12 @@ def _redact_database_dsn(dsn: str) -> tuple[str, bool]:
             userinfo = authority[:at]
             separator = userinfo.find(":")
             if separator >= 0:
-                authority = (
-                    userinfo[:separator]
-                    + ":<REDACTED>@"
-                    + authority[at + 1 :]
-                )
-                redacted = (
-                    redacted[:authority_start]
-                    + authority
-                    + redacted[authority_end:]
-                )
+                authority = userinfo[:separator] + ":<REDACTED>@" + authority[at + 1 :]
+                redacted = redacted[:authority_start] + authority + redacted[authority_end:]
                 had_credentials = True
 
-    redacted, query_count = _URI_PASSWORD_QUERY.subn(
-        r"\1<REDACTED>", redacted
-    )
-    redacted, keyword_count = _KEYWORD_PASSWORD.subn(
-        r"\1'<REDACTED>'", redacted
-    )
+    redacted, query_count = _URI_PASSWORD_QUERY.subn(r"\1<REDACTED>", redacted)
+    redacted, keyword_count = _KEYWORD_PASSWORD.subn(r"\1'<REDACTED>'", redacted)
     return redacted, had_credentials or query_count > 0 or keyword_count > 0
 
 
@@ -1382,10 +1468,7 @@ def _db_attach_command(
         dsn = database_url_from_environment()
         safe_dsn, had_credentials = _redact_database_dsn(dsn)
         if had_credentials:
-            print(
-                "-- REDACTED / NON-EXECUTABLE: credentials were removed "
-                "from this SQL preamble."
-            )
+            print("-- REDACTED / NON-EXECUTABLE: credentials were removed from this SQL preamble.")
         print(build_sql_preamble(safe_dsn, derived, root))
         result.connection.close()
         return 0
@@ -2476,13 +2559,17 @@ def _traj_ir_command(
             target_resolved = target_path.resolve()
             repo_resolved = root.resolve()
             if target_resolved != repo_resolved and repo_resolved not in target_resolved.parents:
-                explicit_root = target_resolved.parent if target_resolved.is_file() else target_resolved
+                explicit_root = (
+                    target_resolved.parent if target_resolved.is_file() else target_resolved
+                )
         except Exception:
             pass
 
     store_root = explicit_root if (explicit_root and (explicit_root / "blobs").exists()) else None
     try:
-        ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root, store_root=store_root)
+        ir = build_trajectory_ir(
+            args.trial, repo_root=root, explicit_runs_root=explicit_root, store_root=store_root
+        )
         output_str = json.dumps(ir.to_dict(), indent=2)
         if getattr(args, "output", None):
             out_path = _resolve(root, args.output)
@@ -2511,7 +2598,9 @@ def _traj_pack_command(
             target_resolved = target_path.resolve()
             repo_resolved = root.resolve()
             if target_resolved != repo_resolved and repo_resolved not in target_resolved.parents:
-                explicit_root = target_resolved.parent if target_resolved.is_file() else target_resolved
+                explicit_root = (
+                    target_resolved.parent if target_resolved.is_file() else target_resolved
+                )
         except Exception:
             pass
 
@@ -2520,7 +2609,9 @@ def _traj_pack_command(
 
     store_root = explicit_root if (explicit_root and (explicit_root / "blobs").exists()) else None
     try:
-        ir = build_trajectory_ir(args.trial, repo_root=root, explicit_runs_root=explicit_root, store_root=store_root)
+        ir = build_trajectory_ir(
+            args.trial, repo_root=root, explicit_runs_root=explicit_root, store_root=store_root
+        )
         trial_str = str(args.trial)
         trial_dir: Path | None = None
         if not trial_str.startswith("cas://"):
@@ -2530,7 +2621,14 @@ def _traj_pack_command(
                     trial_dir = tp if tp.is_dir() else tp.parent
             except Exception:
                 pass
-        pack = build_evidence_pack(ir, trial_dir=trial_dir, repo_root=root, store_root=store_root, budget_tokens=budget, policy=policy)
+        pack = build_evidence_pack(
+            ir,
+            trial_dir=trial_dir,
+            repo_root=root,
+            store_root=store_root,
+            budget_tokens=budget,
+            policy=policy,
+        )
         fmt = getattr(args, "format", "markdown")
         if getattr(args, "json", False) or fmt == "json":
             rendered = json.dumps(pack.to_dict(), indent=2)
@@ -2571,8 +2669,12 @@ def _traj_align_command(
         return None
 
     try:
-        ir_a = build_trajectory_ir(args.trial_a, repo_root=root, explicit_runs_root=_resolve_candidate(args.trial_a))
-        ir_b = build_trajectory_ir(args.trial_b, repo_root=root, explicit_runs_root=_resolve_candidate(args.trial_b))
+        ir_a = build_trajectory_ir(
+            args.trial_a, repo_root=root, explicit_runs_root=_resolve_candidate(args.trial_a)
+        )
+        ir_b = build_trajectory_ir(
+            args.trial_b, repo_root=root, explicit_runs_root=_resolve_candidate(args.trial_b)
+        )
         result = align_trajectory_pair(ir_a, ir_b)
 
         output_str = json.dumps(result.to_dict(), indent=2)
@@ -3119,6 +3221,42 @@ def parser() -> argparse.ArgumentParser:
         default=Path("derived/analysis/failure-taxonomy-agreement.json"),
     )
     analyze_agreement.set_defaults(func=_analyze_agreement_command)
+
+    analyze_trial = analyze_commands.add_parser(
+        "trial", help="Analyze one cohort-style input from CAS (pack-only, no model)"
+    )
+    analyze_trial.add_argument("--cas-uri")
+    analyze_trial.add_argument("--store", type=Path, default=Path("derived/evidence-cas"))
+    analyze_trial.add_argument("--inventory", type=Path)
+    analyze_trial.add_argument("--trial-id")
+    analyze_trial.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
+    analyze_trial.add_argument("--database-url")
+    analyze_trial.add_argument("--calibration-report", type=Path)
+    analyze_trial.set_defaults(func=_analyze_trial_command)
+
+    analyze_batch = analyze_commands.add_parser(
+        "batch", help="Consume the merged five-TB3 machine-analysis inventory"
+    )
+    analyze_batch.add_argument("inventory", type=Path)
+    analyze_batch.add_argument("--store", type=Path, default=Path("derived/evidence-cas"))
+    analyze_batch.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
+    analyze_batch.add_argument("--database-url")
+    analyze_batch.add_argument("--calibration-report", type=Path)
+    analyze_batch.set_defaults(func=_analyze_batch_command)
+
+    analyze_inspect = analyze_commands.add_parser(
+        "inspect", help="Reopen artifact lineage and exact citations for one decision"
+    )
+    analyze_inspect.add_argument("target")
+    analyze_inspect.add_argument("--store", type=Path, default=Path("derived/evidence-cas"))
+    analyze_inspect.add_argument("--output-dir", type=Path, default=Path("derived/interpretation"))
+    analyze_inspect.set_defaults(func=_analyze_inspect_command)
+
+    analyze_calibrate = analyze_commands.add_parser(
+        "calibrate", help="Parse a committed CalibrationReport and report hold-only status"
+    )
+    analyze_calibrate.add_argument("path", type=Path)
+    analyze_calibrate.set_defaults(func=_analyze_calibrate_command)
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)
@@ -3822,7 +3960,9 @@ def parser() -> argparse.ArgumentParser:
     traj_card.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
     traj_card.add_argument("--output", "-o", type=Path, help="Write card markdown to file")
     traj_card.add_argument("--json", action="store_true", help="Emit card data as JSON")
-    traj_card.add_argument("--no-redact", action="store_true", help="Disable on-read secret redaction")
+    traj_card.add_argument(
+        "--no-redact", action="store_true", help="Disable on-read secret redaction"
+    )
     traj_card.set_defaults(func=_traj_card_command)
 
     traj_ir = traj_commands.add_parser(
@@ -3837,12 +3977,18 @@ def parser() -> argparse.ArgumentParser:
         "pack", help="Build a bounded, citation-preserving EvidencePack for model interpretation"
     )
     traj_pack.add_argument("trial", help="Trial identifier, directory, or result.json")
-    traj_pack.add_argument("--budget", type=int, default=16000, help="Token budget (default: 16000)")
+    traj_pack.add_argument(
+        "--budget", type=int, default=16000, help="Token budget (default: 16000)"
+    )
     traj_pack.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
     traj_pack.add_argument("--output", "-o", type=Path, help="Write EvidencePack to file")
-    traj_pack.add_argument("--format", choices=["markdown", "json"], default="markdown", help="Output format")
+    traj_pack.add_argument(
+        "--format", choices=["markdown", "json"], default="markdown", help="Output format"
+    )
     traj_pack.add_argument("--json", action="store_true", help="Emit EvidencePack as JSON")
-    traj_pack.add_argument("--no-redact", action="store_true", help="Disable on-read secret redaction")
+    traj_pack.add_argument(
+        "--no-redact", action="store_true", help="Disable on-read secret redaction"
+    )
     traj_pack.set_defaults(func=_traj_pack_command)
 
     traj_align = traj_commands.add_parser(
@@ -3878,6 +4024,7 @@ def run_cli(
 
 def main(argv: Sequence[str] | None = None) -> None:
     raise SystemExit(run_cli(argv))
+
 
 def legacy_main() -> None:
     print("warning: harbor-lab is deprecated; use evallab", file=sys.stderr)

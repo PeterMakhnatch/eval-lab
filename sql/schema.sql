@@ -580,3 +580,82 @@ WHERE started_at IS NOT NULL
   AND (started_at::timestamptz AT TIME ZONE 'UTC')::date = (now() AT TIME ZONE 'UTC')::date
 GROUP BY agent_name
 ORDER BY provider;
+
+-- Track A5 interpretation artifacts: identity/index only, no raw JSON blobs.
+CREATE TABLE IF NOT EXISTS interpretation_artifacts (
+    artifact_digest text PRIMARY KEY,
+    kind text NOT NULL,
+    trial_id text NOT NULL,
+    job_id text NOT NULL,
+    content_digest text NOT NULL,
+    artifact_path text NOT NULL,
+    cas_uri text,
+    pack_digest text,
+    judgment_id text,
+    decision_id text,
+    ingested_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS interpretation_artifacts_trial_idx ON interpretation_artifacts (trial_id);
+CREATE INDEX IF NOT EXISTS interpretation_artifacts_pack_idx ON interpretation_artifacts (pack_digest);
+CREATE INDEX IF NOT EXISTS interpretation_artifacts_decision_idx ON interpretation_artifacts (decision_id);
+
+CREATE TABLE IF NOT EXISTS machine_judgments (
+    judgment_id text PRIMARY KEY,
+    judgment_digest text NOT NULL,
+    pack_digest text NOT NULL,
+    producer_kind text NOT NULL,
+    validity text NOT NULL,
+    citation_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+    coverage_gaps jsonb NOT NULL DEFAULT '[]'::jsonb,
+    artifact_path text NOT NULL,
+    cas_uri text,
+    produced_at timestamptz NOT NULL,
+    ingested_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS machine_judgments_pack_idx ON machine_judgments (pack_digest);
+
+CREATE TABLE IF NOT EXISTS acceptance_decisions (
+    decision_id text PRIMARY KEY,
+    decision_digest text NOT NULL,
+    decision text NOT NULL,
+    judgment_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+    pack_digest text NOT NULL,
+    reason_codes jsonb NOT NULL DEFAULT '[]'::jsonb,
+    calibration_version text,
+    calibration_schema text,
+    status text NOT NULL,
+    supersedes_decision_id text,
+    artifact_path text NOT NULL,
+    cas_uri text,
+    produced_at timestamptz NOT NULL,
+    ingested_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS acceptance_decisions_pack_idx ON acceptance_decisions (pack_digest);
+
+CREATE OR REPLACE VIEW v_machine_judgment_decisions AS
+SELECT
+    d.decision_id,
+    d.decision,
+    d.pack_digest,
+    d.reason_codes,
+    m.judgment_id,
+    m.producer_kind,
+    m.validity,
+    m.citation_ids,
+    m.coverage_gaps
+FROM acceptance_decisions d
+LEFT JOIN machine_judgments m ON m.judgment_id = (d.judgment_ids->>0);
+
+CREATE OR REPLACE VIEW v_current_acceptance_decisions AS
+SELECT DISTINCT ON (pack_digest)
+    decision_id,
+    pack_digest,
+    decision,
+    reason_codes,
+    produced_at,
+    supersedes_decision_id
+FROM acceptance_decisions
+ORDER BY pack_digest, produced_at DESC;

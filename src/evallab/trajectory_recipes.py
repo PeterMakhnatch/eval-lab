@@ -833,6 +833,32 @@ def _omitted_terminal_range(
     return None
 
 
+def _terminal_windowed(pack: dict[str, Any], ir: dict[str, Any] | None) -> bool:
+    """True when selected windows reach the trajectory's final (outcome) step."""
+    window_end = 0
+    for window in pack.get("selected_windows") or []:
+        end = window.get("step_end")
+        if isinstance(end, int):
+            window_end = max(window_end, end)
+    steps = [
+        event.get("step_index")
+        for window in pack.get("selected_windows") or []
+        for event in window.get("events") or []
+        if isinstance(event.get("step_index"), int)
+    ]
+    steps += [
+        event.get("step_index")
+        for event in (ir or {}).get("events") or []
+        if isinstance(event.get("step_index"), int)
+    ]
+    for omitted in pack.get("omitted_ranges") or []:
+        end = omitted.get("step_end")
+        if isinstance(end, int):
+            steps.append(end)
+    outcome_step = max(steps) if steps else None
+    return outcome_step is not None and window_end >= outcome_step
+
+
 def _omitted_before_event(pack: dict[str, Any], event: dict[str, Any]) -> dict[str, Any] | None:
     step = event.get("step_index")
     if not isinstance(step, int):
@@ -1128,7 +1154,7 @@ def _run_r1(ctx: _RecipeContext) -> RecipeFinding:
             "pack_incomplete",
             extras=extras,
             citations=[reopen] if reopen else None,
-            gaps=["terminal_window_omitted"],
+            gaps=["terminal_window_absent"],
         )
 
     paired = _paired_action_observation(ctx.window_events)
@@ -1165,13 +1191,18 @@ def _run_r1(ctx: _RecipeContext) -> RecipeFinding:
     )
     if omitted and not has_terminal:
         reopen = _citation_id(omitted[0].get("reopening_citation"))
+        gap = (
+            "decisive_context_omitted"
+            if _terminal_windowed(ctx.pack, ctx.ir)
+            else "terminal_window_absent"
+        )
         return _abstain(
             ctx,
             "r1",
             "pack_incomplete",
             extras=extras,
             citations=[reopen] if reopen else None,
-            gaps=["terminal_window_omitted"],
+            gaps=[gap],
         )
 
     gaps = (

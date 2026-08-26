@@ -392,8 +392,10 @@ def test_identical_retry_thrashing_with_citations() -> None:
     pack = make_pack(events=[err, a1, a2])
     findings = run_recipes(artifacts_from(pack, make_ir(events=[err, a1, a2])))
     r5 = by_recipe(findings, "r5")
-    hits = [f for f in r5 if "repeated_failure_or_thrashing" in f.alternative_explanations]
+    hits = [f for f in r5 if f.extras.get("demoted_by_precedence")]
     assert hits and hits[0].extras["demoted_by_precedence"] is True
+    assert all(f.class_id != "repeated_failure_or_thrashing" for f in findings)
+    assert any("repeated_failure_or_thrashing" in f.alternative_explanations for f in findings)
     assert hits[0].citations
     allowed = {"cit_err", "cit_a1", "cit_a2", "cit_window", "cit_ep", "cit_user"}
     assert set(hits[0].citations) <= allowed
@@ -811,3 +813,266 @@ def test_v11_refusal_is_ontology_gap_with_verbatim_quote() -> None:
 
 def extract_message(event: dict) -> str:
     return json.loads(event["hydrated_content"])["message"]
+
+
+def test_r1_omitted_terminal_does_not_label_from_action_observation() -> None:
+    action = make_event(
+        event_id="e-act",
+        citation_id="cit_act",
+        event_type="tool_call",
+        ordinal=1,
+        step_index=2,
+        program="sed",
+        family="file_edit",
+        payload_digest=DIGEST_A,
+        matched_result_digest=DIGEST_B,
+        summary="edit file",
+    )
+    observation = make_event(
+        event_id="e-obs",
+        citation_id="cit_obs",
+        event_type="observation",
+        actor="environment",
+        ordinal=2,
+        step_index=2,
+        payload_digest=DIGEST_B,
+        summary="edit applied",
+    )
+    omitted = {
+        "range_id": 1,
+        "step_start": 10,
+        "step_end": 20,
+        "event_count": 8,
+        "action_families": ["other"],
+        "summary": "terminal outcome omitted",
+        "reopening_citation": make_citation("cit_reopen_terminal", step_id=10),
+    }
+    pack = make_pack(events=[action, observation], omitted=[omitted])
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[action, observation])))
+    r1 = by_recipe(findings, "r1")
+    assert r1
+    assert all(f.class_id != "wrong_target_or_action" for f in r1)
+    assert r1[0].abstention_reason == "pack_incomplete"
+    assert "cit_reopen_terminal" in r1[0].citations
+
+
+def test_r2_earliest_omission_and_adjacent_error_is_not_propagation() -> None:
+    early_omitted = {
+        "range_id": 1,
+        "step_start": 1,
+        "step_end": 3,
+        "event_count": 4,
+        "action_families": ["command_execution"],
+        "summary": "earlier errors omitted",
+        "reopening_citation": make_citation("cit_reopen_early", step_id=1),
+    }
+    decisive = make_event(
+        event_id="e-dec",
+        citation_id="cit_dec",
+        event_type="tool_call",
+        ordinal=4,
+        step_index=5,
+        program="sed",
+        family="file_edit",
+        exit_code=2,
+        is_error=True,
+        payload_digest=DIGEST_A,
+        matched_result_digest=DIGEST_B,
+        summary="bad edit",
+    )
+    omitted_pack = make_pack(events=[decisive], omitted=[early_omitted])
+    omitted_findings = run_recipes(artifacts_from(omitted_pack, make_ir(events=[decisive])))
+    r2_omitted = by_recipe(omitted_findings, "r2")
+    assert r2_omitted
+    assert r2_omitted[0].class_id is None
+    assert r2_omitted[0].abstention_reason == "pack_incomplete"
+    assert "cit_reopen_early" in r2_omitted[0].citations
+
+    later = make_event(
+        event_id="e-later",
+        citation_id="cit_later",
+        event_type="tool_call",
+        ordinal=5,
+        step_index=6,
+        program="sed",
+        family="file_edit",
+        exit_code=2,
+        is_error=True,
+        payload_digest=DIGEST_B,
+        matched_result_digest=DIGEST_A,
+        summary="later adjacent error",
+    )
+    adjacent_pack = make_pack(events=[decisive, later])
+    adjacent_findings = run_recipes(
+        artifacts_from(adjacent_pack, make_ir(events=[decisive, later]))
+    )
+    r2 = by_recipe(adjacent_findings, "r2")
+    assert r2
+    assert r2[0].extras.get("propagated_event_ids") == []
+    assert "e-later" not in (r2[0].extras.get("propagated_event_ids") or [])
+
+
+def test_r4_verifier_defect_emits_abstention_not_silent_skip() -> None:
+    claim = make_event(
+        event_id="e-claim",
+        citation_id="cit_claim",
+        event_type="agent_message",
+        ordinal=1,
+        step_index=2,
+        summary="I completed the task successfully.",
+        hydrated_content=json.dumps({"message": "I completed the task successfully."}),
+    )
+    pack = make_pack(
+        events=[claim],
+        final_verdict="VERIFIER_ERROR",
+        quality_findings=["verifier_failure"],
+    )
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[claim])))
+    r4 = by_recipe(findings, "r4")
+    assert r4
+    assert r4[0].class_id is None
+    assert r4[0].disposition == "deterministic_abstention"
+    assert r4[0].abstention_reason == "contradicts_verifier_or_state"
+    assert r4[0].extras.get("reason_alias") == "verifier_excluded"
+
+
+def test_r5_user_intervention_blocks_thrashing_label() -> None:
+    err = make_event(
+        event_id="e-err",
+        citation_id="cit_err",
+        event_type="observation",
+        actor="environment",
+        ordinal=0,
+        step_index=1,
+        is_error=True,
+        exit_semantics="error",
+        exit_code=2,
+        summary="fault",
+    )
+    user = make_event(
+        event_id="e-user-int",
+        citation_id="cit_user_int",
+        event_type="user_message",
+        actor="user",
+        ordinal=1,
+        step_index=2,
+        summary="please retry the same command",
+    )
+    a1 = make_event(
+        event_id="e-a1",
+        citation_id="cit_a1",
+        event_type="tool_call",
+        ordinal=2,
+        step_index=3,
+        program="cat",
+        family="file_read",
+        payload_digest=DIGEST_A,
+        summary="cat a",
+        matched_result_digest=DIGEST_B,
+    )
+    a2 = make_event(
+        event_id="e-a2",
+        citation_id="cit_a2",
+        event_type="tool_call",
+        ordinal=3,
+        step_index=4,
+        program="cat",
+        family="file_read",
+        payload_digest=DIGEST_A,
+        summary="cat a again",
+        matched_result_digest=DIGEST_B,
+    )
+    pack = make_pack(events=[err, user, a1, a2])
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[err, user, a1, a2])))
+    r5 = by_recipe(findings, "r5")
+    assert r5
+    assert all(f.class_id != "repeated_failure_or_thrashing" for f in findings)
+    assert all("repeated_failure_or_thrashing" not in f.alternative_explanations for f in r5)
+    assert any(f.extras.get("intervention_provenance") == "user_assisted" for f in r5)
+    assert all(f.class_id is None for f in r5)
+
+
+def test_r6_outside_window_violation_is_not_context_loss() -> None:
+    pre = make_event(
+        event_id="e-pre",
+        citation_id="cit_pre",
+        event_type="tool_call",
+        ordinal=0,
+        step_index=1,
+        program="cat",
+        family="file_read",
+        payload_digest=DIGEST_A,
+        summary="constraint present",
+        matched_result_digest=DIGEST_B,
+    )
+    boundary = make_event(
+        event_id="e-boundary",
+        citation_id="cit_boundary",
+        event_type="context_management",
+        ordinal=1,
+        step_index=2,
+        summary="compaction boundary",
+    )
+    post = make_event(
+        event_id="e-post",
+        citation_id="cit_post",
+        event_type="tool_call",
+        ordinal=2,
+        step_index=3,
+        program="cat",
+        family="file_read",
+        payload_digest=DIGEST_B,
+        summary="constraint violated after boundary",
+        matched_result_digest=DIGEST_A,
+    )
+    pack = make_pack(events=[pre, boundary])
+    findings = run_recipes(artifacts_from(pack, make_ir(events=[pre, boundary, post])))
+    r6 = by_recipe(findings, "r6")
+    assert r6
+    assert all(f.class_id != "context_or_constraint_loss" for f in findings)
+    assert r6[0].class_id is None
+    assert r6[0].abstention_reason in {"opportunity_unknown", "pack_incomplete"}
+
+
+def test_precedence_demotion_moves_class_to_winner_and_recomputes_id() -> None:
+    action = make_event(
+        event_id="a",
+        citation_id="a",
+        event_type="tool_call",
+        program="bad",
+        exit_code=2,
+        is_error=True,
+        matched_result_digest=DIGEST_B,
+    )
+    observation = make_event(
+        event_id="o",
+        citation_id="o",
+        event_type="observation",
+        actor="environment",
+        ordinal=1,
+        is_error=True,
+        exit_code=2,
+    )
+    findings = run_recipes(
+        artifacts_from(
+            make_pack(events=[action, observation], exception_class="TimeoutError"),
+            make_ir(events=[action, observation]),
+        )
+    )
+    labeled = [item for item in findings if item.class_id]
+    assert len(labeled) == 1
+    winner = labeled[0]
+    assert winner.class_id == "infrastructure_failure"
+    losers = [
+        item
+        for item in findings
+        if item.extras.get("demoted_by_precedence") and item.class_id is None
+    ]
+    assert losers
+    loser = losers[0]
+    pre_id = loser.extras.get("pre_demotion_finding_id")
+    assert isinstance(pre_id, str) and pre_id
+    assert loser.finding_id != pre_id
+    assert "wrong_target_or_action" in winner.alternative_explanations
+    RecipeFinding.model_validate(loser.model_dump())
+    RecipeFinding.model_validate(winner.model_dump())

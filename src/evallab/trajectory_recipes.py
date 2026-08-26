@@ -556,6 +556,7 @@ def _index_convention(ctx: _RecipeContext) -> str:
 
 def _provenance_extras(ctx: _RecipeContext, extras: dict[str, Any] | None) -> dict[str, Any]:
     result = dict(extras or {})
+    specific_alias = result.get("reason_alias")
     result.update(
         {
             "pack_digest": ctx.pack.get("pack_digest"),
@@ -566,6 +567,8 @@ def _provenance_extras(ctx: _RecipeContext, extras: dict[str, Any] | None) -> di
             "model_hash": None,
         }
     )
+    if isinstance(specific_alias, str) and specific_alias:
+        result["reason_alias"] = specific_alias
     return result
 
 
@@ -775,6 +778,154 @@ def _is_error_observation(event: dict[str, Any], profile: str | None) -> bool:
     return bool(event.get("event_type") == "observation" and event.get("is_error"))
 
 
+_TERMINAL_OMITTED_MARKERS = ("terminal", "outcome", "verdict", "final claim")
+_DEPENDENCY_FIELDS = (
+    "depends_on",
+    "parent_event_id",
+    "source_event_id",
+    "caused_by",
+    "dependency_event_id",
+    "input_event_ids",
+    "references",
+    "citation_chain",
+)
+
+
+def _omitted_reopen(omitted: dict[str, Any] | None) -> str | None:
+    if omitted is None:
+        return None
+    return _citation_id(omitted.get("reopening_citation"))
+
+
+def _omitted_terminal_range(
+    pack: dict[str, Any], ir: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    omitted_ranges = list(pack.get("omitted_ranges") or [])
+    if not omitted_ranges:
+        return None
+    window_end = 0
+    for window in pack.get("selected_windows") or []:
+        end = window.get("step_end")
+        if isinstance(end, int):
+            window_end = max(window_end, end)
+    ir_steps = [
+        event.get("step_index")
+        for event in (ir or {}).get("events") or []
+        if isinstance(event.get("step_index"), int)
+    ]
+    outcome_step = max(ir_steps) if ir_steps else None
+    for omitted in omitted_ranges:
+        start = omitted.get("step_start")
+        end = omitted.get("step_end")
+        summary = str(omitted.get("summary") or "").lower()
+        if any(marker in summary for marker in _TERMINAL_OMITTED_MARKERS):
+            return omitted
+        if isinstance(start, int) and start > window_end:
+            return omitted
+        if (
+            outcome_step is not None
+            and isinstance(start, int)
+            and isinstance(end, int)
+            and start <= outcome_step <= end
+        ):
+            return omitted
+    return None
+
+
+def _omitted_before_event(pack: dict[str, Any], event: dict[str, Any]) -> dict[str, Any] | None:
+    step = event.get("step_index")
+    if not isinstance(step, int):
+        return None
+    for omitted in pack.get("omitted_ranges") or []:
+        start = omitted.get("step_start")
+        end = omitted.get("step_end")
+        if isinstance(start, int) and start < step:
+            return omitted
+        if isinstance(end, int) and end < step:
+            return omitted
+    return None
+
+
+def _observation_for_action(
+    action: dict[str, Any],
+    observations: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    action_ord = int(action.get("event_ordinal") or 0)
+    action_step = action.get("step_index")
+    action_id = _event_id(action)
+    matched = action.get("matched_result_digest")
+    next_ords = [
+        int(event.get("event_ordinal") or 0)
+        for event in events
+        if _is_call_event(event) and int(event.get("event_ordinal") or 0) > action_ord
+    ]
+    horizon = min(next_ords) if next_ords else None
+    explicit: dict[str, Any] | None = None
+    same_step: dict[str, Any] | None = None
+    next_obs: dict[str, Any] | None = None
+    for obs in observations:
+        obs_ord = int(obs.get("event_ordinal") or 0)
+        if obs_ord < action_ord:
+            continue
+        if horizon is not None and obs_ord >= horizon:
+            continue
+        if action_id and obs.get("source_event_id") == action_id:
+            explicit = obs
+            break
+        if action_id and obs.get("parent_event_id") == action_id:
+            explicit = obs
+            break
+        if isinstance(matched, str) and matched and obs.get("payload_digest") == matched:
+            explicit = obs
+            break
+        if action_step is not None and obs.get("step_index") == action_step and same_step is None:
+            same_step = obs
+        if next_obs is None:
+            next_obs = obs
+    return explicit or same_step or next_obs
+
+
+def _paired_action_observation(
+    events: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    observations = [event for event in events if event.get("event_type") == "observation"]
+    for action in events:
+        if not _is_call_event(action):
+            continue
+        obs = _observation_for_action(action, observations, events)
+        if obs is not None:
+            return action, obs
+    return None
+
+
+def _explicit_dependency(event: dict[str, Any], decisive: dict[str, Any]) -> bool:
+    decisive_id = _event_id(decisive)
+    decisive_cite = _event_citation(decisive)
+    tokens = [item for item in (decisive_id, decisive_cite) if isinstance(item, str)]
+    for field in _DEPENDENCY_FIELDS:
+        value = event.get(field)
+        items = value if isinstance(value, list) else [value]
+        for item in items:
+            if item in tokens:
+                return True
+            if isinstance(item, dict):
+                cited = _citation_id(item) or item.get("event_id")
+                if cited in tokens:
+                    return True
+    outputs = [
+        item
+        for item in (
+            decisive.get("payload_digest"),
+            decisive.get("matched_result_digest"),
+            decisive_id,
+        )
+        if isinstance(item, str) and item
+    ]
+    blob = f"{extract_hydrated_text(event)} {event.get('argument_skeleton') or ''}"
+    return any(token in blob for token in outputs)
+
+
 def _source_digests(ctx: _RecipeContext) -> dict[str, Any]:
     pack_digests = dict(ctx.pack.get("source_digests") or {})
     if ctx.ir:
@@ -853,20 +1004,21 @@ def _run_r1(ctx: _RecipeContext) -> RecipeFinding:
             citations=[citation] if citation else None,
             gaps=["refusal_has_no_frozen_class"],
         )
-    action_events = [event for event in ctx.window_events if _is_call_event(event)]
-    observations = [
-        event for event in ctx.window_events if event.get("event_type") == "observation"
-    ]
-    if action_events and observations:
-        action = action_events[0]
-        obs = next(
-            (
-                item
-                for item in observations
-                if item.get("event_ordinal", 0) >= action.get("event_ordinal", 0)
-            ),
-            observations[0],
+    omitted_terminal = _omitted_terminal_range(ctx.pack, ctx.ir)
+    if omitted_terminal is not None:
+        reopen = _omitted_reopen(omitted_terminal)
+        return _abstain(
+            ctx,
+            "r1",
+            "pack_incomplete",
+            extras=extras,
+            citations=[reopen] if reopen else None,
+            gaps=["terminal_window_omitted"],
         )
+
+    paired = _paired_action_observation(ctx.window_events)
+    if paired is not None:
+        action, obs = paired
         cited = [c for c in (_event_citation(action), _event_citation(obs)) if c]
         if _span_unpaired(ctx, [action, obs]):
             return _abstain(ctx, "r1", "linkage_unresolved", extras=extras, citations=cited)
@@ -982,21 +1134,32 @@ def _run_r2(ctx: _RecipeContext) -> RecipeFinding:
         )
     if errors:
         decisive = errors[0]
+        earlier_omitted = _omitted_before_event(ctx.pack, decisive)
+        if earlier_omitted is not None:
+            reopen = _omitted_reopen(earlier_omitted)
+            return _abstain(
+                ctx,
+                "r2",
+                "pack_incomplete",
+                extras=extras,
+                citations=[reopen] if reopen else None,
+                gaps=["earlier_range_omitted"],
+            )
         dependents = [
             item
             for item in events
-            if item.get("event_ordinal", -1) > decisive.get("event_ordinal", -1)
-            and item.get("event_id") != decisive.get("event_id")
+            if item.get("event_id") != decisive.get("event_id")
+            and _explicit_dependency(item, decisive)
         ]
         cited = [c for c in [_event_citation(decisive)] if c]
-        if dependents:
-            dep_c = _event_citation(dependents[0])
+        for dep in dependents:
+            dep_c = _event_citation(dep)
             if dep_c:
                 cited.append(dep_c)
         if _span_unpaired(ctx, [decisive, *dependents[:1]]):
             return _abstain(ctx, "r2", "linkage_unresolved", extras=extras, citations=cited)
         extras["propagated_event_ids"] = [
-            item["event_id"] for item in dependents[:3] if isinstance(item.get("event_id"), str)
+            item["event_id"] for item in dependents if isinstance(item.get("event_id"), str)
         ]
         summary = (
             f"{extract_hydrated_text(decisive)} {decisive.get('argument_skeleton') or ''}".lower()
@@ -1140,7 +1303,14 @@ def _run_r4(ctx: _RecipeContext) -> RecipeFinding:
         return blocked
     extras = _r4_extras()
     if _verifier_defect(ctx.pack, ctx.ir):
-        return _abstain(ctx, "r4", None, extras=extras, gaps=["verifier_failure_excluded"])
+        extras["reason_alias"] = "verifier_excluded"
+        return _abstain(
+            ctx,
+            "r4",
+            "contradicts_verifier_or_state",
+            extras=extras,
+            gaps=["verifier_failure_excluded"],
+        )
 
     window_claims = [
         event for event in ctx.window_events if event.get("event_type") == "agent_message"
@@ -1244,13 +1414,13 @@ def _run_r4(ctx: _RecipeContext) -> RecipeFinding:
 
 
 def _intervention_provenance(events: list[dict[str, Any]]) -> str:
-    actors = {str(event.get("actor") or "") for event in events}
-    if "user" in actors:
-        return "user"
-    if actors and actors <= {"agent"}:
-        return "autonomous"
-    if "system" in actors or "environment" in actors:
-        return "system"
+    for event in events:
+        actor = str(event.get("actor") or "")
+        event_type = str(event.get("event_type") or "")
+        if actor == "user" or event_type == "user_message":
+            return "user_assisted"
+        if actor == "system" or event_type in {"system_message", "system"}:
+            return "system_assisted"
     return "autonomous" if events else "unknown"
 
 
@@ -1270,7 +1440,7 @@ def _response_pattern(post_events: list[dict[str, Any]]) -> str:
 def _fault_episodes(ctx: _RecipeContext) -> list[tuple[dict[str, Any], list[dict[str, Any]]]]:
     events = ctx.window_events
     return [
-        (event, [item for item in events[index + 1 :] if item.get("actor") == "agent"])
+        (event, events[index + 1 :])
         for index, event in enumerate(events)
         if _is_error_observation(event, ctx.profile)
     ]
@@ -1290,7 +1460,12 @@ def _run_r5(ctx: _RecipeContext) -> list[RecipeFinding]:
         ]
         extras = _r5_extras()
         extras["fault_event_id"] = fault.get("event_id")
-        if not subsequent:
+        provenance = _intervention_provenance(subsequent)
+        extras["intervention_provenance"] = provenance
+        agent_turns = [
+            item for item in subsequent if item.get("actor") == "agent" or _is_call_event(item)
+        ]
+        if not agent_turns:
             extras["censored"] = True
             findings.append(
                 _abstain(
@@ -1304,7 +1479,7 @@ def _run_r5(ctx: _RecipeContext) -> list[RecipeFinding]:
                 )
             )
             continue
-        actions = [item for item in subsequent if _is_call_event(item)]
+        actions = [item for item in agent_turns if _is_call_event(item)]
         repeated = len({action_digest(item) for item in actions}) < len(actions)
         expected = actions and all(
             any(
@@ -1318,10 +1493,26 @@ def _run_r5(ctx: _RecipeContext) -> list[RecipeFinding]:
             {
                 "censored": False,
                 "response_pattern": "identical_retry" if repeated else "changed_strategy",
-                "intervention_provenance": "autonomous",
+                "intervention_provenance": provenance,
                 "accidental_success_suspect": False,
             }
         )
+        if provenance != "autonomous":
+            findings.append(
+                _emit(
+                    ctx,
+                    recipe_id="r5",
+                    disposition="candidate_hold",
+                    validity="insufficient_evidence",
+                    class_id=None,
+                    support_level="e0",
+                    earliest_supported_ir_event_id=_event_id(fault),
+                    citations=citations,
+                    coverage_gaps=ctx.gaps("non_autonomous_intervention"),
+                    extras=extras,
+                )
+            )
+            continue
         if repeated and not expected:
             findings.append(
                 _emit(
@@ -1355,21 +1546,17 @@ def _run_r6(ctx: _RecipeContext) -> RecipeFinding:
     blocked = _common_block(ctx, "r6")
     if blocked:
         return blocked
-    events = ctx.ir_events or ctx.window_events
-    boundaries = [event for event in events if event.get("event_type") == "context_management"]
+    window_events = ctx.window_events
+    window_ids = {_event_id(event) for event in window_events if _event_id(event)}
+    boundaries = [
+        event for event in window_events if event.get("event_type") == "context_management"
+    ]
     if not boundaries:
         return _abstain(ctx, "r6", "opportunity_unknown")
     boundary = boundaries[0]
-    pre = [
-        event
-        for event in events
-        if event.get("event_ordinal", 0) < boundary.get("event_ordinal", 0)
-    ]
-    post = [
-        event
-        for event in events
-        if event.get("event_ordinal", 0) > boundary.get("event_ordinal", 0)
-    ]
+    boundary_ord = int(boundary.get("event_ordinal") or 0)
+    pre = [event for event in window_events if int(event.get("event_ordinal") or 0) < boundary_ord]
+    post = [event for event in window_events if int(event.get("event_ordinal") or 0) > boundary_ord]
     pre_digests = {action_digest(event) for event in pre if _is_call_event(event)}
     post_digests = {action_digest(event) for event in post if _is_call_event(event)}
     lost = pre_digests - post_digests
@@ -1380,8 +1567,15 @@ def _run_r6(ctx: _RecipeContext) -> RecipeFinding:
             (event for event in pre if _is_call_event(event) and action_digest(event) in lost),
             None,
         )
+        cited_post = next(
+            (event for event in post if _event_citation(event)),
+            post[0],
+        )
         if cited_pre and _event_citation(cited_pre):
             citations.append(_event_citation(cited_pre) or "")
+        post_cite = _event_citation(cited_post)
+        if post_cite:
+            citations.append(post_cite)
         citations = [c for c in citations if c]
         return _emit(
             ctx,
@@ -1394,6 +1588,31 @@ def _run_r6(ctx: _RecipeContext) -> RecipeFinding:
             citations=citations,
             coverage_gaps=ctx.gaps(),
             extras=extras,
+        )
+    outside_post = [
+        event
+        for event in ctx.ir_events
+        if int(event.get("event_ordinal") or 0) > boundary_ord
+        and _event_id(event) not in window_ids
+    ]
+    if pre_digests and outside_post:
+        omitted = None
+        for event in outside_post:
+            omitted = _omitted_range_for_step(ctx.pack, event.get("step_index"))
+            if omitted is not None:
+                break
+        reason = "pack_incomplete" if omitted is not None else "opportunity_unknown"
+        reopen = _omitted_reopen(omitted)
+        cited = list(citations)
+        if reopen:
+            cited.append(reopen)
+        return _abstain(
+            ctx,
+            "r6",
+            reason,
+            extras=extras,
+            citations=cited or None,
+            gaps=["post_boundary_outside_windows"],
         )
     return _emit(
         ctx,
@@ -1502,6 +1721,15 @@ def _run_r7(ctx: _RecipeContext) -> RecipeFinding:
     )
 
 
+def _recompute_finding_id(data: dict[str, Any]) -> RecipeFinding:
+    payload = dict(data)
+    payload.pop("finding_id", None)
+    for key in ("citations", "alternative_explanations", "coverage_gaps"):
+        payload[key] = sorted(set(payload.get(key) or []))
+    payload["finding_id"] = canonical_json_digest(payload)
+    return RecipeFinding.model_validate(payload)
+
+
 def _apply_precedence(findings: list[RecipeFinding]) -> list[RecipeFinding]:
     order = {
         "infrastructure_failure": 0,
@@ -1525,22 +1753,56 @@ def _apply_precedence(findings: list[RecipeFinding]) -> list[RecipeFinding]:
     if len(candidates) < 2:
         return findings
     winner = min(candidates, key=lambda finding: order.get(finding.class_id or "", 99))
-    output = []
+    loser_classes = [
+        class_id
+        for finding in candidates
+        if finding is not winner and (class_id := finding.class_id)
+    ]
+    output: list[RecipeFinding] = []
     for finding in findings:
-        if finding is winner or finding.class_id is None:
+        if finding is winner:
+            data = finding.model_dump()
+            data["alternative_explanations"] = [
+                *finding.alternative_explanations,
+                *loser_classes,
+            ]
+            output.append(_recompute_finding_id(data))
+            continue
+        if finding.class_id is None:
             output.append(finding)
             continue
+        pre_id = finding.finding_id
+        validity = finding.validity
+        if validity in {"supported", "contradicted"}:
+            validity = "insufficient_evidence"
+        extras = {
+            **finding.extras,
+            "demoted_by_precedence": True,
+            "pre_demotion_finding_id": pre_id,
+        }
         data = finding.model_dump()
-        old = finding.class_id
         data.update(
             {
-                "disposition": "alternative_explanations",
                 "class_id": None,
-                "alternative_explanations": sorted(set([*finding.alternative_explanations, old])),
-                "extras": {**finding.extras, "demoted_by_precedence": True},
+                "validity": validity,
+                "disposition": "candidate_hold",
+                "extras": extras,
             }
         )
-        output.append(RecipeFinding.model_validate(data))
+        try:
+            demoted = _recompute_finding_id(data)
+        except ValueError:
+            extras = {**extras, "reason_alias": "precedence_demoted"}
+            data.update(
+                {
+                    "disposition": "deterministic_abstention",
+                    "validity": None,
+                    "abstention_reason": "ontology_gap",
+                    "extras": extras,
+                }
+            )
+            demoted = _recompute_finding_id(data)
+        output.append(demoted)
     return output
 
 

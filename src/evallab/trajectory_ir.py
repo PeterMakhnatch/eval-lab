@@ -1052,6 +1052,9 @@ def build_trajectory_ir(
         )
         unpaired_count = raw_unpaired_count
         linkage_coverage = "degraded" if raw_unpaired_count > 0 else "complete"
+        raw_ledger_pairing_disagreement = (
+            ledger_unpaired_count != raw_unpaired_count
+        )
 
         source_digests: dict[str, str] = {
             "source_sha256": outline.source_sha256,
@@ -1094,7 +1097,9 @@ def build_trajectory_ir(
                         action_family=ev.action_family,
                         status_owning_program=ev.status_owning_program,
                         has_prior_error=prior_error,
-                        has_subsequent_recovery=not ev.is_error and prior_error,
+                        has_subsequent_recovery=(
+                            not ev.is_error and ev.exit_semantics == "success"
+                        ),
                         state_before_digest=ev.state_before_digest,
                         state_after_digest=ev.state_after_digest,
                         reopening_citation=ev.source_citation,
@@ -1112,6 +1117,17 @@ def build_trajectory_ir(
         unknowns_list.append({"field": "tool_schema_digest", "reason": "unset_in_raw_atif_steps"})
         unknowns_list.append({"field": "matched_result_digest", "reason": "unset_in_raw_atif_steps"})
         unknowns_list.append({"field": "state_before_after_digests", "reason": "unobserved_without_state_journal"})
+        if raw_ledger_pairing_disagreement:
+            unknowns_list.append(
+                {
+                    "field": "tool_call_pairing",
+                    "reason": (
+                        "raw_atif_pairing_disagrees_with_quality_ledger:"
+                        f"raw_unpaired={raw_unpaired_count},"
+                        f"ledger_unpaired={ledger_unpaired_count}"
+                    ),
+                }
+            )
 
         from evallab.evidence_pack import compute_evidence_coverage_metrics
 

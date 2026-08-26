@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -240,13 +241,26 @@ def test_multi_call_citation_handle_hydration_identity(tmp_path: Path, repo_root
     assert parsed_a["tool_call"]["tool_call_id"] == "call_a"
 
 
-def test_five_tb3_cas_packs_determinism_and_rebuild() -> None:
-    """Verify all five PR187 TB3 CAS packs rebuild byte-identically without exception fallbacks."""
+def test_five_tb3_cas_packs_determinism_and_rebuild(repo_root: Path) -> None:
+    """Integration contract: rebuild pinned TB3 packs when an explicit external CAS root is provided."""
     import json
-    manifest_path = Path("/Users/petermakhnatch/Developer/eval-lab/research/experiments/manifests/terminal-bench-v3-k1-gemini-low-campaign-manifest.json")
+
+    manifest_path = (
+        repo_root
+        / "research"
+        / "experiments"
+        / "manifests"
+        / "terminal-bench-v3-k1-gemini-low-campaign-manifest.json"
+    )
     assert manifest_path.is_file(), f"Manifest missing: {manifest_path}"
-    cas_store = Path("/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas")
-    assert cas_store.is_dir(), f"Central CAS store missing: {cas_store}"
+
+    cas_root_value = os.environ.get("EVAL_LAB_CAS_ROOT")
+    if not cas_root_value:
+        pytest.skip(
+            "integration prerequisite: set EVAL_LAB_CAS_ROOT to immutable external evidence-cas"
+        )
+    cas_store = Path(cas_root_value).expanduser().resolve()
+    assert cas_store.is_dir(), f"Configured EVAL_LAB_CAS_ROOT is not a directory: {cas_store}"
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     expected_uris = {

@@ -331,7 +331,32 @@ flowchart TD
 | `docs/INDEX.md`, `docs/repo-map.md` | integration owner | serialized | regenerate after final source changes, never hand-resolve generated content |
 | campaign inventory | Ops PR #187 | nobody | Data removes duplicate copy from its PR |
 
-## 9. Migration and deletion decisions
+## 9. Campaign data-quality operator
+
+`evallab analyze quality <inventory>` emits one deterministic JSON report for the exact
+`CampaignAnalysisManifest`. It does not call a model and does not mutate source artifacts.
+The command accepts `--store`, `--output-dir`, `--derived-root`, and optional
+`--database-url`; quoted `--fields '{name:.path,...}'` selects report paths without
+changing the stored report.
+
+The report preserves the manifest accounting ledger, separates analysis-cohort and
+accounting-only attempts, reports quality/coverage/CAS/citation totals without coercing
+unknown counts to zero, and resolves every current sidecar generation by
+`pack_digest`, `judgment_id`, and `decision_id`. Parquet row counts are global; campaign
+and current-generation counts are separate fields. Missing identities and duplicate
+current rows place the campaign on HOLD.
+
+Source CAS absence, digest mismatch, malformed archives, incomplete packs, unresolved
+citations, missing PostgreSQL, and missing projections remain explicit fail-closed states.
+Projection rebuild accepts a generation only when the complete sidecar set matches its
+canonical digests and immutable interpretation CAS bytes. Historical generations remain
+append-only and are never silently selected as current.
+
+The full report is written to
+`<output-dir>/campaigns/<report_id>/campaign_data_quality_report.json` and archived to CAS.
+Selection is presentation only; the complete immutable report remains the audit authority.
+
+## 10. Migration and deletion decisions
 
 - Keep existing raw ATIF/facts/event mart/quality/card/baseline paths.
 - `CitationTarget` remains a low-level hydration adapter; CitationHandle is the only new persistent citation contract.
@@ -342,7 +367,7 @@ flowchart TD
 - Behavior labels, semantic facts, and model summaries are optional projections/inputs, never IR or acceptance authority.
 - Hard-coded global expected-negative programs, inferred recovery episodes/opportunities, and cross-task pair bypasses are rejected from TrajectoryIR v1.
 
-## 10. Exact-head integration review process
+## 11. Exact-head integration review process
 
 1. Capture PR number, exact head SHA, base SHA, changed-file set, and required CI checks.
 2. Verify ownership: no path or type is written by two roles; shared files follow the serialization table.
@@ -355,7 +380,7 @@ flowchart TD
 9. Recompute downstream dependency heads after every merge; rebase and re-review affected PRs.
 10. Page Main only at contract freeze, merged milestone, hard blocker, or exhaustion.
 
-## 11. Current decision ledger
+## 12. Current decision ledger
 
 The live operational ledger is `research/analysis/automated-trajectory-overnight-ledger.md`. Normative decisions:
 

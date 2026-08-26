@@ -26,6 +26,7 @@ from evallab.trajectory_judgment import (
 from evallab.trajectory_runtime import (
     ArtifactRecord,
     _data_contract_digest,
+    _pack_structure_errors,
     analyze_batch,
     analyze_calibrate,
     analyze_inspect,
@@ -460,6 +461,67 @@ def test_projection_rebuild_skips_partial_sidecar_set(tmp_path: Path) -> None:
     assert pq.read_table(paths[0]).num_rows == 0
 
 
+def test_projection_rebuild_rejects_tampered_complete_sidecars(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="projection-tamper")
+    output = tmp_path / "interpretation"
+    store = tmp_path / "cas"
+    result = analyze_trial(
+        trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+        output_dir=output,
+        derived_root=tmp_path / "derived",
+    )
+    artifact_dir = output / result["trial_id"] / result["decision_id"].removeprefix("sha256:")
+    judgment_path = artifact_dir / "machine_judgment.json"
+    judgment = json.loads(judgment_path.read_text(encoding="utf-8"))
+    judgment["finding_summary"] = "tampered after archival"
+    judgment_path.write_text(json.dumps(judgment), encoding="utf-8")
+
+    paths = rebuild_interpretation_projections(
+        output,
+        tmp_path / "rebuilt",
+        store_root=store,
+    )
+
+    import pyarrow.parquet as pq
+
+    assert pq.read_table(paths[0]).num_rows == 0
+    assert pq.read_table(paths[1]).num_rows == 0
+    assert pq.read_table(paths[2]).num_rows == 0
+
+
+def test_projection_rebuild_rejects_corrupt_interpretation_blob(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="projection-corrupt-cas")
+    output = tmp_path / "interpretation"
+    store = tmp_path / "cas"
+    result = analyze_trial(
+        trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+        output_dir=output,
+        derived_root=tmp_path / "derived",
+    )
+    record_path = store / "records" / "interpretation" / f"{result['decision_id']}.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    blob = store / record["blob_path"]
+    content = bytearray(blob.read_bytes())
+    content[len(content) // 2] ^= 0x01
+    blob.write_bytes(content)
+
+    paths = rebuild_interpretation_projections(
+        output,
+        tmp_path / "rebuilt",
+        store_root=store,
+    )
+
+    import pyarrow.parquet as pq
+
+    assert pq.read_table(paths[0]).num_rows == 0
+    assert pq.read_table(paths[1]).num_rows == 0
+    assert pq.read_table(paths[2]).num_rows == 0
+
+
 def test_unresolved_citation_rejects(tmp_path: Path) -> None:
     trial_dir = _trial_tree(tmp_path, trial_name="cite-fail")
     store = tmp_path / "cas"
@@ -644,6 +706,72 @@ def test_pack_source_extra_or_missing_key_fails_schema_gate(tmp_path: Path) -> N
     missing_gate = _schema_gate(ir, missing_pack, judgment, store)
     assert missing_gate.status == "fail"
     assert missing_gate.reason_code == "schema_invalid"
+
+
+def test_omitted_range_structure_fails_c10_schema_and_pack_complete(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="tampered-omission", unpaired=False)
+    trajectory_path = trial_dir / "agent" / "trajectory.json"
+    trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
+    for step_id in range(3, 12):
+        trajectory["steps"].append(
+            {
+                "step_id": step_id,
+                "timestamp": f"2026-08-26T00:00:{step_id:02d}Z",
+                "source": "agent",
+                "message": f"routine step {step_id}",
+            }
+        )
+    trajectory_path.write_text(json.dumps(trajectory), encoding="utf-8")
+    store = tmp_path / "cas"
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+    )
+    assert pack.omitted_ranges
+    assert not _pack_structure_errors(ir, pack)
+    judgment = build_machine_judgment(pack, ir, [])
+    first = replace(pack.omitted_ranges[0], event_ids=())
+    tampered = _recompute_pack_digest(
+        replace(pack, omitted_ranges=(first, *pack.omitted_ranges[1:]))
+    )
+
+    gates = evaluate_deterministic_gates(
+        ir=ir,
+        pack=tampered,
+        judgment=judgment,
+        cas_store=store,
+    )
+    c10 = next(gate for gate in gates if gate.gate_id == "C10_omitted")
+    schema = next(gate for gate in gates if gate.gate_id == "schema_valid")
+    complete = next(gate for gate in gates if gate.gate_id == "pack_complete")
+    assert (c10.status, c10.reason_code) == ("unknown", "omitted_unreopenable")
+    assert (schema.status, schema.reason_code) == ("fail", "schema_invalid")
+    assert (complete.status, complete.reason_code) == ("unknown", "pack_incomplete")
+
+
+def test_selected_window_payload_must_match_canonical_ir_event(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="tampered-selected-event", unpaired=False)
+    store = tmp_path / "cas"
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+    )
+    assert pack.selected_windows
+    window = pack.selected_windows[0]
+    event = dict(window.events[0])
+    event["event_type"] = "forged"
+    tampered_window = replace(window, events=(event, *window.events[1:]))
+    tampered = _recompute_pack_digest(
+        replace(pack, selected_windows=(tampered_window, *pack.selected_windows[1:]))
+    )
+
+    assert "selected_event_payload_mismatch" in _pack_structure_errors(ir, tampered)
 
 
 def test_quality_warning_coverage_gaps(tmp_path: Path) -> None:

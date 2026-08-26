@@ -620,6 +620,20 @@
         "type": "Path"
       },
       {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "fields",
+        "flags": [
+          "--fields"
+        ],
+        "help": "Select named report paths using {name:.path,...} syntax",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
         "action": "_HelpAction",
         "choices": null,
         "default": "==SUPPRESS==",

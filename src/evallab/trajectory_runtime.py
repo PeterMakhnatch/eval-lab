@@ -23,7 +23,12 @@ import pyarrow.parquet as pq
 from pydantic import Field, ValidationError
 
 from evallab.database import ingest_interpretation_artifacts
-from evallab.evidence_pack import DEFAULT_TOKEN_BUDGET, EvidencePack, build_evidence_pack
+from evallab.evidence_pack import (
+    DEFAULT_TOKEN_BUDGET,
+    EvidencePack,
+    build_evidence_pack,
+    reopen_omitted_range,
+)
 from evallab.evidence_store import archive_evidence, load_archive, restore_evidence
 from evallab.results import sha256_file
 from evallab.schemas import ContractModel
@@ -193,7 +198,7 @@ class CampaignAnalysisItem(ContractModel):
     quality_status: str
     quality_findings: list[str] = Field(default_factory=list)
     quality_report_digest: str | None = None
-    cas_uri: str
+    cas_uri: str | None
     ingestion_status: str | None = None
 
     def as_inventory_dict(self) -> dict[str, Any]:
@@ -263,7 +268,7 @@ def _make_campaign_item(
         quality_status=str(raw.get("quality_status", "unknown")),
         quality_findings=findings,
         quality_report_digest=raw.get("quality_report_digest"),
-        cas_uri=str(raw.get("cas_uri", "")),
+        cas_uri=_clean_digest(raw.get("cas_uri")),
         ingestion_status=raw.get("ingestion_status"),
     )
 
@@ -462,21 +467,31 @@ def _platform_citation_id(handle: CitationHandle) -> str:
 def _resolve_event_citation(
     platform_id: str, ir: TrajectoryIR, pack: EvidencePack
 ) -> tuple[IREvent, CitationHandle] | None:
-    for ev in ir.events:
-        if _platform_citation_id(ev.source_citation) == platform_id:
-            return ev, ev.source_citation
-    for w in pack.selected_windows:
-        for ev_dict in w.events:
-            sc = ev_dict.get("source_citation")
-            if not sc:
+    """Resolve one canonical locator; duplicate bindings are ambiguous and fail closed."""
+    matches: dict[tuple[str, str], tuple[IREvent, CitationHandle]] = {}
+    event_by_id = {event.event_id: event for event in ir.events}
+    for event in ir.events:
+        handle = event.source_citation
+        if _platform_citation_id(handle) == platform_id:
+            key = (event.event_id, canonical_json_digest(handle.to_dict()))
+            matches[key] = (event, handle)
+    for window in pack.selected_windows:
+        for event_payload in window.events:
+            source_citation = event_payload.get("source_citation")
+            event_id = event_payload.get("event_id")
+            if not isinstance(source_citation, dict) or not isinstance(event_id, str):
                 continue
-            handle = CitationHandle(**sc)
-            if _platform_citation_id(handle) == platform_id:
-                event_id = ev_dict.get("event_id")
-                for ev in ir.events:
-                    if ev.event_id == event_id:
-                        return ev, handle
-    return None
+            try:
+                handle = CitationHandle(**source_citation)
+            except (TypeError, ValueError):
+                continue
+            if _platform_citation_id(handle) != platform_id or event_id not in event_by_id:
+                continue
+            key = (event_id, canonical_json_digest(handle.to_dict()))
+            matches[key] = (event_by_id[event_id], handle)
+    if len(matches) != 1:
+        return None
+    return next(iter(matches.values()))
 
 
 def _step_in_windows(step_index: int, pack: EvidencePack) -> tuple[bool, bool]:
@@ -507,6 +522,152 @@ def _expected_pack_source_digests(ir: TrajectoryIR, pack: EvidencePack) -> dict[
     return expected
 
 
+def _pack_payload_structure_errors(
+    ir_payload: dict[str, Any],
+    pack_payload: dict[str, Any],
+) -> list[str]:
+    """Validate exact lossless event partitioning for serialized IR and pack payloads."""
+    errors: list[str] = []
+    events = ir_payload.get("events")
+    selected_windows = pack_payload.get("selected_windows")
+    omitted_ranges = pack_payload.get("omitted_ranges")
+    if not isinstance(events, list):
+        return ["invalid_ir_events"]
+    if not isinstance(selected_windows, list) or not isinstance(omitted_ranges, list):
+        return ["invalid_pack_collection_shape"]
+
+    event_by_id: dict[str, dict[str, Any]] = {}
+    for event in events:
+        if not isinstance(event, dict) or not isinstance(event.get("event_id"), str):
+            errors.append("invalid_ir_event")
+            continue
+        event_id = str(event["event_id"])
+        if event_id in event_by_id:
+            errors.append("duplicate_ir_event_id")
+        event_by_id[event_id] = event
+
+    def _anchor_matches(
+        anchor: Any,
+        source: Any,
+        *,
+        step_start: Any,
+    ) -> bool:
+        if not isinstance(anchor, dict) or not isinstance(source, dict):
+            return False
+        anchor_cas = anchor.get("raw_cas_uri") or anchor.get("cas_uri")
+        source_cas = source.get("raw_cas_uri") or source.get("cas_uri")
+        anchor_step = anchor.get("step_id", anchor.get("step_index"))
+        return (
+            anchor.get("source_path") == source.get("source_path")
+            and anchor.get("source_sha256") == source.get("source_sha256")
+            and anchor_cas == source_cas
+            and anchor_step == step_start
+            and anchor.get("target_type") == "step"
+        )
+
+    selected_ids: list[str] = []
+    for window in selected_windows:
+        if not isinstance(window, dict):
+            errors.append("invalid_selected_window")
+            continue
+        window_events = window.get("events")
+        if not isinstance(window_events, list):
+            errors.append("invalid_selected_events")
+            continue
+        if window.get("event_count") != len(window_events):
+            errors.append("selected_event_count_mismatch")
+        window_steps: list[int] = []
+        first_source: dict[str, Any] | None = None
+        for event_payload in window_events:
+            if not isinstance(event_payload, dict):
+                errors.append("invalid_selected_event")
+                continue
+            event_id = event_payload.get("event_id")
+            if not isinstance(event_id, str) or event_id not in event_by_id:
+                errors.append("selected_event_missing_from_ir")
+                continue
+            selected_ids.append(event_id)
+            canonical_event = event_by_id[event_id]
+            base_payload = {
+                key: value for key, value in event_payload.items() if key != "hydrated_content"
+            }
+            if canonical_json_digest(base_payload) != canonical_json_digest(canonical_event):
+                errors.append("selected_event_payload_mismatch")
+            if not isinstance(event_payload.get("hydrated_content"), str):
+                errors.append("selected_event_hydration_missing")
+            step_index = canonical_event.get("step_index")
+            if not isinstance(step_index, int) or isinstance(step_index, bool):
+                errors.append("selected_event_step_invalid")
+            else:
+                window_steps.append(step_index)
+            if first_source is None:
+                source = canonical_event.get("source_citation")
+                first_source = source if isinstance(source, dict) else None
+        step_start = window.get("step_start")
+        step_end = window.get("step_end")
+        if (
+            not window_steps
+            or step_start != min(window_steps)
+            or step_end != max(window_steps)
+            or any(not (step_start <= step <= step_end) for step in window_steps)
+        ):
+            errors.append("selected_window_bounds_mismatch")
+        if not _anchor_matches(
+            window.get("reopening_citation"),
+            first_source,
+            step_start=step_start,
+        ):
+            errors.append("selected_reopening_locator_mismatch")
+
+    omitted_ids: list[str] = []
+    for omitted in omitted_ranges:
+        if not isinstance(omitted, dict):
+            errors.append("invalid_omitted_range")
+            continue
+        event_ids = omitted.get("event_ids")
+        if not isinstance(event_ids, list) or not event_ids:
+            errors.append("omitted_event_ids_empty")
+            continue
+        if omitted.get("event_count") != len(event_ids):
+            errors.append("omitted_event_count_mismatch")
+        if not all(isinstance(event_id, str) and event_id in event_by_id for event_id in event_ids):
+            errors.append("omitted_event_missing_from_ir")
+            continue
+        omitted_events = [event_by_id[str(event_id)] for event_id in event_ids]
+        if canonical_json_digest(omitted_events) != omitted.get("omitted_content_digest"):
+            errors.append("omitted_content_digest_mismatch")
+        omitted_ids.extend(str(event_id) for event_id in event_ids)
+        omitted_steps = [event.get("step_index") for event in omitted_events]
+        if (
+            not all(isinstance(step, int) and not isinstance(step, bool) for step in omitted_steps)
+            or omitted.get("step_start") != min(omitted_steps)
+            or omitted.get("step_end") != max(omitted_steps)
+        ):
+            errors.append("omitted_range_bounds_mismatch")
+        first_source = omitted_events[0].get("source_citation")
+        if not _anchor_matches(
+            omitted.get("reopening_citation"),
+            first_source,
+            step_start=omitted.get("step_start"),
+        ):
+            errors.append("omitted_reopening_locator_mismatch")
+
+    if len(selected_ids) != len(set(selected_ids)):
+        errors.append("duplicate_selected_event")
+    if len(omitted_ids) != len(set(omitted_ids)):
+        errors.append("duplicate_omitted_event")
+    if set(selected_ids) & set(omitted_ids):
+        errors.append("selected_omitted_overlap")
+    if set(selected_ids) | set(omitted_ids) != set(event_by_id):
+        errors.append("pack_event_coverage_mismatch")
+    return sorted(set(errors))
+
+
+def _pack_structure_errors(ir: TrajectoryIR, pack: EvidencePack) -> list[str]:
+    """Validate lossless, non-overlapping IR event accounting across the bounded pack."""
+    return _pack_payload_structure_errors(ir.to_dict(), pack.to_dict())
+
+
 def _validate_artifact_digests(
     ir: TrajectoryIR, pack: EvidencePack, judgment: MachineJudgment
 ) -> None:
@@ -525,6 +686,9 @@ def _validate_artifact_digests(
     if (pack.trial_id, pack.job_id) != (ir.trial_id, ir.job_id):
         raise ValueError("pack trial identity does not match IR")
 
+    structure_errors = _pack_structure_errors(ir, pack)
+    if structure_errors:
+        raise ValueError(f"invalid pack structure: {', '.join(structure_errors)}")
     MachineJudgment.model_validate(judgment.model_dump(mode="json"))
 
 
@@ -651,8 +815,9 @@ def evaluate_deterministic_gates(
                 source_mismatch.append(cid)
                 continue
             try:
-                load_archive(cas_store, handle_cas)
-            except (FileNotFoundError, ValueError):
+                with tempfile.TemporaryDirectory() as temporary:
+                    restore_evidence(cas_store, handle_cas, Path(temporary))
+            except Exception:
                 source_missing.append(cid)
         if source_mismatch:
             c3 = GateResult(
@@ -834,7 +999,7 @@ def evaluate_deterministic_gates(
             citation_ids=all_cited,
         )
 
-    # C10_omitted (every omitted range must have a reopening citation)
+    # C10_omitted (every omitted range must reopen the exact hashed event set)
     unreopenable: list[str] = []
     for omitted in pack.omitted_ranges:
         handle = omitted.reopening_citation
@@ -847,8 +1012,36 @@ def evaluate_deterministic_gates(
         ):
             unreopenable.append(citation_id)
             continue
-        hydrated = hydrate_citation(handle, repo_root=cas_store)
-        if hydrated.redaction_metadata.get("limitation_reason"):
+        try:
+            reopened = reopen_omitted_range(
+                pack,
+                omitted.range_id,
+                ir=ir,
+                store_root=cas_store,
+            )
+            hydrated = hydrate_citation(handle, repo_root=cas_store)
+            reopened_ids = [event.get("event_id") for event in reopened.events]
+            if reopened_ids != list(omitted.event_ids):
+                raise ValueError("reopened event identities differ from omitted range")
+            event_by_id = {event.event_id: event for event in ir.events}
+            for reopened_event in reopened.events:
+                event_id = reopened_event.get("event_id")
+                source_event = event_by_id.get(str(event_id))
+                if source_event is None:
+                    raise ValueError("reopened event is absent from IR")
+                member = hydrate_citation(source_event.source_citation, repo_root=cas_store)
+                if (
+                    member.redaction_metadata.get("limitation_reason")
+                    or member.redaction_metadata.get("content_digest_mismatch")
+                    or reopened_event.get("hydrated_content") != member.redacted_content
+                ):
+                    raise ValueError("reopened event hydration is incomplete")
+        except Exception:
+            unreopenable.append(citation_id)
+            continue
+        if hydrated.redaction_metadata.get("limitation_reason") or hydrated.redaction_metadata.get(
+            "content_digest_mismatch"
+        ):
             unreopenable.append(citation_id)
     if unreopenable:
         c10 = GateResult(
@@ -883,7 +1076,8 @@ def evaluate_deterministic_gates(
         )
 
     # pack_complete
-    if pack.is_model_callable and not pack.abstain_required:
+    structure_errors = _pack_structure_errors(ir, pack)
+    if pack.is_model_callable and not pack.abstain_required and not structure_errors:
         pack_complete = GateResult(
             gate_id="pack_complete",
             status="pass",
@@ -1167,6 +1361,15 @@ def write_interpretation_artifacts(
         record_id=decision.decision_id,
         kind="interpretation",
     )
+    if (
+        _load_interpretation_archive_record(
+            cas_store,
+            decision.decision_id,
+            sidecar_dir=artifact_dir,
+        )
+        is None
+    ):
+        raise ValueError("interpretation archive integrity verification failed")
 
     ir_created = _parse_iso_datetime(ir.created_at) or judgment.produced_at
     pack_created = _parse_iso_datetime(pack.created_at) or judgment.produced_at
@@ -1856,7 +2059,10 @@ def _write_parquet(path: Path, schema: pa.Schema, rows: list[dict[str, Any]]) ->
 def _load_interpretation_archive_record(
     store_root: Path,
     decision_id: str,
+    *,
+    sidecar_dir: Path | None = None,
 ) -> tuple[str, str] | None:
+    """Validate the record, archive bytes, restored content, and sidecar byte identity."""
     record_path = store_root.resolve() / "records" / "interpretation" / f"{decision_id}.json"
     if not record_path.is_file():
         return None
@@ -1864,16 +2070,75 @@ def _load_interpretation_archive_record(
         record = json.loads(record_path.read_text(encoding="utf-8"))
         uri = str(record["uri"])
         content_digest = str(record["content_digest"])
+        archive_digest = str(record["archive_digest"])
         if (
             record.get("record_id") != decision_id
             or record.get("kind") != "interpretation"
             or uri != f"cas://sha256/{content_digest.removeprefix('sha256:')}"
         ):
             return None
-        load_archive(store_root, uri)
-    except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        blob = load_archive(store_root, uri)
+        actual_archive_digest = f"sha256:{hashlib.sha256(blob.read_bytes()).hexdigest()}"
+        if actual_archive_digest != archive_digest:
+            return None
+        if sidecar_dir is not None:
+            with tempfile.TemporaryDirectory() as temporary:
+                restored = restore_evidence(store_root, uri, Path(temporary))
+                for filename in _SIDECAR_FILES:
+                    restored_path = restored / filename
+                    sidecar_path = sidecar_dir / filename
+                    if not restored_path.is_file() or _sha256_file(restored_path) != _sha256_file(
+                        sidecar_path
+                    ):
+                        return None
+    except Exception:
         return None
     return uri, content_digest
+
+
+def _projection_sidecars_valid(
+    *,
+    ir: Any,
+    pack: Any,
+    judgment: Any,
+    decision: Any,
+    trial_id: str,
+    decision_dirname: str,
+) -> bool:
+    if not all(isinstance(payload, dict) for payload in (ir, pack, judgment, decision)):
+        return False
+    ir_body = {key: value for key, value in ir.items() if key != "ir_digest"}
+    pack_body = {key: value for key, value in pack.items() if key != "pack_digest"}
+    if ir.get("ir_digest") != _data_contract_digest(ir_body):
+        return False
+    if pack.get("pack_digest") != _data_contract_digest(pack_body):
+        return False
+    if ir.get("trial_id") != trial_id or pack.get("trial_id") != trial_id:
+        return False
+    if ir.get("job_id") != pack.get("job_id"):
+        return False
+    source_digests = ir.get("source_digests")
+    if not isinstance(source_digests, dict):
+        return False
+    expected_sources = dict(source_digests)
+    expected_sources["ir_digest"] = ir.get("ir_digest")
+    expected_sources["redaction_profile_digest"] = pack.get("redaction_profile_digest")
+    if pack.get("source_digests") != expected_sources:
+        return False
+    if _pack_payload_structure_errors(ir, pack):
+        return False
+    try:
+        validated_judgment = MachineJudgment.model_validate(judgment)
+        validated_decision = AcceptanceDecision.model_validate(decision)
+    except (TypeError, ValueError, ValidationError):
+        return False
+    return not (
+        validated_judgment.pack_id != pack.get("pack_digest")
+        or validated_judgment.pack_digest != pack.get("pack_digest")
+        or validated_decision.pack_digest != pack.get("pack_digest")
+        or validated_decision.judgment_ids != [validated_judgment.judgment_id]
+        or validated_decision.decision_id.removeprefix("sha256:") != decision_dirname
+    )
 
 
 def rebuild_interpretation_projections(
@@ -1898,15 +2163,33 @@ def rebuild_interpretation_projections(
         if not all((artifact_dir / filename).is_file() for filename in _SIDECAR_FILES):
             continue
 
-        ir = json.loads((artifact_dir / "trajectory_ir.json").read_text(encoding="utf-8"))
-        pack = json.loads((artifact_dir / "evidence_pack.json").read_text(encoding="utf-8"))
-        judgment = json.loads((artifact_dir / "machine_judgment.json").read_text(encoding="utf-8"))
-        decision = json.loads(decision_path.read_text(encoding="utf-8"))
+        try:
+            ir = json.loads((artifact_dir / "trajectory_ir.json").read_text(encoding="utf-8"))
+            pack = json.loads((artifact_dir / "evidence_pack.json").read_text(encoding="utf-8"))
+            judgment = json.loads(
+                (artifact_dir / "machine_judgment.json").read_text(encoding="utf-8")
+            )
+            decision = json.loads(decision_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if not _projection_sidecars_valid(
+            ir=ir,
+            pack=pack,
+            judgment=judgment,
+            decision=decision,
+            trial_id=trial_id,
+            decision_dirname=artifact_dir.name,
+        ):
+            continue
 
-        pack_digest = pack.get("pack_digest", "")
-        judgment_id = judgment.get("judgment_id", "")
-        decision_id = decision.get("decision_id", "")
-        archive_record = _load_interpretation_archive_record(store_root, decision_id)
+        pack_digest = pack["pack_digest"]
+        judgment_id = judgment["judgment_id"]
+        decision_id = decision["decision_id"]
+        archive_record = _load_interpretation_archive_record(
+            store_root,
+            decision_id,
+            sidecar_dir=artifact_dir,
+        )
         if archive_record is None:
             continue
         artifact_cas_uri, archive_content_digest = archive_record

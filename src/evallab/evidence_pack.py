@@ -535,64 +535,79 @@ def build_evidence_pack(
 
     # 2. Episode Summaries
     episodes_summary = [ep.to_dict() for ep in ir.episodes]
+    all_steps_list = sorted({ev.step_index for ev in ir.events}) if ir.events else [1]
+    min_step = all_steps_list[0]
+    max_step = all_steps_list[-1]
+
     critical_step_indices: set[int] = set()
     critical_reasons: dict[int, str] = {}
+
+    # 1. Mandatory Instruction Boundary (first 1-3 steps)
+    instruction_steps = [s for s in all_steps_list if s <= min_step + 2]
+    for s in instruction_steps:
+        critical_step_indices.add(s)
+        critical_reasons[s] = "instruction_boundary"
+
+    # 2. Mandatory Terminal Boundary (last 3 steps)
+    terminal_steps = [s for s in all_steps_list if s >= max_step - 2]
+    for s in terminal_steps:
+        critical_step_indices.add(s)
+        if s not in critical_reasons:
+            critical_reasons[s] = "terminal_boundary"
+
+    # 3. Critical Errors, Error-Adjacent Context, and Semantic Actions
     prior_error_step: int | None = None
     for ev in ir.events:
-        # Reason 1: Critical Error
         if ev.is_error or (ev.exit_code is not None and ev.exit_code != 0):
             critical_step_indices.add(ev.step_index)
             critical_reasons[ev.step_index] = "critical_error"
+            # Anchor context step before
+            if (ev.step_index - 1) in all_steps_list and (ev.step_index - 1) not in critical_reasons:
+                critical_step_indices.add(ev.step_index - 1)
+                critical_reasons[ev.step_index - 1] = "error_adjacent_context"
+            # Anchor context step after
+            if (ev.step_index + 1) in all_steps_list and (ev.step_index + 1) not in critical_reasons:
+                critical_step_indices.add(ev.step_index + 1)
+                critical_reasons[ev.step_index + 1] = "error_adjacent_context"
             prior_error_step = ev.step_index
-        # Reason 2: Screening Recovery (success following error)
         elif prior_error_step is not None and ev.exit_semantics == "success":
             critical_step_indices.add(ev.step_index)
             critical_reasons[ev.step_index] = "screening_recovery"
             prior_error_step = None
-        # Reason 3: Terminal Evaluation
         elif ev.event_type == "verifier_check" or ev.phase == "verifier":
             critical_step_indices.add(ev.step_index)
             critical_reasons[ev.step_index] = "terminal_evaluation"
-        # Reason 4: Verification
         elif ev.action_family == "verification":
             critical_step_indices.add(ev.step_index)
-            critical_reasons[ev.step_index] = "verification"
-        # Reason 5: State Mutation
-        elif ev.action_family in ("file_edit", "file_write") and len([s for s in critical_step_indices if critical_reasons.get(s) == "state_mutation"]) < 3:
+            if ev.step_index not in critical_reasons:
+                critical_reasons[ev.step_index] = "verification"
+        elif ev.action_family in ("file_edit", "file_write"):
             critical_step_indices.add(ev.step_index)
-            critical_reasons[ev.step_index] = "state_mutation"
-        # Reason 6: Context Compaction
+            if ev.step_index not in critical_reasons:
+                critical_reasons[ev.step_index] = "state_mutation"
         elif ev.event_type == "context_management" or ev.action_family == "context_control":
             critical_step_indices.add(ev.step_index)
-            critical_reasons[ev.step_index] = "context_compaction"
+            if ev.step_index not in critical_reasons:
+                critical_reasons[ev.step_index] = "context_compaction"
 
-    # Expand critical steps to include 1 step of context
+    # Group contiguous critical steps into cohesive windows
     window_step_ranges: list[tuple[int, int, str]] = []
     sorted_critical = sorted(critical_step_indices)
 
     if sorted_critical:
-        curr_start = max(1, sorted_critical[0] - 1)
-        curr_end = sorted_critical[0] + 1
-        curr_reason = critical_reasons.get(sorted_critical[0], "critical_error")
+        curr_start = sorted_critical[0]
+        curr_end = sorted_critical[0]
+        curr_reason = critical_reasons.get(sorted_critical[0], "instruction_boundary")
 
         for s in sorted_critical[1:]:
-            s_start = max(1, s - 1)
-            s_end = s + 1
-            if s_start <= curr_end + 1:
-                curr_end = max(curr_end, s_end)
+            if s <= curr_end + 1:
+                curr_end = s
             else:
                 window_step_ranges.append((curr_start, curr_end, curr_reason))
-                curr_start = s_start
-                curr_end = s_end
-                curr_reason = critical_reasons.get(s, "critical_error")
+                curr_start = s
+                curr_end = s
+                curr_reason = critical_reasons.get(s, "critical_event")
         window_step_ranges.append((curr_start, curr_end, curr_reason))
-
-    # Reason 7: Execution sample if no critical steps
-    if not window_step_ranges and ir.events:
-        first_step = ir.events[0].step_index
-        last_step = ir.events[-1].step_index
-        window_step_ranges.append((first_step, min(first_step + 2, last_step), "execution_sample"))
-
     # 4. Build EvidenceWindows and OmittedRanges (Whole-window selection, no byte-truncation)
     selected_windows: list[EvidenceWindow] = []
     omitted_ranges: list[OmittedRange] = []

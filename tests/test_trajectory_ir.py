@@ -402,7 +402,8 @@ def test_sparse_steps_anchor_reopening_to_present_event(tmp_path: Path) -> None:
     ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
     pack = build_evidence_pack(ir, trial_dir=trial_dir, repo_root=tmp_path)
 
-    assert pack.selected_windows[0].reopening_citation.step_id == 20
+    assert all(w.reopening_citation.step_id in (10, 20) for w in pack.selected_windows)
+    assert {w.reopening_citation.step_id for w in pack.selected_windows} == {10, 20}
 
 
 def test_missing_atif_pack_is_not_model_callable(tmp_path: Path) -> None:

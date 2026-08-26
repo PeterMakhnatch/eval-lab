@@ -130,3 +130,60 @@ Current origin/main: `149169d` (PR #199, #201, #202, #204, #205, #206 merged; 0 
 - Track C/D (Synthetic Engineer, AgentAbstain): PR #198 merged `160ebd7`. External 130-pair cryptographic audit COMPLETE and merged: PR #205 head `63a15ea` -> `149169d`. Root cause fixed: `_parse_yaml_or_json` in `agentabstain_gate.py` swallowed all JSON/YAML parse exceptions and returned `{}`, so every pinned `schema.py` tool-catalog artifact (Python source, not YAML/JSON) silently produced empty catalogs instead of triggering `pinned_artifact_parse_failed`; the reported 19 distinct hold-code tuples and 28 admissions from the first attempt were computed from empty-vs-empty comparisons, not real pinned content. Fixed to raise on genuine parse failure; audit reran with differentiated reason codes across all 131 pairs and `pinned_artifact_parse_failed=0`; independently Grok-reviewed PASS (0 findings) at exact head. Final readiness: 0 admitted / 131 `experimental_hold` (1 `preview_002` canary plus 130 reason-coded external-audit HOLD), 0 pending audit, 132 excluded informational. Registration isolation confirmed (0 files under `research/registration/`).
 - Track E (Ops/Platform, storage): jobs-parquet Hive discovery defect found during Data's cross-campaign quality audit (jobs.parquet is job-level at `job_id=*/jobs.parquet`, not trial-nested; `_attach_z3` never discovered it, and `trajectory_data_quality.py` had the hive/stray classification inverted). Root-caused and fixed by Architect directly, independently reviewed (1 blocker found and fixed: mixed-layout double-count when a legacy trial-nested `jobs.parquet` coexists), merged main `f36ec8a` via PR #206.
 - Open PRs: none. All six tracked overnight PRs (#199, #201, #202, #204, #205, #206) merged; main is coherent at `149169d`.
+
+## Final controller closeout — 2026-08-26
+
+Current origin/main: `9300f1f`; zero implementation PRs open at closeout.
+
+- PR #207 merged `7253b2e`: made this controller ledger and the incremental
+  package migration plan durable. M0 is complete; M1–M4 remain plan-only.
+- PR #208 merged `6fcd256`: Platform's campaign data-quality/runtime contract
+  now verifies full job/trial/pack/judgment/decision lineage, CAS restoration,
+  selected/omitted partitions, citation reopening, generation ambiguity,
+  PostgreSQL availability, and Parquet projections without treating unavailable
+  as zero. Campaign reports now include per-trial `source_refs` with
+  `trial_id`, `pack_digest`, CAS URIs, and decision identities, closing D1.
+  Auto-accept remains disabled.
+- PR #209 merged `fe90043`: recipe-runner pin selection is now explicit
+  requested trials, otherwise report/map keys, otherwise discovered trials.
+  Unrelated discovered trials no longer invalidate a report-pinned run;
+  malformed or aggregate-only pin sources and missing/duplicate listed
+  sidecars fail closed. This closes D2.
+- PR #210 merged `1c5ea3d`: `derived/analyses/` quarantine/cleanup policy now
+  requires byte-verified CAS restoration, a canonical retained generation, and
+  no working-copy-only worker/citation/provenance reference. Unknown retains the
+  quarantine; CAS evidence and append-only reports are never cleanup targets.
+  This closes D3.
+- PR #211 merged `9300f1f`: R1 now distinguishes an absent terminal window
+  (`terminal_window_absent`) from a present silent-terminal window whose
+  decisive mid-trajectory context was omitted
+  (`decisive_context_omitted`). Dispositions, citations, and evidence gates are
+  unchanged. This closes A1.
+
+The final five-campaign recipe run predates D1/D2 and used an exact
+acceptance-decision-derived `--pack-map` because the then-current aggregate
+campaign report could not pin trials. That controller-command deviation is
+recorded, not hidden. Its report/pack/CAS identities were independently
+cross-checked and the TB3 rerun was byte-identical; D1/D2 repair the command path
+for future runs, so no evidence-free rerun is warranted.
+
+### Remaining gated work
+
+1. D4 ontology gaps are not repaired by adding universal generic labels.
+   `over_refusal`/`inappropriate_refusal`, `premature_termination`, and
+   `task_package_defect` require explicit construct definitions in the owning
+   benchmark/capability semantic package. Research/Peter must select that
+   package and version before implementation.
+2. D5 is missing evidence, not a projection default: context-management events,
+   state-certified replay, and matched arms require new harness/experiment
+   inputs. Any billable model run, remote environment, new benchmark freeze, or
+   matched-arm campaign requires Peter's explicit approval.
+3. Family A remains unassigned. AgentAbstain's external audit closed its
+   pending-audit gate but admitted zero pairs; every operational candidate is
+   `experimental_hold`. Family A additionally requires an independently
+   approved oracle and source/template/generator partitions under ADR-025.
+
+All dependency-ready implementation, audit, review, and policy work in this
+program is complete. Remaining items are blocked on explicit research selection,
+new evidence, or Peter approval; no model run, registration, publication,
+policy override, or synthetic-family assignment is authorized.

@@ -50,18 +50,18 @@ def _parquet_row_count(paths: list[Path]) -> int:
 
 
 def _jobs_parquet_projection(derived_root: Path) -> dict[str, Any]:
-    """Hive jobs parquet is ``job_id=*/trial_id=*/jobs.parquet``.
+    """Hive jobs parquet is ``job_id=*/jobs.parquet`` (job-level table).
 
-    Stray ``job_id=*/jobs.parquet`` files without ``trial_id`` are recorded
-    separately and are not treated as the hive or as zero jobs.
+    Stray ``job_id=*/trial_id=*/jobs.parquet`` files nested under ``trial_id``
+    are recorded separately and are not treated as the hive or as zero jobs.
     """
     parquet_root = derived_root / "parquet"
-    hive = sorted(parquet_root.glob("job_id=*/trial_id=*/jobs.parquet"))
-    stray = [
+    hive = [
         path
         for path in sorted(parquet_root.glob("job_id=*/jobs.parquet"))
         if path.parent.parent == parquet_root
     ]
+    stray = sorted(parquet_root.glob("job_id=*/trial_id=*/jobs.parquet"))
     if not hive:
         return {
             "status": "missing",

@@ -106,6 +106,31 @@ def test_z3_views_return_written_rows(tmp_path: Path) -> None:
         result.connection.close()
 
 
+def test_z3_jobs_view_reads_job_level_parquet(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    job_dir = derived / "job_id=abc123"
+    job_dir.mkdir(parents=True)
+    rows = [
+        {"job_id": "abc123", "status": "done", "n_trials": 2},
+        {"job_id": "abc123", "status": "done", "n_trials": 3},
+    ]
+    pq.write_table(pa.Table.from_pylist(rows), job_dir / "jobs.parquet")
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        jobs_count = result.connection.execute("SELECT COUNT(*) FROM jobs").fetchone()
+        assert jobs_count is not None
+        assert jobs_count[0] == 2
+        z3_jobs_count = result.connection.execute("SELECT COUNT(*) FROM z3.jobs").fetchone()
+        assert z3_jobs_count is not None
+        assert z3_jobs_count[0] == 2
+        job_ids = result.connection.execute(
+            "SELECT DISTINCT job_id FROM jobs ORDER BY job_id"
+        ).fetchall()
+        assert job_ids == [("abc123",)]
+    finally:
+        result.connection.close()
+
+
 def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
     tmp_path: Path,
 ) -> None:

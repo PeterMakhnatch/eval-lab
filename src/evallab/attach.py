@@ -76,6 +76,7 @@ TABLES = (
 )
 
 Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"
+Z3_JOB = "job_id=*/{table}.parquet"
 Z3_COLD = "compact/{table}/dt=*/part*.parquet"
 Z3_STANDALONE_DIR = "{table}/*.parquet"
 
@@ -240,6 +241,13 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
         return ZoneStatus("z3", False, reason="derived root does not exist", detail=str(root))
 
     hot_tables = {p.stem for p in root.glob("job_id=*/trial_id=*/*.parquet")}
+    job_tables = {
+        p.stem
+        for p in root.glob("job_id=*/*.parquet")
+        if p.parent.parent == root
+        and p.parent.name.startswith("job_id=")
+        and p.stem == "jobs"
+    }
     cold_tables = {p.parent.parent.name for p in root.glob("compact/*/dt=*/part*.parquet")}
     standalone_tables = {
         p.parent.name
@@ -256,6 +264,8 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
         view_globs: list[str] = []
         if table in hot_tables:
             view_globs.append(str(root / Z3_HOT.format(table=table)))
+        if table in job_tables:
+            view_globs.append(str(root / Z3_JOB.format(table=table)))
         if table in cold_tables:
             view_globs.append(str(root / Z3_COLD.format(table=table)))
         if table in standalone_tables:

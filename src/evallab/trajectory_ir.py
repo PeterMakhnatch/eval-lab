@@ -615,18 +615,18 @@ def build_trajectory_ir(
                 job_name = inventory_record.get("job_name")
                 if explicit_runs_root and job_name and (explicit_runs_root / job_name).is_dir():
                     job_dir = explicit_runs_root / job_name
-                    sub_trials = [p for p in job_dir.iterdir() if p.is_dir() and not p.name.startswith(".")]
-                    if sub_trials:
-                        trial_dir = sub_trials[0]
-                        traj_cand = trial_dir / "agent" / "trajectory.json"
-                        if not traj_cand.is_file():
-                            traj_cand = trial_dir / "trajectory.json"
-                        traj_path = traj_cand if traj_cand.is_file() else None
-                        res_cand = trial_dir / "result.json"
-                        result_path = res_cand if res_cand.is_file() else None
-                        outline = outline_trajectory(trial_dir, repo_root=root, explicit_runs_root=explicit_runs_root)
-                    else:
-                        raise
+                    trial_dir = _resolve_restored_trial_dir(job_dir, inventory_record)
+                    traj_cand = trial_dir / "agent" / "trajectory.json"
+                    if not traj_cand.is_file():
+                        traj_cand = trial_dir / "trajectory.json"
+                    traj_path = traj_cand if traj_cand.is_file() else None
+                    res_cand = trial_dir / "result.json"
+                    result_path = res_cand if res_cand.is_file() else None
+                    outline = outline_trajectory(
+                        trial_dir,
+                        repo_root=root,
+                        explicit_runs_root=explicit_runs_root,
+                    )
                 else:
                     raise
 

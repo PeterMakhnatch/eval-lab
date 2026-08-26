@@ -288,9 +288,18 @@ def _extract_content_from_payload(
     if target_type == "step":
         return json.dumps(target_step, indent=2)
 
-    # Handle tool calls
+    # ATIF-v1.4 used observations[]; ATIF-v1.7 stores observation.results[].
     tool_calls = target_step.get("tool_calls") or []
-    observations = target_step.get("observations") or []
+    observations = target_step.get("observations")
+    raw_observation = target_step.get("observation")
+    raw_results = raw_observation.get("results") if isinstance(raw_observation, dict) else None
+    if (
+        not isinstance(observations, list)
+        or (not observations and isinstance(raw_results, list) and raw_results)
+    ):
+        observations = raw_results
+    if not isinstance(observations, list):
+        observations = []
     if target_type in ("tool_call", "arguments"):
         target_tc: dict[str, Any] | None = None
         if citation.tool_call_id:
@@ -401,6 +410,7 @@ def hydrate_citation(
             temp_cas_dir = tempfile.TemporaryDirectory()
             extracted_path = Path(temp_cas_dir.name)
             restore_evidence(store_root, cas_target, extracted_path)
+            cand_member: Path | None = None
             if citation.source_path:
                 raw_src = citation.source_path.strip()
                 if Path(raw_src).is_absolute() or raw_src.startswith("/") or raw_src.startswith("\\"):
@@ -409,32 +419,32 @@ def hydrate_citation(
                     )
                 extracted_resolved = extracted_path.resolve()
                 cand_member_resolved = (extracted_path / raw_src).resolve()
-                if not (cand_member_resolved == extracted_resolved or cand_member_resolved.is_relative_to(extracted_resolved)):
+                if not (
+                    cand_member_resolved == extracted_resolved
+                    or cand_member_resolved.is_relative_to(extracted_resolved)
+                ):
                     raise CitationPathJailError(
                         f"Citation source_path {citation.source_path!r} escapes CAS archive root {extracted_path}"
                     )
                 cand_member = cand_member_resolved
-            else:
-                cand_member = extracted_path / "agent" / "trajectory.json"
 
-            if not cand_member.is_file():
-                alt_traj = extracted_path / "agent" / "trajectory.json"
-                if alt_traj.is_file():
-                    cand_member = alt_traj
-                else:
-                    alt_traj2 = extracted_path / "trajectory.json"
-                    if alt_traj2.is_file():
-                        cand_member = alt_traj2
-            if cand_member.is_file():
+            if cand_member is not None and cand_member.is_file():
                 payload = _load_raw_json(cand_member)
                 if payload is not None:
                     raw_text = _extract_content_from_payload(payload, citation)
                 if raw_text is None:
-                    raw_text = cand_member.read_text(encoding="utf-8", errors="replace")
+                    limitation_metadata["limitation_reason"] = "cited_element_not_found"
+                    raw_text = (
+                        f"[EvidenceLimitation: cited_element_not_found "
+                        f"citation={citation.format_citation()}]"
+                    )
             else:
                 limitation_metadata["limitation_reason"] = "cas_member_not_found"
                 limitation_metadata["source_path"] = citation.source_path
-                raw_text = f"[EvidenceLimitation: cas_member_not_found path={citation.source_path} uri={cas_target}]"
+                raw_text = (
+                    f"[EvidenceLimitation: cas_member_not_found "
+                    f"path={citation.source_path} uri={cas_target}]"
+                )
         except CitationPathJailError:
             raise
         except FileNotFoundError as fnf:

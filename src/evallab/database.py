@@ -3,14 +3,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
-from typing import Any, Literal, LiteralString
+from typing import Any, Literal, LiteralString, cast
 
 import psycopg
-from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 
 from evallab.results import JobRecord, duration_seconds
+from evallab.runner import transient_provider_exception
 from evallab.schemas import CanaryDriftObservation
 
 CanaryDriftReason = Literal[
@@ -39,9 +39,9 @@ def views_path() -> Path:
 
 
 def initialize(database_url: str) -> None:
-    schema = schema_path().read_text()
+    schema = cast(LiteralString, schema_path().read_text())
     with psycopg.connect(database_url) as connection:
-        connection.execute(sql.SQL(schema))
+        connection.execute(schema)
 
 
 def _relative_or_absolute(path: Path, root: Path) -> str:

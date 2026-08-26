@@ -4,7 +4,7 @@ import hashlib
 import importlib
 import json
 from collections import defaultdict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol, TypeGuard
@@ -265,7 +265,7 @@ def _string_or_none(value: object) -> str | None:
     return str(value) if value is not None else None
 
 
-def _error_location(error: JsonObject) -> list[Any]:
+def _error_location(error: Mapping[str, Any]) -> list[Any]:
     location = error.get("loc")
     return list(location) if isinstance(location, list | tuple) else []
 

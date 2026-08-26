@@ -3725,7 +3725,6 @@ def run_cli(
 def main(argv: Sequence[str] | None = None) -> None:
     raise SystemExit(run_cli(argv))
 
-
 def legacy_main() -> None:
     print("warning: harbor-lab is deprecated; use evallab", file=sys.stderr)
     main()

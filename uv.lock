@@ -400,6 +400,7 @@ verifier = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "harbor-atif2otel" },
     { name = "hypothesis" },
     { name = "lancedb" },
     { name = "pytest" },
@@ -429,6 +430,7 @@ provides-extras = ["verifier"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "harbor-atif2otel", specifier = ">=0.1.0" },
     { name = "hypothesis", specifier = ">=6.100,<7" },
     { name = "lancedb", specifier = ">=0.37,<1" },
     { name = "pytest", specifier = ">=8.4,<9" },

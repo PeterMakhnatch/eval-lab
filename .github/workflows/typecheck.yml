@@ -18,10 +18,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Non-regression ratchet. Recorded baseline from docs/engineering.md.
-  # The job fails if ty reports MORE than this. Lower it whenever the real
-  # count drops; never raise it without saying why in the PR.
-  TY_BASELINE: 28
+  # Zero-diagnostic gate. Any ty diagnostic fails the job.
+  TY_BASELINE: 0
 
 jobs:
   ty:

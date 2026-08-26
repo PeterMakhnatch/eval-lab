@@ -45,7 +45,7 @@ inputs:
   - path: docs/design-additions.md
     digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md
-    digest: sha256:46f3e189732d98bdbf2ba4977bf3d51a83858a26faf69b5668c28bf9600f6a1d
+    digest: sha256:af08fe61513a893530f56a08ac82c0c5a717a39d786ffe5870dea77bf37b3159
   - path: docs/eval-cards.md
     digest: sha256:aef880b03991544c4420b0ca85c12e542aa28160149e5ca5c1207e422c359a36
   - path: docs/execution-tiers.md
@@ -83,7 +83,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:89497b7814db55ef274065bb05600469aa57608a43d0e4a3df2780724223e378
+    digest: sha256:8ab8a69dd43ada07c8b6959992c20006545e415854ea58a75bfc05686874f9d4
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

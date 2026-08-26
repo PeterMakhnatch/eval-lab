@@ -581,6 +581,7 @@ def run_harbor_process(
             except OSError:
                 pass
         last_heartbeat = started
+        first_seen: dict[Path, float] = {}
         while True:
             returncode = process.poll()
             if returncode is not None:

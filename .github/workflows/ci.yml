@@ -29,15 +29,15 @@ jobs:
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> $GITHUB_ENV
       - run: uv sync --locked --no-group observability
-      - run: uv run ruff check .
+      - run: uv run --no-sync ruff check .
       - name: Documentation front-matter and index freshness
-        run: uv run python -m evallab.docindex check
+        run: uv run --no-sync python -m evallab.docindex check
       - name: Governance contracts and frozen root
-        run: uv run python -m evallab.governance check
+        run: uv run --no-sync python -m evallab.governance check
       - name: Clean-checkout task registry and inventory audit
-        run: uv run evallab registry audit --json
+        run: uv run --no-sync evallab registry audit --json
       - name: Statistical lessons freshness and lineage
-        run: uv run python -m evallab.lessons
+        run: uv run --no-sync python -m evallab.lessons
 
   test:
     runs-on: ubuntu-latest
@@ -57,6 +57,6 @@ jobs:
           uv python install ${{ matrix.python-version }}
           echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
       - run: uv sync --locked --no-group observability
-      - run: uv run pytest
+      - run: uv run --no-sync pytest
       - if: matrix.python-version == '3.12'
-        run: uv run python -m evallab.smoke --docker-free
+        run: uv run --no-sync python -m evallab.smoke --docker-free

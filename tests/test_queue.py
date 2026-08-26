@@ -1079,13 +1079,24 @@ def test_runner_wrapper_touches_lease_for_fast_process(tmp_path: Path) -> None:
     assert not result.timed_out
     assert lease_path.stat().st_mtime_ns > past_ns
 
-def test_runner_wrapper_keeps_periodic_lease_heartbeat(tmp_path: Path) -> None:
+def test_runner_wrapper_keeps_periodic_lease_heartbeat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from evallab.runner import run_harbor_process
 
     lease_path = tmp_path / "test.lease"
     lease_path.touch()
     past_ns = lease_path.stat().st_mtime_ns - 100_000_000_000
     os.utime(lease_path, ns=(past_ns, past_ns))
+    touch_calls: list[float] = []
+    original_touch = Path.touch
+
+    def record_touch(path: Path, *args: object, **kwargs: object) -> None:
+        if path == lease_path:
+            touch_calls.append(time.monotonic())
+        original_touch(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "touch", record_touch)
 
     result = run_harbor_process(
         ["python3", "-c", "import time; time.sleep(0.3)"],
@@ -1098,7 +1109,7 @@ def test_runner_wrapper_keeps_periodic_lease_heartbeat(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert not result.timed_out
-    assert lease_path.stat().st_mtime_ns > past_ns
+    assert len(touch_calls) >= 2
 
 
 def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) -> None:

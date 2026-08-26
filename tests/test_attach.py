@@ -6,6 +6,7 @@ CI has no derived/, runs/, or PostgreSQL — tests must pass without them.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import duckdb
 import pyarrow as pa

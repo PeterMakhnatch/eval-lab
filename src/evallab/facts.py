@@ -411,6 +411,7 @@ def extract_trial_fact(
 ) -> TrialFact:
     projection = project_trial(job, trial)
     journal = state_journal or load_state_journal(trial)
+    result = trial.result
     raw_agent_info = result.get("agent_info")
     agent_info = raw_agent_info if isinstance(raw_agent_info, dict) else {}
     raw_model_info = agent_info.get("model_info")

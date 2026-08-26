@@ -27,6 +27,7 @@ harbor-lab = "evallab.cli:legacy_main"
 
 [dependency-groups]
 dev = [
+    "harbor-atif2otel>=0.1.0",
     "hypothesis>=6.100,<7",
     "lancedb>=0.37,<1",
     "pytest>=8.4,<9",
@@ -50,7 +51,7 @@ default-groups = ["dev", "observability"]
 packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
-addopts = "-q -n auto --dist loadfile"
+addopts = "-q -n 4 --dist loadscope"
 testpaths = [
     "tests",
     "dashboard/tests",

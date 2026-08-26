@@ -39,9 +39,9 @@ Executor(..., runner=None, ingester=None, spent_today=None,
 # self._runner = runner or self._run_harbor
 ```
 
-This is why the test suite runs in ~0.7 s with no Docker and no PostgreSQL,
-and it is the mechanism the profiling harness below uses to separate our code
-cost from database latency. New I/O gets a seam.
+This is why the test suite runs without Docker or PostgreSQL, and it is the
+mechanism the profiling harness below uses to separate our code cost from
+database latency. New I/O gets a seam.
 
 **Immutability.** Models are updated with `model_copy(update={...})`, never
 mutated in place (`queue.py` `submit`/`transition`). Completed run
@@ -119,49 +119,17 @@ ship two type checkers.
 
 ### The type-check baseline
 
-`ty` 0.0.71 reports **28 diagnostics** on `src/` as of the SOLIDIFY
-continuation. This lowers the original wave-1 baseline of 33 after the five
-`cohort.py` diagnostics were removed. Current distribution:
+`ty` 0.0.71 reports **zero diagnostics** on `src/` as of 2026-08-25. CI keeps
+`TY_BASELINE: 0`; any diagnostic is therefore a blocking regression.
 
-| File | Count |
-|---|---:|
-| `atif.py` | 14 |
-| `facts.py` | 7 |
-| `database.py` | 3 |
-| `tracing.py` | 2 |
-| `queue.py` | 2 |
+The zero-diagnostic cutover narrowed nullable ATIF/fact payloads, made optional
+Harbor and observability imports explicit dynamic boundaries, typed trusted SQL
+inputs, and removed stale casts. Do not restore a positive baseline or suppress
+module-wide diagnostics. If an optional integration is absent, preserve its
+runtime fallback while keeping the statically imported core clean.
 
-By rule: 13 `unresolved-attribute`, 6 `invalid-argument-type`, 3
-`unresolved-import`, 3 `not-subscriptable`, 1 `not-iterable`, 1
-`no-matching-overload`, and 1 `redundant-cast`.
-
-Three of these are not code defects: `tracing.py` imports `litellm` and `dspy`,
-which are optional runtime dependencies absent from the locked dev
-environment. Those want a dependency-group entry or a per-module ignore, not a
-code change.
-
-**The job is a non-regression ratchet, not a pass/fail gate on zero.**
-`typecheck.yml` sets `TY_BASELINE: 28`. The job fails only if ty reports *more*
-than the baseline, and emits a notice when the count drops so the baseline can
-be lowered. This was the only design that satisfies all three constraints at
-once: type checking runs on every PR, new type errors are caught, and FORGE
-does not have to edit files owned by other roles to make CI green.
-
-An earlier revision used job-level `continue-on-error: true`. That was wrong in
-practice — GitHub still reports the job's conclusion as *failure* to the checks
-API, so the PR showed a red check indistinguishable from a real break, which is
-the precise failure mode a reporting-only job is supposed to avoid.
-
-Lower `TY_BASELINE` as modules are cleaned. Raising it should require a
-sentence in the PR saying why.
-
-An earlier draft of this document recorded 4 diagnostics; that was measured
-before the wave-1 modules (`atif.py`, `facts.py`, `cohort.py`, `tracing.py`,
-`calibrate.py`, `credentials.py`, `researchers.py`) merged. The number above
-supersedes it.
-
-`ty` is pre-1.0 and therefore pinned. An unpinned checker can turn CI red on
-its own release schedule, which is indistinguishable from a real regression.
+`ty` remains pinned because it is pre-1.0. An unpinned checker can turn CI red
+on its own release schedule, which is indistinguishable from a code regression.
 
 ---
 
@@ -188,10 +156,18 @@ Method: median of N repetitions after one warmup, `time.perf_counter()`.
 | `uv run pytest -q` | 0.82 s | 49 tests, no Docker, no DB |
 | `uvx ty@0.0.71 check src/` | 0.10 s | warm; excludes the uvx download |
 
-Total local check time is ~1 s. The ~3 min CI target is therefore dominated by
-runner startup and `uv sync`, not by our checks — optimize the workflow, not
-the test suite. The practical levers are the uv cache (already enabled) and
-`concurrency.cancel-in-progress` (already set on both workflows).
+These figures are historical. On the M4 Max hardening workstation, the
+2026-08-25 baseline exercised the full suite serially in 230.91 s and exposed a
+fast-process lease-heartbeat race. The unchanged suite passed with four xdist
+workers and load-scope distribution in 101.84 s. After fixing that race, the
+final hardened suite passed 2,043 tests in 107.38 s: a 53.5% wall-clock
+reduction from the serial baseline. The bounded four-worker default keeps every
+test and Hypothesis setting in the lane.
+
+CI dependency installation is narrowed by job instead of cached: quality jobs
+omit the observability group, while typecheck and performance jobs install only
+project runtime dependencies. `docs/operations.md` records why no cache trust
+root is added.
 
 ### Application paths
 

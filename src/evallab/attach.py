@@ -104,6 +104,7 @@ def _attach_z2(conn: duckdb.DuckDBPyConnection, dsn: str) -> ZoneStatus:
         conn.execute("INSTALL postgres_scanner")
         conn.execute("LOAD postgres_scanner")
         conn.execute(f"ATTACH {_sql_string_literal(dsn)} AS z2 (TYPE postgres)")
+        return ZoneStatus("z2", True, detail=_postgres_identity(dsn))
     except Exception as exc:
         detail = str(exc)
         for candidate in (dsn, dsn.replace("'", "''")):

@@ -51,12 +51,12 @@ jobs:
       - name: profile harness
         run: |
           chmod +x scripts/profile/gh_stub.sh
-          uv run python scripts/profile/harness.py \
+          uv run --no-sync python scripts/profile/harness.py \
             --output-dir runs/_speed \
             --warmup 1 \
             --reps 5
       - name: budget ratchet
-        run: uv run python scripts/profile/check_budgets.py runs/_speed/profile-report.json
+        run: uv run --no-sync python scripts/profile/check_budgets.py runs/_speed/profile-report.json
       - name: upload report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

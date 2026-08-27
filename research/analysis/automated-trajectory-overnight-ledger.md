@@ -107,6 +107,7 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-026 | Source/method claims are scoped to inspected systems and data units | approved | no universal SOTA/mandatory-method claim; finite-cluster thresholds and agreement metrics are not acceptance proof |
 | ADR-027 | Runtime history and verifier collection are distinct evidence surfaces | approved boundary / feature deferred | `StateJournalPlugin` may observe bounded `/app` filesystem history during the agent phase; `[[verifier.collect]]` creates post-agent snapshots. Document current limits only—no new hook/profile implementation in this loop |
 | ADR-028 | Trajectory bulk-work model budget is Gemini-primary with DeepSeek Flash as the only fallback | Peter override / effective immediately | no new Grok/Cursor Grok, Claude, Devin, Terra, Sol, Opus, or other paid/subscription routing; if both allowed providers are unavailable, STOP/HOLD without weakening quality gates |
+| ADR-029 | P0 is the automatic completed-Harbor-trial data layer; all other expansion pauses | Peter focus reset / supersedes ADR-028 routing | active roles are Platform, Agent Data, Ops, Tutor, Architect; model order is Gemini 3.7 High, Cursor Grok, DeepSeek Flash, otherwise HOLD; merge order is canonical Data validator before Platform integrity before one all-durable backfill |
 
 ## Blockers / hard stops
 
@@ -300,3 +301,68 @@ Synthetic Researcher, Synthetic Engineer, and Ops. Gemini Researcher
 `wH:p5`, Gemini main `wH:p2`, and OMP main `wH:p3` remain excluded from
 controller prompts. Reviews already running before the override may finish,
 but receive no new follow-up work under a prohibited model.
+
+### Completed-trial P0 focus reset — 2026-08-27
+
+Peter narrowed active work to one automatic path:
+
+```text
+Canonical TrialBundle
+  -> completed-trial orchestrator
+  -> event node/edge projections
+  -> data-quality/coverage gate
+  -> PostgreSQL / Parquet / CAS
+  -> EvidencePack
+  -> ANALYSIS_READY or reason-coded HOLD
+  -> operator CLI / all-durable backfill
+```
+
+Only Platform `wH:p1`, Agent Data `wK:p9`, Ops `wK:p8`, Tutor `wK:p4`,
+and Architect remain active. Analyst, Librarian, Synthetic Researcher,
+Synthetic Engineer, benchmark/synthetic/statistical expansion, and hook
+expansion are paused with checkpoints preserved. Gemini Researcher `wH:p5`,
+Gemini main `wH:p2`, OMP main `wH:p3`, and other roles remain unprompted.
+
+The mandatory model order for new bulk work is:
+
+1. Gemini 3.7 High;
+2. Cursor Grok only when Gemini is unavailable or quota-blocked;
+3. DeepSeek Flash only when both earlier routes are unavailable;
+4. STOP/HOLD when all three are unavailable.
+
+Direct Grok/xAI, Sol, Terra, Opus, Claude, Devin, external Gemini/OMP tabs, and
+every other paid/subscription route are prohibited for new bulk work. This
+ordering supersedes ADR-028. Existing prohibited-model work receives no new
+prompt; already-running work may only finish its current response.
+
+At the reset, PR #221 had already merged as `d68c1fb`; it could not be paused
+as a draft retroactively. No revert was authorized. Its reviewed checkpoint is
+part of the P0 base, while every subsequent statistical follow-up is paused.
+
+### Frozen P0 interfaces and merge order
+
+| Boundary | Owner | Frozen minimum |
+|---|---|---|
+| Canonical TrialBundle | Agent Data | exact job/trial/task/verifier/source/config identities; raw/CAS locators and digests; missing fields remain typed unknown |
+| Completed-trial orchestrator | Platform | one completed Harbor trial in; deterministic bundle/quality/projection/pack/disposition records out; no silent skip |
+| Event nodes/edges | Agent Data | mechanical, non-causal, trial-scoped identities and source citations; StateJournal completeness explicit |
+| Data-quality/coverage | Platform | corrupt/missing/ambiguous/partial evidence fails closed; unavailable never becomes zero |
+| PostgreSQL/Parquet/CAS | Platform | complete job_id+trial_id+artifact identities, rebuildable projections, immutable CAS authority, orphan anti-joins |
+| EvidencePack | Agent Data | bounded, digest-bound selected/omitted partition with raw reopening and exact redaction policy |
+| ANALYSIS_READY/HOLD | Data schema / Platform gate | one deterministic disposition with complete reason codes; quarantine excluded from capability denominators |
+| CLI/backfill | Ops | one command discovers every durable completed trial and persists or reports its exact disposition |
+
+The current dependency chain is strict:
+
+1. PR #223 merges the canonical strict `state_events.py` state-diff validator.
+2. PR #218 rebases, consumes that validator, removes duplicate validation, and
+   completes Platform integrity/persistence/orchestrator gates.
+3. Ops executes one automatic all-durable backfill—no judge/model calls—and
+   reconciles every durable trial to ANALYSIS_READY or reason-coded HOLD.
+
+Ops froze the operator contract at
+`research/analysis/completed-trial-data-layer-backfill-contract.md` on base
+`d68c1fb`: 21 indexed trials, 17 analysis-ready hold-only trials across five
+campaigns, four permanent quarantines, 16 CAS job archives, initialized
+PostgreSQL schema, and verified Parquet fact partitions. Execution waits for
+PRs #223 and #218.

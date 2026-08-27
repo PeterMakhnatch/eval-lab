@@ -147,7 +147,21 @@ def _load_artifacts(trial_dir: Path) -> tuple[ArtifactRecord, ...]:
         if not isinstance(entry, dict):
             continue
         destination = entry.get("destination")
-        host_path = trial_dir / destination if destination else None
+        host_path: Path | None = None
+        if destination is not None:
+            destination_path = Path(str(destination))
+            if destination_path.is_absolute():
+                raise ValueError(
+                    f"artifact destination must be relative to the trial directory: {destination}"
+                )
+            candidate = (trial_dir / destination_path).resolve()
+            try:
+                candidate.relative_to(trial_dir.resolve())
+            except ValueError as exc:
+                raise ValueError(
+                    f"artifact destination escapes the trial directory: {destination}"
+                ) from exc
+            host_path = candidate
         exists = bool(host_path and host_path.exists())
         size_bytes: int | None = None
         digest: str | None = None
@@ -162,7 +176,7 @@ def _load_artifacts(trial_dir: Path) -> tuple[ArtifactRecord, ...]:
                 status=entry.get("status"),
                 service=entry.get("service"),
                 host_relative_path=(
-                    host_path.relative_to(trial_dir).as_posix() if host_path else None
+                    host_path.relative_to(trial_dir.resolve()).as_posix() if host_path else None
                 ),
                 exists=exists,
                 size_bytes=size_bytes,
@@ -193,11 +207,7 @@ def load_trial(trial_dir: Path) -> TrialRecord:
 
 def load_job(job_dir: Path) -> JobRecord:
     result = _load_object(job_dir / "result.json")
-    if (
-        "n_total_trials" not in result
-        or "stats" not in result
-        or not result.get("finished_at")
-    ):
+    if "n_total_trials" not in result or "stats" not in result or not result.get("finished_at"):
         raise ValueError(f"Not a completed Harbor job directory: {job_dir}")
 
     trials: list[TrialRecord] = []
@@ -207,6 +217,17 @@ def load_job(job_dir: Path) -> JobRecord:
         candidate_result = _load_object(candidate / "result.json")
         if "task_name" in candidate_result and "trial_name" in candidate_result:
             trials.append(load_trial(candidate))
+    expected_trials = result.get("n_total_trials")
+    if (
+        not isinstance(expected_trials, int)
+        or isinstance(expected_trials, bool)
+        or expected_trials < 0
+        or expected_trials != len(trials)
+    ):
+        raise ValueError(
+            "Completed Harbor job trial count mismatch: "
+            f"expected {expected_trials!r}, indexed {len(trials)} in {job_dir}"
+        )
 
     files = tuple(
         FileRecord(
@@ -263,11 +284,7 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
         root = raw_root.expanduser().resolve()
         if root.is_dir() and (root / "result.json").is_file():
             result = _load_object(root / "result.json")
-            if (
-                "n_total_trials" in result
-                and "stats" in result
-                and result.get("finished_at")
-            ):
+            if "n_total_trials" in result and "stats" in result and result.get("finished_at"):
                 discovered[root] = None
                 continue
         if not root.exists():
@@ -277,11 +294,7 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
             if _is_bookkeeping(candidate.relative_to(root)):
                 continue
             result = _load_object(result_path)
-            if (
-                "n_total_trials" in result
-                and "stats" in result
-                and result.get("finished_at")
-            ):
+            if "n_total_trials" in result and "stats" in result and result.get("finished_at"):
                 discovered[candidate] = None
     return sorted(discovered)
 

@@ -565,6 +565,7 @@ def _pack_payload_structure_errors(
             and anchor.get("target_type") == "step"
         )
 
+    selected_bounds: list[tuple[int, int]] = []
     selected_ids: list[str] = []
     for window in selected_windows:
         if not isinstance(window, dict):
@@ -618,7 +619,16 @@ def _pack_payload_structure_errors(
             step_start=step_start,
         ):
             errors.append("selected_reopening_locator_mismatch")
+        if (
+            isinstance(step_start, int)
+            and not isinstance(step_start, bool)
+            and isinstance(step_end, int)
+            and not isinstance(step_end, bool)
+            and step_start <= step_end
+        ):
+            selected_bounds.append((step_start, step_end))
 
+    omitted_bounds: list[tuple[int, int]] = []
     omitted_ids: list[str] = []
     for omitted in omitted_ranges:
         if not isinstance(omitted, dict):
@@ -659,6 +669,16 @@ def _pack_payload_structure_errors(
             step_start=omitted.get("step_start"),
         ):
             errors.append("omitted_reopening_locator_mismatch")
+        omitted_start = omitted.get("step_start")
+        omitted_end = omitted.get("step_end")
+        if (
+            isinstance(omitted_start, int)
+            and not isinstance(omitted_start, bool)
+            and isinstance(omitted_end, int)
+            and not isinstance(omitted_end, bool)
+            and omitted_start <= omitted_end
+        ):
+            omitted_bounds.append((omitted_start, omitted_end))
 
     if len(selected_ids) != len(set(selected_ids)):
         errors.append("duplicate_selected_event")
@@ -668,6 +688,12 @@ def _pack_payload_structure_errors(
         errors.append("selected_omitted_overlap")
     if set(selected_ids) | set(omitted_ids) != set(event_by_id):
         errors.append("pack_event_coverage_mismatch")
+    if any(
+        selected_start <= omitted_end and omitted_start <= selected_end
+        for selected_start, selected_end in selected_bounds
+        for omitted_start, omitted_end in omitted_bounds
+    ):
+        errors.append("selected_omitted_range_overlap")
     return sorted(set(errors))
 
 
@@ -676,8 +702,50 @@ def _pack_structure_errors(ir: TrajectoryIR, pack: EvidencePack) -> list[str]:
     return _pack_payload_structure_errors(ir.to_dict(), pack.to_dict())
 
 
+def _selected_hydration_errors(
+    ir: TrajectoryIR,
+    pack: EvidencePack,
+    *,
+    cas_store: Path,
+) -> list[str]:
+    """Reopen every CAS-backed selected event and compare the exact redacted bytes."""
+    errors: list[str] = []
+    try:
+        policy = RedactionPolicy.from_pack_config(
+            pack.redaction_policy_config,
+            pack.redaction_profile_digest,
+        )
+    except ValueError:
+        return ["redaction_policy_config_invalid"]
+    event_by_id = {event.event_id: event for event in ir.events}
+    for window in pack.selected_windows:
+        for payload in window.events:
+            event_id = payload.get("event_id")
+            event = event_by_id.get(str(event_id))
+            if event is None:
+                continue
+            handle = event.source_citation
+            if not (handle.raw_cas_uri or handle.cas_uri):
+                continue
+            hydrated = hydrate_citation(handle, repo_root=cas_store, policy=policy)
+            limitation = hydrated.redaction_metadata.get("limitation_reason")
+            if limitation == "cas_load_error":
+                errors.append("selected_hydration_cas_integrity_error")
+                continue
+            if limitation or hydrated.redaction_metadata.get("content_digest_mismatch"):
+                errors.append("selected_event_hydration_unreopenable")
+                continue
+            if payload.get("hydrated_content") != hydrated.redacted_content:
+                errors.append("selected_event_hydration_mismatch")
+    return sorted(set(errors))
+
+
 def _validate_artifact_digests(
-    ir: TrajectoryIR, pack: EvidencePack, judgment: MachineJudgment
+    ir: TrajectoryIR,
+    pack: EvidencePack,
+    judgment: MachineJudgment,
+    *,
+    cas_store: Path,
 ) -> None:
     ir_payload = ir.to_dict()
     ir_digest = ir_payload.pop("ir_digest", "")
@@ -697,6 +765,9 @@ def _validate_artifact_digests(
     structure_errors = _pack_structure_errors(ir, pack)
     if structure_errors:
         raise ValueError(f"invalid pack structure: {', '.join(structure_errors)}")
+    hydration_errors = _selected_hydration_errors(ir, pack, cas_store=cas_store)
+    if hydration_errors:
+        raise ValueError(f"invalid selected hydration: {', '.join(hydration_errors)}")
     MachineJudgment.model_validate(judgment.model_dump(mode="json"))
 
 
@@ -763,16 +834,27 @@ def evaluate_deterministic_gates(
     else:
         mismatched: list[str] = []
         missing_digest: list[str] = []
+        integrity_errors: list[str] = []
         for cid, _, handle in resolved:
-            if not handle.content_sha256:
-                missing_digest.append(cid)
-                continue
             hydrated = hydrate_citation(handle, repo_root=cas_store)
-            if hydrated.redaction_metadata.get("limitation_reason"):
+            limitation = hydrated.redaction_metadata.get("limitation_reason")
+            if limitation == "cas_load_error":
+                integrity_errors.append(cid)
+            elif not handle.content_sha256 or limitation:
                 missing_digest.append(cid)
-            elif hydrated.content_sha256 != handle.content_sha256:
+            elif (
+                hydrated.redaction_metadata.get("content_digest_mismatch")
+                or hydrated.content_sha256 != handle.content_sha256
+            ):
                 mismatched.append(cid)
-        if mismatched:
+        if integrity_errors:
+            c2 = GateResult(
+                gate_id="C2_digest",
+                status="fail",
+                reason_code="cas_integrity_error",
+                citation_ids=sorted(set(integrity_errors)),
+            )
+        elif mismatched:
             c2 = GateResult(
                 gate_id="C2_digest",
                 status="fail",
@@ -812,6 +894,7 @@ def evaluate_deterministic_gates(
     else:
         source_mismatch: list[str] = []
         source_missing: list[str] = []
+        source_integrity: list[str] = []
         ir_source = ir.source_digests.get("source_sha256", "")
         ir_cas = ir.source_digests.get("cas_uri", "")
         for cid, _, handle in resolved:
@@ -825,9 +908,18 @@ def evaluate_deterministic_gates(
             try:
                 with tempfile.TemporaryDirectory() as temporary:
                     restore_evidence(cas_store, handle_cas, Path(temporary))
-            except Exception:
+            except FileNotFoundError:
                 source_missing.append(cid)
-        if source_mismatch:
+            except Exception:
+                source_integrity.append(cid)
+        if source_integrity:
+            c3 = GateResult(
+                gate_id="C3_source",
+                status="fail",
+                reason_code="cas_integrity_error",
+                citation_ids=sorted(set(source_integrity)),
+            )
+        elif source_mismatch:
             c3 = GateResult(
                 gate_id="C3_source",
                 status="fail",
@@ -1011,9 +1103,20 @@ def evaluate_deterministic_gates(
 
     # C10_omitted (every omitted range must reopen the exact hashed event set)
     unreopenable: list[str] = []
+    omitted_integrity: list[str] = []
+    try:
+        omitted_policy = RedactionPolicy.from_pack_config(
+            pack.redaction_policy_config,
+            pack.redaction_profile_digest,
+        )
+    except ValueError:
+        omitted_policy = None
     for omitted in pack.omitted_ranges:
         handle = omitted.reopening_citation
         citation_id = _platform_citation_id(handle)
+        if omitted_policy is None:
+            omitted_integrity.append(citation_id)
+            continue
         handle_cas = handle.raw_cas_uri or handle.cas_uri
         if (
             not handle_cas
@@ -1023,13 +1126,23 @@ def evaluate_deterministic_gates(
             unreopenable.append(citation_id)
             continue
         try:
+            with tempfile.TemporaryDirectory() as temporary:
+                restore_evidence(cas_store, handle_cas, Path(temporary))
+        except FileNotFoundError:
+            unreopenable.append(citation_id)
+            continue
+        except Exception:
+            omitted_integrity.append(citation_id)
+            continue
+        try:
             reopened = reopen_omitted_range(
                 pack,
                 omitted.range_id,
                 ir=ir,
                 store_root=cas_store,
+                policy=omitted_policy,
             )
-            hydrated = hydrate_citation(handle, repo_root=cas_store)
+            hydrated = hydrate_citation(handle, repo_root=cas_store, policy=omitted_policy)
             reopened_ids = [event.get("event_id") for event in reopened.events]
             if reopened_ids != list(omitted.event_ids):
                 raise ValueError("reopened event identities differ from omitted range")
@@ -1039,7 +1152,11 @@ def evaluate_deterministic_gates(
                 source_event = event_by_id.get(str(event_id))
                 if source_event is None:
                     raise ValueError("reopened event is absent from IR")
-                member = hydrate_citation(source_event.source_citation, repo_root=cas_store)
+                member = hydrate_citation(
+                    source_event.source_citation,
+                    repo_root=cas_store,
+                    policy=omitted_policy,
+                )
                 if (
                     member.redaction_metadata.get("limitation_reason")
                     or member.redaction_metadata.get("content_digest_mismatch")
@@ -1053,7 +1170,14 @@ def evaluate_deterministic_gates(
             "content_digest_mismatch"
         ):
             unreopenable.append(citation_id)
-    if unreopenable:
+    if omitted_integrity:
+        c10 = GateResult(
+            gate_id="C10_omitted",
+            status="fail",
+            reason_code="cas_integrity_error",
+            citation_ids=sorted(set(omitted_integrity)),
+        )
+    elif unreopenable:
         c10 = GateResult(
             gate_id="C10_omitted",
             status="unknown",
@@ -1070,7 +1194,7 @@ def evaluate_deterministic_gates(
 
     # schema_valid
     try:
-        _validate_artifact_digests(ir, pack, judgment)
+        _validate_artifact_digests(ir, pack, judgment, cas_store=cas_store)
         schema_valid = GateResult(
             gate_id="schema_valid",
             status="pass",
@@ -1633,11 +1757,42 @@ def analyze_trial(
 # ---------------------------------------------------------------------------
 
 
+def _validated_campaign_result_identities(
+    manifest: CampaignAnalysisManifest,
+    results: Sequence[dict[str, Any]],
+) -> list[tuple[str, str]]:
+    expected = [(item.job_id, item.trial_id) for item in manifest.cohort_items()]
+    if len(expected) != len(set(expected)):
+        raise ValueError("campaign manifest contains duplicate cohort identities")
+    actual: list[tuple[str, str]] = []
+    for result in results:
+        job_id = result.get("job_id")
+        trial_id = result.get("trial_id")
+        if (
+            not isinstance(job_id, str)
+            or not job_id
+            or not isinstance(trial_id, str)
+            or not trial_id
+        ):
+            raise ValueError("campaign result is missing job_id/trial_id identity")
+        actual.append((job_id, trial_id))
+    if len(actual) != len(set(actual)):
+        raise ValueError("campaign results contain duplicate identities")
+    expected_set = set(expected)
+    actual_set = set(actual)
+    if actual_set != expected_set:
+        missing = sorted(expected_set - actual_set)
+        foreign = sorted(actual_set - expected_set)
+        raise ValueError(f"campaign result identity mismatch: missing={missing}, foreign={foreign}")
+    return actual
+
+
 def build_campaign_report(
     manifest: CampaignAnalysisManifest,
     results: Sequence[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the campaign report from manifest accounting and per-item results."""
+    _validated_campaign_result_identities(manifest, results)
     reason_counts: dict[str, int] = {}
     coverage_gap_counts: dict[str, int] = {}
     accepted = 0
@@ -1660,6 +1815,7 @@ def build_campaign_report(
             coverage_gap_counts[gap] = coverage_gap_counts.get(gap, 0) + 1
         source_refs.append(
             {
+                "job_id": res["job_id"],
                 "trial_id": res["trial_id"],
                 "source_cas_uri": res["source_cas_uri"],
                 "artifact_cas_uri": res["artifact_cas_uri"],
@@ -1764,6 +1920,9 @@ def analyze_batch(
 
     manifest = load_campaign_analysis_manifest(inventory_path)
     cohort = manifest.cohort_items()
+    cohort_identities = [(item.job_id, item.trial_id) for item in cohort]
+    if len(cohort_identities) != len(set(cohort_identities)):
+        raise RuntimeError("schema_mismatch: duplicate cohort job_id/trial_id identity")
 
     results: list[dict[str, Any]] = []
     for item in cohort:

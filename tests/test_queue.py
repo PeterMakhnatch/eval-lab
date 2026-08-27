@@ -709,6 +709,11 @@ def test_running_reconciliation_settles_the_final_attempt_reservation(
         '{"n_total_trials": 1, "stats": {}, '
         '"finished_at": "2026-08-15T00:00:00Z"}\n'
     )
+    trial_dir = job_dir / "trial-0"
+    trial_dir.mkdir()
+    (trial_dir / "result.json").write_text(
+        '{"task_name": "canary/event-summary", "trial_name": "trial-0"}\n'
+    )
 
     restarted = executor(tmp_path, spent=2)
     restarted.reconcile_running()
@@ -737,6 +742,33 @@ def test_reconciliation_never_settles_partial_harbor_job(tmp_path: Path) -> None
     job_dir.mkdir(parents=True)
     (job_dir / "result.json").write_text(
         '{"n_total_trials": 1, "stats": {}, "finished_at": null}\n'
+    )
+
+    service.reconcile_running()
+
+    assert running.is_file()
+    assert ingested == []
+    assert not service.queue.list_specs("done")
+
+
+def test_reconciliation_never_settles_completed_header_missing_trial(
+    tmp_path: Path,
+) -> None:
+    ingested: list[Path] = []
+    service = executor(tmp_path, ingester=ingested.append)
+    approved, _ = service.submit(spec("missing-trial-running-control"))
+    queued = service.queue.load(approved)
+    running = service.queue.transition(
+        approved,
+        "running",
+        actor="executor",
+        event="dispatch_started",
+    )
+    job_dir = tmp_path / queued.jobs_dir / queued.name
+    job_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text(
+        '{"n_total_trials": 1, "stats": {}, '
+        '"finished_at": "2026-08-15T00:00:00Z"}\n'
     )
 
     service.reconcile_running()

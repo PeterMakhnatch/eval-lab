@@ -23,7 +23,7 @@ import pyarrow.parquet as pq
 from evallab.database import catalog_availability
 from evallab.evidence_store import archive_evidence, load_archive, restore_evidence
 from evallab.trajectory_acceptance import AUTO_ACCEPTANCE_ENABLED, AcceptanceDecision
-from evallab.trajectory_hydration import CitationHandle, hydrate_citation
+from evallab.trajectory_hydration import CitationHandle, RedactionPolicy, hydrate_citation
 from evallab.trajectory_judgment import MachineJudgment, canonical_json_digest
 from evallab.trajectory_runtime import (
     CampaignAnalysisItem,
@@ -142,7 +142,7 @@ def _add_campaign_projection_joins(
     trial_ids = {trial["trial_id"] for trial in cohort}
     trial_identities = {(str(trial["job_id"]), str(trial["trial_id"])) for trial in cohort}
     identities = {
-        trial["trial_id"]: trial["sidecar_identity"]
+        (str(trial["job_id"]), str(trial["trial_id"])): trial["sidecar_identity"]
         for trial in cohort
         if trial.get("sidecar_identity")
     }
@@ -179,15 +179,15 @@ def _add_campaign_projection_joins(
         rows = [
             row
             for row in pq.read_table(artifact_path).to_pylist()
-            if row.get("trial_id") in trial_ids
+            if str(row.get("trial_id")) in trial_ids
         ]
         current_keys: set[tuple[str, str, str, str, str, str]] = set()
-        for trial_id, identity in identities.items():
+        for (job_id, trial_id), identity in identities.items():
             for kind in ("ir", "pack", "judgment", "decision", "interpretation"):
                 current_keys.add(
                     (
+                        job_id,
                         trial_id,
-                        str(identity["job_id"]),
                         kind,
                         str(identity["pack_digest"]),
                         str(identity["judgment_id"]),
@@ -197,8 +197,8 @@ def _add_campaign_projection_joins(
 
         def _artifact_key(row: dict[str, Any]) -> tuple[str, str, str, str, str, str]:
             return (
-                str(row.get("trial_id")),
                 str(row.get("job_id")),
+                str(row.get("trial_id")),
                 str(row.get("kind")),
                 str(row.get("pack_digest")),
                 str(row.get("judgment_id")),
@@ -207,27 +207,41 @@ def _add_campaign_projection_joins(
 
         current_rows = [row for row in rows if _artifact_key(row) in current_keys]
         present_keys = {_artifact_key(row) for row in current_rows}
+        foreign_identity_rows = [
+            row
+            for row in rows
+            if (str(row.get("job_id")), str(row.get("trial_id"))) not in trial_identities
+        ]
         projections["interpretation_artifacts"].update(
             {
                 "row_count_scope": "global",
                 "campaign_row_count": len(rows),
-                "campaign_trial_count": len({row.get("trial_id") for row in rows}),
+                "campaign_trial_count": len(
+                    {(str(row.get("job_id")), str(row.get("trial_id"))) for row in rows}
+                ),
                 "current_row_count": len(current_rows),
                 "expected_current_row_count": 5 * len(identities),
                 "duplicate_current_rows": len(current_rows) - len(present_keys),
-                "historical_row_count": len(rows) - len(current_rows),
+                "historical_row_count": len(rows) - len(current_rows) - len(foreign_identity_rows),
+                "orphan_row_count": len(foreign_identity_rows),
+                "foreign_campaign_identities": sorted(
+                    {
+                        (str(row.get("job_id")), str(row.get("trial_id")))
+                        for row in foreign_identity_rows
+                    }
+                ),
                 "missing_current_identities": [
                     {
-                        "trial_id": trial_id,
                         "job_id": job_id,
+                        "trial_id": trial_id,
                         "kind": kind,
                         "pack_digest": pack_digest,
                         "judgment_id": judgment_id,
                         "decision_id": decision_id,
                     }
                     for (
-                        trial_id,
                         job_id,
+                        trial_id,
                         kind,
                         pack_digest,
                         judgment_id,
@@ -470,6 +484,119 @@ def _select_sidecar_generation(
     return "invalid", None
 
 
+def _cas_record_anti_join(
+    store_root: Path,
+    items: list[CampaignAnalysisItem],
+) -> dict[str, Any]:
+    """Validate the current campaign's exact job-identity-to-CAS relation."""
+    expected_jobs: dict[str, dict[str, set[str]]] = {}
+    for item in items:
+        if not item.cas_uri or str(item.cas_uri) == "None":
+            continue
+        job_id = item.job_id
+        expectation = expected_jobs.setdefault(job_id, {"aliases": set(), "uris": set()})
+        expectation["aliases"].update({job_id, item.job_name})
+        expectation["uris"].add(str(item.cas_uri))
+    conflicting_expected_job_ids = sorted(
+        job_id
+        for job_id, expectation in expected_jobs.items()
+        if len(expectation["uris"]) != 1
+    )
+    alias_to_jobs: dict[str, set[str]] = {}
+    for job_id, expectation in expected_jobs.items():
+        for alias in expectation["aliases"]:
+            if alias:
+                alias_to_jobs.setdefault(alias, set()).add(job_id)
+
+    expected_bindings = {
+        (job_id, uri)
+        for job_id, expectation in expected_jobs.items()
+        for uri in expectation["uris"]
+    }
+    expected_uris = {uri for _, uri in expected_bindings}
+    records_root = store_root / "records" / "job"
+    matched_bindings: set[tuple[str, str]] = set()
+    binding_counts: Counter[tuple[str, str]] = Counter()
+    orphan_records: list[dict[str, str]] = []
+    invalid_records: list[str] = []
+    for path in sorted(records_root.glob("*.json")):
+        record_path = path.relative_to(store_root).as_posix()
+        path_id = path.stem
+        path_jobs = alias_to_jobs.get(path_id, set())
+        payload = _load_json(path)
+        if payload is None:
+            if path_jobs:
+                invalid_records.append(record_path)
+            continue
+        record_id = payload.get("record_id")
+        record_jobs = alias_to_jobs.get(record_id, set()) if isinstance(record_id, str) else set()
+        if (
+            payload.get("kind") != "job"
+            or record_id != path_id
+            or len(record_jobs) != 1
+        ):
+            if path_jobs or record_jobs:
+                invalid_records.append(record_path)
+            continue
+        job_id = next(iter(record_jobs))
+        uri = payload.get("uri")
+        if not isinstance(uri, str):
+            invalid_records.append(record_path)
+            continue
+        binding = (job_id, uri)
+        if binding not in expected_bindings:
+            orphan_records.append(
+                {
+                    "job_id": job_id,
+                    "record_id": record_id,
+                    "uri": uri,
+                    "path": record_path,
+                }
+            )
+            continue
+        matched_bindings.add(binding)
+        binding_counts[binding] += 1
+
+    missing_bindings = expected_bindings - matched_bindings
+    missing_uris = sorted({uri for _, uri in missing_bindings})
+    missing_record_ids = sorted({job_id for job_id, _ in missing_bindings})
+    duplicate_records = [
+        {"job_id": job_id, "uri": uri, "record_count": count}
+        for (job_id, uri), count in sorted(binding_counts.items())
+        if count > 1
+    ]
+    status = (
+        "invalid"
+        if (
+            conflicting_expected_job_ids
+            or invalid_records
+            or orphan_records
+            or duplicate_records
+        )
+        else ("missing" if missing_bindings else "present")
+    )
+    return {
+        "status": status,
+        "reason": (
+            "cas_record_integrity_failure"
+            if status == "invalid"
+            else ("cas_record_missing" if missing_bindings else None)
+        ),
+        "expected_uri_count": len(expected_uris),
+        "matched_uri_count": len(expected_uris - set(missing_uris)),
+        "missing_uris": missing_uris,
+        "expected_record_count": len(expected_bindings),
+        "matched_record_count": len(matched_bindings),
+        "missing_record_ids": missing_record_ids,
+        "conflicting_expected_job_ids": conflicting_expected_job_ids,
+        "orphan_record_count": len(orphan_records),
+        "orphan_records": orphan_records,
+        "invalid_record_count": len(invalid_records),
+        "invalid_records": invalid_records,
+        "duplicate_record_uris": duplicate_records,
+    }
+
+
 def _cas_availability(uri: str | None, store_root: Path) -> dict[str, Any]:
     if not uri:
         return {"status": "unknown", "reason": "cas_uri_absent"}
@@ -674,6 +801,22 @@ def _citation_reopen(
         return {"status": "unknown", "reason": "sidecars_absent", **empty}
 
     handles = _collect_handles(ir, pack)
+    try:
+        policy = RedactionPolicy.from_pack_config(
+            pack.get("redaction_policy_config"),
+            pack.get("redaction_profile_digest"),
+        )
+    except ValueError:
+        return {
+            "status": "invalid",
+            "reason": "invalid_redaction_policy",
+            "available": 0,
+            "unavailable": len(handles),
+            "unreopenable": len(handles),
+            "integrity_failures": len(handles),
+            "handle_count": len(handles),
+            "reason_counts": {"invalid_redaction_policy": len(handles)},
+        }
     if not handles:
         return {"status": "unknown", "reason": "citation_handles_absent", **empty}
     selected_hydrated: dict[str, list[Any]] = {}
@@ -798,7 +941,7 @@ def _citation_reopen(
                 unavailable += 1
                 integrity_failures += 1
                 continue
-            hydrated = hydrate_citation(handle, repo_root=store_root)
+            hydrated = hydrate_citation(handle, repo_root=store_root, policy=policy)
             platform_id = canonical_json_digest(handle.to_dict())
             selected_contents = selected_hydrated.get(platform_id, [])
             if any(content != hydrated.redacted_content for content in selected_contents):
@@ -939,6 +1082,7 @@ def campaign_data_quality_report(
         inventory_locator = f"external/{inventory_path.name}"
     manifest = load_campaign_analysis_manifest(inventory_path)
     sidecar_roots = _sidecar_search_roots(output_dir, derived)
+    cas_record_joins = _cas_record_anti_join(store_root, manifest.items)
 
     postgres = catalog_availability(database_url)
     if database_url and postgres["status"] == "unavailable":
@@ -1160,6 +1304,10 @@ def campaign_data_quality_report(
         for trial in trials
     ):
         hold_reasons.append("source_cas_unavailable")
+    if cas_record_joins["status"] != "present" or cas_record_joins["missing_uris"]:
+        hold_reasons.append("cas_record_join_incomplete")
+    if any(int(projection.get("orphan_row_count") or 0) > 0 for projection in projections.values()):
+        hold_reasons.append("projection_orphan_rows")
     if postgres["status"] != "attached":
         hold_reasons.append("postgres_unavailable")
     if jobs_parquet["status"] != "present":
@@ -1226,6 +1374,7 @@ def campaign_data_quality_report(
         "citation_reopen": dict(sorted(citation_totals.items())),
         "cas_identity": {
             "unique_source_cas_uris": unique_source,
+            "record_anti_join": cas_record_joins,
             "shared_source_cas_uris": shared_source,
             "source_cas_uri_count": len(source_cas),
             "availability_counts": dict(sorted(cas_statuses.items())),

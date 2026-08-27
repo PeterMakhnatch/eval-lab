@@ -59,11 +59,13 @@ def _job_with_journal(root: Path) -> Path:
             "schema_version": 1,
             "status": "available",
             "reason": None,
-            "observer": {
-                "mode": "external-sidecar",
-                "target_mutated": False,
-                "model_visible_output": False,
-            },
+            "started_at": "2026-08-19T12:00:00Z",
+            "finished_at": "2026-08-19T12:00:02Z",
+            "root": "/app",
+            "target_pid": 123,
+            "event_count": 2,
+            "dropped_event_count": 0,
+            "change_count": 1,
         },
     )
     _write_json(
@@ -72,14 +74,25 @@ def _job_with_journal(root: Path) -> Path:
             "schema_version": 1,
             "status": "available",
             "reason": None,
+            "root": "/app",
+            "before_captured_at": "2026-08-19T12:00:00Z",
+            "after_captured_at": "2026-08-19T12:00:02Z",
+            "event_count": 2,
+            "change_count": 1,
+            "dropped_event_count": 0,
             "changes": [
                 {
                     "path": "output/answer.txt",
                     "change_type": "added",
                     "before": None,
                     "after": {
-                        "sha256": "sha256:abc",
+                        "path": "output/answer.txt",
+                        "mode": "-rw-r--r--",
                         "size_bytes": 3,
+                        "mtime_ns": 1_755_604_802_000_000_000,
+                        "type": "file",
+                        "sha256": "sha256:" + "a" * 64,
+                        "hash_status": "complete",
                     },
                     "event_count": 2,
                     "first_event_at": "2026-08-19T12:00:00.1Z",
@@ -111,7 +124,7 @@ def test_state_journal_projects_to_parquet(tmp_path: Path) -> None:
             "path": "output/answer.txt",
             "change_type": "added",
             "before_sha256": None,
-            "after_sha256": "sha256:abc",
+            "after_sha256": "sha256:" + "a" * 64,
             "before_size_bytes": None,
             "after_size_bytes": 3,
             "event_count": 2,
@@ -153,13 +166,241 @@ def test_structurally_malformed_diff_degrades_without_stopping_rebuild(
 
     trial_dir = derived / f"job_id={job.id}" / f"trial_id={trial.id}"
     trial_row = pq.read_table(trial_dir / "trial_facts.parquet").to_pylist()[0]
-    assert journal.status == "available"
+    assert journal.status == "invalid"
     assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
-    assert trial_row["state_journal_status"] == "available"
+    assert trial_row["state_journal_status"] == "invalid"
     assert trial_row["state_journal_reason"] == "state_diff_invalid"
     assert trial_row["state_change_count"] == 0
 
+
+def test_malformed_state_change_fails_closed_without_projection(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    _write_json(
+        trial.path / "state-journal/state-diff.json",
+        {
+            "schema_version": 999,
+            "changes": [
+                {
+                    "path": "../outside",
+                    "change_type": "made",
+                    "before": {},
+                    "after": {},
+                    "event_count": "bogus",
+                }
+            ],
+        },
+    )
+
+    journal = load_state_journal(trial)
+    result = rebuild_from_raw([job], tmp_path / "derived")
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+    assert result.fact_export.row_counts["state_changes"] == 0
+
+
+
+def test_producer_valid_unhashed_snapshot_kinds_are_projected(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    change = payload["changes"][0]
+    snapshots = [
+        {
+            "path": "output",
+            "mode": "drwxr-xr-x",
+            "size_bytes": 64,
+            "mtime_ns": 1_755_604_802_000_000_000,
+            "type": "directory",
+        },
+        {
+            "path": "output/latest",
+            "mode": "lrwxr-xr-x",
+            "size_bytes": 10,
+            "mtime_ns": 1_755_604_802_000_000_000,
+            "type": "symlink",
+            "target": "answer.txt",
+        },
+        {
+            "path": "output/large.bin",
+            "mode": "-rw-r--r--",
+            "size_bytes": 1_048_577,
+            "mtime_ns": 1_755_604_802_000_000_000,
+            "type": "file",
+            "sha256": None,
+            "hash_status": "size_limit",
+        },
+    ]
+
+    for snapshot in snapshots:
+        change["path"] = snapshot["path"]
+        change["after"] = snapshot
+        _write_json(diff_path, payload)
+
+        journal = load_state_journal(trial)
+
+        assert journal.status == "available"
+        assert journal.reason is None
+        assert journal.changes[0]["after"] == {
+            key: value for key, value in snapshot.items() if value is not None
+        }
+
+
+def test_snapshot_path_mismatch_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    payload["changes"][0]["after"]["path"] = "output/other.txt"
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+
+
+def test_missing_snapshot_side_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    payload["changes"][0].pop("before")
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+
+
+def test_duplicate_state_change_path_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    payload["changes"].append(dict(payload["changes"][0]))
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+
+
+def test_timezone_naive_state_change_timestamp_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    payload["changes"][0]["first_event_at"] = "2026-08-19T12:00:00"
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+
+
+def test_out_of_range_state_change_integer_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    payload["changes"][0]["event_count"] = 1 << 100
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+
+
+def test_out_of_range_snapshot_integer_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    payload["changes"][0]["after"]["size_bytes"] = 1 << 100
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+
+
+def test_unknown_state_journal_status_schema_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    status_path = trial.path / "state-journal/status.json"
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    payload["schema_version"] = 999
+    _write_json(status_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "status_schema_invalid"
+    assert journal.changes == ()
+
+
+def test_boolean_state_diff_schema_version_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    payload["schema_version"] = True
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+
+
+def test_noncanonical_state_change_path_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    alias = dict(payload["changes"][0])
+    alias["path"] = "output//answer.txt"
+    alias["after"] = dict(alias["after"], path=alias["path"])
+    payload["changes"].append(alias)
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
+
+
+def test_coerced_snapshot_integer_fails_closed(tmp_path: Path) -> None:
+    job = load_job(_job_with_journal(tmp_path))
+    trial = job.trials[0]
+    diff_path = trial.path / "state-journal/state-diff.json"
+    payload = json.loads(diff_path.read_text(encoding="utf-8"))
+    payload["changes"][0]["after"]["size_bytes"] = "3"
+    _write_json(diff_path, payload)
+
+    journal = load_state_journal(trial)
+
+    assert journal.status == "invalid"
+    assert journal.reason == "state_diff_invalid"
+    assert journal.changes == ()
 
 def test_status_json_preserves_unavailable_final_status_over_stale_diff(
     tmp_path: Path,

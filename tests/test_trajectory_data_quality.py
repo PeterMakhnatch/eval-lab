@@ -22,6 +22,7 @@ from evallab.trajectory_data_quality import (
     campaign_data_quality_report,
     load_cross_campaign_inventory,
 )
+from evallab.trajectory_hydration import RedactionPolicy
 from evallab.trajectory_judgment import canonical_json_digest
 from evallab.trajectory_runtime import load_campaign_analysis_manifest
 
@@ -322,9 +323,16 @@ def test_citation_reopen_classifies_malformed_source_digest_map(tmp_path: Path) 
         "source_sha256": "sha256:" + "1" * 64,
         "target_type": "step",
     }
+    policy = RedactionPolicy()
+    pack = {
+        "redaction_policy_config": policy.to_config(),
+        "redaction_profile_digest": policy.compute_digest(),
+        "selected_windows": [],
+        "omitted_ranges": [],
+    }
     result = _citation_reopen(
         ir={"source_digests": [], "events": [{"source_citation": handle}]},
-        pack={"selected_windows": [], "omitted_ranges": []},
+        pack=pack,
         store_root=tmp_path / "cas",
         quarantined=False,
     )
@@ -332,6 +340,29 @@ def test_citation_reopen_classifies_malformed_source_digest_map(tmp_path: Path) 
     assert result["status"] == "invalid"
     assert result["reason"] == "invalid_ir_source_digests"
     assert result["integrity_failures"] == 1
+
+
+def test_citation_reopen_rejects_uncompilable_policy_without_handles(
+    tmp_path: Path,
+) -> None:
+    result = _citation_reopen(
+        ir={"source_digests": {}, "events": []},
+        pack={
+            "redaction_policy_config": {
+                "redact_secrets": True,
+                "max_display_bytes": None,
+                "secret_patterns": [{"pattern": "x", "flags": 1 << 100}],
+            },
+            "redaction_profile_digest": "sha256:" + "0" * 64,
+            "selected_windows": [],
+            "omitted_ranges": [],
+        },
+        store_root=tmp_path / "cas",
+        quarantined=False,
+    )
+
+    assert result["status"] == "invalid"
+    assert result["reason"] == "invalid_redaction_policy"
 
 
 def test_citation_reopen_rejects_content_digest_mismatch(tmp_path: Path) -> None:
@@ -364,7 +395,13 @@ def test_citation_reopen_rejects_content_digest_mismatch(tmp_path: Path) -> None
         },
         "events": [{"event_id": "evt-content", "source_citation": handle}],
     }
-    pack = {"selected_windows": [], "omitted_ranges": []}
+    policy = RedactionPolicy()
+    pack = {
+        "redaction_policy_config": policy.to_config(),
+        "redaction_profile_digest": policy.compute_digest(),
+        "selected_windows": [],
+        "omitted_ranges": [],
+    }
 
     reopened = _citation_reopen(
         ir=ir,

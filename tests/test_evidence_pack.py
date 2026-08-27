@@ -94,6 +94,7 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
     from dataclasses import replace
 
     from evallab.evidence_pack import OmittedRange
+    from evallab.trajectory_hydration import hydrate_citation
 
     trial_dir = tmp_path / "t_long_omitted"
     (trial_dir / "agent").mkdir(parents=True)
@@ -114,7 +115,13 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
     (trial_dir / "result.json").write_text(json.dumps({"id": "t_long", "trial_name": "t_long", "task_name": "synthetic/omitted-test", "verifier_result": {"rewards": {"reward": 1.0}}}))
 
     ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
-    pack = build_evidence_pack(ir, trial_dir=trial_dir, repo_root=tmp_path)
+    policy = RedactionPolicy(redact_secrets=False, max_display_bytes=5)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        policy=policy,
+    )
 
     assert len(pack.omitted_ranges) > 0, "Omitted ranges must be non-empty for long routine sequence"
     om = pack.omitted_ranges[0]
@@ -125,6 +132,14 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
     reopened = reopen_omitted_range(pack, om.range_id, ir=ir, trial_dir=trial_dir, repo_root=tmp_path)
     assert reopened.event_count == om.event_count
     assert len(reopened.events) == om.event_count
+    source_event = next(event for event in ir.events if event.event_id == om.event_ids[0])
+    expected = hydrate_citation(
+        source_event.source_citation,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        policy=policy,
+    )
+    assert reopened.events[0]["hydrated_content"] == expected.redacted_content
 
     # 2. Tampered digest raises ValueError
     tampered_ranges = list(pack.omitted_ranges)

@@ -85,7 +85,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:8bc5ccc5a91ed2401372dabd0c489b42ab10739062b47aa44dced8efc786c39a
+    digest: sha256:91aecd6effe90651d206f5283a2b8b5fa117979f3d01f641fc86f66421eb6359
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

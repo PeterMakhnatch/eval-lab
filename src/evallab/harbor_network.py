@@ -190,8 +190,10 @@ def _set_network_sentinel(config: dict[str, Any], sentinel: str) -> dict[str, An
 
 def adapt_task_toml_for_host(
     task_toml_text: str,
+    *,
+    host_policy: HarborNetworkPolicy | None = None,
 ) -> tuple[str, NetworkAdaptation | None]:
-    """Derive an effective ``task.toml`` for the current host.
+    """Derive an effective ``task.toml`` for the current host or an explicit host policy.
 
     The returned text is identical to the input when the host can execute the
     canonical policy. Otherwise the only ``task.toml`` changes are the
@@ -201,9 +203,8 @@ def adapt_task_toml_for_host(
     runner to persist in ``run_manifest.json``.
     """
     config = tomllib.loads(task_toml_text)
-    host = host_harbor_network_policy()
+    host = host_policy if host_policy is not None else host_harbor_network_policy()
     requested_agent, requested_verifier, requested_phase = _canonical_networks(config)
-
     effective_agent = _effective_network(requested_agent, host)
     effective_verifier = _effective_network(requested_verifier, host)
     effective_phase = (

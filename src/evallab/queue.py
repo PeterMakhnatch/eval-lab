@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import platform
-import secrets
 import shutil
 import subprocess
 import threading
@@ -14,12 +13,10 @@ import time
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import yaml
 from pydantic import ValidationError
 
 from evallab import database
@@ -30,6 +27,12 @@ from evallab.credentials import (
     missing_credential_for,
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
+from evallab.execution_contracts import (
+    DispatchCapacity,
+    PaidRunAuthorization,
+    load_policy,
+    new_ulid,
+)
 from evallab.paths import derived_root_from_environment
 from evallab.profiles import CONTROL_ADAPTERS
 from evallab.quota import (
@@ -87,63 +90,10 @@ QUEUE_STATES: tuple[QueueState, ...] = (
     "done",
     "failed",
 )
-_CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_EVENT_BACKUPS = 7
 DEFAULT_LEASE_STALE_SECONDS = 300.0
 _TICK_THREAD_LOCK = threading.Lock()
-
-
-def new_ulid(*, timestamp_ms: int | None = None, randomness: int | None = None) -> str:
-    """Return a lexically sortable ULID without adding a runtime ID dependency."""
-    millis = timestamp_ms if timestamp_ms is not None else int(datetime.now(UTC).timestamp() * 1000)
-    if not 0 <= millis < 2**48:
-        raise ValueError("ULID timestamp is outside the 48-bit range")
-    random_bits = randomness if randomness is not None else secrets.randbits(80)
-    if not 0 <= random_bits < 2**80:
-        raise ValueError("ULID randomness is outside the 80-bit range")
-    value = (millis << 80) | random_bits
-    chars = []
-    for _ in range(26):
-        chars.append(_CROCKFORD[value & 31])
-        value >>= 5
-    return "".join(reversed(chars))
-
-
-def load_policy(path: Path) -> StandingApprovalsPolicy:
-    try:
-        raw = yaml.safe_load(path.read_text())
-    except (OSError, yaml.YAMLError) as exc:
-        raise ValueError(f"Cannot load standing-approvals policy: {exc}") from exc
-    try:
-        return StandingApprovalsPolicy.model_validate(raw)
-    except ValidationError as exc:
-        raise ValueError(f"Invalid standing-approvals policy: {exc}") from exc
-
-
-@dataclass(frozen=True)
-class PaidRunAuthorization:
-    """One recorded human decision to let a specific queued spec spend money.
-
-    The record lives in `queue/events.jsonl`, not in the spec file. A spec's
-    own `policy_rule` field cannot be the proof of authorisation, because the
-    automation that submits paid work is what writes that file; the event log
-    is append-only, locked, and retained, so it is the only place consent can
-    be shown to have come from outside the machine.
-    """
-
-    spec_id: str
-    actor: str
-    authorized_at: datetime
-
-    #: Whether the human who recorded this authorisation also said, in the same
-    #: recorded act, that they accept a provider-reported quota exhaustion. It
-    #: overrides `subscription_quota_exhausted` and nothing else — every other
-    #: refusal in `PolicyGate.decide` still applies. Recorded as
-    #: `reason_code: quota_override` on the `human_approved` event, so it lives
-    #: in the same append-only ledger as the consent it qualifies and cannot be
-    #: asserted by the spec file the automation writes.
-    quota_override: bool = False
 
 
 def authorization_required_message(spec: ExperimentSpec) -> str:
@@ -1178,24 +1128,6 @@ def record_projection_failures(
                 job_name=failure.job_name,
             )
         )
-
-
-@dataclass(frozen=True)
-class DispatchCapacity:
-    """Explicit global limits for one concurrent dispatch batch."""
-
-    max_specs_per_tick: int | None = None
-    max_active_trials: int | None = None
-    per_agent_active_trials: dict[str, int] | None = None
-
-    def __post_init__(self) -> None:
-        values = [
-            self.max_specs_per_tick,
-            self.max_active_trials,
-            *(self.per_agent_active_trials or {}).values(),
-        ]
-        if any(value is not None and value < 1 for value in values):
-            raise ValueError("dispatch capacity values must be positive")
 
 
 class Executor:

@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "inventory_type": "cross_campaign_analysis_inventory",
-  "generated_at": "2026-08-26T16:30:00Z",
+  "generated_at": "2026-08-26T21:40:00Z",
   "status_summary": {
     "total_indexed_trials": 21,
     "analysis_ready_trials": 17,
@@ -13,8 +13,8 @@
   "batch_interpreted_campaigns": [
     {
       "campaign_id": "terminal-bench-v3-k1-gemini-low-screen",
-      "report_id": "sha256:317d0210afa851a5e071de5d01da4a37bf72e2a634df2eef88f966fb7a978d7d",
-      "report_cas_uri": "cas://sha256/982b9dbf28dc96c79d961b3465d3baf9903cc6efa32fe1fe6732757a9df88cd1",
+      "report_id": "sha256:0dac66497c70883559e492f9be078aad14305d69dd7710af4582ace585c91c14",
+      "report_cas_uri": "cas://sha256/d0bed3a84b1d94504007eab263c1fb11203aac5dbfc2302b05b0c34c72116773",
       "manifest_path": "research/experiments/manifests/terminal-bench-v3-k1-gemini-low-machine-analysis-inventory.json",
       "manifest_pr": "https://github.com/PeterMakhnatch/eval-lab/pull/187",
       "status": "HOLD (Auto-accept disabled, 5 abstained, 0 accepted, 0 rejected)",
@@ -22,33 +22,37 @@
     },
     {
       "campaign_id": "canary-event-summary-codex-20260815",
-      "report_id": "sha256:64f3964a196c4da516ae1ab98482be80acc2a15b498f52ad7bfd4edc7ca1fcbe",
-      "report_cas_uri": "cas://sha256/701cdfd00300f2906be65af99c19a97c20ba48c61d833d6c8f772b4c6f22fe6e",
+      "report_id": "sha256:49e653ce142189a6c89d36c7e3e8ef607b3550ed765f32dafa41e1643aca21ae",
+      "report_cas_uri": "cas://sha256/f24eaed56b513948331c7cabda781ebd66a8d4109c92dca995fb1e862a86b3ff",
       "manifest_path": "research/experiments/manifests/canary-event-summary-codex-20260815-analysis-manifest.json",
+      "manifest_pr": "https://github.com/PeterMakhnatch/eval-lab/pull/197",
       "status": "HOLD (Auto-accept disabled, 3 abstained, 0 accepted, 0 rejected)",
       "trial_count": 3
     },
     {
       "campaign_id": "canary-terminal-bench-html-js-filter-codex-20260815",
-      "report_id": "sha256:49d2dc31b6ba731e299d93f71c2065552be010222e767bc504ac3b0de2769fc8",
-      "report_cas_uri": "cas://sha256/19990e17cfd717eb9319cf525aa015c60a7c033ae8e65255e57ecc2ba1bd82d7",
+      "report_id": "sha256:24060bfbcd1c081dce9c380d5742efe297058b3f22fb259eb788a9921b877911",
+      "report_cas_uri": "cas://sha256/8be72ff7bace806d2b4f59170b0ced0551db92a87bc7f82d06f1293b60ac258e",
       "manifest_path": "research/experiments/manifests/canary-terminal-bench-html-js-filter-codex-20260815-analysis-manifest.json",
+      "manifest_pr": "https://github.com/PeterMakhnatch/eval-lab/pull/197",
       "status": "HOLD (Auto-accept disabled, 3 abstained, 0 accepted, 0 rejected)",
       "trial_count": 3
     },
     {
       "campaign_id": "canary-transaction-reconciliation-codex-20260815",
-      "report_id": "sha256:0adcacd5977978236a9de5327245a92992574b1169a51b44c3d41608a9767890",
-      "report_cas_uri": "cas://sha256/5fad557d56f7c96c33f1d5b8b82559e02221c78e5c6c8868aaefebcbb6cb98bb",
+      "report_id": "sha256:0048cf3312e0969bd501dc459eb9371c98e9b6f08d9577190d827a7c2546f484",
+      "report_cas_uri": "cas://sha256/74958cfefd0b68ba408219e8002be06106bc54ebecd32366303feb10d172d7ba",
       "manifest_path": "research/experiments/manifests/canary-transaction-reconciliation-codex-20260815-analysis-manifest.json",
+      "manifest_pr": "https://github.com/PeterMakhnatch/eval-lab/pull/197",
       "status": "HOLD (Auto-accept disabled, 3 abstained, 0 accepted, 0 rejected)",
       "trial_count": 3
     },
     {
       "campaign_id": "canary-syn-funcdag-suite",
-      "report_id": "sha256:18c5af7ca6606205b7fb0158066f9ecdc000a18c10741a8c018b34f8a88df2f5",
-      "report_cas_uri": "cas://sha256/c2f90e414e0eef267535955f3fc16d5ca497c30aa683a06e4034a9c077114cc0",
+      "report_id": "sha256:732bcbb27f9d86c2b8c3c4387626af32c0f9244f529ae11e271bb67a4f0ad0e6",
+      "report_cas_uri": "cas://sha256/2a8ef3120e0afccf17b2886cb47b10a64ff1450f4cf7a06becef68785f5df67b",
       "manifest_path": "research/experiments/manifests/canary-syn-funcdag-suite-analysis-manifest.json",
+      "manifest_pr": "https://github.com/PeterMakhnatch/eval-lab/pull/197",
       "status": "HOLD (Auto-accept disabled, 3 abstained, 0 accepted, 0 rejected)",
       "trial_count": 3
     }
@@ -102,6 +106,21 @@
         "precise_zero"
       ],
       "estimator_semantics": "Eval Lab pass@k and pass_power_k are first-k task indicators, not Chen/Yao unbiased combinatorics; unbiased pass_at_k estimators require n>=k repeated attempts.",
+      "producer_version_delta": {
+        "prior_report_id": "sha256:86944a53cbd5c194728ea2ac6a082eb4b76b489bcb6a6dea6205209c3e88d5af",
+        "prior_report_cas_uri": "cas://sha256/de1d495bc50e7da9be8cfaefd31d6f66831fe6b49f1363241ea4fa3963d61383",
+        "current_report_id": "sha256:0dac66497c70883559e492f9be078aad14305d69dd7710af4582ace585c91c14",
+        "current_report_cas_uri": "cas://sha256/d0bed3a84b1d94504007eab263c1fb11203aac5dbfc2302b05b0c34c72116773",
+        "input_digest_continuity": {
+          "ir_digests_identical": true,
+          "pack_digests_identical": true,
+          "judgment_ids_identical": true,
+          "decision_ids_changed_count": 4,
+          "decision_ids_invariant_count": 1,
+          "decision_id_invariant_trial": "69a3ed7f-4303-4fc8-931e-1e842c3cb810 (ico-path-patch)"
+        },
+        "delta_cause": "PR #211 (commit 9300f1f) introduced R1 gap distinction, adding reason_code omitted_unreopenable: 4 to AcceptanceDecision for the 4 trials with omitted spans (bun-sourcemap-leak, cargo-flight-dispatch, embedding-drift-monitor, foodstuff-beta-activity), while trial ico-path-patch (0 omitted spans) decision_id remained 100% invariant (sha256:7cbfc3302187f584c8bcd88e0b2d231b44701c23ffd144430705a60864250987)."
+      },
       "interpretation_rules": [
         "Do not treat 0/5 as precise zero, ranking, capability, reliability, or causal claim.",
         "Quarantined infrastructure attempts and controls are strictly excluded from capability denominators.",

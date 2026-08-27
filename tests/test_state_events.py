@@ -609,7 +609,7 @@ def test_validate_state_diff_bare_list_rejected() -> None:
 
 @pytest.mark.parametrize(
     "bad_path",
-    ["", "   ", ".", "/", "///", "/etc/passwd", "../app.py", "dir/../../escape.py", "win\\path.txt"],
+    ["", "   ", "/", "///", "/etc/passwd", "../app.py", "dir/../../escape.py", "win\\path.txt", "./foo", "foo//bar", "foo/./bar", "foo/"],
 )
 def test_validate_state_diff_path_safety_and_normalization(bad_path: str) -> None:
     """Unsafe, absolute, backslash, or path-traversal paths are rejected."""
@@ -997,7 +997,7 @@ def test_validate_state_diff_count_consistency_and_duplicates() -> None:
         "event_count": 0,
         "changes": [],
     }
-    with pytest.raises(StateEventValidationError, match="change_count must be a non-negative integer"):
+    with pytest.raises(StateEventValidationError, match="change_count must be a non-negative int64"):
         validate_state_diff_payload(payload_neg_count)
 
     # duplicate path
@@ -1016,3 +1016,210 @@ def test_validate_state_diff_count_consistency_and_duplicates() -> None:
     }
     with pytest.raises(StateEventValidationError, match="duplicate or conflicting path"):
         validate_state_diff_payload(payload_duplicate)
+
+
+def test_validate_state_event_metadata_strict_no_coercion() -> None:
+    """Pydantic strict=True rejects type coercion on metadata fields."""
+    from evallab.state_events import StateEventValidationError, validate_state_event_metadata
+
+    valid_sha = "sha256:" + "a" * 64
+    base_meta = {
+        "path": "app.py",
+        "type": "file",
+        "size_bytes": 100,
+        "sha256": valid_sha,
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1787572800000000000,
+        "hash_status": "complete",
+    }
+
+    # string for size_bytes must be rejected without int coercion
+    bad_size_str = dict(base_meta, size_bytes="100")
+    with pytest.raises(StateEventValidationError, match="metadata is invalid"):
+        validate_state_event_metadata(bad_size_str, expected_path="app.py", side="before")
+
+    # bool for size_bytes must be rejected without int coercion
+    bad_size_bool = dict(base_meta, size_bytes=True)
+    with pytest.raises(StateEventValidationError, match="metadata is invalid"):
+        validate_state_event_metadata(bad_size_bool, expected_path="app.py", side="before")
+
+    # string for mtime_ns must be rejected
+    bad_mtime_str = dict(base_meta, mtime_ns="1787572800000000000")
+    with pytest.raises(StateEventValidationError, match="metadata is invalid"):
+        validate_state_event_metadata(bad_mtime_str, expected_path="app.py", side="before")
+
+    # int for mode must be rejected without string coercion
+    bad_mode_int = dict(base_meta, mode=644)
+    with pytest.raises(StateEventValidationError, match="metadata is invalid"):
+        validate_state_event_metadata(bad_mode_int, expected_path="app.py", side="before")
+
+    # int for path must be rejected without string coercion
+    bad_path_int = dict(base_meta, path=123)
+    with pytest.raises(StateEventValidationError, match="metadata is invalid"):
+        validate_state_event_metadata(bad_path_int, expected_path="app.py", side="before")
+
+
+def test_validate_state_diff_signed_int64_bounds() -> None:
+    """Signed int64 bounds and non-boolean requirements on all count/size fields."""
+    from evallab.state_events import StateEventValidationError, validate_state_diff_payload
+
+    valid_sha = "sha256:" + "b" * 64
+    valid_meta = {
+        "path": "app.py",
+        "type": "file",
+        "size_bytes": 10,
+        "sha256": valid_sha,
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1,
+        "hash_status": "complete",
+    }
+
+    def make_doc(*, change_count: Any = 1, event_count: Any = 0, dropped_event_count: Any = 0, meta: dict[str, Any] = valid_meta) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "status": "available",
+            "root": "/app",
+            "before_captured_at": "2026-08-24T12:00:00.000000Z",
+            "after_captured_at": "2026-08-24T12:00:05.000000Z",
+            "change_count": change_count,
+            "event_count": event_count,
+            "dropped_event_count": dropped_event_count,
+            "changes": [{"path": "app.py", "change_type": "added", "event_count": 0, "before": None, "after": meta}],
+        }
+
+    # size_bytes overflow (> 2**63 - 1)
+    bad_size_overflow = dict(valid_meta, size_bytes=2**63)
+    with pytest.raises(StateEventValidationError, match="size_bytes must be a non-negative int64"):
+        validate_state_diff_payload(make_doc(meta=bad_size_overflow))
+
+    # mtime_ns overflow (> 2**63 - 1)
+    bad_mtime_overflow = dict(valid_meta, mtime_ns=2**63)
+    with pytest.raises(StateEventValidationError, match="mtime_ns must be a signed int64"):
+        validate_state_diff_payload(make_doc(meta=bad_mtime_overflow))
+
+    # bool in change_count
+    with pytest.raises(StateEventValidationError, match="change_count must be a non-negative int64"):
+        validate_state_diff_payload(make_doc(change_count=True))
+
+    # bool in event_count
+    with pytest.raises(StateEventValidationError, match="event_count must be a non-negative int64"):
+        validate_state_diff_payload(make_doc(event_count=True))
+
+    # bool in dropped_event_count
+    with pytest.raises(StateEventValidationError, match="dropped_event_count must be a non-negative int64"):
+        validate_state_diff_payload(make_doc(dropped_event_count=True))
+
+
+def test_validate_state_diff_canonical_root_dot() -> None:
+    """Literal '.' is accepted as canonical root path in state diff records."""
+    from evallab.state_events import validate_state_diff_payload
+
+    payload = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 0,
+        "changes": [
+            {
+                "path": ".",
+                "change_type": "modified",
+                "event_count": 0,
+                "before": {
+                    "path": ".",
+                    "type": "directory",
+                    "size_bytes": 4096,
+                    "sha256": None,
+                    "mode": "drwxr-xr-x",
+                    "mtime_ns": 1,
+                },
+                "after": {
+                    "path": ".",
+                    "type": "directory",
+                    "size_bytes": 4096,
+                    "sha256": None,
+                    "mode": "drwxr-xr-x",
+                    "mtime_ns": 2,
+                },
+            }
+        ],
+    }
+
+    doc = validate_state_diff_payload(payload)
+    assert doc.changes[0].path == "."
+    assert doc.changes[0].before.path == "."
+    assert doc.changes[0].after.path == "."
+
+
+def test_validate_state_diff_producer_field_exclusivity_detailed() -> None:
+    """Non-files must not have sha256 or hash_status, files cannot have target, symlinks can have target."""
+    from evallab.state_events import StateEventValidationError, validate_state_diff_payload
+
+    valid_sha = "sha256:" + "d" * 64
+
+    def make_doc(meta: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "status": "available",
+            "root": "/app",
+            "before_captured_at": "2026-08-24T12:00:00.000000Z",
+            "after_captured_at": "2026-08-24T12:00:05.000000Z",
+            "change_count": 1,
+            "event_count": 0,
+            "changes": [{"path": "item", "change_type": "added", "event_count": 0, "before": None, "after": meta}],
+        }
+
+    # File with target
+    file_with_target = {
+        "path": "item",
+        "type": "file",
+        "size_bytes": 10,
+        "sha256": valid_sha,
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1,
+        "hash_status": "complete",
+        "target": "some_symlink_target",
+    }
+    with pytest.raises(StateEventValidationError, match="regular file cannot have symlink target"):
+        validate_state_diff_payload(make_doc(file_with_target))
+
+    # Directory with sha256
+    dir_with_sha = {
+        "path": "item",
+        "type": "directory",
+        "size_bytes": 4096,
+        "sha256": valid_sha,
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1,
+    }
+    with pytest.raises(StateEventValidationError, match="non-file 'directory' must not have sha256"):
+        validate_state_diff_payload(make_doc(dir_with_sha))
+
+    # Directory with hash_status
+    dir_with_hash_status = {
+        "path": "item",
+        "type": "directory",
+        "size_bytes": 4096,
+        "sha256": None,
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1,
+        "hash_status": "complete",
+    }
+    with pytest.raises(StateEventValidationError, match="non-file 'directory' must not have hash_status"):
+        validate_state_diff_payload(make_doc(dir_with_hash_status))
+
+    # Symlink with valid target passes cleanly
+    symlink_valid = {
+        "path": "item",
+        "type": "symlink",
+        "size_bytes": 12,
+        "sha256": None,
+        "mode": "lrwxrwxrwx",
+        "mtime_ns": 1,
+        "target": "/app/original.txt",
+    }
+    doc = validate_state_diff_payload(make_doc(symlink_valid))
+    assert doc.changes[0].after.type == "symlink"
+    assert doc.changes[0].after.target == "/app/original.txt"

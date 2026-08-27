@@ -127,18 +127,52 @@ def _producer_status(journal_dir: Path) -> tuple[int, str]:
         raise StateEventValidationError("state-journal producer status is missing")
     return version, status
 
+INT64_MIN = -9_223_372_036_854_775_808
+INT64_MAX = 9_223_372_036_854_775_807
+
+
+def _validate_nonnegative_int64(val: Any, *, name: str, context: str) -> int:
+    """Validate that val is a non-boolean integer in [0, 2**63 - 1]."""
+    if type(val) is not int or val < 0 or val > INT64_MAX:
+        raise StateEventValidationError(
+            f"{context}: {name} must be a non-negative int64 integer, got {val!r}"
+        )
+    return val
+
+
+def _validate_signed_int64(val: Any, *, name: str, context: str) -> int:
+    """Validate that val is a non-boolean integer in [-2**63, 2**63 - 1]."""
+    if type(val) is not int or val < INT64_MIN or val > INT64_MAX:
+        raise StateEventValidationError(
+            f"{context}: {name} must be a signed int64 integer, got {val!r}"
+        )
+    return val
+
+
 def validate_safe_relative_posix_path(path: Any, *, context: str = "path") -> str:
-    """Ensure path is a non-empty, safe relative normalized POSIX path without traversal."""
+    """Ensure path is exact producer-canonical relative POSIX path or '.' without redundant tokens."""
     if not isinstance(path, str) or not path.strip():
-        raise StateEventValidationError(f"{context}: path is invalid")
+        raise StateEventValidationError(f"{context}: path is invalid (must be a non-empty string)")
     if "\\" in path:
         raise StateEventValidationError(f"{context}: path is invalid (backslashes forbidden)")
-    normalized = posixpath.normpath(path)
-    if normalized in ("", ".", "/"):
-        raise StateEventValidationError(f"{context}: path is invalid (cannot be dot or root)")
-    if normalized.startswith("/") or path.startswith("/"):
+    if path.startswith("/"):
         raise StateEventValidationError(f"{context}: path is invalid (absolute paths forbidden)")
-    if normalized == ".." or normalized.startswith("../"):
+    if path == ".":
+        return "."
+    if (
+        path.startswith("./")
+        or "//" in path
+        or "/./" in path
+        or path.endswith("/")
+        or path == ".."
+        or path.startswith("../")
+        or "/../" in path
+    ):
+        raise StateEventValidationError(f"{context}: path is invalid (non-canonical or traversal)")
+    normalized = posixpath.normpath(path)
+    if normalized != path or normalized in ("", ".", "/"):
+        raise StateEventValidationError(f"{context}: path is invalid (un-normalized POSIX path)")
+    if normalized.startswith("../"):
         raise StateEventValidationError(f"{context}: path is invalid (path traversal forbidden)")
     return normalized
 
@@ -150,11 +184,11 @@ def validate_state_event_metadata(
     side: str,
     context: str = "state-diff.json change",
 ) -> StateEventMetadata:
-    """Validate StateEventMetadata with strict enclosing-path equality and producer hash rules."""
+    """Validate StateEventMetadata with strict=True, strict enclosing-path equality, signed-int64 bounds, and producer field exclusivity."""
     if not isinstance(value, dict):
         raise StateEventValidationError(f"{context}: {side} metadata is invalid (must be an object)")
     try:
-        meta = StateEventMetadata.model_validate(value)
+        meta = StateEventMetadata.model_validate(value, strict=True)
     except ValidationError as exc:
         raise StateEventValidationError(f"{context}: {side} metadata is invalid") from exc
 
@@ -168,11 +202,16 @@ def validate_state_event_metadata(
             f"{context}: {side} path conflicts with change path"
         )
 
-    if meta.size_bytes < 0:
-        raise StateEventValidationError(f"{context}: {side} metadata is invalid (negative size_bytes)")
+    # Signed-int64 bounds & non-boolean checks
+    _validate_nonnegative_int64(value.get("size_bytes"), name="size_bytes", context=f"{context}: {side} metadata")
+    _validate_signed_int64(value.get("mtime_ns"), name="mtime_ns", context=f"{context}: {side} metadata")
 
-    # Producer-valid regular/dir/symlink/unreadable/size_limit hash rules
+    # Producer field exclusivity rules
     if meta.type == "file":
+        if meta.target is not None:
+            raise StateEventValidationError(
+                f"{context}: {side} metadata is invalid (regular file cannot have symlink target)"
+            )
         if meta.hash_status == "complete":
             if not meta.sha256:
                 raise StateEventValidationError(
@@ -182,12 +221,27 @@ def validate_state_event_metadata(
             raise StateEventValidationError(
                 f"{context}: {side} metadata is invalid (hash_status={meta.hash_status!r} must not have sha256)"
             )
-    elif meta.type == "directory" and meta.target is not None:
-        raise StateEventValidationError(
-            f"{context}: {side} metadata is invalid (directory cannot have symlink target)"
-        )
+        elif meta.hash_status is None and meta.sha256 is not None:
+            raise StateEventValidationError(
+                f"{context}: {side} metadata is invalid (file without hash_status must not have sha256)"
+            )
+    elif meta.type in ("directory", "symlink", "other"):
+        if meta.sha256 is not None:
+            raise StateEventValidationError(
+                f"{context}: {side} metadata is invalid (non-file {meta.type!r} must not have sha256)"
+            )
+        if meta.hash_status is not None:
+            raise StateEventValidationError(
+                f"{context}: {side} metadata is invalid (non-file {meta.type!r} must not have hash_status)"
+            )
+        if meta.type in ("directory", "other") and meta.target is not None:
+            raise StateEventValidationError(
+                f"{context}: {side} metadata is invalid ({meta.type} cannot have symlink target)"
+            )
 
     return meta
+
+
 @dataclass(frozen=True)
 class StateDiffChange:
     """Canonical validated change record from state-diff.json."""
@@ -196,7 +250,7 @@ class StateDiffChange:
     change_type: str
     before: StateEventMetadata | None
     after: StateEventMetadata | None
-    event_count: int = 0
+    event_count: int
     first_event_at: str | None = None
     last_event_at: str | None = None
 
@@ -210,8 +264,6 @@ class StateDiffChange:
             "first_event_at": self.first_event_at,
             "last_event_at": self.last_event_at,
         }
-
-
 @dataclass(frozen=True)
 class StateDiffDocument:
     """Canonical validated state-diff.json document matching producer.py schema v1."""
@@ -239,7 +291,6 @@ class StateDiffDocument:
             "changes": [c.to_dict() for c in self.changes],
         }
 
-
 def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
     """Validate a state-diff document against canonical producer schema v1 rules."""
     if not isinstance(payload, dict):
@@ -252,7 +303,8 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
         raise StateEventValidationError(
             "state-diff.json must be a schema_version 1 object with changes"
         )
-    schema_version = int(schema_ver)
+    schema_version = schema_ver
+
     raw_status = payload.get("status")
     if not isinstance(raw_status, str) or raw_status not in ("available", "partial"):
         raise StateEventValidationError(
@@ -280,17 +332,18 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
             f"state-diff.json after_captured_at ({after_cap}) precedes before_captured_at ({before_cap})"
         )
 
-    doc_change_count = payload.get("change_count")
-    if type(doc_change_count) is not int or doc_change_count < 0:
-        raise StateEventValidationError("state-diff.json change_count must be a non-negative integer")
+    doc_change_count = _validate_nonnegative_int64(
+        payload.get("change_count"), name="change_count", context="state-diff.json"
+    )
+    doc_event_count = _validate_nonnegative_int64(
+        payload.get("event_count"), name="event_count", context="state-diff.json"
+    )
 
-    doc_event_count = payload.get("event_count")
-    if type(doc_event_count) is not int or doc_event_count < 0:
-        raise StateEventValidationError("state-diff.json event_count must be a non-negative integer")
-
-    doc_dropped = payload.get("dropped_event_count", 0)
-    if type(doc_dropped) is not int or doc_dropped < 0:
-        raise StateEventValidationError("state-diff.json dropped_event_count must be a non-negative integer")
+    doc_dropped = 0
+    if "dropped_event_count" in payload:
+        doc_dropped = _validate_nonnegative_int64(
+            payload["dropped_event_count"], name="dropped_event_count", context="state-diff.json"
+        )
 
     raw_changes = payload.get("changes")
     if not isinstance(raw_changes, list):
@@ -350,9 +403,9 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
                 f"{ctx}: change_type 'modified' requires both before and after metadata"
             )
 
-        if "event_count" not in change or type(change["event_count"]) is not int or change["event_count"] < 0:
-            raise StateEventValidationError(f"{ctx}: event_count must be a non-negative integer")
-        c_event_count = change["event_count"]
+        if "event_count" not in change:
+            raise StateEventValidationError(f"{ctx}: event_count is required")
+        c_event_count = _validate_nonnegative_int64(change["event_count"], name="event_count", context=ctx)
 
         first_at = change.get("first_event_at")
         last_at = change.get("last_event_at")

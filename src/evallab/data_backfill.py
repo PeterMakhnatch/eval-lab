@@ -95,6 +95,7 @@ class _DurableTrial:
     task_name: str
     campaign: str | None
     job_id: str | None
+    job_name: str | None
     cas_uri: str | None
     trial_name: str | None = None
     quality_status: str | None = None
@@ -267,6 +268,7 @@ def _discover_trials(
                     task_name=item.task_name,
                     campaign=campaign_id,
                     job_id=item.job_id or None,
+                    job_name=item.job_name or None,
                     cas_uri=item.cas_uri,
                     trial_name=item.trial_name,
                     quality_status=item.quality_status,
@@ -289,12 +291,11 @@ def _discover_trials(
             ok = False
             continue
         reason = raw.get("reason")
-        original = (
-            [reason] if isinstance(reason, str) and reason else [MISSING_QUARANTINE_REASON]
-        )
+        original = [reason] if isinstance(reason, str) and reason else [MISSING_QUARANTINE_REASON]
         matches = _manifest_matches(manifests, trial_id)
         extra_identity: list[str] = []
         campaign_id = None
+        job_name = _optional_str(raw.get("job_name"))
         job_id = _optional_str(raw.get("job_id"))
         cas_uri = _optional_str(raw.get("cas_uri"))
         trial_name = _optional_str(raw.get("trial_name"))
@@ -305,6 +306,8 @@ def _discover_trials(
             extra_identity.append(IDENTITY_UNRESOLVED)
         elif len(matches) == 1:
             campaign_id, item, manifest_path = matches[0]
+            if job_name and item.job_name and job_name != item.job_name:
+                extra_identity.append(IDENTITY_UNRESOLVED)
             if trial_name and item.trial_name and trial_name != item.trial_name:
                 extra_identity.append(IDENTITY_UNRESOLVED)
             if task_name and item.task_name and task_name != item.task_name:
@@ -314,6 +317,7 @@ def _discover_trials(
             if job_id and item.job_id and job_id != item.job_id:
                 extra_identity.append(IDENTITY_UNRESOLVED)
             if IDENTITY_UNRESOLVED not in extra_identity:
+                job_name = job_name or item.job_name or None
                 job_id = job_id or item.job_id or None
                 cas_uri = cas_uri or item.cas_uri
                 trial_name = trial_name or item.trial_name
@@ -325,6 +329,7 @@ def _discover_trials(
                 trial_id=trial_id,
                 task_name=task_name,
                 campaign=campaign_id,
+                job_name=job_name,
                 job_id=job_id,
                 cas_uri=cas_uri,
                 trial_name=trial_name,
@@ -336,9 +341,7 @@ def _discover_trials(
             )
         else:
             existing.quarantined = True
-            existing.original_reasons = list(
-                dict.fromkeys([*existing.original_reasons, *original])
-            )
+            existing.original_reasons = list(dict.fromkeys([*existing.original_reasons, *original]))
             existing.identity_reasons.extend(extra_identity)
 
     trials = [trials_by_id[key] for key in sorted(trials_by_id)]
@@ -398,40 +401,25 @@ def _bind_trial_identity(
 ) -> None:
     if trial_id_counts.get(trial.trial_id, 0) > 1:
         trial.identity_reasons.append(IDENTITY_UNRESOLVED)
-        trial.job_id = None
         return
-    job_id = trial.job_id
+
+    job_name = trial.job_name
     cas_uri = trial.cas_uri
-    by_id = [record for record in records if job_id and record.get("record_id") == job_id]
-    by_uri = [record for record in records if cas_uri and record.get("uri") == cas_uri]
-    if job_id and cas_uri:
-        if len(by_id) == 1 and len(by_uri) == 1:
-            left, right = by_id[0], by_uri[0]
-            if left.get("record_id") == right.get("record_id") and left.get("uri") == right.get(
-                "uri"
-            ):
-                trial.job_id = str(left["record_id"])
-                trial.cas_uri = str(left["uri"])
-                return
-        trial.identity_reasons.append(IDENTITY_UNRESOLVED)
-        trial.job_id = None
-        return
-    if job_id and not cas_uri:
-        if len(by_id) == 1:
-            trial.cas_uri = _optional_str(by_id[0].get("uri"))
-            return
-        trial.identity_reasons.append(IDENTITY_UNRESOLVED)
-        trial.job_id = None
-        return
-    if cas_uri and not job_id:
-        if len(by_uri) == 1:
-            record_id = by_uri[0].get("record_id")
-            if isinstance(record_id, str) and record_id:
-                trial.job_id = record_id
-                return
+    if not job_name or not cas_uri:
         trial.identity_reasons.append(IDENTITY_UNRESOLVED)
         return
-    trial.identity_reasons.append(IDENTITY_UNRESOLVED)
+
+    matches = [record for record in records if record.get("record_id") == job_name]
+    if len(matches) != 1:
+        trial.identity_reasons.append(IDENTITY_UNRESOLVED)
+        return
+
+    record_uri = _optional_str(matches[0].get("uri"))
+    if record_uri != cas_uri:
+        trial.identity_reasons.append(IDENTITY_UNRESOLVED)
+        return
+
+    trial.cas_uri = record_uri
 
 
 def _interpret_bound_cohorts(

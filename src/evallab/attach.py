@@ -15,7 +15,13 @@ from typing import Any
 import duckdb
 
 from evallab.contextpack import parse_doc
-from evallab.paths import derived_root_from_environment
+from evallab.parquet_compaction import PRIMARY_KEYS
+from evallab.paths import (
+    ParquetLayout,
+    ParquetPartitionDiscovery,
+    derived_root_from_environment,
+    discover_parquet_partitions,
+)
 from evallab.runner import database_url_from_environment
 
 
@@ -74,11 +80,68 @@ TABLES = (
     "machine_judgments",
     "acceptance_decisions",
 )
+Z3_TABLE_LAYOUTS: tuple[ParquetLayout, ...] = (
+    "hot",
+    "cold-table",
+    "cold-day",
+    "directory",
+    "root",
+)
+Z3_JOB_LAYOUTS: tuple[ParquetLayout, ...] = (
+    "hot",
+    "job",
+    "cold-table",
+    "cold-day",
+    "directory",
+    "root",
+)
+SEMANTIC_COMPARISON_LAYOUTS: tuple[ParquetLayout, ...] = (
+    "hot",
+    "cold-table",
+    "cold-day",
+    "directory",
+)
 
-Z3_HOT = "job_id=*/trial_id=*/{table}.parquet"
-Z3_JOB = "job_id=*/{table}.parquet"
-Z3_COLD = "compact/{table}/dt=*/part*.parquet"
-Z3_STANDALONE_DIR = "{table}/*.parquet"
+
+def _z3_table_patterns(
+    discovery: ParquetPartitionDiscovery,
+    table: str,
+    *,
+    fallback: bool = False,
+) -> tuple[str, ...]:
+    layouts = Z3_JOB_LAYOUTS if table == "jobs" else Z3_TABLE_LAYOUTS
+    return discovery.table_patterns(
+        table,
+        layouts=layouts,
+        prefer_job_level=table == "jobs",
+        fallback=fallback,
+    )
+
+
+def _z3_select_sql(
+    discovery: ParquetPartitionDiscovery,
+    table: str,
+    sources: tuple[str, ...] | list[str],
+    *,
+    assume_cold_day: bool = False,
+) -> str:
+    source_list = ", ".join(_sql_string_literal(source) for source in sources)
+    primary_key = PRIMARY_KEYS.get(table)
+    has_cold_day = assume_cold_day or bool(discovery.table_files(table, layouts=("cold-day",)))
+    if not primary_key or not has_cold_day:
+        return f"SELECT * FROM read_parquet([{source_list}], union_by_name=true)"
+
+    key_columns = ", ".join(f'"{column}"' for column in primary_key)
+    cold_prefix = _sql_string_literal(str(discovery.root / "compact" / "dt="))
+    return (
+        "SELECT * EXCLUDE (filename, __evallab_rank) FROM ("
+        "SELECT *, ROW_NUMBER() OVER ("
+        f"PARTITION BY {key_columns} ORDER BY "
+        f"CASE WHEN starts_with(filename, {cold_prefix}) THEN 1 ELSE 0 END, filename"
+        ") AS __evallab_rank "
+        f"FROM read_parquet([{source_list}], union_by_name=true, filename=true)"
+        ") WHERE __evallab_rank = 1"
+    )
 
 
 def _sql_string_literal(value: str) -> str:
@@ -114,13 +177,6 @@ def _attach_z2(conn: duckdb.DuckDBPyConnection, dsn: str) -> ZoneStatus:
         for candidate in (dsn, dsn.replace("'", "''")):
             detail = detail.replace(candidate, "<REDACTED DSN>")
         return ZoneStatus("z2", False, reason=f"{type(exc).__name__}: {detail}")
-
-
-def _z3_globs(root: Path) -> list[str]:
-    hot = str(root / Z3_HOT)
-    cold = str(root / Z3_COLD)
-    standalone_dir = str(root / Z3_STANDALONE_DIR)
-    return [hot, cold, standalone_dir]
 
 
 SEMANTIC_COMPARISON_COLUMNS = (
@@ -240,38 +296,13 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
         _attach_semantic_comparison(conn, available_tables=set())
         return ZoneStatus("z3", False, reason="derived root does not exist", detail=str(root))
 
-    hot_tables = {p.stem for p in root.glob("job_id=*/trial_id=*/*.parquet")}
-    job_tables = {
-        p.stem
-        for p in root.glob("job_id=*/*.parquet")
-        if p.parent.parent == root
-        and p.parent.name.startswith("job_id=")
-        and p.stem == "jobs"
-    }
-    cold_tables = {p.parent.parent.name for p in root.glob("compact/*/dt=*/part*.parquet")}
-    standalone_tables = {
-        p.parent.name
-        for p in root.glob("*/*.parquet")
-        if p.parent.parent == root
-        and not p.parent.name.startswith("job_id=")
-        and p.parent.name != "compact"
-    }
-    root_tables = {p.stem for p in root.glob("*.parquet") if p.parent == root}
+    discovery = discover_parquet_partitions(root)
+    available_tables: set[str] = set()
 
     created = 0
     missing = []
     for table in TABLES:
-        view_globs: list[str] = []
-        if table in hot_tables and table not in job_tables:
-            view_globs.append(str(root / Z3_HOT.format(table=table)))
-        if table in job_tables:
-            view_globs.append(str(root / Z3_JOB.format(table=table)))
-        if table in cold_tables:
-            view_globs.append(str(root / Z3_COLD.format(table=table)))
-        if table in standalone_tables:
-            view_globs.append(str(root / Z3_STANDALONE_DIR.format(table=table)))
-        if table in root_tables:
-            view_globs.append(str(root / f"{table}.parquet"))
+        view_globs = list(_z3_table_patterns(discovery, table))
         if not view_globs:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
@@ -281,17 +312,13 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
             )
             missing.append(table)
             continue
-        glob_list = ", ".join(_sql_string_literal(g) for g in view_globs)
+        select_sql = _z3_select_sql(discovery, table, view_globs)
         try:
-            conn.execute(
-                f"CREATE OR REPLACE VIEW {table} AS "
-                f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true)"
-            )
-            conn.execute(
-                f"CREATE OR REPLACE VIEW z3.{table} AS "
-                f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true)"
-            )
+            conn.execute(f"CREATE OR REPLACE VIEW {table} AS {select_sql}")
+            conn.execute(f"CREATE OR REPLACE VIEW z3.{table} AS {select_sql}")
             created += 1
+            if discovery.table_files(table, layouts=SEMANTIC_COMPARISON_LAYOUTS):
+                available_tables.add(table)
         except Exception:
             conn.execute(
                 f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
@@ -300,10 +327,7 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
                 f"CREATE OR REPLACE VIEW z3.{table} AS SELECT * FROM (VALUES (NULL)) t LIMIT 0"
             )
             missing.append(table)
-    _attach_semantic_comparison(
-        conn,
-        available_tables=hot_tables | cold_tables | standalone_tables,
-    )
+    _attach_semantic_comparison(conn, available_tables=available_tables)
     detail = f"{str(root)} ({created}/{len(TABLES)} tables)"
     if missing:
         detail += f"; missing: {', '.join(missing)} (intentionally shaped differently)"
@@ -380,18 +404,17 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
         "CREATE SCHEMA IF NOT EXISTS z3;",
         "CREATE SCHEMA IF NOT EXISTS z4;",
     ]
-    globs = _z3_globs(derived)
+    discovery = discover_parquet_partitions(derived)
     for table in TABLES:
-        view_globs = [g.format(table=table) for g in globs]
-        glob_list = ", ".join(_sql_string_literal(g) for g in view_globs)
-        lines.append(
-            f"CREATE OR REPLACE VIEW {table} AS "
-            f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true);"
+        view_globs = _z3_table_patterns(discovery, table, fallback=True)
+        select_sql = _z3_select_sql(
+            discovery,
+            table,
+            view_globs,
+            assume_cold_day=True,
         )
-        lines.append(
-            f"CREATE OR REPLACE VIEW z3.{table} AS "
-            f"SELECT * FROM read_parquet([{glob_list}], union_by_name=true);"
-        )
+        lines.append(f"CREATE OR REPLACE VIEW {table} AS {select_sql};")
+        lines.append(f"CREATE OR REPLACE VIEW z3.{table} AS {select_sql};")
     lines.append(
         "CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS "
         + _semantic_comparison_sql("agent_actions", "semantic_action_facts")

@@ -5,6 +5,7 @@ import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 DERIVED_ROOT_ENV = "EVALLAB_DERIVED_ROOT"
 
@@ -165,3 +166,157 @@ def derived_root_from_environment(
         else:
             notify(notice)
     return resolution.path
+
+
+ParquetLayout = Literal["hot", "job", "cold-table", "cold-day", "directory", "root"]
+PARQUET_LAYOUT_ORDER: tuple[ParquetLayout, ...] = (
+    "hot",
+    "job",
+    "cold-table",
+    "cold-day",
+    "directory",
+    "root",
+)
+
+
+@dataclass(frozen=True)
+class ParquetPartition:
+    """One supported physical Parquet partition."""
+
+    path: Path
+    table: str
+    layout: ParquetLayout
+    job_id: str | None = None
+    trial_id: str | None = None
+    dt: str | None = None
+
+
+@dataclass(frozen=True)
+class ParquetPartitionDiscovery:
+    """Deterministic inventory of every supported Parquet layout under one root."""
+
+    root: Path
+    partitions: tuple[ParquetPartition, ...]
+    job_directories: tuple[Path, ...]
+
+    @property
+    def table_names(self) -> frozenset[str]:
+        return frozenset(partition.table for partition in self.partitions)
+
+    def table_files(
+        self,
+        table: str,
+        *,
+        layouts: tuple[ParquetLayout, ...] | None = None,
+        job_id: str | None = None,
+        dt: str | None = None,
+        prefer_job_level: bool = False,
+    ) -> tuple[Path, ...]:
+        selected = [
+            partition
+            for partition in self.partitions
+            if partition.table == table
+            and (layouts is None or partition.layout in layouts)
+            and (job_id is None or partition.job_id == job_id)
+            and (dt is None or partition.dt == dt)
+        ]
+        if prefer_job_level and any(partition.layout == "job" for partition in selected):
+            selected = [partition for partition in selected if partition.layout != "hot"]
+        return tuple(partition.path for partition in selected)
+
+    def table_patterns(
+        self,
+        table: str,
+        *,
+        layouts: tuple[ParquetLayout, ...] | None = None,
+        prefer_job_level: bool = False,
+        fallback: bool = False,
+    ) -> tuple[str, ...]:
+        permitted = PARQUET_LAYOUT_ORDER if layouts is None else layouts
+        selected = [
+            layout
+            for layout in permitted
+            if any(
+                partition.table == table and partition.layout == layout
+                for partition in self.partitions
+            )
+        ]
+        if prefer_job_level and "job" in selected:
+            selected = [layout for layout in selected if layout != "hot"]
+        if not selected and fallback:
+            selected = list(permitted)
+            if prefer_job_level and "job" in selected and "hot" in selected:
+                selected.remove("hot")
+        return tuple(str(self.root / _parquet_layout_pattern(layout, table)) for layout in selected)
+
+
+def discover_parquet_partitions(root: Path) -> ParquetPartitionDiscovery:
+    """Classify supported Parquet files once for attach and compaction consumers."""
+    resolved = root.resolve()
+    if not resolved.is_dir():
+        return ParquetPartitionDiscovery(resolved, (), ())
+
+    job_directories = tuple(
+        sorted(
+            path for path in resolved.glob("job_id=*") if path.is_dir() and path.parent == resolved
+        )
+    )
+    partitions: list[ParquetPartition] = []
+    for path in sorted(resolved.rglob("*.parquet")):
+        if not path.is_file():
+            continue
+        partition = _classify_parquet_partition(resolved, path)
+        if partition is not None:
+            partitions.append(partition)
+    return ParquetPartitionDiscovery(resolved, tuple(partitions), job_directories)
+
+
+def _classify_parquet_partition(root: Path, path: Path) -> ParquetPartition | None:
+    relative = path.relative_to(root)
+    parts = relative.parts
+    if len(parts) == 1:
+        return ParquetPartition(path, path.stem, "root")
+    if parts[0].startswith("job_id="):
+        job_id = parts[0].removeprefix("job_id=")
+        if len(parts) == 2:
+            return ParquetPartition(path, path.stem, "job", job_id=job_id)
+        if len(parts) == 3 and parts[1].startswith("trial_id="):
+            return ParquetPartition(
+                path,
+                path.stem,
+                "hot",
+                job_id=job_id,
+                trial_id=parts[1].removeprefix("trial_id="),
+            )
+        return None
+    if parts[0] == "compact":
+        if len(parts) == 3 and parts[1].startswith("dt="):
+            return ParquetPartition(
+                path,
+                path.stem,
+                "cold-day",
+                dt=parts[1].removeprefix("dt="),
+            )
+        if len(parts) == 4 and parts[2].startswith("dt=") and path.name.startswith("part"):
+            return ParquetPartition(
+                path,
+                parts[1],
+                "cold-table",
+                dt=parts[2].removeprefix("dt="),
+            )
+        return None
+    if len(parts) == 2:
+        return ParquetPartition(path, parts[0], "directory")
+    return None
+
+
+def _parquet_layout_pattern(layout: ParquetLayout, table: str) -> str:
+    patterns = {
+        "hot": f"job_id=*/trial_id=*/{table}.parquet",
+        "job": f"job_id=*/{table}.parquet",
+        "cold-table": f"compact/{table}/dt=*/part*.parquet",
+        "cold-day": f"compact/dt=*/{table}.parquet",
+        "directory": f"{table}/*.parquet",
+        "root": f"{table}.parquet",
+    }
+    return patterns[layout]

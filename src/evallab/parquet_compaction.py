@@ -28,7 +28,11 @@ import pyarrow.parquet as pq
 from evallab.atif import PARQUET_SCHEMAS
 from evallab.event_mart import EVENT_MART_SCHEMAS
 from evallab.facts import FACT_SCHEMAS
-from evallab.paths import derived_root_from_environment
+from evallab.paths import (
+    ParquetPartitionDiscovery,
+    derived_root_from_environment,
+    discover_parquet_partitions,
+)
 from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
 
 DEFAULT_RETENTION_DAYS = 7
@@ -120,6 +124,8 @@ PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "session_dependency_facts": ("trial_id", "episode_id", "dependency_edge"),
     "evidence_coverage": ("trial_id", "benchmark", "construct"),
 }
+
+
 class CompactionValidationError(Exception):
     """Raised when compaction row count or schema validation fails."""
 
@@ -150,6 +156,7 @@ def resolve_job_date(
     *,
     runs_dir: Path | None = None,
     database_url: str | None = None,
+    partition_discovery: ParquetPartitionDiscovery | None = None,
 ) -> date:
     """Determine the date (dt=YYYY-MM-DD in UTC) for a job partition.
 
@@ -159,8 +166,16 @@ def resolve_job_date(
     3. Query Postgres if database_url provided and reachable.
     4. Fallback to file mtime of jobs.parquet or job_dir in UTC.
     """
+    job_id = job_dir.name.removeprefix("job_id=")
+    discovery = partition_discovery or discover_parquet_partitions(job_dir.parent)
+
     # 1. Inspect steps.parquet across trial directories
-    for steps_file in job_dir.glob("trial_id=*/steps.parquet"):
+    steps_files = discovery.table_files(
+        "steps",
+        layouts=("hot",),
+        job_id=job_id,
+    )
+    for steps_file in steps_files:
         if steps_file.is_file():
             try:
                 table = pq.read_table(steps_file, columns=["timestamp"])
@@ -173,8 +188,6 @@ def resolve_job_date(
                                 return parsed_date
             except Exception:
                 pass
-
-    job_id = job_dir.name.removeprefix("job_id=")
 
     # 2. Inspect result.json under runs_dir if provided
     if runs_dir is not None and runs_dir.is_dir():
@@ -211,8 +224,12 @@ def resolve_job_date(
             pass
 
     # 4. Fallback: file modification time
-    jobs_file = job_dir / "jobs.parquet"
-    target = jobs_file if jobs_file.is_file() else job_dir
+    jobs_files = discovery.table_files(
+        "jobs",
+        layouts=("job",),
+        job_id=job_id,
+    )
+    target = jobs_files[0] if jobs_files else job_dir
     mtime = target.stat().st_mtime
     return datetime.fromtimestamp(mtime, tz=UTC).date()
 
@@ -312,14 +329,16 @@ def discover_uncompacted_jobs(
     *,
     runs_dir: Path | None = None,
     database_url: str | None = None,
+    partition_discovery: ParquetPartitionDiscovery | None = None,
 ) -> list[JobPartition]:
     """Scan derived_root for all uncompacted job_id=* partition directories."""
     partitions: list[JobPartition] = []
     derived_root = derived_root.resolve()
+    discovery = partition_discovery or discover_parquet_partitions(derived_root)
     if not derived_root.is_dir():
         return partitions
 
-    for job_dir in sorted(derived_root.glob("job_id=*")):
+    for job_dir in discovery.job_directories:
         if not job_dir.is_dir():
             continue
         job_id = job_dir.name.removeprefix("job_id=")
@@ -327,17 +346,28 @@ def discover_uncompacted_jobs(
             job_dir,
             runs_dir=runs_dir,
             database_url=database_url,
+            partition_discovery=discovery,
         ).isoformat()
 
         counts: dict[str, int] = {}
-        jobs_file = job_dir / "jobs.parquet"
-        counts["jobs"] = count_table_rows(jobs_file)
+        counts["jobs"] = sum(
+            count_table_rows(path)
+            for path in discovery.table_files(
+                "jobs",
+                layouts=("job",),
+                job_id=job_id,
+            )
+        )
 
         for table_name in TRIAL_TABLE_NAMES:
-            table_total = 0
-            for trial_file in job_dir.glob(f"trial_id=*/{table_name}.parquet"):
-                table_total += count_table_rows(trial_file)
-            counts[table_name] = table_total
+            counts[table_name] = sum(
+                count_table_rows(path)
+                for path in discovery.table_files(
+                    table_name,
+                    layouts=("hot",),
+                    job_id=job_id,
+                )
+            )
 
         partitions.append(
             JobPartition(
@@ -350,13 +380,24 @@ def discover_uncompacted_jobs(
     return partitions
 
 
-def discover_compacted_row_counts(derived_root: Path, dt: str) -> dict[str, int]:
-    """Inspect existing compact/dt=YYYY-MM-DD directory for row counts."""
+def discover_compacted_row_counts(
+    derived_root: Path,
+    dt: str,
+    *,
+    partition_discovery: ParquetPartitionDiscovery | None = None,
+) -> dict[str, int]:
+    """Inspect existing compact/dt=YYYY-MM-DD files through shared discovery."""
+    discovery = partition_discovery or discover_parquet_partitions(derived_root)
     counts: dict[str, int] = {}
-    day_dir = derived_root / COMPACT_DIRNAME / f"dt={dt}"
     for table_name in PROJECTED_TABLE_NAMES:
-        table_path = day_dir / f"{table_name}.parquet"
-        counts[table_name] = count_table_rows(table_path)
+        counts[table_name] = sum(
+            count_table_rows(path)
+            for path in discovery.table_files(
+                table_name,
+                layouts=("cold-day",),
+                dt=dt,
+            )
+        )
     return counts
 
 
@@ -373,11 +414,13 @@ def plan_compaction(
     derived_root = derived_root.resolve()
     today = clock_today or datetime.now(UTC).date()
     cutoff = today - timedelta(days=retention_days)
+    partition_discovery = discover_parquet_partitions(derived_root)
 
     uncompacted_jobs = discover_uncompacted_jobs(
         derived_root,
         runs_dir=runs_dir,
         database_url=database_url,
+        partition_discovery=partition_discovery,
     )
 
     jobs_by_date: dict[str, list[JobPartition]] = {}
@@ -402,7 +445,11 @@ def plan_compaction(
             for tbl, count in job.table_counts.items():
                 uncompacted_counts[tbl] += count
 
-        existing_counts = discover_compacted_row_counts(derived_root, dt_str)
+        existing_counts = discover_compacted_row_counts(
+            derived_root,
+            dt_str,
+            partition_discovery=partition_discovery,
+        )
 
         day_plans.append(
             DayPlan(
@@ -443,37 +490,36 @@ def _read_table_or_empty(path: Path, table_name: str) -> pa.Table:
 
 
 def _collect_table_batches(
-    derived_root: Path,
     jobs: Sequence[JobPartition],
     dt: str,
     table_name: str,
+    partition_discovery: ParquetPartitionDiscovery,
 ) -> list[pa.Table]:
     """Collect all tables for a given table_name across jobs and existing compact."""
     schema = TABLE_SCHEMAS[table_name]
     collected: list[pa.Table] = []
 
     # 1. Existing compacted table if present
-    existing_compact = derived_root / COMPACT_DIRNAME / f"dt={dt}" / f"{table_name}.parquet"
-    if existing_compact.is_file():
+    for existing_compact in partition_discovery.table_files(
+        table_name,
+        layouts=("cold-day",),
+        dt=dt,
+    ):
         t = _read_table_or_empty(existing_compact, table_name)
         if t.num_rows > 0:
             collected.append(t)
 
     # 2. Uncompacted job partitions
-    if table_name == "jobs":
-        for job in jobs:
-            job_file = job.path / "jobs.parquet"
-            if job_file.is_file():
-                t = _read_table_or_empty(job_file, table_name)
-                if t.num_rows > 0:
-                    collected.append(t)
-    else:
-        for job in jobs:
-            for trial_file in job.path.glob(f"trial_id=*/{table_name}.parquet"):
-                if trial_file.is_file():
-                    t = _read_table_or_empty(trial_file, table_name)
-                    if t.num_rows > 0:
-                        collected.append(t)
+    layout = ("job",) if table_name == "jobs" else ("hot",)
+    for job in jobs:
+        for source_file in partition_discovery.table_files(
+            table_name,
+            layouts=layout,
+            job_id=job.job_id,
+        ):
+            t = _read_table_or_empty(source_file, table_name)
+            if t.num_rows > 0:
+                collected.append(t)
 
     if not collected:
         return [pa.Table.from_batches([], schema=schema)]
@@ -567,10 +613,16 @@ def compact_day(
     derived_root = derived_root.resolve()
     dt = day_plan.dt
     dest_dir = derived_root / COMPACT_DIRNAME / f"dt={dt}"
+    partition_discovery = discover_parquet_partitions(derived_root)
 
     table_row_counts: dict[str, int] = {}
     for table_name in PROJECTED_TABLE_NAMES:
-        collected = _collect_table_batches(derived_root, day_plan.jobs, dt, table_name)
+        collected = _collect_table_batches(
+            day_plan.jobs,
+            dt,
+            table_name,
+            partition_discovery,
+        )
         merged = pa.concat_tables(collected, promote_options="default")
         deduped = deduplicate_and_sort(merged, table_name)
         target_file = dest_dir / f"{table_name}.parquet"

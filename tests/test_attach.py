@@ -161,19 +161,30 @@ def test_z3_jobs_view_prefers_job_level_over_legacy_trial_nested(tmp_path: Path)
         result.connection.close()
 
 
+@pytest.mark.parametrize("layout", ("hot", "cold-day"))
 def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
     tmp_path: Path,
+    layout: str,
 ) -> None:
     derived = tmp_path / "derived"
     derived.mkdir()
-    _write_parquet_tree(
-        derived,
+
+    def _write_layout_tree(table: str, rows: list[dict]) -> None:
+        if layout == "hot":
+            _write_parquet_tree(derived, table, rows)
+            return
+        path = derived / "compact" / "dt=2026-08-25" / f"{table}.parquet"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pq.write_table(pa.Table.from_pylist(rows), path)
+
+    _write_layout_tree(
         "agent_actions",
         [
             {
                 "job_id": "job-1",
                 "trial_id": "trial-1",
                 "document_id": "document-1",
+                "step_id": "step-1",
                 "tool_call_id": "call-1",
                 "action_id": "action-1",
                 "function_name": "bash",
@@ -183,8 +194,7 @@ def test_semantic_vs_mechanical_view_joins_trial_tool_identity(
             }
         ],
     )
-    _write_parquet_tree(
-        derived,
+    _write_layout_tree(
         "semantic_action_facts",
         [
             {
@@ -522,7 +532,6 @@ def test_cli_print_sql_byte_identical(
     assert out1 == out2
 
 
-
 def test_sql_preamble_escapes_quote_bearing_dsn_and_parquet_paths(tmp_path: Path) -> None:
     derived = tmp_path / "derived'root"
     dsn = "postgresql://evallab:p'ass@invalid.example/evallab"
@@ -530,9 +539,7 @@ def test_sql_preamble_escapes_quote_bearing_dsn_and_parquet_paths(tmp_path: Path
     preamble = build_sql_preamble(dsn, derived, tmp_path)
 
     escaped_dsn = dsn.replace("'", "''")
-    escaped_glob = str(derived / "job_id=*/trial_id=*/trial_facts.parquet").replace(
-        "'", "''"
-    )
+    escaped_glob = str(derived / "job_id=*/trial_id=*/trial_facts.parquet").replace("'", "''")
     assert f"'{escaped_dsn}' AS z2" in preamble
     assert f"'{escaped_glob}'" in preamble
     assert "p'ass" not in preamble
@@ -978,5 +985,97 @@ def test_all_eight_semantic_tables_registered_in_preamble(tmp_path: Path) -> Non
         for tbl in expected_tables:
             assert f"CREATE OR REPLACE VIEW {tbl} AS" in result.sql_preamble
             assert f"CREATE OR REPLACE VIEW z3.{tbl} AS" in result.sql_preamble
+    finally:
+        result.connection.close()
+
+
+def test_existing_attach_layouts_return_exact_z3_rows(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+
+    def write(relative: str, trial_id: str) -> None:
+        path = derived / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pq.write_table(
+            pa.Table.from_pylist(
+                [{"job_id": f"job-{trial_id}", "trial_id": trial_id, "reward": 1.0}]
+            ),
+            path,
+        )
+
+    write("job_id=hot/trial_id=hot/trial_facts.parquet", "hot")
+    write("job_id=job-level/trial_facts.parquet", "job-level")
+    write("compact/trial_facts/dt=2026-08-24/part0.parquet", "cold-table")
+    write("compact/dt=2026-08-25/trial_facts.parquet", "cold-day")
+    write("trial_facts/batch.parquet", "directory")
+    write("trial_facts.parquet", "root")
+
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        expected = [
+            ("cold-day",),
+            ("cold-table",),
+            ("directory",),
+            ("hot",),
+            ("root",),
+        ]
+        assert (
+            result.connection.execute(
+                "SELECT trial_id FROM trial_facts ORDER BY trial_id"
+            ).fetchall()
+            == expected
+        )
+        assert (
+            result.connection.execute(
+                "SELECT trial_id FROM z3.trial_facts ORDER BY trial_id"
+            ).fetchall()
+            == expected
+        )
+        for pattern in (
+            "job_id=*/trial_id=*/trial_facts.parquet",
+            "compact/trial_facts/dt=*/part*.parquet",
+            "compact/dt=*/trial_facts.parquet",
+            "trial_facts/*.parquet",
+            "trial_facts.parquet",
+        ):
+            assert pattern in result.sql_preamble
+        assert "job_id=*/trial_facts.parquet" not in result.sql_preamble
+    finally:
+        result.connection.close()
+
+
+def test_cold_day_overlap_prefers_hot_primary_key(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    hot = derived / "job_id=job-1" / "trial_id=trial-1" / "trial_facts.parquet"
+    cold = derived / "compact" / "dt=2026-08-25" / "trial_facts.parquet"
+    hot.parent.mkdir(parents=True)
+    cold.parent.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "job-1", "trial_id": "trial-1", "reward": 1.0}]),
+        hot,
+    )
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "job-1", "trial_id": "trial-1", "reward": 0.0}]),
+        cold,
+    )
+
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        assert result.connection.execute(
+            "SELECT job_id, trial_id, reward FROM z3.trial_facts"
+        ).fetchall() == [("job-1", "trial-1", 1.0)]
+    finally:
+        result.connection.close()
+
+
+def test_every_z3_sql_view_remains_registered(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        for table in TABLES:
+            assert result.connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone() == (0,)
+            assert result.connection.execute(f"SELECT COUNT(*) FROM z3.{table}").fetchone() == (0,)
+            assert f"CREATE OR REPLACE VIEW {table} AS" in result.sql_preamble
+            assert f"CREATE OR REPLACE VIEW z3.{table} AS" in result.sql_preamble
     finally:
         result.connection.close()

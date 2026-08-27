@@ -929,31 +929,32 @@ def build_trajectory_ir(
                 result_data = json.loads(result_path.read_text(encoding="utf-8", errors="replace"))
             except Exception:
                 result_data = {}
-
-        task_digest = (
-            inventory_record.get("task_digest")
-            or str(result_data.get("task_checksum") or result_data.get("task_digest") or "")
-            or None
-        )
-
         lock_dict: dict[str, Any] = {}
         lock_path = trial_dir / "lock.json"
         if lock_path.is_file():
             with contextlib.suppress(Exception):
                 lock_dict = json.loads(lock_path.read_text(encoding="utf-8", errors="replace"))
 
+        raw_task_lock = lock_dict.get("task")
+        task_lock: dict[str, Any] = raw_task_lock if isinstance(raw_task_lock, dict) else {}
+        task_lock_digest = str(task_lock.get("digest")) if task_lock.get("digest") else None
+        task_digest = (
+            inventory_record.get("task_digest")
+            or task_lock_digest
+            or str(result_data.get("task_checksum") or result_data.get("task_digest") or "")
+            or None
+        )
+
         verifier_digest = (
             inventory_record.get("verifier_digest")
             or str(result_data.get("verifier_digest") or "")
-            or str(result_data.get("verifier_checksum") or "")
             or None
         )
         if not verifier_digest:
             from evallab.facts import digest_json
-            task_d = task_digest or (lock_dict.get("task") or {}).get("digest") or (lock_dict.get("task") or {}).get("checksum")
             verifier_digest = digest_json(
                 {
-                    "task_digest": str(task_d) if task_d else None,
+                    "task_digest": task_digest,
                     "verifier": lock_dict.get("verifier") or {},
                 }
             )
@@ -1021,8 +1022,8 @@ def build_trajectory_ir(
         else:
             final_verdict = "UNKNOWN"
 
-        events: list[IREvent] = []
-
+        atif_events: list[IREvent] = []
+        state_events: list[IREvent] = []
         traj_payload: dict[str, Any] | None = None
         if traj_path and traj_path.is_file():
             try:
@@ -1187,7 +1188,7 @@ def build_trajectory_ir(
                         source_citation=citation,
                         summary=summary,
                     )
-                    events.append(event)
+                    atif_events.append(event)
                     event_ord_counter += 1
                     if matching_obs is not None and matching_obs_index is not None:
                         observation_event_id = hashlib.sha256(
@@ -1206,7 +1207,7 @@ def build_trajectory_ir(
                             redaction_profile_digest=policy.compute_digest(),
                         )
                         observation_payload = json.dumps({"observation": matching_obs})
-                        events.append(
+                        atif_events.append(
                             IREvent(
                                 event_id=observation_event_id,
                                 event_ordinal=event_ord_counter,
@@ -1303,7 +1304,7 @@ def build_trajectory_ir(
                     source_citation=citation,
                     summary=summary,
                 )
-                events.append(event)
+                atif_events.append(event)
                 event_ord_counter += 1
 
         state_coverage_extra: dict[str, Any] = {}
@@ -1349,7 +1350,7 @@ def build_trajectory_ir(
                             ir_event_id=se_event_id,
                             redaction_profile_digest=policy.compute_digest(),
                         )
-                        events.append(
+                        state_events.append(
                             IREvent(
                                 event_id=se_event_id,
                                 event_ordinal=event_ord_counter,
@@ -1375,12 +1376,24 @@ def build_trajectory_ir(
                                 journal_sequence=fact.sequence,
                             )
                         )
-                        event_ord_counter += 1
                 except Exception as exc:
                     state_coverage_extra["state_journal_status"] = "malformed_or_unreadable"
                     state_coverage_extra["state_journal_error"] = str(exc)[:200]
-        episodes = _segment_episodes(events)
 
+        # Order events by temporal phase precedence: non-verifier work events -> journal filesystem events -> verifier checks
+        non_verifier_atif: list[IREvent] = []
+        verifier_atif: list[IREvent] = []
+        for ev in atif_events:
+            if ev.event_type == "verifier_check" or ev.phase == "verifier" or ev.actor == "verifier":
+                verifier_atif.append(ev)
+            else:
+                non_verifier_atif.append(ev)
+
+        ordered_raw_events = non_verifier_atif + state_events + verifier_atif
+        events: list[IREvent] = [
+            replace(ev, event_ordinal=idx) for idx, ev in enumerate(ordered_raw_events)
+        ]
+        episodes = _segment_episodes(events)
         updated_events: list[IREvent] = []
         for ev in events:
             assigned_ep_id = 1

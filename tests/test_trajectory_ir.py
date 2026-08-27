@@ -688,3 +688,36 @@ def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_roo
     assert len(state_nodes) == 1
     assert state_nodes[0].journal_sequence == 1
     assert state_nodes[0].to_projection_dict().get("journal_sequence") == 1
+
+
+def test_canonical_verifier_digest_matches_facts_on_canary(canary_trial_dir: Path, repo_root: Path) -> None:
+    """Verify local rebuild verifier_digest matches facts._verifier_digest on canary trials."""
+    from evallab.facts import _task_digest, _verifier_digest
+    from evallab.results import JobRecord, TrialRecord
+
+    ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
+    result_data = json.loads((canary_trial_dir / "result.json").read_text())
+    lock_data = json.loads((canary_trial_dir / "lock.json").read_text())
+    config_data = json.loads((canary_trial_dir / "config.json").read_text()) if (canary_trial_dir / "config.json").is_file() else {}
+
+    trial_rec = TrialRecord(
+        path=canary_trial_dir,
+        result=result_data,
+        config=config_data,
+        lock=lock_data,
+        rewards={},
+        artifacts=(),
+    )
+    job_rec = JobRecord(
+        path=canary_trial_dir.parent,
+        result={},
+        config={},
+        lock={},
+        metadata={},
+    )
+
+    expected_verifier_d = _verifier_digest(job_rec, trial_rec)
+    expected_task_d = _task_digest(trial_rec)
+
+    assert ir.task_digest == expected_task_d
+    assert ir.verifier_digest == expected_verifier_d

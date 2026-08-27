@@ -106,6 +106,7 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-025 | Family A is recommended but not selected for implementation | approved | no Engineer assignment or artifact until AgentAbstain B audit and oracle/source/template/generator partition gates clear |
 | ADR-026 | Source/method claims are scoped to inspected systems and data units | approved | no universal SOTA/mandatory-method claim; finite-cluster thresholds and agreement metrics are not acceptance proof |
 | ADR-027 | Runtime history and verifier collection are distinct evidence surfaces | approved boundary / feature deferred | `StateJournalPlugin` may observe bounded `/app` filesystem history during the agent phase; `[[verifier.collect]]` creates post-agent snapshots. Document current limits only—no new hook/profile implementation in this loop |
+| ADR-028 | Trajectory bulk-work model budget is Gemini-primary with DeepSeek Flash as the only fallback | Peter override / effective immediately | no new Grok/Cursor Grok, Claude, Devin, Terra, Sol, Opus, or other paid/subscription routing; if both allowed providers are unavailable, STOP/HOLD without weakening quality gates |
 
 ## Blockers / hard stops
 
@@ -277,3 +278,25 @@ or default-profile promotion is authorized now. Any future profile contract
 must separately gate model visibility, tamper/overflow evidence, measured
 overhead, provider portability, data minimization, and unavailable-versus-zero
 semantics.
+
+### Model-budget override — 2026-08-27
+
+Peter replaced the earlier model-routing guidance for this trajectory loop:
+
+1. Gemini models are the primary bulk workers and reviewers.
+2. DeepSeek Flash is the only allowed secondary or fallback.
+3. No new work may be spawned or routed to Grok/Cursor Grok, Claude, Devin,
+   Terra, Sol, Opus, or another paid/subscription model until Peter changes the
+   policy.
+4. Persistent controller sessions may perform minimal integration, but bulk
+   research, implementation, and review remain delegated to the two allowed
+   providers.
+5. If both allowed providers are unavailable or quota-blocked, the owning lane
+   stops on HOLD and reports the blocker. It does not fall back to another model
+   or waive review, test, evidence, cost, registration, or acceptance gates.
+
+The override was paged to Platform, Agent Data, Analyst, Librarian, Tutor,
+Synthetic Researcher, Synthetic Engineer, and Ops. Gemini Researcher
+`wH:p5`, Gemini main `wH:p2`, and OMP main `wH:p3` remain excluded from
+controller prompts. Reviews already running before the override may finish,
+but receive no new follow-up work under a prohibited model.

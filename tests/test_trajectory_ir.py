@@ -589,6 +589,8 @@ def test_project_ir_graph_structure_and_edges(tmp_path: Path, repo_root: Path) -
     assert len(edge_dicts) == graph.edge_count
     assert all("edge_id" in e for e in edge_dicts)
     assert all("journal_sequence" in n for n in node_dicts)
+    node_ordinals = {n.node_id: n.event_ordinal for n in graph.nodes}
+    assert all(node_ordinals[e.source_node_id] < node_ordinals[e.target_node_id] for e in graph.edges)
 
 
 def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_root: Path) -> None:

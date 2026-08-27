@@ -525,34 +525,30 @@ def project_ir_graph(ir: TrajectoryIR) -> TrajectoryGraphProjection:
                     )
                     break
 
-    # Rule D: state_change_precedes_verifier_event (state edit/write/change -> subsequent verifier event)
-    verifier_targets = [
-        cand for cand in sorted_events
-        if (cand.action_family == "verification" or cand.event_type == "verifier_check" or cand.phase == "verifier")
-    ]
+    # Rule D: state_change_precedes_verifier_event (state edit/write/change -> strictly subsequent verifier event)
     for i in range(n):
         ev = sorted_events[i]
         if ev.action_family in ("file_edit", "file_write") or ev.event_type == "state_change":
-            target = next((c for c in sorted_events[i + 1:] if c in verifier_targets), None)
-            if target is None and ev.event_type == "state_change" and verifier_targets:
-                target = verifier_targets[0]
-            if target is not None:
-                e_type = "state_change_precedes_verifier_event"
-                edges.append(
-                    IRGraphEdge(
-                        edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, target.event_id, e_type),
-                        trial_id=trial_id,
-                        source_node_id=ev.event_id,
-                        target_node_id=target.event_id,
-                        edge_type=e_type,
-                        weight=1.0,
-                        metadata_json=json.dumps({
-                            "state_change_program": ev.status_owning_program or "inotify",
-                            "verifier_program": target.status_owning_program or "verifier",
-                            "gap_events": abs(target.event_ordinal - ev.event_ordinal),
-                        }),
+            for j in range(i + 1, n):
+                cand = sorted_events[j]
+                if cand.action_family == "verification" or cand.event_type == "verifier_check" or cand.phase == "verifier":
+                    e_type = "state_change_precedes_verifier_event"
+                    edges.append(
+                        IRGraphEdge(
+                            edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, cand.event_id, e_type),
+                            trial_id=trial_id,
+                            source_node_id=ev.event_id,
+                            target_node_id=cand.event_id,
+                            edge_type=e_type,
+                            weight=1.0,
+                            metadata_json=json.dumps({
+                                "state_change_program": ev.status_owning_program or "inotify",
+                                "verifier_program": cand.status_owning_program or "verifier",
+                                "gap_events": j - i,
+                            }),
+                        )
                     )
-                )
+                    break
     # Rule E: context_compaction_edge (context management -> next agent step)
     for i in range(n):
         ev = sorted_events[i]

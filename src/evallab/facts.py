@@ -7,7 +7,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Literal, get_args
 from uuid import UUID, uuid4
 
@@ -27,7 +27,6 @@ from evallab.schemas import (
     AnalysisReview,
     AnalysisSourceDigests,
     FailureCategory,
-    StateEventMetadata,
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
 )
@@ -35,6 +34,7 @@ from evallab.state_events import (
     StateEventFact,
     StateEventValidationError,
     invalid_state_event_fact,
+    load_state_diff,
     load_state_event_facts,
 )
 
@@ -334,95 +334,6 @@ class RebuildResult:
         )
 
 
-_STATE_CHANGE_TYPES = frozenset({"added", "modified", "deleted"})
-_INT64_MIN = -(1 << 63)
-_INT64_MAX = (1 << 63) - 1
-
-
-
-def _valid_state_snapshot(value: Any, *, expected_path: str) -> bool:
-    if value is None:
-        return True
-    try:
-        metadata = StateEventMetadata.model_validate(value, strict=True)
-    except ValidationError:
-        return False
-    if (
-        metadata.size_bytes > _INT64_MAX
-        or metadata.mtime_ns < _INT64_MIN
-        or metadata.mtime_ns > _INT64_MAX
-    ):
-        return False
-    if metadata.path != expected_path:
-        return False
-    if metadata.type == "file":
-        if metadata.target is not None:
-            return False
-        return (
-            metadata.hash_status == "complete"
-            and metadata.sha256 is not None
-            or metadata.hash_status in {"size_limit", "unreadable"}
-            and metadata.sha256 is None
-        )
-    if metadata.sha256 is not None or metadata.hash_status is not None:
-        return False
-    return metadata.type == "symlink" or metadata.target is None
-
-
-def _valid_state_timestamp(value: Any) -> bool:
-    if value is None:
-        return True
-    if not isinstance(value, str) or not value:
-        return False
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    return parsed.tzinfo is not None and parsed.utcoffset() is not None
-
-
-def _state_change_error(change: JsonObject) -> str | None:
-    path = change.get("path")
-    if not isinstance(path, str) or not path:
-        return "path_invalid"
-    pure_path = PurePosixPath(path)
-    if (
-        pure_path.is_absolute()
-        or ".." in pure_path.parts
-        or pure_path.as_posix() != path
-        or path == "."
-    ):
-        return "path_invalid"
-    change_type = change.get("change_type")
-    if not isinstance(change_type, str) or change_type not in _STATE_CHANGE_TYPES:
-        return "change_type_invalid"
-    if "before" not in change or "after" not in change:
-        return "snapshot_missing"
-    before = change.get("before")
-    after = change.get("after")
-    if not _valid_state_snapshot(
-        before, expected_path=path
-    ) or not _valid_state_snapshot(after, expected_path=path):
-        return "snapshot_invalid"
-    if (
-        (change_type == "added" and (before is not None or after is None))
-        or (change_type == "deleted" and (before is None or after is not None))
-        or (change_type == "modified" and (before is None or after is None))
-    ):
-        return "snapshot_transition_invalid"
-    event_count = change.get("event_count")
-    if (
-        not isinstance(event_count, int)
-        or isinstance(event_count, bool)
-        or event_count < 0
-        or event_count > _INT64_MAX
-    ):
-        return "event_count_invalid"
-    if not _valid_state_timestamp(change.get("first_event_at")) or not _valid_state_timestamp(
-        change.get("last_event_at")
-    ):
-        return "timestamp_invalid"
-    return None
 
 
 def _invalid_state_journal(status: str, reason: str) -> StateJournalRecord:
@@ -451,29 +362,17 @@ def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
     if not diff_path.is_file():
         return StateJournalRecord(status, reason or "state_diff_missing", ())
     try:
-        diff_payload = json.loads(diff_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        return _invalid_state_journal(status, reason or f"diff_unreadable:{type(exc).__name__}")
-    if not isinstance(diff_payload, dict):
-        return _invalid_state_journal(status, reason or "state_diff_invalid")
-    if (
-        type(diff_payload.get("schema_version")) is not int
-        or diff_payload.get("schema_version") != 1
-    ):
-        return _invalid_state_journal(status, reason or "state_diff_schema_invalid")
-    changes = diff_payload.get("changes")
-    if not isinstance(changes, list) or not all(isinstance(item, dict) for item in changes):
-        return _invalid_state_journal(status, reason or "changes_invalid")
-    seen_paths: set[str] = set()
-    for index, change in enumerate(changes):
-        error = _state_change_error(change)
-        if error is not None:
-            return _invalid_state_journal(status, reason or f"change_{index}_{error}")
-        path = change["path"]
-        if path in seen_paths:
-            return _invalid_state_journal(status, reason or f"change_{index}_path_duplicate")
-        seen_paths.add(path)
-    return StateJournalRecord(status, reason, tuple(changes))
+        diff = load_state_diff(diff_path)
+    except StateEventValidationError as exc:
+        return _invalid_state_journal(
+            status,
+            reason or f"state_diff_invalid:{type(exc).__name__}",
+        )
+    return StateJournalRecord(
+        status,
+        reason,
+        tuple(change.to_dict() for change in diff.changes),
+    )
 
 
 def _state_change_fact(

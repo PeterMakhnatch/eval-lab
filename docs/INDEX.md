@@ -54,6 +54,8 @@ inputs:
     digest: sha256:0f4648452bd835e3ef7ccc4b381527af79aef39ae3ee5cf4fe0c9437e5fdee41
   - path: docs/fleet-tracking.md
     digest: sha256:e94e7733464f4619208794424249a1df4bb5843b1b0e48d6deb7fa0c2754b44b
+  - path: docs/git-estate-inventory.md
+    digest: sha256:37e5ddba370ab02a1c1cc99c57bc74bddd0ab6f786c1cfe662f8c8ef78303ee5
   - path: docs/join-spine.md
     digest: sha256:7fece1309de2ae0464b09876dbb9979ddbdbd4e3f9ebd397ef848d377d36f95b
   - path: docs/ladder.md
@@ -151,6 +153,7 @@ an operator can see what is archived.
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
+| `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `living` | `builder, analyst, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
@@ -195,6 +198,7 @@ an operator can see what is archived.
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
+| `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `living` | `builder, analyst, operator` |
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
@@ -274,6 +278,7 @@ an operator can see what is archived.
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/fleet-tracking.md` | Fleet tracking: how the human keeps up with many agents | `living` | `operator` |
+| `docs/git-estate-inventory.md` | Git Estate Inventory & Reconciliation | `living` | `builder, analyst, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |

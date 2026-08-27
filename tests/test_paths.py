@@ -3,6 +3,7 @@ from pathlib import Path
 from evallab.paths import (
     DERIVED_ROOT_ENV,
     derived_root_from_environment,
+    discover_parquet_partitions,
     resolve_derived_root,
     shared_checkout_root,
 )
@@ -101,3 +102,46 @@ def test_default_notifier_writes_the_notice_to_stderr(tmp_path: Path, capsys) ->
     derived_root_from_environment(worktree, environ={})
 
     assert str(primary) in capsys.readouterr().err
+
+
+def test_partition_discovery_classifies_every_supported_layout(tmp_path: Path) -> None:
+    root = tmp_path / "parquet"
+    relative_paths = (
+        "job_id=job-1/trial_id=trial-1/trial_facts.parquet",
+        "job_id=job-1/trial_id=legacy/jobs.parquet",
+        "job_id=job-1/jobs.parquet",
+        "compact/constraint_facts/dt=2026-08-25/part0.parquet",
+        "compact/dt=2026-08-25/reward_facts.parquet",
+        "behavior_labels/batch.parquet",
+        "evidence_coverage.parquet",
+        "unsupported/nested/table.parquet",
+    )
+    for relative in relative_paths:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+
+    discovery = discover_parquet_partitions(root)
+
+    assert {
+        (
+            partition.layout,
+            partition.table,
+            partition.job_id,
+            partition.trial_id,
+            partition.dt,
+        )
+        for partition in discovery.partitions
+    } == {
+        ("hot", "trial_facts", "job-1", "trial-1", None),
+        ("hot", "jobs", "job-1", "legacy", None),
+        ("job", "jobs", "job-1", None, None),
+        ("cold-table", "constraint_facts", None, None, "2026-08-25"),
+        ("cold-day", "reward_facts", None, None, "2026-08-25"),
+        ("directory", "behavior_labels", None, None, None),
+        ("root", "evidence_coverage", None, None, None),
+    }
+    assert discovery.job_directories == (root / "job_id=job-1",)
+
+    jobs_patterns = discovery.table_patterns("jobs", prefer_job_level=True)
+    assert jobs_patterns == (str(root / "job_id=*/jobs.parquet"),)

@@ -65,12 +65,20 @@ def _trial_tree(root: Path, *, trial_name: str, unpaired: bool = False) -> Path:
     return trial_dir
 
 
-def _cohort_row(*, role: str, trial_name: str, trial_id: str, job_id: str, cas_uri: str) -> dict:
+def _cohort_row(
+    *,
+    role: str,
+    trial_name: str,
+    trial_id: str,
+    job_id: str,
+    cas_uri: str,
+    job_name: str | None = None,
+) -> dict:
     return {
         "role": role,
         "spec_name": f"spec-{trial_name}",
         "spec_id": f"spec-{trial_id[:8]}",
-        "job_name": f"job-{trial_name}",
+        "job_name": f"job-{trial_name}" if job_name is None else job_name,
         "job_id": job_id,
         "trial_name": trial_name,
         "trial_id": trial_id,
@@ -134,8 +142,8 @@ def _write_inventory(
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _archive_job(trial_dir: Path, store: Path, job_id: str) -> str:
-    return archive_evidence(trial_dir, store, record_id=job_id, kind="job").uri
+def _archive_job(trial_dir: Path, store: Path, job_name: str) -> str:
+    return archive_evidence(trial_dir, store, record_id=job_name, kind="job").uri
 
 
 def _run_backfill(tmp_path: Path, *, database_url: str | None = None):
@@ -156,8 +164,9 @@ def _ready_world(tmp_path: Path) -> dict[str, str]:
     manifests.mkdir()
     trial_dir = _trial_tree(tmp_path, trial_name="ready-trial")
     job_id = str(uuid4())
+    job_name = "job-ready-trial"
     trial_id = str(uuid4())
-    cas_uri = _archive_job(trial_dir, store, job_id)
+    cas_uri = _archive_job(trial_dir, store, job_name)
     cohort = [
         _cohort_row(
             role="primary",
@@ -184,20 +193,26 @@ def _ready_world(tmp_path: Path) -> dict[str, str]:
         ],
         quarantines=[],
     )
-    return {"trial_id": trial_id, "job_id": job_id, "cas_uri": cas_uri}
+    return {
+        "trial_id": trial_id,
+        "job_id": job_id,
+        "job_name": job_name,
+        "cas_uri": cas_uri,
+    }
 
 
 def _mixed_world(tmp_path: Path) -> dict[str, str]:
     ids = _ready_world(tmp_path)
     store = tmp_path / "cas"
     q_dir = _trial_tree(tmp_path, trial_name="hold-trial")
-    q_job = str(uuid4())
+    q_job = "job-hold-trial"
     q_trial = str(uuid4())
     q_uri = _archive_job(q_dir, store, q_job)
     inventory = json.loads((tmp_path / "inventory.json").read_text(encoding="utf-8"))
     inventory["quarantined_and_hold_trials"] = [
         {
             "trial_id": q_trial,
+            "job_name": q_job,
             "trial_name": "hold-trial",
             "task_name": "test/quarantined-task",
             "reason": "pre-fix auth timeout",
@@ -221,9 +236,7 @@ def test_data_backfill_help_registered(capsys: pytest.CaptureFixture[str]) -> No
     assert "usage:" in output
     assert "backfill" in output
     command_action = next(
-        action
-        for action in parser()._actions
-        if isinstance(action, argparse._SubParsersAction)
+        action for action in parser()._actions if isinstance(action, argparse._SubParsersAction)
     )
     assert "data" in command_action.choices
     data_action = next(
@@ -241,23 +254,26 @@ def test_single_invocation_exit_zero_exact_count(tmp_path: Path) -> None:
     assert ledger.disposition_count == 2
     assert ledger.discovered_count == 2
     assert {row.trial_id for row in ledger.dispositions} == {ids["trial_id"], ids["q_trial"]}
-    assert run_cli(
-        [
-            "data",
-            "backfill",
-            "--inventory",
-            "inventory.json",
-            "--manifest-dir",
-            "manifests",
-            "--store-root",
-            "cas",
-            "--output-dir",
-            "cli-out",
-            "--derived-root",
-            "cli-derived",
-        ],
-        workspace=tmp_path,
-    ) == 0
+    assert (
+        run_cli(
+            [
+                "data",
+                "backfill",
+                "--inventory",
+                "inventory.json",
+                "--manifest-dir",
+                "manifests",
+                "--store-root",
+                "cas",
+                "--output-dir",
+                "cli-out",
+                "--derived-root",
+                "cli-derived",
+            ],
+            workspace=tmp_path,
+        )
+        == 0
+    )
 
 
 def test_ready_cohort_analysis_ready_empty_holds(tmp_path: Path) -> None:
@@ -270,6 +286,7 @@ def test_ready_cohort_analysis_ready_empty_holds(tmp_path: Path) -> None:
     assert row.readiness == "ANALYSIS_READY"
     assert row.hold_reasons == []
     assert row.job_id == ids["job_id"]
+    assert row.job_id != ids["job_name"]
     assert row.cas_uri == ids["cas_uri"]
     assert row.ir_digest and row.ir_digest.startswith("sha256:")
 
@@ -294,7 +311,9 @@ def test_quarantined_trial_hold_absent_from_ready(
     assert "pre-fix auth timeout" in hold.hold_reasons
     assert ready.readiness == "ANALYSIS_READY"
     assert ledger.ready_count == 1
-    assert ids["q_trial"] not in {row.trial_id for row in ledger.dispositions if row.readiness == "ANALYSIS_READY"}
+    assert ids["q_trial"] not in {
+        row.trial_id for row in ledger.dispositions if row.readiness == "ANALYSIS_READY"
+    }
     assert seen
     passed = json.loads(seen[0].read_text(encoding="utf-8"))
     cohort_ids = {row["trial_id"] for row in passed["analysis_cohort_5_trials"]}
@@ -302,13 +321,14 @@ def test_quarantined_trial_hold_absent_from_ready(
     assert ids["q_trial"] not in cohort_ids
 
 
-def test_missing_cas_binding_hold_unresolved(tmp_path: Path) -> None:
+def test_missing_job_name_hold_unresolved(tmp_path: Path) -> None:
     store = tmp_path / "cas"
     manifests = tmp_path / "manifests"
     manifests.mkdir()
+    trial_dir = _trial_tree(tmp_path, trial_name="missing-name-trial")
     trial_id = str(uuid4())
     job_id = str(uuid4())
-    missing_uri = "cas://sha256/" + "ab" * 32
+    cas_uri = _archive_job(trial_dir, store, "job-missing-name-trial")
     _write_campaign_manifest(
         manifests / "missing.json",
         campaign="missing-campaign",
@@ -316,10 +336,11 @@ def test_missing_cas_binding_hold_unresolved(tmp_path: Path) -> None:
         cohort=[
             _cohort_row(
                 role="primary",
-                trial_name="missing-trial",
+                trial_name="missing-name-trial",
                 trial_id=trial_id,
                 job_id=job_id,
-                cas_uri=missing_uri,
+                job_name="",
+                cas_uri=cas_uri,
             )
         ],
     )
@@ -338,6 +359,7 @@ def test_missing_cas_binding_hold_unresolved(tmp_path: Path) -> None:
     assert ledger.exit_code == 0
     row = ledger.dispositions[0]
     assert row.readiness == "HOLD"
+    assert row.job_id == job_id
     assert IDENTITY_UNRESOLVED in row.hold_reasons
 
 
@@ -346,11 +368,15 @@ def test_ambiguous_duplicate_binding_hold_unresolved(tmp_path: Path) -> None:
     manifests = tmp_path / "manifests"
     manifests.mkdir()
     trial_dir = _trial_tree(tmp_path, trial_name="dup-trial")
-    job_a = str(uuid4())
-    job_b = str(uuid4())
+    job_id = str(uuid4())
+    job_name = "job-dup-trial"
     trial_id = str(uuid4())
-    cas_uri = _archive_job(trial_dir, store, job_a)
-    _archive_job(trial_dir, store, job_b)
+    cas_uri = _archive_job(trial_dir, store, job_name)
+    record_path = store / "records" / "job" / f"{job_name}.json"
+    (record_path.parent / "duplicate-name.json").write_text(
+        record_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
     _write_campaign_manifest(
         manifests / "dup.json",
         campaign="dup-campaign",
@@ -360,35 +386,33 @@ def test_ambiguous_duplicate_binding_hold_unresolved(tmp_path: Path) -> None:
                 role="primary",
                 trial_name="dup-trial",
                 trial_id=trial_id,
-                job_id=job_a,
+                job_id=job_id,
                 cas_uri=cas_uri,
             )
         ],
     )
     _write_inventory(
         tmp_path / "inventory.json",
-        campaigns=[
-            {"campaign_id": "dup-campaign", "manifest_path": "dup.json", "trial_count": 1}
-        ],
+        campaigns=[{"campaign_id": "dup-campaign", "manifest_path": "dup.json", "trial_count": 1}],
         quarantines=[],
     )
     ledger = _run_backfill(tmp_path)
     row = ledger.dispositions[0]
     assert row.readiness == "HOLD"
+    assert row.job_id == job_id
     assert IDENTITY_UNRESOLVED in row.hold_reasons
 
 
-def test_foreign_cas_uri_hold_unresolved(tmp_path: Path) -> None:
+def test_cas_uri_mismatch_hold_unresolved(tmp_path: Path) -> None:
     store = tmp_path / "cas"
     manifests = tmp_path / "manifests"
     manifests.mkdir()
     trial_a = _trial_tree(tmp_path, trial_name="foreign-a")
     trial_b = _trial_tree(tmp_path, trial_name="foreign-b")
     job_a = str(uuid4())
-    job_b = str(uuid4())
     trial_id = str(uuid4())
-    _archive_job(trial_a, store, job_a)
-    uri_b = _archive_job(trial_b, store, job_b)
+    _archive_job(trial_a, store, "job-foreign-a")
+    uri_b = _archive_job(trial_b, store, "job-foreign-b")
     _write_campaign_manifest(
         manifests / "foreign.json",
         campaign="foreign-campaign",
@@ -417,7 +441,53 @@ def test_foreign_cas_uri_hold_unresolved(tmp_path: Path) -> None:
     ledger = _run_backfill(tmp_path)
     row = ledger.dispositions[0]
     assert row.readiness == "HOLD"
+    assert row.job_id == job_a
     assert IDENTITY_UNRESOLVED in row.hold_reasons
+
+
+def test_four_permanent_quarantine_reasons_are_preserved(tmp_path: Path) -> None:
+    store = tmp_path / "cas"
+    (tmp_path / "manifests").mkdir()
+    expected: dict[str, str] = {}
+    quarantines: list[dict[str, str]] = []
+    reasons = (
+        "pre-fix auth timeout",
+        "pre-fix Darwin verifier isolation failure",
+        "pre-fix Darwin verifier isolation failure",
+        "pre-fix Darwin environment isolation failure",
+    )
+    for index, reason in enumerate(reasons):
+        trial_id = str(uuid4())
+        trial_name = f"permanent-quarantine-{index}"
+        job_name = f"job-{trial_name}"
+        trial_dir = _trial_tree(tmp_path, trial_name=trial_name)
+        cas_uri = _archive_job(trial_dir, store, job_name)
+        expected[trial_id] = reason
+        quarantines.append(
+            {
+                "trial_id": trial_id,
+                "trial_name": trial_name,
+                "job_name": job_name,
+                "task_name": "test/permanent-quarantine",
+                "reason": reason,
+                "cas_uri": cas_uri,
+            }
+        )
+
+    _write_inventory(
+        tmp_path / "inventory.json",
+        campaigns=[],
+        quarantines=quarantines,
+    )
+    ledger = _run_backfill(tmp_path)
+
+    assert ledger.disposition_count == 4
+    assert ledger.ready_count == 0
+    assert ledger.hold_count == 4
+    for row in ledger.dispositions:
+        assert row.readiness == "HOLD"
+        assert expected[row.trial_id] in row.hold_reasons
+        assert IDENTITY_UNRESOLVED not in row.hold_reasons
 
 
 def test_unavailable_store_reason_coded_hold(tmp_path: Path) -> None:

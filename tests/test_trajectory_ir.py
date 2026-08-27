@@ -618,11 +618,17 @@ def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_roo
         "schema_version": 1,
         "status": "available",
         "root": "/app",
+        "before_captured_at": "2026-08-26T12:00:00.000000Z",
+        "after_captured_at": "2026-08-26T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 1,
         "changes": [
             {
                 "path": "app.py",
                 "change_type": "modified",
                 "event_count": 1,
+                "first_event_at": "2026-08-26T12:00:00.100000Z",
+                "last_event_at": "2026-08-26T12:00:00.100000Z",
                 "before": {
                     "path": "app.py",
                     "type": "file",
@@ -747,11 +753,17 @@ def test_state_journal_hold_reason_on_queue_overflow_and_dropped_events(tmp_path
         "schema_version": 1,
         "status": "available",
         "root": "/app",
+        "before_captured_at": "2026-08-26T12:00:00.000000Z",
+        "after_captured_at": "2026-08-26T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 1,
         "changes": [
             {
                 "path": "app.py",
                 "change_type": "modified",
                 "event_count": 1,
+                "first_event_at": "2026-08-26T12:00:00.100000Z",
+                "last_event_at": "2026-08-26T12:00:00.100000Z",
                 "before": {"path": "app.py", "type": "file", "size_bytes": 10, "sha256": "sha256:" + "a" * 64, "mode": "-rw-r--r--", "mtime_ns": 1, "hash_status": "complete"},
                 "after": {"path": "app.py", "type": "file", "size_bytes": 20, "sha256": "sha256:" + "b" * 64, "mode": "-rw-r--r--", "mtime_ns": 2, "hash_status": "complete"},
             }

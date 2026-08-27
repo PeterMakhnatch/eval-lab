@@ -23,6 +23,7 @@ auth.json
 /backups/
 /logs/
 /notebooks/.ipynb_checkpoints/
+/excalidraw.log
 
 # Authoring quarantine: proposals are unqualified until a human registers them,
 # so they must never be committable from the working tree.

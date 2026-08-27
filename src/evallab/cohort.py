@@ -6,7 +6,9 @@ import math
 import random
 import statistics
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -86,6 +88,7 @@ class CohortMember:
     output_tokens: int | None
     cost_usd: float | None
     tool_call_count: int
+    started_at: str | None
 
     def condition(self, field: str) -> str | None:
         value = getattr(self, field)
@@ -160,6 +163,32 @@ def _json_object(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _string_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _parse_started_at(value: str | None) -> datetime | None:
+    """Parse a Harbor attempt timestamp; timezone-naive values are invalid."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC)
+
+
+def _require_int(name: str, value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer")
+    return value
+
+
 def _named_items(value: Any) -> list[str]:
     if isinstance(value, dict):
         return sorted(str(key) for key in value)
@@ -186,9 +215,7 @@ def _configured_toolset(
         return None, None
     kwargs = _json_object(agent_lock.get("kwargs"))
     tool_overrides = sorted(
-        str(key)
-        for key in kwargs
-        if "tool" in str(key).lower() or "command" in str(key).lower()
+        str(key) for key in kwargs if "tool" in str(key).lower() or "command" in str(key).lower()
     )
     toolset = {
         "profile": f"{agent_name}-default",
@@ -331,6 +358,7 @@ def _member(
         output_tokens=fact.output_tokens,
         cost_usd=fact.cost_usd,
         tool_call_count=fact.tool_call_count,
+        started_at=_string_or_none(trial.result.get("started_at")),
     )
 
 
@@ -358,9 +386,7 @@ def assemble_members(root: Path, spec: CohortComparisonSpec) -> list[CohortMembe
     return sorted(members, key=lambda item: (item.cohort, item.task_digest or "", item.trial_id))
 
 
-def _validate_comparability(
-    spec: CohortComparisonSpec, members: list[CohortMember]
-) -> list[str]:
+def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMember]) -> list[str]:
     observed = {
         field: sorted(
             {member.condition(field) for member in members},
@@ -381,9 +407,7 @@ def _validate_comparability(
         "factor_bindings_digest",
         "preamble_content_sha256",
     }
-    differing_fields = [
-        field for field in treatment_fields if len(observed[field]) > 1
-    ]
+    differing_fields = [field for field in treatment_fields if len(observed[field]) > 1]
     warnings: list[str] = []
     if spec.declared_variable in {
         "factor_values_digest",
@@ -396,16 +420,10 @@ def _validate_comparability(
         )
         for field in required:
             if any(member.condition(field) is None for member in members):
-                warnings.append(
-                    f"controlled factor provenance is missing {field!r}"
-                )
-    if (
-        spec.declared_variable in {"preamble_hash", "preamble_content_sha256"}
-        and any(
-            member.preamble_path is not None
-            and member.preamble_content_sha256 is None
-            for member in members
-        )
+                warnings.append(f"controlled factor provenance is missing {field!r}")
+    if spec.declared_variable in {"preamble_hash", "preamble_content_sha256"} and any(
+        member.preamble_path is not None and member.preamble_content_sha256 is None
+        for member in members
     ):
         warnings.append("controlled preamble provenance is missing content sha256")
     for field, expected in spec.constraints.items():
@@ -526,11 +544,52 @@ def _bootstrap_seed(*parts: object) -> int:
 
 
 def pass_at_k_probability(attempt_probability: float, k: int) -> float:
+    """Model-based independent-attempt power-planning transform, not an empirical estimator.
+
+    This is ``1 - (1-p)**k``. It is not realized first-k (any/all over ordered attempts)
+    and it is not the Chen/Yao combinatorial estimator computed from observed (n, c, k).
+    """
     if not 0 <= attempt_probability <= 1:
         raise ValueError("attempt probability must be between zero and one")
     if k < 1:
         raise ValueError("k must be positive")
     return 1 - (1 - attempt_probability) ** k
+
+
+def pass_at_k_unbiased(n: int, c: int, k: int) -> float | None:
+    """Chen unbiased pass@k from per-task attempt counts: ``1 - C(n-c, k) / C(n, k)``.
+
+    Returns None when ``n < k``. Does not use attempt order.
+    """
+    n = _require_int("n", n)
+    c = _require_int("c", c)
+    k = _require_int("k", k)
+    if n < 0 or c < 0 or c > n or k < 1:
+        raise ValueError("n, c, and k must satisfy n >= 0, 0 <= c <= n, and k >= 1")
+    if n < k:
+        return None
+    if n - c < k:
+        return 1.0
+    denominator = math.comb(n, k)
+    zero_success_numerator = math.comb(n - c, k)
+    return float((denominator - zero_success_numerator) / denominator)
+
+
+def pass_power_k_unbiased(n: int, c: int, k: int) -> float | None:
+    """Yao/tau unbiased pass^k from per-task attempt counts: ``C(c, k) / C(n, k)``.
+
+    Returns None when ``n < k``. Does not use attempt order.
+    """
+    n = _require_int("n", n)
+    c = _require_int("c", c)
+    k = _require_int("k", k)
+    if n < 0 or c < 0 or c > n or k < 1:
+        raise ValueError("n, c, and k must satisfy n >= 0, 0 <= c <= n, and k >= 1")
+    if n < k:
+        return None
+    if c < k:
+        return 0.0
+    return math.comb(c, k) / math.comb(n, k)
 
 
 def _normal_cutoff(alpha: float, target_power: float) -> float:
@@ -648,9 +707,7 @@ def _budget_exhaustion(member: CohortMember) -> bool:
     return member.exception_class in TIMEOUT_BUDGET_EXCEPTION_CLASSES
 
 
-def _effective_reward(
-    member: CohortMember, *, budget_exhaustion_is_failure: bool
-) -> float | None:
+def _effective_reward(member: CohortMember, *, budget_exhaustion_is_failure: bool) -> float | None:
     if member.exception_class is not None:
         if budget_exhaustion_is_failure and _budget_exhaustion(member):
             return 0.0
@@ -658,14 +715,12 @@ def _effective_reward(
     return float(member.reward) if member.reward is not None else None
 
 
-def _task_evidence(
+def _eligible_task_groups(
     members: list[CohortMember],
     *,
     pairing_key: str,
-    k: int,
-    threshold: float,
-    budget_exhaustion_is_failure: bool = False,
-) -> tuple[dict[str, dict[str, Any]], list[str], int]:
+    budget_exhaustion_is_failure: bool,
+) -> tuple[dict[str, list[CohortMember]], int]:
     groups: dict[str, list[CohortMember]] = defaultdict(list)
     missing_pairing_key = 0
     for member in members:
@@ -677,15 +732,50 @@ def _task_evidence(
             missing_pairing_key += 1
             continue
         groups[key].append(member)
+    return groups, missing_pairing_key
 
+
+def _select_first_k_by_started_at(
+    attempts: list[CohortMember], k: int
+) -> tuple[list[CohortMember] | None, str | None]:
+    if len(attempts) < k:
+        return None, "fewer than k scored attempts"
+    ordered: list[tuple[datetime, CohortMember]] = []
+    for item in attempts:
+        started = _parse_started_at(item.started_at)
+        if started is None:
+            return None, "missing or invalid started_at"
+        ordered.append((started, item))
+    ordered.sort(key=lambda pair: (pair[0], pair[1].trial_id))
+    if len(ordered) > k and ordered[k - 1][0] == ordered[k][0]:
+        return None, "started_at tie straddles first-k boundary"
+    return [item for _, item in ordered[:k]], None
+
+
+def _task_evidence(
+    members: list[CohortMember],
+    *,
+    pairing_key: str,
+    k: int,
+    threshold: float,
+    budget_exhaustion_is_failure: bool = False,
+) -> tuple[dict[str, dict[str, Any]], list[str], int, dict[str, str]]:
+    groups, missing_pairing_key = _eligible_task_groups(
+        members,
+        pairing_key=pairing_key,
+        budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+    )
     evidence: dict[str, dict[str, Any]] = {}
     insufficient: list[str] = []
+    order_unavailable: dict[str, str] = {}
     for key in sorted(groups):
-        attempts = sorted(groups[key], key=lambda item: item.trial_id)
-        if len(attempts) < k:
-            insufficient.append(key)
+        selected, reason = _select_first_k_by_started_at(groups[key], k)
+        if selected is None:
+            if reason == "fewer than k scored attempts":
+                insufficient.append(key)
+            else:
+                order_unavailable[key] = reason or "missing or invalid started_at"
             continue
-        selected = attempts[:k]
         rewards = [
             reward
             for item in selected
@@ -704,7 +794,7 @@ def _task_evidence(
             "mean_reward": statistics.fmean(rewards),
             "members": selected,
         }
-    return evidence, insufficient, missing_pairing_key
+    return evidence, insufficient, missing_pairing_key, order_unavailable
 
 
 def _pass_metric(
@@ -717,7 +807,7 @@ def _pass_metric(
     metric: str,
     budget_exhaustion_is_failure: bool,
 ) -> dict[str, Any]:
-    evidence, insufficient, missing_pairing_key = _task_evidence(
+    evidence, insufficient, missing_pairing_key, order_unavailable = _task_evidence(
         members,
         pairing_key=pairing_key,
         k=k,
@@ -730,22 +820,22 @@ def _pass_metric(
     return {
         "k": k,
         "evidence_unit": "task",
-        "selection": "first-k-by-trial-id-per-task",
+        "selection": "first-k-by-started-at-per-task",
         "passes": successes,
         "n_tasks": len(outcomes),
         "denominator": len(outcomes),
         "rate": statistics.fmean(outcomes) if outcomes else None,
         "bootstrap_95": list(interval) if interval is not None else None,
         "insufficient_attempt_groups": insufficient,
+        "unavailable_order_groups": dict(sorted(order_unavailable.items())),
         "missing_pairing_key_trials": missing_pairing_key,
         "selected_trials": {
-            key: [item.trial_id for item in evidence[key]["members"]]
-            for key in sorted(evidence)
+            key: [item.trial_id for item in evidence[key]["members"]] for key in sorted(evidence)
         },
     }
 
 
-def _pass_at_k(
+def _pass_any_first_k(
     members: list[CohortMember],
     *,
     pairing_key: str,
@@ -765,7 +855,7 @@ def _pass_at_k(
     )
 
 
-def _pass_power_k(
+def _pass_all_first_k(
     members: list[CohortMember],
     *,
     pairing_key: str,
@@ -785,6 +875,57 @@ def _pass_power_k(
     )
 
 
+def _unbiased_metric(
+    members: list[CohortMember],
+    *,
+    pairing_key: str,
+    k: int,
+    threshold: float,
+    seed: int,
+    estimator: Callable[[int, int, int], float | None],
+    budget_exhaustion_is_failure: bool,
+) -> dict[str, Any]:
+    groups, missing_pairing_key = _eligible_task_groups(
+        members,
+        pairing_key=pairing_key,
+        budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+    )
+    estimates: list[float] = []
+    task_estimates: dict[str, float] = {}
+    insufficient: list[str] = []
+    for key in sorted(groups):
+        attempts = groups[key]
+        n = len(attempts)
+        if n < k:
+            insufficient.append(key)
+            continue
+        successes = 0
+        for item in attempts:
+            reward = _effective_reward(
+                item,
+                budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+            )
+            if reward is not None and reward >= threshold:
+                successes += 1
+        estimate = estimator(n, successes, k)
+        if estimate is None:
+            insufficient.append(key)
+            continue
+        task_estimates[key] = estimate
+        estimates.append(estimate)
+    interval = bootstrap_mean_interval(estimates, seed=seed)
+    return {
+        "k": k,
+        "evidence_unit": "task",
+        "selection": "all-eligible-attempts-per-task-unbiased",
+        "n_tasks": len(estimates),
+        "denominator": len(estimates),
+        "rate": statistics.fmean(estimates) if estimates else None,
+        "bootstrap_95": list(interval) if interval is not None else None,
+        "insufficient_attempt_groups": insufficient,
+        "missing_pairing_key_trials": missing_pairing_key,
+        "task_estimates": task_estimates,
+    }
 
 
 def _summarize_cohort(
@@ -797,9 +938,7 @@ def _summarize_cohort(
         member.exception_class
         for member in cohort
         if member.exception_class is not None
-        and not (
-            spec.budget_exhaustion_is_failure and _budget_exhaustion(member)
-        )
+        and not (spec.budget_exhaustion_is_failure and _budget_exhaustion(member))
     )
     missing_rewards = [
         member.trial_id
@@ -824,10 +963,13 @@ def _summarize_cohort(
         "missing_reward_count": len(missing_rewards),
         "missing_reward_trials": sorted(missing_rewards),
         "trial_pass_count": sum(
-            (_effective_reward(
-                member,
-                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
-            ) or 0.0)
+            (
+                _effective_reward(
+                    member,
+                    budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+                )
+                or 0.0
+            )
             >= spec.pass_threshold
             for member in capability
         ),
@@ -867,24 +1009,48 @@ def _summarize_cohort(
         "tool_call_count": _numeric_summary(
             [float(member.tool_call_count) for member in capability]
         ),
-        "pass_at_k": [
-            _pass_at_k(
+        "pass_any_first_k": [
+            _pass_any_first_k(
                 cohort,
                 pairing_key=spec.pairing_key,
                 k=k,
                 threshold=spec.pass_threshold,
-                seed=_bootstrap_seed(spec.comparison_id, label, "pass-at", k),
+                seed=_bootstrap_seed(spec.comparison_id, label, "pass-any-first", k),
                 budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
             )
             for k in spec.pass_k
         ],
-        "pass_power_k": [
-            _pass_power_k(
+        "pass_all_first_k": [
+            _pass_all_first_k(
                 cohort,
                 pairing_key=spec.pairing_key,
                 k=k,
                 threshold=spec.pass_threshold,
-                seed=_bootstrap_seed(spec.comparison_id, label, "pass-power", k),
+                seed=_bootstrap_seed(spec.comparison_id, label, "pass-all-first", k),
+                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+            )
+            for k in spec.pass_k
+        ],
+        "pass_at_k_unbiased": [
+            _unbiased_metric(
+                cohort,
+                pairing_key=spec.pairing_key,
+                k=k,
+                threshold=spec.pass_threshold,
+                seed=_bootstrap_seed(spec.comparison_id, label, "pass-at-unbiased", k),
+                estimator=pass_at_k_unbiased,
+                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+            )
+            for k in spec.pass_k
+        ],
+        "pass_power_k_unbiased": [
+            _unbiased_metric(
+                cohort,
+                pairing_key=spec.pairing_key,
+                k=k,
+                threshold=spec.pass_threshold,
+                seed=_bootstrap_seed(spec.comparison_id, label, "pass-power-unbiased", k),
+                estimator=pass_power_k_unbiased,
                 budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
             )
             for k in spec.pass_k
@@ -947,27 +1113,30 @@ def _paired_results(
         for k in spec.pass_k:
             baseline_members = [item for item in members if item.cohort == baseline]
             comparison_members = [item for item in members if item.cohort == selector.label]
-            baseline_tasks, baseline_insufficient, baseline_missing = _task_evidence(
-                baseline_members,
-                pairing_key=spec.pairing_key,
-                k=k,
-                threshold=spec.pass_threshold,
-                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+            baseline_tasks, baseline_insufficient, baseline_missing, baseline_order = (
+                _task_evidence(
+                    baseline_members,
+                    pairing_key=spec.pairing_key,
+                    k=k,
+                    threshold=spec.pass_threshold,
+                    budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+                )
             )
-            comparison_tasks, comparison_insufficient, comparison_missing = _task_evidence(
-                comparison_members,
-                pairing_key=spec.pairing_key,
-                k=k,
-                threshold=spec.pass_threshold,
-                budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+            comparison_tasks, comparison_insufficient, comparison_missing, comparison_order = (
+                _task_evidence(
+                    comparison_members,
+                    pairing_key=spec.pairing_key,
+                    k=k,
+                    threshold=spec.pass_threshold,
+                    budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+                )
             )
             paired_keys = sorted(set(baseline_tasks) & set(comparison_tasks))
             pass_deltas = [
-                float(comparison_tasks[key]["success"])
-                - float(baseline_tasks[key]["success"])
+                float(comparison_tasks[key]["success"]) - float(baseline_tasks[key]["success"])
                 for key in paired_keys
             ]
-            pass_power_deltas = [
+            pass_all_first_deltas = [
                 float(comparison_tasks[key]["all_success"])
                 - float(baseline_tasks[key]["all_success"])
                 for key in paired_keys
@@ -981,11 +1150,9 @@ def _paired_results(
                 pass_deltas,
                 seed=_bootstrap_seed(spec.comparison_id, baseline, selector.label, k),
             )
-            pass_power_interval = bootstrap_mean_interval(
-                pass_power_deltas,
-                seed=_bootstrap_seed(
-                    spec.comparison_id, baseline, selector.label, "pass-power", k
-                ),
+            pass_all_first_interval = bootstrap_mean_interval(
+                pass_all_first_deltas,
+                seed=_bootstrap_seed(spec.comparison_id, baseline, selector.label, "pass-power", k),
             )
             selected_baseline = [
                 member for key in paired_keys for member in baseline_tasks[key]["members"]
@@ -1013,6 +1180,15 @@ def _paired_results(
                 reasons.append(
                     "fewer than k scored attempts for "
                     f"{len(set(baseline_insufficient + comparison_insufficient))} task(s)"
+                )
+            order_unavailable = dict(baseline_order) | dict(comparison_order)
+            if order_unavailable:
+                reasons.append(
+                    "first-k order is unavailable for "
+                    f"{len(set(baseline_order) | set(comparison_order))} task(s)"
+                )
+                reasons.extend(
+                    f"task {key}: {reason}" for key, reason in sorted(order_unavailable.items())
                 )
             if baseline_missing or comparison_missing:
                 reasons.append(
@@ -1050,23 +1226,21 @@ def _paired_results(
                     "n_tasks": len(paired_keys),
                     "n_pairs": len(paired_keys),
                     "k": k,
-                    "mean_pass_at_k_delta": (
+                    "mean_pass_any_first_k_delta": (
                         statistics.fmean(pass_deltas) if pass_deltas else None
                     ),
                     "bootstrap_95": list(interval) if interval is not None else None,
-                    "mean_pass_power_k_delta": (
-                        statistics.fmean(pass_power_deltas)
-                        if pass_power_deltas
+                    "mean_pass_all_first_k_delta": (
+                        statistics.fmean(pass_all_first_deltas) if pass_all_first_deltas else None
+                    ),
+                    "pass_all_first_k_bootstrap_95": (
+                        list(pass_all_first_interval)
+                        if pass_all_first_interval is not None
                         else None
                     ),
-                    "pass_power_k_bootstrap_95": (
-                        list(pass_power_interval)
-                        if pass_power_interval is not None
-                        else None
-                    ),
-                    "pass_power_k_wins": sum(value > 0 for value in pass_power_deltas),
-                    "pass_power_k_ties": sum(value == 0 for value in pass_power_deltas),
-                    "pass_power_k_losses": sum(value < 0 for value in pass_power_deltas),
+                    "pass_all_first_k_wins": sum(value > 0 for value in pass_all_first_deltas),
+                    "pass_all_first_k_ties": sum(value == 0 for value in pass_all_first_deltas),
+                    "pass_all_first_k_losses": sum(value < 0 for value in pass_all_first_deltas),
                     "mean_reward_delta": (
                         statistics.fmean(reward_deltas) if reward_deltas else None
                     ),
@@ -1085,8 +1259,8 @@ def _paired_results(
                     "pairs": [
                         {
                             "key": key,
-                            "pass_at_k_delta": pass_deltas[index],
-                            "pass_power_k_delta": pass_power_deltas[index],
+                            "pass_any_first_k_delta": pass_deltas[index],
+                            "pass_all_first_k_delta": pass_all_first_deltas[index],
                             "reward_delta": reward_deltas[index],
                         }
                         for index, key in enumerate(paired_keys)
@@ -1111,9 +1285,7 @@ def compare(spec: CohortComparisonSpec, *, repo_root: Path) -> dict[str, Any]:
         "budget_exhaustion_is_failure": spec.budget_exhaustion_is_failure,
         "pairing_key": spec.pairing_key,
         "validity_warnings": warnings,
-        "cohorts": [
-            _summarize_cohort(selector.label, members, spec) for selector in spec.cohorts
-        ],
+        "cohorts": [_summarize_cohort(selector.label, members, spec) for selector in spec.cohorts],
         "paired": _paired_results(members, spec, warnings),
     }
     return report
@@ -1128,10 +1300,9 @@ def summarize_job_evidence(
     pass_threshold: float = 1.0,
 ) -> dict[str, Any]:
     members = [
-        _member(repo_root, job.name, job.name, job, trial, reward_name)
-        for trial in job.trials
+        _member(repo_root, job.name, job.name, job, trial, reward_name) for trial in job.trials
     ]
-    evidence, insufficient, missing_pairing_key = _task_evidence(
+    evidence, insufficient, missing_pairing_key, order_unavailable = _task_evidence(
         members,
         pairing_key="task_digest",
         k=k,
@@ -1139,7 +1310,7 @@ def summarize_job_evidence(
     )
     selected = [member for key in sorted(evidence) for member in evidence[key]["members"]]
     elicitation, elicitation_reasons = _elicitation_tuple(job.name, selected, k=k)
-    metric = _pass_at_k(
+    metric = _pass_any_first_k(
         members,
         pairing_key="task_digest",
         k=k,
@@ -1152,7 +1323,32 @@ def summarize_job_evidence(
         "n_trials": len(members),
         "n_tasks": metric["n_tasks"],
         "k": k,
-        "pass_at_k": metric,
+        "pass_any_first_k": metric,
+        "pass_all_first_k": _pass_all_first_k(
+            members,
+            pairing_key="task_digest",
+            k=k,
+            threshold=pass_threshold,
+            seed=_bootstrap_seed(job.id, "pass-all-first", k),
+        ),
+        "pass_at_k_unbiased": _unbiased_metric(
+            members,
+            pairing_key="task_digest",
+            k=k,
+            threshold=pass_threshold,
+            seed=_bootstrap_seed(job.id, "pass-at-unbiased", k),
+            estimator=pass_at_k_unbiased,
+            budget_exhaustion_is_failure=False,
+        ),
+        "pass_power_k_unbiased": _unbiased_metric(
+            members,
+            pairing_key="task_digest",
+            k=k,
+            threshold=pass_threshold,
+            seed=_bootstrap_seed(job.id, "pass-power-unbiased", k),
+            estimator=pass_power_k_unbiased,
+            budget_exhaustion_is_failure=False,
+        ),
         "elicitation": elicitation,
         "elicitation_reasons": elicitation_reasons,
         "exception_count": sum(member.exception_class is not None for member in members),
@@ -1160,6 +1356,7 @@ def summarize_job_evidence(
             member.exception_class is None and member.reward is None for member in members
         ),
         "insufficient_tasks": insufficient,
+        "unavailable_order_groups": dict(sorted(order_unavailable.items())),
         "missing_task_identity_trials": missing_pairing_key,
     }
 
@@ -1181,21 +1378,18 @@ def render_markdown(report: dict[str, Any]) -> str:
         [
             "## Outcomes",
             "",
-            "| cohort | total | capability denominator | exceptions | pass@k |",
+            "| cohort | total | capability denominator | exceptions | pass-any-first-k |",
             "|---|---:|---:|---:|---|",
         ]
     )
     for cohort in report["cohorts"]:
         pass_cells = []
-        for metric in cohort["pass_at_k"]:
+        for metric in cohort["pass_any_first_k"]:
             interval = metric["bootstrap_95"]
             if metric["rate"] is None:
                 value = "n/a"
             else:
-                value = (
-                    f"{metric['rate']:.3f} "
-                    f"({metric['passes']}/{metric['n_tasks']} tasks)"
-                )
+                value = f"{metric['rate']:.3f} ({metric['passes']}/{metric['n_tasks']} tasks)"
                 if interval is not None:
                     value += f" [{interval[0]:.3f}, {interval[1]:.3f}]"
             pass_cells.append(f"@{metric['k']} {value}")
@@ -1213,12 +1407,14 @@ def render_markdown(report: dict[str, Any]) -> str:
     )
     lines.extend(["## Paired by task", ""])
     for paired in report["paired"]:
-        lines.append(f"### pass@{paired['k']}: {paired['comparison']} vs {paired['baseline']}")
+        lines.append(
+            f"### pass-any-first-k@{paired['k']}: {paired['comparison']} vs {paired['baseline']}"
+        )
         lines.append("")
         lines.append(paired["statement"])
         lines.append("")
         lines.append(
-            f"Paired task delta={paired['mean_pass_at_k_delta']}; "
+            f"Paired task delta={paired['mean_pass_any_first_k_delta']}; "
             f"wins/ties/losses={paired['wins']}/{paired['ties']}/{paired['losses']}."
         )
         lines.append("")
@@ -1285,11 +1481,7 @@ def index_comparison_associations(
         "mode": spec.mode,
     }
     job_ids = sorted(
-        {
-            member["job_id"]
-            for cohort in report["cohorts"]
-            for member in cohort["members"]
-        }
+        {member["job_id"] for cohort in report["cohorts"] for member in cohort["members"]}
     )
     with psycopg.connect(database_url) as connection:
         connection.execute(
@@ -1307,9 +1499,7 @@ def index_comparison_associations(
             if row is None:
                 raise ValueError(f"comparison job is not indexed: {job_id}")
             if row[0] not in (None, spec.experiment_id):
-                raise ValueError(
-                    f"job {job_id} is already associated with experiment {row[0]!r}"
-                )
+                raise ValueError(f"job {job_id} is already associated with experiment {row[0]!r}")
             connection.execute(
                 "UPDATE jobs SET experiment_id = %s WHERE id = %s",
                 (spec.experiment_id, job_id),

@@ -69,6 +69,7 @@ def test_suite_frozen_immutable():
     with pytest.raises(ValueError, match="frozen Suite is immutable"):
         s.name = "other"
 
+
 def test_roundtrip_all_models():
     """Valid instances survive model_dump -> model_validate unchanged."""
     now = datetime.now(UTC)
@@ -268,6 +269,7 @@ def test_ulid_rejection(bad_id):
             date=now,
         )
 
+
 @pytest.mark.parametrize(
     "bad_id",
     [
@@ -291,7 +293,6 @@ def test_discovery_id_rejection(bad_id: str) -> None:
             by="peter",
             at=now,
         )
-
 
 
 @pytest.mark.parametrize(
@@ -519,7 +520,6 @@ def test_task_registry_record_pre_dating_optional_metadata_loads_with_defaults()
             }
         )
 
-
     record = TaskRegistryRecord.model_validate(raw_record)
     assert record.contamination is None
     assert record.human_minutes is None
@@ -683,7 +683,6 @@ def test_factor_provenance_schema_migrates_preexisting_fact_table_additively() -
     )
     for column in columns:
         assert (
-            "ALTER TABLE deterministic_trial_facts "
-            f"ADD COLUMN IF NOT EXISTS {column} text;"
+            f"ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS {column} text;"
         ) in schema
         assert f"{column} text NOT NULL" not in schema

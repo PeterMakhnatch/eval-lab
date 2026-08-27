@@ -59,12 +59,12 @@ def test_empirical_curve_composes_cohort_metrics_without_fit_or_score() -> None:
         "descriptive",
         "primary",
     ]
-    assert [_level(report, value).pass_at_k[0].rate for value in (1, 2, 3)] == [
+    assert [_level(report, value).pass_any_first_k[0].rate for value in (1, 2, 3)] == [
         1.0,
         1.0,
         0.0,
     ]
-    assert [_level(report, value).pass_power_k[0].rate for value in (1, 2, 3)] == [
+    assert [_level(report, value).pass_all_first_k[0].rate for value in (1, 2, 3)] == [
         1.0,
         0.0,
         0.0,
@@ -74,13 +74,19 @@ def test_empirical_curve_composes_cohort_metrics_without_fit_or_score() -> None:
     assert primary.paired_delta == -1.0
     assert primary.paired_interval_95 == [-1.0, -1.0]
     assert (primary.wins, primary.ties, primary.losses) == (0, 0, 2)
-    assert primary.pass_power_k_delta == -1.0
-    assert primary.pass_power_k_interval_95 == [-1.0, -1.0]
+    assert primary.pass_all_first_k_delta == -1.0
+    assert primary.pass_all_first_k_interval_95 == [-1.0, -1.0]
     assert primary.rankable is True
+    serialized = report.model_dump(mode="json")
+    primary_level = next(level for level in serialized["levels"] if level["level"] == 3)
+    assert "pass_any_first_k" in primary_level
+    assert "pass_all_first_k" in primary_level
+    assert "pass_at_k" not in primary_level
+    assert "pass_power_k" not in primary_level
 
     cohort_report = compare(spec.comparisons[1].comparison_spec, repo_root=REPO_ROOT)  # type: ignore[arg-type]
     paired = cohort_report["paired"][0]
-    assert primary.paired_delta == paired["mean_pass_at_k_delta"]
+    assert primary.paired_delta == paired["mean_pass_any_first_k_delta"]
     assert primary.paired_interval_95 == paired["bootstrap_95"]
     assert (primary.wins, primary.ties, primary.losses) == (
         paired["wins"],
@@ -121,8 +127,7 @@ def test_authoritative_factor_coordinates_refuse_transposed_and_mixed_levels() -
     report = _build(transposed)
     assert report.rankable is False
     assert any(
-        "factor 'depth' is 3, expected 2" in reason
-        for reason in report.refuse_to_rank_reasons
+        "factor 'depth' is 3, expected 2" in reason for reason in report.refuse_to_rank_reasons
     )
 
     mixed = _spec_payload()
@@ -173,8 +178,7 @@ def test_identical_and_missing_authoritative_coordinates_refuse_globally(
         for source in payload["comparisons"]:
             for selector in source["comparison_spec"]["cohorts"]:
                 selector["paths"] = [
-                    path.replace("tests/fixtures/curve", name)
-                    for path in selector["paths"]
+                    path.replace("tests/fixtures/curve", name) for path in selector["paths"]
                 ]
         return fixture, payload
 
@@ -229,7 +233,7 @@ def test_rewarded_non_budget_exception_remains_censored() -> None:
     assert candidate["exception_count"] == 1
     assert candidate["capability_denominator"] == 0
     assert candidate["trial_pass_count"] == 0
-    assert candidate["pass_at_k"][0]["n_tasks"] == 0
+    assert candidate["pass_any_first_k"][0]["n_tasks"] == 0
     assert report["paired"][0]["n_pairs"] == 0
     assert len(report["paired"][0]["unpaired_tasks"]) == 1
 
@@ -252,7 +256,7 @@ def test_timeout_budget_is_failure_only_for_declared_budget_treatment() -> None:
     assert treatment["paired"][0]["n_pairs"] == 1
     assert treatment["cohorts"][1]["exception_count"] == 0
     assert treatment["cohorts"][1]["capability_denominator"] == 2
-    assert treatment["cohorts"][1]["pass_at_k"][0]["rate"] == 0.0
+    assert treatment["cohorts"][1]["pass_any_first_k"][0]["rate"] == 0.0
 
 
 def test_one_arm_infrastructure_failure_is_censored_and_drops_pair() -> None:
@@ -280,8 +284,8 @@ def test_insufficient_k_refuses_without_attempt_level_inference() -> None:
     report = _build(payload)
     assert report.rankable is False
     primary = _level(report, 3)
-    assert primary.pass_at_k[0].n_tasks == 0
-    assert len(primary.pass_at_k[0].insufficient_task_blocks) == 2
+    assert primary.pass_any_first_k[0].n_tasks == 0
+    assert len(primary.pass_any_first_k[0].insufficient_task_blocks) == 2
     assert primary.contrasts[0].n_pairs == 0
     assert any("fewer than k" in reason for reason in report.refuse_to_rank_reasons)
 
@@ -317,9 +321,7 @@ def test_curve_provenance_and_input_digests_are_stable() -> None:
     assert all(value.startswith("sha256:") for value in first.input_digests.values())
 
 
-def test_curve_cli_json_roundtrip_and_invalid_json_error(
-    tmp_path: Path, capsys
-) -> None:
+def test_curve_cli_json_roundtrip_and_invalid_json_error(tmp_path: Path, capsys) -> None:
     assert (
         cli.run_cli(
             ["curve", "validate", "tests/fixtures/curve/curve-spec.json"],
@@ -376,10 +378,7 @@ def test_curve_cli_json_roundtrip_and_invalid_json_error(
     refusal_status = json.loads(capsys.readouterr().out)
     assert refusal_status["rankable"] is False
     assert refusal_status["refuse_to_rank_reasons"]
-    assert (
-        cli.run_cli(["curve", "report", str(refusal_output)], workspace=REPO_ROOT)
-        == 0
-    )
+    assert cli.run_cli(["curve", "report", str(refusal_output)], workspace=REPO_ROOT) == 0
     assert json.loads(capsys.readouterr().out)["rankable"] is False
 
     bad = tmp_path / "bad.json"

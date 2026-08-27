@@ -4,6 +4,7 @@ The report is an independent vector, never an aggregate score. Missing evidence
 is descriptive insufficiency; stale, mismatched, contaminated, or revised
 evidence fails closed.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -41,11 +42,25 @@ class ClaimKind(StrEnum):
 
 
 ArtifactKind = Literal[
-    "curve_report", "power_analysis", "cohort_report", "workbench_certificate",
-    "task_registry_record", "state_event_facts", "upstream_imports", "protocol_spec",
-    "surface_oracle", "nop_control", "equivalence_preregistration", "adaptation_report",
-    "longitudinal_phase", "longitudinal_report", "production_report", "harness_policy",
-    "freeze_record", "novelty_certificate", "integration_ledger",
+    "curve_report",
+    "power_analysis",
+    "cohort_report",
+    "workbench_certificate",
+    "task_registry_record",
+    "state_event_facts",
+    "upstream_imports",
+    "protocol_spec",
+    "surface_oracle",
+    "nop_control",
+    "equivalence_preregistration",
+    "adaptation_report",
+    "longitudinal_phase",
+    "longitudinal_report",
+    "production_report",
+    "harness_policy",
+    "freeze_record",
+    "novelty_certificate",
+    "integration_ledger",
 ]
 
 
@@ -79,8 +94,12 @@ def _identity(path: str, digest: str, kind: str) -> str:
 
 def _relative(value: str, label: str) -> str:
     parsed = PurePosixPath(value)
-    if (not value or parsed.is_absolute() or value != parsed.as_posix()
-            or any(part in {"", ".", ".."} for part in parsed.parts)):
+    if (
+        not value
+        or parsed.is_absolute()
+        or value != parsed.as_posix()
+        or any(part in {"", ".", ".."} for part in parsed.parts)
+    ):
         raise ValueError(f"{label} must be a normalized repository-relative POSIX path")
     return value
 
@@ -108,8 +127,9 @@ class BoundArtifactRef(ContractModel):
     def bind(cls, *, repo_root: Path, path: str, kind: ArtifactKind) -> BoundArtifactRef:
         normalized = _relative(path, "artifact path")
         digest = _digest(_read_file(repo_root, normalized))
-        return cls(path=normalized, sha256=digest, kind=kind,
-                   identity=_identity(normalized, digest, kind))
+        return cls(
+            path=normalized, sha256=digest, kind=kind, identity=_identity(normalized, digest, kind)
+        )
 
 
 class HarnessPolicySnapshot(ContractModel):
@@ -229,9 +249,9 @@ class CapabilityClaimSpec(ContractModel):
     equivalence_interval_95: tuple[float, float] | None = None
     frozen_domains: list[str] = Field(default_factory=list)
     frozen_environments: list[str] = Field(default_factory=list)
-    inferential_outcome: (
-        Literal["supports_claim", "inconclusive", "contradicts_claim"] | None
-    ) = None
+    inferential_outcome: Literal["supports_claim", "inconclusive", "contradicts_claim"] | None = (
+        None
+    )
     novelty: NoveltyCertificate | None = None
     longitudinal_phases: list[BoundArtifactRef] = Field(default_factory=list)
     integration_cost: IntegrationCostLedger | None = None
@@ -245,9 +265,14 @@ class CapabilityClaimSpec(ContractModel):
 
     @model_validator(mode="after")
     def explicit_unavailability(self) -> CapabilityClaimSpec:
-        if self.availability == "unavailable" and (self.evidence or self.harness_policies
-                or self.freeze is not None or self.novelty is not None
-                or self.integration_cost is not None or self.longitudinal_phases):
+        if self.availability == "unavailable" and (
+            self.evidence
+            or self.harness_policies
+            or self.freeze is not None
+            or self.novelty is not None
+            or self.integration_cost is not None
+            or self.longitudinal_phases
+        ):
             raise ValueError("unavailable claims cannot carry evidence or execution claims")
         return self
 
@@ -287,8 +312,13 @@ class CapabilityContractReport(ContractModel):
         if [item.kind for item in self.claims] != list(ClaimKind):
             raise ValueError("report must preserve the complete P/R/U/C/Y vector")
         states = {item.status for item in self.claims}
-        expected = ("invalid" if "invalid" in states else "eligible_for_analysis"
-                    if states == {"satisfied"} else "valid_insufficient")
+        expected = (
+            "invalid"
+            if "invalid" in states
+            else "eligible_for_analysis"
+            if states == {"satisfied"}
+            else "valid_insufficient"
+        )
         if self.status != expected:
             raise ValueError("global status contradicts per-claim results")
         if self.refuse_substantive_generality != (self.status != "eligible_for_analysis"):
@@ -344,8 +374,9 @@ def _refs(claim: CapabilityClaimSpec) -> list[BoundArtifactRef]:
     return list({ref.identity: ref for ref in refs}.values())
 
 
-def _verify_refs(claim: CapabilityClaimSpec, root: Path,
-                 observed: dict[str, str]) -> tuple[dict[str, bytes], list[str]]:
+def _verify_refs(
+    claim: CapabilityClaimSpec, root: Path, observed: dict[str, str]
+) -> tuple[dict[str, bytes], list[str]]:
     raws: dict[str, bytes] = {}
     errors: list[str] = []
     for ref in _refs(claim):
@@ -380,9 +411,7 @@ def _common(claim: CapabilityClaimSpec) -> tuple[list[str], list[str]]:
         "equivalence_preregistration",
         "power_analysis",
     }
-    required = {
-        item.identity for item in claim.evidence if item.kind in pretrace_kinds
-    }
+    required = {item.identity for item in claim.evidence if item.kind in pretrace_kinds}
     required.update(policy.artifact.identity for policy in claim.harness_policies)
     if claim.novelty:
         required.update((claim.novelty.artifact.identity, claim.novelty.registry_record.identity))
@@ -409,9 +438,7 @@ def _protocol(
     if missing := sorted(needed - _kinds(claim)):
         insufficient.append(f"P evidence missing artifact kinds: {', '.join(missing)}")
     report, curve_insufficient, curve_invalid = _curve(claim, raws)
-    prereg, prereg_insufficient, prereg_invalid = _equivalence_preregistration(
-        claim, raws
-    )
+    prereg, prereg_insufficient, prereg_invalid = _equivalence_preregistration(claim, raws)
     insufficient.extend(curve_insufficient)
     insufficient.extend(prereg_insufficient)
     invalid.extend(curve_invalid)
@@ -435,10 +462,7 @@ def _protocol(
 
     if claim.preregistered_equivalence_margin is None:
         insufficient.append("declared equivalence margin is unavailable")
-    elif (
-        prereg is not None
-        and claim.preregistered_equivalence_margin != prereg.equivalence_margin
-    ):
+    elif prereg is not None and claim.preregistered_equivalence_margin != prereg.equivalence_margin:
         invalid.append("declared equivalence margin contradicts preregistration bytes")
 
     derived_interval: tuple[float, float] | None = None
@@ -453,31 +477,22 @@ def _protocol(
             if level.level != report.primary_contrast.level:
                 invalid.append("curve primary level contradicts its declared contrast")
             contrasts = [
-                contrast
-                for contrast in level.contrasts
-                if contrast.k == report.primary_contrast.k
+                contrast for contrast in level.contrasts if contrast.k == report.primary_contrast.k
             ]
             if len(contrasts) != 1:
-                invalid.append(
-                    "curve report must contain exactly one primary-k paired contrast"
-                )
+                invalid.append("curve report must contain exactly one primary-k paired contrast")
             elif contrasts[0].paired_interval_95 is None:
                 insufficient.append("curve primary paired interval is unavailable")
             else:
                 interval = contrasts[0].paired_interval_95
                 if len(interval) != 2:
-                    invalid.append(
-                        "curve primary paired interval must contain exactly two bounds"
-                    )
+                    invalid.append("curve primary paired interval must contain exactly two bounds")
                 else:
                     derived_interval = (float(interval[0]), float(interval[1]))
 
     if claim.equivalence_interval_95 is None:
         insufficient.append("declared paired equivalence interval is unavailable")
-    elif (
-        derived_interval is not None
-        and claim.equivalence_interval_95 != derived_interval
-    ):
+    elif derived_interval is not None and claim.equivalence_interval_95 != derived_interval:
         invalid.append("declared paired interval contradicts current curve bytes")
     if (
         derived_interval is not None
@@ -487,9 +502,7 @@ def _protocol(
             or derived_interval[1] > prereg.equivalence_margin
         )
     ):
-        insufficient.append(
-            "artifact-derived interval is outside the preregistered margin"
-        )
+        insufficient.append("artifact-derived interval is outside the preregistered margin")
     return insufficient, invalid
 
 
@@ -515,9 +528,7 @@ def _equivalence_preregistration(
     claim: CapabilityClaimSpec,
     raws: dict[str, bytes],
 ) -> tuple[_EquivalencePreregistration | None, list[str], list[str]]:
-    refs = [
-        ref for ref in claim.evidence if ref.kind == "equivalence_preregistration"
-    ]
+    refs = [ref for ref in claim.evidence if ref.kind == "equivalence_preregistration"]
     if not refs:
         return None, ["equivalence preregistration is unavailable"], []
     if len(refs) != 1:
@@ -552,11 +563,12 @@ def _reliability(
             invalid.append("curve report must contain exactly one primary paired level")
         else:
             primary = primary_levels[0]
-            if (
-                not any(metric.k == k for metric in primary.pass_at_k)
-                or not any(metric.k == k for metric in primary.pass_power_k)
+            if not any(metric.k == k for metric in primary.pass_any_first_k) or not any(
+                metric.k == k for metric in primary.pass_all_first_k
             ):
-                insufficient.append("paired evidence must report both pass@k and pass^k")
+                insufficient.append(
+                    "paired evidence must report both pass-any-first-k and pass-all-first-k"
+                )
         if not report.rankable:
             insufficient.append("curve report is inconclusive or refuses paired inference")
     if claim.inferential_outcome is None:
@@ -614,9 +626,7 @@ def _continual_controls(
         try:
             records.append(_LongitudinalPhaseRecord.model_validate_json(raw))
         except ValueError:
-            invalid.append(
-                f"C longitudinal phase bytes are invalid: {phase.path}"
-            )
+            invalid.append(f"C longitudinal phase bytes are invalid: {phase.path}")
     if len(records) == len(phases):
         identities = [record.phase_identity for record in records]
         if len(identities) != len(set(identities)):
@@ -663,8 +673,8 @@ def _reasons(
         invalid.append("post-trace fixes invalidate the frozen production claim")
     return insufficient, invalid
 
-def _freeze_artifact_reasons(claim: CapabilityClaimSpec,
-                             raws: dict[str, bytes]) -> list[str]:
+
+def _freeze_artifact_reasons(claim: CapabilityClaimSpec, raws: dict[str, bytes]) -> list[str]:
     freeze = claim.freeze
     if freeze is None:
         return []
@@ -679,16 +689,13 @@ def _freeze_artifact_reasons(claim: CapabilityClaimSpec,
         if not isinstance(body, dict) or any(
             body.get(key) != value for key, value in expected.items()
         ):
-            return [
-                "freeze record bytes do not match the declared timestamps and artifact set"
-            ]
+            return ["freeze record bytes do not match the declared timestamps and artifact set"]
     except Exception:
         return ["freeze record artifact is not valid JSON"]
     return []
 
 
-def _harness_artifact_reasons(claim: CapabilityClaimSpec,
-                              raws: dict[str, bytes]) -> list[str]:
+def _harness_artifact_reasons(claim: CapabilityClaimSpec, raws: dict[str, bytes]) -> list[str]:
     errors: list[str] = []
     for policy in claim.harness_policies:
         raw = raws.get(policy.artifact.identity)
@@ -706,27 +713,28 @@ def _harness_artifact_reasons(claim: CapabilityClaimSpec,
                     f"harness snapshot differs from current bytes: {policy.artifact.path}"
                 )
         except Exception:
-            errors.append(
-                f"harness snapshot artifact is not valid JSON: {policy.artifact.path}"
-            )
+            errors.append(f"harness snapshot artifact is not valid JSON: {policy.artifact.path}")
     return errors
 
 
-def _typed_artifact_reasons(claim: CapabilityClaimSpec,
-                            raws: dict[str, bytes]) -> list[str]:
+def _typed_artifact_reasons(claim: CapabilityClaimSpec, raws: dict[str, bytes]) -> list[str]:
     checks: list[tuple[str, BoundArtifactRef, dict[str, Any]]] = []
     if claim.novelty:
-        checks.append((
-            "novelty certificate",
-            claim.novelty.artifact,
-            claim.novelty.model_dump(mode="json", exclude={"artifact"}),
-        ))
+        checks.append(
+            (
+                "novelty certificate",
+                claim.novelty.artifact,
+                claim.novelty.model_dump(mode="json", exclude={"artifact"}),
+            )
+        )
     if claim.integration_cost:
-        checks.append((
-            "integration ledger",
-            claim.integration_cost.artifact,
-            claim.integration_cost.model_dump(mode="json", exclude={"artifact"}),
-        ))
+        checks.append(
+            (
+                "integration ledger",
+                claim.integration_cost.artifact,
+                claim.integration_cost.model_dump(mode="json", exclude={"artifact"}),
+            )
+        )
     errors: list[str] = []
     for label, ref, expected in checks:
         raw = raws.get(ref.identity)
@@ -746,8 +754,9 @@ def _typed_artifact_reasons(claim: CapabilityClaimSpec,
     return errors
 
 
-def _workbench_packet_reasons(claim: CapabilityClaimSpec, root: Path,
-                              raws: dict[str, bytes]) -> list[str]:
+def _workbench_packet_reasons(
+    claim: CapabilityClaimSpec, root: Path, raws: dict[str, bytes]
+) -> list[str]:
     errors: list[str] = []
     for ref in (item for item in claim.evidence if item.kind == "workbench_certificate"):
         raw = raws.get(ref.identity)
@@ -765,14 +774,13 @@ def _workbench_packet_reasons(claim: CapabilityClaimSpec, root: Path,
                 package_digest=binding["package_digest"],
             )
         except Exception:
-            errors.append(
-                f"workbench_certificate is not a current M049 packet: {ref.path}"
-            )
+            errors.append(f"workbench_certificate is not a current M049 packet: {ref.path}")
     return errors
 
 
-def _novelty_registry_reasons(claim: CapabilityClaimSpec, root: Path,
-                              raws: dict[str, bytes]) -> list[str]:
+def _novelty_registry_reasons(
+    claim: CapabilityClaimSpec, root: Path, raws: dict[str, bytes]
+) -> list[str]:
     novelty = claim.novelty
     if novelty is None:
         return []
@@ -795,9 +803,7 @@ def _novelty_registry_reasons(claim: CapabilityClaimSpec, root: Path,
     if record.certification.state != "bound":
         errors.append("novelty task lacks a byte-bound M049 certificate")
     else:
-        packet_refs = {
-            item.path for item in claim.evidence if item.kind == "workbench_certificate"
-        }
+        packet_refs = {item.path for item in claim.evidence if item.kind == "workbench_certificate"}
         if record.certification.packet_path not in packet_refs:
             errors.append("novelty registry certificate is not among claim evidence")
     if not errors:
@@ -807,7 +813,6 @@ def _novelty_registry_reasons(claim: CapabilityClaimSpec, root: Path,
         except Exception:
             errors.append("current registry control or certificate evidence failed verification")
     return errors
-
 
 
 def _result_evidence(claim: CapabilityClaimSpec) -> list[BoundArtifactRef]:
@@ -836,13 +841,27 @@ def evaluate_capability_contract(
     for kind in ClaimKind:
         claim = by_kind.get(kind)
         if claim is None:
-            results.append(CapabilityClaimResult(kind=kind, status="unavailable",
-                reasons=[f"{kind.value} claim was not supplied"], evidence=[]))
+            results.append(
+                CapabilityClaimResult(
+                    kind=kind,
+                    status="unavailable",
+                    reasons=[f"{kind.value} claim was not supplied"],
+                    evidence=[],
+                )
+            )
             continue
         if claim.availability == "unavailable":
-            results.append(CapabilityClaimResult(kind=kind, status="unavailable",
-                reasons=[*claim.limitations, f"{kind.value} evidence is explicitly unavailable"],
-                evidence=[]))
+            results.append(
+                CapabilityClaimResult(
+                    kind=kind,
+                    status="unavailable",
+                    reasons=[
+                        *claim.limitations,
+                        f"{kind.value} evidence is explicitly unavailable",
+                    ],
+                    evidence=[],
+                )
+            )
             continue
         raws, binding_errors = _verify_refs(claim, root, observed)
         insufficient, invalid = _reasons(kind, claim, raws)
@@ -859,19 +878,33 @@ def evaluate_capability_contract(
             if identity in spec.tuning_identity_inputs:
                 invalid.append("heldout identity entered tuning inputs")
         status: Literal["satisfied", "insufficient", "invalid", "unavailable"] = (
-            "invalid" if invalid else "insufficient" if insufficient else "satisfied")
-        results.append(CapabilityClaimResult(
-            kind=kind,
-            status=status,
-            reasons=[*invalid, *insufficient, *claim.limitations],
-            evidence=_result_evidence(claim),
-        ))
+            "invalid" if invalid else "insufficient" if insufficient else "satisfied"
+        )
+        results.append(
+            CapabilityClaimResult(
+                kind=kind,
+                status=status,
+                reasons=[*invalid, *insufficient, *claim.limitations],
+                evidence=_result_evidence(claim),
+            )
+        )
     states = {item.status for item in results}
     global_status: Literal["valid_insufficient", "invalid", "eligible_for_analysis"] = (
-        "invalid" if "invalid" in states else "eligible_for_analysis"
-        if states == {"satisfied"} else "valid_insufficient")
-    payload = {"spec": spec.model_dump(mode="json"), "observed": dict(sorted(observed.items())),
-               "results": [item.model_dump(mode="json") for item in results]}
-    return CapabilityContractReport(experiment_id=spec.experiment_id, status=global_status,
+        "invalid"
+        if "invalid" in states
+        else "eligible_for_analysis"
+        if states == {"satisfied"}
+        else "valid_insufficient"
+    )
+    payload = {
+        "spec": spec.model_dump(mode="json"),
+        "observed": dict(sorted(observed.items())),
+        "results": [item.model_dump(mode="json") for item in results],
+    }
+    return CapabilityContractReport(
+        experiment_id=spec.experiment_id,
+        status=global_status,
         refuse_substantive_generality=global_status != "eligible_for_analysis",
-        claims=results, evidence_digest=_digest(_canonical(payload)))
+        claims=results,
+        evidence_digest=_digest(_canonical(payload)),
+    )

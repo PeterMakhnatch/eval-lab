@@ -103,11 +103,7 @@ def _has_verification_call(payloads: list[JsonObject]) -> bool:
 
 
 def _raw_trials(roots: Iterable[Path]) -> dict[str, tuple[JobRecord, TrialRecord]]:
-    return {
-        trial.id: (job, trial)
-        for job in load_jobs(roots)
-        for trial in job.trials
-    }
+    return {trial.id: (job, trial) for job in load_jobs(roots) for trial in job.trials}
 
 
 def _number_summary(values: list[float]) -> JsonObject:
@@ -377,10 +373,7 @@ def _completed_job(root: Path, spec: ExperimentSpec) -> JobRecord:
                 [root / spec.jobs_dir, root / "research/evidence/runs", root / "evidence/runs"]
             )
             if job.name == spec.name
-            or (
-                spec.spec_id is not None
-                and _json_experiment(job).get("spec_id") == spec.spec_id
-            )
+            or (spec.spec_id is not None and _json_experiment(job).get("spec_id") == spec.spec_id)
         ]
     if len(candidates) != 1:
         raise ValueError(
@@ -415,8 +408,7 @@ def build_eval_card(
     spec = load_completed_spec(spec_path)
     if spec.purpose == "comparison" and spec.prereg is None:
         raise ValueError(
-            "comparison eval cards require a prereg block with expected result "
-            "and decision rule"
+            "comparison eval cards require a prereg block with expected result and decision rule"
         )
     job = _completed_job(repo_root, spec)
     evidence = summarize_job_evidence(
@@ -424,13 +416,11 @@ def build_eval_card(
         repo_root=repo_root,
         k=spec.attempts,
     )
-    metric = evidence["pass_at_k"]
+    metric = evidence["pass_any_first_k"]
     interval = metric["bootstrap_95"]
     threats = ["One completed job captures one time and execution environment."]
     if evidence["n_tasks"] < 20:
-        threats.append(
-            f"Only {evidence['n_tasks']} task evidence unit(s); generalization is weak."
-        )
+        threats.append(f"Only {evidence['n_tasks']} task evidence unit(s); generalization is weak.")
     if evidence["exception_count"]:
         threats.append(
             f"{evidence['exception_count']} exception trial(s) were excluded from capability."
@@ -440,6 +430,11 @@ def build_eval_card(
     if evidence["insufficient_tasks"]:
         threats.append(
             f"{len(evidence['insufficient_tasks'])} task(s) had fewer than k scored attempts."
+        )
+    if evidence.get("unavailable_order_groups"):
+        threats.append(
+            f"{len(evidence['unavailable_order_groups'])} task(s) lack a valid first-k "
+            "attempt order (missing/invalid started_at or a timestamp tie at k)."
         )
     card = {
         "schema_version": 1,
@@ -455,7 +450,7 @@ def build_eval_card(
             "n_tasks": evidence["n_tasks"],
             "n_trials": evidence["n_trials"],
             "k": spec.attempts,
-            "pass_at_k": metric["rate"],
+            "pass_any_first_k": metric["rate"],
             "bootstrap_95": interval,
             "exceptions": evidence["exception_count"],
         },
@@ -487,7 +482,10 @@ def build_eval_card(
         "{{N_TASKS}}": str(evidence["n_tasks"]),
         "{{N_TRIALS}}": str(evidence["n_trials"]),
         "{{K}}": str(spec.attempts),
-        "{{PASS_AT_K}}": "unavailable" if metric["rate"] is None else f"{metric['rate']:.3f}",
+        "{{PRIMARY_METRIC_LABEL}}": "Observed pass-any-first-k",
+        "{{PRIMARY_METRIC_VALUE}}": "unavailable"
+        if metric["rate"] is None
+        else f"{metric['rate']:.3f}",
         "{{INTERVAL}}": interval_text,
         "{{EXCEPTIONS}}": str(evidence["exception_count"]),
         "{{ELICITATION}}": json.dumps(evidence["elicitation"], indent=2, sort_keys=True),
@@ -510,8 +508,7 @@ def draft_eval_card(
 ) -> tuple[Path, JsonObject]:
     rendered, card = build_eval_card(spec_path, repo_root=repo_root)
     destination = (
-        output_path
-        or repo_root / "research/cards" / f"{_safe_name(str(card['title']))}.md"
+        output_path or repo_root / "research/cards" / f"{_safe_name(str(card['title']))}.md"
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():

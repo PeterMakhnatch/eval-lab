@@ -85,6 +85,8 @@ def _write_job(
                     },
                     "verifier_result": {"rewards": {"reward": reward}},
                     "exception_info": None,
+                    "started_at": f"2026-08-14T12:00:{trial_index:02d}Z",
+                    "finished_at": f"2026-08-14T12:01:{trial_index:02d}Z",
                 },
             )
             if with_atif:
@@ -157,9 +159,7 @@ def _write_job(
                             },
                         }
                     )
-                steps.append(
-                    {"step_id": len(steps) + 1, "source": "agent", "message": "done"}
-                )
+                steps.append({"step_id": len(steps) + 1, "source": "agent", "message": "done"})
                 _write_json(
                     trial / "agent/trajectory.json",
                     {
@@ -212,8 +212,7 @@ def test_null_task_bootstrap_false_finding_rate_is_near_five_percent() -> None:
     simulations = 240
     for simulation in range(simulations):
         deltas = [
-            float(generator.random() < 0.5) - float(generator.random() < 0.5)
-            for _ in range(120)
+            float(generator.random() < 0.5) - float(generator.random() < 0.5) for _ in range(120)
         ]
         interval = bootstrap_mean_interval(
             deltas,

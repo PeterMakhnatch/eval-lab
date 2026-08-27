@@ -129,11 +129,7 @@ def _factor_integrity_reasons(
     expected_level: object,
     spec: CapabilityCurveSpec,
 ) -> list[str]:
-    selected = [
-        member
-        for member in members
-        if member.get("task_block_id") in pair_set
-    ]
+    selected = [member for member in members if member.get("task_block_id") in pair_set]
     prefix = f"cohort {cohort_label!r}"
     if not selected:
         return [f"{prefix} has no paired members for factor provenance"]
@@ -161,22 +157,17 @@ def _factor_integrity_reasons(
     reasons: list[str] = []
     if spec.factor_kind == "task_generator":
         if any(
-            member.get("task_instance_id") is None
-            or member.get("generator_seed_json") is None
+            member.get("task_instance_id") is None or member.get("generator_seed_json") is None
             for member in selected
         ):
-            reasons.append(
-                f"{prefix} task-generator factor lacks instance/seed provenance"
-            )
+            reasons.append(f"{prefix} task-generator factor lacks instance/seed provenance")
         for member in selected:
             bindings = _json_mapping(member.get("factor_bindings_json"))
             if bindings is None:
                 reasons.append(f"{prefix} has missing factor binding provenance")
                 break
             if spec.factor_name in bindings:
-                reasons.append(
-                    f"{prefix} task-generator factor falsely claims harness execution"
-                )
+                reasons.append(f"{prefix} task-generator factor falsely claims harness execution")
                 break
         return reasons
 
@@ -184,9 +175,7 @@ def _factor_integrity_reasons(
     for member in selected:
         bindings = _json_mapping(member.get("factor_bindings_json"))
         if bindings is None or bindings.get(spec.factor_name) != spec.treatment_binding:
-            reasons.append(
-                f"{prefix} execution factor is not bound to {spec.treatment_binding!r}"
-            )
+            reasons.append(f"{prefix} execution factor is not bound to {spec.treatment_binding!r}")
             break
     for member in selected:
         bound = _json_mapping(member.get("bound_execution_values_json"))
@@ -194,8 +183,7 @@ def _factor_integrity_reasons(
             bound.get(spec.treatment_binding), sort_keys=True
         ) != json.dumps(expected_level, sort_keys=True):
             reasons.append(
-                f"{prefix} bound execution value does not match factor level "
-                f"{expected_level!r}"
+                f"{prefix} bound execution value does not match factor level {expected_level!r}"
             )
             break
     return reasons
@@ -230,9 +218,7 @@ def _controlled_tuple(member: JsonObject, treatment_binding: str | None) -> Json
 
 
 def _budget_failure(member: JsonObject, enabled: bool) -> bool:
-    return bool(
-        enabled and member.get("exception_class") in TIMEOUT_BUDGET_EXCEPTION_CLASSES
-    )
+    return bool(enabled and member.get("exception_class") in TIMEOUT_BUDGET_EXCEPTION_CLASSES)
 
 
 def _control_fingerprint(
@@ -247,10 +233,7 @@ def _control_fingerprint(
         for member in members
         if member.get("task_block_id") in pair_set
         and (
-            (
-                member.get("exception_class") is None
-                and member.get("reward") is not None
-            )
+            (member.get("exception_class") is None and member.get("reward") is not None)
             or _budget_failure(member, budget_exhaustion_is_failure)
         )
     ]
@@ -291,6 +274,7 @@ def _exclusions(
         sorted(censored),
     )
 
+
 def _contrast(
     paired: JsonObject, *, primary: bool, integrity_reasons: list[str]
 ) -> CurveContrastReport:
@@ -303,16 +287,16 @@ def _contrast(
     return CurveContrastReport(
         k=int(paired["k"]),
         n_pairs=int(paired["n_pairs"]),
-        paired_delta=paired.get("mean_pass_at_k_delta"),
+        paired_delta=paired.get("mean_pass_any_first_k_delta"),
         paired_interval_95=paired.get("bootstrap_95"),
         wins=int(paired.get("wins", 0)),
         ties=int(paired.get("ties", 0)),
         losses=int(paired.get("losses", 0)),
-        pass_power_k_delta=paired.get("mean_pass_power_k_delta"),
-        pass_power_k_interval_95=paired.get("pass_power_k_bootstrap_95"),
-        pass_power_k_wins=int(paired.get("pass_power_k_wins", 0)),
-        pass_power_k_ties=int(paired.get("pass_power_k_ties", 0)),
-        pass_power_k_losses=int(paired.get("pass_power_k_losses", 0)),
+        pass_all_first_k_delta=paired.get("mean_pass_all_first_k_delta"),
+        pass_all_first_k_interval_95=paired.get("pass_all_first_k_bootstrap_95"),
+        pass_all_first_k_wins=int(paired.get("pass_all_first_k_wins", 0)),
+        pass_all_first_k_ties=int(paired.get("pass_all_first_k_ties", 0)),
+        pass_all_first_k_losses=int(paired.get("pass_all_first_k_losses", 0)),
         rankable=rankable,
         refusal_reasons=reasons,
     )
@@ -340,9 +324,7 @@ def build_curve(
     expected_pair_set: list[str] | None = None
     expected_control: str | None = None
     reference_metrics: tuple[list[CurveMetricReport], list[CurveMetricReport]] | None = None
-    reference_exclusions: (
-        tuple[list[CurveExceptionReport], list[str], list[str]] | None
-    ) = None
+    reference_exclusions: tuple[list[CurveExceptionReport], list[str], list[str]] | None = None
     reference_unpaired: set[str] = set()
     built_levels: dict[str, CurveLevelReport] = {}
 
@@ -351,11 +333,7 @@ def build_curve(
             reasons.append(f"level {source.level!r} does not use task_block_id pairing")
         cohorts = report.get("cohorts")
         paired_rows = report.get("paired")
-        if (
-            not isinstance(cohorts, list)
-            or len(cohorts) != 2
-            or not isinstance(paired_rows, list)
-        ):
+        if not isinstance(cohorts, list) or len(cohorts) != 2 or not isinstance(paired_rows, list):
             raise ValueError(
                 f"comparison for level {source.level!r} is not a two-arm cohort report"
             )
@@ -363,12 +341,13 @@ def build_curve(
         level_cohort = cohorts[1]
         if not isinstance(baseline, dict) or not isinstance(level_cohort, dict):
             raise ValueError(f"comparison for level {source.level!r} has malformed cohorts")
-        if "pass_power_k" not in baseline or "pass_power_k" not in level_cohort:
-            raise ValueError(f"comparison for level {source.level!r} lacks pass^k metrics")
+        if "pass_all_first_k" not in baseline or "pass_all_first_k" not in level_cohort:
+            raise ValueError(
+                f"comparison for level {source.level!r} lacks pass-all-first-k metrics"
+            )
 
         pair_sets = [
-            sorted(str(pair["key"]) for pair in row.get("pairs", []))
-            for row in paired_rows
+            sorted(str(pair["key"]) for pair in row.get("pairs", [])) for row in paired_rows
         ]
         if not pair_sets:
             pair_sets = [[]]
@@ -456,11 +435,11 @@ def build_curve(
         elif base_exclusions != reference_exclusions:
             reasons.append(f"level {source.level!r} changes reference censoring/exceptions")
 
-        pass_at = [_metric(item) for item in level_cohort["pass_at_k"]]
-        pass_power = [_metric(item) for item in level_cohort["pass_power_k"]]
-        base_pass_at = [_metric(item) for item in baseline["pass_at_k"]]
-        base_pass_power = [_metric(item) for item in baseline["pass_power_k"]]
-        current_reference = (base_pass_at, base_pass_power)
+        pass_any = [_metric(item) for item in level_cohort["pass_any_first_k"]]
+        pass_all = [_metric(item) for item in level_cohort["pass_all_first_k"]]
+        base_pass_any = [_metric(item) for item in baseline["pass_any_first_k"]]
+        base_pass_all = [_metric(item) for item in baseline["pass_all_first_k"]]
+        current_reference = (base_pass_any, base_pass_all)
         if reference_metrics is None:
             reference_metrics = current_reference
         elif current_reference != reference_metrics:
@@ -470,20 +449,13 @@ def build_curve(
         contrasts = [
             _contrast(
                 row,
-                primary=(
-                    primary_level
-                    and int(row["k"]) == spec.primary_contrast.k
-                ),
+                primary=(primary_level and int(row["k"]) == spec.primary_contrast.k),
                 integrity_reasons=level_integrity_reasons,
             )
             for row in paired_rows
         ]
         unpaired = sorted(
-            {
-                str(value)
-                for row in paired_rows
-                for value in row.get("unpaired_tasks", [])
-            }
+            {str(value) for row in paired_rows for value in row.get("unpaired_tasks", [])}
         )
         if unpaired:
             reasons.append(
@@ -491,9 +463,7 @@ def build_curve(
             )
         for row in paired_rows:
             if int(row.get("n_pairs", 0)) < 2:
-                reasons.append(
-                    f"level {source.level!r} k={row.get('k')} has fewer than 2 pairs"
-                )
+                reasons.append(f"level {source.level!r} k={row.get('k')} has fewer than 2 pairs")
             for reason in row.get("refusal_reasons", []):
                 text = str(reason)
                 if any(
@@ -506,6 +476,9 @@ def build_curve(
                         "undeclared consequential",
                         "controlled factor provenance",
                         "not paired across cohorts",
+                        "first-k order is unavailable",
+                        "missing or invalid started_at",
+                        "started_at tie straddles first-k boundary",
                     )
                 ):
                     reasons.append(f"level {source.level!r}: {text}")
@@ -520,8 +493,8 @@ def build_curve(
             censored_task_blocks=censored,
             exception_trials=exception_trials,
             missing_reward_trials=missing_trials,
-            pass_at_k=pass_at,
-            pass_power_k=pass_power,
+            pass_any_first_k=pass_any,
+            pass_all_first_k=pass_all,
             contrasts=contrasts,
         )
 
@@ -535,16 +508,14 @@ def build_curve(
         censored_task_blocks=ref_censored,
         exception_trials=ref_exception,
         missing_reward_trials=ref_missing,
-        pass_at_k=reference_metrics[0],
-        pass_power_k=reference_metrics[1],
+        pass_any_first_k=reference_metrics[0],
+        pass_all_first_k=reference_metrics[1],
         contrasts=[],
     )
     built_levels[json.dumps(spec.reference_level, sort_keys=True)] = reference_report
 
     primary = built_levels[json.dumps(spec.primary_contrast.level, sort_keys=True)]
-    primary_result = next(
-        item for item in primary.contrasts if item.k == spec.primary_contrast.k
-    )
+    primary_result = next(item for item in primary.contrasts if item.k == spec.primary_contrast.k)
     reasons.extend(primary_result.refusal_reasons)
     reasons = list(dict.fromkeys(reasons))
     levels = [built_levels[json.dumps(level, sort_keys=True)] for level in spec.ordered_levels]
@@ -558,9 +529,7 @@ def build_curve(
         primary_contrast=spec.primary_contrast,
         prereg=spec.prereg,
         common_controlled_fingerprint=(
-            None
-            if any("fingerprint" in reason for reason in reasons)
-            else expected_control
+            None if any("fingerprint" in reason for reason in reasons) else expected_control
         ),
         input_digests=dict(sorted(input_digests.items())),
         produced_at=produced_at or datetime.now(UTC),

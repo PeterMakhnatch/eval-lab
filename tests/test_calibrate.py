@@ -344,4 +344,4 @@ def test_eval_card_generation_purpose_calibration(tmp_path: Path) -> None:
     assert "INJECTED STUB VERIFIER" in card_text
     assert "Zero tokens spent" in card_text or "zero tokens spent" in card_text
     assert "Cohen's Kappa" in card_text
-    assert "Selected@k" in card_text or "selected@k" in card_text
+    assert "Selected-at-k" in card_text

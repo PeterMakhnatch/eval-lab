@@ -94,11 +94,15 @@ readable validity warnings.
 
 Exceptions remain in `n_total` and the exception breakdown but are excluded
 from `capability_denominator`. Missing rewards are separate exclusions.
-Every `pass@k`, including `pass@1`, groups attempts by task and selects the
-first `k` eligible trials by stable trial UUID. Attempts from one task are one
-evidence unit. Percentile 95% intervals resample tasks, never attempts. Groups
-with fewer than `k` eligible attempts are listed rather than silently changing
-the denominator.
+Realized `pass_any_first_k` and `pass_all_first_k` group attempts by task and
+select the first `k` eligible trials by timezone-aware Harbor `started_at`, never
+by trial UUID chronology. A missing/invalid timestamp or a timestamp tie across
+the selection boundary makes that task unavailable for realized first-k. Attempts
+from one task are one evidence unit. Percentile 95% intervals resample tasks,
+never attempts. Groups with fewer than `k` eligible attempts are listed rather
+than silently changing the denominator. `pass_at_k_unbiased` (Chen) and
+`pass_power_k_unbiased` (Yao/tau) use all eligible attempts per task with no
+attempt order, then average task-level estimates rather than pooling attempts.
 
 Every two-cohort decision is paired by task. A report prints a ranking only
 when it can name `n_tasks`, `k`, the paired task-bootstrap interval, and a

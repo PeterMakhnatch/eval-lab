@@ -2227,6 +2227,128 @@
       }
     ]
   },
+  "data": {
+    "options": [
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      }
+    ]
+  },
+  "data backfill": {
+    "options": [
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "database_url",
+        "flags": [
+          "--database-url"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "derived_root",
+        "flags": [
+          "--derived-root"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_HelpAction",
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "help": "show this help message and exit",
+        "metavar": null,
+        "nargs": 0,
+        "required": false,
+        "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "research/experiments/manifests/cross-campaign-analysis-inventory.json",
+        "dest": "inventory",
+        "flags": [
+          "--inventory"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "research/experiments/manifests",
+        "dest": "manifest_dir",
+        "flags": [
+          "--manifest-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/analyses/all-durable-backfill",
+        "dest": "output_dir",
+        "flags": [
+          "--output-dir"
+        ],
+        "help": null,
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": "derived/evidence-cas",
+        "dest": "store_root",
+        "flags": [
+          "--store-root"
+        ],
+        "help": "CAS store root (records/job live under this directory)",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      }
+    ]
+  },
   "db": {
     "options": [
       {

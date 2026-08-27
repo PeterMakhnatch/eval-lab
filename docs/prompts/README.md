@@ -29,5 +29,4 @@ The authoritative live mission board is [`agents/missions/ACTIVE.md`](../../agen
 
 - **Archived Briefs**: Completed implementation briefs (01–09, 12) and legacy dated dispatch files (overnight, wave3, functionalization) are archived at [`docs/archive/prompts/`](../archive/prompts/).
 - **Unwritten Briefs**: Briefs 10 and 11 were never written in the historical sequence.
-- **Untracked / Scrap Files**: `docs/prompts/Untitled` is a proven-unused 30-byte legacy scrap file preserved in place for a subsequent repository-wide dead-code deletion pass.
 - **Board Authority**: `agents/missions/ACTIVE.md` is the single authoritative source of truth for active missions, assigned role lanes, hard stops, and current system gates.

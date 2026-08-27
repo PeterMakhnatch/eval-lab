@@ -152,8 +152,6 @@ _SUCCESS_MARKERS = (
     "all tests pass",
     "task is complete",
     "completed the task",
-    "fixed the",
-    "done.",
 )
 _FAILURE_MARKERS = (
     "i failed",
@@ -163,6 +161,7 @@ _FAILURE_MARKERS = (
     "giving up",
     "still failing",
     "tests still fail",
+    "kept failing",
 )
 _PARTIAL_MARKERS = ("partially", "partial success", "partial completion")
 _VERIFIER_FINDING_MARKERS = ("verifier_error", "verifier_failure", "verifier_defect")
@@ -402,19 +401,245 @@ def selected_window_events(pack: dict[str, Any]) -> list[dict[str, Any]]:
     return events
 
 
+# Perfect-passive completion is validated in code (_perfect_completion_asserted):
+# the coordination chain after "has/have been" must contain a completion
+# participle and no coordinated non-completion -ed participle. Chains split on
+# "and" AND commas; leading adverbs on each head are stripped, so "and finally
+# rejected" / ", then rejected" never hide a contradicting tail. Irregular
+# participles (withdrawn, undone) escape — accepted lexical boundary.
+_COMPLETION_PARTICIPLES = (
+    r"(?:completed|fixed|resolved|created|implemented|updated|reconciled|"
+    r"applied|addressed|validated|verified)"
+)
+_PERFECT_CLAUSE_RE = re.compile(r"\b(?:has|have)\s+been\s+")
+_COORD_SPLIT_RE = re.compile(r"\s*,\s*(?:and\s+)?|\s+and\s+")
+_HEAD_ADVERB_RE = re.compile(
+    r"^(?:(?:\w+ly|then|now|later|also|afterwards|subsequently|already|just|"
+    r"still|even|once|twice)\s+)+"
+)
+_ED_TOKEN_RE = re.compile(r"^\w+ed\b")
+_COMPLETION_PARTICIPLE_HEAD_RE = re.compile(r"^" + _COMPLETION_PARTICIPLES + r"\b")
+# Meta nouns immediately before the perfect ("a backup has been created") are
+# sub-actions, not task completion — checked per perfect clause, so a meta
+# perfect never cancels a separate non-meta completion in another sentence.
+_META_NOUN_TAIL_RE = re.compile(
+    r"\b(?:plan|plans|draft|proposal|todo|outline|backup|issue|ticket|note|"
+    r"notes|log|logs|reminder|understanding|diagnostics)\s*$"
+)
+_COMPLETION_LEADING_RE = re.compile(
+    r"^(?:done\.|(?:created|computed|fixed|resolved|implemented|reconciled|"
+    r"completed|finished|updated|wrote|added|generated|built|applied|"
+    r"installed|configured|cancelled|scheduled)\b)"
+)
+_COMPLETION_STATE_RE = re.compile(
+    r"^the\s+.{1,60}\s+now\s+(?:handles|works|passes|supports|produces|returns)\b"
+)
+_HEDGE_RE = re.compile(
+    r"\b(?:attempted\s+to|tried\s+to|may\s+have|might\s+have|should\s+now|"
+    r"likely|probably|i\s+think|i\s+believe|hopefully)\b"
+)
+# Incompleteness constructions downgrade an asserted completion to partial.
+# Bare "remaining/remains" is domain prose ("Fuel Remaining") — never a
+# downgrade; negated remainders ("no work remains", "0 remaining issues") are
+# stripped first (_NEGATED_REMAINDER_RE). Predicate forms ("errors remain",
+# "still needs") fire in any claim sentence; attributive "remaining X" fires
+# only in NON-asserting sentences — "Completed the remaining tasks." is a
+# completed object, not leftover work.
+_INCOMPLETENESS_PREDICATE_RE = re.compile(
+    r"\b(?:unresolved|still\s+needs?|left\s+to|waiting\s+for|not\s+yet|"
+    r"(?:issues?|problems?|work|items?|tasks?|failures?|errors?|"
+    r"discrepanc(?:y|ies)|docs)\s+remain(?:s|ing)?|remains?\s+(?:to\s+be|"
+    r"unresolved|broken|failing|incomplete|open))\b"
+)
+_INCOMPLETENESS_ATTRIBUTIVE_RE = re.compile(
+    r"\bremaining\s+(?:issues?|problems?|work|items?|tasks?|failures?|"
+    r"errors?|discrepanc(?:y|ies)|docs)\b"
+)
+# Contrast conjunctions downgrade only when they appear in a sentence that
+# itself asserts completion ("Fixed the tests but two edge cases…") — a
+# contrast in an unrelated later sentence never demotes a real completion.
+_CONTRAST_RE = re.compile(r"\b(?:but|however)\b")
+_NEGATED_REMAINDER_RE = re.compile(
+    r"\b(?:no|zero|0|without)\s+(?:[\w/-]+\s+){0,2}?remain(?:s|ing)?(?:\s+[\w/-]+)*\b"
+)
+_NEGATED_SUCCESS_RE = re.compile(
+    r"\b(?:not|n't|never|without|no)\s+(?:\w+\s+){0,2}?"
+    r"(?:successfully|completed?|fixed|resolved|succeed(?:ed)?)\b"
+)
+# Future INTENT never asserts completion — passive ("will be completed") and
+# active ("will successfully complete", "plan to fix") forms alike. Scoped
+# per SENTENCE: a future-intent (or interrogative) sentence contributes no
+# claim evidence, but never vetoes completions asserted in other sentences.
+_FUTURE_INTENT_RE = re.compile(
+    r"\b(?:will|going\s+to|plan(?:s|ned|ning)?\s+to|intend(?:s|ed|ing)?\s+to|"
+    r"aim(?:s|ing)?\s+to)\s+(?:\w+\s+){0,3}?"
+    r"(?:successfully|complete[ds]?|completing|finish(?:ed|ing)?|"
+    r"fix(?:ed|ing)?|resolve[ds]?|resolving|succeed|done)\b"
+)
+# Sentences end at punctuation only — newlines never split a clause, so
+# markdown continuations stay with their sentence and perfect coordination
+# chains are never severed mid-"and".
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+# 'could not' is a failure claim only when scoped to completion verbs —
+# "could not agree more" / "could not find X, so I created Y" are not.
+_FAILED_COMPLETION_RE = re.compile(
+    r"\bcould\s+not\s+(?:be\s+)?"
+    r"(?:complete[d]?|finish(?:ed)?|fix(?:ed)?|resolve[d]?|parse[d]?|succeed)\b"
+)
+# Meta/sub-action objects: completing these is not completing the task.
+_META_OBJECT_RE = re.compile(
+    r"^(?:\w+\s+)(?:a\s+|an\s+|my\s+|the\s+)?(?:plan|plans|draft|proposal|"
+    r"todo|outline|next\s+steps|backup|issue|ticket|note|notes|log|logs|"
+    r"reminder|understanding|diagnostics|nothing)\b"
+)
+# Task/outcome anchoring for the leading-verb path: an artifact reference
+# (markdown link, path, or filename with a letter-initial extension and a
+# stem of 2+ chars — dotted abbreviations like e.g./U.S. and version numbers
+# like 3.12/v1.2 are not artifacts), searched in the LEADING sentence only.
+_ARTIFACT_RE = re.compile(r"\[[^\]]+\]\(|/[\w.-]+|\b[\w-]{2,}\.[a-z]\w{1,3}\b")
+_OUTCOME_NOUN_RE = re.compile(
+    r"\b(?:task|tasks|request|requested|result|results|output|solution|"
+    r"fix|fixes|tests?|verifier|discrepanc(?:y|ies))\b"
+)
+# Outcome nouns anchor success only under a STRONG completion verb —
+# "Scheduled the tests" / "Created tests" are sub-actions, not completion.
+_STRONG_COMPLETION_LEADING_RE = re.compile(r"^(?:completed|fixed|resolved|reconciled|finished)\b")
+# Multi-verb accomplishment: the coordinated verb must itself be a
+# completion participle — "Created dinner, failed" never anchors.
+_MULTI_VERB_RE = re.compile(
+    r"^\w+\s+(?:and\s+"
+    + _COMPLETION_PARTICIPLES
+    + r"|[^.]*,\s*(?:and\s+)?"
+    + _COMPLETION_PARTICIPLES
+    + r")\b"
+)
+# Cleaning: code fences, inline code, DOUBLE-quoted spans, and parenthetical
+# asides containing a question ("(does this look right?)") — those asides
+# would otherwise fragment a declarative sentence at the inner "?". Single
+# quotes are never treated as delimiters — ASCII/Unicode apostrophes in
+# contractions (I'm, user's, I’m) must survive intact.
+_QUOTED_SPAN_RE = re.compile(
+    r"```.*?```|`[^`]*`|\"[^\"]*\"|\u201c[^\u201d]*\u201d|\([^()]*\?[^()]*\)",
+    re.DOTALL,
+)
+
+
+def _clean_claim_text(text: str) -> str:
+    """Remove fenced/inline code and double-quoted spans. ALL claim
+    classification (marker lists and register patterns alike) runs on this
+    cleaned text so quoted or task-echoed content can never assert a claim."""
+    return _QUOTED_SPAN_RE.sub(" ", text)
+
+
+def _perfect_completion_asserted(sentence: str) -> bool:
+    """True when a perfect-passive clause in this sentence asserts completion.
+
+    Validates the full coordination chain after "has/have been": at least one
+    completion participle, no coordinated non-completion -ed participle.
+    Chains split on "and" and commas; leading adverbs ("finally", "then") are
+    stripped from each head so they never hide a contradicting tail. A meta
+    noun (plan/backup/issue/…) immediately before the perfect never asserts.
+    A leading non-completion participle followed by a completion one
+    ("identified and resolved") asserts; "reviewed and rejected" does not.
+    """
+    for m in _PERFECT_CLAUSE_RE.finditer(sentence):
+        if _META_NOUN_TAIL_RE.search(sentence[: m.start()]):
+            continue
+        clause = re.split(r"[.;:!?]", sentence[m.end() :], maxsplit=1)[0]
+        heads = [
+            _HEAD_ADVERB_RE.sub("", h.strip()) for h in _COORD_SPLIT_RE.split(clause) if h.strip()
+        ]
+        asserted = False
+        contradicted = False
+        for index, head in enumerate(heads):
+            if _COMPLETION_PARTICIPLE_HEAD_RE.match(head):
+                asserted = True
+            elif index > 0 and _ED_TOKEN_RE.match(head):
+                contradicted = True
+        if asserted and not contradicted:
+            return True
+    return False
+
+
 def classify_terminal_claim(text: str | None) -> ClaimType:
-    blob = (text or "").strip().lower()
-    if not blob:
+    """Classify the CLAIM asserted by a terminal message — never the verifier
+    outcome (text-only; verdict-invariant by construction).
+
+    Narrow completion-claim contract (A2, review-hardened v4.1): claims are
+    evaluated on quote-cleaned, SENTENCE-scoped text (sentences end at
+    punctuation only; newlines never sever a clause). Future-intent and
+    interrogative sentences contribute no claim evidence but never veto
+    completions asserted elsewhere. Success requires a declarative
+    TASK/OUTCOME-completion assertion: a perfect-passive completion clause
+    (coordination chain validated in code; meta nouns before the perfect
+    never assert), an anchored leading completion verb (anchors — artifact,
+    strong-verb outcome noun, multi-completion-verb clause — must live in the
+    leading sentence; meta objects never qualify), or a present-state
+    assertion. Negated forms ("did not successfully…") are failure; hedges
+    yield none; incompleteness constructions in any claim sentence (negated
+    remainders excluded) and contrasts within an asserting sentence yield
+    partial. Discovery-17 texts specified the failure classes only; tokens
+    are general-register.
+    """
+    raw = (text or "").strip().lower()
+    if not raw:
+        return "none"
+    blob = _clean_claim_text(raw)
+    if not blob.strip():
         return "none"
     if any(marker in blob for marker in _REFUSAL_MARKERS):
         return "refusal"
+    if _NEGATED_SUCCESS_RE.search(blob):
+        return "failure"
+    if _FAILED_COMPLETION_RE.search(blob):
+        return "failure"
     if any(marker in blob for marker in _FAILURE_MARKERS):
         return "failure"
-    if any(marker in blob for marker in _SUCCESS_MARKERS):
-        return "success"
     if any(marker in blob for marker in _PARTIAL_MARKERS):
         return "partial"
-    return "none"
+    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(blob) if s.strip()]
+    claim_sentences = [
+        s for s in sentences if not s.endswith("?") and not _FUTURE_INTENT_RE.search(s)
+    ]
+    if not claim_sentences:
+        return "none"
+    claim_text = " ".join(claim_sentences)
+    leading_sentence = claim_sentences[0]
+    leading_anchored = bool(
+        _COMPLETION_LEADING_RE.match(leading_sentence)
+        and not _META_OBJECT_RE.match(leading_sentence)
+        and (
+            leading_sentence.startswith("done.")
+            or _ARTIFACT_RE.search(leading_sentence)
+            or (
+                _STRONG_COMPLETION_LEADING_RE.match(leading_sentence)
+                and _OUTCOME_NOUN_RE.search(leading_sentence)
+            )
+            or _MULTI_VERB_RE.match(leading_sentence)
+        )
+    )
+    asserting_sentences = [
+        sentence
+        for index, sentence in enumerate(claim_sentences)
+        if _perfect_completion_asserted(sentence)
+        or _COMPLETION_STATE_RE.match(sentence)
+        or any(marker in sentence for marker in _SUCCESS_MARKERS)
+        or (index == 0 and leading_anchored)
+    ]
+    if not asserting_sentences:
+        return "none"
+    if _HEDGE_RE.search(claim_text):
+        return "none"
+    asserting = set(asserting_sentences)
+    for sentence in claim_sentences:
+        scanned = _NEGATED_REMAINDER_RE.sub(" ", sentence)
+        if _INCOMPLETENESS_PREDICATE_RE.search(scanned):
+            return "partial"
+        if sentence not in asserting and _INCOMPLETENESS_ATTRIBUTIVE_RE.search(scanned):
+            return "partial"
+    if any(_CONTRAST_RE.search(sentence) for sentence in asserting_sentences):
+        return "partial"
+    return "success"
 
 
 def extract_hydrated_text(event: dict[str, Any]) -> str:

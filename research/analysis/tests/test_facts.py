@@ -5,7 +5,7 @@ from pathlib import Path
 
 import duckdb
 
-from evallab.facts import extract_job_facts, extract_trial_fact, rebuild_from_raw
+from evallab.evidence.facts import extract_job_facts, extract_trial_fact, rebuild_from_raw
 from evallab.results import load_job, load_jobs
 
 from .test_atif import _make_job

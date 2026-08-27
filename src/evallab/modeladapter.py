@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from evallab.facts import AnalyzerCallResult
+from evallab.evidence.facts import AnalyzerCallResult
 from evallab.runner import subscription_environment
 
 DISALLOWED_UNPINNED_SELECTORS: frozenset[str] = frozenset({

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import duckdb
 
-from evallab.atif import export_trajectories, project_trial
+from evallab.evidence.atif import export_trajectories, project_trial
 from evallab.results import load_job
 
 

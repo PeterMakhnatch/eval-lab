@@ -18,7 +18,7 @@ from urllib.request import Request, urlopen
 
 import pyarrow.parquet as pq
 
-from evallab.atif import export_trajectories
+from evallab.evidence.atif import export_trajectories
 from evallab.results import JobRecord, TrialRecord
 from evallab.runner import subscription_environment
 from evallab.schemas import ProvenanceMetadata

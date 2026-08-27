@@ -243,7 +243,7 @@ def test_analyze_trial_zero_model_calls(tmp_path: Path, monkeypatch: pytest.Monk
     def boom(*_args, **_kwargs):
         raise AssertionError("model called")
 
-    monkeypatch.setattr("evallab.facts.run_trial_analysis", boom)
+    monkeypatch.setattr("evallab.evidence.facts.run_trial_analysis", boom)
     monkeypatch.setattr("evallab.analysis_worker.default_worker", boom)
 
     trial_dir = _trial_tree(tmp_path, trial_name="zero-model")

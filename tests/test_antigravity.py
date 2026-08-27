@@ -11,8 +11,8 @@ from evallab.antigravity import (
     parse_stream_json_to_atif,
     sanitize_stream_json,
 )
-from evallab.atif import project_trial
-from evallab.facts import extract_trial_fact
+from evallab.evidence.atif import project_trial
+from evallab.evidence.facts import extract_trial_fact
 from evallab.results import load_job
 from evallab.schemas import CohortComparisonSpec
 

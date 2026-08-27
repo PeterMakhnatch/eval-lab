@@ -698,7 +698,7 @@ def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_roo
 
 def test_canonical_verifier_digest_matches_facts_on_canary(canary_trial_dir: Path, repo_root: Path) -> None:
     """Verify local rebuild verifier_digest matches facts._verifier_digest on canary trials."""
-    from evallab.facts import _task_digest, _verifier_digest
+    from evallab.evidence.facts import _task_digest, _verifier_digest
     from evallab.results import JobRecord, TrialRecord
 
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)

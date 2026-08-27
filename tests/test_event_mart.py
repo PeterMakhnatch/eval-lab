@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from evallab.facts import rebuild_from_raw
+from evallab.evidence.facts import rebuild_from_raw
 from evallab.parquet_compaction import deduplicate_and_sort
 from evallab.results import load_job
 

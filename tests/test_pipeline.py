@@ -5,8 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from evallab import database
-from evallab import facts as facts_module
-from evallab.atif import (
+from evallab.automation import NightlyCycle
+from evallab.cli import _doctor
+from evallab.digest import DigestRenderer
+from evallab.evidence import facts as facts_module
+from evallab.evidence.atif import (
     JOB_PROJECTION_FILE,
     PROJECTED_TABLES,
     IngestProjectionResult,
@@ -15,9 +18,6 @@ from evallab.atif import (
     check_projection_invariant,
     ingest_and_project,
 )
-from evallab.automation import NightlyCycle
-from evallab.cli import _doctor
-from evallab.digest import DigestRenderer
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.schemas import (
     AutoRunRule,

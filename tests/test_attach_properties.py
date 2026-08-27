@@ -13,7 +13,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from evallab.attach import TABLES, attach
-from evallab.facts import rebuild_from_raw
+from evallab.evidence.facts import rebuild_from_raw
 from evallab.results import load_jobs
 
 

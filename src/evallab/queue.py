@@ -20,13 +20,13 @@ from typing import Any
 from pydantic import ValidationError
 
 from evallab import database
-from evallab.atif import IngestProjectionResult, ingest_and_project
 from evallab.credentials import (
     DEFAULT_AGENT_MODELS,
     available_credentials,
     missing_credential_for,
 )
 from evallab.eventlog import event_log_lock, read_event_log_lines
+from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
 from evallab.execution_contracts import (
     DispatchCapacity,
     PaidRunAuthorization,

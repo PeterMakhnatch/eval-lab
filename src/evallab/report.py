@@ -12,7 +12,7 @@ import duckdb
 from pydantic import ValidationError
 
 from evallab.cohort import summarize_job_evidence
-from evallab.facts import digest_json
+from evallab.evidence.facts import digest_json
 from evallab.results import JobRecord, TrialRecord, load_job, load_jobs
 from evallab.schemas import ExperimentSpec
 

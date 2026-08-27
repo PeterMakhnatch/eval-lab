@@ -9,8 +9,8 @@ from pathlib import Path
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.atif import project_jobs
 from evallab.cli import run_cli
+from evallab.evidence.atif import project_jobs
 from evallab.results import load_job
 from evallab.trajectory_semantics import (
     BASH_RESOLVER_SPEC,

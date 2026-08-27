@@ -17,7 +17,7 @@ from evallab.cards import (
     validate_card_file,
 )
 from evallab.cohort import bootstrap_mean_interval
-from evallab.facts import digest_json
+from evallab.evidence.facts import digest_json
 
 
 def _write_json(path: Path, value: object) -> None:

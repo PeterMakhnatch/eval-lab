@@ -25,9 +25,9 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evallab.atif import PARQUET_SCHEMAS
-from evallab.event_mart import EVENT_MART_SCHEMAS
-from evallab.facts import FACT_SCHEMAS
+from evallab.evidence.atif import PARQUET_SCHEMAS
+from evallab.evidence.event_mart import EVENT_MART_SCHEMAS
+from evallab.evidence.facts import FACT_SCHEMAS
 from evallab.paths import (
     ParquetPartitionDiscovery,
     derived_root_from_environment,

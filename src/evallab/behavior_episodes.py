@@ -26,7 +26,7 @@ from pydantic import (
     model_validator,
 )
 
-from evallab.event_mart import EventMartProjection
+from evallab.evidence.event_mart import EventMartProjection
 from evallab.paths import derived_root_from_environment
 
 EpisodeStatus = Literal["candidate", "reviewed", "confirmed", "rejected"]

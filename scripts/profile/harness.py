@@ -20,10 +20,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from evallab.atif import export_trajectories, ingest_and_project  # noqa: E402
 from evallab.database import ingest, ingest_job, initialize  # noqa: E402
 from evallab.digest import DigestRenderer, DigestTrial  # noqa: E402
-from evallab.facts import export_facts  # noqa: E402
+from evallab.evidence.atif import export_trajectories, ingest_and_project  # noqa: E402
+from evallab.evidence.facts import export_facts  # noqa: E402
 from evallab.queue import DirectoryQueue, Executor, load_policy  # noqa: E402
 from evallab.results import JobRecord, discover_job_dirs, load_jobs  # noqa: E402
 from evallab.schemas import ExperimentSpec  # noqa: E402
@@ -455,12 +455,12 @@ def run_profile(
     add(
         "projection",
         lambda: _time_projection(jobs, scratch / "parquet-atif", delay),
-        "evallab.atif.export_trajectories",
+        "evallab.evidence.atif.export_trajectories",
     )
     add(
         "facts",
         lambda: _time_facts(jobs, scratch / "parquet-facts", delay),
-        "evallab.facts.export_facts",
+        "evallab.evidence.facts.export_facts",
     )
     add(
         "digest",

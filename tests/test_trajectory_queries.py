@@ -7,8 +7,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.atif import PARQUET_SCHEMAS
-from evallab.facts import TRIAL_FACT_SCHEMA
+from evallab.evidence.atif import PARQUET_SCHEMAS
+from evallab.evidence.facts import TRIAL_FACT_SCHEMA
 
 QUERY_FILE = Path(__file__).parents[1] / "research/analysis/queries.sql"
 BEGIN = "-- BEGIN TRAJECTORY_INTELLIGENCE_DUCKDB"

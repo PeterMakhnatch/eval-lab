@@ -14,8 +14,8 @@ from typing import Any, Literal
 
 from evallab import credentials as credentials_module
 from evallab import database
-from evallab.atif import IngestProjectionResult
 from evallab.digest import DigestRenderer, commit_digest
+from evallab.evidence.atif import IngestProjectionResult
 from evallab.lessons import generate_lessons_file
 from evallab.parquet_compaction import compact
 from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment

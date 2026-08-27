@@ -33,7 +33,7 @@ from evallab.attach import attach
 from evallab.cohort import (
     summarize_job_evidence,
 )
-from evallab.facts import digest_json
+from evallab.evidence.facts import digest_json
 from evallab.results import (
     JobRecord,
     discover_job_dirs,

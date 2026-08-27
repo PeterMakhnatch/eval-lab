@@ -849,7 +849,7 @@ def ingest_and_project(
     never rolls back the searchable job/trial catalog.
     """
     from evallab import database
-    from evallab.facts import ingest_catalog
+    from evallab.evidence.facts import ingest_catalog
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()
@@ -883,7 +883,7 @@ def project_jobs(
     then delegates here. Keeping one projection implementation lets CI exercise
     real Parquet writes while a local smoke also proves PostgreSQL agreement.
     """
-    from evallab.facts import rebuild_from_raw
+    from evallab.evidence.facts import rebuild_from_raw
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
     derived_root = output_root.resolve()

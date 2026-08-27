@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.facts import (
+from evallab.evidence.facts import (
     AnalyzerCallResult,
     analysis_plan,
     failure_taxonomy_agreement,

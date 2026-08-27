@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from evallab.facts import experiment_id
+from evallab.evidence.facts import experiment_id
 from evallab.paths import derived_root_from_environment
 from evallab.queue import QUEUE_STATES
 from evallab.results import discover_job_dirs, load_job

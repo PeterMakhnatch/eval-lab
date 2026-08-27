@@ -6,15 +6,15 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 
-from evallab.atif import (
+from evallab.automation import HeadlessDoctor
+from evallab.digest import DigestRenderer, DigestTrial
+from evallab.evidence.atif import (
     IngestProjectionResult,
     ProjectionInvariant,
     check_projection_invariant,
     project_jobs,
 )
-from evallab.automation import HeadlessDoctor
-from evallab.digest import DigestRenderer, DigestTrial
-from evallab.facts import AnalyzerCallResult, run_trial_analysis
+from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
 from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, Executor, load_policy, new_ulid
 from evallab.results import JobRecord, load_job

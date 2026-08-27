@@ -18,7 +18,6 @@ from uuid import UUID
 import evallab.trajectory_runtime as trajectory_runtime
 from evallab import __version__, database
 from evallab import queue as queue_module
-from evallab.atif import check_projection_invariant, ingest_and_project
 from evallab.attach import attach, attach_and_query, build_sql_preamble, print_zones
 from evallab.automation import (
     GuardedTick,
@@ -48,7 +47,8 @@ from evallab.cohort import (
     write_comparison,
 )
 from evallab.digest import DigestRenderer
-from evallab.facts import (
+from evallab.evidence.atif import check_projection_invariant, ingest_and_project
+from evallab.evidence.facts import (
     AnalyzerCallResult,
     analysis_plan,
     ingest_analysis_sidecar,
@@ -845,7 +845,7 @@ def _ingest_command(
 def _trajectories_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.atif import project_trial
+    from evallab.evidence.atif import project_trial
 
     jobs = load_jobs([_resolve(root, path) for path in args.paths])
     if not jobs:
@@ -1196,7 +1196,7 @@ def _analyze_worker_run_one_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     from evallab.analysis_worker import default_worker
-    from evallab.facts import CodexExecAnalyzer
+    from evallab.evidence.facts import CodexExecAnalyzer
 
     adapter_factory = None
     if args.adapter == "codex-exec":

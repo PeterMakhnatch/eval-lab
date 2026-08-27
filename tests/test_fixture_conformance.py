@@ -2,8 +2,8 @@
 
 The defect this file exists to prevent, in full: the explorer read trajectory
 observations from ``step["observations"]`` — a key that appears in no Harbor
-output and in no validator — while ``evallab.atif`` validates
-``step["observation"]["results"]`` (``src/evallab/atif.py:296-306``). Every
+output and in no validator — while ``evallab.evidence.atif`` validates
+``step["observation"]["results"]`` (``src/evallab/evidence/atif.py:296-306``). Every
 committed ATIF fixture used the invented key, so the explorer's observation
 rendering was only ever exercised against documents that could not exist. Zero
 of the 58 observation results in ``research/evidence/runs/`` were rendered, and
@@ -52,7 +52,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.atif import _document_validation
+from evallab.evidence.atif import _document_validation
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -165,7 +165,7 @@ def conformance_failure(path: Path) -> str | None:
         return (
             f"{_rel(path)}: claims to be {payload.get('schema_version')} but the ingest "
             f"reports {status} — {error}. Bring the fixture to the shape "
-            f"src/evallab/atif.py validates, or, if it exists to prove a refusal, declare "
+            f"src/evallab/evidence/atif.py validates, or, if it exists to prove a refusal, declare "
             f'that with "{EXPECTATION_KEY}": '
             f'{{"validation_status": "{status}", "error_contains": ..., "why": ...}}.'
         )

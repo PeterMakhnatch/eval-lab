@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.atif import _validate_fallback
+from evallab.evidence.atif import _validate_fallback
 from evallab.upstream_adapter import (
     AdapterRefusal,
     import_upstream_file,

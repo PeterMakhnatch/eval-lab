@@ -22,7 +22,7 @@ from typing import Any
 import duckdb
 import pytest
 
-from evallab.atif import project_trial
+from evallab.evidence.atif import project_trial
 from evallab.results import load_job
 from evallab.tracing import (
     TraceError,

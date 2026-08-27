@@ -46,7 +46,7 @@ import pyarrow.parquet as pq
 import yaml
 from pydantic import Field
 
-from evallab.facts import AnalyzerCallable, AnalyzerCallResult
+from evallab.evidence.facts import AnalyzerCallable, AnalyzerCallResult
 from evallab.modeladapter import ModelAdapter, ModelAdapterError
 from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, PolicyGate, load_policy, new_ulid

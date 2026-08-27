@@ -16,7 +16,7 @@ from evallab.cohort import (
     power_requirements,
     render_markdown,
 )
-from evallab.facts import rebuild_from_raw
+from evallab.evidence.facts import rebuild_from_raw
 from evallab.report import draft_eval_card, family_report, render_family_report
 from evallab.results import load_job
 from evallab.schemas import CohortComparisonSpec

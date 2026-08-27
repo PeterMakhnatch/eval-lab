@@ -82,7 +82,7 @@ diagnosis focus; schema unknown.
 
 ## 3. Token/cost fields: what to expect
 
-- ATIF (v1.0–1.7, per `src/evallab/atif.py` SUPPORTED_SCHEMA_VERSIONS):
+- ATIF (v1.0–1.7, per `src/evallab/evidence/atif.py` SUPPORTED_SCHEMA_VERSIONS):
   step-level metrics including token counts where the adapter recorded them;
   the lab's `StepFact`/`ToolCallFact` projection already extracts optional
   int/float metrics defensively (`_optional_int`/`_optional_float`).

@@ -19,7 +19,7 @@ from evallab.analyst import (
     ModelProviderRefusedError,
     run_analysis,
 )
-from evallab.facts import AnalyzerCallResult
+from evallab.evidence.facts import AnalyzerCallResult
 from evallab.modeladapter import (
     ModelAdapter,
     ModelAdapterExecutionError,

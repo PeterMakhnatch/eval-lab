@@ -12,7 +12,7 @@ import duckdb
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.facts import extract_job_facts, rebuild_from_raw
+from evallab.evidence.facts import extract_job_facts, rebuild_from_raw
 from evallab.harbor_state_journal import StateJournalPlugin
 from evallab.results import load_job
 from evallab.state_events import StateEventValidationError, load_state_event_facts

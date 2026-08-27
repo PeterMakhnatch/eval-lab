@@ -37,7 +37,7 @@ inputs:
   - path: docs/context-packs.md
     digest: sha256:da5e79f7620f04f7eb3c88619330cb5a6b452095c985ff4608ab375931ba3879
   - path: docs/contracts.md
-    digest: sha256:124e379a9c083e8c670c3d1c26028af6ecac3115ca94e2a27cc89ff95f50729e
+    digest: sha256:dea76c2aaf874341239d2c3518a5dac7eeb5fbafbf26c72a109a1f711e950fbe
   - path: docs/craft.md
     digest: sha256:fe6db1dd40e6490e188c8c0feb1f799dcd6195615787638b1baddd15801faf00
   - path: docs/dashboard.md
@@ -65,7 +65,7 @@ inputs:
   - path: docs/mentor-review-2026-08.md
     digest: sha256:2da1ad796d23651e71db31b79fd6a49725e2b92d41548fbcf03039bee392d4c0
   - path: docs/observability.md
-    digest: sha256:ba9ae336b503de1fe2449ed4a77926a614f6bb6dda01dd38677de422948bccca
+    digest: sha256:3d353a40291554b56048ad0348e2d817339f4ae55ff8a67c5d98c67574db21e5
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
@@ -85,7 +85,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:91aecd6effe90651d206f5283a2b8b5fa117979f3d01f641fc86f66421eb6359
+    digest: sha256:2823b7aa6a8522e53cf8e7bcd8b777ecfc6f0f26f91052d91ec2254a3a0da917
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -93,7 +93,7 @@ inputs:
   - path: docs/research/evaluation-factory-2026-08.md
     digest: sha256:bcd46b89460210d50e14b1337d79fbc64201a5bb4dbacc6a05fecb452f70d8e2
   - path: docs/research/external-datasets.md
-    digest: sha256:f36f501ccc8d0fc121d12e8904b0f85ef83f51c64253aa282344b42f17fc602b
+    digest: sha256:58d428f613cf5cab9258c4e5ce2f057b79d16d803251b62c556b3d18f24a88a3
   - path: docs/research/literature-survey.md
     digest: sha256:defe24e8f6d6316425f3fd67aa677c61cf3b41f1c9466ccbf45fe8583f76f9cb
   - path: docs/research/synthetic-tasks.md

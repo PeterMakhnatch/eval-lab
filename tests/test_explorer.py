@@ -10,7 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from evallab.atif import project_trial
+from evallab.evidence.atif import project_trial
+from evallab.evidence.facts import write_analysis_review
 from evallab.explorer import (
     TrajectoryView,
     _resolve_citation,
@@ -24,7 +25,6 @@ from evallab.explorer import (
     next_actions_for_trial,
     redact_mapping,
 )
-from evallab.facts import write_analysis_review
 from evallab.results import load_job
 from evallab.status import build_status_snapshot
 
@@ -85,7 +85,7 @@ def test_tool_loop_is_detected_as_repeated_signatures():
 def test_the_fixture_records_exit_codes_where_the_validated_shape_puts_them():
     """The exit codes are in the document, and `atif` reads all four of them.
 
-    `atif._command_exit_code` (`src/evallab/atif.py:446-454`) takes an exit code
+    `atif._command_exit_code` (`src/evallab/evidence/atif.py:446-454`) takes an exit code
     from `observation.results[].extra.{exit_code,returncode,return_code}` and
     projects it as the derived column `command_exit_code`. Asserting it here
     fixes the fact that the data *is* in the fixture, so the explorer's

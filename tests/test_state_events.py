@@ -455,6 +455,25 @@ def test_invalid_stream_emits_sentinel_without_erasing_sibling_facts(
 
 # --- Canonical State-Diff Validator & Loader Tests ----------------------------
 
+def test_validate_state_diff_real_producer_build_diff_fixture() -> None:
+    """Real producer build_diff output from fixture validates cleanly."""
+    from evallab.state_events import load_state_diff, validate_state_diff_payload
+
+    fixture_diff = FIXTURE / "state-diff.json"
+    doc = load_state_diff(fixture_diff)
+    assert doc.schema_version == 1
+    assert doc.status == "available"
+    assert doc.change_count == 1
+    assert len(doc.changes) == 1
+    assert doc.changes[0].path == "output/answer.txt"
+    assert doc.changes[0].change_type == "modified"
+    assert doc.changes[0].before is not None
+    assert doc.changes[0].after is not None
+
+    raw_payload = json.loads(fixture_diff.read_text(encoding="utf-8"))
+    doc2 = validate_state_diff_payload(raw_payload)
+    assert doc2 == doc
+
 
 def test_validate_state_diff_payload_valid_v1_document() -> None:
     """Valid schema v1 state-diff document parses and validates correctly."""
@@ -615,15 +634,19 @@ def test_validate_state_diff_path_safety_and_normalization(bad_path: str) -> Non
         validate_state_diff_payload(payload)
 
 
-def test_validate_state_diff_allowed_change_types() -> None:
-    """Unrecognized change_type values are strictly rejected."""
+@pytest.mark.parametrize(
+    "bad_change_type",
+    ["created", "unmodified", "renamed", "invented_mutation", "custom_change"],
+)
+def test_validate_state_diff_allowed_change_types(bad_change_type: str) -> None:
+    """Unobserved or non-producer change_type values are strictly rejected."""
     from evallab.state_events import StateEventValidationError, validate_state_diff_payload
 
     valid_sha = "sha256:" + "e" * 64
     payload = [
         {
             "path": "app.py",
-            "change_type": "invented_mutation",
+            "change_type": bad_change_type,
             "before": None,
             "after": {
                 "path": "app.py",
@@ -639,7 +662,6 @@ def test_validate_state_diff_allowed_change_types() -> None:
 
     with pytest.raises(StateEventValidationError, match="not an allowed change type"):
         validate_state_diff_payload(payload)
-
 
 def test_validate_state_diff_transition_consistency() -> None:
     """Before/after presence must be consistent with change_type."""

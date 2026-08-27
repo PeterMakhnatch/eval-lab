@@ -22,9 +22,7 @@ from evallab.schemas import StateEventMetadata, StateJournalEvent
 PRODUCER = "evallab-state-journal"
 FACT_SCHEMA_VERSION = "state-event-fact-v1"
 TEMPORAL_SEMANTICS = "sequence_precedence_non_causal"
-ALLOWED_CHANGE_TYPES = frozenset(
-    {"added", "created", "modified", "deleted", "unmodified", "renamed"}
-)
+ALLOWED_CHANGE_TYPES = frozenset({"added", "modified", "deleted"})
 KNOWN_OPERATIONS = frozenset(
     {
         "modify",
@@ -342,24 +340,19 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
         )
 
         # Transition consistency checks
-        if change_type in ("added", "created"):
+        if change_type == "added":
             if b_meta is not None or a_meta is None:
                 raise StateEventValidationError(
-                    f"{ctx}: change_type '{change_type}' requires before=None and after!=None"
+                    f"{ctx}: change_type 'added' requires before=None and after!=None"
                 )
         elif change_type == "deleted":
             if b_meta is None or a_meta is not None:
                 raise StateEventValidationError(
                     f"{ctx}: change_type 'deleted' requires before!=None and after=None"
                 )
-        elif change_type in ("modified", "unmodified"):
-            if b_meta is None or a_meta is None:
-                raise StateEventValidationError(
-                    f"{ctx}: change_type '{change_type}' requires both before and after metadata"
-                )
-        elif change_type == "renamed" and b_meta is None and a_meta is None:
+        elif change_type == "modified" and (b_meta is None or a_meta is None):
             raise StateEventValidationError(
-                f"{ctx}: change_type 'renamed' requires at least before or after metadata"
+                f"{ctx}: change_type 'modified' requires both before and after metadata"
             )
         raw_ec = change.get("event_count", 0)
         if type(raw_ec) is not int or raw_ec < 0:

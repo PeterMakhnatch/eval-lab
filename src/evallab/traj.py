@@ -100,7 +100,7 @@ class LoopSuspicion:
 
 @dataclass(frozen=True)
 class StepOutline:
-    """Condensed outline of one trajectory step."""
+    """Condensed outline of one trajectory step with CAS reasoning citations."""
 
     step_id: int
     source: str
@@ -118,7 +118,14 @@ class StepOutline:
     thought_snippet: str | None
     is_redacted: bool = False
     redaction_digest: str | None = None
-
+    reasoning_content: str | None = None
+    reasoning_content_ref: str | None = None
+    reasoning_tokens: int | None = None
+    prompt_token_ids_ref: str | None = None
+    completion_token_ids_ref: str | None = None
+    logprobs_ref: str | None = None
+    sample_index: int | None = None
+    sampling_params: dict[str, Any] | None = None
 
 @dataclass(frozen=True)
 class PhaseOutline:
@@ -736,6 +743,7 @@ def outline_trajectory(
     target: str | Path,
     repo_root: Path | None = None,
     explicit_runs_root: Path | None = None,
+    store_root: Path | None = None,
 ) -> TrajectoryOutline:
     """Build a deterministic typed trajectory outline from trial evidence."""
     root = (repo_root or Path.cwd()).resolve()
@@ -1048,38 +1056,40 @@ def outline_trajectory(
             step_to_first_edit = step_id
             first_edit_timestamp = timestamp
 
-        # Determine observation errors / exit codes
+        # Determine observation errors / exit codes across observation / observation_results
         exit_code: int | None = None
         is_error = False
         error_msg: str | None = None
         obs = raw_step.get("observation")
+        obs_results_value = raw_step.get("observation_results")
+        results: list[dict[str, Any]] = []
         if isinstance(obs, dict):
-            results_value = obs.get("results")
-            results = results_value if isinstance(results_value, list) else []
-            for res in results:
-                if not isinstance(res, dict):
-                    continue
-                extra_value = res.get("extra")
-                extra = extra_value if isinstance(extra_value, dict) else {}
-                if "exit_code" in extra and isinstance(extra["exit_code"], int):
-                    exit_code = extra["exit_code"]
-                content = str(res.get("content") or "")
-                result_type = str(res.get("type") or "").lower()
-                result_status = str(res.get("status") or "").lower()
-                if exit_code is not None and exit_code != 0:
-                    is_error = True
-                    error_msg = error_msg or f"command exited with code {exit_code}"
-                elif result_type in {"error", "tool_error"} or result_status in {
-                    "error",
-                    "failed",
-                }:
-                    is_error = True
-                    error_msg = (
-                        error_msg
-                        or content[:120].strip()
-                        or "tool result reported an error"
-                    )
-
+            res_list = obs.get("results")
+            if isinstance(res_list, list):
+                results.extend(r for r in res_list if isinstance(r, dict))
+        if isinstance(obs_results_value, list):
+            results.extend(r for r in obs_results_value if isinstance(r, dict))
+        for res in results:
+            extra_value = res.get("extra")
+            extra = extra_value if isinstance(extra_value, dict) else {}
+            if "exit_code" in extra and isinstance(extra["exit_code"], int):
+                exit_code = extra["exit_code"]
+            content = str(res.get("content") or "")
+            result_type = str(res.get("type") or "").lower()
+            result_status = str(res.get("status") or "").lower()
+            if exit_code is not None and exit_code != 0:
+                is_error = True
+                error_msg = error_msg or f"command exited with code {exit_code}"
+            elif result_type in {"error", "tool_error"} or result_status in {
+                "error",
+                "failed",
+            }:
+                is_error = True
+                error_msg = (
+                    error_msg
+                    or content[:120].strip()
+                    or "tool result reported an error"
+                )
         if is_error:
             total_errors += 1
             last_was_error = True
@@ -1103,8 +1113,44 @@ def outline_trajectory(
         if isinstance(c_usd, int | float):
             total_cost_usd += float(c_usd)
 
+        # Reasoning content & CAS storage
+        raw_reasoning = raw_step.get("reasoning_content") or raw_step.get("thought")
+        reasoning_content = str(raw_reasoning) if raw_reasoning is not None else None
+        reasoning_content_ref = None
+        if reasoning_content:
+            if store_root is not None:
+                from evallab.evidence_store import store_blob
+                reasoning_content_ref = store_blob(store_root, reasoning_content)
+            else:
+                d_hex = hashlib.sha256(reasoning_content.encode("utf-8")).hexdigest()
+                reasoning_content_ref = f"cas://sha256/{d_hex}"
+
+        # Reasoning tokens
+        from evallab.trajectory_ir import _extract_reasoning_tokens, _extract_sampling_params
+        reasoning_tokens = _extract_reasoning_tokens(raw_step, metrics)
+
+        # Sampling params & sample index
+        sampling_params_obj = _extract_sampling_params(raw_step, agent_cfg)
+        sampling_params_dict = asdict(sampling_params_obj) if sampling_params_obj else None
+        sample_index = raw_step.get("sample_index") if isinstance(raw_step.get("sample_index"), int) else None
+
+        # CAS refs for token arrays if present
+        p_ids_ref = None
+        c_ids_ref = None
+        logprobs_ref = None
+        if store_root is not None:
+            from evallab.evidence_store import store_blob
+            if isinstance(metrics.get("prompt_token_ids"), list):
+                p_ids_ref = store_blob(store_root, json.dumps(metrics["prompt_token_ids"]).encode("utf-8"))
+            if isinstance(metrics.get("completion_token_ids"), list):
+                c_ids_ref = store_blob(store_root, json.dumps(metrics["completion_token_ids"]).encode("utf-8"))
+            if isinstance(metrics.get("logprobs"), list):
+                logprobs_ref = store_blob(store_root, json.dumps(metrics["logprobs"]).encode("utf-8"))
+
         thought_snippet = None
-        if msg and not is_redacted:
+        if reasoning_content:
+            thought_snippet = reasoning_content[:120].replace("\n", " ").strip()
+        elif msg and not is_redacted:
             thought_snippet = msg[:120].replace("\n", " ").strip()
 
         steps_out.append(
@@ -1125,6 +1171,14 @@ def outline_trajectory(
                 thought_snippet=thought_snippet,
                 is_redacted=is_redacted,
                 redaction_digest=redaction_digest,
+                reasoning_content=reasoning_content,
+                reasoning_content_ref=reasoning_content_ref,
+                reasoning_tokens=reasoning_tokens,
+                prompt_token_ids_ref=p_ids_ref,
+                completion_token_ids_ref=c_ids_ref,
+                logprobs_ref=logprobs_ref,
+                sample_index=sample_index,
+                sampling_params=sampling_params_dict,
             )
         )
 

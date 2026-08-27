@@ -945,17 +945,18 @@ def build_trajectory_ir(
             or None
         )
 
-        verifier_digest = (
+        verifier_spec = lock_dict.get("verifier") or (result_data.get("config") or {}).get("verifier")
+        verifier_digest: str | None = (
             inventory_record.get("verifier_digest")
             or str(result_data.get("verifier_digest") or "")
             or None
         )
-        if not verifier_digest:
+        if not verifier_digest and isinstance(verifier_spec, dict) and verifier_spec:
             from evallab.facts import digest_json
             verifier_digest = digest_json(
                 {
                     "task_digest": task_digest,
-                    "verifier": lock_dict.get("verifier") or {},
+                    "verifier": verifier_spec,
                 }
             )
 
@@ -1309,24 +1310,44 @@ def build_trajectory_ir(
 
         state_coverage_extra: dict[str, Any] = {}
         journal_dir = trial_dir / "state-journal"
-        if journal_dir.is_dir():
-            state_events_path = journal_dir / "state-events.jsonl"
-            if state_events_path.is_file():
-                try:
-                    from evallab.results import TrialRecord
-                    from evallab.state_events import (
-                        load_state_event_facts,
-                    )
+        has_journal_attempt = (
+            journal_dir.is_dir()
+            or (trial_dir / "state-events.jsonl").is_file()
+            or (trial_dir / "state-diff.json").is_file()
+        )
+        if has_journal_attempt:
+            actual_journal_dir = journal_dir if journal_dir.is_dir() else trial_dir
+            state_events_path = actual_journal_dir / "state-events.jsonl"
+            status_path = actual_journal_dir / "status.json"
+            try:
+                from evallab.results import TrialRecord
+                from evallab.state_events import load_state_event_facts
+
+                trial_rec = TrialRecord(
+                    path=trial_dir,
+                    result={"id": outline.trial_id, "trial_name": outline.trial_name},
+                    config=config_dict,
+                    lock=lock_dict,
+                    rewards={},
+                    artifacts=(),
+                )
+
+                if status_path.is_file():
+                    status_payload = json.loads(status_path.read_text(encoding="utf-8", errors="replace"))
+                    prod_status = status_payload.get("status") if isinstance(status_payload, dict) else "unknown"
+                    state_coverage_extra["state_journal_status"] = prod_status
+                    if prod_status in ("unavailable", "disabled"):
+                        state_coverage_extra["state_journal_hold_reason"] = f"state_journal_{prod_status}"
+                    if isinstance(status_payload, dict) and status_payload.get("dropped_event_count", 0) > 0:
+                        state_coverage_extra["state_journal_overflow"] = True
+                        state_coverage_extra["state_journal_hold_reason"] = "state_journal_dropped_events"
+
+                if not state_events_path.is_file():
+                    if state_coverage_extra.get("state_journal_status") not in ("unavailable", "disabled"):
+                        state_coverage_extra["state_journal_hold_reason"] = "state_journal_missing_stream"
+                else:
                     state_rel_path = state_events_path.relative_to(trial_dir).as_posix()
                     state_sha = sha256_file(state_events_path)
-                    trial_rec = TrialRecord(
-                        path=trial_dir,
-                        result={"id": outline.trial_id, "trial_name": outline.trial_name},
-                        config=config_dict,
-                        lock=lock_dict,
-                        rewards={},
-                        artifacts=(),
-                    )
                     state_facts = load_state_event_facts(
                         trial_rec,
                         job_id=outline.job_id or "job",
@@ -1335,9 +1356,13 @@ def build_trajectory_ir(
                     for fact in state_facts:
                         if fact.evidence_status != "valid":
                             state_coverage_extra["state_journal_status"] = fact.evidence_status
+                            state_coverage_extra["state_journal_hold_reason"] = f"state_journal_{fact.evidence_status}"
                             continue
                         if "queue_overflow" in fact.operations:
                             state_coverage_extra["state_journal_overflow"] = True
+                            state_coverage_extra["state_journal_hold_reason"] = "state_journal_queue_overflow"
+                            continue
+
                         se_event_id = hashlib.sha256(
                             f"{outline.trial_id}:{event_ord_counter}:state_change:{fact.sequence}:{fact.path}".encode()
                         ).hexdigest()
@@ -1376,9 +1401,12 @@ def build_trajectory_ir(
                                 journal_sequence=fact.sequence,
                             )
                         )
-                except Exception as exc:
-                    state_coverage_extra["state_journal_status"] = "malformed_or_unreadable"
-                    state_coverage_extra["state_journal_error"] = str(exc)[:200]
+            except Exception as exc:
+                state_coverage_extra["state_journal_status"] = "malformed_or_unreadable"
+                state_coverage_extra["state_journal_hold_reason"] = "state_journal_malformed"
+                state_coverage_extra["state_journal_error"] = str(exc)[:200]
+        else:
+            state_coverage_extra["state_journal_status"] = "not_observed"
 
         # Order events by temporal phase precedence: non-verifier work events -> journal filesystem events -> verifier checks
         non_verifier_atif: list[IREvent] = []
@@ -1394,6 +1422,8 @@ def build_trajectory_ir(
             replace(ev, event_ordinal=idx) for idx, ev in enumerate(ordered_raw_events)
         ]
         episodes = _segment_episodes(events)
+        if state_coverage_extra.get("state_journal_hold_reason"):
+            linkage_coverage = "degraded"
         updated_events: list[IREvent] = []
         for ev in events:
             assigned_ep_id = 1
@@ -1519,6 +1549,7 @@ def build_trajectory_ir(
             recovery_count=baseline.recovery_count,
             max_cascade=baseline.max_exit_code_cascade_screening,
             trial_dir=trial_dir,
+            state_journal_hold_reason=state_coverage_extra.get("state_journal_hold_reason"),
         )
         evidence_coverage = coverage_metrics.to_dict()
         evidence_coverage.update(state_coverage_extra)

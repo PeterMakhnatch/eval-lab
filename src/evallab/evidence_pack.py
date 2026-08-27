@@ -169,6 +169,7 @@ def compute_evidence_coverage_metrics(
     recovery_count: int | None = None,
     max_cascade: int | None = None,
     trial_dir: Path | None = None,
+    state_journal_hold_reason: str | None = None,
 ) -> EvidenceCoverageMetrics:
     """Canonical, single-producer computation of category-wise evidence coverage metrics."""
     if ir is not None:
@@ -186,6 +187,8 @@ def compute_evidence_coverage_metrics(
         verdict = ir.final_verdict
         rec_count = ir.baseline_metrics.recovery_count
         m_cascade = ir.baseline_metrics.max_exit_code_cascade_screening
+        t_dir = trial_dir
+        sj_hold = state_journal_hold_reason
     else:
         ev_list = events or ()
         ep_list = episodes or ()
@@ -201,20 +204,33 @@ def compute_evidence_coverage_metrics(
         verdict = final_verdict or "UNKNOWN"
         rec_count = recovery_count or 0
         m_cascade = max_cascade or 0
+        t_dir = trial_dir
+        sj_hold = state_journal_hold_reason
 
-    t_dir = trial_dir if (trial_dir and trial_dir.is_dir()) else None
-    has_atif = stat == "featured"
+    has_atif = False
+    has_result = False
+    has_state_journal = False
+    has_ctrf = False
+    has_cas = False
 
-    if t_dir:
+    if t_dir and t_dir.is_dir():
+        has_atif = (t_dir / "agent" / "trajectory.json").is_file() or (t_dir / "trajectory.json").is_file()
         has_result = (t_dir / "result.json").is_file()
-        has_state_journal = (t_dir / "state-journal" / "state-diff.json").is_file() or (t_dir / "state-diff.json").is_file()
-        has_ctrf = (t_dir / "verifier" / "ctrf.json").is_file() or (t_dir / "verifier" / "reward.json").is_file()
-    else:
-        has_result = bool(r_sha or p_reward is not None)
-        has_state_journal = any(e.state_before_digest or e.state_after_digest for e in ev_list)
+        has_state_journal = (t_dir / "state-journal").is_dir() or (t_dir / "state-events.jsonl").is_file()
+        has_ctrf = (t_dir / "verifier" / "ctrf.json").is_file() or (t_dir / "verifier" / "ctrf.redacted.json").is_file()
+        has_cas = bool(c_uri)
+    elif ir is not None:
+        has_atif = bool(ir.source_digests.get("source_sha256"))
+        has_result = bool(ir.source_digests.get("result_sha256"))
+        has_state_journal = any(e.event_type == "state_change" for e in ev_list)
         has_ctrf = any(e.event_type == "verifier_check" for e in ev_list)
-
-    has_cas = bool(is_cas or c_uri)
+        has_cas = bool(ir.source_digests.get("cas_uri"))
+    else:
+        has_atif = len(ev_list) > 0
+        has_result = bool(r_sha)
+        has_state_journal = any(e.event_type == "state_change" for e in ev_list)
+        has_ctrf = any(e.event_type == "verifier_check" for e in ev_list)
+        has_cas = bool(c_uri)
 
     user_msgs = sum(1 for e in ev_list if e.event_type == "user_message" or e.actor == "user")
     agent_msgs = sum(1 for e in ev_list if e.event_type == "agent_message" or (e.actor == "agent" and not e.status_owning_program))
@@ -260,6 +276,8 @@ def compute_evidence_coverage_metrics(
         hold_reasons.append("empty_event_sequence")
     if unsupported_claims > 0:
         hold_reasons.append("unsupported_terminal_claim")
+    if sj_hold:
+        hold_reasons.append(sj_hold)
 
     analysis_ready = len(hold_reasons) == 0
     return EvidenceCoverageMetrics(

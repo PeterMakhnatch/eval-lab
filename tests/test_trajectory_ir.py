@@ -721,3 +721,79 @@ def test_canonical_verifier_digest_matches_facts_on_canary(canary_trial_dir: Pat
 
     assert ir.task_digest == expected_task_d
     assert ir.verifier_digest == expected_verifier_d
+
+
+def test_state_journal_hold_reason_on_queue_overflow_and_dropped_events(tmp_path: Path, repo_root: Path) -> None:
+    """Configured StateJournal with dropped events or queue_overflow adds HOLD reason and degrades readiness."""
+    trial_dir = tmp_path / "overflow-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    (trial_dir / "state-journal").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-overflow",
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Write output"},
+            {"step_id": 2, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "echo hi"}}], "observations": [{"content": "hi"}]},
+        ],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(json.dumps({"id": "ov-id", "trial_name": "overflow-trial", "task_name": "synthetic/overflow"}))
+
+    # Create status.json with dropped_event_count > 0 and queue_overflow operation in stream
+    (trial_dir / "state-journal" / "status.json").write_text(
+        json.dumps({"schema_version": 1, "status": "available", "dropped_event_count": 5})
+    )
+    state_diff_payload = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "changes": [
+            {
+                "path": "app.py",
+                "change_type": "modified",
+                "event_count": 1,
+                "before": {"path": "app.py", "type": "file", "size_bytes": 10, "sha256": "sha256:" + "a" * 64, "mode": "-rw-r--r--", "mtime_ns": 1, "hash_status": "complete"},
+                "after": {"path": "app.py", "type": "file", "size_bytes": 20, "sha256": "sha256:" + "b" * 64, "mode": "-rw-r--r--", "mtime_ns": 2, "hash_status": "complete"},
+            }
+        ],
+    }
+    (trial_dir / "state-journal" / "state-diff.json").write_text(json.dumps(state_diff_payload))
+    overflow_event = {
+        "sequence": 1,
+        "timestamp": "2026-08-26T12:00:00.100000Z",
+        "operations": ["queue_overflow"],
+        "path": "app.py",
+        "is_directory": False,
+        "cookie": None,
+        "state": {"path": "app.py", "type": "file", "size_bytes": 20, "sha256": "sha256:" + "b" * 64, "mode": "-rw-r--r--", "mtime_ns": 2, "hash_status": "complete"},
+    }
+    (trial_dir / "state-journal" / "state-events.jsonl").write_text(json.dumps(overflow_event) + "\n")
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    # queue_overflow must NEVER be emitted as a clean state_change event
+    state_events = [e for e in ir.events if e.event_type == "state_change"]
+    assert len(state_events) == 0
+    assert ir.linkage_coverage == "degraded"
+    assert ir.evidence_coverage.get("analysis_ready") is False
+    assert any("state_journal" in r for r in ir.evidence_coverage.get("hold_reasons", []))
+
+
+def test_empty_verifier_spec_yields_none_digest_and_unknowns_record(tmp_path: Path, repo_root: Path) -> None:
+    """When verifier config is absent/empty, verifier_digest is None and recorded in unknowns."""
+    trial_dir = tmp_path / "noverifier-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-nover",
+        "steps": [{"step_id": 1, "source": "user", "message": "Hi"}],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    # result and lock with no verifier specification
+    (trial_dir / "result.json").write_text(json.dumps({"id": "nv-id", "trial_name": "noverifier-trial", "task_name": "synthetic/noverifier"}))
+    (trial_dir / "lock.json").write_text(json.dumps({"task": {"name": "noverifier"}}))
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    assert ir.verifier_digest is None
+    ver_unknowns = [u for u in ir.unknowns if u.get("field") == "verifier_digest"]
+    assert len(ver_unknowns) >= 1
+    assert ver_unknowns[0]["reason"] == "not_recorded_in_trial_evidence"

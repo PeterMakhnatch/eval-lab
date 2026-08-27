@@ -1,7 +1,7 @@
 """Deterministic empirical sequence and transition analysis over ATIF/event rows.
 
 Provides ordering, typed transition edge extraction, exact observable motif
-detection (repeated tool failure, recovery after failure, verification after action,
+detection (repeated tool failure, error to success transition, verification after action,
 post-terminal action leakage), cohort-keyed aggregation with strict opportunity denominators,
 explicit preservation of unknown/unexposed evidence, deterministic PyArrow schemas,
 and atomic Parquet projections.
@@ -455,7 +455,7 @@ def aggregate_transitions(
 
 MotifType = Literal[
     "repeated_tool_failure",
-    "recovery_after_failure",
+    "error_to_success_transition",
     "verification_after_action",
     "post_terminal_action",
 ]
@@ -548,36 +548,35 @@ def detect_observable_motifs(
         for i in range(n):
             act = trial_acts[i]
             if act.outcome == "unknown":
-                cohort_unknowns[(trial_cohort, "recovery_after_failure")] += 1
+                cohort_unknowns[(trial_cohort, "error_to_success_transition")] += 1
                 cohort_unknowns[(trial_cohort, "repeated_tool_failure")] += 1
 
             if i + 1 < n:
                 next_act = trial_acts[i + 1]
 
                 if act.outcome == "error":
-                    cohort_opps[(trial_cohort, "recovery_after_failure")] += 1
+                    cohort_opps[(trial_cohort, "error_to_success_transition")] += 1
 
                     if next_act.outcome == "success":
-                        cohort_occs[(trial_cohort, "recovery_after_failure")] += 1
+                        cohort_occs[(trial_cohort, "error_to_success_transition")] += 1
                         m_id = deterministic_motif_id(
-                            trial_id, "recovery_after_failure", (act.action_id, next_act.action_id)
+                            trial_id, "error_to_success_transition", (act.action_id, next_act.action_id)
                         )
                         motifs.append(
                             ObservableMotif(
                                 motif_id=m_id,
-                                motif_type="recovery_after_failure",
+                                motif_type="error_to_success_transition",
                                 trial_id=trial_id,
                                 step_ids=(act.step_id, next_act.step_id),
                                 action_ids=(act.action_id, next_act.action_id),
                                 details=(
                                     ("failed_function", act.function_name),
-                                    ("recovered_function", next_act.function_name),
+                                    ("succeeded_function", next_act.function_name),
                                 ),
                                 cohort_keys=trial_cohort,
                                 provenance=act.provenance,
                             )
                         )
-
                     if act.function_name == next_act.function_name and act.function_name != "unknown":
                         cohort_opps[(trial_cohort, "repeated_tool_failure")] += 1
                         if next_act.outcome == "error":
@@ -637,7 +636,7 @@ def detect_observable_motifs(
 
     all_motif_types: tuple[MotifType, ...] = (
         "repeated_tool_failure",
-        "recovery_after_failure",
+        "error_to_success_transition",
         "verification_after_action",
         "post_terminal_action",
     )
@@ -665,6 +664,45 @@ def detect_observable_motifs(
 
     return motifs, summaries
 
+
+
+def normalized_edit_distance(
+    seq_a: Sequence[Any],
+    seq_b: Sequence[Any],
+) -> float:
+    """Compute normalized Levenshtein edit distance over action-token sequences.
+
+    Defined as edit_distance(seq_a, seq_b) / max(len(seq_a), len(seq_b)).
+    - Both empty sequences: 0.0
+    - Exactly one empty sequence: 1.0
+    - Pure mechanical sequence distance without capability interpretation.
+    """
+    n, m = len(seq_a), len(seq_b)
+    if n == 0 and m == 0:
+        return 0.0
+    if n == 0 or m == 0:
+        return 1.0
+    try:
+        import importlib
+
+        rf_dist = importlib.import_module("rapidfuzz.distance")
+        dist = rf_dist.Levenshtein.distance(seq_a, seq_b)
+        return float(dist) / float(max(n, m))
+    except (ImportError, AttributeError):
+        dp = [[0] * (m + 1) for _ in range(n + 1)]
+        for i in range(n + 1):
+            dp[i][0] = i
+        for j in range(m + 1):
+            dp[0][j] = j
+        for i in range(1, n + 1):
+            for j in range(1, m + 1):
+                cost = 0 if seq_a[i - 1] == seq_b[j - 1] else 1
+                dp[i][j] = min(
+                    dp[i - 1][j] + 1,        # deletion
+                    dp[i][j - 1] + 1,        # insertion
+                    dp[i - 1][j - 1] + cost, # substitution
+                )
+        return float(dp[n][m]) / float(max(n, m))
 
 # --- Parquet Projection and Storage ------------------------------------------
 

@@ -44,12 +44,15 @@ def test_align_trajectory_pair_on_canary(canary_pair: tuple[Path, Path], repo_ro
 
     # Alignment has deterministic score
     assert isinstance(alignment.alignment_score, float)
+    assert isinstance(alignment.normalized_edit_distance, float)
+    assert 0.0 <= alignment.normalized_edit_distance <= 1.0
 
     # Check serialization
     d = alignment.to_dict()
     assert "alignment_id" in d
     assert "aligned_pairs" in d
-
+    assert "normalized_edit_distance" in d
+    assert d["normalized_edit_distance"] == alignment.normalized_edit_distance
 
 def test_confounded_pair_rejection(repo_root: Path) -> None:
     """Aligning trials from different tasks raises ConfoundedPairError."""

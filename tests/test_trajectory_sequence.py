@@ -246,9 +246,9 @@ def test_missing_evidence_and_unknown_preservation() -> None:
 
     motifs, summaries = detect_observable_motifs(actions)
     summary_map = {s.motif_type: s for s in summaries}
-    assert summary_map["recovery_after_failure"].opportunities == 0
-    assert summary_map["recovery_after_failure"].rate is None
-    assert summary_map["recovery_after_failure"].unknown_evidence_count > 0
+    assert summary_map["error_to_success_transition"].opportunities == 0
+    assert summary_map["error_to_success_transition"].rate is None
+    assert summary_map["error_to_success_transition"].unknown_evidence_count > 0
 
 
 def test_repeated_tool_failure_motif() -> None:
@@ -271,8 +271,8 @@ def test_repeated_tool_failure_motif() -> None:
     assert summary_map["repeated_tool_failure"].rate == pytest.approx(0.5)
 
 
-def test_recovery_after_failure_motif() -> None:
-    """Error followed immediately by success must be detected."""
+def test_error_to_success_transition_motif() -> None:
+    """Error followed immediately by success must be detected as an observational transition."""
     rows = [
         {"trial_id": "t1", "action_id": "1", "ordinal": 1, "function_name": "edit", "outcome": "error"},
         {"trial_id": "t1", "action_id": "2", "ordinal": 2, "function_name": "test", "outcome": "success"},
@@ -281,15 +281,14 @@ def test_recovery_after_failure_motif() -> None:
     ]
 
     motifs, summaries = detect_observable_motifs(rows)
-    recovery_motifs = [m for m in motifs if m.motif_type == "recovery_after_failure"]
-    assert len(recovery_motifs) == 1
-    assert recovery_motifs[0].action_ids == ("1", "2")
+    transition_motifs = [m for m in motifs if m.motif_type == "error_to_success_transition"]
+    assert len(transition_motifs) == 1
+    assert transition_motifs[0].action_ids == ("1", "2")
 
     summary_map = {s.motif_type: s for s in summaries}
-    assert summary_map["recovery_after_failure"].opportunities == 2
-    assert summary_map["recovery_after_failure"].occurrences == 1
-    assert summary_map["recovery_after_failure"].rate == pytest.approx(0.5)
-
+    assert summary_map["error_to_success_transition"].opportunities == 2
+    assert summary_map["error_to_success_transition"].occurrences == 1
+    assert summary_map["error_to_success_transition"].rate == pytest.approx(0.5)
 
 def test_verification_after_action_motif() -> None:
     """Mutation action followed by verification action must be detected."""
@@ -371,10 +370,9 @@ def test_provenance_and_step_ids_retention() -> None:
     assert prov_dict.get("source_path") == "/data/atif.json"
 
     motifs, _ = detect_observable_motifs(rows)
-    recovery = [m for m in motifs if m.motif_type == "recovery_after_failure"][0]
-    assert recovery.step_ids == (10, 11)
-    assert dict(recovery.provenance).get("document_id") == "doc-abc"
-
+    transition = [m for m in motifs if m.motif_type == "error_to_success_transition"][0]
+    assert transition.step_ids == (10, 11)
+    assert dict(transition.provenance).get("document_id") == "doc-abc"
 
 def test_duckdb_and_parquet_row_compatibility() -> None:
     """Mappings directly derived from DuckDB or PyArrow dict rows must process without issue."""
@@ -449,18 +447,17 @@ def test_deterministic_primary_keys_and_collision_resistance() -> None:
     assert k1 != k3
     assert len(k1) == 64
 
-    m1 = deterministic_motif_id("t1", "recovery_after_failure", ["a1", "a2"])
-    m2 = deterministic_motif_id("t1", "recovery_after_failure", ["a1", "a2"])
+    m1 = deterministic_motif_id("t1", "error_to_success_transition", ["a1", "a2"])
+    m2 = deterministic_motif_id("t1", "error_to_success_transition", ["a1", "a2"])
     m3 = deterministic_motif_id("t1", "repeated_tool_failure", ["a1", "a2"])
     assert m1 == m2
     assert m1 != m3
 
-    s1 = deterministic_summary_id('{"model": "gpt-4"}', "recovery_after_failure")
-    s2 = deterministic_summary_id('{"model": "gpt-4"}', "recovery_after_failure")
+    s1 = deterministic_summary_id('{"model": "gpt-4"}', "error_to_success_transition")
+    s2 = deterministic_summary_id('{"model": "gpt-4"}', "error_to_success_transition")
     s3 = deterministic_summary_id('{"model": "gpt-4"}', "repeated_tool_failure")
     assert s1 == s2
     assert s1 != s3
-
 
 def test_parquet_projection_round_trip_and_byte_stability(tmp_path: Path) -> None:
     """Atomic Parquet projections must write valid tables, replace atomically, and produce byte-stable output."""
@@ -523,18 +520,17 @@ def test_parquet_projection_round_trip_and_byte_stability(tmp_path: Path) -> Non
     motifs_table = load_trajectory_sequence_table(out_tables["observable_motifs"])
     assert motifs_table.schema == TRAJECTORY_SEQUENCE_SCHEMAS["observable_motifs"]
     motif_rows = motifs_table.to_pylist()
-    assert any(m["motif_type"] == "recovery_after_failure" for m in motif_rows)
+    assert any(m["motif_type"] == "error_to_success_transition" for m in motif_rows)
 
     summaries_table = load_trajectory_sequence_table(out_tables["motif_summaries"])
     assert summaries_table.schema == TRAJECTORY_SEQUENCE_SCHEMAS["motif_summaries"]
     summary_rows = summaries_table.to_pylist()
     assert len(summary_rows) == 4
 
-    rec_summary = next(s for s in summary_rows if s["motif_type"] == "recovery_after_failure")
-    assert rec_summary["opportunities"] == 1
-    assert rec_summary["occurrences"] == 1
-    assert rec_summary["rate"] == pytest.approx(1.0)
-
+    trans_summary = next(s for s in summary_rows if s["motif_type"] == "error_to_success_transition")
+    assert trans_summary["opportunities"] == 1
+    assert trans_summary["occurrences"] == 1
+    assert trans_summary["rate"] == pytest.approx(1.0)
     # Re-project to verify atomic idempotency and byte-stability
     bytes_before = out_tables["action_transition_edges"].read_bytes()
     out_tables_2 = project_trajectory_sequence_tables(
@@ -544,3 +540,35 @@ def test_parquet_projection_round_trip_and_byte_stability(tmp_path: Path) -> Non
     )
     bytes_after = out_tables_2["action_transition_edges"].read_bytes()
     assert bytes_before == bytes_after
+
+
+def test_normalized_edit_distance_pure_mathematical_contracts() -> None:
+    """Verify normalized_edit_distance over empty, identical, partial, and disjoint sequences."""
+    from evallab.trajectory_sequence import normalized_edit_distance
+
+    # Both empty -> 0.0
+    assert normalized_edit_distance([], []) == 0.0
+    assert normalized_edit_distance((), ()) == 0.0
+
+    # Exactly one empty -> 1.0
+    assert normalized_edit_distance(["a"], []) == 1.0
+    assert normalized_edit_distance([], ["x", "y"]) == 1.0
+
+    # Identical sequences -> 0.0
+    assert normalized_edit_distance(["a", "b", "c"], ["a", "b", "c"]) == 0.0
+    assert normalized_edit_distance([("edit", "cat", "f1")], [("edit", "cat", "f1")]) == 0.0
+
+    # Single substitution in length 3 -> 1 / 3
+    assert normalized_edit_distance(["a", "b", "c"], ["a", "x", "c"]) == pytest.approx(1.0 / 3.0)
+
+    # 2 deletions in length 4 -> 2 / 4 = 0.5
+    assert normalized_edit_distance(["a", "b", "c", "d"], ["a", "b"]) == pytest.approx(0.5)
+
+    # Completely disjoint single-element sequences -> 1.0
+    assert normalized_edit_distance(["a"], ["b"]) == 1.0
+
+    # Realistic action tokens
+    seq_a = [("file_read", "cat", "app.py"), ("file_edit", "edit", "app.py"), ("verification", "pytest", "test.py")]
+    seq_b = [("file_read", "cat", "app.py"), ("command_execution", "bash", "ls"), ("file_edit", "edit", "app.py"), ("verification", "pytest", "test.py")]
+    # Distance = 1 insertion, max length = 4 -> 1 / 4 = 0.25
+    assert normalized_edit_distance(seq_a, seq_b) == pytest.approx(0.25)

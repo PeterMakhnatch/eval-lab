@@ -12,7 +12,7 @@ import pyarrow.parquet as pq
 
 from evallab.cli import _select_json_fields, parser
 from evallab.evidence_store import archive_evidence, load_archive
-from evallab.trajectory_data_quality import (
+from evallab.interpretation.trajectory_data_quality import (
     _add_campaign_projection_joins,
     _cas_availability,
     _citation_reopen,
@@ -22,9 +22,9 @@ from evallab.trajectory_data_quality import (
     campaign_data_quality_report,
     load_cross_campaign_inventory,
 )
-from evallab.trajectory_hydration import RedactionPolicy
-from evallab.trajectory_judgment import canonical_json_digest
-from evallab.trajectory_runtime import load_campaign_analysis_manifest
+from evallab.interpretation.trajectory_hydration import RedactionPolicy
+from evallab.interpretation.trajectory_judgment import canonical_json_digest
+from evallab.interpretation.trajectory_runtime import load_campaign_analysis_manifest
 
 REPO = Path(__file__).resolve().parents[1]
 TB3_INVENTORY = (

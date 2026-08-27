@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.trajectory_recipes import (
+from evallab.interpretation.trajectory_recipes import (
     RecipeFinding,
     TrialArtifacts,
     load_trial_artifacts,
@@ -90,7 +90,7 @@ class SelectedPack:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m evallab.trajectory_recipe_run")
+    parser = argparse.ArgumentParser(prog="python -m evallab.interpretation.trajectory_recipe_run")
     parser.add_argument("--analyses-dir", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--trial", dest="trial_ids", nargs="+", action="extend", default=[])

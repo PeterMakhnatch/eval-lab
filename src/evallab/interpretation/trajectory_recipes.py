@@ -13,15 +13,15 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from evallab.schemas import ContractModel
-from evallab.trajectory_ir import (
+from evallab.interpretation.trajectory_ir import (
     DEFAULT_EXPECTED_NEGATIVE_PROGRAMS,
     _classify_exit_semantics,
 )
-from evallab.trajectory_judgment import (
+from evallab.interpretation.trajectory_judgment import (
     TRAJECTORY_ONTOLOGY_V1_CLASSES,
     canonical_json_digest,
 )
+from evallab.schemas import ContractModel
 
 PRODUCER = "analyst-recipe/v1"
 CONTRACT_ID = "analysis-recipe-contracts-v1"

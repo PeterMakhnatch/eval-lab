@@ -16,22 +16,29 @@ import pytest
 
 from evallab.cli import parser
 from evallab.database import _ingest_interpretation_artifacts
-from evallab.evidence_pack import OmittedRange, build_evidence_pack
 from evallab.evidence_store import archive_evidence
-from evallab.trajectory_acceptance import AUTO_ACCEPTANCE_ENABLED, evaluate_acceptance
-from evallab.trajectory_data_quality import (
+from evallab.interpretation.evidence_pack import OmittedRange, build_evidence_pack
+from evallab.interpretation.trajectory_acceptance import (
+    AUTO_ACCEPTANCE_ENABLED,
+    evaluate_acceptance,
+)
+from evallab.interpretation.trajectory_data_quality import (
     _add_campaign_projection_joins,
     _cas_record_anti_join,
     _citation_reopen,
 )
-from evallab.trajectory_hydration import CitationHandle, RedactionPolicy, hydrate_citation
-from evallab.trajectory_ir import build_trajectory_ir
-from evallab.trajectory_judgment import (
+from evallab.interpretation.trajectory_hydration import (
+    CitationHandle,
+    RedactionPolicy,
+    hydrate_citation,
+)
+from evallab.interpretation.trajectory_ir import build_trajectory_ir
+from evallab.interpretation.trajectory_judgment import (
     TRAJECTORY_ONTOLOGY_V1_CLASSES,
     MachineJudgment,
     canonical_json_digest,
 )
-from evallab.trajectory_runtime import (
+from evallab.interpretation.trajectory_runtime import (
     ArtifactRecord,
     _data_contract_digest,
     _pack_structure_errors,
@@ -1524,7 +1531,7 @@ def test_analyze_inspect_reopens_lineage(tmp_path: Path) -> None:
 
 def test_uncallable_pack_still_abstains(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     trial_dir = _trial_tree(tmp_path, trial_name="overflow")
-    from evallab import evidence_pack as ep
+    from evallab.interpretation import evidence_pack as ep
 
     original = ep.build_evidence_pack
 
@@ -1532,7 +1539,7 @@ def test_uncallable_pack_still_abstains(tmp_path: Path, monkeypatch: pytest.Monk
         kwargs["budget_tokens"] = 1
         return original(ir, **kwargs)
 
-    monkeypatch.setattr("evallab.trajectory_runtime.build_evidence_pack", tiny_budget)
+    monkeypatch.setattr("evallab.interpretation.trajectory_runtime.build_evidence_pack", tiny_budget)
     result = analyze_trial(
         trial_dir,
         repo_root=tmp_path,
@@ -1582,7 +1589,7 @@ def test_quarantine_mapping_stops_before_restore(
     def boom(*_args, **_kwargs):
         raise AssertionError("restore_evidence called for quarantined mapping")
 
-    monkeypatch.setattr("evallab.trajectory_runtime.restore_evidence", boom)
+    monkeypatch.setattr("evallab.interpretation.trajectory_runtime.restore_evidence", boom)
     with pytest.raises(RuntimeError, match="quarantined_input"):
         analyze_trial(
             {
@@ -1606,7 +1613,7 @@ def test_warn_mapping_still_restores_missing_cas(
         called["restore"] += 1
         raise FileNotFoundError("evidence blob is missing: cas://sha256/" + "00" * 32)
 
-    monkeypatch.setattr("evallab.trajectory_runtime.restore_evidence", fake_restore)
+    monkeypatch.setattr("evallab.interpretation.trajectory_runtime.restore_evidence", fake_restore)
     with pytest.raises(RuntimeError, match="missing_cas"):
         analyze_trial(
             {
@@ -1652,7 +1659,7 @@ def test_restore_digest_mismatch_is_cas_integrity_error(
     def fake_restore(*_args, **_kwargs):
         raise ValueError("restored evidence digest mismatch: expected sha256:aa, got sha256:bb")
 
-    monkeypatch.setattr("evallab.trajectory_runtime.restore_evidence", fake_restore)
+    monkeypatch.setattr("evallab.interpretation.trajectory_runtime.restore_evidence", fake_restore)
     with pytest.raises(RuntimeError, match="cas_integrity_error") as excinfo:
         analyze_trial(
             {
@@ -1674,7 +1681,7 @@ def test_restore_path_escape_is_cas_integrity_error(
     def fake_restore(*_args, **_kwargs):
         raise ValueError("evidence archive path escapes destination: ../outside")
 
-    monkeypatch.setattr("evallab.trajectory_runtime.restore_evidence", fake_restore)
+    monkeypatch.setattr("evallab.interpretation.trajectory_runtime.restore_evidence", fake_restore)
     with pytest.raises(RuntimeError, match="cas_integrity_error"):
         analyze_trial(
             {

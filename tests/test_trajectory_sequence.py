@@ -8,7 +8,7 @@ from pathlib import Path
 import pyarrow as pa
 import pytest
 
-from evallab.trajectory_sequence import (
+from evallab.interpretation.trajectory_sequence import (
     TRAJECTORY_SEQUENCE_SCHEMAS,
     TrajectorySequenceError,
     TransitionEdge,
@@ -544,7 +544,7 @@ def test_parquet_projection_round_trip_and_byte_stability(tmp_path: Path) -> Non
 
 def test_normalized_edit_distance_pure_mathematical_contracts() -> None:
     """Verify normalized_edit_distance over empty, identical, partial, and disjoint sequences."""
-    from evallab.trajectory_sequence import normalized_edit_distance
+    from evallab.interpretation.trajectory_sequence import normalized_edit_distance
 
     # Both empty -> 0.0
     assert normalized_edit_distance([], []) == 0.0

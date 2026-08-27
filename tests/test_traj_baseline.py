@@ -7,19 +7,19 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from evallab.traj import (
-    LoopSuspicion,
-    StepOutline,
-    TrajectoryOutline,
-    extract_features,
-)
-from evallab.traj_baseline import (
+from evallab.interpretation.traj_baseline import (
     TRACE_BASELINE_PARQUET_SCHEMA,
     TRACE_BASELINE_PROVENANCE,
     _compute_cbv_slope,
     _compute_exit_code_cascade,
     _compute_subagent_overhead,
     compute_trace_baseline,
+)
+from evallab.traj import (
+    LoopSuspicion,
+    StepOutline,
+    TrajectoryOutline,
+    extract_features,
 )
 
 

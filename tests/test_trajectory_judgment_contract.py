@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from evallab.trajectory_judgment import MachineJudgment, canonical_json_digest
+from evallab.interpretation.trajectory_judgment import MachineJudgment, canonical_json_digest
 
 D = {char: "sha256:" + char * 64 for char in "123456789abcdef"}
 NOW = datetime(2026, 8, 26, tzinfo=UTC)

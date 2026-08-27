@@ -589,8 +589,11 @@ def admit(
 
     # Quality Ledger Gate: Failed, quarantined, or unevaluated evidence cannot enter analysis.
     # Missing historical reports defer as quality_not_evaluated, never assumed good.
+    from evallab.interpretation.trajectory_quality import (
+        QualityStatus,
+        load_quality_report_for_trial,
+    )
     from evallab.storage.paths import derived_root_from_environment
-    from evallab.trajectory_quality import QualityStatus, load_quality_report_for_trial
 
     derived_root = derived_root_from_environment(repo_root)
     quality_report = load_quality_report_for_trial(request.trial_id, derived_root)
@@ -705,8 +708,11 @@ class AnalysisWorker:
 
     def stage(self, job_roots: list[Path]) -> CycleReport:
         """Discover and freeze. Never calls a model, never admits."""
+        from evallab.interpretation.trajectory_quality import (
+            evaluate_trial_quality,
+            persist_quality_ledger,
+        )
         from evallab.storage.paths import derived_root_from_environment
-        from evallab.trajectory_quality import evaluate_trial_quality, persist_quality_ledger
 
         jobs = load_jobs(job_roots)
         discovered = staged = 0

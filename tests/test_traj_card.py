@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from evallab.cli import run_cli
-from evallab.traj_card import generate_traj_card
+from evallab.interpretation.traj_card import generate_traj_card
 
 
 @pytest.fixture

@@ -14,9 +14,16 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab import trajectory_context as trajectory_context_module
 from evallab.behavior_episodes import BehaviorEpisode
 from evallab.cli import run_cli
+from evallab.interpretation import trajectory_context as trajectory_context_module
+from evallab.interpretation.trajectory_context import (
+    _POSTGRES_REVIEWS_SQL,
+    build_durable_trajectory_context,
+    build_trajectory_context,
+    latest_review,
+    reviews_by_analysis,
+)
 from evallab.schemas import (
     ANALYSIS_REVIEWS_DIRNAME,
     ANALYSIS_SIDECAR_FILENAME,
@@ -31,13 +38,6 @@ from evallab.semantic_facts import (
     CapabilityOpportunity,
     EvidenceCoverage,
     NormalizedFactBundle,
-)
-from evallab.trajectory_context import (
-    _POSTGRES_REVIEWS_SQL,
-    build_durable_trajectory_context,
-    build_trajectory_context,
-    latest_review,
-    reviews_by_analysis,
 )
 
 
@@ -848,7 +848,7 @@ def test_rejected_opt_in_is_labeled() -> None:
 
 def test_hard_deterministic_max_bytes_truncation() -> None:
     """Exact max_bytes limit truncates entries atomically without splitting citations."""
-    from evallab.trajectory_context import compile_context_pack
+    from evallab.interpretation.trajectory_context import compile_context_pack
 
     trial_uuid = UUID("00000000-0000-0000-0000-000000000001")
     trial_id = str(trial_uuid)

@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from evallab.trajectory_alignment import (
+from evallab.interpretation.trajectory_alignment import (
     ConfoundedPairError,
     align_action_sequences,
     align_trajectory_pair,
 )
-from evallab.trajectory_hydration import create_citation_handle
-from evallab.trajectory_ir import IREvent, build_trajectory_ir
+from evallab.interpretation.trajectory_hydration import create_citation_handle
+from evallab.interpretation.trajectory_ir import IREvent, build_trajectory_ir
 
 
 @pytest.fixture
@@ -144,9 +144,9 @@ def test_k_star_citation_matches_exact_call_index_on_multi_call_step() -> None:
     """k* citation resolves the exact diverging call_index on multi-call steps."""
     from dataclasses import replace
 
+    from evallab.interpretation.traj_baseline import compute_trace_baseline
+    from evallab.interpretation.trajectory_ir import IREvent, TrajectoryIR
     from evallab.traj import outline_trajectory
-    from evallab.traj_baseline import compute_trace_baseline
-    from evallab.trajectory_ir import IREvent, TrajectoryIR
     cit_0 = create_citation_handle(source_path="trajectory.json", step_id=2, call_index=0, tool_call_id="call_0", target_type="tool_call")
     cit_1 = create_citation_handle(source_path="trajectory.json", step_id=2, call_index=1, tool_call_id="call_1", target_type="tool_call")
     cit_diff = create_citation_handle(source_path="trajectory.json", step_id=2, call_index=1, tool_call_id="call_diff", target_type="tool_call")

@@ -23,16 +23,14 @@ import pyarrow.parquet as pq
 from pydantic import Field, ValidationError
 
 from evallab.database import ingest_interpretation_artifacts
-from evallab.evidence_pack import (
+from evallab.evidence_store import archive_evidence, load_archive, restore_evidence
+from evallab.interpretation.evidence_pack import (
     DEFAULT_TOKEN_BUDGET,
     EvidencePack,
     build_evidence_pack,
     reopen_omitted_range,
 )
-from evallab.evidence_store import archive_evidence, load_archive, restore_evidence
-from evallab.results import sha256_file
-from evallab.schemas import ContractModel
-from evallab.trajectory_acceptance import (
+from evallab.interpretation.trajectory_acceptance import (
     DETERMINISTIC_GATE_ORDER,
     AcceptanceDecision,
     CalibrationClassGate,
@@ -40,28 +38,30 @@ from evallab.trajectory_acceptance import (
     GateResult,
     evaluate_acceptance,
 )
-from evallab.trajectory_calibration import (
+from evallab.interpretation.trajectory_calibration import (
     CalibrationReport,
     UnsupportedCalibrationVersion,
     calibration_report_can_enable_acceptance,
     parse_calibration_report,
 )
-from evallab.trajectory_hydration import (
+from evallab.interpretation.trajectory_hydration import (
     CitationHandle,
     RedactionPolicy,
     hydrate_citation,
 )
-from evallab.trajectory_ir import (
+from evallab.interpretation.trajectory_ir import (
     CASTrialResolutionError,
     IREvent,
     TrajectoryIR,
     build_trajectory_ir,
 )
-from evallab.trajectory_judgment import (
+from evallab.interpretation.trajectory_judgment import (
     JudgmentConfidence,
     MachineJudgment,
     canonical_json_digest,
 )
+from evallab.results import sha256_file
+from evallab.schemas import ContractModel
 
 _SIDECAR_FILES = (
     "trajectory_ir.json",

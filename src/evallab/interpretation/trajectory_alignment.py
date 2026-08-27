@@ -17,9 +17,9 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from evallab.trajectory_hydration import CitationHandle
-from evallab.trajectory_ir import IREvent, TrajectoryIR
-from evallab.trajectory_sequence import normalized_edit_distance
+from evallab.interpretation.trajectory_hydration import CitationHandle
+from evallab.interpretation.trajectory_ir import IREvent, TrajectoryIR
+from evallab.interpretation.trajectory_sequence import normalized_edit_distance
 
 
 class ConfoundedPairError(ValueError):

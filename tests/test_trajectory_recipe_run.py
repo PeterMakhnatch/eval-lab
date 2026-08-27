@@ -8,14 +8,14 @@ from typing import Any
 
 import pytest
 
-from evallab.trajectory_recipe_run import (
+from evallab.interpretation.trajectory_recipe_run import (
     FINDINGS_JSONL,
     FINDINGS_REPORT,
     IMPROVEMENT_REQUESTS,
     main,
     select_trial_sidecars,
 )
-from evallab.trajectory_recipes import RecipeFinding
+from evallab.interpretation.trajectory_recipes import RecipeFinding
 
 REAL_ANALYSES = Path("/Users/petermakhnatch/Developer/eval-lab/derived/analyses")
 REQUIRED_JSONL_KEYS = frozenset(
@@ -118,11 +118,11 @@ def _stub_engine(
     for finding in seeded:
         by_trial.setdefault(str(finding.trial_id), []).append(finding)
     monkeypatch.setattr(
-        "evallab.trajectory_recipe_run.load_trial_artifacts",
+        "evallab.interpretation.trajectory_recipe_run.load_trial_artifacts",
         lambda analyses_dir, trial_id, digest=None: trial_id,
     )
     monkeypatch.setattr(
-        "evallab.trajectory_recipe_run.run_recipes",
+        "evallab.interpretation.trajectory_recipe_run.run_recipes",
         lambda artifacts, *, semantics_profile_digest=None: list(by_trial.get(str(artifacts), [])),
     )
 
@@ -605,7 +605,7 @@ def test_report_mode_ignores_unrelated_discovered_trial(tmp_path: Path) -> None:
     _write_sidecar(tmp_path, "trial-unrelated", "d2" * 32, created_at="")
     report = tmp_path / "report.json"
     _write_campaign_report(report, [("trial-in-report", "d1" * 32)])
-    from evallab.trajectory_recipe_run import load_campaign_report_map
+    from evallab.interpretation.trajectory_recipe_run import load_campaign_report_map
 
     selected = select_trial_sidecars(
         tmp_path, digest_map=load_campaign_report_map(report), pin_source="report"
@@ -617,7 +617,7 @@ def test_map_listed_trial_with_missing_sidecar_fails(tmp_path: Path) -> None:
     _write_sidecar(tmp_path, "trial-present", "d1" * 32, created_at="")
     report = tmp_path / "report.json"
     _write_campaign_report(report, [("trial-present", "d1" * 32), ("trial-missing", "d3" * 32)])
-    from evallab.trajectory_recipe_run import load_campaign_report_map
+    from evallab.interpretation.trajectory_recipe_run import load_campaign_report_map
 
     with pytest.raises(ValueError, match="trial trial-missing listed in report"):
         select_trial_sidecars(
@@ -630,7 +630,7 @@ def test_explicit_requested_trial_absent_from_map_fails(tmp_path: Path) -> None:
     _write_sidecar(tmp_path, "trial-extra", "d2" * 32, created_at="")
     report = tmp_path / "report.json"
     _write_campaign_report(report, [("trial-in-report", "d1" * 32)])
-    from evallab.trajectory_recipe_run import load_campaign_report_map
+    from evallab.interpretation.trajectory_recipe_run import load_campaign_report_map
 
     with pytest.raises(ValueError, match="trial-extra not listed in report"):
         select_trial_sidecars(
@@ -646,8 +646,8 @@ def test_real_build_campaign_report_source_refs_select_only_report_trials(
 ) -> None:
     # The REAL report builder (trajectory_runtime.build_campaign_report) produces
     # source_refs; selection must scope to exactly those trials.
-    from evallab.trajectory_recipe_run import load_campaign_report_map
-    from evallab.trajectory_runtime import (
+    from evallab.interpretation.trajectory_recipe_run import load_campaign_report_map
+    from evallab.interpretation.trajectory_runtime import (
         CampaignAnalysisManifest,
         build_campaign_report,
     )
@@ -706,7 +706,7 @@ def test_real_build_campaign_report_source_refs_select_only_report_trials(
 
 
 def test_malformed_map_entries_fail_closed(tmp_path: Path) -> None:
-    from evallab.trajectory_recipe_run import load_campaign_report_map, load_pack_map
+    from evallab.interpretation.trajectory_recipe_run import load_campaign_report_map, load_pack_map
 
     bad_map = tmp_path / "map.json"
     bad_map.write_text(json.dumps({"trial-a": ""}), encoding="utf-8")
@@ -721,7 +721,7 @@ def test_malformed_map_entries_fail_closed(tmp_path: Path) -> None:
 def test_aggregate_only_campaign_report_fails_closed(tmp_path: Path) -> None:
     # Reviewer P1: a report without a source_refs list must raise, never yield an
     # empty pin map that silently produces zero findings with exit 0.
-    from evallab.trajectory_recipe_run import load_campaign_report_map
+    from evallab.interpretation.trajectory_recipe_run import load_campaign_report_map
 
     aggregate = tmp_path / "aggregate.json"
     aggregate.write_text(

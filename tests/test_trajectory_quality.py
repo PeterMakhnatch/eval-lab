@@ -28,10 +28,7 @@ from evallab.analysis_worker import (
     RequestStore,
     admit,
 )
-from evallab.profiles import AgentProfile
-from evallab.schemas import StandingApprovalsPolicy
-from evallab.status_generator import StatusReportData, render_status_markdown
-from evallab.trajectory_quality import (
+from evallab.interpretation.trajectory_quality import (
     FindingSeverity,
     QualityStatus,
     TrajectoryQualityFinding,
@@ -41,6 +38,9 @@ from evallab.trajectory_quality import (
     persist_quality_ledger,
     register_quality_tables_in_duckdb,
 )
+from evallab.profiles import AgentProfile
+from evallab.schemas import StandingApprovalsPolicy
+from evallab.status_generator import StatusReportData, render_status_markdown
 
 
 @pytest.fixture

@@ -3,14 +3,14 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from evallab.trajectory_calibration import (
+from evallab.interpretation.trajectory_calibration import (
     CalibrationReport,
     CalibrationReportV1_1,
     UnsupportedCalibrationVersion,
     calibration_report_can_enable_acceptance,
     parse_calibration_report,
 )
-from evallab.trajectory_judgment import TRAJECTORY_ONTOLOGY_V1_CLASSES
+from evallab.interpretation.trajectory_judgment import TRAJECTORY_ONTOLOGY_V1_CLASSES
 
 
 def report_payload() -> dict:

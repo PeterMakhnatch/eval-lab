@@ -7,14 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from evallab.evidence_pack import (
+from evallab.interpretation.evidence_pack import (
     EvidenceCoverageMetrics,
     build_evidence_pack,
     compute_evidence_coverage_metrics,
     reopen_omitted_range,
 )
-from evallab.trajectory_hydration import RedactionPolicy
-from evallab.trajectory_ir import build_trajectory_ir
+from evallab.interpretation.trajectory_hydration import RedactionPolicy
+from evallab.interpretation.trajectory_ir import build_trajectory_ir
 
 
 @pytest.fixture
@@ -93,8 +93,8 @@ def test_omitted_range_digest_verification_and_tamper_rejection(tmp_path: Path, 
     import json
     from dataclasses import replace
 
-    from evallab.evidence_pack import OmittedRange
-    from evallab.trajectory_hydration import hydrate_citation
+    from evallab.interpretation.evidence_pack import OmittedRange
+    from evallab.interpretation.trajectory_hydration import hydrate_citation
 
     trial_dir = tmp_path / "t_long_omitted"
     (trial_dir / "agent").mkdir(parents=True)
@@ -212,7 +212,7 @@ def test_multi_call_citation_handle_hydration_identity(tmp_path: Path, repo_root
     """CitationHandle target_type='tool_call' hydrates specific tool call and sibling observation."""
     import json
 
-    from evallab.trajectory_hydration import create_citation_handle, hydrate_citation
+    from evallab.interpretation.trajectory_hydration import create_citation_handle, hydrate_citation
 
     trial_dir = tmp_path / "t_multi_cit"
     (trial_dir / "agent").mkdir(parents=True)

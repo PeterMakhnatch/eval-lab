@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - analyst
+---
+
+> **Archived work order**: Completed historical brief. Living contract: docs/analysis-loop.md. Board: agents/missions/ACTIVE.md.
+
 # Build deterministic cohort comparison
 
 ## Mission

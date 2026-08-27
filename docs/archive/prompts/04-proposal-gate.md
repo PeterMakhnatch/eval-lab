@@ -1,3 +1,11 @@
+---
+status: historical
+audience:
+  - builder
+---
+
+> **Archived work order**: Completed historical work-order. Living contracts: docs/analysis-loop.md, docs/operations.md. Board: agents/missions/ACTIVE.md.
+
 # Build experiment proposals and the execution approval gate
 
 ## Mission

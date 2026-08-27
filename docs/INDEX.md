@@ -35,7 +35,7 @@ inputs:
   - path: docs/catalog-tables.md
     digest: sha256:ea8da71fe7a6ba15138c311b4649258dda8dbaa78e1674d1d2ced5ea8d7d2068
   - path: docs/content-inventory.md
-    digest: sha256:c74e1ee82d2d0918ba1efdb7017f248e8bcc07e971f0ca1d08fa43162431f6d9
+    digest: sha256:b0cb0cb970607d10203efed8326ab26be084280119c94676ca1d3c6f5c1062bf
   - path: docs/context-packs.md
     digest: sha256:da5e79f7620f04f7eb3c88619330cb5a6b452095c985ff4608ab375931ba3879
   - path: docs/contracts.md

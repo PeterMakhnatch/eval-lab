@@ -1,3 +1,11 @@
+---
+status: historical
+audience:
+  - builder
+---
+
+> **Archived work order**: Completed historical dispatch (M006-R/M009 merged). Deliverable record: docs/checkpoints/2026-08-16-m009-integration-flight.md. Board: agents/missions/ACTIVE.md.
+
 # Next functionalization missions — 2026-08-15
 
 These are temporary missions, not new permanent roles. The four stable lanes remain

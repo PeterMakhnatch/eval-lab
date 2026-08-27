@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - analyst
+---
+
+> **Archived work order**: Completed historical brief. Living contracts: docs/analysis-loop.md, docs/analysis-worker.md. Board: agents/missions/ACTIVE.md.
+
 # Build the provenance-bearing trial analysis pipeline
 
 ## Mission

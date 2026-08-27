@@ -51,8 +51,9 @@ eval-lab/
 │   ├── path-forward-2026-08.md    dated direction note
 │   ├── mentor-review-2026-08.md   dated external review
 │   ├── parallel-work.md       superseded — pointer to agents/WORKFLOW.md
-│   ├── prompts/               numbered implementation briefs (work orders)
-│   │                          + dated mission-prompt sets; README indexes both
+│   ├── prompts/               living mission-prompt sets + living README
+│   ├── archive/prompts/       superseded implementation briefs (01–09, 12)
+│   │                          + dated legacy mission sets (M001–M014)
 │   ├── checkpoints/           dated hands-on integrator verification records
 │   ├── research/              Research-lane docs (survey, external datasets,
 │   │                          synthetic tasks, trajectory intelligence)
@@ -217,3 +218,8 @@ for today).
   03 storage boundary in `docs/data-architecture.md` and the blueprint's
   disposition target in `docs/research/synthetic-tasks.md`; the first
   committed batch is `library/synthetic/seqgen-v0/`.
+- 2026-08-27 — `docs/archive/prompts/` declared for completed implementation briefs
+  (01–09, 12) and superseded dated mission sets (M001–M014) moved 1:1 with original
+  filenames preserved; `docs/prompts/` compacted to living mission prompts;
+  `agents/missions/ACTIVE.md` archived at `agents/archive/2026-08-27-mission-board-pre-hygiene.md`
+  and compacted to active long-lived role lanes (ADR-031) and current gates.

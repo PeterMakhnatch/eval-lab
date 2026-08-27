@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - operator
+---
+
+> **Archived work order**: Completed historical brief. Living contracts: docs/surfaces.md, docs/storm-alarms.md, docs/operations.md. Board: agents/missions/ACTIVE.md.
+
 # 06 — Headless doctor, launchd, digest
 
 `doctor --headless` (Keychain item readable, `~/.codex/auth.json` present,

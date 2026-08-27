@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - operator
+---
+
+> **Archived work order**: Completed historical mission set (retired by M001). Living contracts: agents/missions/ACTIVE.md, agents/OWNERS.md, agents/WORKFLOW.md. Board: agents/missions/ACTIVE.md.
+
 # Wave 3 mission prompts — 2026-08-14
 
 Copy-paste source so prompts never live only in chat scrollback.

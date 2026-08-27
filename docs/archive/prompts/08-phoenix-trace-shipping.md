@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - analyst
+---
+
+> **Archived work order**: Completed historical brief. Living contract: docs/observability.md. Board: agents/missions/ACTIVE.md.
+
 # 08 — Phoenix + trace shipping
 
 Add the Phoenix compose service. `evallab trace <trial>` converts the

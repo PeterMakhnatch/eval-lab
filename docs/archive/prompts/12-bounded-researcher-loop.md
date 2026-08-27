@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - operator
+---
+
+> **Archived work order**: Completed historical brief. Living contracts: docs/fleet-tracking.md, docs/surfaces.md. Board: agents/missions/ACTIVE.md.
+
 # Brief 12 — bounded researcher loop and fleet digest
 
 ## Contract

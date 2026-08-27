@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - runner
+---
+
+> **Archived work order**: Completed historical work-order. Living contract: docs/canaries.md. Board: agents/missions/ACTIVE.md.
+
 # 07 — Canary suite + drift detection
 
 Register 3–5 pinned canaries: the migrated transaction-reconciliation task,

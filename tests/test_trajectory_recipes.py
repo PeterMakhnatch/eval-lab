@@ -1522,3 +1522,39 @@ def test_r1_representative_cases_never_emit_old_reason_token() -> None:
         for finding in findings:
             assert "terminal_window_omitted" not in finding.coverage_gaps
             assert "terminal_window_omitted" not in json.dumps(finding.model_dump(mode="json"))
+
+
+def test_r1_verifier_error_formatted_verdict_routes_to_verifier_failure() -> None:
+    # Real producer shape (trajectory_ir.py:703 / traj_card.py:309):
+    # final_verdict = f"VERIFIER_ERROR ({exception_class})". A verifier crash must
+    # deterministically route to verifier_failure and NEVER to agent attribution,
+    # even when an otherwise-labelable wrong-content pair is present in-window.
+    action, observation = _r1_pair(
+        True,
+        "cat: /app/missing.txt: No such file or directory",
+        command="cat /app/missing.txt",
+    )
+    pack = make_pack(events=[action, observation])
+    pack["final_verdict"] = "VERIFIER_ERROR (RewardFileNotFoundError)"
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert findings[0].class_id == "verifier_failure"
+    assert findings[0].extras.get("attribution_basis") == "verifier_evidence"
+    assert all(f.class_id != "wrong_target_or_action" for f in findings)
+
+
+def test_r1_verifier_errorish_prefix_collision_does_not_match() -> None:
+    # Negative control: arbitrary VERIFIER_ERROR-prefixed tokens without the
+    # canonical " (" delimiter must not be treated as verifier defects.
+    action, observation = _r1_pair(
+        True,
+        "cat: /app/missing.txt: No such file or directory",
+        command="cat /app/missing.txt",
+    )
+    pack = make_pack(events=[action, observation])
+    pack["final_verdict"] = "VERIFIER_ERRORISH"
+    findings = by_recipe(
+        run_recipes(artifacts_from(pack, make_ir(events=[action, observation]))), "r1"
+    )
+    assert all(f.class_id != "verifier_failure" for f in findings)

@@ -16,10 +16,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
 
-from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, new_ulid
 from evallab.results import JobRecord, load_job, sha256_file
 from evallab.schemas import QueueEvent
+from evallab.storage.paths import derived_root_from_environment
 
 COMPRESS_AFTER = timedelta(days=14)
 PRUNE_AFTER = timedelta(days=60)

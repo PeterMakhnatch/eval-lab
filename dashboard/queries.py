@@ -12,8 +12,8 @@ from typing import Any, Protocol
 
 import yaml
 
-from evallab.attach import AttachResult, ZoneStatus, attach
 from evallab.cohort import wilson_interval
+from evallab.storage.attach import AttachResult, ZoneStatus, attach
 
 Row = Mapping[str, Any]
 

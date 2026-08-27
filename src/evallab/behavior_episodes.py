@@ -27,7 +27,7 @@ from pydantic import (
 )
 
 from evallab.evidence.event_mart import EventMartProjection
-from evallab.paths import derived_root_from_environment
+from evallab.storage.paths import derived_root_from_environment
 
 EpisodeStatus = Literal["candidate", "reviewed", "confirmed", "rejected"]
 AnnotatorKind = Literal["code", "model", "human"]

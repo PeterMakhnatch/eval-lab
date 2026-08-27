@@ -28,12 +28,12 @@ import pyarrow.parquet as pq
 from evallab.evidence.atif import PARQUET_SCHEMAS
 from evallab.evidence.event_mart import EVENT_MART_SCHEMAS
 from evallab.evidence.facts import FACT_SCHEMAS
-from evallab.paths import (
+from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
+from evallab.storage.paths import (
     ParquetPartitionDiscovery,
     derived_root_from_environment,
     discover_parquet_partitions,
 )
-from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
 
 DEFAULT_RETENTION_DAYS = 7
 COMPACT_DIRNAME = "compact"

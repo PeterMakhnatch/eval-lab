@@ -19,7 +19,7 @@ The single mandated entry point for all consumers of the three storage zones.
 ## Python usage
 
 ```python
-from evallab.attach import attach
+from evallab.storage.attach import attach
 result = attach()
 print(result.zones)
 rows = result.connection.execute("SELECT * FROM z3.trial_facts LIMIT 5").fetchall()

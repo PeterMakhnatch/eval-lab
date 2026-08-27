@@ -18,11 +18,11 @@ The store builds its tables by consuming data from three distinct sources accord
 1. **Library supply (`library/tasks/`)**:
    - `tasks` table reads task definitions (`task.toml`) and instructions (`instruction.md`) directly from the task library.
 2. **Zone 3 (Z3 Analytics Parquet)**:
-   - `trials` and `steps` tables read structured trial metadata (`job_id`, `trial_id`, `job_name`, `trial_name`, `task_name`, `agent_version`, `primary_reward`, `exception_class`, `exception_phase`) exclusively via the **unified attach surface** (`evallab.attach.attach`).
+   - `trials` and `steps` tables read structured trial metadata (`job_id`, `trial_id`, `job_name`, `trial_name`, `task_name`, `agent_version`, `primary_reward`, `exception_class`, `exception_phase`) exclusively via the **unified attach surface** (`evallab.storage.attach.attach`).
    - The attach surface resolves the hot `job_id=*/trial_id=*/` partitions, cold `compact/` partitions, and schema unification (`union_by_name=true`) without ad-hoc path globbing.
 3. **Zone 1 (Z1 Evidence)**:
    - Step messages and trial trajectory texts (`steps[].message`) are loaded from raw ATIF trajectory files (`runs/<job>/<trial>/agent/trajectory.json`).
-   - Raw trajectories are Z1 execution evidence, not derived Z3 analytics. The attach surface does not cover Z1 raw artifacts and should not. Trajectories are read directly from disk with candidate roots resolved via `evallab.paths.shared_checkout_root`.
+   - Raw trajectories are Z1 execution evidence, not derived Z3 analytics. The attach surface does not cover Z1 raw artifacts and should not. Trajectories are read directly from disk with candidate roots resolved via `evallab.storage.paths.shared_checkout_root`.
    - Missing trajectory files are counted and reported with concrete paths (non-fatal; trials fall back to task/agent/exception text).
 
 ## Table schemas
@@ -71,7 +71,7 @@ LanceDB (lexical similarity):
 - "Find trajectories where the agent produced similar step reasoning or tool output to X"
 - Nearest-neighbour on embedded text; returns distances + identifying columns (including reward and task for immediate interpretability).
 
-Example DuckDB questions belong in `evallab.attach` or direct SQL.
+Example DuckDB questions belong in `evallab.storage.attach` or direct SQL.
 Example LanceDB questions use `python -m evallab.lance search "..."`.
 
 ## Rebuild and search

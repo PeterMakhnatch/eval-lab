@@ -15,7 +15,7 @@ They represent the terminus of the experiment specification lifecycle:
 draft -> (purpose=comparison => prereg required) -> submitted -> gated -> dispatched -> analyzed -> carded
 ```
 
-Every eval card is generated from completed evidence using the unified DuckDB attach surface (`evallab.attach`), calculates uncertainty with the task as the evidence unit (`evallab.cohort`), and carries explicit lineage digests for upstream tracing.
+Every eval card is generated from completed evidence using the unified DuckDB attach surface (`evallab.storage.attach`), calculates uncertainty with the task as the evidence unit (`evallab.cohort`), and carries explicit lineage digests for upstream tracing.
 
 ---
 

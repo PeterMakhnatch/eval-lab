@@ -22,18 +22,18 @@ from typing import Any, Literal, Protocol
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evallab.attach import attach
 from evallab.evidence_store import load_archive
 from evallab.lineage import compute_file_digest
-from evallab.paths import (
-    derived_root_from_environment,
-    shared_checkout_root,
-)
 from evallab.queue import new_ulid
 from evallab.schemas import (
     AnalysisRecord,
     ConfidenceClaim,
     EvidenceCitation,
+)
+from evallab.storage.attach import attach
+from evallab.storage.paths import (
+    derived_root_from_environment,
+    shared_checkout_root,
 )
 
 ANALYSIS_DIR_NAME = "research/analysis"

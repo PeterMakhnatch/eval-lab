@@ -15,14 +15,14 @@ from typing import Any
 import duckdb
 
 from evallab.contextpack import parse_doc
-from evallab.parquet_compaction import PRIMARY_KEYS
-from evallab.paths import (
+from evallab.runner import database_url_from_environment
+from evallab.storage.parquet_compaction import PRIMARY_KEYS
+from evallab.storage.paths import (
     ParquetLayout,
     ParquetPartitionDiscovery,
     derived_root_from_environment,
     discover_parquet_partitions,
 )
-from evallab.runner import database_url_from_environment
 
 
 @dataclass(frozen=True)

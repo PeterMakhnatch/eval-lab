@@ -15,7 +15,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
-from evallab.parquet_compaction import (
+from evallab.storage.parquet_compaction import (
     COMPACT_DIRNAME,
     PRIMARY_KEYS,
     PROJECTED_TABLE_NAMES,

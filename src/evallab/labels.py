@@ -22,13 +22,13 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.evidence.facts import AnalyzerCallable
-from evallab.paths import derived_root_from_environment
 from evallab.schemas import (
     AnalysisEvidenceCitation,
     AnalysisProvenance,
     BehaviorLabel,
     TrialAnalysisSidecar,
 )
+from evallab.storage.paths import derived_root_from_environment
 from evallab.traj import (
     CONTROL_AGENTS,
     TrajectoryError,

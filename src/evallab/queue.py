@@ -33,7 +33,6 @@ from evallab.execution_contracts import (
     load_policy,
     new_ulid,
 )
-from evallab.paths import derived_root_from_environment
 from evallab.profiles import CONTROL_ADAPTERS
 from evallab.quota import (
     Headroom,
@@ -79,6 +78,7 @@ from evallab.schemas import (
     StandingApprovalsPolicy,
     canonical_grid_point_id,
 )
+from evallab.storage.paths import derived_root_from_environment
 
 QUEUE_STATES: tuple[QueueState, ...] = (
     "proposed",

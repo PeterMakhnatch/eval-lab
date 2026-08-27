@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from evallab.paths import (
+from evallab.storage.paths import (
     DERIVED_ROOT_ENV,
     derived_root_from_environment,
     discover_parquet_partitions,

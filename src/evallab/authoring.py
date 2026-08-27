@@ -48,7 +48,6 @@ from pydantic import Field
 
 from evallab.evidence.facts import AnalyzerCallable, AnalyzerCallResult
 from evallab.modeladapter import ModelAdapter, ModelAdapterError
-from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, PolicyGate, load_policy, new_ulid
 from evallab.schemas import (
     AuthoringSeedClass,
@@ -59,6 +58,7 @@ from evallab.schemas import (
     PolicyDecision,
     ProposalSpec,
 )
+from evallab.storage.paths import derived_root_from_environment
 
 MODEL_PROVENANCE_SCHEMA_VERSION = "authoring-model/1"
 MODEL_TRANSPORTS: tuple[str, ...] = ("cursor-agent", "agy")

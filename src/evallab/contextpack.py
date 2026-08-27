@@ -28,7 +28,7 @@ from typing import Any
 
 import yaml
 
-from evallab.paths import derived_root_from_environment
+from evallab.storage.paths import derived_root_from_environment
 
 CONTEXTPACK_VERSION = "contextpack v1"
 HEADER_PREFIX = "<!-- generated-by: contextpack v1 -->"

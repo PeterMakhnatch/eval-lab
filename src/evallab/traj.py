@@ -25,8 +25,8 @@ from typing import Any, Literal
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evallab.paths import derived_root_from_environment, shared_checkout_root
 from evallab.results import sha256_file
+from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
 
 PhaseType = Literal["setup", "prompt", "work", "verifier", "unknown"]
 AvailabilityStatus = Literal["featured", "accounted_unavailable"]

@@ -48,8 +48,8 @@ from evallab.modeladapter import (
     ModelAdapterResult,
     ModelAdapterTimeoutError,
 )
-from evallab.paths import derived_root_from_environment
 from evallab.schemas import ProposalAxes, ProposalSpec
+from evallab.storage.paths import derived_root_from_environment
 
 # Completeness checker from meta-task package
 _checker_dir = Path(__file__).resolve().parent.parent / "library/meta/synthesize-task@1/tests"

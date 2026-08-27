@@ -15,7 +15,6 @@ from evallab.evidence.atif import (
     project_jobs,
 )
 from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
-from evallab.paths import derived_root_from_environment
 from evallab.queue import DirectoryQueue, Executor, load_policy, new_ulid
 from evallab.results import JobRecord, load_job
 from evallab.runner import RunRequest, database_url_from_environment
@@ -27,6 +26,7 @@ from evallab.schemas import (
     TrialAnalysisSidecar,
 )
 from evallab.status import StatusSnapshot, build_status_snapshot
+from evallab.storage.paths import derived_root_from_environment
 
 FIXTURE_JOB = Path("research/evidence/runs/event-summary-oracle-evidence")
 SMOKE_TASK = "library/tasks/event-summary"

@@ -14,8 +14,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import BinaryIO, TextIO
 
-from evallab.paths import shared_checkout_root
 from evallab.runner import subscription_environment
+from evallab.storage.paths import shared_checkout_root
 
 POSTGRES_BACKUP_TIMEOUT_SECONDS = 600
 BackupRunner = Callable[[list[str], BinaryIO], subprocess.CompletedProcess[bytes]]

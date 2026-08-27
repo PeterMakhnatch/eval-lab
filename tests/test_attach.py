@@ -13,9 +13,9 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.attach import SEMANTIC_COMPARISON_COLUMNS, TABLES, attach, build_sql_preamble
 from evallab.cli import _redact_database_dsn, run_cli
 from evallab.runner import database_url_from_environment
+from evallab.storage.attach import SEMANTIC_COMPARISON_COLUMNS, TABLES, attach, build_sql_preamble
 
 
 def _catalog_reachable(dsn: str | None = None) -> bool:
@@ -494,7 +494,7 @@ def test_cli_zones_reports_z3_with_row_counts(
     out, _ = capsys.readouterr()
     assert code == 0
     assert "z3: attached" in out
-    from evallab.attach import TABLES
+    from evallab.storage.attach import TABLES
 
     assert f"10/{len(TABLES)} tables" in out
 

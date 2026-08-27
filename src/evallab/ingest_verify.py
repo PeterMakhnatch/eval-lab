@@ -26,8 +26,8 @@ from evallab.evidence.atif import (
     PROJECTED_TABLES,
     _recorded_projection_exceptions_map,
 )
-from evallab.paths import derived_root_from_environment
 from evallab.runner import database_url_from_environment
+from evallab.storage.paths import derived_root_from_environment
 
 # Directories ignored from trial scanning (ephemeral or harness-internal)
 IGNORED_DIR_NAMES = frozenset(

@@ -30,8 +30,8 @@ from dashboard.queries import (
     queue_funnel,
     spend_history,
 )
-from evallab.attach import AttachResult, ZoneStatus
 from evallab.runner import database_url_from_environment
+from evallab.storage.attach import AttachResult, ZoneStatus
 
 
 @pytest.fixture

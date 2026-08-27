@@ -8,8 +8,8 @@ from pathlib import Path
 import pyarrow.parquet as pq
 
 from evallab.evidence.facts import rebuild_from_raw
-from evallab.parquet_compaction import deduplicate_and_sort
 from evallab.results import load_job
+from evallab.storage.parquet_compaction import deduplicate_and_sort
 
 
 def _write_json(path: Path, value: object) -> None:

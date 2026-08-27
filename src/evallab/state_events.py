@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import posixpath
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +22,9 @@ from evallab.schemas import StateEventMetadata, StateJournalEvent
 PRODUCER = "evallab-state-journal"
 FACT_SCHEMA_VERSION = "state-event-fact-v1"
 TEMPORAL_SEMANTICS = "sequence_precedence_non_causal"
+ALLOWED_CHANGE_TYPES = frozenset(
+    {"added", "created", "modified", "deleted", "unmodified", "renamed"}
+)
 KNOWN_OPERATIONS = frozenset(
     {
         "modify",
@@ -89,19 +93,21 @@ def _metadata_digest(value: StateEventMetadata | None) -> str | None:
     ).encode("utf-8")
     return _sha256(payload)
 
-
-def _validate_timestamp(value: str, *, line_number: int) -> None:
+def _parse_iso_timestamp(value: str, *, context: str) -> datetime:
+    """Parse ISO-8601 timestamp string and require an explicit timezone offset."""
+    if not isinstance(value, str) or not value.strip():
+        raise StateEventValidationError(f"{context}: timestamp must be a non-empty string")
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise StateEventValidationError(
-            f"state-events.jsonl line {line_number}: timestamp is not ISO-8601"
-        ) from exc
+        raise StateEventValidationError(f"{context}: timestamp is not ISO-8601: {value!r}") from exc
     if parsed.tzinfo is None:
-        raise StateEventValidationError(
-            f"state-events.jsonl line {line_number}: timestamp must include an offset"
-        )
+        raise StateEventValidationError(f"{context}: timestamp must include an offset: {value!r}")
+    return parsed
 
+
+def _validate_timestamp(value: str, *, line_number: int) -> None:
+    _parse_iso_timestamp(value, context=f"state-events.jsonl line {line_number}")
 
 def _producer_status(journal_dir: Path) -> tuple[int, str]:
     status_path = journal_dir / "status.json"
@@ -123,9 +129,293 @@ def _producer_status(journal_dir: Path) -> tuple[int, str]:
         raise StateEventValidationError("state-journal producer status is missing")
     return version, status
 
+def validate_safe_relative_posix_path(path: Any, *, context: str = "path") -> str:
+    """Ensure path is a non-empty, safe relative normalized POSIX path without traversal."""
+    if not isinstance(path, str) or not path.strip():
+        raise StateEventValidationError(f"{context}: path is invalid")
+    if "\\" in path:
+        raise StateEventValidationError(f"{context}: path is invalid (backslashes forbidden)")
+    normalized = posixpath.normpath(path)
+    if normalized in ("", ".", "/"):
+        raise StateEventValidationError(f"{context}: path is invalid (cannot be dot or root)")
+    if normalized.startswith("/") or path.startswith("/"):
+        raise StateEventValidationError(f"{context}: path is invalid (absolute paths forbidden)")
+    if normalized == ".." or normalized.startswith("../"):
+        raise StateEventValidationError(f"{context}: path is invalid (path traversal forbidden)")
+    return normalized
 
-def _initial_states(journal_dir: Path) -> dict[str, StateEventMetadata | None]:
-    diff_path = journal_dir / "state-diff.json"
+
+def validate_state_event_metadata(
+    value: Any,
+    *,
+    expected_path: str,
+    side: str,
+    context: str = "state-diff.json change",
+) -> StateEventMetadata:
+    """Validate StateEventMetadata with strict enclosing-path equality and producer hash rules."""
+    if not isinstance(value, dict):
+        raise StateEventValidationError(f"{context}: {side} metadata is invalid (must be an object)")
+    try:
+        meta = StateEventMetadata.model_validate(value)
+    except ValidationError as exc:
+        raise StateEventValidationError(f"{context}: {side} metadata is invalid") from exc
+
+    try:
+        norm_meta_path = validate_safe_relative_posix_path(meta.path, context=f"{context}: {side} path")
+    except StateEventValidationError as exc:
+        raise StateEventValidationError(f"{context}: {side} metadata is invalid") from exc
+
+    if norm_meta_path != expected_path:
+        raise StateEventValidationError(
+            f"{context}: {side} path conflicts with change path"
+        )
+
+    if meta.size_bytes < 0:
+        raise StateEventValidationError(f"{context}: {side} metadata is invalid (negative size_bytes)")
+
+    # Producer-valid regular/dir/symlink/unreadable/size_limit hash rules
+    if meta.type == "file":
+        if meta.hash_status == "complete":
+            if not meta.sha256:
+                raise StateEventValidationError(
+                    f"{context}: {side} metadata is invalid (hash_status='complete' requires sha256)"
+                )
+        elif meta.hash_status in ("size_limit", "unreadable") and meta.sha256 is not None:
+            raise StateEventValidationError(
+                f"{context}: {side} metadata is invalid (hash_status={meta.hash_status!r} must not have sha256)"
+            )
+    elif meta.type == "directory" and meta.target is not None:
+        raise StateEventValidationError(
+            f"{context}: {side} metadata is invalid (directory cannot have symlink target)"
+        )
+
+    return meta
+@dataclass(frozen=True)
+class StateDiffChange:
+    """Canonical validated change record from state-diff.json."""
+
+    path: str
+    change_type: str
+    before: StateEventMetadata | None
+    after: StateEventMetadata | None
+    event_count: int = 0
+    first_event_at: str | None = None
+    last_event_at: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "change_type": self.change_type,
+            "before": self.before.model_dump(mode="json", exclude_none=True) if self.before else None,
+            "after": self.after.model_dump(mode="json", exclude_none=True) if self.after else None,
+            "event_count": self.event_count,
+            "first_event_at": self.first_event_at,
+            "last_event_at": self.last_event_at,
+        }
+
+
+@dataclass(frozen=True)
+class StateDiffDocument:
+    """Canonical validated state-diff.json document."""
+
+    schema_version: int
+    status: str
+    root: str | None
+    before_captured_at: str | None
+    after_captured_at: str | None
+    change_count: int
+    event_count: int
+    changes: tuple[StateDiffChange, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "status": self.status,
+            "root": self.root,
+            "before_captured_at": self.before_captured_at,
+            "after_captured_at": self.after_captured_at,
+            "change_count": self.change_count,
+            "event_count": self.event_count,
+            "changes": [c.to_dict() for c in self.changes],
+        }
+
+
+def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
+    """Validate a state-diff document or change list against canonical schema v1 rules."""
+    if isinstance(payload, list):
+        raw_changes = payload
+        schema_version = 1
+        status = "available"
+        root = None
+        before_cap = None
+        after_cap = None
+        doc_change_count = len(raw_changes)
+        doc_event_count = None
+    elif isinstance(payload, dict):
+        schema_ver = payload.get("schema_version")
+        if type(schema_ver) is not int or schema_ver != 1:
+            raise StateEventValidationError(
+                "state-diff.json must be a schema_version 1 object with changes"
+            )
+        raw_changes = payload.get("changes")
+        if not isinstance(raw_changes, list):
+            raise StateEventValidationError(
+                "state-diff.json must be a schema_version 1 object with changes"
+            )
+        schema_version = 1
+        raw_status = payload.get("status")
+        if not isinstance(raw_status, str) or not raw_status.strip():
+            raise StateEventValidationError("state-diff.json status must be a non-empty string")
+        status = raw_status.strip()
+        root = str(payload.get("root")) if payload.get("root") is not None else None
+
+        before_cap = payload.get("before_captured_at")
+        if before_cap is not None:
+            _parse_iso_timestamp(before_cap, context="state-diff.json before_captured_at")
+        after_cap = payload.get("after_captured_at")
+        if after_cap is not None:
+            _parse_iso_timestamp(after_cap, context="state-diff.json after_captured_at")
+        if before_cap is not None and after_cap is not None:
+            b_dt = _parse_iso_timestamp(before_cap, context="state-diff.json before_captured_at")
+            a_dt = _parse_iso_timestamp(after_cap, context="state-diff.json after_captured_at")
+            if a_dt < b_dt:
+                raise StateEventValidationError(
+                    f"state-diff.json after_captured_at ({after_cap}) precedes before_captured_at ({before_cap})"
+                )
+
+        doc_change_count = payload.get("change_count")
+        if doc_change_count is not None and (type(doc_change_count) is not int or doc_change_count < 0):
+            raise StateEventValidationError("state-diff.json change_count must be a non-negative integer")
+        doc_event_count = payload.get("event_count")
+        if doc_event_count is not None and (type(doc_event_count) is not int or doc_event_count < 0):
+            raise StateEventValidationError("state-diff.json event_count must be a non-negative integer")
+    else:
+        raise StateEventValidationError("state-diff.json must be a schema_version 1 object with changes")
+
+    validated_changes: list[StateDiffChange] = []
+    seen_paths: set[str] = set()
+
+    for index, change in enumerate(raw_changes):
+        ctx = f"state-diff.json change {index}"
+        if not isinstance(change, dict):
+            raise StateEventValidationError(f"{ctx}: change must be an object")
+
+        path_val = change.get("path")
+        path = validate_safe_relative_posix_path(path_val, context=ctx)
+        if path in seen_paths:
+            raise StateEventValidationError(f"{ctx}: duplicate or conflicting path {path_val!r}")
+        seen_paths.add(path)
+
+        change_type = change.get("change_type")
+        if change_type is None:
+            # Infer default change_type from before/after presence if omitted
+            has_b = "before" in change and change["before"] is not None
+            has_a = "after" in change and change["after"] is not None
+            if has_b and has_a:
+                change_type = "modified"
+            elif has_a:
+                change_type = "added"
+            elif has_b:
+                change_type = "deleted"
+            else:
+                change_type = "modified"
+        elif not isinstance(change_type, str) or change_type not in ALLOWED_CHANGE_TYPES:
+            raise StateEventValidationError(
+                f"{ctx}: change_type {change_type!r} is not an allowed change type"
+            )
+
+        for side in ("before", "after"):
+            if side not in change:
+                raise StateEventValidationError(f"{ctx}: {side} evidence is missing")
+
+        b_val = change["before"]
+        a_val = change["after"]
+        b_meta = (
+            validate_state_event_metadata(b_val, expected_path=path, side="before", context=ctx)
+            if b_val is not None
+            else None
+        )
+        a_meta = (
+            validate_state_event_metadata(a_val, expected_path=path, side="after", context=ctx)
+            if a_val is not None
+            else None
+        )
+
+        # Transition consistency checks
+        if change_type in ("added", "created"):
+            if b_meta is not None or a_meta is None:
+                raise StateEventValidationError(
+                    f"{ctx}: change_type '{change_type}' requires before=None and after!=None"
+                )
+        elif change_type == "deleted":
+            if b_meta is None or a_meta is not None:
+                raise StateEventValidationError(
+                    f"{ctx}: change_type 'deleted' requires before!=None and after=None"
+                )
+        elif change_type in ("modified", "unmodified"):
+            if b_meta is None or a_meta is None:
+                raise StateEventValidationError(
+                    f"{ctx}: change_type '{change_type}' requires both before and after metadata"
+                )
+        elif change_type == "renamed" and b_meta is None and a_meta is None:
+            raise StateEventValidationError(
+                f"{ctx}: change_type 'renamed' requires at least before or after metadata"
+            )
+        raw_ec = change.get("event_count", 0)
+        if type(raw_ec) is not int or raw_ec < 0:
+            raise StateEventValidationError(f"{ctx}: event_count must be a non-negative integer")
+        c_event_count = raw_ec
+
+        first_at = change.get("first_event_at")
+        if first_at is not None:
+            _parse_iso_timestamp(first_at, context=f"{ctx} first_event_at")
+        last_at = change.get("last_event_at")
+        if last_at is not None:
+            _parse_iso_timestamp(last_at, context=f"{ctx} last_event_at")
+        if first_at is not None and last_at is not None:
+            f_dt = _parse_iso_timestamp(first_at, context=f"{ctx} first_event_at")
+            l_dt = _parse_iso_timestamp(last_at, context=f"{ctx} last_event_at")
+            if l_dt < f_dt:
+                raise StateEventValidationError(
+                    f"{ctx}: last_event_at ({last_at}) precedes first_event_at ({first_at})"
+                )
+
+        validated_changes.append(
+            StateDiffChange(
+                path=path,
+                change_type=change_type,
+                before=b_meta,
+                after=a_meta,
+                event_count=c_event_count,
+                first_event_at=first_at,
+                last_event_at=last_at,
+            )
+        )
+
+    final_change_count = len(validated_changes)
+    if doc_change_count is not None and doc_change_count != final_change_count:
+        raise StateEventValidationError(
+            f"state-diff.json change_count ({doc_change_count}) does not match changes length ({final_change_count})"
+        )
+
+    final_event_count = (
+        doc_event_count if doc_event_count is not None else sum(c.event_count for c in validated_changes)
+    )
+
+    return StateDiffDocument(
+        schema_version=schema_version,
+        status=status,
+        root=root,
+        before_captured_at=before_cap,
+        after_captured_at=after_cap,
+        change_count=final_change_count,
+        event_count=final_event_count,
+        changes=tuple(validated_changes),
+    )
+
+
+def load_state_diff(diff_path: Path) -> StateDiffDocument:
+    """Load and validate state-diff.json, failing closed with StateEventValidationError."""
     if not diff_path.exists():
         raise StateEventValidationError("state-diff.json missing for available event stream")
     try:
@@ -134,53 +424,15 @@ def _initial_states(journal_dir: Path) -> dict[str, StateEventMetadata | None]:
         raise StateEventValidationError(
             f"state-diff.json is unreadable or malformed: {type(exc).__name__}"
         ) from exc
-    if (
-        not isinstance(payload, dict)
-        or payload.get("schema_version") != 1
-        or not isinstance(payload.get("changes"), list)
-    ):
-        raise StateEventValidationError(
-            "state-diff.json must be a schema_version 1 object with changes"
-        )
-    states: dict[str, StateEventMetadata | None] = {}
-    for index, change in enumerate(payload["changes"]):
-        if not isinstance(change, dict):
-            raise StateEventValidationError(
-                f"state-diff.json change {index}: change must be an object"
-            )
-        path = change.get("path")
-        if not isinstance(path, str) or not path:
-            raise StateEventValidationError(
-                f"state-diff.json change {index}: path is invalid"
-            )
-        if path in states:
-            raise StateEventValidationError(
-                f"state-diff.json change {index}: duplicate or conflicting path {path!r}"
-            )
-        for side in ("before", "after"):
-            if side not in change:
-                raise StateEventValidationError(
-                    f"state-diff.json change {index}: {side} evidence is missing"
-                )
-            value = change[side]
-            if value is None:
-                if side == "before":
-                    states[path] = None
-                continue
-            try:
-                metadata = StateEventMetadata.model_validate(value)
-            except ValidationError as exc:
-                raise StateEventValidationError(
-                    f"state-diff.json change {index}: {side} metadata is invalid"
-                ) from exc
-            if metadata.path != path:
-                raise StateEventValidationError(
-                    f"state-diff.json change {index}: {side} path conflicts with change path"
-                )
-            if side == "before":
-                states[path] = metadata
-    return states
+    return validate_state_diff_payload(payload)
 
+
+def _initial_states(journal_dir: Path) -> dict[str, StateEventMetadata | None]:
+    diff_path = journal_dir / "state-diff.json"
+    if not diff_path.exists():
+        raise StateEventValidationError("state-diff.json missing for available event stream")
+    doc = load_state_diff(diff_path)
+    return {change.path: change.before for change in doc.changes}
 
 def invalid_state_event_fact(
     trial: TrialRecord,

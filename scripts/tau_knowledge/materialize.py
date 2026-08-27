@@ -93,6 +93,51 @@ def _load_adapter(root: Path) -> type[Any]:
     raise RuntimeError(f"blocked:adapter_package_missing:{root}")
 
 
+def validate_agent_boundary(task_dir: Path, manifest: Mapping[str, Any]) -> None:
+    """Reject credentials, hidden-file aliases, and duplicated oracle spans."""
+    visible_paths = [
+        task_dir / "task.toml",
+        task_dir / "instruction.md",
+        task_dir / "instructions.md",
+    ]
+    environment = task_dir / "environment"
+    if environment.is_dir():
+        visible_paths.extend(sorted(environment.rglob("*")))
+
+    visible_text: list[str] = []
+    for path in visible_paths:
+        if path.is_symlink():
+            raise RuntimeError(f"blocked:agent_visible_symlink:{path.relative_to(task_dir)}")
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        visible_text.append(text)
+        for credential_env in manifest["credentials"]["simulated_user"]["required_env"]:
+            if credential_env in text:
+                raise RuntimeError(
+                    f"blocked:simulator_credential_boundary_leak:{path.relative_to(task_dir)}"
+                )
+
+    combined_visible = "\n".join(visible_text)
+    for hidden_root_name in ("solution", "tests"):
+        hidden_root = task_dir / hidden_root_name
+        if not hidden_root.is_dir():
+            continue
+        for path in sorted(hidden_root.rglob("*")):
+            if not path.is_file() or path.is_symlink():
+                continue
+            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                normalized = " ".join(line.strip().split())
+                if (
+                    len(normalized) >= 32
+                    and not normalized.startswith(("#", "//", "/*", "*"))
+                    and normalized in combined_visible
+                ):
+                    raise RuntimeError(
+                        f"blocked:oracle_boundary_leak:{path.relative_to(task_dir)}"
+                    )
+
+
 def materialize(
     *,
     manifest_path: Path,
@@ -125,6 +170,7 @@ def materialize(
         task_dir / "tests/config.json"
     ).is_file():
         raise RuntimeError(f"adapter did not produce complete task: {task_dir}")
+    validate_agent_boundary(task_dir, manifest)
     metadata = {
         "schema_version": "tau-knowledge-materialization/v1",
         "benchmark": "tau-Knowledge",

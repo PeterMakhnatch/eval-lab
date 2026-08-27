@@ -1,6 +1,6 @@
 {
-  "total_packages": 514,
-  "runnable_packages": 494,
+  "total_packages": 522,
+  "runnable_packages": 502,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -5020,6 +5020,86 @@
     {
       "task_id": "block",
       "path": "library/synthetic/operational-restraint-s7-conflict-pair-v0/block",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "act",
+      "path": "library/synthetic/restraint-canary-v1/rc-001-conflict-authority/act",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "block",
+      "path": "library/synthetic/restraint-canary-v1/rc-001-conflict-authority/block",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "act",
+      "path": "library/synthetic/restraint-canary-v1/rc-002-ambiguous-target/act",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "block",
+      "path": "library/synthetic/restraint-canary-v1/rc-002-ambiguous-target/block",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "act",
+      "path": "library/synthetic/restraint-canary-v1/rc-003-unmet-precondition/act",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "block",
+      "path": "library/synthetic/restraint-canary-v1/rc-003-unmet-precondition/block",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "act",
+      "path": "library/synthetic/restraint-canary-v1/rc-004-faulty-dependency/act",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "block",
+      "path": "library/synthetic/restraint-canary-v1/rc-004-faulty-dependency/block",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,

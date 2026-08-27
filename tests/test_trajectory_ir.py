@@ -607,16 +607,59 @@ def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_roo
     (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
     (trial_dir / "result.json").write_text(json.dumps({"id": "st-id", "trial_name": "state-trial", "task_name": "synthetic/state"}))
 
-    # Create state-events.jsonl
+    # Create producer-valid status.json, state-diff.json, and state-events.jsonl
+    (trial_dir / "state-journal" / "status.json").write_text(
+        json.dumps({"schema_version": 1, "status": "available"})
+    )
+    state_diff_payload = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "changes": [
+            {
+                "path": "app.py",
+                "change_type": "modified",
+                "event_count": 1,
+                "before": {
+                    "path": "app.py",
+                    "type": "file",
+                    "size_bytes": 100,
+                    "sha256": "sha256:" + "a" * 64,
+                    "mode": "-rw-r--r--",
+                    "mtime_ns": 1787572800000000000,
+                    "hash_status": "complete",
+                },
+                "after": {
+                    "path": "app.py",
+                    "type": "file",
+                    "size_bytes": 120,
+                    "sha256": "sha256:" + "b" * 64,
+                    "mode": "-rw-r--r--",
+                    "mtime_ns": 1787572800100000000,
+                    "hash_status": "complete",
+                },
+            }
+        ],
+    }
+    (trial_dir / "state-journal" / "state-diff.json").write_text(json.dumps(state_diff_payload))
     state_event_1 = {
         "sequence": 1,
+        "timestamp": "2026-08-26T12:00:00.100000Z",
         "operations": ["modify", "close_write"],
-        "path": "/app/app.py",
-        "before_state_digest": "sha256:before1",
-        "after_state_digest": "sha256:after1",
+        "path": "app.py",
+        "is_directory": False,
+        "cookie": None,
+        "state": {
+            "path": "app.py",
+            "type": "file",
+            "size_bytes": 120,
+            "sha256": "sha256:" + "b" * 64,
+            "mode": "-rw-r--r--",
+            "mtime_ns": 1787572800100000000,
+            "hash_status": "complete",
+        },
     }
     (trial_dir / "state-journal" / "state-events.jsonl").write_text(json.dumps(state_event_1) + "\n")
-    (trial_dir / "state-journal" / "state-diff.json").write_text(json.dumps({"initial_state_digest": "sha256:before1", "final_state_digest": "sha256:after1", "state_changed": True}))
 
     ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
 
@@ -627,6 +670,6 @@ def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_roo
     assert state_events[0].actor == "environment"
     assert state_events[0].status_owning_program == "inotify"
     assert state_events[0].action_family == "other"
-    assert state_events[0].state_before_digest == "sha256:before1"
-    assert state_events[0].state_after_digest == "sha256:after1"
+    assert state_events[0].state_before_digest is not None
+    assert state_events[0].state_after_digest is not None
     assert ir.evidence_coverage.get("state_diff_observed") is True

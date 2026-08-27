@@ -935,19 +935,23 @@ def build_trajectory_ir(
             or None
         )
 
-        verifier_candidates = (
-            trial_dir / "verifier" / "ctrf.redacted.json",
-            trial_dir / "verifier" / "reward.json",
-            trial_dir / "verifier" / "reward.txt",
-        )
-        verifier_path = next((p for p in verifier_candidates if p.is_file()), None)
+        lock_dict: dict[str, Any] = {}
+        lock_path = trial_dir / "lock.json"
+        if lock_path.is_file():
+            with contextlib.suppress(Exception):
+                lock_dict = json.loads(lock_path.read_text(encoding="utf-8", errors="replace"))
 
         verifier_digest = (
             inventory_record.get("verifier_digest")
             or str(result_data.get("verifier_digest") or "")
-            or (f"sha256:{sha256_file(verifier_path)}" if verifier_path else None)
+            or str(result_data.get("verifier_checksum") or "")
             or None
         )
+        if not verifier_digest:
+            verifier_spec = lock_dict.get("verifier") or (result_data.get("config") or {}).get("verifier")
+            if verifier_spec:
+                verifier_payload = json.dumps({"task_digest": task_digest, "verifier": verifier_spec}, sort_keys=True)
+                verifier_digest = f"sha256:{hashlib.sha256(verifier_payload.encode()).hexdigest()}"
 
         manifest_candidates = (
             trial_dir / "manifest.json",
@@ -1297,8 +1301,9 @@ def build_trajectory_ir(
                 events.append(event)
                 event_ord_counter += 1
 
+        journal_dir = trial_dir / "state-journal"
         state_events_candidates = (
-            trial_dir / "state-journal" / "state-events.jsonl",
+            journal_dir / "state-events.jsonl",
             trial_dir / "state-events.jsonl",
         )
         state_events_path = next((p for p in state_events_candidates if p.is_file()), None)
@@ -1306,22 +1311,27 @@ def build_trajectory_ir(
             try:
                 state_rel_path = state_events_path.relative_to(trial_dir).as_posix()
                 state_sha = sha256_file(state_events_path)
-                with state_events_path.open("r", encoding="utf-8", errors="replace") as f:
-                    for line_idx, line in enumerate(f):
-                        line_str = line.strip()
-                        if not line_str:
+                if journal_dir.is_dir() and (journal_dir / "status.json").is_file() and (journal_dir / "state-diff.json").is_file():
+                    from evallab.results import TrialRecord
+                    from evallab.state_events import load_state_event_facts
+                    trial_rec = TrialRecord(
+                        path=trial_dir,
+                        result={"id": outline.trial_id, "trial_name": outline.trial_name},
+                        config=config_dict,
+                        lock=lock_dict,
+                        rewards={},
+                        artifacts=(),
+                    )
+                    state_facts = load_state_event_facts(
+                        trial_rec,
+                        job_id=outline.job_id or "job",
+                        experiment_id=None,
+                    )
+                    for fact in state_facts:
+                        if fact.evidence_status != "valid":
                             continue
-                        try:
-                            se_data = json.loads(line_str)
-                        except Exception:
-                            continue
-                        if not isinstance(se_data, dict):
-                            continue
-                        se_path = str(se_data.get("path") or "file")
-                        se_ops = se_data.get("operations") or ["modify"]
-                        se_fam = "other"
                         se_event_id = hashlib.sha256(
-                            f"{outline.trial_id}:{event_ord_counter}:state_change:{line_idx}:{se_path}".encode()
+                            f"{outline.trial_id}:{event_ord_counter}:state_change:{fact.sequence}:{fact.path}".encode()
                         ).hexdigest()
                         se_citation = create_citation_handle(
                             trial_id=outline.trial_id,
@@ -1338,29 +1348,80 @@ def build_trajectory_ir(
                                 event_ordinal=event_ord_counter,
                                 event_type="state_change",
                                 actor="environment",
-                                timestamp=se_data.get("event_at") or se_data.get("timestamp"),
+                                timestamp=fact.event_at,
                                 phase="work",
                                 episode_id=1,
-                                step_index=se_data.get("sequence") or (outline.total_steps or 1),
+                                step_index=fact.sequence,
                                 call_index=None,
-                                action_family=se_fam,
+                                action_family="other",
                                 status_owning_program="inotify",
-                                argument_skeleton=se_path,
+                                argument_skeleton=fact.path or "file",
                                 exit_code=0,
                                 exit_semantics="success",
                                 is_error=False,
-                                payload_digest=f"sha256:{hashlib.sha256(line_str.encode('utf-8')).hexdigest()}",
-                                payload_bytes=len(line_str.encode("utf-8")),
+                                payload_digest=fact.source_record_digest or f"sha256:{hashlib.sha256(str(fact.path).encode()).hexdigest()}",
+                                payload_bytes=fact.after_size_bytes or 0,
                                 source_citation=se_citation,
-                                summary=f"State event: {','.join(se_ops)} {se_path}",
-                                state_before_digest=se_data.get("before_state_digest"),
-                                state_after_digest=se_data.get("after_state_digest"),
+                                summary=f"State event: {','.join(fact.operations)} {fact.path}",
+                                state_before_digest=fact.before_state_digest,
+                                state_after_digest=fact.after_state_digest,
                             )
                         )
                         event_ord_counter += 1
+                else:
+                    with state_events_path.open("r", encoding="utf-8", errors="replace") as f:
+                        for line_idx, line in enumerate(f):
+                            line_str = line.strip()
+                            if not line_str:
+                                continue
+                            try:
+                                se_data = json.loads(line_str)
+                            except Exception:
+                                continue
+                            if not isinstance(se_data, dict):
+                                continue
+                            se_path = str(se_data.get("path") or "file")
+                            se_ops = se_data.get("operations") or ["modify"]
+                            se_event_id = hashlib.sha256(
+                                f"{outline.trial_id}:{event_ord_counter}:state_change:{line_idx}:{se_path}".encode()
+                            ).hexdigest()
+                            se_citation = create_citation_handle(
+                                trial_id=outline.trial_id,
+                                source_path=state_rel_path,
+                                source_sha256=state_sha,
+                                raw_cas_uri=cas_uri,
+                                target_type="file",
+                                ir_event_id=se_event_id,
+                                redaction_profile_digest=policy.compute_digest(),
+                            )
+                            events.append(
+                                IREvent(
+                                    event_id=se_event_id,
+                                    event_ordinal=event_ord_counter,
+                                    event_type="state_change",
+                                    actor="environment",
+                                    timestamp=se_data.get("timestamp") or se_data.get("event_at"),
+                                    phase="work",
+                                    episode_id=1,
+                                    step_index=se_data.get("sequence") or (outline.total_steps or 1),
+                                    call_index=None,
+                                    action_family="other",
+                                    status_owning_program="inotify",
+                                    argument_skeleton=se_path,
+                                    exit_code=0,
+                                    exit_semantics="success",
+                                    is_error=False,
+                                    payload_digest=f"sha256:{hashlib.sha256(line_str.encode('utf-8')).hexdigest()}",
+                                    payload_bytes=len(line_str.encode("utf-8")),
+                                    source_citation=se_citation,
+                                    summary=f"State event: {','.join(se_ops)} {se_path}",
+                                    state_before_digest=se_data.get("before_state_digest"),
+                                    state_after_digest=se_data.get("after_state_digest"),
+                                )
+                            )
+                            event_ord_counter += 1
             except Exception:
                 pass
-
         episodes = _segment_episodes(events)
 
         updated_events: list[IREvent] = []

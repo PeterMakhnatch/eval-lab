@@ -191,3 +191,22 @@ def test_k_star_citation_matches_exact_call_index_on_multi_call_step() -> None:
     assert alignment.citation_a.tool_call_id == "call_1"
     assert alignment.citation_b.call_index == 1
     assert alignment.citation_b.tool_call_id == "call_diff"
+
+def test_same_task_pass_vs_fail_counterfactual_alignment_allowed(canary_pair: tuple[Path, Path], repo_root: Path) -> None:
+    """PASS vs FAIL trials of the same task align successfully without confounding."""
+    from dataclasses import replace
+    trial_a, trial_b = canary_pair
+    ir_a = build_trajectory_ir(trial_a, repo_root=repo_root)
+    ir_b = build_trajectory_ir(trial_b, repo_root=repo_root)
+
+    # Modify ir_b to simulate a counterfactual FAIL outcome while keeping task/verifier identity identical
+    ir_b_fail = replace(
+        ir_b,
+        final_verdict="FAIL",
+        primary_reward=0.0,
+    )
+
+    alignment = align_trajectory_pair(ir_a, ir_b_fail)
+    assert alignment.task_name == ir_a.task_name
+    assert "PASS" in alignment.outcome_delta
+    assert "FAIL" in alignment.outcome_delta

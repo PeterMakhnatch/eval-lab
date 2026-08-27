@@ -521,7 +521,10 @@ def _is_typed_infra_exception(exception_class: Any) -> bool:
 
 def _verifier_defect(pack: dict[str, Any], ir: dict[str, Any] | None) -> bool:
     verdict = str(pack.get("final_verdict") or (ir or {}).get("final_verdict") or "")
-    if verdict == "VERIFIER_ERROR":
+    # Producers emit either the bare token or the canonical formatted form
+    # "VERIFIER_ERROR (<ExceptionClass>)" (traj_card.py, trajectory_ir.py).
+    # Match exactly those; "VERIFIER_ERRORISH"-style values must NOT match.
+    if verdict == "VERIFIER_ERROR" or verdict.startswith("VERIFIER_ERROR ("):
         return True
     findings = list(pack.get("quality_findings") or [])
     findings.extend(list((ir or {}).get("quality_findings") or []))

@@ -24,7 +24,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.parquet_compaction import (
+from evallab.storage.parquet_compaction import (
     COMPACT_DIRNAME,
     PROJECTED_TABLE_NAMES,
     TABLE_SCHEMAS,
@@ -938,19 +938,23 @@ def test_deduplicate_and_sort_semantic_facts() -> None:
 
 
 def test_behavior_episodes_not_compacted() -> None:
-    from evallab.parquet_compaction import PRIMARY_KEYS, PROJECTED_TABLE_NAMES, TRIAL_TABLE_NAMES
+    from evallab.storage.parquet_compaction import (
+        PRIMARY_KEYS,
+        PROJECTED_TABLE_NAMES,
+        TRIAL_TABLE_NAMES,
+    )
     assert "behavior_episodes" not in PROJECTED_TABLE_NAMES
     assert "behavior_episodes" not in TRIAL_TABLE_NAMES
     assert "behavior_episodes" not in PRIMARY_KEYS
 
 
 def test_retrieval_facts_not_compacted_without_immutable_identity() -> None:
-    from evallab.parquet_compaction import (
+    from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
+    from evallab.storage.parquet_compaction import (
         PRIMARY_KEYS,
         PROJECTED_TABLE_NAMES,
         TRIAL_TABLE_NAMES,
     )
-    from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
 
     assert "retrieval_facts" not in PROJECTED_TABLE_NAMES
     assert "retrieval_facts" not in TRIAL_TABLE_NAMES

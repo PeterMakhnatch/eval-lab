@@ -611,7 +611,7 @@ def _parquet_trial_ids(derived_root: Path) -> tuple[set[str] | None, str | None]
 
 def _duckdb_cross_check(repo_root: Path, derived_root: Path) -> str | None:
     try:
-        from evallab.attach import attach
+        from evallab.storage.attach import attach
 
         result = attach(repo_root=repo_root, explicit_derived=derived_root, environ={})
         result.connection.close()

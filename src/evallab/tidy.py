@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Literal
 
 from evallab.docindex import collect_check_issues
-from evallab.paths import derived_root_from_environment, shared_checkout_root
+from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
 
 NEVER_TOUCH_PREFIXES: tuple[str, ...] = (
     "research/evidence",

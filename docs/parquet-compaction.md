@@ -101,25 +101,25 @@ Every table write adheres to a strict atomic validation contract:
 
 ```bash
 # Compact all closed days (default 7 days granular retention)
-python -m evallab.parquet_compaction compact
+python -m evallab.storage.parquet_compaction compact
 
 # Compact a specific target date
-python -m evallab.parquet_compaction compact --target-date 2026-08-14
+python -m evallab.storage.parquet_compaction compact --target-date 2026-08-14
 
 # Dry run (plan without modifying disk)
-python -m evallab.parquet_compaction compact --dry-run
+python -m evallab.storage.parquet_compaction compact --dry-run
 
 # Output structured JSON
-python -m evallab.parquet_compaction compact --json
+python -m evallab.storage.parquet_compaction compact --json
 
 # Override derived Parquet root
-python -m evallab.parquet_compaction compact --derived-dir /path/to/derived/parquet
+python -m evallab.storage.parquet_compaction compact --derived-dir /path/to/derived/parquet
 ```
 
 ### Programmatic API
 
 ```python
-from evallab.parquet_compaction import compact, plan_compaction
+from evallab.storage.parquet_compaction import compact, plan_compaction
 
 # Execute compaction
 result = compact(

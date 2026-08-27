@@ -10,13 +10,13 @@ from uuid import uuid4
 import pytest
 
 from evallab.cli import parser, run_cli
-from evallab.data_backfill import (
+from evallab.evidence_store import archive_evidence
+from evallab.storage.data_backfill import (
     IDENTITY_UNRESOLVED,
     STORE_JOIN_UNAVAILABLE,
     assemble_disposition_rows,
     run_all_durable_backfill,
 )
-from evallab.evidence_store import archive_evidence
 
 
 def _trial_tree(root: Path, *, trial_name: str, unpaired: bool = False) -> Path:
@@ -294,7 +294,7 @@ def test_ready_cohort_analysis_ready_empty_holds(tmp_path: Path) -> None:
 def test_quarantined_trial_hold_absent_from_ready(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from evallab.data_backfill import analyze_batch as real_analyze_batch
+    from evallab.storage.data_backfill import analyze_batch as real_analyze_batch
 
     seen: list[Path] = []
 
@@ -302,7 +302,7 @@ def test_quarantined_trial_hold_absent_from_ready(
         seen.append(Path(inventory_path))
         return real_analyze_batch(inventory_path, **kwargs)
 
-    monkeypatch.setattr("evallab.data_backfill.analyze_batch", wrapped)
+    monkeypatch.setattr("evallab.storage.data_backfill.analyze_batch", wrapped)
     ids = _mixed_world(tmp_path)
     ledger = _run_backfill(tmp_path)
     hold = next(row for row in ledger.dispositions if row.trial_id == ids["q_trial"])
@@ -510,7 +510,7 @@ def test_short_disposition_count_nonzero_exit(
     def drop_last(rows):
         return assemble_disposition_rows(rows)[:-1]
 
-    monkeypatch.setattr("evallab.data_backfill.assemble_disposition_rows", drop_last)
+    monkeypatch.setattr("evallab.storage.data_backfill.assemble_disposition_rows", drop_last)
     ledger = _run_backfill(tmp_path)
     assert ledger.disposition_count < ledger.discovered_count
     assert ledger.exit_code != 0

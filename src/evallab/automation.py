@@ -17,8 +17,6 @@ from evallab import database
 from evallab.digest import DigestRenderer, commit_digest
 from evallab.evidence.atif import IngestProjectionResult
 from evallab.lessons import generate_lessons_file
-from evallab.parquet_compaction import compact
-from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.queue import (
     DirectoryQueue,
     Executor,
@@ -32,6 +30,8 @@ from evallab.schemas import (
     QueueEvent,
 )
 from evallab.status_generator import update_status_file
+from evallab.storage.parquet_compaction import compact
+from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 
 MIN_FREE_DISK_BYTES = 5 * 1024**3
 MIN_FREE_DISK_FRACTION = 0.05

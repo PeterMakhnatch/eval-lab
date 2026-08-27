@@ -20,7 +20,6 @@ from typing import Any, Literal
 from uuid import UUID
 
 from evallab.behavior_episodes import BehaviorEpisode, load_behavior_episodes
-from evallab.paths import derived_root_from_environment
 from evallab.runner import database_url_from_environment
 from evallab.schemas import (
     AnalysisEvidenceCitation,
@@ -34,6 +33,7 @@ from evallab.semantic_facts import (
     NormalizedFactBundle,
     normalize_bundle,
 )
+from evallab.storage.paths import derived_root_from_environment
 
 
 @dataclass(frozen=True)

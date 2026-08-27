@@ -54,8 +54,8 @@ import pyarrow.parquet as pq
 import yaml
 from pydantic import Field
 
-from evallab.paths import derived_root_from_environment
 from evallab.schemas import ContractModel
+from evallab.storage.paths import derived_root_from_environment
 
 #: A shell assignment, used to surface the value a verifier binds to a name.
 #: `(?!=)` keeps `pkg==1.2.3` out: that is a pinned package, not an assignment.

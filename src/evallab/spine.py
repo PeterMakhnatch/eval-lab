@@ -18,7 +18,7 @@ from typing import Any
 
 import duckdb
 
-from evallab.paths import derived_root_from_environment
+from evallab.storage.paths import derived_root_from_environment
 
 
 def _get_conn() -> duckdb.DuckDBPyConnection:

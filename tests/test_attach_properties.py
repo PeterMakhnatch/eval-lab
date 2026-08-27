@@ -12,9 +12,9 @@ from typing import Any
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from evallab.attach import TABLES, attach
 from evallab.evidence.facts import rebuild_from_raw
 from evallab.results import load_jobs
+from evallab.storage.attach import TABLES, attach
 
 
 def _sha256_file(path: Path) -> str:

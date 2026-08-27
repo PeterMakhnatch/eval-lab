@@ -729,7 +729,7 @@ def test_label_same_submission_is_a_true_noop(repo_root: Path) -> None:
 
 def test_attach_surface_exposes_trajectory_features(repo_root: Path) -> None:
     """The shared DuckDB attach surface can query the projected feature table."""
-    from evallab.attach import attach
+    from evallab.storage.attach import attach
 
     runs = repo_root / "research/evidence/runs"
     with tempfile.TemporaryDirectory() as tmpdir:

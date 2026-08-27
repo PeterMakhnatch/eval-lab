@@ -13,11 +13,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.attach import attach
 from evallab.cohort import (
     NOT_COMPARABLE,
     bootstrap_mean_interval,
 )
+from evallab.storage.attach import attach
 
 DEFAULT_POWER_THRESHOLD = 5
 SQL_BEHAVIOR_PATH = Path("sql/behavior.sql")

@@ -11,7 +11,7 @@ The local Streamlit research overview (`uv run evallab dashboard`) providing liv
 
 ## Architecture and Data Access
 
-Per `docs/platform-architecture.md` v2 §2.5 and §9, dashboard panes access data exclusively through the **unified attach surface** (`evallab.attach.attach`). The attach surface provides a single DuckDB session registering:
+Per `docs/platform-architecture.md` v2 §2.5 and §9, dashboard panes access data exclusively through the **unified attach surface** (`evallab.storage.attach.attach`). The attach surface provides a single DuckDB session registering:
 
 - **Zone Z2 (`z2`)**: PostgreSQL catalog tables attached via `postgres_scanner` (`z2.public.trials`, `z2.public.jobs`, `z2.public.canary_drift_observations`, `z2.public.judge_calibrations`).
 - **Zone Z3 (`z3`)**: Parquet analytics views (`trial_facts`, `reward_facts`, `artifact_facts`, `trajectories`, `steps`, `tool_calls`, `tool_usage`, `observations`, `jobs`) unioning hot partitions (`job_id=*/trial_id=*/`) and compacted cold storage (`compact/<table>/dt=*/`).

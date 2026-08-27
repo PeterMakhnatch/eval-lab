@@ -18,7 +18,6 @@ from uuid import UUID
 import evallab.trajectory_runtime as trajectory_runtime
 from evallab import __version__, database
 from evallab import queue as queue_module
-from evallab.attach import attach, attach_and_query, build_sql_preamble, print_zones
 from evallab.automation import (
     GuardedTick,
     HeadlessDoctor,
@@ -77,7 +76,6 @@ from evallab.labels import (
     select_review_queue,
 )
 from evallab.lineage import lineage_to_dict, render_lineage_tree, resolve_lineage
-from evallab.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import (
     DirectoryQueue,
@@ -117,6 +115,8 @@ from evallab.runner import (
 from evallab.schemas import ANALYSIS_REVIEWS_DIRNAME, ANALYSIS_SIDECAR_FILENAME
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
 from evallab.status_generator import generate_status_markdown, update_status_file
+from evallab.storage.attach import attach, attach_and_query, build_sql_preamble, print_zones
+from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.tracing import (
     TraceError,
     format_batch,
@@ -1459,7 +1459,7 @@ def _data_backfill_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     del harbor
-    from evallab.data_backfill import run_all_durable_backfill
+    from evallab.storage.data_backfill import run_all_durable_backfill
 
     inventory = _resolve(root, args.inventory)
     manifest_dir = _resolve(root, args.manifest_dir)

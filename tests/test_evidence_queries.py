@@ -9,14 +9,14 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-import evallab.attach
-import evallab.paths
+import evallab.storage.attach
+import evallab.storage.paths
 from evallab.cohort import wilson_interval
 from evallab.lessons import DEFAULT_POWER_THRESHOLD
 
 repo_root_for_check = Path.cwd()
 try:
-    derived_for_check = evallab.paths.derived_root_from_environment(
+    derived_for_check = evallab.storage.paths.derived_root_from_environment(
         repo_root_for_check
     )
     real_corpus_present = (
@@ -201,7 +201,7 @@ def test_full_corpus_derived_parquet_coverage(
         pq.write_table(tbl, trial_dir / "trial_facts.parquet")
 
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(fixture_root))
-    attach_result = evallab.attach.attach()
+    attach_result = evallab.storage.attach.attach()
     try:
         con = attach_result.connection
         sql = Path("sql/evidence_queries.sql").read_text()
@@ -271,7 +271,7 @@ def test_full_corpus_derived_parquet_coverage_real() -> None:
     3. the historically present tasks are still present;
     4. every exception row is classified (a class name, a phase, a positive count).
     """
-    attach_result = evallab.attach.attach()
+    attach_result = evallab.storage.attach.attach()
     try:
         con = attach_result.connection
         sql = Path("sql/evidence_queries.sql").read_text()

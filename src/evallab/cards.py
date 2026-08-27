@@ -29,7 +29,6 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from evallab.attach import attach
 from evallab.cohort import (
     summarize_job_evidence,
 )
@@ -42,6 +41,7 @@ from evallab.results import (
 from evallab.schemas import (
     ExperimentSpec,
 )
+from evallab.storage.attach import attach
 
 JsonObject = dict[str, Any]
 

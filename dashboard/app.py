@@ -22,8 +22,8 @@ from dashboard.queries import (
     queue_funnel,
     spend_history,
 )
-from evallab.attach import attach
 from evallab.status import SECTION_KEYS, StatusSnapshot
+from evallab.storage.attach import attach
 
 REPO_ROOT = Path(
     os.environ.get("EVALLAB_DASHBOARD_ROOT", Path(__file__).resolve().parents[1])

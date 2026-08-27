@@ -11,7 +11,6 @@ import pytest
 import evallab.digest as digest_module
 from evallab.automation import GuardedTick, HeadlessDoctor, NightlyCycle, ScheduleInstaller
 from evallab.digest import DigestRenderer, DigestTrial, commit_digest
-from evallab.paths import DERIVED_ROOT_ENV
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.researchers import (
     CallLedger,
@@ -29,6 +28,7 @@ from evallab.schemas import (
     QueueEvent,
     StandingApprovalsPolicy,
 )
+from evallab.storage.paths import DERIVED_ROOT_ENV
 
 
 def policy() -> StandingApprovalsPolicy:

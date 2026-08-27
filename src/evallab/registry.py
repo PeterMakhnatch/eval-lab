@@ -19,7 +19,6 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from evallab.paths import shared_checkout_root
 from evallab.schemas import (
     ControlEvidenceRef,
     ExperimentSpec,
@@ -32,6 +31,7 @@ from evallab.schemas import (
     TaskLimits,
     TaskRegistryRecord,
 )
+from evallab.storage.paths import shared_checkout_root
 from evallab.task_workbench import (
     ISOLATION_DIAGNOSTIC_CODES,
     LEAKAGE_DIAGNOSTIC_CODES,

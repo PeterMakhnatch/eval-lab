@@ -21,7 +21,6 @@ import lancedb
 import pyarrow.parquet as pq
 from lancedb.index import IvfPq
 
-from evallab.attach import attach
 from evallab.craft import (
     TASK_INSTRUCTION,
     TASK_MANIFEST,
@@ -29,7 +28,8 @@ from evallab.craft import (
     library_source,
     repository_root,
 )
-from evallab.paths import derived_root_from_environment, shared_checkout_root
+from evallab.storage.attach import attach
+from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
 
 MIN_ROWS_FOR_ANN = 1000
 """Minimum rows to attempt ANN index.

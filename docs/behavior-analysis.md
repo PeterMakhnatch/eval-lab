@@ -9,7 +9,7 @@ audience:
 
 Behavioral analysis expands the evaluation laboratory beyond binary pass/fail scores by analyzing *how agents worked* across execution trajectories.
 
-All behavioral telemetry is accessed exclusively through the unified attach surface (`evallab db attach`, `evallab.attach.attach()`, reading `trial_facts`, `steps`, and `tool_calls`). Direct Parquet globbing is prohibited.
+All behavioral telemetry is accessed exclusively through the unified attach surface (`evallab db attach`, `evallab.storage.attach.attach()`, reading `trial_facts`, `steps`, and `tool_calls`). Direct Parquet globbing is prohibited.
 
 ---
 

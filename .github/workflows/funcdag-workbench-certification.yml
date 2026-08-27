@@ -1,0 +1,103 @@
+name: funcdag-workbench-certification
+
+# Harbor's no-network verifier and fixed workbench controls require Linux.
+on:
+  pull_request:
+    paths:
+      - "library/tasks/experimental/syn-funcdag-*/**"
+      - "src/evallab/task_workbench.py"
+      - "tests/test_synthetic_funcdag.py"
+      - "tests/test_task_workbench.py"
+      - ".github/workflows/funcdag-workbench-certification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    name: certify-${{ matrix.difficulty }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        difficulty: [easy, medium, hard]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install uv 0.9.24
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Python 3.12
+        run: |
+          uv python install 3.12
+          echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
+      - name: Install Harbor 0.21.0
+        run: uv tool install "harbor==0.21.0"
+      - name: Freeze candidate plan
+        id: plan
+        env:
+          DIFFICULTY: ${{ matrix.difficulty }}
+        run: |
+          set -euo pipefail
+          task="library/tasks/experimental/syn-funcdag-${DIFFICULTY}"
+          source_uri="eval-lab/synthetic/funcdag/${DIFFICULTY}"
+          source_ref="local/eval-lab/synthetic/funcdag/${DIFFICULTY}@1.0.0"
+          mkdir -p "artifacts/${DIFFICULTY}"
+          uv run python -m evallab.task_workbench plan "$task" \
+            --repo-root . \
+            --source-uri "$source_uri" \
+            --source-ref "$source_ref" \
+            --license Apache-2.0 \
+            --zone 03-synthetic \
+            | tee "artifacts/${DIFFICULTY}/plan.json"
+          candidate_id="$(jq -r '.candidate.candidate_id' "artifacts/${DIFFICULTY}/plan.json")"
+          test "$candidate_id" != null
+          echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
+      - name: Run fixed Harbor controls
+        env:
+          DIFFICULTY: ${{ matrix.difficulty }}
+        run: |
+          set -euo pipefail
+          task="library/tasks/experimental/syn-funcdag-${DIFFICULTY}"
+          source_uri="eval-lab/synthetic/funcdag/${DIFFICULTY}"
+          source_ref="local/eval-lab/synthetic/funcdag/${DIFFICULTY}@1.0.0"
+          uv run python -m evallab.task_workbench check "$task" \
+            --repo-root . \
+            --source-uri "$source_uri" \
+            --source-ref "$source_ref" \
+            --license Apache-2.0 \
+            --zone 03-synthetic \
+            --run-controls \
+            | tee "artifacts/${DIFFICULTY}/check.json"
+      - name: Write certification packet
+        env:
+          DIFFICULTY: ${{ matrix.difficulty }}
+          CANDIDATE_ID: ${{ steps.plan.outputs.candidate_id }}
+        run: |
+          set -euo pipefail
+          task="library/tasks/experimental/syn-funcdag-${DIFFICULTY}"
+          source_uri="eval-lab/synthetic/funcdag/${DIFFICULTY}"
+          source_ref="local/eval-lab/synthetic/funcdag/${DIFFICULTY}@1.0.0"
+          controls="runs/task-workbench/${CANDIDATE_ID}/controls.json"
+          test -s "$controls"
+          uv run python -m evallab.task_workbench packet "$task" \
+            --repo-root . \
+            --source-uri "$source_uri" \
+            --source-ref "$source_ref" \
+            --license Apache-2.0 \
+            --zone 03-synthetic \
+            --controls "$controls" \
+            | tee "artifacts/${DIFFICULTY}/packet.json"
+          test "$(jq -r '.disposition' "artifacts/${DIFFICULTY}/packet.json")" = "certified_for_review"
+      - name: Upload review packet and retained evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: funcdag-${{ matrix.difficulty }}-workbench
+          path: |
+            artifacts/${{ matrix.difficulty }}/
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/
+            research/registration/candidates/${{ steps.plan.outputs.candidate_id }}/
+          if-no-files-found: error

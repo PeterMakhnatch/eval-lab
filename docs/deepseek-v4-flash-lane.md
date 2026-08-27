@@ -7,81 +7,72 @@ audience:
 
 # DeepSeek V4 Flash Harbor lane
 
-This lane runs the agentic `transaction-reconciliation` canary through Harbor's generic
-`mini-swe-agent` adapter and LiteLLM with the exact model selector
-`deepseek/deepseek-v4-flash`. It does not add API credentials to Eval Lab's
-subscriptions-only profile registry or `subscription_environment()` allowlist.
+This lane runs the registered `syn-funcdag-easy` task through a narrow
+credential-transport subclass of Harbor's generic `mini-swe-agent` adapter.
+Installation, execution, trajectory conversion, and model routing remain Harbor's
+mini-swe-agent + LiteLLM path with the exact selector
+`deepseek/deepseek-v4-flash`.
 
-The lane is declaration- and installation-ready only. Neither preparation nor the
-checks below establish model availability or capability. Do not run the canary until
-the previously exposed credential has been revoked and a fresh local credential is
-present.
+## Credential contract
 
-## Local environment names
+The admitted host names are `DEEPSEEK_API_KEY` and its compatibility alias
+`MSWEA_API_KEY`. At least one must be non-empty. When only the alias is present,
+the runner copies it to the canonical name in memory. The values are forwarded
+only when the selected agent is the repo-owned DeepSeek adapter; unrelated Harbor
+runs receive neither variable.
 
-The only credential name used by this lane is `DEEPSEEK_API_KEY`. Harbor resolves it
-from the local process environment and forwards it to mini-swe-agent/LiteLLM without
-putting its value in the Harbor argv.
+Docker Compose reads the canonical name from the operator process and mounts it
+as `/run/secrets/evallab_deepseek_api_key`. The adapter loads that file only
+inside the agent shell. Harbor configuration, Harbor and Docker child argv, and
+per-exec environment mappings contain no key value. Any log-safe environment
+rendering replaces admitted values with `<redacted>`.
 
-Live execution also requires the local operator-attestation name
-`EVALLAB_DEEPSEEK_FRESH_KEY_CONFIRMED`. Its presence certifies that the exposed key
-was revoked and the current local key is fresh. Keep both values in a local secret
-manager or untracked shell environment. Never paste, print, commit, or pass either
-value with Harbor's `--agent-env` option.
+Live execution also requires the presence-only operator attestation
+`EVALLAB_DEEPSEEK_FRESH_KEY_CONFIRMED`. Keep credentials in a local secret
+manager or untracked shell environment. Never paste, print, commit, or pass a
+value through Harbor's `--agent-env` option.
 
-`MSWEA_API_KEY` is deliberately unsupported by this lane. The no-model paths remove
-both provider and adapter key names before starting Harbor. Every path removes
-`DEEPSEEK_BASE_URL`, `DEEPSEEK_API_BASE`, `OPENAI_BASE_URL`, and `OPENAI_API_BASE`;
-live execution also removes `MSWEA_API_KEY`. The fresh provider key therefore follows
-Harbor's canonical DeepSeek route instead of an inherited alias or endpoint override.
+Every path removes inherited `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_BASE`,
+`OPENAI_BASE_URL`, and `OPENAI_API_BASE`. The no-model install and plan paths
+also remove both credential names. Live execution canonicalizes the alias and
+removes it before starting Harbor.
 
-## Safe preparation
+## Exact operator command
 
-Run the presence-only credential and container probe:
-
-```bash
-scripts/deepseek-v4-flash-lane probe
-```
-
-It reports only `set`/`unset` and CLI/daemon reachability. It does not inspect a key,
-contact DeepSeek, build a container, or claim that any Compose service is healthy.
-The command exits nonzero until Harbor, Docker, the Docker daemon, and both required
-environment names are present.
-
-Run the install-only compatibility smoke:
+Run this command from the same Terminal tab where the fresh key variables are
+already loaded. Existing OMP or agent processes do not inherit later shell
+environment changes and must not be used as a credential probe.
 
 ```bash
-scripts/deepseek-v4-flash-lane install-smoke
+EVALLAB_DEEPSEEK_FRESH_KEY_CONFIRMED=1 scripts/deepseek-v4-flash-lane operator-run
 ```
 
-This invokes Harbor 0.21's `--install-only` path for the canary task. Harbor builds the
-task environment and installs mini-swe-agent with its LiteLLM dependency, then exits
-before `agent.run()` and verification. The wrapper explicitly removes model credential
-names from the Harbor process.
+The command performs these steps in order:
 
-Inspect the resolved canary configuration without running an agent or verifier:
+1. Reports only `set`/`unset` for both admitted names and the attestation, plus
+   Harbor, Docker, Docker Compose, and daemon reachability.
+2. Runs Harbor's `--install-only` path with both model credentials removed.
+   This builds the task environment and installs mini-swe-agent + LiteLLM but
+   creates zero model trials.
+3. Resolves `syn-funcdag-easy` through `library/registry`, requires state
+   `registered` with bound workbench certification, and runs exactly one trial.
+
+The live task is staged outside the source package. On hosts that cannot enforce
+the canonical verifier network policy, Eval Lab records its existing
+host-network adaptation. The credential-bearing agent phase adds an exact
+`api.deepseek.com` allowlist. The committed registered package is unchanged.
+
+The trial is fixed at one task, one attempt, one concurrent trial, one concurrent
+agent, zero retries, an 8,192-token response ceiling, and a $2.50 mini-swe-agent
+cost limit. After install and live execution, the wrapper scans the corresponding
+run artifacts for either loaded credential value and fails if one appears. It
+never prints a matched value.
+
+For inspection without a model call:
 
 ```bash
-scripts/deepseek-v4-flash-lane plan-canary
+scripts/deepseek-v4-flash-lane plan-funcdag-easy
 ```
 
-The printed plan must show one task, one attempt, one concurrent trial, one concurrent
-agent, zero retries, the `mini-swe-agent` adapter, and the exact model selector. This
-path also removes model credential names before invoking Harbor.
-
-## One-trial canary
-
-After rotating the exposed key and providing both required local environment names,
-run:
-
-```bash
-scripts/deepseek-v4-flash-lane canary
-```
-
-The wrapper fails closed if either name is absent. The command runs only
-`library/tasks/transaction-reconciliation`, an agentic capability task that requires
-inspecting and repairing a seeded SQLite ledger. It fixes the experiment at one task,
-one attempt, concurrency one, zero retries, an 8,192-token response ceiling, and a
-$2.50 mini-swe-agent cost limit. Only `api.deepseek.com` is added to Harbor's agent
-phase host allowlist. Results remain under ignored `runs/deepseek-v4-flash/` for review
-and ingestion through the normal evidence workflow.
+Results remain under ignored `runs/deepseek-v4-flash/` for review and ingestion
+through the normal evidence workflow.

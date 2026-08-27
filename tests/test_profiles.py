@@ -18,6 +18,7 @@ from evallab.profiles import (
     AuthFileProbe,
     CliSessionProbe,
     DeclaredUnavailableProbe,
+    EnvironmentPresenceProbe,
     KeychainProbe,
     PreflightDecision,
     builtin_profiles,
@@ -64,28 +65,68 @@ def test_profiles_are_immutable():
 
 def test_control_profiles_take_no_model_or_credential():
     with pytest.raises(ValueError, match="no credential and no model"):
-        AgentProfile(profile_id="bad-oracle", adapter="oracle", auth_mode="none",
-                     model="gpt-5.6-terra")
+        AgentProfile(
+            profile_id="bad-oracle", adapter="oracle", auth_mode="none", model="gpt-5.6-terra"
+        )
     oracle = builtin_profiles()["oracle"]
     assert oracle.auth_mode == "none" and oracle.model is None
 
 
 def test_billable_profiles_require_pin_and_secret_source():
     with pytest.raises(ValueError, match="exact model pin"):
-        AgentProfile(profile_id="bad", adapter="codex",
-                     auth_mode="subscription-auth-file",
-                     secret_source="file:.codex/auth.json")
+        AgentProfile(
+            profile_id="bad",
+            adapter="codex",
+            auth_mode="subscription-auth-file",
+            secret_source="file:.codex/auth.json",
+        )
     with pytest.raises(ValueError, match="secret source"):
-        AgentProfile(profile_id="bad2", adapter="codex", model="gpt-5.6-terra",
-                     auth_mode="subscription-auth-file")
+        AgentProfile(
+            profile_id="bad2",
+            adapter="codex",
+            model="gpt-5.6-terra",
+            auth_mode="subscription-auth-file",
+        )
 
 
 def test_api_key_shaped_names_are_rejected_everywhere():
     with pytest.raises(ValueError, match="subscriptions-only"):
-        AgentProfile(profile_id="bad", adapter="codex", model="m",
-                     auth_mode="subscription-auth-file",
-                     secret_source="file:.codex/auth.json",
-                     required_files=("OPENAI_API_KEY",))
+        AgentProfile(
+            profile_id="bad",
+            adapter="codex",
+            model="m",
+            auth_mode="subscription-auth-file",
+            secret_source="file:.codex/auth.json",
+            required_files=("OPENAI_API_KEY",),
+        )
+
+
+def test_deepseek_profile_allows_only_admitted_environment_names(tmp_path: Path) -> None:
+    profile = builtin_profiles()["mini-swe-agent-deepseek-v4-flash"]
+    assert profile.adapter == "mini-swe-agent"
+    assert profile.model == "deepseek/deepseek-v4-flash"
+    assert profile.auth_mode == "api-key-environment"
+
+    probe = default_probe_for(
+        profile,
+        home=tmp_path,
+        security_runner=lambda argv: 1,
+        keychain_account="nobody",
+        environment={"MSWEA_API_KEY": FAKE_SECRET},
+    )
+    assert isinstance(probe, EnvironmentPresenceProbe)
+    decision = preflight(profile, probe)
+    assert decision.proceed
+    assert FAKE_SECRET not in repr(decision)
+
+    with pytest.raises(ValueError, match="only the admitted DeepSeek"):
+        AgentProfile(
+            profile_id="bad-env-profile",
+            adapter="mini-swe-agent",
+            model="deepseek/deepseek-v4-flash",
+            auth_mode="api-key-environment",
+            secret_source="env:OPENAI_API_KEY",
+        )
 
 
 # ---- model pin discipline ---------------------------------------------------
@@ -133,8 +174,7 @@ def test_keychain_probe_timeout_fails_closed():
 
 
 def test_auth_file_missing(tmp_path: Path):
-    probe = AuthFileProbe(home=tmp_path, relative_path=".codex/auth.json",
-                          clock=lambda: FROZEN_NOW)
+    probe = AuthFileProbe(home=tmp_path, relative_path=".codex/auth.json", clock=lambda: FROZEN_NOW)
     result = probe(codex_profile())
     assert not result.ok and "missing" in (result.reason or "")
 
@@ -142,11 +182,10 @@ def test_auth_file_missing(tmp_path: Path):
 def test_auth_file_expired_via_injected_clock(tmp_path: Path):
     auth = tmp_path / ".codex/auth.json"
     auth.parent.mkdir(parents=True)
-    auth.write_text(json.dumps(
-        {"tokens": {"access_token": FAKE_SECRET, "expires_at": "2026-08-01T00:00:00Z"}}
-    ))
-    probe = AuthFileProbe(home=tmp_path, relative_path=".codex/auth.json",
-                          clock=lambda: FROZEN_NOW)
+    auth.write_text(
+        json.dumps({"tokens": {"access_token": FAKE_SECRET, "expires_at": "2026-08-01T00:00:00Z"}})
+    )
+    probe = AuthFileProbe(home=tmp_path, relative_path=".codex/auth.json", clock=lambda: FROZEN_NOW)
     result = probe(codex_profile())
     assert not result.ok
     assert result.reason == "auth file expired"
@@ -156,11 +195,10 @@ def test_auth_file_expired_via_injected_clock(tmp_path: Path):
 def test_auth_file_valid_future_expiry(tmp_path: Path):
     auth = tmp_path / ".codex/auth.json"
     auth.parent.mkdir(parents=True)
-    auth.write_text(json.dumps(
-        {"tokens": {"access_token": FAKE_SECRET, "expires_at": "2026-12-01T00:00:00Z"}}
-    ))
-    probe = AuthFileProbe(home=tmp_path, relative_path=".codex/auth.json",
-                          clock=lambda: FROZEN_NOW)
+    auth.write_text(
+        json.dumps({"tokens": {"access_token": FAKE_SECRET, "expires_at": "2026-12-01T00:00:00Z"}})
+    )
+    probe = AuthFileProbe(home=tmp_path, relative_path=".codex/auth.json", clock=lambda: FROZEN_NOW)
     result = probe(codex_profile())
     assert result.ok and result.expires_at is not None
 
@@ -169,8 +207,7 @@ def test_probe_results_never_carry_secret_material(tmp_path: Path):
     auth = tmp_path / ".codex/auth.json"
     auth.parent.mkdir(parents=True)
     auth.write_text(json.dumps({"access_token": FAKE_SECRET, "expires_at": 1790000000}))
-    probe = AuthFileProbe(home=tmp_path, relative_path=".codex/auth.json",
-                          clock=lambda: FROZEN_NOW)
+    probe = AuthFileProbe(home=tmp_path, relative_path=".codex/auth.json", clock=lambda: FROZEN_NOW)
     result = probe(codex_profile())
     assert FAKE_SECRET not in repr(result)
     # the profile's serialized identity never contains secrets either
@@ -206,8 +243,10 @@ def test_gemini_and_grok_remain_declared_unavailable(tmp_path: Path):
     assert frozenset({"gemini-cli-declared", "grok-cli-declared"}) == DECLARED_UNAVAILABLE
     for profile_id in sorted(DECLARED_UNAVAILABLE):
         probe = default_probe_for(
-            registry[profile_id], home=tmp_path,
-            security_runner=lambda a: 0, keychain_account="acct",
+            registry[profile_id],
+            home=tmp_path,
+            security_runner=lambda a: 0,
+            keychain_account="acct",
             clock=lambda: FROZEN_NOW,
         )
         decision = preflight(registry[profile_id], probe)
@@ -218,8 +257,10 @@ def test_gemini_and_grok_remain_declared_unavailable(tmp_path: Path):
 def test_claude_uses_real_keychain_probe_not_declared_block(tmp_path: Path):
     registry = builtin_profiles()
     probe = default_probe_for(
-        registry["claude-code-fable-5"], home=tmp_path,
-        security_runner=lambda a: 0, keychain_account="acct",
+        registry["claude-code-fable-5"],
+        home=tmp_path,
+        security_runner=lambda a: 0,
+        keychain_account="acct",
         clock=lambda: FROZEN_NOW,
     )
     assert isinstance(probe, KeychainProbe)
@@ -244,6 +285,7 @@ def test_subscription_environment_never_forwards_api_keys():
     assert env["AGY_FORCE_AUTH_JSON"] == "1"
     assert env["CODEX_FORCE_AUTH_JSON"] == "1"
     assert env["CLAUDE_FORCE_OAUTH"] == "1"
+
 
 def test_subscription_environment_forwards_agy_oauth_token_but_not_cursor_key():
     """The AGY lane authenticates with an OAuth token file, so it may cross into
@@ -370,6 +412,7 @@ def test_default_probe_for_cursor_is_a_cli_session_probe(tmp_path: Path) -> None
     )
     assert isinstance(probe, CliSessionProbe)
     assert probe.argv == ("cursor-agent", "status")
+
 
 # --- Antigravity lane (subscription-cli-session auth) -------------------------
 

@@ -2,7 +2,7 @@
 
 Key invariants:
 - Immutable dataclasses for run requests, dispatch capacities, process outcomes, and authorizations.
-- Non-secret environment allowlisting and credential routing (subscription-first).
+- Non-secret environment allowlisting plus narrowly scoped, redacted credential routing.
 - Strict request parameter validation (job names, timeouts, concurrency, billable approval).
 - Standard Harbor command construction and transient exception classification.
 """
@@ -88,6 +88,11 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
     }
 )
 
+DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
+    {"DEEPSEEK_API_KEY", "MSWEA_API_KEY"}
+)
+REDACTED_SECRET_VALUE = "<redacted>"
+
 LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
     ("antigravity-cli", "gemini-3.7-flash-high"): "google/gemini-3.7-flash-high",
     ("antigravity-cli", "gemini-3.7-flash-medium"): "google/gemini-3.7-flash-medium",
@@ -99,7 +104,11 @@ LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
 HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "codex": "evallab.harbor_codex:PinnedCodex",
     "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
+    "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
 }
+
+DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-v4-flash"
+DEEPSEEK_SECRET_COMPOSE = Path("containers/deepseek-v4-flash-secret.compose.yaml")
 
 HARBOR_STATE_JOURNAL_PLUGIN = "evallab.harbor_state_journal:StateJournalPlugin"
 
@@ -124,6 +133,8 @@ class TransientHarnessFailure(ExecutionFailure):
     def __init__(self, reason_code: str, *, message: str | None = None) -> None:
         self.reason_code = reason_code
         super().__init__(message or reason_code)
+
+
 @dataclass(frozen=True)
 class RunRequest:
     """Immutable specification for one trial execution invocation."""
@@ -156,7 +167,6 @@ class HarborProcessResult:
     timed_out: bool
     log_path: Path
     timed_out_trial: str | None = None
-
 
 
 @dataclass(frozen=True)
@@ -217,15 +227,38 @@ def load_policy(path: Path) -> StandingApprovalsPolicy:
 
 def subscription_environment(
     environment: Mapping[str, str] | None = None,
+    *,
+    include_deepseek_credentials: bool = False,
 ) -> dict[str, str]:
-    """Build Harbor's environment from a non-secret allowlist."""
+    """Build Harbor's environment from explicit non-secret and credential allowlists.
+
+    DeepSeek credentials cross the host boundary only for the repo-owned
+    mini-swe-agent adapter. ``MSWEA_API_KEY`` is accepted as an alias and copied
+    to the canonical ``DEEPSEEK_API_KEY`` name without exposing either value.
+    """
     source = os.environ if environment is None else environment
     sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
+    if include_deepseek_credentials:
+        for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS:
+            if source.get(key):
+                sanitized[key] = source[key]
+        if "DEEPSEEK_API_KEY" not in sanitized and sanitized.get("MSWEA_API_KEY"):
+            sanitized["DEEPSEEK_API_KEY"] = sanitized["MSWEA_API_KEY"]
     sanitized["AGY_FORCE_AUTH_JSON"] = "1"
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
     sanitized["REWARDKIT_FORCE_OAUTH"] = "1"
     return sanitized
+
+
+def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
+    """Return a log-safe copy with every admitted DeepSeek value replaced."""
+    return {
+        key: REDACTED_SECRET_VALUE
+        if key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS and value
+        else value
+        for key, value in environment.items()
+    }
 
 
 def validate_request(request: RunRequest) -> None:
@@ -291,6 +324,23 @@ def build_command(request: RunRequest) -> list[str]:
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])
+    if request.agent == "mini-swe-agent":
+        if harbor_model != DEEPSEEK_MODEL_SELECTOR:
+            raise ValueError(f"mini-swe-agent requires the exact model {DEEPSEEK_MODEL_SELECTOR}")
+        command.extend(
+            [
+                "--n-concurrent-agents",
+                "1",
+                "--n-tasks",
+                "1",
+                "--max-retries",
+                "0",
+                "--agent-kwarg",
+                "cost_limit=2.5",
+                "--agent-kwarg",
+                "max_tokens=8192",
+            ]
+        )
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     return command
@@ -302,13 +352,22 @@ def subscription_command(
     *,
     repo_root: Path,
 ) -> list[str]:
-    """Route Claude through the Keychain-only OAuth wrapper."""
-    if request.agent != "claude-code":
-        return harbor_command
-    wrapper = (repo_root / "scripts/with-claude-auth").resolve()
-    if not wrapper.is_file():
-        raise RuntimeError(f"Claude subscription wrapper is missing: {wrapper}")
-    return [str(wrapper), *harbor_command]
+    """Add the credential transport required by subscription or API-key profiles."""
+    if request.agent == "claude-code":
+        wrapper = (repo_root / "scripts/with-claude-auth").resolve()
+        if not wrapper.is_file():
+            raise RuntimeError(f"Claude subscription wrapper is missing: {wrapper}")
+        return [str(wrapper), *harbor_command]
+    if request.agent == "mini-swe-agent":
+        if request.model != DEEPSEEK_MODEL_SELECTOR:
+            raise RuntimeError(
+                f"the mini-swe-agent execution lane is pinned to {DEEPSEEK_MODEL_SELECTOR}"
+            )
+        overlay = (repo_root / DEEPSEEK_SECRET_COMPOSE).resolve()
+        if not overlay.is_file():
+            raise RuntimeError(f"DeepSeek secret overlay is missing: {overlay}")
+        return [*harbor_command, "--extra-docker-compose", str(overlay)]
+    return harbor_command
 
 
 def transient_provider_reason(text: str) -> str | None:

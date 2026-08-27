@@ -401,6 +401,7 @@ class EvidencePack:
     abstain_required: bool
     overflow_reason: str | None
     redaction_profile_digest: str
+    redaction_policy_config: dict[str, Any]
     global_outline: dict[str, Any]
     episodes: tuple[dict[str, Any], ...]
     selected_windows: tuple[EvidenceWindow, ...]
@@ -432,6 +433,7 @@ class EvidencePack:
             "abstain_required": self.abstain_required,
             "overflow_reason": self.overflow_reason,
             "redaction_profile_digest": self.redaction_profile_digest,
+            "redaction_policy_config": self.redaction_policy_config,
             "global_outline": self.global_outline,
             "episodes": list(self.episodes),
             "selected_windows": [w.to_dict() for w in self.selected_windows],
@@ -551,7 +553,13 @@ def reopen_omitted_range(
             f"expected {target_range.omitted_content_digest} vs actual {recomputed_digest}"
         )
 
-    active_policy = policy or RedactionPolicy()
+    pack_policy = RedactionPolicy.from_pack_config(
+        pack.redaction_policy_config,
+        pack.redaction_profile_digest,
+    )
+    if policy is not None and policy.to_config() != pack_policy.to_config():
+        raise ValueError("requested redaction policy differs from pack policy")
+    active_policy = policy or pack_policy
     root = (repo_root or Path.cwd()).resolve()
     reopened_events: list[dict[str, Any]] = []
     for event in target_events:
@@ -590,6 +598,7 @@ def build_evidence_pack(
         policy = RedactionPolicy()
 
     policy_digest = policy.compute_digest()
+    policy_config = policy.to_config()
     bm = ir.baseline_metrics
     global_outline = {
         "step_count": bm.step_count,
@@ -842,6 +851,7 @@ def build_evidence_pack(
         "abstain_required": abstain_required,
         "overflow_reason": overflow_reason,
         "redaction_profile_digest": policy_digest,
+        "redaction_policy_config": policy_config,
         "global_outline": global_outline,
         "episodes": episodes_summary,
         "selected_windows": [w.to_dict() for w in selected_windows],
@@ -875,6 +885,7 @@ def build_evidence_pack(
         abstain_required=abstain_required,
         overflow_reason=overflow_reason,
         redaction_profile_digest=policy_digest,
+        redaction_policy_config=policy_config,
         global_outline=global_outline,
         episodes=tuple(episodes_summary),
         selected_windows=tuple(selected_windows),

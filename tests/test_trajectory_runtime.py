@@ -5,7 +5,9 @@ No live models, no derived/evidence-cas, no required PostgreSQL.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
@@ -14,9 +16,15 @@ import pytest
 
 from evallab.cli import parser
 from evallab.database import _ingest_interpretation_artifacts
-from evallab.evidence_pack import build_evidence_pack
+from evallab.evidence_pack import OmittedRange, build_evidence_pack
 from evallab.evidence_store import archive_evidence
 from evallab.trajectory_acceptance import AUTO_ACCEPTANCE_ENABLED, evaluate_acceptance
+from evallab.trajectory_data_quality import (
+    _add_campaign_projection_joins,
+    _cas_record_anti_join,
+    _citation_reopen,
+)
+from evallab.trajectory_hydration import CitationHandle, RedactionPolicy, hydrate_citation
 from evallab.trajectory_ir import build_trajectory_ir
 from evallab.trajectory_judgment import (
     TRAJECTORY_ONTOLOGY_V1_CLASSES,
@@ -33,6 +41,7 @@ from evallab.trajectory_runtime import (
     analyze_trial,
     build_acceptance_decision,
     build_calibration_class_gate,
+    build_campaign_report,
     build_machine_judgment,
     evaluate_deterministic_gates,
     load_campaign_analysis_manifest,
@@ -150,6 +159,23 @@ def _trial_tree(root: Path, *, trial_name: str, unpaired: bool = True) -> Path:
 def _archive_trial(trial_dir: Path, store: Path, record_id: str) -> str:
     archive = archive_evidence(trial_dir, store, record_id=record_id, kind="trial")
     return archive.uri
+
+
+def _cas_backed_ir_pack(tmp_path: Path, *, trial_name: str):
+    trial_dir = _trial_tree(tmp_path, trial_name=trial_name, unpaired=False)
+    store = tmp_path / "cas"
+    cas_uri = _archive_trial(trial_dir, store, trial_name)
+    result = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
+    item = _cohort_row(
+        role="primary",
+        trial_name=trial_name,
+        trial_id=str(result["id"]),
+        cas_uri=cas_uri,
+        quality="pass",
+    )
+    ir = build_trajectory_ir(item, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(ir, repo_root=tmp_path, store_root=store)
+    return ir, pack, store, cas_uri
 
 
 def _cohort_row(*, role: str, trial_name: str, trial_id: str, cas_uri: str, quality: str) -> dict:
@@ -625,6 +651,112 @@ def test_rebuilt_ir_pack_schema_valid_passes(tmp_path: Path) -> None:
     assert AUTO_ACCEPTANCE_ENABLED is False
 
 
+def test_pack_specific_redaction_policy_rehydrates_selected_cas_bytes(
+    tmp_path: Path,
+) -> None:
+    ir, _, store, _ = _cas_backed_ir_pack(tmp_path, trial_name="custom-redaction-policy")
+    policy = RedactionPolicy(redact_secrets=False, max_display_bytes=5)
+    pack = build_evidence_pack(
+        ir,
+        repo_root=tmp_path,
+        store_root=store,
+        policy=policy,
+    )
+    judgment = build_machine_judgment(pack, ir, [])
+
+    assert pack.redaction_policy_config == policy.to_config()
+    assert _schema_gate(ir, pack, judgment, store).status == "pass"
+
+    tampered_config = dict(pack.redaction_policy_config)
+    tampered_config["max_display_bytes"] = 6
+    tampered = _recompute_pack_digest(
+        replace(pack, redaction_policy_config=tampered_config)
+    )
+    tampered_judgment = build_machine_judgment(tampered, ir, [])
+    tampered_gate = _schema_gate(ir, tampered, tampered_judgment, store)
+    assert (tampered_gate.status, tampered_gate.reason_code) == (
+        "fail",
+        "schema_invalid",
+    )
+
+
+def test_redaction_policy_digest_binds_regex_flags() -> None:
+    case_sensitive = RedactionPolicy(secret_patterns=(re.compile("secret"),))
+    case_insensitive = RedactionPolicy(
+        secret_patterns=(re.compile("secret", re.IGNORECASE),)
+    )
+
+    assert case_sensitive.compute_digest() != case_insensitive.compute_digest()
+
+
+def test_campaign_quality_reopens_with_pack_redaction_policy(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    trajectory_path = source / "agent/trajectory.json"
+    trajectory_path.parent.mkdir(parents=True)
+    trajectory_path.write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "source": "agent",
+                        "message": "token=abcdefghijklmnop",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    store = tmp_path / "cas"
+    archive = archive_evidence(source, store, record_id="quality-custom", kind="trial")
+    source_digest = f"sha256:{hashlib.sha256(trajectory_path.read_bytes()).hexdigest()}"
+    policy = RedactionPolicy(redact_secrets=False, max_display_bytes=5)
+    handle = CitationHandle(
+        citation_id="quality-custom-citation",
+        trial_id="quality-custom",
+        source_path="agent/trajectory.json",
+        source_sha256=source_digest,
+        raw_cas_uri=archive.uri,
+        step_id=1,
+        target_type="step",
+        redaction_profile_digest=policy.compute_digest(),
+    )
+    hydrated = hydrate_citation(handle, repo_root=store, policy=policy)
+    ir = {
+        "source_digests": {
+            "cas_uri": archive.uri,
+            "source_sha256": source_digest,
+        }
+    }
+    pack = {
+        "pack_version": "1.0",
+        "redaction_profile_digest": policy.compute_digest(),
+        "redaction_policy_config": policy.to_config(),
+        "selected_windows": [
+            {
+                "events": [
+                    {
+                        "source_citation": handle.to_dict(),
+                        "hydrated_content": hydrated.redacted_content,
+                    }
+                ]
+            }
+        ],
+        "omitted_ranges": [],
+    }
+
+    quality_reopen = _citation_reopen(
+        ir=ir,
+        pack=pack,
+        store_root=store,
+        quarantined=False,
+    )
+
+    assert quality_reopen["status"] == "present", quality_reopen["reason_counts"]
+    assert quality_reopen["available"] == 1
+    assert quality_reopen["integrity_failures"] == 0
+
+
 def test_wrong_pack_ir_digest_fails_schema_gate(tmp_path: Path) -> None:
     trial_dir = _trial_tree(tmp_path, trial_name="wrong-ir-digest")
     store = tmp_path / "cas"
@@ -772,6 +904,525 @@ def test_selected_window_payload_must_match_canonical_ir_event(tmp_path: Path) -
     )
 
     assert "selected_event_payload_mismatch" in _pack_structure_errors(ir, tampered)
+
+
+def test_selected_and_omitted_step_ranges_cannot_overlap(tmp_path: Path) -> None:
+    trial_dir = _trial_tree(tmp_path, trial_name="overlapping-pack", unpaired=False)
+    trajectory_path = trial_dir / "agent/trajectory.json"
+    trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
+    trajectory["steps"][1]["tool_calls"].append(
+        {
+            "tool_call_id": "call_2",
+            "function_name": "exec",
+            "arguments": {"cmd": "printf second"},
+        }
+    )
+    trajectory["steps"][1]["observation"]["results"].append(
+        {"source_call_id": "call_2", "content": "second"}
+    )
+    trajectory_path.write_text(json.dumps(trajectory), encoding="utf-8")
+    store = tmp_path / "cas"
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path, store_root=store)
+    pack = build_evidence_pack(
+        ir,
+        trial_dir=trial_dir,
+        repo_root=tmp_path,
+        store_root=store,
+    )
+    window = next(
+        window
+        for window in pack.selected_windows
+        if sum(event["step_index"] == 2 for event in window.events) >= 2
+    )
+    omitted_payload = next(event for event in reversed(window.events) if event["step_index"] == 2)
+    kept = tuple(
+        event for event in window.events if event["event_id"] != omitted_payload["event_id"]
+    )
+    kept_steps = [event["step_index"] for event in kept]
+    tampered_window = replace(
+        window,
+        step_start=min(kept_steps),
+        step_end=max(kept_steps),
+        event_count=len(kept),
+        events=kept,
+    )
+    source_event = next(
+        event for event in ir.events if event.event_id == omitted_payload["event_id"]
+    )
+    omitted = OmittedRange(
+        range_id=1,
+        step_start=source_event.step_index,
+        step_end=source_event.step_index,
+        event_count=1,
+        event_ids=(source_event.event_id,),
+        action_families=(source_event.action_family,),
+        summary="forged overlapping omission",
+        omitted_content_digest=canonical_json_digest([source_event.to_dict()]),
+        reopening_citation=source_event.source_citation,
+    )
+    windows = tuple(
+        tampered_window if candidate.window_id == window.window_id else candidate
+        for candidate in pack.selected_windows
+    )
+    tampered = _recompute_pack_digest(
+        replace(pack, selected_windows=windows, omitted_ranges=(omitted,))
+    )
+
+    errors = _pack_structure_errors(ir, tampered)
+    assert "selected_omitted_range_overlap" in errors
+    judgment = build_machine_judgment(tampered, ir, [])
+    schema = _schema_gate(ir, tampered, judgment, store)
+    assert (schema.status, schema.reason_code) == ("fail", "schema_invalid")
+
+
+def test_selected_hydrated_content_is_bound_to_cas_bytes(tmp_path: Path) -> None:
+    ir, pack, store, _ = _cas_backed_ir_pack(tmp_path, trial_name="selected-hydration-binding")
+    window = pack.selected_windows[0]
+    forged_event = dict(window.events[0])
+    forged_event["hydrated_content"] = "forged bytes"
+    forged_window = replace(window, events=(forged_event, *window.events[1:]))
+    tampered = _recompute_pack_digest(
+        replace(pack, selected_windows=(forged_window, *pack.selected_windows[1:]))
+    )
+    judgment = build_machine_judgment(tampered, ir, [])
+
+    schema = _schema_gate(ir, tampered, judgment, store)
+    assert (schema.status, schema.reason_code) == ("fail", "schema_invalid")
+
+
+def test_corrupt_cas_is_an_integrity_failure_in_citation_gates(tmp_path: Path) -> None:
+    ir, pack, store, cas_uri = _cas_backed_ir_pack(tmp_path, trial_name="corrupt-citation-cas")
+    event = ir.events[0]
+    citation_id = canonical_json_digest(event.source_citation.to_dict())
+    judgment = build_machine_judgment(pack, ir, []).model_copy(
+        update={
+            "producer_kind": "model",
+            "validity": "supported",
+            "citation_ids": [citation_id],
+            "earliest_supported_event_id": event.event_id,
+        }
+    )
+    digest = cas_uri.removeprefix("cas://sha256/")
+    blob = store / "blobs/sha256" / digest[:2] / f"{digest}.tar.gz"
+    content = bytearray(blob.read_bytes())
+    content[len(content) // 2] ^= 0x01
+    blob.write_bytes(content)
+
+    gates = evaluate_deterministic_gates(
+        ir=ir,
+        pack=pack,
+        judgment=judgment,
+        cas_store=store,
+    )
+    c2 = next(gate for gate in gates if gate.gate_id == "C2_digest")
+    c3 = next(gate for gate in gates if gate.gate_id == "C3_source")
+    assert (c2.status, c2.reason_code) == ("fail", "cas_integrity_error")
+    assert (c3.status, c3.reason_code) == ("fail", "cas_integrity_error")
+
+
+def _campaign_result(item, *, job_id: str | None = None) -> dict:
+    return {
+        "job_id": job_id or item.job_id,
+        "trial_id": item.trial_id,
+        "decision": "abstained",
+        "reason_codes": [],
+        "coverage_gaps": [],
+        "source_cas_uri": item.cas_uri,
+        "artifact_cas_uri": "cas://sha256/" + "1" * 64,
+        "ir_digest": "sha256:" + "2" * 64,
+        "pack_digest": "sha256:" + "3" * 64,
+        "judgment_id": "sha256:" + "4" * 64,
+        "decision_id": "sha256:" + "5" * 64,
+    }
+
+
+def test_campaign_report_rejects_duplicate_and_foreign_results() -> None:
+    manifest = load_campaign_analysis_manifest(REAL_INVENTORY)
+    results = [_campaign_result(item) for item in manifest.cohort_items()]
+
+    with pytest.raises(ValueError, match="duplicate identities"):
+        build_campaign_report(manifest, [*results, dict(results[0])])
+
+    foreign = [*results]
+    foreign[0] = _campaign_result(
+        manifest.cohort_items()[0],
+        job_id="foreign-job",
+    )
+    with pytest.raises(ValueError, match="identity mismatch"):
+        build_campaign_report(manifest, foreign)
+
+
+def test_projection_joins_keep_same_trial_id_separate_by_job_and_count_orphans(
+    tmp_path: Path,
+) -> None:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    derived = tmp_path / "derived"
+    trial_id = "shared-trial"
+    identities = [
+        {
+            "job_id": "job-1",
+            "pack_digest": "sha256:" + "1" * 64,
+            "judgment_id": "sha256:" + "2" * 64,
+            "decision_id": "sha256:" + "3" * 64,
+        },
+        {
+            "job_id": "job-2",
+            "pack_digest": "sha256:" + "4" * 64,
+            "judgment_id": "sha256:" + "5" * 64,
+            "decision_id": "sha256:" + "6" * 64,
+        },
+    ]
+    for identity in identities:
+        path = (
+            derived
+            / "parquet"
+            / f"job_id={identity['job_id']}"
+            / f"trial_id={trial_id}"
+            / "trial_facts.parquet"
+        )
+        path.parent.mkdir(parents=True)
+        pq.write_table(
+            pa.Table.from_pylist([{"job_id": identity["job_id"], "trial_id": trial_id}]),
+            path,
+        )
+
+    artifact_rows = [
+        {
+            "job_id": identity["job_id"],
+            "trial_id": trial_id,
+            "kind": kind,
+            "pack_digest": identity["pack_digest"],
+            "judgment_id": identity["judgment_id"],
+            "decision_id": identity["decision_id"],
+        }
+        for identity in identities
+        for kind in ("ir", "pack", "judgment", "decision", "interpretation")
+    ]
+    artifact_rows.append(
+        {
+            "job_id": "foreign-job",
+            "trial_id": trial_id,
+            "kind": "ir",
+            "pack_digest": "sha256:" + "7" * 64,
+            "judgment_id": "sha256:" + "8" * 64,
+            "decision_id": "sha256:" + "9" * 64,
+        }
+    )
+    artifact_path = derived / "interpretation_artifacts" / "interpretation_artifacts.parquet"
+    artifact_path.parent.mkdir(parents=True)
+    pq.write_table(pa.Table.from_pylist(artifact_rows), artifact_path)
+
+    judgment_path = derived / "machine_judgments" / "machine_judgments.parquet"
+    judgment_path.parent.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "judgment_id": identity["judgment_id"],
+                    "pack_digest": identity["pack_digest"],
+                }
+                for identity in identities
+            ]
+        ),
+        judgment_path,
+    )
+    decision_path = derived / "acceptance_decisions" / "acceptance_decisions.parquet"
+    decision_path.parent.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "decision_id": identity["decision_id"],
+                    "pack_digest": identity["pack_digest"],
+                    "judgment_ids_json": json.dumps([identity["judgment_id"]]),
+                }
+                for identity in identities
+            ]
+        ),
+        decision_path,
+    )
+    projections = {
+        "trial_facts": {"status": "present"},
+        "interpretation_artifacts": {"status": "present"},
+        "machine_judgments": {"status": "present"},
+        "acceptance_decisions": {"status": "present"},
+    }
+    trials = [
+        {
+            "job_id": identity["job_id"],
+            "trial_id": trial_id,
+            "cohort_included": True,
+            "sidecar_identity": identity,
+        }
+        for identity in identities
+    ]
+
+    _add_campaign_projection_joins(
+        projections,
+        derived_root=derived,
+        trials=trials,
+    )
+
+    artifacts = projections["interpretation_artifacts"]
+    assert artifacts["current_row_count"] == artifacts["expected_current_row_count"] == 10
+    assert artifacts["historical_row_count"] == 0
+    assert artifacts["orphan_row_count"] == 1
+    assert projections["machine_judgments"]["current_row_count"] == 2
+    assert projections["acceptance_decisions"]["current_row_count"] == 2
+
+
+def test_cas_record_anti_join_counts_campaign_scoped_orphan(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "result.json").write_text("{}")
+    store = tmp_path / "cas"
+    archive = archive_evidence(
+        source,
+        store,
+        record_id="job-current",
+        kind="job",
+    )
+    item = (
+        load_campaign_analysis_manifest(REAL_INVENTORY)
+        .cohort_items()[0]
+        .model_copy(
+            update={
+                "job_id": "job-current",
+                "job_name": "display-name-only",
+                "cas_uri": archive.uri,
+            }
+        )
+    )
+    record = store / "records/job/job-current.json"
+    payload = json.loads(record.read_text(encoding="utf-8"))
+    payload["uri"] = "cas://sha256/" + "f" * 64
+    record.write_text(json.dumps(payload), encoding="utf-8")
+
+    joined = _cas_record_anti_join(store, [item])
+
+    assert joined["matched_uri_count"] == 0
+    assert joined["missing_uris"] == [archive.uri]
+    assert joined["status"] == "invalid"
+    assert joined["orphan_record_count"] == 1
+
+
+def test_cas_record_anti_join_ignores_foreign_record_with_expected_uri(
+    tmp_path: Path,
+) -> None:
+    expected_uri = "cas://sha256/" + "a" * 64
+    item = (
+        load_campaign_analysis_manifest(REAL_INVENTORY)
+        .cohort_items()[0]
+        .model_copy(
+            update={
+                "job_id": "job-current",
+                "job_name": "display-name-only",
+                "cas_uri": expected_uri,
+            }
+        )
+    )
+    record = tmp_path / "cas/records/job/job-foreign.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(
+        json.dumps(
+            {"kind": "job", "record_id": "job-foreign", "uri": expected_uri}
+        ),
+        encoding="utf-8",
+    )
+
+    joined = _cas_record_anti_join(tmp_path / "cas", [item])
+
+    assert joined["status"] == "missing"
+    assert joined["matched_uri_count"] == 0
+    assert joined["missing_uris"] == [expected_uri]
+
+
+def test_cas_record_anti_join_accepts_campaign_bound_legacy_job_name(
+    tmp_path: Path,
+) -> None:
+    expected_uri = "cas://sha256/" + "b" * 64
+    item = (
+        load_campaign_analysis_manifest(REAL_INVENTORY)
+        .cohort_items()[0]
+        .model_copy(
+            update={
+                "job_id": "job-current",
+                "job_name": "legacy-job-name",
+                "cas_uri": expected_uri,
+            }
+        )
+    )
+    record = tmp_path / "cas/records/job/legacy-job-name.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(
+        json.dumps(
+            {"kind": "job", "record_id": "legacy-job-name", "uri": expected_uri}
+        ),
+        encoding="utf-8",
+    )
+
+    joined = _cas_record_anti_join(tmp_path / "cas", [item])
+
+    assert joined["status"] == "present"
+    assert joined["matched_uri_count"] == 1
+    assert joined["missing_uris"] == []
+
+
+def test_cas_record_anti_join_binds_each_job_to_its_expected_uri(
+    tmp_path: Path,
+) -> None:
+    uri_a = "cas://sha256/" + "a" * 64
+    uri_b = "cas://sha256/" + "b" * 64
+    base_items = load_campaign_analysis_manifest(REAL_INVENTORY).cohort_items()[:2]
+    items = [
+        base_items[0].model_copy(
+            update={"job_id": "job-a", "job_name": "legacy-a", "cas_uri": uri_a}
+        ),
+        base_items[1].model_copy(
+            update={"job_id": "job-b", "job_name": "legacy-b", "cas_uri": uri_b}
+        ),
+    ]
+    records = tmp_path / "cas/records/job"
+    records.mkdir(parents=True)
+    (records / "job-a.json").write_text(
+        json.dumps({"kind": "job", "record_id": "job-a", "uri": uri_b}),
+        encoding="utf-8",
+    )
+    (records / "job-b.json").write_text(
+        json.dumps({"kind": "job", "record_id": "job-b", "uri": uri_a}),
+        encoding="utf-8",
+    )
+
+    joined = _cas_record_anti_join(tmp_path / "cas", items)
+
+    assert joined["status"] == "invalid"
+    assert joined["matched_record_count"] == 0
+    assert joined["missing_record_ids"] == ["job-a", "job-b"]
+    assert joined["orphan_record_count"] == 2
+
+
+def test_cas_record_anti_join_rejects_non_job_namespace_match(tmp_path: Path) -> None:
+    expected_uri = "cas://sha256/" + "c" * 64
+    item = (
+        load_campaign_analysis_manifest(REAL_INVENTORY)
+        .cohort_items()[0]
+        .model_copy(
+            update={
+                "job_id": "job-current",
+                "job_name": "legacy-current",
+                "cas_uri": expected_uri,
+            }
+        )
+    )
+    record = tmp_path / "cas/records/interpretation/job-current.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(
+        json.dumps({"kind": "job", "record_id": "job-current", "uri": expected_uri}),
+        encoding="utf-8",
+    )
+
+    joined = _cas_record_anti_join(tmp_path / "cas", [item])
+
+    assert joined["status"] == "missing"
+    assert joined["missing_record_ids"] == ["job-current"]
+
+
+def test_cas_record_anti_join_requires_each_shared_uri_job_record(
+    tmp_path: Path,
+) -> None:
+    shared_uri = "cas://sha256/" + "d" * 64
+    base_items = load_campaign_analysis_manifest(REAL_INVENTORY).cohort_items()[:2]
+    items = [
+        base_items[0].model_copy(
+            update={"job_id": "job-a", "job_name": "legacy-a", "cas_uri": shared_uri}
+        ),
+        base_items[1].model_copy(
+            update={"job_id": "job-b", "job_name": "legacy-b", "cas_uri": shared_uri}
+        ),
+    ]
+    record = tmp_path / "cas/records/job/job-a.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(
+        json.dumps({"kind": "job", "record_id": "job-a", "uri": shared_uri}),
+        encoding="utf-8",
+    )
+
+    joined = _cas_record_anti_join(tmp_path / "cas", items)
+
+    assert joined["status"] == "missing"
+    assert joined["expected_record_count"] == 2
+    assert joined["matched_record_count"] == 1
+    assert joined["missing_record_ids"] == ["job-b"]
+
+
+def test_cas_record_anti_join_rejects_duplicate_identity_records(
+    tmp_path: Path,
+) -> None:
+    expected_uri = "cas://sha256/" + "e" * 64
+    item = (
+        load_campaign_analysis_manifest(REAL_INVENTORY)
+        .cohort_items()[0]
+        .model_copy(
+            update={
+                "job_id": "job-current",
+                "job_name": "legacy-current",
+                "cas_uri": expected_uri,
+            }
+        )
+    )
+    records = tmp_path / "cas/records/job"
+    records.mkdir(parents=True)
+    for record_id in ("job-current", "legacy-current"):
+        (records / f"{record_id}.json").write_text(
+            json.dumps({"kind": "job", "record_id": record_id, "uri": expected_uri}),
+            encoding="utf-8",
+        )
+
+    joined = _cas_record_anti_join(tmp_path / "cas", [item])
+
+    assert joined["status"] == "invalid"
+    assert joined["duplicate_record_uris"] == [
+        {
+            "job_id": "job-current",
+            "uri": expected_uri,
+            "record_count": 2,
+        }
+    ]
+
+
+def test_cas_record_anti_join_rejects_conflicting_uris_for_one_job(
+    tmp_path: Path,
+) -> None:
+    uri_a = "cas://sha256/" + "a" * 64
+    uri_b = "cas://sha256/" + "b" * 64
+    base_items = load_campaign_analysis_manifest(REAL_INVENTORY).cohort_items()[:2]
+    items = [
+        base_items[0].model_copy(
+            update={"job_id": "job-same", "job_name": "legacy-a", "cas_uri": uri_a}
+        ),
+        base_items[1].model_copy(
+            update={"job_id": "job-same", "job_name": "legacy-b", "cas_uri": uri_b}
+        ),
+    ]
+    records = tmp_path / "cas/records/job"
+    records.mkdir(parents=True)
+    (records / "job-same.json").write_text(
+        json.dumps({"kind": "job", "record_id": "job-same", "uri": uri_a}),
+        encoding="utf-8",
+    )
+    (records / "legacy-b.json").write_text(
+        json.dumps({"kind": "job", "record_id": "legacy-b", "uri": uri_b}),
+        encoding="utf-8",
+    )
+
+    joined = _cas_record_anti_join(tmp_path / "cas", items)
+
+    assert joined["status"] == "invalid"
+    assert joined["conflicting_expected_job_ids"] == ["job-same"]
+    assert joined["matched_record_count"] == 2
+    assert joined["missing_uris"] == []
 
 
 def test_quality_warning_coverage_gaps(tmp_path: Path) -> None:

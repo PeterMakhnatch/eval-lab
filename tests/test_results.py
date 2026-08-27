@@ -84,6 +84,40 @@ def test_load_job_indexes_trials_rewards_artifacts_and_files(tmp_path: Path) -> 
     assert kinds[f"{job.trials[0].name}/verifier/reward.json"] == "verifier_evidence"
 
 
+def test_artifact_destination_cannot_escape_trial_directory(tmp_path: Path) -> None:
+    job_dir = make_job(tmp_path)
+    trial_dir = next(path for path in job_dir.iterdir() if path.is_dir())
+    outside = job_dir / "outside.txt"
+    outside.write_text("secret")
+    write_json(
+        trial_dir / "artifacts/manifest.json",
+        [
+            {
+                "source": "/app/output/answer.json",
+                "destination": "../outside.txt",
+                "type": "file",
+                "status": "ok",
+                "service": None,
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="artifact destination escapes"):
+        load_job(job_dir)
+
+
+def test_completed_job_reconciles_declared_trial_count(tmp_path: Path) -> None:
+    job_dir = make_job(tmp_path)
+    result_path = job_dir / "result.json"
+    result = json.loads(result_path.read_text())
+    result["n_total_trials"] = 2
+    result["stats"]["n_completed_trials"] = 2
+    write_json(result_path, result)
+
+    with pytest.raises(ValueError, match="trial count mismatch"):
+        load_job(job_dir)
+
+
 def test_discovery_does_not_treat_trial_result_as_job(tmp_path: Path) -> None:
     job_dir = make_job(tmp_path)
 

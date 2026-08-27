@@ -646,20 +646,44 @@ def test_real_build_campaign_report_source_refs_select_only_report_trials(
 ) -> None:
     # The REAL report builder (trajectory_runtime.build_campaign_report) produces
     # source_refs; selection must scope to exactly those trials.
-    from types import SimpleNamespace
-
     from evallab.trajectory_recipe_run import load_campaign_report_map
-    from evallab.trajectory_runtime import build_campaign_report
+    from evallab.trajectory_runtime import (
+        CampaignAnalysisManifest,
+        build_campaign_report,
+    )
 
-    manifest = SimpleNamespace(
-        manifest_id="m-1",
-        manifest_digest="sha256:" + "a" * 64,
-        campaign_id="camp-1",
-        items=[SimpleNamespace(attempt_role="primary")],
-        accounting={},
+    manifest = CampaignAnalysisManifest.model_validate(
+        {
+            "schema_version": "campaign-analysis-manifest/v1",
+            "manifest_id": "m-1",
+            "manifest_digest": "sha256:" + "a" * 64,
+            "campaign_id": "camp-1",
+            "source_campaign_manifest_digest": "sha256:" + "1" * 64,
+            "source_commit": None,
+            "authorizing_actor": "test",
+            "cas_store_root": str(tmp_path / "cas"),
+            "items": [
+                {
+                    "source_role": "analysis",
+                    "cohort_included": True,
+                    "attempt_role": "primary",
+                    "job_id": "job-in-report",
+                    "job_name": "job-in-report",
+                    "trial_id": "trial-in-report",
+                    "trial_name": "trial-in-report",
+                    "task_name": "fixture-task",
+                    "quality_status": "pass",
+                    "cas_uri": "cas://sha256/" + "b" * 64,
+                }
+            ],
+            "accounting": {},
+            "analysis_config": {},
+            "produced_at": "2026-08-15T00:00:00Z",
+        }
     )
     results = [
         {
+            "job_id": "job-in-report",
             "trial_id": "trial-in-report",
             "source_cas_uri": "cas://sha256/" + "b" * 64,
             "artifact_cas_uri": "cas://sha256/" + "c" * 64,

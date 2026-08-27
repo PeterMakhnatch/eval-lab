@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -16,22 +17,38 @@ def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
-def test_event_mart_pairs_actions_observations_and_temporal_effects(tmp_path: Path) -> None:
-    source = Path(__file__).parent / "fixtures/explorer/jobs/job-pass"
-    job_path = tmp_path / "runs/job-pass"
-    shutil.copytree(source, job_path)
-    trial_path = job_path / "t1"
+def _write_state_journal(
+    trial_path: Path,
+    *,
+    path: str,
+    content: bytes,
+    event_timestamp: str | None,
+) -> None:
+    before_captured_at = "2026-08-15T00:00:00Z"
+    after_captured_at = "2026-08-15T00:00:02Z"
+    event_count = int(event_timestamp is not None)
+    snapshot = {
+        "path": path,
+        "mode": "-rw-r--r--",
+        "size_bytes": len(content),
+        "mtime_ns": 1_755_216_002_000_000_000,
+        "type": "file",
+        "sha256": f"sha256:{hashlib.sha256(content).hexdigest()}",
+        "hash_status": "complete",
+    }
     _write_json(
         trial_path / "state-journal/status.json",
         {
             "schema_version": 1,
             "status": "available",
             "reason": None,
-            "observer": {
-                "mode": "external-sidecar",
-                "target_mutated": False,
-                "model_visible_output": False,
-            },
+            "started_at": before_captured_at,
+            "finished_at": after_captured_at,
+            "root": "/app",
+            "target_pid": 123,
+            "event_count": event_count,
+            "dropped_event_count": 0,
+            "change_count": 1,
         },
     )
     _write_json(
@@ -40,18 +57,37 @@ def test_event_mart_pairs_actions_observations_and_temporal_effects(tmp_path: Pa
             "schema_version": 1,
             "status": "available",
             "reason": None,
+            "root": "/app",
+            "before_captured_at": before_captured_at,
+            "after_captured_at": after_captured_at,
+            "event_count": event_count,
+            "change_count": 1,
+            "dropped_event_count": 0,
             "changes": [
                 {
-                    "path": "a.py",
+                    "path": path,
                     "change_type": "added",
                     "before": None,
-                    "after": {"sha256": "sha256:abc", "size_bytes": 7},
-                    "event_count": 1,
-                    "first_event_at": "2026-08-15T00:00:01.500Z",
-                    "last_event_at": "2026-08-15T00:00:01.500Z",
+                    "after": snapshot,
+                    "event_count": event_count,
+                    "first_event_at": event_timestamp,
+                    "last_event_at": event_timestamp,
                 }
             ],
         },
+    )
+
+
+def test_event_mart_pairs_actions_observations_and_temporal_effects(tmp_path: Path) -> None:
+    source = Path(__file__).parent / "fixtures/explorer/jobs/job-pass"
+    job_path = tmp_path / "runs/job-pass"
+    shutil.copytree(source, job_path)
+    trial_path = job_path / "t1"
+    _write_state_journal(
+        trial_path,
+        path="a.py",
+        content=b"updated",
+        event_timestamp="2026-08-15T00:00:01.500Z",
     )
     job = load_job(job_path)
     derived = tmp_path / "derived"
@@ -84,28 +120,11 @@ def test_event_mart_never_invents_an_action_effect_without_timestamps(tmp_path: 
     job_path = tmp_path / "runs/job-pass"
     shutil.copytree(source, job_path)
     trial_path = job_path / "t1"
-    _write_json(
-        trial_path / "state-journal/status.json",
-        {"schema_version": 1, "status": "available", "reason": None},
-    )
-    _write_json(
-        trial_path / "state-journal/state-diff.json",
-        {
-            "schema_version": 1,
-            "status": "available",
-            "reason": None,
-            "changes": [
-                {
-                    "path": "unknown.txt",
-                    "change_type": "added",
-                    "before": None,
-                    "after": {"sha256": "sha256:def", "size_bytes": 1},
-                    "event_count": 0,
-                    "first_event_at": None,
-                    "last_event_at": None,
-                }
-            ],
-        },
+    _write_state_journal(
+        trial_path,
+        path="unknown.txt",
+        content=b"x",
+        event_timestamp=None,
     )
     job = load_job(job_path)
     derived = tmp_path / "derived"
@@ -144,28 +163,11 @@ def test_event_flow_keeps_repeated_call_ids_distinct_through_compaction(
     }
     steps[1]["observation"]["results"][0]["source_call_id"] = "repeated-call"
     trajectory_path.write_text(json.dumps(trajectory), encoding="utf-8")
-    _write_json(
-        trial_path / "state-journal/status.json",
-        {"schema_version": 1, "status": "available", "reason": None},
-    )
-    _write_json(
-        trial_path / "state-journal/state-diff.json",
-        {
-            "schema_version": 1,
-            "status": "available",
-            "reason": None,
-            "changes": [
-                {
-                    "path": "same-time.txt",
-                    "change_type": "added",
-                    "before": None,
-                    "after": {"sha256": "sha256:def", "size_bytes": 1},
-                    "event_count": 1,
-                    "first_event_at": "2026-08-15T00:00:01Z",
-                    "last_event_at": "2026-08-15T00:00:01Z",
-                }
-            ],
-        },
+    _write_state_journal(
+        trial_path,
+        path="same-time.txt",
+        content=b"x",
+        event_timestamp="2026-08-15T00:00:01Z",
     )
     job = load_job(job_path)
     derived = tmp_path / "derived"

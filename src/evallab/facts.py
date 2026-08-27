@@ -7,7 +7,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal, get_args
 from uuid import UUID, uuid4
 
@@ -27,6 +27,7 @@ from evallab.schemas import (
     AnalysisReview,
     AnalysisSourceDigests,
     FailureCategory,
+    StateEventMetadata,
     TrialAnalysisOutput,
     TrialAnalysisSidecar,
 )
@@ -92,6 +93,7 @@ def experiment_id(job: JobRecord) -> str | None:
     value = experiment.get("spec_id")
     return str(value) if value else None
 
+
 def _experiment_provenance(job: JobRecord) -> JsonObject:
     value = job.metadata.get("experiment")
     return value if isinstance(value, dict) else {}
@@ -125,18 +127,14 @@ def _task_identity(
     observed_task = task_lock if isinstance(task_lock, dict) else {}
     task_id = _string(provenance.get("task_id") or observed_task.get("name"))
     task_family = _string(provenance.get("task_family") or observed_task.get("family"))
-    instance_id = _string(
-        provenance.get("task_instance_id") or observed_task.get("instance_id")
-    )
+    instance_id = _string(provenance.get("task_instance_id") or observed_task.get("instance_id"))
     generator_seed = (
         provenance["generator_seed"]
         if provenance.get("generator_seed") is not None
         else observed_task.get("generator_seed")
     )
     generator_seed_json = (
-        json.dumps(
-            generator_seed, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        )
+        json.dumps(generator_seed, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         if generator_seed is not None
         else None
     )
@@ -157,9 +155,7 @@ def _task_identity(
         "verifier_base_digest": verifier_digest,
         "environment_base_digest": environment_digest,
     }
-    inputs_json = json.dumps(
-        inputs, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    )
+    inputs_json = json.dumps(inputs, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return (
         task_family,
         task_id,
@@ -334,10 +330,103 @@ class RebuildResult:
     @property
     def tables(self) -> tuple[ExportedTable, ...]:
         return (
-            self.trajectory_export.tables
-            + self.fact_export.tables
-            + self.event_mart_export.tables
+            self.trajectory_export.tables + self.fact_export.tables + self.event_mart_export.tables
         )
+
+
+_STATE_CHANGE_TYPES = frozenset({"added", "modified", "deleted"})
+_INT64_MIN = -(1 << 63)
+_INT64_MAX = (1 << 63) - 1
+
+
+
+def _valid_state_snapshot(value: Any, *, expected_path: str) -> bool:
+    if value is None:
+        return True
+    try:
+        metadata = StateEventMetadata.model_validate(value, strict=True)
+    except ValidationError:
+        return False
+    if (
+        metadata.size_bytes > _INT64_MAX
+        or metadata.mtime_ns < _INT64_MIN
+        or metadata.mtime_ns > _INT64_MAX
+    ):
+        return False
+    if metadata.path != expected_path:
+        return False
+    if metadata.type == "file":
+        if metadata.target is not None:
+            return False
+        return (
+            metadata.hash_status == "complete"
+            and metadata.sha256 is not None
+            or metadata.hash_status in {"size_limit", "unreadable"}
+            and metadata.sha256 is None
+        )
+    if metadata.sha256 is not None or metadata.hash_status is not None:
+        return False
+    return metadata.type == "symlink" or metadata.target is None
+
+
+def _valid_state_timestamp(value: Any) -> bool:
+    if value is None:
+        return True
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
+
+
+def _state_change_error(change: JsonObject) -> str | None:
+    path = change.get("path")
+    if not isinstance(path, str) or not path:
+        return "path_invalid"
+    pure_path = PurePosixPath(path)
+    if (
+        pure_path.is_absolute()
+        or ".." in pure_path.parts
+        or pure_path.as_posix() != path
+        or path == "."
+    ):
+        return "path_invalid"
+    change_type = change.get("change_type")
+    if not isinstance(change_type, str) or change_type not in _STATE_CHANGE_TYPES:
+        return "change_type_invalid"
+    if "before" not in change or "after" not in change:
+        return "snapshot_missing"
+    before = change.get("before")
+    after = change.get("after")
+    if not _valid_state_snapshot(
+        before, expected_path=path
+    ) or not _valid_state_snapshot(after, expected_path=path):
+        return "snapshot_invalid"
+    if (
+        (change_type == "added" and (before is not None or after is None))
+        or (change_type == "deleted" and (before is None or after is not None))
+        or (change_type == "modified" and (before is None or after is None))
+    ):
+        return "snapshot_transition_invalid"
+    event_count = change.get("event_count")
+    if (
+        not isinstance(event_count, int)
+        or isinstance(event_count, bool)
+        or event_count < 0
+        or event_count > _INT64_MAX
+    ):
+        return "event_count_invalid"
+    if not _valid_state_timestamp(change.get("first_event_at")) or not _valid_state_timestamp(
+        change.get("last_event_at")
+    ):
+        return "timestamp_invalid"
+    return None
+
+
+def _invalid_state_journal(status: str, reason: str) -> StateJournalRecord:
+    return StateJournalRecord("invalid" if status == "available" else status, reason, ())
 
 
 def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
@@ -347,10 +436,14 @@ def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
         return StateJournalRecord("absent", "not_recorded", ())
     try:
         status_payload = json.loads(status_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         return StateJournalRecord("invalid", f"status_unreadable:{type(exc).__name__}", ())
     if not isinstance(status_payload, dict):
         return StateJournalRecord("invalid", "status_invalid", ())
+    if type(status_payload.get("schema_version")) is not int or status_payload.get(
+        "schema_version"
+    ) != 1:
+        return StateJournalRecord("invalid", "status_schema_invalid", ())
     status_value = status_payload.get("status")
     status = status_value if isinstance(status_value, str) and status_value else "invalid"
     reason_value = status_payload.get("reason")
@@ -359,15 +452,27 @@ def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
         return StateJournalRecord(status, reason or "state_diff_missing", ())
     try:
         diff_payload = json.loads(diff_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return StateJournalRecord(
-            status, reason or f"diff_unreadable:{type(exc).__name__}", ()
-        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return _invalid_state_journal(status, reason or f"diff_unreadable:{type(exc).__name__}")
     if not isinstance(diff_payload, dict):
-        return StateJournalRecord(status, reason or "state_diff_invalid", ())
+        return _invalid_state_journal(status, reason or "state_diff_invalid")
+    if (
+        type(diff_payload.get("schema_version")) is not int
+        or diff_payload.get("schema_version") != 1
+    ):
+        return _invalid_state_journal(status, reason or "state_diff_schema_invalid")
     changes = diff_payload.get("changes")
     if not isinstance(changes, list) or not all(isinstance(item, dict) for item in changes):
-        return StateJournalRecord(status, reason or "changes_invalid", ())
+        return _invalid_state_journal(status, reason or "changes_invalid")
+    seen_paths: set[str] = set()
+    for index, change in enumerate(changes):
+        error = _state_change_error(change)
+        if error is not None:
+            return _invalid_state_journal(status, reason or f"change_{index}_{error}")
+        path = change["path"]
+        if path in seen_paths:
+            return _invalid_state_journal(status, reason or f"change_{index}_path_duplicate")
+        seen_paths.add(path)
     return StateJournalRecord(status, reason, tuple(changes))
 
 
@@ -494,15 +599,11 @@ def extract_trial_fact(
         arm_id=_string(provenance.get("arm_id")),
         factor_values_json=factor_values_json,
         factor_values_digest=(
-            digest_json(provenance["factor_values"])
-            if factor_values_json is not None
-            else None
+            digest_json(provenance["factor_values"]) if factor_values_json is not None else None
         ),
         factor_bindings_json=factor_bindings_json,
         factor_bindings_digest=(
-            digest_json(provenance["factor_bindings"])
-            if factor_bindings_json is not None
-            else None
+            digest_json(provenance["factor_bindings"]) if factor_bindings_json is not None else None
         ),
         bound_execution_values_json=bound_values_json,
         bound_execution_values_digest=(
@@ -1707,26 +1808,28 @@ def project_recovery_facts(
     output_parquet_path: Path,
 ) -> Path:
     """Project paired recovery outcomes into derived columnar Parquet facts."""
-    schema = pa.schema([
-        ("recovery_trial_id", pa.string()),
-        ("initial_trial_id", pa.string()),
-        ("task_id", pa.string()),
-        ("message_mode", pa.string()),
-        ("certificate_status", pa.string()),
-        ("initial_reward", pa.float64()),
-        ("final_recovery_reward", pa.float64()),
-        ("recovery_success", pa.bool_()),
-        ("initial_cost_usd", pa.float64()),
-        ("recovery_cost_usd", pa.float64()),
-        ("total_cost_usd", pa.float64()),
-        ("initial_input_tokens", pa.int64()),
-        ("initial_output_tokens", pa.int64()),
-        ("recovery_input_tokens", pa.int64()),
-        ("recovery_output_tokens", pa.int64()),
-        ("initial_steps", pa.int64()),
-        ("recovery_steps", pa.int64()),
-        ("verifier_exit_code", pa.int32()),
-    ])
+    schema = pa.schema(
+        [
+            ("recovery_trial_id", pa.string()),
+            ("initial_trial_id", pa.string()),
+            ("task_id", pa.string()),
+            ("message_mode", pa.string()),
+            ("certificate_status", pa.string()),
+            ("initial_reward", pa.float64()),
+            ("final_recovery_reward", pa.float64()),
+            ("recovery_success", pa.bool_()),
+            ("initial_cost_usd", pa.float64()),
+            ("recovery_cost_usd", pa.float64()),
+            ("total_cost_usd", pa.float64()),
+            ("initial_input_tokens", pa.int64()),
+            ("initial_output_tokens", pa.int64()),
+            ("recovery_input_tokens", pa.int64()),
+            ("recovery_output_tokens", pa.int64()),
+            ("initial_steps", pa.int64()),
+            ("recovery_steps", pa.int64()),
+            ("verifier_exit_code", pa.int32()),
+        ]
+    )
     rows = []
     for o in outcomes:
         d = o.model_dump() if hasattr(o, "model_dump") else dict(o)

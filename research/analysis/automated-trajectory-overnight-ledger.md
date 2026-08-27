@@ -127,10 +127,10 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 
 ## Next controller actions
 
-1. ADR-036 is discharged. Under ADR-037, Platform lands the `job_name` CAS binding fix in `lane/storage` as Package 1 milestone 2 alongside centralized partition discovery; no manifest, CAS, or reason-code semantics may be relaxed to reach readiness.
+1. Package 1 milestone 2 (storage consolidation) is IN FLIGHT in `lane/storage` (Platform `wH:p1`): the ADR-037 `job_name` CAS binding fix and centralized partition discovery in `paths.py` land as one milestone PR; no manifest, CAS, or reason-code semantics may be relaxed to reach readiness.
 2. After that merges green, release Ops for one identical re-run: `quarantine_job_identity_unresolved` must be absent from every row whose `job_name` uniquely resolves in CAS, the four permanent quarantines must keep their original reasons, every residual HOLD must carry a different and separately diagnosed reason code, and two passes must stay byte-identical.
 3. Keep DuckDB Z2+Z3+Z4 attach queries and every SQL view intact through Package 1 milestone 2; partition discovery centralizes in `paths.py` without changing query results.
-4. Take Package 2 milestone 2 in `lane/execution` only after Ops reports; runner, queue, network, container lifecycle, and signal behaviour stay byte-for-byte behavioural.
+4. Take Package 2 milestone 2 (Queue/Harbor separation) in `lane/execution` only after Ops reports; `lane/execution` must first rebase onto `origin/main` to drop its redundant pre-squash milestone-1 commits, then runner, queue, network, container lifecycle, and signal behaviour stay byte-for-byte behavioural.
 5. Keep Packages 3, 4, and 5 plan-only; select no synthetic family until the AgentAbstain external audit and independent oracle/partition gates clear.
 6. Resume the terminology milestone only on Peter's word; its evidence stays parked untracked at `research/inbox/parked-glossary-evidence-2026-08-27.md`.
 
@@ -511,7 +511,7 @@ without a new worktree, which is the ADR-031 protocol working as intended.
 | Lane | Milestone | Merge | Evidence |
 |---|---|---|---|
 | Execution (Agent Data `wK:p9`) | Package 2 milestone 1 - immutable execution DTOs and typed network policy inputs | PR #228 at `d914850` | `execution_contracts.py` +344, `runner.py` -308, `queue.py` -74, `harbor_network.py` +4/-3, `tests/test_execution_contracts.py` +181; CI 5/5 green |
-| Storage (Platform `wH:p1`, controller-delegated build) | Package 1 milestone 1 - the single `evallab data backfill` operator entry point | PR #229 at `1ceb7bc` | `src/evallab/data_backfill.py` +684, `cli.py` +64, `tests/test_data_backfill_command.py` +457, golden CLI surface regenerated to 84 leaf commands; CI 5/5 green; adversarial exact-head review zero findings |
+| Storage (Platform `wH:p1`, controller-delegated build) | Package 1 milestone 1 - the single `evallab data backfill` operator entry point | PR #229 at `1ceb7bc` | `src/evallab/data_backfill.py` +684, `cli.py` +64, `tests/test_data_backfill_command.py` +457, golden CLI surface regenerated to 83 leaf commands; CI 5/5 green; adversarial exact-head review zero findings |
 
 The Package 2 re-export of `_SUBSCRIPTION_ENVIRONMENT_KEYS` and helper constants
 from `runner.py` was reviewed against clean-cutover policy and each re-export
@@ -566,3 +566,30 @@ Assigned fix (Package 1 milestone 2, Platform `wH:p1`, `lane/storage`): bind on
 identity, and keep duplicate/ambiguous `job_name` fail-closed. No manifest, CAS,
 or reason-code semantics may be relaxed to reach readiness. Ops stays idle until
 that merges green, then re-runs the identical single pass once.
+
+## Milestone status - 2026-08-27 (controller)
+
+Package 1 milestone 2 (storage consolidation) is IN FLIGHT in `lane/storage`
+(Platform `wH:p1`). The ADR-037 binding fix is verified in the worktree:
+`_bind_trial_identity` now binds CAS records on `record_id == job_name`,
+cross-checks the record `uri` against `cas_uri`, keeps `job_id` as the non-CAS
+execution identity, and fails closed on a missing or ambiguous `job_name` (9
+`job_name` occurrences in the file, 0 on `origin/main`). Partition discovery is
+in progress in the same changeset: `paths.py` +161 introduces `ParquetPartition`
+and `ParquetPartitionDiscovery`, with `attach.py` and `parquet_compaction.py`
+updated to consume it. DuckDB Z2+Z3+Z4 attach queries and every SQL view must
+stay intact.
+
+Package 2 milestone 1 (execution DTOs, PR #228 `d914850`) and Package 1 milestone
+1 (backfill entry point, PR #229 `1ceb7bc`) are merged. `lane/execution` still
+carries its two pre-squash milestone-1 commits (`768d8af`, `7461488`) and must
+rebase onto `origin/main` before Package 2 milestone 2 (Queue/Harbor separation)
+begins; that milestone waits for the Ops re-run per action 4. The
+`.worktrees/lane-execution` worktree named in the Active lanes table is absent
+from the worktree registry, so Agent Data must re-check out `lane/execution`
+first.
+
+Golden CLI surface and leaf count are verified consistent at 83 leaf commands:
+`tests/test_cli_registry.py:180` asserts 83, and `test_cli_registry.py` and
+`test_cli_audit.py` pass. The milestone table's "84 leaf commands" is corrected
+to 83.

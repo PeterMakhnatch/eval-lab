@@ -543,3 +543,280 @@ def test_multi_tool_call_ir_event_preservation(tmp_path: Path, repo_root: Path) 
     assert tool_events[1].status_owning_program == "cat"
     assert tool_events[2].action_family == "file_edit"
     assert ir.final_verdict == "PASS"
+
+
+def test_project_ir_graph_structure_and_edges(tmp_path: Path, repo_root: Path) -> None:
+    """Verify TrajectoryIR projects typed nodes and causal/sequential graph edges."""
+    from evallab.trajectory_ir import project_ir_graph
+
+    trial_dir = tmp_path / "graph-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-graph",
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Execute task"},
+            {
+                "step_id": 2,
+                "source": "agent",
+                "tool_calls": [{"name": "edit", "arguments": {"file": "code.py"}, "tool_call_id": "c1"}],
+                "observations": [{"source_call_id": "c1", "content": "saved"}],
+            },
+            {
+                "step_id": 3,
+                "source": "agent",
+                "tool_calls": [{"name": "pytest", "arguments": {"command": "pytest test.py"}, "tool_call_id": "c2"}],
+                "observations": [{"source_call_id": "c2", "content": "passed", "extra": {"exit_code": 0}}],
+            },
+            {"step_id": 4, "source": "verifier", "message": "verifier passed"},
+        ],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(json.dumps({"id": "g-id", "trial_name": "g-trial", "task_name": "synthetic/graph"}))
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    graph = project_ir_graph(ir)
+
+    assert graph.node_count == len(ir.events)
+    assert graph.edge_count > 0
+    assert "chronological_sequence" in graph.edge_type_counts
+    assert "state_change_precedes_verifier_event" in graph.edge_type_counts
+
+    # Node and edge dictionary projections
+    node_dicts = [n.to_projection_dict() for n in graph.nodes]
+    edge_dicts = [e.to_projection_dict() for e in graph.edges]
+    assert len(node_dicts) == graph.node_count
+    assert len(edge_dicts) == graph.edge_count
+    assert all("edge_id" in e for e in edge_dicts)
+    assert all("journal_sequence" in n for n in node_dicts)
+    node_ordinals = {n.node_id: n.event_ordinal for n in graph.nodes}
+    assert all(node_ordinals[e.source_node_id] < node_ordinals[e.target_node_id] for e in graph.edges)
+
+
+def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_root: Path) -> None:
+    """Verify StateJournal inotify events and state diffs are normalized into IREvents."""
+    trial_dir = tmp_path / "state-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    (trial_dir / "state-journal").mkdir(parents=True)
+
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-state",
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Edit file"},
+            {"step_id": 2, "source": "agent", "tool_calls": [{"name": "edit", "arguments": {"file": "app.py"}, "tool_call_id": "e1"}], "observations": [{"source_call_id": "e1", "content": "ok"}]},
+        ],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(json.dumps({"id": "st-id", "trial_name": "state-trial", "task_name": "synthetic/state"}))
+
+    # Create producer-valid status.json, state-diff.json, and state-events.jsonl
+    (trial_dir / "state-journal" / "status.json").write_text(
+        json.dumps({"schema_version": 1, "status": "available"})
+    )
+    state_diff_payload = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "changes": [
+            {
+                "path": "app.py",
+                "change_type": "modified",
+                "event_count": 1,
+                "before": {
+                    "path": "app.py",
+                    "type": "file",
+                    "size_bytes": 100,
+                    "sha256": "sha256:" + "a" * 64,
+                    "mode": "-rw-r--r--",
+                    "mtime_ns": 1787572800000000000,
+                    "hash_status": "complete",
+                },
+                "after": {
+                    "path": "app.py",
+                    "type": "file",
+                    "size_bytes": 120,
+                    "sha256": "sha256:" + "b" * 64,
+                    "mode": "-rw-r--r--",
+                    "mtime_ns": 1787572800100000000,
+                    "hash_status": "complete",
+                },
+            }
+        ],
+    }
+    (trial_dir / "state-journal" / "state-diff.json").write_text(json.dumps(state_diff_payload))
+    state_event_1 = {
+        "sequence": 1,
+        "timestamp": "2026-08-26T12:00:00.100000Z",
+        "operations": ["modify", "close_write"],
+        "path": "app.py",
+        "is_directory": False,
+        "cookie": None,
+        "state": {
+            "path": "app.py",
+            "type": "file",
+            "size_bytes": 120,
+            "sha256": "sha256:" + "b" * 64,
+            "mode": "-rw-r--r--",
+            "mtime_ns": 1787572800100000000,
+            "hash_status": "complete",
+        },
+    }
+    (trial_dir / "state-journal" / "state-events.jsonl").write_text(json.dumps(state_event_1) + "\n")
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+
+    # Step 1 (user) + Step 2 (tool_call + observation) + State Change (1) = 4 events
+    assert len(ir.events) == 4
+    state_events = [e for e in ir.events if e.event_type == "state_change"]
+    assert len(state_events) == 1
+    assert state_events[0].actor == "environment"
+    assert state_events[0].status_owning_program == "inotify"
+    assert state_events[0].action_family == "other"
+    assert state_events[0].step_index is None
+    assert state_events[0].journal_sequence == 1
+    assert state_events[0].exit_code is None
+    assert state_events[0].exit_semantics == "unobserved"
+    assert state_events[0].state_before_digest is not None
+    assert state_events[0].state_after_digest is not None
+    assert ir.evidence_coverage.get("state_diff_observed") is True
+
+    # Verify graph projection copies journal_sequence and connects state_change to verifiers
+    from evallab.trajectory_ir import project_ir_graph
+    graph = project_ir_graph(ir)
+    state_nodes = [n for n in graph.nodes if n.node_type == "state_change"]
+    assert len(state_nodes) == 1
+    assert state_nodes[0].journal_sequence == 1
+    assert state_nodes[0].to_projection_dict().get("journal_sequence") == 1
+
+
+def test_canonical_verifier_digest_matches_facts_on_canary(canary_trial_dir: Path, repo_root: Path) -> None:
+    """Verify local rebuild verifier_digest matches facts._verifier_digest on canary trials."""
+    from evallab.facts import _task_digest, _verifier_digest
+    from evallab.results import JobRecord, TrialRecord
+
+    ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
+    result_data = json.loads((canary_trial_dir / "result.json").read_text())
+    lock_data = json.loads((canary_trial_dir / "lock.json").read_text())
+    config_data = json.loads((canary_trial_dir / "config.json").read_text()) if (canary_trial_dir / "config.json").is_file() else {}
+
+    trial_rec = TrialRecord(
+        path=canary_trial_dir,
+        result=result_data,
+        config=config_data,
+        lock=lock_data,
+        rewards={},
+        artifacts=(),
+    )
+    job_rec = JobRecord(
+        path=canary_trial_dir.parent,
+        result={},
+        config={},
+        lock={},
+        metadata={},
+    )
+
+    expected_verifier_d = _verifier_digest(job_rec, trial_rec)
+    expected_task_d = _task_digest(trial_rec)
+
+    assert ir.task_digest == expected_task_d
+    assert ir.verifier_digest == expected_verifier_d
+
+
+def test_state_journal_hold_reason_on_queue_overflow_and_dropped_events(tmp_path: Path, repo_root: Path) -> None:
+    """Configured StateJournal with dropped events or queue_overflow adds HOLD reason and degrades readiness."""
+    trial_dir = tmp_path / "overflow-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    (trial_dir / "state-journal").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-overflow",
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Write output"},
+            {"step_id": 2, "source": "agent", "tool_calls": [{"name": "bash", "arguments": {"command": "echo hi"}}], "observations": [{"content": "hi"}]},
+        ],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(json.dumps({"id": "ov-id", "trial_name": "overflow-trial", "task_name": "synthetic/overflow"}))
+
+    # Create status.json with dropped_event_count > 0 and queue_overflow operation in stream
+    (trial_dir / "state-journal" / "status.json").write_text(
+        json.dumps({"schema_version": 1, "status": "available", "dropped_event_count": 5})
+    )
+    state_diff_payload = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "changes": [
+            {
+                "path": "app.py",
+                "change_type": "modified",
+                "event_count": 1,
+                "before": {"path": "app.py", "type": "file", "size_bytes": 10, "sha256": "sha256:" + "a" * 64, "mode": "-rw-r--r--", "mtime_ns": 1, "hash_status": "complete"},
+                "after": {"path": "app.py", "type": "file", "size_bytes": 20, "sha256": "sha256:" + "b" * 64, "mode": "-rw-r--r--", "mtime_ns": 2, "hash_status": "complete"},
+            }
+        ],
+    }
+    (trial_dir / "state-journal" / "state-diff.json").write_text(json.dumps(state_diff_payload))
+    overflow_event = {
+        "sequence": 1,
+        "timestamp": "2026-08-26T12:00:00.100000Z",
+        "operations": ["queue_overflow"],
+        "path": "app.py",
+        "is_directory": False,
+        "cookie": None,
+        "state": {"path": "app.py", "type": "file", "size_bytes": 20, "sha256": "sha256:" + "b" * 64, "mode": "-rw-r--r--", "mtime_ns": 2, "hash_status": "complete"},
+    }
+    (trial_dir / "state-journal" / "state-events.jsonl").write_text(json.dumps(overflow_event) + "\n")
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    # queue_overflow must NEVER be emitted as a clean state_change event
+    state_events = [e for e in ir.events if e.event_type == "state_change"]
+    assert len(state_events) == 0
+    assert ir.linkage_coverage == "degraded"
+    assert ir.evidence_coverage.get("analysis_ready") is False
+    assert any("state_journal" in r for r in ir.evidence_coverage.get("hold_reasons", []))
+
+
+def test_empty_verifier_spec_yields_none_digest_and_unknowns_record(tmp_path: Path, repo_root: Path) -> None:
+    """When verifier config is absent/empty, verifier_digest is None and recorded in unknowns."""
+    trial_dir = tmp_path / "noverifier-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-nover",
+        "steps": [{"step_id": 1, "source": "user", "message": "Hi"}],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    # result and lock with no verifier specification
+    (trial_dir / "result.json").write_text(json.dumps({"id": "nv-id", "trial_name": "noverifier-trial", "task_name": "synthetic/noverifier"}))
+    (trial_dir / "lock.json").write_text(json.dumps({"task": {"name": "noverifier"}}))
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    assert ir.verifier_digest is None
+    ver_unknowns = [u for u in ir.unknowns if u.get("field") == "verifier_digest"]
+    assert len(ver_unknowns) >= 1
+    assert ver_unknowns[0]["reason"] == "not_recorded_in_trial_evidence"
+
+
+@pytest.mark.parametrize("status_val", ["partial", "recording", "unknown", "disabled", "unavailable"])
+def test_state_journal_non_available_status_adds_hold_reason(status_val: str, tmp_path: Path, repo_root: Path) -> None:
+    """Any attempted StateJournal status other than available adds a deterministic HOLD reason."""
+    trial_dir = tmp_path / f"status-{status_val}-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    (trial_dir / "state-journal").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": f"sess-{status_val}",
+        "steps": [{"step_id": 1, "source": "user", "message": "Hi"}],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(json.dumps({"id": f"{status_val}-id", "trial_name": f"{status_val}-trial", "task_name": f"synthetic/{status_val}"}))
+    (trial_dir / "state-journal" / "status.json").write_text(
+        json.dumps({"schema_version": 1, "status": status_val})
+    )
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    assert ir.linkage_coverage == "degraded"
+    assert ir.evidence_coverage.get("analysis_ready") is False
+    assert f"state_journal_{status_val}" in ir.evidence_coverage.get("hold_reasons", [])

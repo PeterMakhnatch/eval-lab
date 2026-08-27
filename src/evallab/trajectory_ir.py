@@ -23,7 +23,7 @@ import tempfile
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from evallab.evidence_store import restore_evidence
 from evallab.results import sha256_file
@@ -249,7 +249,7 @@ class IREvent:
     timestamp: str | None
     phase: str  # "setup" | "prompt" | "work" | "verifier" | "unknown"
     episode_id: int
-    step_index: int
+    step_index: int | None
     call_index: int | None
     action_family: str  # "file_read" | "file_write" | "file_edit" | "command_execution" | "verification" | "context_control" | "model_reasoning" | "other"
     status_owning_program: str | None
@@ -265,6 +265,7 @@ class IREvent:
     matched_result_digest: str | None = None
     state_before_digest: str | None = None
     state_after_digest: str | None = None
+    journal_sequence: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -294,6 +295,294 @@ class IREpisode:
         d["key_citations"] = [c.to_dict() for c in self.key_citations]
         return d
 
+
+GraphEdgeType = Literal[
+    "chronological_sequence",
+    "tool_call_response",
+    "error_to_non_error_transition",
+    "state_change_precedes_verifier_event",
+    "context_compaction_edge",
+]
+
+
+def deterministic_ir_edge_id(
+    trial_id: str,
+    source_node_id: str,
+    target_node_id: str,
+    edge_type: str,
+) -> str:
+    """Generate a deterministic sha256 primary key for an IR graph edge."""
+    parts = (trial_id, source_node_id, target_node_id, edge_type)
+    return hashlib.sha256("\0".join(str(p) for p in parts).encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class IRGraphNode:
+    """Projected node representation of an atomic TrajectoryIR event."""
+
+    node_id: str
+    trial_id: str
+    event_ordinal: int
+    step_index: int | None
+    episode_id: int
+    node_type: str
+    actor: str
+    phase: str
+    action_family: str
+    status_owning_program: str | None
+    exit_semantics: str
+    is_error: bool
+    payload_digest: str
+    source_citation: CitationHandle
+    summary: str
+    attributes_json: str = "{}"
+    journal_sequence: int | None = None
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["source_citation"] = self.source_citation.to_dict()
+        return d
+
+    def to_projection_dict(self) -> dict[str, Any]:
+        return {
+            "node_id": self.node_id,
+            "trial_id": self.trial_id,
+            "event_ordinal": self.event_ordinal,
+            "step_index": self.step_index,
+            "episode_id": self.episode_id,
+            "node_type": self.node_type,
+            "actor": self.actor,
+            "phase": self.phase,
+            "action_family": self.action_family,
+            "status_owning_program": self.status_owning_program or "",
+            "exit_semantics": self.exit_semantics,
+            "is_error": self.is_error,
+            "payload_digest": self.payload_digest,
+            "source_citation_path": self.source_citation.source_path,
+            "source_citation_sha256": self.source_citation.source_sha256,
+            "summary": self.summary,
+            "attributes_json": self.attributes_json,
+            "journal_sequence": self.journal_sequence,
+        }
+
+@dataclass(frozen=True)
+class IRGraphEdge:
+    """Directed semantic edge connecting two nodes in TrajectoryIR."""
+
+    edge_id: str
+    trial_id: str
+    source_node_id: str
+    target_node_id: str
+    edge_type: GraphEdgeType
+    weight: float = 1.0
+    metadata_json: str = "{}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def to_projection_dict(self) -> dict[str, Any]:
+        return {
+            "edge_id": self.edge_id,
+            "trial_id": self.trial_id,
+            "source_node_id": self.source_node_id,
+            "target_node_id": self.target_node_id,
+            "edge_type": self.edge_type,
+            "weight": self.weight,
+            "metadata_json": self.metadata_json,
+        }
+
+
+@dataclass(frozen=True)
+class TrajectoryGraphProjection:
+    """Projected Directed Acyclic Graph (DAG) over a TrajectoryIR instance."""
+
+    ir_digest: str
+    trial_id: str
+    nodes: tuple[IRGraphNode, ...]
+    edges: tuple[IRGraphEdge, ...]
+    node_count: int
+    edge_count: int
+    edge_type_counts: dict[str, int]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ir_digest": self.ir_digest,
+            "trial_id": self.trial_id,
+            "nodes": [n.to_dict() for n in self.nodes],
+            "edges": [e.to_dict() for e in self.edges],
+            "node_count": self.node_count,
+            "edge_count": self.edge_count,
+            "edge_type_counts": self.edge_type_counts,
+        }
+
+
+def project_ir_graph(ir: TrajectoryIR) -> TrajectoryGraphProjection:
+    """Project TrajectoryIR events and citations into a typed, deterministic graph."""
+    trial_id = ir.trial_id
+    sorted_events = sorted(ir.events, key=lambda e: e.event_ordinal)
+
+    # 1. Build Nodes
+    nodes: list[IRGraphNode] = []
+    for ev in sorted_events:
+        attr = {
+            "call_index": ev.call_index,
+            "argument_skeleton": ev.argument_skeleton,
+            "exit_code": ev.exit_code,
+            "payload_bytes": ev.payload_bytes,
+            "tool_schema_digest": ev.tool_schema_digest,
+            "matched_result_digest": ev.matched_result_digest,
+            "state_before_digest": ev.state_before_digest,
+            "state_after_digest": ev.state_after_digest,
+        }
+        nodes.append(
+            IRGraphNode(
+                node_id=ev.event_id,
+                trial_id=trial_id,
+                event_ordinal=ev.event_ordinal,
+                step_index=ev.step_index,
+                episode_id=ev.episode_id,
+                node_type=ev.event_type,
+                actor=ev.actor,
+                phase=ev.phase,
+                action_family=ev.action_family,
+                status_owning_program=ev.status_owning_program,
+                exit_semantics=ev.exit_semantics,
+                is_error=ev.is_error,
+                payload_digest=ev.payload_digest,
+                source_citation=ev.source_citation,
+                summary=ev.summary,
+                attributes_json=json.dumps(attr, sort_keys=True),
+                journal_sequence=ev.journal_sequence,
+            )
+        )
+
+    # 2. Extract Edges
+    edges: list[IRGraphEdge] = []
+    n = len(sorted_events)
+
+    # Rule A: chronological_sequence (consecutive event transitions)
+    for i in range(n - 1):
+        src, tgt = sorted_events[i], sorted_events[i + 1]
+        e_type: GraphEdgeType = "chronological_sequence"
+        edges.append(
+            IRGraphEdge(
+                edge_id=deterministic_ir_edge_id(trial_id, src.event_id, tgt.event_id, e_type),
+                trial_id=trial_id,
+                source_node_id=src.event_id,
+                target_node_id=tgt.event_id,
+                edge_type=e_type,
+                weight=1.0,
+                metadata_json=json.dumps({"source_ordinal": src.event_ordinal, "target_ordinal": tgt.event_ordinal}),
+            )
+        )
+
+    # Rule B: tool_call_response (tool_call -> matching observation)
+    tool_calls_by_id: dict[str, IREvent] = {}
+    for ev in sorted_events:
+        tc_id = ev.source_citation.tool_call_id
+        if ev.event_type == "tool_call" and tc_id:
+            tool_calls_by_id[tc_id] = ev
+        elif (
+            ev.event_type == "observation"
+            and ev.source_citation.source_call_id
+            and ev.source_citation.source_call_id in tool_calls_by_id
+        ):
+            call_ev = tool_calls_by_id[ev.source_citation.source_call_id]
+            e_type = "tool_call_response"
+            edges.append(
+                IRGraphEdge(
+                    edge_id=deterministic_ir_edge_id(trial_id, call_ev.event_id, ev.event_id, e_type),
+                    trial_id=trial_id,
+                    source_node_id=call_ev.event_id,
+                    target_node_id=ev.event_id,
+                    edge_type=e_type,
+                    weight=1.0,
+                    metadata_json=json.dumps({"tool_call_id": ev.source_citation.source_call_id, "exit_code": ev.exit_code}),
+                )
+            )
+
+    # Rule C: error_to_non_error_transition (failed action -> subsequent non-error event within screening window)
+    for i in range(n):
+        ev = sorted_events[i]
+        if ev.is_error or ev.exit_semantics in ("error", "timeout"):
+            for j in range(i + 1, min(i + 10, n)):
+                cand = sorted_events[j]
+                if cand.actor in ("agent", "environment") and not cand.is_error and cand.exit_semantics == "success":
+                    e_type = "error_to_non_error_transition"
+                    edges.append(
+                        IRGraphEdge(
+                            edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, cand.event_id, e_type),
+                            trial_id=trial_id,
+                            source_node_id=ev.event_id,
+                            target_node_id=cand.event_id,
+                            edge_type=e_type,
+                            weight=1.0,
+                            metadata_json=json.dumps({
+                                "error_program": ev.status_owning_program,
+                                "transition_program": cand.status_owning_program,
+                                "gap_events": j - i,
+                            }),
+                        )
+                    )
+                    break
+
+    # Rule D: state_change_precedes_verifier_event (state edit/write/change -> strictly subsequent verifier event)
+    for i in range(n):
+        ev = sorted_events[i]
+        if ev.action_family in ("file_edit", "file_write") or ev.event_type == "state_change":
+            for j in range(i + 1, n):
+                cand = sorted_events[j]
+                if cand.action_family == "verification" or cand.event_type == "verifier_check" or cand.phase == "verifier":
+                    e_type = "state_change_precedes_verifier_event"
+                    edges.append(
+                        IRGraphEdge(
+                            edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, cand.event_id, e_type),
+                            trial_id=trial_id,
+                            source_node_id=ev.event_id,
+                            target_node_id=cand.event_id,
+                            edge_type=e_type,
+                            weight=1.0,
+                            metadata_json=json.dumps({
+                                "state_change_program": ev.status_owning_program or "inotify",
+                                "verifier_program": cand.status_owning_program or "verifier",
+                                "gap_events": j - i,
+                            }),
+                        )
+                    )
+                    break
+    # Rule E: context_compaction_edge (context management -> next agent step)
+    for i in range(n):
+        ev = sorted_events[i]
+        if ev.event_type == "context_management" or ev.action_family == "context_control":
+            for j in range(i + 1, n):
+                cand = sorted_events[j]
+                if cand.actor == "agent":
+                    e_type = "context_compaction_edge"
+                    edges.append(
+                        IRGraphEdge(
+                            edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, cand.event_id, e_type),
+                            trial_id=trial_id,
+                            source_node_id=ev.event_id,
+                            target_node_id=cand.event_id,
+                            edge_type=e_type,
+                            weight=1.0,
+                            metadata_json=json.dumps({"compacted_event_ordinal": ev.event_ordinal}),
+                        )
+                    )
+                    break
+
+    edge_counts: dict[str, int] = {}
+    for edge in edges:
+        edge_counts[edge.edge_type] = edge_counts.get(edge.edge_type, 0) + 1
+
+    return TrajectoryGraphProjection(
+        ir_digest=ir.ir_digest,
+        trial_id=trial_id,
+        nodes=tuple(nodes),
+        edges=tuple(sorted(edges, key=lambda e: e.edge_id)),
+        node_count=len(nodes),
+        edge_count=len(edges),
+        edge_type_counts=edge_counts,
+    )
 
 @dataclass(frozen=True)
 class TrajectoryIR:
@@ -640,17 +929,43 @@ def build_trajectory_ir(
                 result_data = json.loads(result_path.read_text(encoding="utf-8", errors="replace"))
             except Exception:
                 result_data = {}
+        lock_dict: dict[str, Any] = {}
+        lock_path = trial_dir / "lock.json"
+        if lock_path.is_file():
+            with contextlib.suppress(Exception):
+                lock_dict = json.loads(lock_path.read_text(encoding="utf-8", errors="replace"))
 
+        raw_task_lock = lock_dict.get("task")
+        task_lock: dict[str, Any] = raw_task_lock if isinstance(raw_task_lock, dict) else {}
+        task_lock_digest = str(task_lock.get("digest")) if task_lock.get("digest") else None
         task_digest = (
             inventory_record.get("task_digest")
+            or task_lock_digest
             or str(result_data.get("task_checksum") or result_data.get("task_digest") or "")
             or None
         )
-        verifier_digest = (
+
+        verifier_spec = lock_dict.get("verifier") or (result_data.get("config") or {}).get("verifier")
+        verifier_digest: str | None = (
             inventory_record.get("verifier_digest")
             or str(result_data.get("verifier_digest") or "")
             or None
         )
+        if not verifier_digest and isinstance(verifier_spec, dict) and verifier_spec:
+            from evallab.facts import digest_json
+            verifier_digest = digest_json(
+                {
+                    "task_digest": task_digest,
+                    "verifier": verifier_spec,
+                }
+            )
+
+        manifest_candidates = (
+            trial_dir / "manifest.json",
+            trial_dir / "artifacts" / "manifest.json",
+        )
+        manifest_path = next((p for p in manifest_candidates if p.is_file()), None)
+        manifest_digest = f"sha256:{sha256_file(manifest_path)}" if manifest_path else None
 
         raw_agent_info = result_data.get("agent_info")
         agent_info: dict[str, Any] = raw_agent_info if isinstance(raw_agent_info, dict) else {}
@@ -708,8 +1023,8 @@ def build_trajectory_ir(
         else:
             final_verdict = "UNKNOWN"
 
-        events: list[IREvent] = []
-
+        atif_events: list[IREvent] = []
+        state_events: list[IREvent] = []
         traj_payload: dict[str, Any] | None = None
         if traj_path and traj_path.is_file():
             try:
@@ -874,7 +1189,7 @@ def build_trajectory_ir(
                         source_citation=citation,
                         summary=summary,
                     )
-                    events.append(event)
+                    atif_events.append(event)
                     event_ord_counter += 1
                     if matching_obs is not None and matching_obs_index is not None:
                         observation_event_id = hashlib.sha256(
@@ -893,7 +1208,7 @@ def build_trajectory_ir(
                             redaction_profile_digest=policy.compute_digest(),
                         )
                         observation_payload = json.dumps({"observation": matching_obs})
-                        events.append(
+                        atif_events.append(
                             IREvent(
                                 event_id=observation_event_id,
                                 event_ordinal=event_ord_counter,
@@ -990,11 +1305,128 @@ def build_trajectory_ir(
                     source_citation=citation,
                     summary=summary,
                 )
-                events.append(event)
+                atif_events.append(event)
                 event_ord_counter += 1
 
-        episodes = _segment_episodes(events)
+        state_coverage_extra: dict[str, Any] = {}
+        journal_dir = trial_dir / "state-journal"
+        has_journal_attempt = (
+            journal_dir.is_dir()
+            or (trial_dir / "state-events.jsonl").is_file()
+            or (trial_dir / "state-diff.json").is_file()
+        )
+        if has_journal_attempt:
+            actual_journal_dir = journal_dir if journal_dir.is_dir() else trial_dir
+            state_events_path = actual_journal_dir / "state-events.jsonl"
+            status_path = actual_journal_dir / "status.json"
+            try:
+                from evallab.results import TrialRecord
+                from evallab.state_events import load_state_event_facts
 
+                trial_rec = TrialRecord(
+                    path=trial_dir,
+                    result={"id": outline.trial_id, "trial_name": outline.trial_name},
+                    config=config_dict,
+                    lock=lock_dict,
+                    rewards={},
+                    artifacts=(),
+                )
+
+                if status_path.is_file():
+                    status_payload = json.loads(status_path.read_text(encoding="utf-8", errors="replace"))
+                    prod_status = status_payload.get("status") if isinstance(status_payload, dict) else "unknown"
+                    state_coverage_extra["state_journal_status"] = prod_status
+                    if prod_status != "available":
+                        state_coverage_extra["state_journal_hold_reason"] = f"state_journal_{prod_status}"
+                    if isinstance(status_payload, dict) and status_payload.get("dropped_event_count", 0) > 0:
+                        state_coverage_extra["state_journal_overflow"] = True
+                        state_coverage_extra["state_journal_hold_reason"] = "state_journal_dropped_events"
+                else:
+                    state_coverage_extra["state_journal_status"] = "missing_status"
+                    state_coverage_extra["state_journal_hold_reason"] = "state_journal_missing_status"
+
+                if not state_events_path.is_file():
+                    if not state_coverage_extra.get("state_journal_hold_reason"):
+                        state_coverage_extra["state_journal_hold_reason"] = "state_journal_missing_stream"
+                else:
+                    state_rel_path = state_events_path.relative_to(trial_dir).as_posix()
+                    state_sha = sha256_file(state_events_path)
+                    state_facts = load_state_event_facts(
+                        trial_rec,
+                        job_id=outline.job_id or "job",
+                        experiment_id=None,
+                    )
+                    for fact in state_facts:
+                        if fact.evidence_status != "valid":
+                            state_coverage_extra["state_journal_status"] = fact.evidence_status
+                            state_coverage_extra["state_journal_hold_reason"] = f"state_journal_{fact.evidence_status}"
+                            continue
+                        if "queue_overflow" in fact.operations:
+                            state_coverage_extra["state_journal_overflow"] = True
+                            state_coverage_extra["state_journal_hold_reason"] = "state_journal_queue_overflow"
+                            continue
+
+                        se_event_id = hashlib.sha256(
+                            f"{outline.trial_id}:{event_ord_counter}:state_change:{fact.sequence}:{fact.path}".encode()
+                        ).hexdigest()
+                        se_citation = create_citation_handle(
+                            trial_id=outline.trial_id,
+                            source_path=state_rel_path,
+                            source_sha256=state_sha,
+                            raw_cas_uri=cas_uri,
+                            target_type="file",
+                            ir_event_id=se_event_id,
+                            redaction_profile_digest=policy.compute_digest(),
+                        )
+                        state_events.append(
+                            IREvent(
+                                event_id=se_event_id,
+                                event_ordinal=event_ord_counter,
+                                event_type="state_change",
+                                actor="environment",
+                                timestamp=fact.event_at,
+                                phase="work",
+                                episode_id=1,
+                                step_index=None,
+                                call_index=None,
+                                action_family="other",
+                                status_owning_program="inotify",
+                                argument_skeleton=fact.path or "file",
+                                exit_code=None,
+                                exit_semantics="unobserved",
+                                is_error=False,
+                                payload_digest=fact.source_record_digest or f"sha256:{hashlib.sha256(str(fact.path).encode()).hexdigest()}",
+                                payload_bytes=fact.after_size_bytes or 0,
+                                source_citation=se_citation,
+                                summary=f"State event: {','.join(fact.operations)} {fact.path}",
+                                state_before_digest=fact.before_state_digest,
+                                state_after_digest=fact.after_state_digest,
+                                journal_sequence=fact.sequence,
+                            )
+                        )
+            except Exception as exc:
+                state_coverage_extra["state_journal_status"] = "malformed_or_unreadable"
+                state_coverage_extra["state_journal_hold_reason"] = "state_journal_malformed"
+                state_coverage_extra["state_journal_error"] = str(exc)[:200]
+        else:
+            state_coverage_extra["state_journal_status"] = "not_observed"
+
+        # Order events by temporal phase precedence: non-verifier work events -> journal filesystem events -> verifier checks
+        non_verifier_atif: list[IREvent] = []
+        verifier_atif: list[IREvent] = []
+        for ev in atif_events:
+            if ev.event_type == "verifier_check" or ev.phase == "verifier" or ev.actor == "verifier":
+                verifier_atif.append(ev)
+            else:
+                non_verifier_atif.append(ev)
+
+        ordered_raw_events = non_verifier_atif + state_events + verifier_atif
+        events: list[IREvent] = [
+            replace(ev, event_ordinal=idx) for idx, ev in enumerate(ordered_raw_events)
+        ]
+        episodes = _segment_episodes(events)
+        if state_coverage_extra.get("state_journal_hold_reason"):
+            linkage_coverage = "degraded"
         updated_events: list[IREvent] = []
         for ev in events:
             assigned_ep_id = 1
@@ -1003,33 +1435,7 @@ def build_trajectory_ir(
                     assigned_ep_id = ep.episode_id
                     break
             if assigned_ep_id != ev.episode_id:
-                updated_events.append(
-                    IREvent(
-                        event_id=ev.event_id,
-                        event_ordinal=ev.event_ordinal,
-                        event_type=ev.event_type,
-                        actor=ev.actor,
-                        timestamp=ev.timestamp,
-                        phase=ev.phase,
-                        episode_id=assigned_ep_id,
-                        step_index=ev.step_index,
-                        call_index=ev.call_index,
-                        action_family=ev.action_family,
-                        status_owning_program=ev.status_owning_program,
-                        argument_skeleton=ev.argument_skeleton,
-                        exit_code=ev.exit_code,
-                        exit_semantics=ev.exit_semantics,
-                        is_error=ev.is_error,
-                        payload_digest=ev.payload_digest,
-                        payload_bytes=ev.payload_bytes,
-                        source_citation=ev.source_citation,
-                        summary=ev.summary,
-                        tool_schema_digest=ev.tool_schema_digest,
-                        matched_result_digest=ev.matched_result_digest,
-                        state_before_digest=ev.state_before_digest,
-                        state_after_digest=ev.state_after_digest,
-                    )
-                )
+                updated_events.append(replace(ev, episode_id=assigned_ep_id))
             else:
                 updated_events.append(ev)
         observed_call_ids = {
@@ -1047,7 +1453,7 @@ def build_trajectory_ir(
             )
         )
         unpaired_count = raw_unpaired_count
-        linkage_coverage = "degraded" if raw_unpaired_count > 0 else "complete"
+        linkage_coverage = "degraded" if (raw_unpaired_count > 0 or state_coverage_extra.get("state_journal_hold_reason")) else "complete"
         raw_ledger_pairing_disagreement = (
             ledger_unpaired_count != raw_unpaired_count
         )
@@ -1063,6 +1469,8 @@ def build_trajectory_ir(
             source_digests["task_digest"] = task_digest
         if verifier_digest:
             source_digests["verifier_digest"] = verifier_digest
+        if manifest_digest:
+            source_digests["manifest_digest"] = manifest_digest
 
         opportunity_windows: list[IROpportunityWindow] = []
         prior_error = False
@@ -1089,7 +1497,7 @@ def build_trajectory_ir(
                     IROpportunityWindow(
                         opportunity_id=opp_id,
                         opportunity_type=opp_type,
-                        step_index=ev.step_index,
+                        step_index=ev.step_index or 0,
                         action_family=ev.action_family,
                         status_owning_program=ev.status_owning_program,
                         has_prior_error=prior_error,
@@ -1144,8 +1552,10 @@ def build_trajectory_ir(
             recovery_count=baseline.recovery_count,
             max_cascade=baseline.max_exit_code_cascade_screening,
             trial_dir=trial_dir,
+            state_journal_hold_reason=state_coverage_extra.get("state_journal_hold_reason"),
         )
         evidence_coverage = coverage_metrics.to_dict()
+        evidence_coverage.update(state_coverage_extra)
         ir_trial_id = str(inventory_record.get("trial_id") or outline.trial_id)
         ir_trial_name = str(inventory_record.get("trial_name") or outline.trial_name)
         ir_job_id = str(inventory_record.get("job_id") or outline.job_id)

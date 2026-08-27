@@ -109,6 +109,11 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-028 | Trajectory bulk-work model budget is Gemini-primary with DeepSeek Flash as the only fallback | Peter override / effective immediately | no new Grok/Cursor Grok, Claude, Devin, Terra, Sol, Opus, or other paid/subscription routing; if both allowed providers are unavailable, STOP/HOLD without weakening quality gates |
 | ADR-029 | P0 is the automatic completed-Harbor-trial data layer; all other expansion pauses | Peter focus reset / supersedes ADR-028 routing | active roles are Platform, Agent Data, Ops, Tutor, Architect; model order is Gemini 3.7 High, Cursor Grok, DeepSeek Flash, otherwise HOLD; merge order is canonical Data validator before Platform integrity before one all-durable backfill |
 | ADR-030 | P0 operator automation is HOLD after integrity merge because no single-command backfill exists and no allowed builder route is available | hard stop | preserve `.worktrees/data-backfill-command`; require a new allowed Platform/Gemini-or-fallback execution session before implementation, review, CI, and the one all-durable Ops pass |
+| ADR-031 | Long-lived role lanes replace per-fix worktrees | Peter directive / effective immediately | one durable branch and worktree per active role; batch commits inside the lane; open one PR per milestone, not per fix; no new worktree for a single change; still-wanted work on stale PR-less branches is cherry-picked into the owning lane |
+| ADR-032 | Package 1 storage consolidation is SCHEDULED on `lane/storage` | approved / owner Platform `wH:p1` | gates cleared: PRs #199, #206, #208, #218, #223, #225 merged, zero PRs open, Platform data-trust worktree removed; partition discovery centralizes in `paths.py`; `attach.py` and `parquet_compaction.py` consume it; zero SQL view removal without query evidence |
+| ADR-033 | Package 2 execution packaging is SCHEDULED on `lane/execution` | approved / owner Agent Data `wK:p9` by explicit delegation | Platform delegates `runner.py`, `queue.py`, `harbor_network.py` for immutable DTO and validation extraction only; atomic `O_EXCL` leasing, auth and environment propagation, container lifecycle, and signal handling must stay byte-for-byte behavioural |
+| ADR-034 | The missing `evallab data backfill` entry point is the first Package 1 milestone, not a separate worktree | approved / supersedes ADR-030 routing only | ADR-030's HOLD on the actual all-durable Ops pass stands until the single entry point merges green inside `lane/storage`; the preserved `.worktrees/data-backfill-command` diff is cherry-picked, not resurrected as its own branch flow |
+| ADR-035 | Stale PR-less branches lose ownership-blocking status | approved | a branch with no open PR, no commit within two days, and tens of commits behind main cannot gate a scheduled package; its worktree and diff are preserved untouched, but the lane owns the file from `origin/main` forward |
 
 ## Blockers / hard stops
 
@@ -116,15 +121,15 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 - PR #202 parity-v2 is rebased at `7f0cb5b`; corrected batch/recipe rerun waits its green CI and exact post-rebase review so identities settle once. Source digests remain frozen.
 - PR #198/PR #201 also wait PR #202 merge and final post-rebase review; 0 AgentAbstain admitted, findings embargoed.
 - Calibration PPV/non-inferiority, low localization/support, absent human baseline, target/index ambiguity and class power still block acceptance. DeepPlanning, LOCA, Recovery, Memory and Family A remain HOLD.
-- No billable run, registration, publication, policy override, raw mutation, or further stabilization implementation is authorized.
+- No billable run, registration, publication, policy override, or raw mutation is authorized. Stabilization Packages 1 and 2 are authorized inside their lanes per ADR-031 through ADR-035; Packages 3, 4, and 5 remain plan-only.
 
 ## Next controller actions
 
-1. Merge reviewed green PR #202; then rerun all five campaigns once plus deterministic pass and compare invalid/corrected identities.
-2. Rebase and exact-review PR #198/#201 after PR #202; only corrected packs may feed recipes.
-3. Preserve invalid forensic artifacts and publish calibrated before/after data-trust findings.
-4. M0 is complete; all other stabilization packages remain plan-only.
-5. Select no synthetic family until AgentAbstain external audit and independent oracle/partition gates clear.
+1. Hold Ops at the ADR-030 gate: no manual multi-command substitute for the all-durable pass.
+2. Land the single `evallab data backfill` entry point as Package 1 milestone 1 in `lane/storage`.
+3. Land centralized partition discovery as Package 1 milestone 2; keep DuckDB Z2+Z3+Z4 attach queries and all SQL views intact.
+4. Land immutable execution DTO and validation extraction as Package 2 milestone 1 in `lane/execution` with unchanged runner, queue, network, and signal behaviour.
+5. Keep Packages 3, 4, and 5 plan-only; select no synthetic family until the AgentAbstain external audit and independent oracle/partition gates clear.
 
 ## Status update — 2026-08-26 late overnight (Architect)
 
@@ -422,3 +427,75 @@ all-durable pass plus deterministic identity verification. Until then
 PostgreSQL/Parquet/CAS post-merge verification, exhaustive
 ANALYSIS_READY/HOLD reconciliation, and automatic 21-trial disposition remain
 HOLD.
+
+## Builder lanes and ceremony cut - 2026-08-27
+
+Peter's P0 directive: stop the terminology audits, schedule Packages 1 and 2 from
+`research/analysis/repo-stabilization-audit.md`, and remove the git-ceremony
+overhead by assigning long-lived builder lanes instead of per-fix worktree churn.
+
+### Lane protocol (normative)
+
+| Rule | Requirement |
+|---|---|
+| One lane per role | A role owns exactly one durable branch and one worktree; it is reused for every change, never recreated per fix. |
+| Batch inside the lane | Commit freely on the lane. Do not open a PR, run full CI, or rebase for each individual fix. |
+| Milestone PRs only | Open one PR when a milestone in this ledger is behaviourally complete. One review round, one CI matrix, one merge. |
+| Rebase once per milestone | Rebase onto `origin/main` immediately before opening the milestone PR, not continuously. |
+| No sibling worktrees | A lane owner needing a second checkout states the reason in this ledger first; the default answer is no. |
+| Salvage by cherry-pick | Wanted commits on stale branches are cherry-picked into the owning lane. Stale branches are never merged directly and never deleted by another role. |
+| Focused tests only | Run tests for touched files inside the lane. The full matrix is CI's job at the milestone PR. |
+
+### Active lanes
+
+| Lane | Branch | Worktree | Owner | Package | Owned files |
+|---|---|---|---|---|---|
+| Storage | `lane/storage` | `.worktrees/lane-storage` | Platform `wH:p1` | Package 1 + `evallab data backfill` | `src/evallab/paths.py`, `src/evallab/attach.py`, `src/evallab/parquet_compaction.py`, new `data` CLI binding, matching tests |
+| Execution | `lane/execution` | `.worktrees/lane-execution` | Agent Data `wK:p9` | Package 2 | `src/evallab/runner.py`, `src/evallab/queue.py`, `src/evallab/harbor_network.py`, matching tests |
+| Architect | `lane/architect` | `.worktrees/lane-architect` | Architect `wK:p6` | ledger, ADRs, audit verdicts | `research/analysis/*.md` controller documents |
+
+All three lanes were created from `origin/main` `038cea7`.
+
+### Ceremony cut executed
+
+Worktree count went from 65 to 53. Twelve worktrees were removed; every one was
+an ancestor of `origin/main` with a clean status, so no unique commit or
+uncommitted diff was discarded:
+
+- `.worktrees/canonical-glossary`, `.worktrees/tau-seqcov-single-edit`,
+  `.worktrees/trajectory-capabilities-v1`
+- `/private/tmp/eval-lab-analysis-8c996cb`, `/private/tmp/eval-lab-minimal-experiment`,
+  `/private/tmp/review-state-evidence.MLdmwu`, `/private/tmp/wsA-capability-contract`,
+  `/private/tmp/wsD-trace-boundary`, `/private/tmp/wsF-generality-review`,
+  `/private/tmp/wt-adapters-E`, `/private/tmp/wt-programsurface-g`,
+  `/private/tmp/wt-review-certificates-217831`
+
+Their three merged local branches were deleted. Stale git metadata was pruned.
+Nothing unmerged and nothing dirty was touched.
+
+### Stale branches that no longer block Packages 1 and 2
+
+Six worktrees still carry unmerged edits to lane-owned files. None has an open
+PR, none has a commit newer than 2026-08-25, and each is 43 to 75 commits behind
+`origin/main`. Under ADR-035 they do not gate the lanes; they stay on disk
+untouched, and three are local-only so they must not be removed by anyone.
+
+| Branch | Last commit | Behind main | Lane-owned files touched | Remote |
+|---|---|---|---|---|
+| `hardening/repo-lean-v1` | 2026-08-25 | 43 | `attach.py`, `queue.py`, `runner.py` | pushed |
+| `hardening/attach-safety` | 2026-08-25 | 45 | `attach.py` | local-only |
+| `hardening/runtime-ci` | 2026-08-25 | 45 | `runner.py` | local-only |
+| `hardening/type-core` | 2026-08-25 | 45 | `queue.py` | local-only |
+| `feature/semantic-attach-v1` | 2026-08-25 | 54 | `attach.py`, `parquet_compaction.py` | pushed |
+| `role/tbench3-screen` | 2026-08-23 | 75 | `attach.py`, `parquet_compaction.py`, `queue.py`, `runner.py` | local-only |
+
+### Terminology milestone disposition
+
+Stopped by directive after the evidence pass, before any doc was written. No
+`docs/GLOSSARY.md` exists and no glossary PR was opened. The cited audit
+evidence is parked untracked at
+`research/inbox/parked-glossary-evidence-2026-08-27.md` so the milestone can
+resume without re-auditing. Its most useful findings for lane owners: the word
+`manifest` carries seven documented senses, `ANALYSIS_READY` has five distinct
+code carriers, and `evallab analyze batch <inventory>` actually requires a
+campaign manifest.

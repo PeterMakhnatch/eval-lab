@@ -1336,14 +1336,17 @@ def build_trajectory_ir(
                     status_payload = json.loads(status_path.read_text(encoding="utf-8", errors="replace"))
                     prod_status = status_payload.get("status") if isinstance(status_payload, dict) else "unknown"
                     state_coverage_extra["state_journal_status"] = prod_status
-                    if prod_status in ("unavailable", "disabled"):
+                    if prod_status != "available":
                         state_coverage_extra["state_journal_hold_reason"] = f"state_journal_{prod_status}"
                     if isinstance(status_payload, dict) and status_payload.get("dropped_event_count", 0) > 0:
                         state_coverage_extra["state_journal_overflow"] = True
                         state_coverage_extra["state_journal_hold_reason"] = "state_journal_dropped_events"
+                else:
+                    state_coverage_extra["state_journal_status"] = "missing_status"
+                    state_coverage_extra["state_journal_hold_reason"] = "state_journal_missing_status"
 
                 if not state_events_path.is_file():
-                    if state_coverage_extra.get("state_journal_status") not in ("unavailable", "disabled"):
+                    if not state_coverage_extra.get("state_journal_hold_reason"):
                         state_coverage_extra["state_journal_hold_reason"] = "state_journal_missing_stream"
                 else:
                     state_rel_path = state_events_path.relative_to(trial_dir).as_posix()
@@ -1450,7 +1453,7 @@ def build_trajectory_ir(
             )
         )
         unpaired_count = raw_unpaired_count
-        linkage_coverage = "degraded" if raw_unpaired_count > 0 else "complete"
+        linkage_coverage = "degraded" if (raw_unpaired_count > 0 or state_coverage_extra.get("state_journal_hold_reason")) else "complete"
         raw_ledger_pairing_disagreement = (
             ledger_unpaired_count != raw_unpaired_count
         )

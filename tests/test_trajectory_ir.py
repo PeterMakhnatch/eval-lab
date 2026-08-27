@@ -797,3 +797,26 @@ def test_empty_verifier_spec_yields_none_digest_and_unknowns_record(tmp_path: Pa
     ver_unknowns = [u for u in ir.unknowns if u.get("field") == "verifier_digest"]
     assert len(ver_unknowns) >= 1
     assert ver_unknowns[0]["reason"] == "not_recorded_in_trial_evidence"
+
+
+@pytest.mark.parametrize("status_val", ["partial", "recording", "unknown", "disabled", "unavailable"])
+def test_state_journal_non_available_status_adds_hold_reason(status_val: str, tmp_path: Path, repo_root: Path) -> None:
+    """Any attempted StateJournal status other than available adds a deterministic HOLD reason."""
+    trial_dir = tmp_path / f"status-{status_val}-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    (trial_dir / "state-journal").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": f"sess-{status_val}",
+        "steps": [{"step_id": 1, "source": "user", "message": "Hi"}],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(json.dumps({"id": f"{status_val}-id", "trial_name": f"{status_val}-trial", "task_name": f"synthetic/{status_val}"}))
+    (trial_dir / "state-journal" / "status.json").write_text(
+        json.dumps({"schema_version": 1, "status": status_val})
+    )
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    assert ir.linkage_coverage == "degraded"
+    assert ir.evidence_coverage.get("analysis_ready") is False
+    assert f"state_journal_{status_val}" in ir.evidence_coverage.get("hold_reasons", [])

@@ -1454,6 +1454,35 @@ def _analyze_quality_command(
     return 0
 
 
+
+def _data_backfill_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.data_backfill import run_all_durable_backfill
+
+    inventory = _resolve(root, args.inventory)
+    manifest_dir = _resolve(root, args.manifest_dir)
+    store_root = _resolve(root, args.store_root)
+    output_dir = _resolve(root, args.output_dir)
+    derived_root = _resolve(root, args.derived_root) if args.derived_root else output_dir.parent
+    ledger = run_all_durable_backfill(
+        inventory_path=inventory,
+        manifest_dir=manifest_dir,
+        repo_root=root,
+        store_root=store_root,
+        output_dir=output_dir,
+        derived_root=derived_root,
+        database_url=args.database_url,
+    )
+    print(
+        f"data backfill: {ledger.disposition_count} dispositions "
+        f"({ledger.ready_count} ANALYSIS_READY, {ledger.hold_count} HOLD) "
+        f"exit={ledger.exit_code} digest={ledger.content_digest}"
+    )
+    return ledger.exit_code
+
+
 def _db_init_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3330,6 +3359,41 @@ def parser() -> argparse.ArgumentParser:
         help="Select named report paths using {name:.path,...} syntax",
     )
     analyze_quality.set_defaults(func=_analyze_quality_command)
+
+
+    data = commands.add_parser(
+        "data",
+        help="Completed-trial data layer: reconcile durable trials to ANALYSIS_READY or HOLD",
+    )
+    data_commands = data.add_subparsers(dest="data_command", required=True)
+    data_backfill = data_commands.add_parser(
+        "backfill",
+        help="Reconcile every durable completed trial to a reason-coded disposition",
+    )
+    data_backfill.add_argument(
+        "--inventory",
+        type=Path,
+        default=Path("research/experiments/manifests/cross-campaign-analysis-inventory.json"),
+    )
+    data_backfill.add_argument(
+        "--manifest-dir",
+        type=Path,
+        default=Path("research/experiments/manifests"),
+    )
+    data_backfill.add_argument(
+        "--store-root",
+        type=Path,
+        default=Path("derived/evidence-cas"),
+        help="CAS store root (records/job live under this directory)",
+    )
+    data_backfill.add_argument("--derived-root", type=Path)
+    data_backfill.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("derived/analyses/all-durable-backfill"),
+    )
+    data_backfill.add_argument("--database-url")
+    data_backfill.set_defaults(func=_data_backfill_command)
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)

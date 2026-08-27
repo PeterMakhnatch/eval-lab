@@ -270,7 +270,7 @@ The 10 largest files account for **24,250+ lines**. The responsibility clusters 
 
 ## 7. Plan-Only Stabilization Packages (Design-Staged & Conflict-Gated)
 
-> **CRITICAL GOVERNANCE INVARIANT:** All packages below remain **PLAN-ONLY**. PRs #197–#212 merged, but that cleared historical PR gates—not the current active-worktree and ownership gates recorded in §9. No code move, rename, extraction, or compatibility removal is authorized.
+> **CURRENT GOVERNANCE STATE (updated 2026-08-27):** Packages 1 and 2 are **SCHEDULED** and authorized inside their lanes per ledger ADR-031 through ADR-035; see §10. Packages 3, 4, and 5 remain **PLAN-ONLY** — no code move, rename, extraction, or compatibility removal is authorized for them. The §7 diagram below records the original plan-only design; §10 records the current verdicts.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -342,8 +342,8 @@ not a second generated map.
 | Package | Current verdict | Blocking ownership/evidence |
 |---|---|---|
 | M0 documentation truth | **COMPLETE** | PR #203 merged; generated outputs remain generator-owned |
-| M1 storage discovery leaf | **HOLD** | PR #206 fixed the concrete jobs-Parquet defect without starting M1; Platform data-trust and compaction/attach worktrees still own the surfaces |
-| M2 execution contracts | **HOLD** | runner/queue/network/auth worktrees and dynamic Harbor consumers are not settled |
+| M1 storage discovery leaf | **SCHEDULED** | gates cleared 2026-08-27: PRs #199, #206, #208, #218, #223, #225 merged, zero PRs open, Platform data-trust worktree removed. Owner Platform `wH:p1` on `lane/storage` |
+| M2 execution contracts | **SCHEDULED** | gates cleared 2026-08-27: no open PR and no live worktree owner on `runner.py`, `queue.py`, `harbor_network.py`. Owner Agent Data `wK:p9` on `lane/execution` by explicit Platform delegation |
 | M3 evidence layering | **HOLD** | Agent Data intermediary v2 and Platform parity work actively own IR/pack/runtime boundaries |
 | M4 CLI handlers | **HOLD** | CLI surface changed through PR #208 and remains active in Platform work; no freeze |
 | M5 broad splits/removals | **DEFERRED** | no new consumer evidence authorizes a schema, registry, synthetic, SQL, or compatibility split |
@@ -356,15 +356,50 @@ user work and must not be pruned, overwritten, or treated as dead-code evidence.
 
 ### Incremental recommendation
 
-No stabilization implementation is dependency-ready during the resumed
-trajectory loop. Retain only three future candidates:
+M1 and M2 are dependency-ready as of 2026-08-27 and are scheduled in §10. M3
+remains a future candidate: the shared evidence DTO cycle break after Agent Data
+and Platform contracts lock, with byte-identical ATIF/IR/pack/CAS identities.
 
-1. M1 pure storage discovery after Platform and compaction ownership clears;
-2. M2 immutable execution DTO/validation extraction after runner/queue owners
-   clear, preserving `O_EXCL`, auth, environment, lifecycle, and signals;
-3. M3 shared evidence DTO cycle break after Agent Data and Platform contracts
-   freeze, with byte-identical ATIF/IR/pack/CAS identities.
+M4 and every broader package remain deferred. This section authorizes factual
+documentation correction plus the §10 schedule; it schedules no move, deletion,
+archive, worktree cleanup, facade, or refactor beyond Packages 1 and 2.
 
-M4 and every broader package remain deferred. This refresh authorizes factual
-documentation correction only; it schedules no move, deletion, archive,
-worktree cleanup, facade, or refactor.
+## 10. Scheduled execution: Packages 1 and 2 (2026-08-27)
+
+Peter's P0 directive replaced per-fix worktree churn with long-lived builder
+lanes and ordered Packages 1 and 2 into execution once Platform wrapped PR #218
+(merged `ecdceff`). The normative lane protocol lives in
+`research/analysis/automated-trajectory-overnight-ledger.md` under "Builder lanes
+and ceremony cut - 2026-08-27".
+
+### Package 1 - storage consolidation (`lane/storage`, Platform `wH:p1`)
+
+| Milestone | Deliverable | Behavioural acceptance |
+|---|---|---|
+| 1 | Single `evallab data backfill` operator entry point, registered immediately before the `db` parser | One invocation discovers all 21 durable trials across the 5 tracked campaign manifests and 16 CAS job archives, persists and cross-checks PostgreSQL, Parquet, DuckDB, and CAS, and emits exactly 21 reason-coded `ANALYSIS_READY`/`HOLD` rows with zero silent skips; four permanent quarantines stay uninterpreted; a second identical invocation reproduces identical identities and digests; no judge, model, or auto-accept path is reachable |
+| 2 | Partition discovery centralized in `paths.py` and consumed by `attach.py` and `parquet_compaction.py` | Hot, job-level, cold-compacted, directory, and root Parquet layouts resolve through one code path; DuckDB Z2+Z3+Z4 attach queries return the same rows as before; the mixed-layout double-count guard from PR #206 is preserved; zero SQL view removed without query-log evidence |
+
+Non-goals: no CLI package split (that is Package 4), no schema or contract move
+(Package 5), no change to CAS URI or Parquet path shapes, no new provider call.
+
+### Package 2 - execution packaging (`lane/execution`, Agent Data `wK:p9`)
+
+| Milestone | Deliverable | Behavioural acceptance |
+|---|---|---|
+| 1 | Immutable execution DTO and validation extraction out of `runner.py` and `queue.py`, with `harbor_network.py` policy inputs typed | Atomic `O_EXCL` queue leasing is byte-for-byte identical; credential, auth, and environment propagation to Harbor subprocesses is unchanged; container staging, lifecycle, and cleanup order is unchanged; watchdog and signal handling is unchanged; the focused runner, queue, and network suites pass |
+
+Non-goals: no container lifecycle redesign, no queue file-format change, no
+dynamic Harbor adapter rename, no auth mechanism substitution.
+
+### Ownership and conflict rules
+
+- The two lanes own disjoint file sets, so they run concurrently without
+  coordination.
+- Six stale, PR-less branches still carry unmerged edits to lane-owned files.
+  Under ADR-035 they no longer gate the lanes. They stay on disk untouched;
+  `hardening/attach-safety`, `hardening/runtime-ci`, `hardening/type-core`, and
+  `role/tbench3-screen` are local-only and must not be removed by another role.
+  Wanted commits are cherry-picked into the owning lane.
+- Milestone PRs require exact-head review and a green CI matrix before merge.
+  Model order stays Gemini 3.7 High, then Cursor Grok, then DeepSeek Flash,
+  otherwise HOLD.

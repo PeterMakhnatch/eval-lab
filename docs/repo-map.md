@@ -73,7 +73,7 @@ inputs:
   - path: src/evallab/explorer.py
     digest: sha256:2b65fa32d4d6e08ad59d8f08cd51ff075f1665d8fb0c42e5bc0fff3a3c520404
   - path: src/evallab/facts.py
-    digest: sha256:0451774d38aa816c6d388277cfcfbdf22f723af934c2dbcf4f69899c0595b26e
+    digest: sha256:d3c8a0e39226942adcf12999940be9241e44381c165235002c09fe44e7ebc2f2
   - path: src/evallab/fetch.py
     digest: sha256:a5b9ad9cd9cfdd34f707f45fd615adcabbe569623d1023b7f38d368a05c869e0
   - path: src/evallab/gc.py

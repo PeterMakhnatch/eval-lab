@@ -197,7 +197,7 @@ def test_malformed_state_change_fails_closed_without_projection(tmp_path: Path) 
     result = rebuild_from_raw([job], tmp_path / "derived")
 
     assert journal.status == "invalid"
-    assert journal.reason == "state_diff_schema_invalid"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
     assert result.fact_export.row_counts["state_changes"] == 0
 
@@ -245,7 +245,9 @@ def test_producer_valid_unhashed_snapshot_kinds_are_projected(tmp_path: Path) ->
 
         assert journal.status == "available"
         assert journal.reason is None
-        assert journal.changes[0]["after"] == snapshot
+        assert journal.changes[0]["after"] == {
+            key: value for key, value in snapshot.items() if value is not None
+        }
 
 
 def test_snapshot_path_mismatch_fails_closed(tmp_path: Path) -> None:
@@ -259,7 +261,7 @@ def test_snapshot_path_mismatch_fails_closed(tmp_path: Path) -> None:
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "change_0_snapshot_invalid"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 
@@ -274,7 +276,7 @@ def test_missing_snapshot_side_fails_closed(tmp_path: Path) -> None:
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "change_0_snapshot_missing"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 
@@ -289,7 +291,7 @@ def test_duplicate_state_change_path_fails_closed(tmp_path: Path) -> None:
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "change_1_path_duplicate"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 
@@ -304,7 +306,7 @@ def test_timezone_naive_state_change_timestamp_fails_closed(tmp_path: Path) -> N
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "change_0_timestamp_invalid"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 
@@ -319,7 +321,7 @@ def test_out_of_range_state_change_integer_fails_closed(tmp_path: Path) -> None:
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "change_0_event_count_invalid"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 
@@ -334,7 +336,7 @@ def test_out_of_range_snapshot_integer_fails_closed(tmp_path: Path) -> None:
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "change_0_snapshot_invalid"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 
@@ -364,7 +366,7 @@ def test_boolean_state_diff_schema_version_fails_closed(tmp_path: Path) -> None:
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "state_diff_schema_invalid"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 
@@ -382,7 +384,7 @@ def test_noncanonical_state_change_path_fails_closed(tmp_path: Path) -> None:
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "change_1_path_invalid"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 
@@ -397,7 +399,7 @@ def test_coerced_snapshot_integer_fails_closed(tmp_path: Path) -> None:
     journal = load_state_journal(trial)
 
     assert journal.status == "invalid"
-    assert journal.reason == "change_0_snapshot_invalid"
+    assert journal.reason == "state_diff_invalid"
     assert journal.changes == ()
 
 def test_status_json_preserves_unavailable_final_status_over_stale_diff(

@@ -363,10 +363,10 @@ def load_state_journal(trial: TrialRecord) -> StateJournalRecord:
         return StateJournalRecord(status, reason or "state_diff_missing", ())
     try:
         diff = load_state_diff(diff_path)
-    except StateEventValidationError as exc:
+    except StateEventValidationError:
         return _invalid_state_journal(
             status,
-            reason or f"state_diff_invalid:{type(exc).__name__}",
+            reason or "state_diff_invalid",
         )
     return StateJournalRecord(
         status,

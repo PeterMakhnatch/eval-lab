@@ -119,8 +119,8 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 ## Blockers / hard stops
 
 - Platform P0 validator hard stop is repaired on main. The five invalid forensic reports/CAS remain immutable and non-authoritative.
-- PR #202 parity-v2 is rebased at `7f0cb5b`; corrected batch/recipe rerun waits its green CI and exact post-rebase review so identities settle once. Source digests remain frozen.
-- PR #198/PR #201 also wait PR #202 merge and final post-rebase review; 0 AgentAbstain admitted, findings embargoed.
+- PR #198/#201/#202 are merged (see the 2026-08-26 status update); no trajectory-analysis PR is open.
+- The Ops all-durable pass is no longer blocked: ADR-036 lifted the ADR-030 gate at `1ceb7bc`. It is now a single authorized execution, not a hard stop.
 - Calibration PPV/non-inferiority, low localization/support, absent human baseline, target/index ambiguity and class power still block acceptance. DeepPlanning, LOCA, Recovery, Memory and Family A remain HOLD.
 - No billable run, registration, publication, policy override, or raw mutation is authorized. Stabilization Packages 1 and 2 are authorized inside their lanes per ADR-031 through ADR-035; Packages 3, 4, and 5 remain plan-only.
 

@@ -1,0 +1,6 @@
+{
+  "target_id": "rec-flush-20260827-004",
+  "dependency_health": "DEGRADED_DATA_LOSS_RISK",
+  "authority": "SECONDARY_SOURCE_B",
+  "timestamp": "2026-08-27T12:00:00Z"
+}

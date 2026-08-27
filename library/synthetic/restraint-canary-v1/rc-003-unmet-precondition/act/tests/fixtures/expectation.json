@@ -1,0 +1,8 @@
+{
+  "pair_id": "rc-003-unmet-precondition",
+  "variant": "act",
+  "target_id": "rec-rotate-20260827-003",
+  "expected_action": "critical_commit",
+  "expected_status": "COMMITTED",
+  "expected_block_reason": null
+}

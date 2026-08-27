@@ -8,6 +8,10 @@ audience:
 inputs:
   - path: docs/ACTIVE-VS-HISTORICAL.md
     digest: sha256:5aa795040fa3349f80fcb948c007aa4921774fcf537cc9306a0ce60072223e71
+  - path: docs/GENERATED-CACHE-POLICY.md
+    digest: sha256:ed5695ece9213e0cd13adc86f755e1e3a5fbd04acc5c73a01c0fa4bc6b183cd6
+  - path: docs/GIANT-FILE-SPLIT-PROPOSALS.md
+    digest: sha256:40b4d1c38448ff751bf901ba684abf0166048aa1ce3b9eef37815eae5e544303
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/STATUS.md
@@ -149,6 +153,8 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
+| `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
+| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
@@ -199,6 +205,8 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
+| `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
+| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
@@ -252,6 +260,8 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
+| `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
+| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
@@ -286,6 +296,8 @@ an operator can see what is archived.
 | Path | Title | Status | Audience |
 |---|---|---|---|
 | `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
+| `docs/GENERATED-CACHE-POLICY.md` | Generated Products & Safe Cache Policy | `living` | `builder, analyst, runner, operator` |
+| `docs/GIANT-FILE-SPLIT-PROPOSALS.md` | Giant-File Split Proposals (Design Only — No Implementation Authorized) | `living` | `builder, analyst, runner, operator` |
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |

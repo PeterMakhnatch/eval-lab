@@ -1,9 +1,11 @@
 """Generated repository map for `src/evallab/` (WS-F navigation).
 
-Emits a deterministic `docs/repo-map.md` by parsing Python with `ast` and
-SQL with a view/table scan. Does not hardcode the module list.
+Parses `src/evallab/` via the standard library AST module and regenerates
+`docs/repo-map.md` with deterministic module purposes, subcommands owned,
+and store references.
 
-Entry point: `python -m evallab.repomap generate|check`
+Audience and status front-matter are enforced fail-closed so that the living
+operator doc does not rot silently.
 """
 
 from __future__ import annotations
@@ -12,8 +14,8 @@ import argparse
 import ast
 import re
 import sys
-from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator, Sequence
+from collections import defaultdict
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,14 +33,14 @@ audience:
   - analyst
   - runner
   - operator
----
+inputs:
 """
+
 _CREATE_TABLE_RE = re.compile(
-    r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)",
-    re.IGNORECASE,
+    r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z0-9_]+)", re.IGNORECASE
 )
 _CREATE_VIEW_RE = re.compile(
-    r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+([A-Za-z_][A-Za-z0-9_]*)",
+    r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z0-9_]+)",
     re.IGNORECASE,
 )
 _GENERIC_MODULES = frozenset({"cli", "schemas", "paths", "credentials"})
@@ -69,15 +71,29 @@ def root_for_src_dir(src_dir: Path, root: Path | None = None) -> Path:
     return repo_root()
 
 
+def module_name_for_path(path: Path, src_dir: Path) -> str:
+    """Derive the canonical module name for a Python file within `src/evallab/`."""
+    rel = path.resolve().relative_to(src_dir.resolve())
+    if len(rel.parts) == 1:
+        return path.stem
+    if rel.name == "__init__.py":
+        return rel.parent.as_posix().replace("/", ".")
+    return rel.with_suffix("").as_posix().replace("/", ".")
+
+
 def discover_module_paths(src_dir: Path) -> list[Path]:
-    """Discover top-level Python modules under `src/evallab/`."""
+    """Discover all Python modules and subpackage files under `src/evallab/`."""
     if not src_dir.is_dir():
         return []
-    return sorted(
-        path
-        for path in src_dir.glob("*.py")
-        if path.is_file() and not path.name.startswith(".")
-    )
+    paths: list[Path] = []
+    for path in src_dir.rglob("*.py"):
+        if not path.is_file():
+            continue
+        rel = path.resolve().relative_to(src_dir.resolve())
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        paths.append(path)
+    return sorted(paths, key=lambda p: module_name_for_path(p, src_dir))
 
 
 def first_sentence(text: str) -> str:
@@ -162,6 +178,7 @@ class RepoMap:
     stores: tuple[StoreRecord, ...]
     inputs: tuple[InputRecord, ...] = ()
 
+
 @dataclass(frozen=True)
 class CheckIssue:
     """One fail-closed validation finding."""
@@ -202,7 +219,7 @@ def _first_definition_doc(tree: ast.AST, *, public_only: bool) -> str | None:
     return None
 
 
-def module_purpose(source: str, tree: ast.AST) -> str | None:
+def module_purpose(source: str, tree: ast.AST, *, module_name: str | None = None, is_package: bool = False) -> str | None:
     """Derive a one-line purpose from AST-available descriptions."""
     module_doc = (
         ast.get_docstring(tree)
@@ -232,6 +249,11 @@ def module_purpose(source: str, tree: ast.AST) -> str | None:
         shown = ", ".join(f"`{name}`" for name in public[:4])
         extra = ", …" if len(public) > 4 else ""
         return f"Defines {shown}{extra}."
+
+    if is_package and module_name:
+        qualified = module_name if module_name.startswith("evallab") else f"evallab.{module_name}"
+        return f"Package `{qualified}`."
+
     return None
 
 
@@ -240,11 +262,13 @@ def load_module(path: Path, src_dir: Path) -> ModuleRecord:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source)
     relative = path.resolve().relative_to(src_dir.resolve()).as_posix()
+    mod_name = module_name_for_path(path, src_dir)
+    is_pkg = path.name == "__init__.py"
     return ModuleRecord(
-        name=path.stem,
+        name=mod_name,
         path=f"src/evallab/{relative}",
         line_count=len(source.splitlines()),
-        purpose=module_purpose(source, tree),
+        purpose=module_purpose(source, tree, module_name=mod_name, is_package=is_pkg),
     )
 
 
@@ -298,10 +322,14 @@ def _function_map(tree: ast.AST) -> dict[str, ast.AST]:
 def _called_names(node: ast.AST) -> list[str]:
     names: list[str] = []
     for child in ast.walk(node):
-        if isinstance(child, ast.Name):
-            names.append(child.id)
-        elif isinstance(child, ast.Attribute):
+        if isinstance(child, ast.Call):
+            name = _call_name(child)
+            if name:
+                names.append(name)
+        elif isinstance(child, ast.Attribute) and isinstance(child.value, ast.Name):
             names.append(child.attr)
+        elif isinstance(child, ast.Name):
+            names.append(child.id)
     return names
 
 
@@ -311,14 +339,7 @@ def _compare_equals(node: ast.AST, attribute: str) -> str | None:
     if not isinstance(node.ops[0], ast.Eq):
         return None
     left = node.left
-    if not (
-        isinstance(left, ast.Attribute)
-        and left.attr == attribute
-        and isinstance(left.value, ast.Name)
-        and left.value.id == "args"
-    ):
-        return None
-    if len(node.comparators) != 1:
+    if not (isinstance(left, ast.Attribute) and left.attr == attribute):
         return None
     return _const_str(node.comparators[0])
 
@@ -329,20 +350,16 @@ def _compare_in_values(node: ast.AST, attribute: str) -> list[str] | None:
     if not isinstance(node.ops[0], ast.In):
         return None
     left = node.left
-    if not (
-        isinstance(left, ast.Attribute)
-        and left.attr == attribute
-        and isinstance(left.value, ast.Name)
-        and left.value.id == "args"
-    ):
+    if not (isinstance(left, ast.Attribute) and left.attr == attribute):
         return None
-    if len(node.comparators) != 1:
-        return None
-    comparator = node.comparators[0]
-    if isinstance(comparator, (ast.Set, ast.List, ast.Tuple)):
-        values = [_const_str(item) for item in comparator.elts]
-        if all(value is not None for value in values):
-            return [value for value in values if value is not None]
+    target = node.comparators[0]
+    if isinstance(target, (ast.Tuple, ast.List, ast.Set)):
+        values: list[str] = []
+        for elt in target.elts:
+            val = _const_str(elt)
+            if val is not None:
+                values.append(val)
+        return values
     return None
 
 
@@ -350,136 +367,76 @@ def _command_keys(test: ast.AST) -> list[str]:
     direct = _compare_equals(test, "command")
     if direct is not None:
         return [direct]
-    if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And):
-        top: str | None = None
-        nested: list[str] = []
-        nested_attr: str | None = None
+    in_values = _compare_in_values(test, "command")
+    if in_values is not None:
+        return in_values
+    if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.Or):
+        values: list[str] = []
         for value in test.values:
-            equals = _compare_equals(value, "command")
-            if equals is not None:
-                top = equals
-                continue
-            if isinstance(value, ast.Compare) and isinstance(value.left, ast.Attribute):
-                attr = value.left.attr
-                if attr != "command" and attr.endswith("_command"):
-                    nested_attr = attr
-                    one = _compare_equals(value, attr)
-                    many = _compare_in_values(value, attr)
-                    if one is not None:
-                        nested = [one]
-                    elif many is not None:
-                        nested = many
-        if top and nested:
-            return [f"{top} {item}" for item in nested]
-        if top:
-            return [top]
-        if nested_attr and nested:
-            prefix = nested_attr.removesuffix("_command")
-            return [f"{prefix} {item}" for item in nested]
+            values.extend(_command_keys(value))
+        return values
     return []
 
 
 def _score_module(
     command: str,
-    names: Iterable[str],
+    names: Sequence[str],
     imports: dict[str, str],
     functions: dict[str, ast.AST],
+    *,
+    depth: int = 0,
 ) -> str:
     referenced: list[str] = []
-    seen_functions: set[str] = set()
-    pending = list(names)
-    while pending:
-        name = pending.pop()
-        module = imports.get(name)
-        if module:
-            referenced.append(module)
-            continue
-        func = functions.get(name)
-        if func is not None and name not in seen_functions:
-            seen_functions.add(name)
-            pending.extend(_called_names(func))
+    for name in names:
+        if name in imports:
+            referenced.append(imports[name])
+        elif name in functions and depth < 3:
+            nested = _called_names(functions[name])
+            sub = _score_module(command, nested, imports, functions, depth=depth + 1)
+            if sub != "cli":
+                referenced.append(sub)
 
-    leaf = command.split()[-1].replace("-", "_")
-    if leaf in referenced:
-        return leaf
-    top = command.split()[0].replace("-", "_")
-    if top in referenced:
-        return top
+    counts: dict[str, int] = defaultdict(int)
+    for mod in referenced:
+        if mod not in _GENERIC_MODULES:
+            counts[mod] += 1
 
-    counts = Counter(item for item in referenced if item not in _GENERIC_MODULES)
     if counts:
-        return counts.most_common(1)[0][0]
-    if referenced:
-        return referenced[0]
+        return max(counts.items(), key=lambda item: item[1])[0]
+
+    for mod in referenced:
+        counts[mod] += 1
+    if counts:
+        return max(counts.items(), key=lambda item: item[1])[0]
+
+    for candidate in sorted(imports.values()):
+        if candidate not in _GENERIC_MODULES and candidate in command.replace("-", "_"):
+            return candidate
+
     return "cli"
 
 
 def _cli_parser_commands(tree: ast.AST) -> list[tuple[str, str]]:
     dest_by_id: dict[int, str] = {}
-    parent_by_id: dict[int, int] = {}
     commands: list[tuple[str, str]] = []
 
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+        if not isinstance(node, ast.Call) or _call_name(node) != "add_subparsers":
             continue
-        call = node.value
-        if _call_name(call) != "add_subparsers":
-            continue
-        dest = _const_str(_kwarg(call, "dest")) or "command"
-        for target in node.targets:
-            dest_by_id[id(target)] = dest
-        dest_by_id[id(call)] = dest
+        dest = _const_str(_kwarg(node, "dest")) or "command"
+        dest_by_id[id(node)] = dest
 
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
-            continue
-        call = node.value
-        if _call_name(call) != "add_parser":
-            continue
-        name = _add_parser_name(call)
-        if name is None:
-            continue
-        help_text = _parser_help(call)
-        func = call.func
-        parent_dest = "command"
-        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-            owner = func.value.id
-            if owner.endswith("_commands"):
-                parent_dest = owner.removesuffix("s")
-            elif owner in {"commands", "root"}:
-                parent_dest = "command"
-        if parent_dest != "command" and parent_dest.endswith("_command"):
-            prefix = parent_dest.removesuffix("_command")
-            commands.append((f"{prefix} {name}", help_text))
-        else:
-            commands.append((name, help_text))
-        for target in node.targets:
-            parent_by_id[id(target)] = id(call)
-
-    # Bare `commands.add_parser("tick")` is not an Assign. Walk all calls.
-    assigned_calls = {id(node.value) for node in ast.walk(tree) if isinstance(node, ast.Assign)}
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or _call_name(node) != "add_parser":
-            continue
-        if id(node) in assigned_calls:
             continue
         name = _add_parser_name(node)
         if name is None:
             continue
-        func = node.func
         help_text = _parser_help(node)
-        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-            owner = func.value.id
-            if owner.endswith("_commands"):
-                prefix = owner.removesuffix("s").removesuffix("_command")
-                if prefix and prefix != owner:
-                    commands.append((f"{prefix} {name}", help_text))
-                    continue
         commands.append((name, help_text))
 
-    # Deduplicate while keeping first-seen order.
-    seen: set[str] = set()
     unique: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for name, help_text in commands:
         if name in seen:
             continue
@@ -492,11 +449,10 @@ def _qualified_command_name(call: ast.Call, name: str) -> str:
     """Resolve `add_parser("x")` to its full command path, e.g. `schedule install`."""
     func = call.func
     if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-        owner = func.value.id
-        if owner.endswith("_commands"):
-            prefix = owner.removesuffix("s").removesuffix("_command")
-            if prefix and prefix != owner:
-                return f"{prefix} {name}"
+        parent_var = func.value.id
+        prefix = parent_var.replace("_subparsers", "").replace("_commands", "").strip("_")
+        if prefix and prefix not in {"subparsers", "commands", "root"}:
+            return f"{prefix} {name}"
     return name
 
 
@@ -624,6 +580,8 @@ def parse_module_cli(path: Path, module: str) -> list[CommandRecord]:
     """Collect `python -m evallab.<module>` subcommands from argparse."""
     if module == "cli":
         return []
+    if not path.is_file():
+        return []
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source)
     has_main = any(
@@ -746,7 +704,7 @@ def discover_stores(src_dir: Path, root: Path) -> list[StoreRecord]:
         if path.stem == "repomap":
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        module = path.stem
+        module = module_name_for_path(path, src_dir)
         states = _assigned_string_tuple(tree, "QUEUE_STATES")
         if states:
             queue_states = states
@@ -847,7 +805,9 @@ def build_map(src_dir: Path, root: Path) -> RepoMap:
     for command in commands:
         module_commands[command.module].append(command.name)
     for module in modules:
-        for command in parse_module_cli(src_dir / f"{module.name}.py", module.name):
+        rel_path = module.path.removeprefix("src/evallab/").removeprefix("src/evallab")
+        mod_file = src_dir / rel_path.lstrip("/")
+        for command in parse_module_cli(mod_file, module.name):
             if command.name not in module_commands[module.name]:
                 commands.append(command)
                 module_commands[module.name].append(command.name)

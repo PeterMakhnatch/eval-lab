@@ -1,9 +1,8 @@
 # Eval Lab
 
-Eval Lab is an evaluation research lab for agent evaluation in real environments,
-with Harbor as its execution engine. It preserves experiment intent, raw evidence,
-analysis provenance, and the guarded feedback loop without turning the database
-into the only copy of an experiment.
+Eval Lab is an evaluation research lab and workbench for agent evaluation in real environments,
+with Harbor as its execution engine. It enforces immutable evidence, verifiable provenance,
+and guarded execution feedback loops without turning the database into the only copy of an experiment.
 
 The first checked-in evaluation is deliberately small. The Oracle control must
 produce the correct event summary and the no-op control must fail. Together they
@@ -13,39 +12,24 @@ verifier, reward parsing, and persisted job result—without calling a model.
 ## Architecture at a glance
 
 ```text
-task + experiment spec
-          |
-          v
- Harbor execution + verification
-          |
-          v
- immutable job directory -----> reviewed evidence bundle
-          |
-          +----> PostgreSQL metadata catalog
-          |
-          +----> ATIF -> Parquet/DuckDB analytics (next)
-          |
-          v
- deterministic comparison -> structured agent analysis
-          |
-          v
- reviewed experiment proposal -> approval -> next run
+[1. Task & Experiment Spec] ──► [2. Admission & Control Plane] ──► [3. Harbor Execution & Sandbox]
+                                                                                │
+                                                                                ▼
+[6. Trajectory Interpretation] ◄── [5. Metadata Catalog & Lake] ◄── [4. Raw Evidence & CAS (Zone 1)]
+              │
+              ▼
+[7. Governed Feedback & Human Verdicts]
 ```
 
 Raw Harbor job directories own the evidence: configs, locks, agent logs,
 artifacts, verifier output, reward, timing, token use, cost, and exceptions.
-PostgreSQL currently indexes those files as jobs, trials, rewards, artifacts,
-and file digests. Experiment, trajectory, and analysis records are staged in the
-architecture plan rather than claimed as implemented. Large blobs stay out of
-PostgreSQL and Git.
+PostgreSQL catalogs jobs, trials, rewards, and verdicts. Parquet and DuckDB provide
+the fast columnar query surface.
 
-See [docs/architecture.md](docs/architecture.md) for the system boundaries,
-[docs/analysis-loop.md](docs/analysis-loop.md) for the evidence-to-experiment
-state machine, and [docs/scaling.md](docs/scaling.md) for the gates governing
-object storage, Kubernetes, and ClickHouse. Ordered implementation briefs live
-under [docs/prompts/](docs/prompts/README.md).
-The reusable queries in [research/analysis/queries.sql](research/analysis/queries.sql) cover
-leaderboards, exceptions, cost, latency, and artifact-transfer failures.
+See [docs/SYSTEM-TOUR.md](docs/SYSTEM-TOUR.md) for the end-to-end architectural tour,
+[docs/GLOSSARY.md](docs/GLOSSARY.md) for disambiguated terminology and exact code carriers,
+[docs/WHERE-DOES-THIS-GO.md](docs/WHERE-DOES-THIS-GO.md) for the file placement decision tree,
+and [docs/ACTIVE-VS-HISTORICAL.md](docs/ACTIVE-VS-HISTORICAL.md) for asset lifecycle rules.
 
 ## Requirements
 
@@ -109,27 +93,59 @@ queue recovery.
 | `library/tasks/`, `research/experiments/`, `src/`, `sql/`, `docs/`, `docs/prompts/` | Always versioned |
 | `research/analysis/` | Versioned SQL and notebook-ready queries |
 | `runs/` | Generated, local, ignored |
+| `derived/evidence-cas/` | Zone 1 durable content-addressed storage (ignored, immutable) |
+| `derived/parquet/` | Zone 3 rebuildable columnar lake (ignored, rebuildable) |
 | `research/evidence/runs/` | Small reviewed controls only; versioned intentionally |
 | PostgreSQL volume | Local derived state; never versioned |
 | `.env` and credentials | Never versioned |
 
+## Authoritative Subpackages
+
+Eval Lab is organized into modular domain subpackages under `src/evallab/`:
+
+- `evallab.schemas`: Pydantic v2 domain schemas, immutable contracts, and join spine invariants.
+- `evallab.storage`: Path resolution (`paths.py`), DuckDB unified attach (`attach.py`), Parquet compaction (`parquet_compaction.py`), and historical backfill (`data_backfill.py`).
+- `evallab.evidence`: Canonical ATIF normalization (`atif.py`), fact extraction (`facts.py`), and event marts (`event_mart.py`).
+- `evallab.interpretation`: Trajectory IR (`trajectory_ir.py`), bounded context packing (`evidence_pack.py`), machine judgment (`trajectory_judgment.py`), quality screening (`trajectory_quality.py`), and platform acceptance gates (`trajectory_acceptance.py`).
+- `evallab.recovery`: State recovery certification (`certify.py`), state bundles (`bundle.py`), and paired pilots (`pilot.py`, `wrapper.py`).
+
 ## Core commands
 
 ```bash
+# Control Plane & Operations
 uv run evallab doctor
-uv run evallab run --help
-uv run evallab matrix --help
-uv run evallab submit --help
+uv run evallab preflight
+uv run evallab submit /path/to/experiment-spec.json
+uv run evallab approve <spec_id> --actor <name>
 uv run evallab tick
-uv run evallab doctor --headless
-uv run evallab schedule install
-uv run evallab nightly
-uv run evallab summarize runs research/evidence/runs
+uv run evallab stop
+uv run evallab resume
+
+# Local Controls & Execution
+uv run evallab run --task library/tasks/event-summary --agent oracle
+uv run evallab matrix research/experiments/local-controls.json
+uv run evallab summarize runs
+
+# Data, Catalog, & Storage
 uv run evallab db init
-uv run evallab ingest runs research/evidence/runs
 uv run evallab db list
-uv run pytest
-uv run ruff check .
+uv run evallab db attach
+uv run evallab ingest runs research/evidence/runs
+uv run evallab data backfill --all
+uv run evallab gc
+
+# Trajectory Interpretation & Analysis
+uv run evallab analyze batch <manifest.json>
+uv run evallab traj outline <trial_path>
+uv run evallab traj ir <trial_path>
+uv run evallab traj pack <trial_path>
+uv run evallab ladder generate --help
+uv run evallab curve build <spec.json>
+uv run evallab card generate <spec_id>
+uv run evallab verdict record <discovery_id> --status ACCEPTED --by <name>
+
+# Testing & Hygiene
+uv run pytest tests/test_repomap.py
 ```
 
 `harbor-lab` remains supported as a backwards-compatibility command alias for existing
@@ -155,6 +171,10 @@ the verifier accepts the intended output. No-op reward `0` shows the initial
 state does not pass. Neither result measures a real model. A model experiment
 becomes interpretable only after both controls are healthy and after the
 trajectory and verifier evidence have been inspected.
+
+## Feature-Unblocked Status
+
+Package 1 (Storage & Evidence Layer) and Package 2 (Interpretation & Judgment Engine) are stabilized and locked. Infrastructure migration is complete. Development is fully **FEATURE-UNBLOCKED** for active capability evaluations, difficulty screening, and automated feedback loops.
 
 ## Repository layout and agent workflow
 

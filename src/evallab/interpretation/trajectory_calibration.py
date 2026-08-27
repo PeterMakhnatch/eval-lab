@@ -11,11 +11,11 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field, field_validator, model_serializer, model_validator
 
-from evallab.schemas import ContractModel
-from evallab.trajectory_judgment import (
+from evallab.interpretation.trajectory_judgment import (
     SHA256_PATTERN,
     TRAJECTORY_ONTOLOGY_V1_CLASSES,
 )
+from evallab.schemas import ContractModel
 
 BOOTSTRAP_CALIBRATION_SCHEMA = "calibration-report-v1"
 HUMAN_CALIBRATION_SCHEMA = "calibration-report-v1.1"

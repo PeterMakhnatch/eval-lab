@@ -325,7 +325,7 @@ flowchart TD
 | `src/evallab/cli.py` | Agent Data corrected PR | Platform | Platform rebases after Data; additive `analyze` commands only |
 | `sql/traj_views.sql` | Agent Data | Platform/none | Data owns IR/pack/alignment views; Platform uses separate judgment/decision SQL file when possible |
 | `sql/schema.sql` | Platform | — | Platform sole owner of judgment/decision/calibration tables |
-| `src/evallab/trajectory_hydration.py` | Agent Data | — | canonical citation adapter/migration; Platform imports |
+| `src/evallab/interpretation/trajectory_hydration.py` | Agent Data | — | canonical citation adapter/migration; Platform imports |
 | `src/evallab/analysis_worker.py` | Platform | — | new pack-only model path; legacy path clearly isolated |
 | `tests/golden/cli_surface.json` | Agent Data then Platform | serialized | each later PR rebases and regenerates once |
 | `docs/INDEX.md`, `docs/repo-map.md` | integration owner | serialized | regenerate after final source changes, never hand-resolve generated content |

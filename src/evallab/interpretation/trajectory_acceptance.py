@@ -12,8 +12,8 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from evallab.interpretation.trajectory_judgment import SHA256_PATTERN, Digest, canonical_json_digest
 from evallab.schemas import ContractModel
-from evallab.trajectory_judgment import SHA256_PATTERN, Digest, canonical_json_digest
 
 AUTO_ACCEPTANCE_ENABLED = False
 DETERMINISTIC_GATE_ORDER = (

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.trajectory_ir import (
+from evallab.interpretation.trajectory_ir import (
     _classify_exit_semantics,
     _extract_status_owning_program,
     _normalize_argument_skeleton,
@@ -108,8 +108,8 @@ def test_sql_projection_views_round_trip(canary_trial_dir: Path, repo_root: Path
     """Verify complete round-trip projection into DuckDB SQL summary views."""
     import duckdb
 
-    from evallab.evidence_pack import build_evidence_pack
-    from evallab.trajectory_alignment import align_trajectory_pair
+    from evallab.interpretation.evidence_pack import build_evidence_pack
+    from evallab.interpretation.trajectory_alignment import align_trajectory_pair
 
     ir = build_trajectory_ir(canary_trial_dir, repo_root=repo_root)
     pack = build_evidence_pack(ir, trial_dir=canary_trial_dir)
@@ -167,7 +167,7 @@ def test_inventory_cas_entries_smoke(repo_root: Path) -> None:
 
     import json
 
-    from evallab.evidence_pack import build_evidence_pack
+    from evallab.interpretation.evidence_pack import build_evidence_pack
 
     inv_data = json.loads(inv_path.read_text())
     cohort = inv_data.get("analysis_cohort_5_trials", [])
@@ -200,8 +200,8 @@ def test_inventory_cas_entries_smoke(repo_root: Path) -> None:
 
 def test_synthetic_cas_archive_ingestion(repo_root: Path) -> None:
     """Verify complete CAS archive restoration, IR production, and EvidencePack member hydration."""
-    from evallab.evidence_pack import build_evidence_pack
     from evallab.evidence_store import archive_evidence
+    from evallab.interpretation.evidence_pack import build_evidence_pack
 
     with tempfile.TemporaryDirectory() as tmpdir:
         temp_path = Path(tmpdir)
@@ -287,8 +287,8 @@ def test_nested_job_cas_archive_resolves_exact_trial(
     tmp_path: Path, repo_root: Path
 ) -> None:
     """Job-level CAS archives retain nested trial paths and exact hydration."""
-    from evallab.evidence_pack import build_evidence_pack
     from evallab.evidence_store import archive_evidence
+    from evallab.interpretation.evidence_pack import build_evidence_pack
 
     job_dir = tmp_path / "job"
     trial_dir = job_dir / "nested-trial"
@@ -374,7 +374,7 @@ def test_nested_job_cas_archive_resolves_exact_trial(
 
 def test_sparse_steps_anchor_reopening_to_present_event(tmp_path: Path) -> None:
     """Expanded windows never index a nonexistent step boundary."""
-    from evallab.evidence_pack import build_evidence_pack
+    from evallab.interpretation.evidence_pack import build_evidence_pack
 
     trial_dir = tmp_path / "sparse"
     (trial_dir / "agent").mkdir(parents=True)
@@ -410,7 +410,7 @@ def test_sparse_steps_anchor_reopening_to_present_event(tmp_path: Path) -> None:
 
 def test_missing_atif_pack_is_not_model_callable(tmp_path: Path) -> None:
     """No-ATIF evidence remains an explicit deterministic abstention."""
-    from evallab.evidence_pack import build_evidence_pack
+    from evallab.interpretation.evidence_pack import build_evidence_pack
 
     trial_dir = tmp_path / "missing-atif"
     trial_dir.mkdir()
@@ -435,7 +435,7 @@ def test_missing_atif_pack_is_not_model_callable(tmp_path: Path) -> None:
 
 def test_cas_temp_dir_leak_cleanup_on_exception(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify CAS TemporaryDirectory is guaranteed cleaned up when an exception occurs during IR assembly."""
-    import evallab.trajectory_ir as tir_mod
+    import evallab.interpretation.trajectory_ir as tir_mod
     from evallab.evidence_store import archive_evidence
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -519,7 +519,7 @@ def test_multi_tool_call_ir_event_preservation(tmp_path: Path, repo_root: Path) 
     )
 
     ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
-    from evallab.evidence_pack import compute_evidence_coverage_metrics
+    from evallab.interpretation.evidence_pack import compute_evidence_coverage_metrics
 
     coverage = compute_evidence_coverage_metrics(ir, trial_dir=trial_dir)
     # Step 1 message + 3 calls + 3 linked observations + verifier check = 8 events.
@@ -547,7 +547,7 @@ def test_multi_tool_call_ir_event_preservation(tmp_path: Path, repo_root: Path) 
 
 def test_project_ir_graph_structure_and_edges(tmp_path: Path, repo_root: Path) -> None:
     """Verify TrajectoryIR projects typed nodes and causal/sequential graph edges."""
-    from evallab.trajectory_ir import project_ir_graph
+    from evallab.interpretation.trajectory_ir import project_ir_graph
 
     trial_dir = tmp_path / "graph-trial"
     (trial_dir / "agent").mkdir(parents=True)
@@ -688,7 +688,7 @@ def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_roo
     assert ir.evidence_coverage.get("state_diff_observed") is True
 
     # Verify graph projection copies journal_sequence and connects state_change to verifiers
-    from evallab.trajectory_ir import project_ir_graph
+    from evallab.interpretation.trajectory_ir import project_ir_graph
     graph = project_ir_graph(ir)
     state_nodes = [n for n in graph.nodes if n.node_type == "state_change"]
     assert len(state_nodes) == 1

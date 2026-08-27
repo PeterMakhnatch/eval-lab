@@ -22,10 +22,14 @@ import pyarrow.parquet as pq
 
 from evallab.database import catalog_availability
 from evallab.evidence_store import archive_evidence, load_archive, restore_evidence
-from evallab.trajectory_acceptance import AUTO_ACCEPTANCE_ENABLED, AcceptanceDecision
-from evallab.trajectory_hydration import CitationHandle, RedactionPolicy, hydrate_citation
-from evallab.trajectory_judgment import MachineJudgment, canonical_json_digest
-from evallab.trajectory_runtime import (
+from evallab.interpretation.trajectory_acceptance import AUTO_ACCEPTANCE_ENABLED, AcceptanceDecision
+from evallab.interpretation.trajectory_hydration import (
+    CitationHandle,
+    RedactionPolicy,
+    hydrate_citation,
+)
+from evallab.interpretation.trajectory_judgment import MachineJudgment, canonical_json_digest
+from evallab.interpretation.trajectory_runtime import (
     CampaignAnalysisItem,
     _load_interpretation_archive_record,
     _pack_payload_structure_errors,

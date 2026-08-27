@@ -11,8 +11,7 @@ import pytest
 
 from evallab.cli import run_cli
 from evallab.evidence.atif import project_jobs
-from evallab.results import load_job
-from evallab.trajectory_semantics import (
+from evallab.interpretation.trajectory_semantics import (
     BASH_RESOLVER_SPEC,
     BENCHMARK_PROFILES,
     GENERIC_POSIX_PROFILE,
@@ -33,6 +32,7 @@ from evallab.trajectory_semantics import (
     query_semantic_coverage,
     semantic_coverage,
 )
+from evallab.results import load_job
 
 FIXTURES = Path(__file__).parent / "fixtures" / "explorer" / "jobs"
 
@@ -868,7 +868,7 @@ def test_no_raw_secret_or_argument_text_in_projection(tmp_path: Path) -> None:
 
 def test_benchmark_profiles_resolution() -> None:
     """LOCA, AgentAbstain, and DeepPlanning profiles resolve domain actions with no fallback."""
-    from evallab.trajectory_semantics import (
+    from evallab.interpretation.trajectory_semantics import (
         AGENTABSTAIN_PROFILE,
         DEEPPLANNING_PROFILE,
         LOCA_PROFILE,

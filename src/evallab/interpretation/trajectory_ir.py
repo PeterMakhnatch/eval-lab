@@ -26,16 +26,16 @@ from pathlib import Path
 from typing import Any, Literal
 
 from evallab.evidence_store import restore_evidence
+from evallab.interpretation.traj_baseline import TraceBaselineRecord, compute_trace_baseline
+from evallab.interpretation.trajectory_hydration import (
+    CitationHandle,
+    RedactionPolicy,
+    create_citation_handle,
+)
 from evallab.results import sha256_file
 from evallab.traj import (
     outline_trajectory,
     resolve_trial_target,
-)
-from evallab.traj_baseline import TraceBaselineRecord, compute_trace_baseline
-from evallab.trajectory_hydration import (
-    CitationHandle,
-    RedactionPolicy,
-    create_citation_handle,
 )
 
 # Known POSIX programs where exit code 1 indicates an expected negative/non-match
@@ -1533,7 +1533,7 @@ def build_trajectory_ir(
                 }
             )
 
-        from evallab.evidence_pack import compute_evidence_coverage_metrics
+        from evallab.interpretation.evidence_pack import compute_evidence_coverage_metrics
 
         coverage_metrics = compute_evidence_coverage_metrics(
             events=updated_events,

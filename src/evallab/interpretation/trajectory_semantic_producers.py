@@ -16,12 +16,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from evallab.interpretation.trajectory_semantics import SemanticActionFact
 from evallab.semantic_facts import (
     CapabilityOpportunity,
     EvidenceCoverage,
     PairedConditionFact,
 )
-from evallab.trajectory_semantics import SemanticActionFact
 
 _DIGEST_PREFIX = "sha256:"
 

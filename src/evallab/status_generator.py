@@ -360,8 +360,8 @@ def collect_status_data(
     # 5. Quality ledger summary
     import pyarrow.parquet as pq
 
+    from evallab.interpretation.trajectory_quality import QUALITY_REPORT_TABLE
     from evallab.storage.paths import derived_root_from_environment
-    from evallab.trajectory_quality import QUALITY_REPORT_TABLE
 
     derived_root = derived_root_from_environment(resolved_root)
     quality_summary: dict[str, Any] = {

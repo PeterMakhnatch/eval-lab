@@ -8,8 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.traj import LoopSuspicion, StepOutline, TrajectoryOutline
-from evallab.trajectory_hydration import (
+from evallab.interpretation.trajectory_hydration import (
     CitationPathJailError,
     CitationTarget,
     RedactionPolicy,
@@ -18,6 +17,7 @@ from evallab.trajectory_hydration import (
     hydrate_citation,
     hydrate_error_observations,
 )
+from evallab.traj import LoopSuspicion, StepOutline, TrajectoryOutline
 
 
 def test_apply_redaction_masks_secrets() -> None:

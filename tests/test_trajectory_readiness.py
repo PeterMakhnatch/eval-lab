@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.trajectory_readiness import audit_durable_trajectories
+from evallab.interpretation.trajectory_readiness import audit_durable_trajectories
 
 
 @pytest.fixture

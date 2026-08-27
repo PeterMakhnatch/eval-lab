@@ -20,13 +20,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.trajectory_hydration import (
+from evallab.interpretation.trajectory_hydration import (
     CitationHandle,
     RedactionPolicy,
     create_citation_handle,
     hydrate_citation,
 )
-from evallab.trajectory_ir import (
+from evallab.interpretation.trajectory_ir import (
     IREpisode,
     IREvent,
     TrajectoryIR,

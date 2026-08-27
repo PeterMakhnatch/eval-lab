@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import evallab.trajectory_runtime as trajectory_runtime
+import evallab.interpretation.trajectory_runtime as trajectory_runtime
 from evallab import __version__, database
 from evallab import queue as queue_module
 from evallab.automation import (
@@ -817,7 +817,10 @@ def _ingest_command(
         actor="manual-ingest",
         spec_id=f"system-{new_ulid()}",
     )
-    from evallab.trajectory_quality import evaluate_trial_quality, persist_quality_ledger
+    from evallab.interpretation.trajectory_quality import (
+        evaluate_trial_quality,
+        persist_quality_ledger,
+    )
 
     all_reports = []
     all_findings = []
@@ -1435,7 +1438,7 @@ def _analyze_quality_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     del harbor
-    from evallab.trajectory_data_quality import campaign_data_quality_report
+    from evallab.interpretation.trajectory_data_quality import campaign_data_quality_report
 
     inventory = _resolve(root, args.inventory)
     store_root = _resolve(root, args.store)
@@ -1761,7 +1764,7 @@ def _semantic_facts_query_command(
 
 
 def _semantics_bindings(values: Sequence[str]):
-    from evallab.trajectory_semantics import (
+    from evallab.interpretation.trajectory_semantics import (
         TaskProfileBinding,
         get_profile,
     )
@@ -1783,7 +1786,7 @@ def _semantics_project_command(
     harbor: HarborBackend | None = None,
 ) -> int:
     del harbor
-    from evallab.trajectory_semantics import project_job_semantics
+    from evallab.interpretation.trajectory_semantics import project_job_semantics
 
     jobs = load_jobs([_resolve(root, path) for path in args.paths])
     if not jobs:
@@ -1823,7 +1826,7 @@ def _semantics_coverage_command(
     harbor: HarborBackend | None = None,
 ) -> int:
     del harbor
-    from evallab.trajectory_semantics import query_semantic_coverage
+    from evallab.interpretation.trajectory_semantics import query_semantic_coverage
 
     derived = derived_root_from_environment(
         root,
@@ -2610,8 +2613,8 @@ def _traj_report_command(
 def _traj_card_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.traj_card import generate_traj_card
-    from evallab.trajectory_hydration import RedactionPolicy
+    from evallab.interpretation.traj_card import generate_traj_card
+    from evallab.interpretation.trajectory_hydration import RedactionPolicy
 
     runs_roots = [_resolve(root, args.runs_dir)] if args.runs_dir else None
     output_path = _resolve(root, args.output) if args.output else None
@@ -2637,7 +2640,7 @@ def _traj_card_command(
 def _traj_ir_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.trajectory_ir import build_trajectory_ir
+    from evallab.interpretation.trajectory_ir import build_trajectory_ir
 
     explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
     if explicit_root is None:
@@ -2674,9 +2677,9 @@ def _traj_ir_command(
 def _traj_pack_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.evidence_pack import build_evidence_pack
-    from evallab.trajectory_hydration import RedactionPolicy
-    from evallab.trajectory_ir import build_trajectory_ir
+    from evallab.interpretation.evidence_pack import build_evidence_pack
+    from evallab.interpretation.trajectory_hydration import RedactionPolicy
+    from evallab.interpretation.trajectory_ir import build_trajectory_ir
 
     explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
     if explicit_root is None:
@@ -2738,8 +2741,8 @@ def _traj_pack_command(
 def _traj_align_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.trajectory_alignment import align_trajectory_pair
-    from evallab.trajectory_ir import build_trajectory_ir
+    from evallab.interpretation.trajectory_alignment import align_trajectory_pair
+    from evallab.interpretation.trajectory_ir import build_trajectory_ir
 
     explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
 
@@ -2798,7 +2801,7 @@ def _load_claims_tokenizer(selector: str) -> Callable[[str], int] | object:
 def _claims_pack_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.trajectory_context import build_durable_trajectory_context
+    from evallab.interpretation.trajectory_context import build_durable_trajectory_context
 
     output_format = "json" if args.json else "markdown"
     tokenizer = _load_claims_tokenizer(args.tokenizer) if args.tokenizer is not None else None

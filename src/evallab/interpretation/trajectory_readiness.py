@@ -19,10 +19,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.evidence_pack import (
+from evallab.interpretation.evidence_pack import (
     build_evidence_pack,
 )
-from evallab.trajectory_ir import (
+from evallab.interpretation.trajectory_ir import (
     build_trajectory_ir,
 )
 

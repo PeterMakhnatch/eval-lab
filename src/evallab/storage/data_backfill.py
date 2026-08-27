@@ -20,13 +20,13 @@ from pydantic import Field, model_validator
 
 from evallab.database import catalog_availability
 from evallab.evidence_store import load_archive
-from evallab.schemas import ContractModel
-from evallab.trajectory_data_quality import (
+from evallab.interpretation.trajectory_data_quality import (
     campaign_data_quality_report,
     load_cross_campaign_inventory,
 )
-from evallab.trajectory_judgment import canonical_json_digest
-from evallab.trajectory_runtime import analyze_batch, load_campaign_analysis_manifest
+from evallab.interpretation.trajectory_judgment import canonical_json_digest
+from evallab.interpretation.trajectory_runtime import analyze_batch, load_campaign_analysis_manifest
+from evallab.schemas import ContractModel
 
 SCHEMA_VERSION = "completed-trial-backfill-ledger/v1"
 IDENTITY_UNRESOLVED = "quarantine_job_identity_unresolved"

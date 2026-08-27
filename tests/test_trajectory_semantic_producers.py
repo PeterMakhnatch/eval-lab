@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from evallab.trajectory_semantic_producers import (
+from evallab.interpretation.trajectory_semantic_producers import (
     project_agentabstain,
     project_recovery,
 )

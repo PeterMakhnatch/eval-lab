@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from evallab.trajectory_ir import _normalize_argument_skeleton
-from evallab.trajectory_judgment import canonical_json_digest
-from evallab.trajectory_recipes import (
+from evallab.interpretation.trajectory_ir import _normalize_argument_skeleton
+from evallab.interpretation.trajectory_judgment import canonical_json_digest
+from evallab.interpretation.trajectory_recipes import (
     CONTRACT_DIGEST,
     PRODUCER,
     RecipeFinding,

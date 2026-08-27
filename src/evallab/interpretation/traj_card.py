@@ -20,18 +20,18 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from evallab.interpretation.traj_baseline import TraceBaselineRecord, compute_trace_baseline
+from evallab.interpretation.trajectory_hydration import (
+    HydratedEvidence,
+    RedactionPolicy,
+    hydrate_error_observations,
+)
 from evallab.results import sha256_file
 from evallab.traj import (
     PhaseOutline,
     TrajectoryOutline,
     outline_trajectory,
     resolve_trial_target,
-)
-from evallab.traj_baseline import TraceBaselineRecord, compute_trace_baseline
-from evallab.trajectory_hydration import (
-    HydratedEvidence,
-    RedactionPolicy,
-    hydrate_error_observations,
 )
 
 

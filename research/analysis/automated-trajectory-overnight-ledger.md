@@ -115,22 +115,24 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-034 | The missing `evallab data backfill` entry point is the first Package 1 milestone, not a separate worktree | approved / supersedes ADR-030 routing only | ADR-030's HOLD on the actual all-durable Ops pass stands until the single entry point merges green inside `lane/storage`; the preserved `.worktrees/data-backfill-command` diff is cherry-picked, not resurrected as its own branch flow |
 | ADR-035 | Stale PR-less branches lose ownership-blocking status | approved | a branch with no open PR, no commit within two days, and tens of commits behind main cannot gate a scheduled package; its worktree and diff are preserved untouched, but the lane owns the file from `origin/main` forward |
 | ADR-036 | The ADR-030 hard stop is LIFTED; Ops is released for exactly one all-durable backfill pass | approved / owner Ops `wK:p8` | `evallab data backfill` merged green on `origin/main` at `1ceb7bc` (`src/evallab/data_backfill.py`, registered in `cli.py`, Gemini exact-head review zero findings, CI 5/5); Ops runs that one command once with no manual multi-command substitute, no judge/model call, no auto-accept, and no registration or publication; acceptance is exactly 21 reason-coded `ANALYSIS_READY`/`HOLD` dispositions across the 5 tracked campaign manifests and 16 CAS job archives, 4 permanent quarantines held uninterpreted, zero silent skips; a second identical invocation must reproduce byte-identical identities and digests |
+| ADR-037 | The ADR-036 pass is ACCEPTED as mechanics and REJECTED as a disposition baseline; the CAS join key is `job_name`, not `job_id` | approved / owner Platform `wH:p1` (`lane/storage`) | Ops executed one command, exit 0, byte-identical across two passes, four permanent quarantines held uninterpreted, and 21 rows emitted — the ADR-036 mechanical contract is discharged. The content is void: 17/17 cohort trials returned `quarantine_job_identity_unresolved` because `src/evallab/data_backfill.py` at `1ceb7bc` never reads `job_name` (verified: zero occurrences in the file on `origin/main`). Manifests are correct and immutable: every cohort row carries both a Harbor execution `job_id` (UUID, e.g. `cce77192-…`) and a `job_name` (e.g. `canary-event-summary-codex-20260815`), and CAS records under `derived/evidence-cas/records/job/` are keyed by `record_id == job_name` with no `job_id` field at all. Measured on the five tracked manifests: 19/19 rows resolve `job_name` to a unique CAS `record_id` and 19/19 `cas_uri` values equal that record's `uri`; 0/19 `job_id` values appear as any `record_id`. The defect is Platform-owned in `lane/storage`, not Agent Data-owned; Ops' attribution of a "Data-Owned Binding Defect" is corrected here. Fix `_bind_trial_identity` to bind on `job_name` with `cas_uri` cross-check, keep `job_id` as the non-CAS execution identity, and re-run the single pass |
 
 ## Blockers / hard stops
 
 - Platform P0 validator hard stop is repaired on main. The five invalid forensic reports/CAS remain immutable and non-authoritative.
 - PR #198/#201/#202 are merged (see the 2026-08-26 status update); no trajectory-analysis PR is open.
-- The Ops all-durable pass is no longer blocked: ADR-036 lifted the ADR-030 gate at `1ceb7bc`. It is now a single authorized execution, not a hard stop.
+- The Ops all-durable pass is executed and mechanically accepted (ADR-036) but produces no usable disposition baseline: all 17 cohort rows are HOLD on a false identity reason (ADR-037). The 21-row baseline is BLOCKED on the Platform `job_name` binding fix.
 - Calibration PPV/non-inferiority, low localization/support, absent human baseline, target/index ambiguity and class power still block acceptance. DeepPlanning, LOCA, Recovery, Memory and Family A remain HOLD.
 - No billable run, registration, publication, policy override, or raw mutation is authorized. Stabilization Packages 1 and 2 are authorized inside their lanes per ADR-031 through ADR-035; Packages 3, 4, and 5 remain plan-only.
 
 ## Next controller actions
 
-1. Release Ops for exactly one `evallab data backfill` pass under ADR-036; require the 21-disposition ledger, the 4 held quarantines, zero silent skips, and a second identical invocation proving digest idempotence.
-2. Land centralized partition discovery as Package 1 milestone 2 in `lane/storage`; keep DuckDB Z2+Z3+Z4 attach queries and all SQL views intact.
-3. Take Package 2 milestone 2 in `lane/execution` only after Ops reports; runner, queue, network, container lifecycle, and signal behaviour stay byte-for-byte behavioural.
-4. Keep Packages 3, 4, and 5 plan-only; select no synthetic family until the AgentAbstain external audit and independent oracle/partition gates clear.
-5. Resume the terminology milestone only on Peter's word; its evidence stays parked untracked at `research/inbox/parked-glossary-evidence-2026-08-27.md`.
+1. ADR-036 is discharged. Under ADR-037, Platform lands the `job_name` CAS binding fix in `lane/storage` as Package 1 milestone 2 alongside centralized partition discovery; no manifest, CAS, or reason-code semantics may be relaxed to reach readiness.
+2. After that merges green, release Ops for one identical re-run: `quarantine_job_identity_unresolved` must be absent from every row whose `job_name` uniquely resolves in CAS, the four permanent quarantines must keep their original reasons, every residual HOLD must carry a different and separately diagnosed reason code, and two passes must stay byte-identical.
+3. Keep DuckDB Z2+Z3+Z4 attach queries and every SQL view intact through Package 1 milestone 2; partition discovery centralizes in `paths.py` without changing query results.
+4. Take Package 2 milestone 2 in `lane/execution` only after Ops reports; runner, queue, network, container lifecycle, and signal behaviour stay byte-for-byte behavioural.
+5. Keep Packages 3, 4, and 5 plan-only; select no synthetic family until the AgentAbstain external audit and independent oracle/partition gates clear.
+6. Resume the terminology milestone only on Peter's word; its evidence stays parked untracked at `research/inbox/parked-glossary-evidence-2026-08-27.md`.
 
 ## Status update — 2026-08-26 late overnight (Architect)
 
@@ -518,3 +520,49 @@ names a real in-repo consumer, so it is not a shim defect.
 ADR-030's hard stop is therefore discharged, not waived: the single entry point
 exists, is registered, is tested, and merged green. ADR-036 records the lift and
 the exact acceptance contract for the one Ops pass that follows.
+
+### ADR-036 Ops pass - executed, mechanically accepted, content rejected
+
+Ops ran the single authorized pass twice on 2026-08-27:
+
+```
+uv run evallab data backfill \
+  --store-root  <repo>/derived/evidence-cas \
+  --derived-root <repo>/derived \
+  --output-dir   <repo>/derived/analyses \
+  --database-url postgresql://evallab:local-development-only@localhost:54329/evallab
+```
+
+| Acceptance clause (ADR-036) | Observed | Verdict |
+|---|---|---|
+| One command, no multi-command substitute | exit 0 on both invocations | pass |
+| No judge/model call, no auto-accept, no registration or publication | none attempted | pass |
+| Exactly 21 reason-coded rows across 5 manifests and 16 CAS job archives | 21 rows emitted | pass |
+| Four permanent quarantines held uninterpreted | 3x `quarantined_darwin_docker_network_mode`, 1x `quarantined_auth_timeout` preserved | pass |
+| Second identical invocation reproduces identities and digests | ledger digest `sha256:93ab3983…a42e604c` byte-identical across passes | pass |
+| Zero silent skips | zero | pass |
+| Usable ANALYSIS_READY baseline | 0 of 17 cohort trials ready; all 17 held on `quarantine_job_identity_unresolved` | fail |
+
+So the mechanical contract is discharged and the disposition content is void.
+ADR-037 records the cause and the ownership correction.
+
+The join is wrong, not the data. Committed manifests carry both identities per
+cohort row - a Harbor execution `job_id` (UUID) and a `job_name` - and CAS job
+records under `derived/evidence-cas/records/job/` are keyed by
+`record_id == job_name` with no `job_id` field. Measured on the five tracked
+manifests: 19/19 rows resolve `job_name` to a unique CAS `record_id`, 19/19
+`cas_uri` values equal that record's `uri`, and 0/19 `job_id` values appear as
+any `record_id`. `src/evallab/data_backfill.py` at `1ceb7bc` contains zero
+occurrences of `job_name`, so `_bind_trial_identity` can only ever fail closed.
+
+Ops reported this as a "Data-Owned Binding Defect". That attribution is
+corrected: the manifests and CAS records are immutable, consistent, and correct;
+the defect is in Platform-owned `lane/storage` code. Failing closed instead of
+inventing an identity was the right behaviour, and the reason code named the
+real problem, which is why the pass is accepted as mechanics.
+
+Assigned fix (Package 1 milestone 2, Platform `wH:p1`, `lane/storage`): bind on
+`job_name` with `cas_uri` cross-check, keep `job_id` as the non-CAS execution
+identity, and keep duplicate/ambiguous `job_name` fail-closed. No manifest, CAS,
+or reason-code semantics may be relaxed to reach readiness. Ops stays idle until
+that merges green, then re-runs the identical single pass once.

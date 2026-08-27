@@ -156,10 +156,9 @@ def _step_actions(ir: TrajectoryIR) -> list[tuple[int, int | None, tuple[str, st
         if (
             ev.event_type in ("tool_call", "verifier_check")
             or ev.action_family in ("file_edit", "file_write", "verification")
-        ) and ev.event_type != "state_change" and ev.event_id not in seen_events:
+        ) and ev.event_type != "state_change" and ev.step_index is not None and ev.event_id not in seen_events:
             actions.append((ev.step_index, ev.call_index, _action_token(ev), ev))
             seen_events.add(ev.event_id)
-
     return actions
 
 def align_action_sequences(

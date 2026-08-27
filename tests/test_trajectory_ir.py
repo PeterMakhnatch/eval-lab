@@ -580,7 +580,7 @@ def test_project_ir_graph_structure_and_edges(tmp_path: Path, repo_root: Path) -
     assert graph.node_count == len(ir.events)
     assert graph.edge_count > 0
     assert "chronological_sequence" in graph.edge_type_counts
-    assert "mutation_to_verification" in graph.edge_type_counts
+    assert "state_change_precedes_verifier_event" in graph.edge_type_counts
 
     # Node and edge dictionary projections
     node_dicts = [n.to_projection_dict() for n in graph.nodes]
@@ -670,6 +670,10 @@ def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_roo
     assert state_events[0].actor == "environment"
     assert state_events[0].status_owning_program == "inotify"
     assert state_events[0].action_family == "other"
+    assert state_events[0].step_index is None
+    assert state_events[0].journal_sequence == 1
+    assert state_events[0].exit_code is None
+    assert state_events[0].exit_semantics == "unobserved"
     assert state_events[0].state_before_digest is not None
     assert state_events[0].state_after_digest is not None
     assert ir.evidence_coverage.get("state_diff_observed") is True

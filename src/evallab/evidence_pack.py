@@ -593,7 +593,8 @@ def build_evidence_pack(
 
     episodes_summary = [ep.to_dict() for ep in ir.episodes]
 
-    all_steps_list = sorted({ev.step_index for ev in ir.events}) if ir.events else [1]
+    step_set = {ev.step_index for ev in ir.events if ev.step_index is not None}
+    all_steps_list = sorted(step_set) if step_set else [1]
     min_step = all_steps_list[0]
     max_step = all_steps_list[-1]
 
@@ -616,6 +617,8 @@ def build_evidence_pack(
     # 3. Critical Errors (profile-aware ev.is_error ONLY), Error-Adjacent Context, and Semantic Actions
     prior_error_step: int | None = None
     for ev in ir.events:
+        if ev.step_index is None:
+            continue
         if ev.is_error:
             critical_step_indices.add(ev.step_index)
             critical_reasons[ev.step_index] = "critical_error"
@@ -675,8 +678,8 @@ def build_evidence_pack(
 
     events_by_step: dict[int, list[IREvent]] = {}
     for ev in ir.events:
-        events_by_step.setdefault(ev.step_index, []).append(ev)
-
+        if ev.step_index is not None:
+            events_by_step.setdefault(ev.step_index, []).append(ev)
     all_steps = sorted(events_by_step.keys())
     step_ptr = 0
 

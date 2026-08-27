@@ -249,7 +249,7 @@ class IREvent:
     timestamp: str | None
     phase: str  # "setup" | "prompt" | "work" | "verifier" | "unknown"
     episode_id: int
-    step_index: int
+    step_index: int | None
     call_index: int | None
     action_family: str  # "file_read" | "file_write" | "file_edit" | "command_execution" | "verification" | "context_control" | "model_reasoning" | "other"
     status_owning_program: str | None
@@ -265,6 +265,7 @@ class IREvent:
     matched_result_digest: str | None = None
     state_before_digest: str | None = None
     state_after_digest: str | None = None
+    journal_sequence: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -298,8 +299,8 @@ class IREpisode:
 GraphEdgeType = Literal[
     "chronological_sequence",
     "tool_call_response",
-    "error_to_recovery",
-    "mutation_to_verification",
+    "error_to_non_error_transition",
+    "state_change_precedes_verifier_event",
     "context_compaction_edge",
 ]
 
@@ -322,7 +323,7 @@ class IRGraphNode:
     node_id: str
     trial_id: str
     event_ordinal: int
-    step_index: int
+    step_index: int | None
     episode_id: int
     node_type: str
     actor: str
@@ -335,7 +336,7 @@ class IRGraphNode:
     source_citation: CitationHandle
     summary: str
     attributes_json: str = "{}"
-
+    journal_sequence: int | None = None
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["source_citation"] = self.source_citation.to_dict()
@@ -498,14 +499,14 @@ def project_ir_graph(ir: TrajectoryIR) -> TrajectoryGraphProjection:
                 )
             )
 
-    # Rule C: error_to_recovery (failed action -> subsequent successful resolution)
+    # Rule C: error_to_non_error_transition (failed action -> subsequent non-error event within screening window)
     for i in range(n):
         ev = sorted_events[i]
         if ev.is_error or ev.exit_semantics in ("error", "timeout"):
             for j in range(i + 1, min(i + 10, n)):
                 cand = sorted_events[j]
                 if cand.actor in ("agent", "environment") and not cand.is_error and cand.exit_semantics == "success":
-                    e_type = "error_to_recovery"
+                    e_type = "error_to_non_error_transition"
                     edges.append(
                         IRGraphEdge(
                             edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, cand.event_id, e_type),
@@ -516,21 +517,21 @@ def project_ir_graph(ir: TrajectoryIR) -> TrajectoryGraphProjection:
                             weight=1.0,
                             metadata_json=json.dumps({
                                 "error_program": ev.status_owning_program,
-                                "recovery_program": cand.status_owning_program,
+                                "transition_program": cand.status_owning_program,
                                 "gap_events": j - i,
                             }),
                         )
                     )
                     break
 
-    # Rule D: mutation_to_verification (state edit/write -> subsequent verification)
+    # Rule D: state_change_precedes_verifier_event (state edit/write/change -> subsequent verification)
     for i in range(n):
         ev = sorted_events[i]
-        if ev.action_family in ("file_edit", "file_write"):
+        if ev.action_family in ("file_edit", "file_write") or ev.event_type == "state_change":
             for j in range(i + 1, n):
                 cand = sorted_events[j]
                 if cand.action_family == "verification" or cand.event_type == "verifier_check":
-                    e_type = "mutation_to_verification"
+                    e_type = "state_change_precedes_verifier_event"
                     edges.append(
                         IRGraphEdge(
                             edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, cand.event_id, e_type),
@@ -540,14 +541,13 @@ def project_ir_graph(ir: TrajectoryIR) -> TrajectoryGraphProjection:
                             edge_type=e_type,
                             weight=1.0,
                             metadata_json=json.dumps({
-                                "mutation_program": ev.status_owning_program,
-                                "verification_program": cand.status_owning_program,
+                                "state_change_program": ev.status_owning_program,
+                                "verifier_program": cand.status_owning_program,
                                 "gap_events": j - i,
                             }),
                         )
                     )
                     break
-
     # Rule E: context_compaction_edge (context management -> next agent step)
     for i in range(n):
         ev = sorted_events[i]
@@ -1301,19 +1301,18 @@ def build_trajectory_ir(
                 events.append(event)
                 event_ord_counter += 1
 
+        state_coverage_extra: dict[str, Any] = {}
         journal_dir = trial_dir / "state-journal"
-        state_events_candidates = (
-            journal_dir / "state-events.jsonl",
-            trial_dir / "state-events.jsonl",
-        )
-        state_events_path = next((p for p in state_events_candidates if p.is_file()), None)
-        if state_events_path is not None:
-            try:
-                state_rel_path = state_events_path.relative_to(trial_dir).as_posix()
-                state_sha = sha256_file(state_events_path)
-                if journal_dir.is_dir() and (journal_dir / "status.json").is_file() and (journal_dir / "state-diff.json").is_file():
+        if journal_dir.is_dir():
+            state_events_path = journal_dir / "state-events.jsonl"
+            if state_events_path.is_file():
+                try:
                     from evallab.results import TrialRecord
-                    from evallab.state_events import load_state_event_facts
+                    from evallab.state_events import (
+                        load_state_event_facts,
+                    )
+                    state_rel_path = state_events_path.relative_to(trial_dir).as_posix()
+                    state_sha = sha256_file(state_events_path)
                     trial_rec = TrialRecord(
                         path=trial_dir,
                         result={"id": outline.trial_id, "trial_name": outline.trial_name},
@@ -1329,7 +1328,10 @@ def build_trajectory_ir(
                     )
                     for fact in state_facts:
                         if fact.evidence_status != "valid":
+                            state_coverage_extra["state_journal_status"] = fact.evidence_status
                             continue
+                        if "queue_overflow" in fact.operations:
+                            state_coverage_extra["state_journal_overflow"] = True
                         se_event_id = hashlib.sha256(
                             f"{outline.trial_id}:{event_ord_counter}:state_change:{fact.sequence}:{fact.path}".encode()
                         ).hexdigest()
@@ -1351,13 +1353,13 @@ def build_trajectory_ir(
                                 timestamp=fact.event_at,
                                 phase="work",
                                 episode_id=1,
-                                step_index=fact.sequence,
+                                step_index=None,
                                 call_index=None,
                                 action_family="other",
                                 status_owning_program="inotify",
                                 argument_skeleton=fact.path or "file",
-                                exit_code=0,
-                                exit_semantics="success",
+                                exit_code=None,
+                                exit_semantics="unobserved",
                                 is_error=False,
                                 payload_digest=fact.source_record_digest or f"sha256:{hashlib.sha256(str(fact.path).encode()).hexdigest()}",
                                 payload_bytes=fact.after_size_bytes or 0,
@@ -1365,63 +1367,13 @@ def build_trajectory_ir(
                                 summary=f"State event: {','.join(fact.operations)} {fact.path}",
                                 state_before_digest=fact.before_state_digest,
                                 state_after_digest=fact.after_state_digest,
+                                journal_sequence=fact.sequence,
                             )
                         )
                         event_ord_counter += 1
-                else:
-                    with state_events_path.open("r", encoding="utf-8", errors="replace") as f:
-                        for line_idx, line in enumerate(f):
-                            line_str = line.strip()
-                            if not line_str:
-                                continue
-                            try:
-                                se_data = json.loads(line_str)
-                            except Exception:
-                                continue
-                            if not isinstance(se_data, dict):
-                                continue
-                            se_path = str(se_data.get("path") or "file")
-                            se_ops = se_data.get("operations") or ["modify"]
-                            se_event_id = hashlib.sha256(
-                                f"{outline.trial_id}:{event_ord_counter}:state_change:{line_idx}:{se_path}".encode()
-                            ).hexdigest()
-                            se_citation = create_citation_handle(
-                                trial_id=outline.trial_id,
-                                source_path=state_rel_path,
-                                source_sha256=state_sha,
-                                raw_cas_uri=cas_uri,
-                                target_type="file",
-                                ir_event_id=se_event_id,
-                                redaction_profile_digest=policy.compute_digest(),
-                            )
-                            events.append(
-                                IREvent(
-                                    event_id=se_event_id,
-                                    event_ordinal=event_ord_counter,
-                                    event_type="state_change",
-                                    actor="environment",
-                                    timestamp=se_data.get("timestamp") or se_data.get("event_at"),
-                                    phase="work",
-                                    episode_id=1,
-                                    step_index=se_data.get("sequence") or (outline.total_steps or 1),
-                                    call_index=None,
-                                    action_family="other",
-                                    status_owning_program="inotify",
-                                    argument_skeleton=se_path,
-                                    exit_code=0,
-                                    exit_semantics="success",
-                                    is_error=False,
-                                    payload_digest=f"sha256:{hashlib.sha256(line_str.encode('utf-8')).hexdigest()}",
-                                    payload_bytes=len(line_str.encode("utf-8")),
-                                    source_citation=se_citation,
-                                    summary=f"State event: {','.join(se_ops)} {se_path}",
-                                    state_before_digest=se_data.get("before_state_digest"),
-                                    state_after_digest=se_data.get("after_state_digest"),
-                                )
-                            )
-                            event_ord_counter += 1
-            except Exception:
-                pass
+                except Exception as exc:
+                    state_coverage_extra["state_journal_status"] = "malformed_or_unreadable"
+                    state_coverage_extra["state_journal_error"] = str(exc)[:200]
         episodes = _segment_episodes(events)
 
         updated_events: list[IREvent] = []
@@ -1432,33 +1384,7 @@ def build_trajectory_ir(
                     assigned_ep_id = ep.episode_id
                     break
             if assigned_ep_id != ev.episode_id:
-                updated_events.append(
-                    IREvent(
-                        event_id=ev.event_id,
-                        event_ordinal=ev.event_ordinal,
-                        event_type=ev.event_type,
-                        actor=ev.actor,
-                        timestamp=ev.timestamp,
-                        phase=ev.phase,
-                        episode_id=assigned_ep_id,
-                        step_index=ev.step_index,
-                        call_index=ev.call_index,
-                        action_family=ev.action_family,
-                        status_owning_program=ev.status_owning_program,
-                        argument_skeleton=ev.argument_skeleton,
-                        exit_code=ev.exit_code,
-                        exit_semantics=ev.exit_semantics,
-                        is_error=ev.is_error,
-                        payload_digest=ev.payload_digest,
-                        payload_bytes=ev.payload_bytes,
-                        source_citation=ev.source_citation,
-                        summary=ev.summary,
-                        tool_schema_digest=ev.tool_schema_digest,
-                        matched_result_digest=ev.matched_result_digest,
-                        state_before_digest=ev.state_before_digest,
-                        state_after_digest=ev.state_after_digest,
-                    )
-                )
+                updated_events.append(replace(ev, episode_id=assigned_ep_id))
             else:
                 updated_events.append(ev)
         observed_call_ids = {
@@ -1520,7 +1446,7 @@ def build_trajectory_ir(
                     IROpportunityWindow(
                         opportunity_id=opp_id,
                         opportunity_type=opp_type,
-                        step_index=ev.step_index,
+                        step_index=ev.step_index or 0,
                         action_family=ev.action_family,
                         status_owning_program=ev.status_owning_program,
                         has_prior_error=prior_error,
@@ -1577,6 +1503,7 @@ def build_trajectory_ir(
             trial_dir=trial_dir,
         )
         evidence_coverage = coverage_metrics.to_dict()
+        evidence_coverage.update(state_coverage_extra)
         ir_trial_id = str(inventory_record.get("trial_id") or outline.trial_id)
         ir_trial_name = str(inventory_record.get("trial_name") or outline.trial_name)
         ir_job_id = str(inventory_record.get("job_id") or outline.job_id)

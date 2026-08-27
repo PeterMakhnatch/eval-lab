@@ -268,6 +268,9 @@ def test_stream_trajectory_ingests_nonzero_facts(tmp_path: Path) -> None:
             trial_id=f"{cohort_name}-{block}",
             task_block_id=f"sha256:{block * 64}",
             reward=reward,
+            started_at=(
+                "2026-08-14T00:00:00Z" if block == "a" else "2026-08-14T00:00:01Z"
+            ),
         )
         for block in ("a", "b")
         for cohort_name, reward in (("baseline", 0.0), ("treatment", 1.0))

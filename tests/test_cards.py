@@ -86,8 +86,8 @@ def _create_synthetic_job(
                         "model_info": {"name": model},
                     },
                     "verifier_result": {"rewards": {"reward": reward}},
-                    "started_at": "2026-08-15T00:00:00Z",
-                    "finished_at": "2026-08-15T00:01:00Z",
+                    "started_at": f"2026-08-15T00:00:{trial_index:02d}Z",
+                    "finished_at": f"2026-08-15T00:01:{trial_index:02d}Z",
                 },
             )
 
@@ -134,8 +134,8 @@ def _create_synthetic_job(
                         "exception_phase": "unknown",
                     },
                     "verifier_result": {},
-                    "started_at": "2026-08-15T00:00:00Z",
-                    "finished_at": "2026-08-15T00:01:00Z",
+                    "started_at": f"2026-08-15T00:00:{trial_index:02d}Z",
+                    "finished_at": f"2026-08-15T00:01:{trial_index:02d}Z",
                 },
             )
 
@@ -192,7 +192,7 @@ def _create_synthetic_job(
     return spec_path, job_dir
 
 
-def test_fixture_cohort_pass_at_k_and_exceptions(tmp_path: Path) -> None:
+def test_fixture_cohort_pass_any_first_k_and_exceptions(tmp_path: Path) -> None:
     """Fixture cohort: two tasks, k=3, one passing, one failing, plus one exception trial.
 
     Asserts:
@@ -217,7 +217,7 @@ def test_fixture_cohort_pass_at_k_and_exceptions(tmp_path: Path) -> None:
 
     # Compute expected values in test
     expected_outcomes = [0.0, 1.0]  # sorted by task_digest
-    expected_pass_at_k = 0.5  # 1 out of 2 tasks passed
+    expected_pass_any_first_k = 0.5  # 1 out of 2 tasks passed
     expected_interval = bootstrap_mean_interval(expected_outcomes, seed=card["numbers"]["k"])
     assert expected_interval is not None
 
@@ -226,7 +226,9 @@ def test_fixture_cohort_pass_at_k_and_exceptions(tmp_path: Path) -> None:
     assert numbers["n_tasks"] == 2
     assert numbers["n_trials"] == 7  # 3 + 3 + 1
     assert numbers["k"] == 3
-    assert numbers["pass_at_k"] == expected_pass_at_k
+    assert numbers["pass_any_first_k"] == expected_pass_any_first_k
+    assert "pass_at_k" not in numbers
+    assert "pass_power_k" not in numbers
     assert numbers["exceptions"] == 1
     assert not numbers["is_underpowered"]
 
@@ -234,13 +236,10 @@ def test_fixture_cohort_pass_at_k_and_exceptions(tmp_path: Path) -> None:
     assert "- Task evidence units: **2**" in rendered
     assert "- Recorded trials: **7**" in rendered
     assert "- Attempts per task (`k`): **3**" in rendered
-    assert "- Observed pass@k: **0.500**" in rendered
+    assert "- Observed pass-any-first-k: **0.500**" in rendered
     expected_lo = expected_interval[0]
     expected_hi = expected_interval[1]
-    assert (
-        f"- Task-bootstrap 95% interval: **[{expected_lo:.3f}, {expected_hi:.3f}]**"
-        in rendered
-    )
+    assert f"- Task-bootstrap 95% interval: **[{expected_lo:.3f}, {expected_hi:.3f}]**" in rendered
     assert "- Execution/harness exceptions: **1**" in rendered
 
     # Assert exception trial is reported separately from scored zeros
@@ -323,13 +322,16 @@ def test_underpowered_cohort_renders_not_distinguishable(tmp_path: Path) -> None
     rendered, card = build_eval_card(spec_path, repo_root=tmp_path)
 
     assert card["numbers"]["is_underpowered"]
-    assert card["numbers"]["pass_at_k"] is None
-    assert card["numbers"]["pass_at_k_text"] == "not distinguishable"
+    assert card["numbers"]["pass_any_first_k"] is None
+    assert card["numbers"]["pass_any_first_k_text"] == "not distinguishable"
 
     # In markdown: must NOT render bare rate "1.000"
-    assert "- Observed pass@k: **not distinguishable**" in rendered
+    assert "- Observed pass-any-first-k: **not distinguishable**" in rendered
     assert "- Task-bootstrap 95% interval: **unavailable**" in rendered
-    assert "Underpowered cohort (n_tasks < 2); pass@k is not distinguishable." in card["threats"]
+    assert (
+        "Underpowered cohort (n_tasks < 2); pass-any-first-k is not distinguishable."
+        in card["threats"]
+    )
 
 
 def test_two_generations_byte_identical(tmp_path: Path) -> None:
@@ -422,7 +424,7 @@ def test_cli_card_generate(
     assert code == 0
     captured = capsys.readouterr()
     assert "# Eval card: cli-test-card" in captured.out
-    assert "- Observed pass@k: **1.000**" in captured.out
+    assert "- Observed pass-any-first-k: **1.000**" in captured.out
 
     # 2. Test --json summary
     code = cli.run_cli(["card", "generate", str(spec_path), "--json"], workspace=tmp_path)
@@ -548,6 +550,7 @@ def test_cli_card_validate(
     assert code == 1
     captured = capsys.readouterr()
     assert "INVALID" in captured.err
+
 
 def test_all_committed_cards_pass_validation() -> None:
     """All markdown cards committed under research/cards/ pass validate_card_file."""

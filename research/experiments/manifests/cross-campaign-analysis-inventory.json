@@ -105,7 +105,7 @@
         "causality",
         "precise_zero"
       ],
-      "estimator_semantics": "Eval Lab pass@k and pass_power_k are first-k task indicators, not Chen/Yao unbiased combinatorics; unbiased pass_at_k estimators require n>=k repeated attempts.",
+      "estimator_semantics": "Eval Lab pass_any_first_k and pass_all_first_k are realized first-k task indicators ordered by timezone-aware started_at, not Chen/Yao unbiased combinatorics; pass_at_k_unbiased and pass_power_k_unbiased average eligible per-task estimates and require n>=k.",
       "producer_version_delta": {
         "prior_report_id": "sha256:86944a53cbd5c194728ea2ac6a082eb4b76b489bcb6a6dea6205209c3e88d5af",
         "prior_report_cas_uri": "cas://sha256/de1d495bc50e7da9be8cfaefd31d6f66831fe6b49f1363241ea4fa3963d61383",

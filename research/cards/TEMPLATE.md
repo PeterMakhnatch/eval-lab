@@ -19,7 +19,7 @@ Status: automatically drafted from completed evidence; human review required bef
 - Task evidence units: **{{N_TASKS}}**
 - Recorded trials: **{{N_TRIALS}}**
 - Attempts per task (`k`): **{{K}}**
-- Observed pass@k: **{{PASS_AT_K}}**
+- {{PRIMARY_METRIC_LABEL}}: **{{PRIMARY_METRIC_VALUE}}**
 - Task-bootstrap 95% interval: **{{INTERVAL}}**
 - Execution/harness exceptions: **{{EXCEPTIONS}}**
 

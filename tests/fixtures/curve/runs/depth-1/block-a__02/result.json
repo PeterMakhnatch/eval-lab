@@ -15,9 +15,9 @@
     "extra_instruction_paths": []
   },
   "exception_info": null,
-  "finished_at": "2026-08-23T00:00:01Z",
+  "finished_at": "2026-08-23T00:00:02Z",
   "id": "m047-1-002",
-  "started_at": "2026-08-23T00:00:00Z",
+  "started_at": "2026-08-23T00:00:01Z",
   "task_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "task_name": "block-a",
   "trial_name": "block-a__02",

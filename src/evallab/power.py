@@ -1,7 +1,9 @@
 """Statistical power planning and sample size estimation for eval-lab comparisons.
 
-Provides task-paired pass@k power calculations, minimum detectable effect (MDE)
-estimation, and PowerSpec generation for experiment planning.
+Provides task-paired planning using ``pass_at_k_probability``, a model-based
+independent-attempt transform ``1-(1-p)**k``. That function is not realized
+first-k (any/all over ordered attempts) and not the Chen/Yao combinatorial
+estimator from observed (n, c, k).
 """
 
 from __future__ import annotations

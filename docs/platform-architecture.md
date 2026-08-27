@@ -287,7 +287,8 @@ Contracts:
   paired_difference_interval, ...}`), `bootstrap_mean_interval(values,
   confidence=0.95)`, `minimum_detectable_effect(n_tasks=..., k=...,
   baseline=..., correlation=...)`, `required_tasks_for_effect(...)`,
-  `pass_at_k_probability(...)`. Render rule (binding): any surface printing a
+  `pass_at_k_probability(...)` (model-based independent-attempt planning
+  transform, not realized first-k and not Chen/Yao). Render rule (binding): any surface printing a
   ranking calls comparison and prints its explanation verbatim when
   `distinguishable=false` — "not distinguishable at this sample size" is a
   first-class result.

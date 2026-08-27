@@ -1017,6 +1017,10 @@ def _power_command(
             "approximation to paired task outcomes; "
             f"pair correlation={args.pair_correlation:.3f}."
         )
+        print(
+            "pass_at_k_probability is a model-based independent-attempt planning "
+            "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
+        )
         return 0
 
     rows = power_requirements(
@@ -1041,6 +1045,10 @@ def _power_command(
         f"pair correlation={args.pair_correlation:.3f}."
     )
     print("Assumption: attempts are independent for the pass@k transformation.")
+    print(
+        "pass_at_k_probability is a model-based independent-attempt planning "
+        "transform; it is not realized first-k and not Chen/Yao unbiased pass@k."
+    )
     return 0
 
 

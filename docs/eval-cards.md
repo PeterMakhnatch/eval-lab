@@ -82,7 +82,7 @@ All statistical procedures are imported directly from stable interfaces in `src/
     +-------------------------+                   +-------------------------+
     | - summarize_job_evidence|                   | - attach()              |
     | - _task_evidence()      |                   | - trial_facts view      |
-    | - _pass_at_k()          |                   | - reward_facts view     |
+    | - _pass_any_first_k()  |                   | - reward_facts view     |
     | - bootstrap_mean_       |                   | - jobs view             |
     |   interval()            |                   +-------------------------+
     | - wilson_interval()     |
@@ -91,8 +91,7 @@ All statistical procedures are imported directly from stable interfaces in `src/
 ```
 
 ### 3.1 Task as the Evidence Unit (Tenet T4)
-Attempts from the same task are clustered by `task_digest` (or `task_name`). A task succeeds at pass@k if any of its first $k$ valid attempts achieves a reward $\ge 1.0$:
-$$\text{pass@k} = \frac{\sum_{i=1}^{N_{\text{tasks}}} \mathbf{1}(\exists j \le k: r_{ij} \ge \text{threshold})}{N_{\text{tasks}}}$$
+Attempts from the same task are clustered by `task_digest` (or `task_name`). Realized first-k (`pass_any_first_k` / `pass_all_first_k`) orders eligible attempts by timezone-aware Harbor `started_at` and then asks whether any or all of those first $k$ attempts meet the threshold. Unbiased Chen/Yao fields (`pass_at_k_unbiased` / `pass_power_k_unbiased`) use every eligible attempt and no temporal order. `pass_at_k_probability(p, k)` is a model-based independent-attempt planning transform and is not either empirical estimator.
 Repeated attempts on the same task are never treated as independent samples.
 
 ### 3.2 Mandatory Uncertainty and Underpowered Cohorts
@@ -102,7 +101,7 @@ Repeated attempts on the same task are never treated as independent samples.
 
 ### 3.3 Separation of Harness Exceptions from Scored Failures
 - A trial that terminates with a harness or runtime exception (`exception_class` is present, e.g. `ValueError`, `NonZeroAgentExitCodeError`) is **never measured** as a capability failure ($0.0$).
-- Exception trials are excluded from the capability pass@k calculation denominator and are reported separately under `Execution/harness exceptions` and explicitly highlighted in `Threats to validity`.
+- Exception trials are excluded from the capability realized-first-k denominator and are reported separately under `Execution/harness exceptions` and explicitly highlighted in `Threats to validity`.
 
 ---
 

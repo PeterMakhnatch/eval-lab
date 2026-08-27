@@ -45,7 +45,7 @@
           "default": null,
           "title": "Paired Interval 95"
         },
-        "pass_power_k_delta": {
+        "pass_all_first_k_delta": {
           "anyOf": [
             {
               "type": "number"
@@ -55,9 +55,9 @@
             }
           ],
           "default": null,
-          "title": "Pass Power K Delta"
+          "title": "Pass All First K Delta"
         },
-        "pass_power_k_interval_95": {
+        "pass_all_first_k_interval_95": {
           "anyOf": [
             {
               "items": {
@@ -70,21 +70,21 @@
             }
           ],
           "default": null,
-          "title": "Pass Power K Interval 95"
+          "title": "Pass All First K Interval 95"
         },
-        "pass_power_k_losses": {
+        "pass_all_first_k_losses": {
           "minimum": 0,
-          "title": "Pass Power K Losses",
+          "title": "Pass All First K Losses",
           "type": "integer"
         },
-        "pass_power_k_ties": {
+        "pass_all_first_k_ties": {
           "minimum": 0,
-          "title": "Pass Power K Ties",
+          "title": "Pass All First K Ties",
           "type": "integer"
         },
-        "pass_power_k_wins": {
+        "pass_all_first_k_wins": {
           "minimum": 0,
-          "title": "Pass Power K Wins",
+          "title": "Pass All First K Wins",
           "type": "integer"
         },
         "rankable": {
@@ -111,9 +111,9 @@
       },
       "required": [
         "k",
-        "pass_power_k_wins",
-        "pass_power_k_ties",
-        "pass_power_k_losses",
+        "pass_all_first_k_wins",
+        "pass_all_first_k_ties",
+        "pass_all_first_k_losses",
         "n_pairs",
         "wins",
         "ties",
@@ -210,18 +210,18 @@
           "title": "Missing Reward Trials",
           "type": "array"
         },
-        "pass_at_k": {
+        "pass_all_first_k": {
           "items": {
             "$ref": "#/$defs/CurveMetricReport"
           },
-          "title": "Pass At K",
+          "title": "Pass All First K",
           "type": "array"
         },
-        "pass_power_k": {
+        "pass_any_first_k": {
           "items": {
             "$ref": "#/$defs/CurveMetricReport"
           },
-          "title": "Pass Power K",
+          "title": "Pass Any First K",
           "type": "array"
         },
         "role": {
@@ -249,8 +249,8 @@
         "censored_task_blocks",
         "exception_trials",
         "missing_reward_trials",
-        "pass_at_k",
-        "pass_power_k",
+        "pass_any_first_k",
+        "pass_all_first_k",
         "contrasts"
       ],
       "title": "CurveLevelReport",

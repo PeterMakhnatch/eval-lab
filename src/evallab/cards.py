@@ -6,7 +6,7 @@ terminus of the spec lifecycle:
     dispatched -> analyzed -> carded
 
 Contracts:
-1. Purpose drives the card: baseline -> per-agent pass@k; comparison -> paired
+1. Purpose drives the card: baseline -> per-agent realized first-k; comparison -> paired
    analysis quoting prereg block (refuses without prereg); practice -> excluded
    (refusal).
 2. Attempts from one task are one evidence unit.
@@ -295,7 +295,7 @@ def build_eval_card(
         k=k,
     )
 
-    metric = evidence["pass_at_k"]
+    metric = evidence["pass_any_first_k"]
     n_tasks: int = int(metric["n_tasks"])
     n_trials: int = int(evidence["n_trials"])
     rate: float | None = metric["rate"]
@@ -307,17 +307,19 @@ def build_eval_card(
     is_underpowered = (n_tasks < 2) or (interval is None)
 
     if is_underpowered:
-        pass_at_k_text = "not distinguishable"
+        pass_any_first_k_text = "not distinguishable"
         interval_text = "unavailable"
     else:
-        pass_at_k_text = f"{rate:.3f}" if rate is not None else "not distinguishable"
+        pass_any_first_k_text = f"{rate:.3f}" if rate is not None else "not distinguishable"
         interval_text = f"[{float(interval[0]):.3f}, {float(interval[1]):.3f}]"
 
     # Threats to validity
     threats: list[str] = ["One completed job captures one time and execution environment."]
     if n_tasks < 2:
         threats.append("Only 1 task evidence unit; generalization is weak.")
-        threats.append("Underpowered cohort (n_tasks < 2); pass@k is not distinguishable.")
+        threats.append(
+            "Underpowered cohort (n_tasks < 2); pass-any-first-k is not distinguishable."
+        )
     elif n_tasks < 5:
         threats.append(f"Only {n_tasks} task evidence unit(s); statistical power is low.")
     elif n_tasks < 20:
@@ -334,6 +336,12 @@ def build_eval_card(
             f"{len(evidence['insufficient_tasks'])} task(s) had fewer than k scored attempts."
         )
 
+    if evidence.get("unavailable_order_groups"):
+        threats.append(
+            f"{len(evidence['unavailable_order_groups'])} task(s) lack a valid first-k "
+            "attempt order (missing/invalid started_at or a timestamp tie at k)."
+        )
+
     if evidence.get("elicitation") is None and evidence.get("elicitation_reasons"):
         threats.extend(evidence["elicitation_reasons"])
 
@@ -342,9 +350,7 @@ def build_eval_card(
 
     # Digests & Lineage
     spec_name = spec.name if spec else str(spec_dict.get("name", job.name))
-    spec_path_str = (
-        _relative(spec_path, root) if spec_path else f"queue/done/{spec_name}.json"
-    )
+    spec_path_str = _relative(spec_path, root) if spec_path else f"queue/done/{spec_name}.json"
     spec_payload = spec_dict if spec_dict else (spec.model_dump(mode="json") if spec else {})
     spec_digest = digest_json(spec_payload)
 
@@ -377,8 +383,8 @@ def build_eval_card(
             "n_tasks": n_tasks,
             "n_trials": n_trials,
             "k": k,
-            "pass_at_k": None if is_underpowered else rate,
-            "pass_at_k_text": pass_at_k_text,
+            "pass_any_first_k": None if is_underpowered else rate,
+            "pass_any_first_k_text": pass_any_first_k_text,
             "bootstrap_95": interval if not is_underpowered else None,
             "exceptions": exception_count,
             "is_underpowered": is_underpowered,
@@ -419,7 +425,8 @@ def build_eval_card(
         "{{N_TASKS}}": str(n_tasks),
         "{{N_TRIALS}}": str(n_trials),
         "{{K}}": str(k),
-        "{{PASS_AT_K}}": pass_at_k_text,
+        "{{PRIMARY_METRIC_LABEL}}": "Observed pass-any-first-k",
+        "{{PRIMARY_METRIC_VALUE}}": pass_any_first_k_text,
         "{{INTERVAL}}": interval_text,
         "{{EXCEPTIONS}}": str(exception_count),
         "{{ELICITATION}}": json.dumps(card_data["elicitation"], indent=2, sort_keys=True),

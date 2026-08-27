@@ -48,6 +48,101 @@ The four existing package-contract skeletons are not the complete target map.
 | post-import stabilization | schema internals | split the large schema package only after migrated imports are stable |
 | final | CLI | move parser and command implementation last; preserve `evallab.cli:main`, `evallab.cli:legacy_main`, and the 83-leaf golden surface |
 
+## Frozen module-to-package map — `0a84e3a`
+
+This map is the assignment boundary for later waves. A source not listed in the
+table stays at its current top-level path. Similar names or responsibilities do
+not authorize an opportunistic move. Unless a row says otherwise, the target
+keeps the current filename under the named package
+(`foo.py` → `<package>/foo.py`).
+
+| Domain | Current authoritative sources | Canonical target | Wave / gate |
+|---|---|---|---|
+| schemas | `schemas/__init__.py` | unchanged | Wave 1 complete; internal extraction is deferred |
+| evidence | `atif.py`, `event_mart.py`, `facts.py` | `evidence/{atif,event_mart,facts}.py` | Wave 2 only |
+| storage | `paths.py`, `attach.py`, `parquet_compaction.py`, `data_backfill.py` | `storage/{paths,attach,parquet_compaction,data_backfill}.py` | Wave 3 only |
+| interpretation | `evidence_pack.py`, `traj_baseline.py`, `traj_card.py`, and every current `trajectory_*.py` module | same filenames under `interpretation/` | Wave 4; wait for or rebase the overlapping trajectory work |
+| execution | `automation.py`, `execution_contracts.py`, `harbor_network.py`, `queue.py`, `quota.py`, `runner.py` | `execution/{automation,execution_contracts,harbor_network,queue,quota,runner}.py` | Wave 5; wait for Agent Data Package 2 milestone 2 |
+| experiments | `authoring.py`, `cohort.py`, `contextpack.py`, `curve.py`, `ladder.py`, `power.py`, `provenance.py`, `researchers.py`, `screen.py` | same filenames under `experiments/` | one post-execution PR |
+| benchmarks | `agentabstain_gate.py`, `canary.py`, `capability_contract.py`, `capability_workflow.py`, `craft.py`, `fetch.py`, `registry.py`, `task_import.py`, `task_workbench.py`, `upstream_adapter.py` | same filenames under `benchmarks/` | one post-execution PR |
+| synthetic | `seqgen.py`, `synthetic_cert.py`, `synthetic_contracts.py`, `synthetic_funcdag.py`, `synthetic_projections.py`, `synthetic_report.py`, `synthetic_transform.py` | same filenames under `synthetic/` | one post-execution PR |
+| cli | `cli.py` | `cli/__init__.py` | final direct replacement; preserve both entrypoint symbols |
+
+Agent Data may add `queue_driver.py` and `harbor_watchdog.py` before the
+execution wave. If those files merge as execution-owned modules, their frozen
+targets are `execution/queue_driver.py` and
+`execution/harbor_watchdog.py`; the execution wave must use the merged contents
+and must not copy unpublished worktree files.
+
+The following current modules are explicitly retained at top level by this
+migration. Moving one requires a separately reviewed map amendment, not an
+interpretation of the domain names:
+
+- `analysis_worker.py`, `analyst.py`, `antigravity.py`, `backups.py`,
+  `behavior.py`, `behavior_calibration.py`, `behavior_catalog.py`,
+  `behavior_episodes.py`, `calibrate.py`, `cards.py`, `credentials.py`,
+  `database.py`
+- `digest.py`, `docindex.py`, `eventlog.py`, `evidence_store.py`,
+  `explorer.py`, `gc.py`, `governance.py`, `harbor_antigravity.py`,
+  `harbor_codex.py`, `harbor_state_journal.py`, `ingest_verify.py`, `labels.py`
+- `lance.py`, `lessons.py`, `lineage.py`, `modeladapter.py`,
+  `operational_restraint.py`, `phoenix_annotations.py`, `preflight.py`,
+  `profiles.py`, `repomap.py`, `report.py`, `results.py`, `semantic_facts.py`
+- `smoke.py`, `spine.py`, `state_events.py`, `status.py`,
+  `status_generator.py`, `storm.py`, `tidy.py`, `tracing.py`, `traj.py`,
+  `verdicts.py`, and the complete `recovery/` package
+
+### Dependency-direction freeze
+
+Physical moves preserve the existing runtime dependency graph; they do not
+silently redesign it. The following rules are binding:
+
+1. `schemas` is the inward contract layer. It may import the standard library
+   and third-party validation libraries, but no other `evallab` domain.
+2. `cli` is the outermost composition layer. It may import any domain, and no
+   domain may import `cli`.
+3. The move PRs may preserve only the cross-domain directions observed at the
+   freeze base:
+
+   | Importer | Allowed imported domains during migration |
+   |---|---|
+   | evidence | schemas, execution |
+   | storage | schemas, evidence, execution, experiments, interpretation |
+   | interpretation | schemas, evidence, storage, execution |
+   | execution | schemas, storage, evidence, benchmarks |
+   | experiments | schemas, storage, evidence, execution, benchmarks |
+   | benchmarks | schemas, storage, evidence, execution, experiments |
+   | synthetic | schemas |
+   | cli | all domains |
+
+4. These directions describe existing compatibility debt, not a license to add
+   new coupling. In particular, the current
+   `facts.py` → `runner.py`, `parquet_compaction.py` → evidence,
+   `data_backfill.py` → trajectory runtime, `queue.py` → registry/evidence,
+   and experiments ↔ benchmarks edges make a strict package DAG impossible
+   without a separate refactor. A physical-move PR updates import paths only.
+5. A new inter-domain edge, callback inversion, DTO extraction, or cycle break
+   requires its own reviewed behavior-preserving change. It is not bundled into
+   a namespace move.
+
+### Clean-cutover and public-path rule
+
+`evallab.schemas` and `evallab.cli:{main,legacy_main}` are stable public paths.
+For every other row, the canonical package path replaces the old top-level
+module path in its wave. All repository Python imports, dynamic module strings,
+console/config references, tests, scripts, and operator examples move in the
+same PR; the old file is deleted and no alias or facade remains. This explicit
+cutover is the exception to the historical blanket statement that every
+submodule import path stays fixed.
+
+Wave 2 is therefore exactly three physical moves:
+`atif.py` → `evidence/atif.py`, `event_mart.py` →
+`evidence/event_mart.py`, and `facts.py` → `evidence/facts.py`. It may add only
+the package initializer, direct import updates, focused evidence tests, and
+generator-owned map/index refreshes required by those moves. CAS storage,
+digests, row and Parquet schemas, SQL text, query results, and ATIF projections
+must remain unchanged.
+
 ## Changed-path overlap inventory — 2026-08-27
 
 Source: registered Git worktrees, branch changes against `origin/main`, and

@@ -9,11 +9,19 @@ authority: Peter assignment (2026-08-27)
 
 ## Decision
 
-The 2026-08-27 Architect assignment authorizes a behavior-preserving physical
-move of the flat `src/evallab/` module tree into
-`src/evallab/{schemas,evidence,execution,cli}/` packages. Explicit
-`__init__.py` facades preserve public imports. The move is sequential:
-schemas → evidence → execution → cli.
+The 2026-08-27 Architect assignment authorizes a sequence of
+behavior-preserving physical-move PRs. Every wave starts from the merged
+predecessor in a fresh worktree, moves one coherent domain, updates imports with
+language-aware tooling, and deletes the old paths. Each merged PR leaves one
+authoritative implementation path; parallel implementations and broad facade
+layers are prohibited.
+
+The first wave is only the direct
+`src/evallab/schemas.py` → `src/evallab/schemas/__init__.py` replacement. The
+module contents and `evallab.schemas` import path remain unchanged. Evidence,
+storage, interpretation, execution, experiments, benchmarks, synthetic
+evaluation, schema internals, and CLI decomposition are later waves, not part of
+the schema-foundation PR.
 
 This authority supersedes the prior plan-only stop state for physical packaging
 only. It does not authorize behavior changes, compatibility removal, generated
@@ -22,14 +30,23 @@ only on apparent lack of static imports. Dynamic loading, operator SQL, console
 scripts, public imports, test-only research utilities, generated products, and
 active worktrees remain consumers.
 
-## Target boundaries
+## Target boundaries and sequence
 
-| Boundary | Responsibility | Integration boundary |
+Before Wave 2 starts, the Architect freezes a complete module-to-package map for
+`schemas`, `evidence`, `storage`, `interpretation`, `execution`, `experiments`,
+`benchmarks`, `synthetic`, and `cli`, including allowed dependency directions.
+The four existing package-contract skeletons are not the complete target map.
+
+| Wave | Boundary | Integration constraint |
 |---|---|---|
-| `schemas` | core typed models, immutable DTOs, trial specs, validation schemas | first wave; preserve serialized forms and `evallab.schemas` imports; no runtime-engine or database imports |
-| `evidence` | Trajectory IR, ATIF telemetry, CAS, Parquet/DuckDB partitioning, digest synthesis | second wave; preserve raw → IR → pack authority, digests, schemas, rows, SQL, and query results |
-| `execution` | trial lifecycle, Harbor sandbox orchestration, worker queues, quota gates | third wave, after Agent Data's Package 2 milestone 2 merges; preserve queue atomicity, fail-closed sandboxing, signals, cleanup, and command/environment snapshots |
-| `cli` | parser, command handlers, entrypoints, compatibility alias | final wave; `evallab.cli:main` and `evallab.cli:legacy_main` remain resolvable and the 83-leaf golden surface remains byte-identical |
+| 1 | schema foundation | direct package replacement only; preserve `evallab.schemas`, serialized forms, and API surface |
+| 2 | evidence | move only the modules named by the frozen map; preserve ATIF, CAS, digest, row, SQL, and query behavior |
+| 3 | storage | integrate the stabilized `paths`, `attach`, compaction, and data-backfill modules without behavior changes |
+| 4 | interpretation | move trajectory interpretation modules after their active work is merged or rebased |
+| 5 | execution | start only after Agent Data's Package 2 milestone 2 merges; preserve queue atomicity, sandboxing, signals, cleanup, and snapshots |
+| mapped waves | experiments, benchmarks, synthetic | move separately according to the frozen dependency graph; do not fold them into an unrelated wave |
+| post-import stabilization | schema internals | split the large schema package only after migrated imports are stable |
+| final | CLI | move parser and command implementation last; preserve `evallab.cli:main`, `evallab.cli:legacy_main`, and the 83-leaf golden surface |
 
 ## Changed-path overlap inventory — 2026-08-27
 
@@ -52,34 +69,60 @@ the broad migration boundary. That count is an integration watchlist, not
 evidence that thirty-four branches are active. Any branch resumed during the
 freeze follows the rule below.
 
-## WIP and freeze rule
+## Per-wave WIP and freeze rule
 
-The freeze starts with `lane/migration` at
-`.worktrees/lane-migration` and ends only when its migration PR merges or the
-Architect explicitly releases it.
+Only the active domain wave is frozen. Feature assignments in that domain pause
+until its PR merges; disjoint domains remain available. After merge, consumers
+rebase onto the new authoritative paths and the domain is unblocked.
 
-1. Migration-owned paths are all flat `src/evallab/*.py` modules, all files
-   under `src/evallab/{schemas,evidence,execution,cli}/`, and the integration
-   surfaces `pyproject.toml`, `docs/repo-map.md`, and
-   `tests/golden/cli_surface.json`.
-2. No branch other than `lane/migration` starts a new edit, rename, or move in
-   those paths during the freeze. Repo Custodian efficiency work records
-   findings only across this boundary until the migration lands.
-3. Agent Data's already-started Package 2 milestone 2 is the sole exception.
-   Agent Data remains the only writer for its five observed dirty modules; the
-   migration does not move or edit them until that PR merges, then rebases onto
-   `origin/main` and moves the merged result.
-4. Existing uncommitted work is preserved. If an already-dirty branch must land,
-   it merges before the affected migration wave; otherwise it waits and rebases
-   onto the post-migration layout. No unpublished file is copied between
-   worktrees.
-5. An urgent fix to a migration-owned path lands on `main` first through its own
-   reviewed PR. `lane/migration` then rebases before continuing. No parallel
-   compatibility shim or second import convention is introduced.
+1. The active wave owns only its mapped source modules, package destination,
+   direct import consumers, focused tests, and required integration surfaces.
+   It does not absorb unrelated features or modules from later waves.
+2. A wave deletes every moved old path in the same PR. It does not leave a
+   second implementation, compatibility copy, or broad facade layer.
+3. Existing uncommitted work is preserved. Its owner either merges before the
+   affected wave or waits and rebases onto the post-wave layout. Unpublished
+   files are never copied between worktrees.
+4. Agent Data remains the sole writer for the observed dirty execution modules
+   until its Package 2 milestone 2 PR merges. The execution wave does not start
+   before that integration.
+5. An urgent fix to an active wave path lands on `main` first through its own
+   reviewed PR. The wave worktree then rebases before continuing.
 6. The no-change boundary remains binding: public import paths, serialized
    forms, CLI arguments/defaults/help/exits, the 83-leaf golden CLI surface,
    Hatch package discovery, both console-script entrypoints, policy approvals,
    and the `recovery/__init__.py` explicit-facade convention do not change.
+7. Every wave uses focused local checks and exact-head review, then relies on the
+   complete GitHub Actions matrix before merge. After merge and cleanup, the
+   Architect pages Main with the new `main` head, moved files, verification, and
+   the next safe assignment boundary.
+
+## Repo Custodian release queue
+
+Repo Custodian `wH:pY` completed the OMP harness audit without changing the
+eval-lab repository and is holding repository edits for this freeze. After the
+migration is merged or rebased onto `main` and the integration boundary is safe,
+the Architect pages `wH:pY` to release one disjoint workflow/documentation PR.
+
+That post-migration PR may:
+
+1. split focused inner-loop checks from full premerge/CI checks;
+2. compact `agents/missions/ACTIVE.md` by archiving historical narrative, with
+   integrator-only mutation;
+3. refresh stale status surfaces;
+4. batch fleet-status Git discovery without changing its output. The measured
+   baseline emits 733 lines across 70 role branches and repeats
+   `git worktree list` 70 times (about 1.22 s), `rev-list` (about 1.01 s), and
+   `rev-parse` (about 0.73 s).
+
+The measured CPU-only command baseline is: ingest 0.147 ms, projection
+2.364 ms, facts 4.471 ms, digest 1.262 ms, queue tick-100 77.250 ms, and
+fleet-status 5217.444 ms. The OMP harness had also forced an 80k compaction
+trigger on the 1M-token Sol route; that global override was removed, leaving
+`thresholdTokens=-1` and the official reserve-based default. This is a harness
+baseline, not an eval-lab repository change.
+
+An `.omp` TypeScript toolkit remains deferred until separately approved.
 
 ## Superseded staged plan (historical record)
 

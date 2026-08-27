@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - operator
+---
+
+> **Archived work order**: Completed historical dispatch (merged as PR #52). Deliverable record: docs/checkpoints/2026-08-15-system-cartography.md. Board: agents/missions/ACTIVE.md.
+
 # System Cartographer mission — 2026-08-15
 
 This mission is for a long-context Codex agent. It is deliberately read-heavy and

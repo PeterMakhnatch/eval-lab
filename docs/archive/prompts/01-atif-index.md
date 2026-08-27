@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - analyst
+---
+
+> **Archived work order**: Completed historical brief. Living contracts: docs/data-architecture.md, docs/join-spine.md, docs/attach-surface.md. Board: agents/missions/ACTIVE.md.
+
 # Build validated ATIF indexing and Parquet projection
 
 ## Mission

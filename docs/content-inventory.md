@@ -31,7 +31,7 @@ This inventory establishes the exhaustive, machine-verifiable baseline of all tr
 | `active-test` | 386 | `operational-state` | Pytest test modules, unit fixtures, and CI automation scripts. | `tests/`, `dashboard/tests/`, `scripts/agentabstain/`, `scripts/profile/` |
 | `generated` | 17 | `generated-rebuildable-projection` | Deterministic build products created by canonical Python generator entrypoints and Git merge drivers. | `docs/INDEX.md`, `docs/repo-map.md`, `docs/STATUS.md`, `research/lessons.md`, contract schemas |
 | `compatibility` | 154 | `operational-state` | Upstream benchmark adapters and vendored dataset compatibility layers. | `library/external/`, `src/evallab/upstream_adapter.py`, `scripts/backfill_spec_purpose.py` |
-| `historical` | 288 | `raw-durable-evidence` | Immutable point-in-time run traces, completed milestone briefs, research analyses, and audit logs. | `research/evidence/runs/`, `research/analysis/`, `docs/prompts/0*.md`, `docs/checkpoints/` |
+| `historical` | 288 | `raw-durable-evidence` | Immutable point-in-time run traces, completed milestone briefs, research analyses, and audit logs. | `research/evidence/runs/`, `research/analysis/`, `docs/archive/prompts/`, `docs/checkpoints/` |
 | `proven-unused` | 1 | `operational-state` | Unreferenced stray artifacts verified with zero code, test, CLI, config, or dynamic consumers. | `docs/prompts/Untitled` (Preserved as Deletion candidate) |
 | `unknown` | 0 | — | Unclassified content requiring manual operator adjudication (zero unclassified items). | None |
 

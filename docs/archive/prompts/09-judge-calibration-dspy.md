@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - analyst
+---
+
+> **Archived work order**: Completed historical brief. Living contract: docs/verifier-calibration.md. Board: agents/missions/ACTIVE.md.
+
 # 09 — Judge calibration, then DSPy experiment 1
 
 No judged dimension is reportable until the exact judge/rubric/corpus tuple has a

@@ -1,3 +1,12 @@
+---
+status: historical
+audience:
+  - builder
+  - runner
+---
+
+> **Archived work order**: Completed historical brief. Living contract: docs/operations.md. Board: agents/missions/ACTIVE.md.
+
 # 05 — Queue + executor + policy gate
 
 Build `src/evallab/queue.py` and extend the CLI with `submit`, `tick`,

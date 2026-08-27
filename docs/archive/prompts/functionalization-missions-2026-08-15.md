@@ -1,3 +1,11 @@
+---
+status: historical
+audience:
+  - builder
+---
+
+> **Archived work order**: Completed historical dispatch (M005/M006/M007 merged). Living contracts: docs/run-explorer.md, docs/analysis-worker.md, docs/task-workbench.md. Board: agents/missions/ACTIVE.md.
+
 # Functionalization missions — 2026-08-15
 
 The lab already has Harbor execution, a guarded queue, raw evidence, catalog +

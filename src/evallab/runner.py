@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from evallab.execution_contracts import (
+    _SUBSCRIPTION_ENVIRONMENT_KEYS,
     CONTROL_AGENTS,
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     DEFAULT_TRIAL_TIMEOUT_SECONDS,
@@ -46,6 +47,7 @@ from evallab.results import load_job
 from evallab.schemas import ExperimentMatrix, MatrixRun
 
 __all__ = [
+    "_SUBSCRIPTION_ENVIRONMENT_KEYS",
     "CONTROL_AGENTS",
     "DEFAULT_HEARTBEAT_INTERVAL_SECONDS",
     "DEFAULT_TRIAL_TIMEOUT_SECONDS",
@@ -55,7 +57,6 @@ __all__ = [
     "MAX_TRIAL_TIMEOUT_SECONDS",
     "SUPPORT_COMMAND_TIMEOUT_SECONDS",
     "WATCHDOG_POLL_SECONDS",
-    "ExecutionFailure",
     "HarborProcessResult",
     "RunRequest",
     "TransientHarnessFailure",

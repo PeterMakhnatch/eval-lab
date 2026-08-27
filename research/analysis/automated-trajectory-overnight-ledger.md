@@ -105,6 +105,7 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-024 | Pack source identity is IR source identity plus explicit IR/redaction binding | approved | Platform validator must compare against the exact constructed expected map; no subset weakening and no Data field removal |
 | ADR-025 | Family A is recommended but not selected for implementation | approved | no Engineer assignment or artifact until AgentAbstain B audit and oracle/source/template/generator partition gates clear |
 | ADR-026 | Source/method claims are scoped to inspected systems and data units | approved | no universal SOTA/mandatory-method claim; finite-cluster thresholds and agreement metrics are not acceptance proof |
+| ADR-027 | Runtime history and verifier collection are distinct evidence surfaces | approved boundary / feature deferred | `StateJournalPlugin` may observe bounded `/app` filesystem history during the agent phase; `[[verifier.collect]]` creates post-agent snapshots. Document current limits only—no new hook/profile implementation in this loop |
 
 ## Blockers / hard stops
 
@@ -187,3 +188,92 @@ All dependency-ready implementation, audit, review, and policy work in this
 program is complete. Remaining items are blocked on explicit research selection,
 new evidence, or Peter approval; no model run, registration, publication,
 policy override, or synthetic-family assignment is authorized.
+
+## Resumed controller loop — 2026-08-26
+
+Peter explicitly resumed the approved work orders from main `442e602`. At
+restart, origin/main was exact at `442e602` and no PR was open. The prior
+continuous-work stop is superseded only for the named trajectory roles and
+priorities; cost, registration, publication, policy, evidence-mutation, and
+mass-refactor guardrails remain.
+
+### Non-overlapping ownership freeze
+
+| Owner | Exclusive write surfaces for this loop |
+|---|---|
+| Platform `wH:p1` | `trajectory_runtime.py`, `trajectory_data_quality.py`, `attach.py`, `analysis_worker.py`, Platform CLI/report/storage surfaces and matching tests |
+| Agent Data `wK:p9` | `trajectory_ir.py`, `evidence_pack.py`, `trajectory_hydration.py`, `trajectory_alignment.py`, `trajectory_readiness.py`, `canary_pipeline.py` and matching tests |
+| Analyst `wK:p5` | analysis reports; `trajectory_recipes.py`/`trajectory_recipe_run.py` only under a separately reviewed explicit fix |
+| Ops `wK:p8` | manifests and ignored runtime analysis outputs; no source edits or unmerged producer consumption |
+| Synthetic Research/Engineer `wH:pE`/`wK:p7` | synthetic contracts and `synthetic_*`/AgentAbstain surfaces only after the selected-family gates clear |
+
+Librarian and Tutor are read-only research/review owners. Gemini Researcher
+`wH:p5`, Gemini main `wH:p2`, OMP main `wH:p3`, Research Capabilities `wH:p9`,
+and Devin `wK:p1` receive no controller prompt in this loop.
+
+### Assigned dependency-ready work
+
+1. Platform and Agent Data: default Harbor evidence coverage, parity,
+   reconstruction, omission, quality, and fail-closed audits over every durable
+   trial under the file freeze above.
+2. Librarian and Tutor: source-to-software statistical/structural delta plus
+   adversarial estimand, denominator, naming, and causal-scope review before
+   implementation.
+3. Analyst: software-only silent-termination deep dive over the 17 existing
+   analysis-ready trials; no recipe-engine redo, model call, new run, or
+   capability label.
+4. Ops: deterministic batch/quality backfill over existing evidence only, with
+   judge calls and auto-accept disabled.
+5. Synthetic Research: Family A readiness delta after the completed
+   AgentAbstain audit. Synthetic Engineer remains stopped until the independent
+   oracle and source/template/generator partition gates are explicitly cleared.
+6. Architect: refresh the stabilization-audit delta against `442e602`; M1–M4
+   remain plan-only.
+
+### Existing Harbor collection capability — documentation boundary
+
+The Librarian source audit is recorded at research-context commit `3fee052`
+(`trajectory-analysis/HARBOR-INSTRUMENTATION-CAPABILITY-MATRIX-2026-08-26.md`).
+Its source locations support the lifecycle/snapshot distinction, but absolute
+claims such as “complete,” “tamper-proof,” “zero overhead,” or universal
+portability are narrower than the inspected implementations prove.
+
+**`StateJournalPlugin` today:**
+
+- Harbor awaits `TrialEvent.AGENT_START` callbacks before calling
+  `agent.run`; the plugin starts an external Docker observer and waits for its
+  `READY` file.
+- The observer uses the host PID namespace and `SYS_PTRACE`, reads
+  `/proc/<target-pid>/root/app`, and mounts only its host-owned journal output.
+  The target container receives no new mount, file, environment variable,
+  executable, or prompt input from this plugin.
+- It emits initial/final snapshots, inotify event JSONL, a state diff, and
+  status. Scope is `/app` filesystem state—not database, process, network,
+  verifier, or read-access history.
+- Observability is deliberately fail-open for task execution: image/start/
+  readiness/stop failures produce `unavailable` while the trial continues.
+  Entry/event/hash caps, inotify queue overflow, unsupported host-PID access,
+  observer privilege, and timing overhead prevent an unconditional
+  completeness or tamper-proof claim.
+
+**Harbor `[[verifier.collect]]` today:**
+
+- Collect commands run after the agent phase and before artifact download.
+  Main-service hooks execute before the main service is stopped. Sidecar hooks
+  execute after a stop attempt only when separate-verifier collection requests
+  `stop_main_before_sidecars`.
+- Hook failures and a failed main-service stop are logged best-effort and do
+  not abort the trial. A sidecar snapshot therefore needs explicit collection,
+  stop, artifact, and digest status before it can support a strong isolation
+  claim.
+- Collection snapshots final service/database/verifier state; it does not
+  reconstruct intermediate history. Continuous history requires a collector
+  active during the agent phase.
+
+The proposed file, service-state, network, process/resource, and verifier
+profiles in the Librarian audit are research inputs, not current Eval Lab
+features. No pcap, eBPF, cgroup sampler, daemon, lifecycle plugin, sysctl change,
+or default-profile promotion is authorized now. Any future profile contract
+must separately gate model visibility, tamper/overflow evidence, measured
+overhead, provider portability, data minimization, and unavailable-versus-zero
+semantics.

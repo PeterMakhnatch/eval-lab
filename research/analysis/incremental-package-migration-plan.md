@@ -9,7 +9,7 @@ authority: TRAJECTORY-WORK-ORDERS-2026-08-26.md
 
 ## Decision
 
-No mass rename, move, deletion, archive, or package split is authorized. This plan converts the reconciled repository audit at head `72daeea` and native consumer/root/compatibility audits into five independently reviewable, behavior-preserving packages. Implementation requires a separate Architect assignment after every dependency gate clears.
+No mass rename, move, deletion, archive, or package split is authorized. This plan preserves the reconciled PR #200 audit baseline and its refreshed consumer/ownership delta at `442e602` as independently reviewable, behavior-preserving future packages. Implementation requires a separate Architect assignment after every current dependency and worktree gate clears.
 
 Dynamic loading, operator SQL, console scripts, public imports, test-only research utilities, generated products, and active worktrees count as consumers. Zero static imports, old age, a large file, or a similar name is never sufficient deletion evidence.
 
@@ -84,3 +84,24 @@ A central `schemas.py` split, registry/workbench split, synthetic namespace move
 ## Stop state
 
 M0 completed via PR #203 (`5bd2ba3`). The focused jobs-Parquet discovery repair merged via PR #206 (`f36ec8a`) without starting M1 or changing schemas. M1–M4 remain plan-only and require separate assignments; no implementation package is authorized by this document.
+
+## Gate refresh at `442e602`
+
+M0 remains complete. PRs #199–#212 resolved historical correctness and
+documentation gates but did not freeze the active ownership surfaces:
+
+- **M1 HOLD:** the concrete jobs-Parquet discovery defect is fixed; active
+  Platform/compaction ownership still blocks path extraction.
+- **M2 HOLD:** runner, queue, network, auth, lifecycle, and dynamic Harbor
+  consumers remain under active or preserved worktrees.
+- **M3 HOLD:** Agent Data intermediary v2 and Platform parity work own the
+  evidence/runtime boundary. No shared-DTO move while those outputs can change.
+- **M4 HOLD:** the CLI added analysis/data-quality surfaces through PR #208 and
+  is not frozen.
+
+The only retained future sequence is M1 storage discovery, then M2 pure
+execution value contracts, then M3 evidence DTO cycle breaking. Each remains a
+separate opt-in package with old public imports and serialized behavior
+preserved. M4 and every M5-scale split remain deferred. Current worktree names
+are deliberately not copied into this plan: they are volatile coordination
+state and must be checked live before any assignment.

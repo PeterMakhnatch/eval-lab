@@ -6,15 +6,15 @@ audience:
   - runner
   - operator
 created_at: 2026-08-26T04:30:00Z
-updated_at: 2026-08-26T06:15:00Z
+updated_at: 2026-08-27T02:59:07Z
 author: "Evaluation Architect, supporting repo-stabilization assignment"
 purpose: "Reconciled mechanical consumer inventory, responsibility clusters, concept duplication audit, and plan-only stabilization packages for Eval Lab."
 ---
 
 # Reconciled Repository Consumer Inventory & Stabilization Audit (Eval Lab)
 
-**Branch / Head:** `role/repo-stabilization-audit`  
-**Scope:** Mechanical Read-Only Inventory of `src/evallab` (105 modules), `sql/`, `scripts/`, `docs/`, `research/`, `library/`, Generated Roots, and Worktrees  
+**Baseline / Current delta:** PR #200 (`c08ba77`, reviewed head `7f840ac`) / `origin/main` `442e602`  
+**Scope:** Baseline mechanical inventory of 105 `src/evallab` modules plus the §9 delta to 110 modules; `sql/`, `scripts/`, `docs/`, `research/`, `library/`, generated roots, dynamic consumers, and active worktrees  
 **Audience:** Architect (`wK:p6`), Platform Builder (`wH:p1`), Analyst (`wK:p5`), Research - Capabilities Evals (`wH:p9`)
 
 ---
@@ -270,7 +270,7 @@ The 10 largest files account for **24,250+ lines**. The responsibility clusters 
 
 ## 7. Plan-Only Stabilization Packages (Design-Staged & Conflict-Gated)
 
-> **CRITICAL GOVERNANCE INVARIANT:** All five packages below are **PLAN-ONLY proposals**. No code moves, renames, or refactors are authorized until the Architect (`wK:p6`) explicitly schedules them after active PR #197, PR #198, and PR #199 complete.
+> **CRITICAL GOVERNANCE INVARIANT:** All packages below remain **PLAN-ONLY**. PRs #197–#212 merged, but that cleared historical PR gates—not the current active-worktree and ownership gates recorded in §9. No code move, rename, extraction, or compatibility removal is authorized.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -308,6 +308,63 @@ The 10 largest files account for **24,250+ lines**. The responsibility clusters 
 
 ## 8. Handoff to Architect (`wK:p6`)
 
-- **Worktree:** `/Users/petermakhnatch/Developer/eval-lab/.worktrees/repo-stabilization-audit`
-- **Artifact:** `research/analysis/repo-stabilization-audit.md` (committed and verified)
-- **Reconciliation Status:** All 105 actual modules categorized, 24 phantom rows removed, dynamic Harbor adapters and compatibility facades restored, `BehaviorEpisode` distinctness documented, low-blast storage/execution ordered before schemas split, and all 5 packages marked PLAN-ONLY behind PRs #197–#199.
+- **Baseline worktree:** `/Users/petermakhnatch/Developer/eval-lab/.worktrees/repo-stabilization-audit` (clean; PR #200 merged)
+- **Artifact:** `research/analysis/repo-stabilization-audit.md`
+- **Reconciliation status:** The PR #200 baseline categorized 105 modules and removed 24 phantom rows. The current §9 delta records 110 modules, five new active modules, changed consumers, and current plan-only gates.
+
+---
+
+## 9. Delta refresh: PR #200 baseline to `442e602`
+
+### Census and changed surfaces
+
+The current `src/evallab` census is 110 Python modules: five additions and no
+removals or renames since the 105-module PR #200 baseline.
+
+| Added module | Current responsibility / consumer |
+|---|---|
+| `agentabstain_gate.py` | Single-delta audit used by AgentAbstain adapters, audit script, and gate tests |
+| `trajectory_data_quality.py` | Campaign integrity report registered through the analysis CLI and exercised by quality tests |
+| `trajectory_readiness.py` | Durable trajectory readiness and HOLD classification |
+| `trajectory_recipe_run.py` | Report-pinned R1–R7 batch runner and findings output |
+| `trajectory_recipes.py` | Deterministic Analyst recipe engine |
+
+Materially changed existing surfaces include `attach.py`, `cli.py`,
+`database.py`, `evidence_pack.py`, `traj_baseline.py`, `traj_card.py`,
+`trajectory_hydration.py`, `trajectory_ir.py`, and `trajectory_runtime.py`.
+These are active runtime, CLI, SQL/projection, Data, Platform, or Analyst
+surfaces—not cleanup candidates. `docs/repo-map.md` is the generated current
+symbol/digest authority; this section records responsibility and gate changes,
+not a second generated map.
+
+### Current package gates
+
+| Package | Current verdict | Blocking ownership/evidence |
+|---|---|---|
+| M0 documentation truth | **COMPLETE** | PR #203 merged; generated outputs remain generator-owned |
+| M1 storage discovery leaf | **HOLD** | PR #206 fixed the concrete jobs-Parquet defect without starting M1; Platform data-trust and compaction/attach worktrees still own the surfaces |
+| M2 execution contracts | **HOLD** | runner/queue/network/auth worktrees and dynamic Harbor consumers are not settled |
+| M3 evidence layering | **HOLD** | Agent Data intermediary v2 and Platform parity work actively own IR/pack/runtime boundaries |
+| M4 CLI handlers | **HOLD** | CLI surface changed through PR #208 and remains active in Platform work; no freeze |
+| M5 broad splits/removals | **DEFERRED** | no new consumer evidence authorizes a schema, registry, synthetic, SQL, or compatibility split |
+
+The active-worktree list is volatile and belongs to `git worktree list`, not a
+hard-coded cleanup manifest. At this refresh, current or preserved worktrees
+touch `parquet_compaction.py`, `runner.py`, `queue.py`, `facts.py`,
+`schemas.py`, `trajectory_ir.py`, `canary_pipeline.py`, and `cli.py`. They are
+user work and must not be pruned, overwritten, or treated as dead-code evidence.
+
+### Incremental recommendation
+
+No stabilization implementation is dependency-ready during the resumed
+trajectory loop. Retain only three future candidates:
+
+1. M1 pure storage discovery after Platform and compaction ownership clears;
+2. M2 immutable execution DTO/validation extraction after runner/queue owners
+   clear, preserving `O_EXCL`, auth, environment, lifecycle, and signals;
+3. M3 shared evidence DTO cycle break after Agent Data and Platform contracts
+   freeze, with byte-identical ATIF/IR/pack/CAS identities.
+
+M4 and every broader package remain deferred. This refresh authorizes factual
+documentation correction only; it schedules no move, deletion, archive,
+worktree cleanup, facade, or refactor.

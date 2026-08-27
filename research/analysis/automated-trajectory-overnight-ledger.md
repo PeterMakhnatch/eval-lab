@@ -127,10 +127,10 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 
 ## Next controller actions
 
-1. Package 1 milestone 2 (storage consolidation) is IN FLIGHT in `lane/storage` (Platform `wH:p1`): the ADR-037 `job_name` CAS binding fix and centralized partition discovery in `paths.py` land as one milestone PR; no manifest, CAS, or reason-code semantics may be relaxed to reach readiness.
-2. After that merges green, release Ops for one identical re-run: `quarantine_job_identity_unresolved` must be absent from every row whose `job_name` uniquely resolves in CAS, the four permanent quarantines must keep their original reasons, every residual HOLD must carry a different and separately diagnosed reason code, and two passes must stay byte-identical.
-3. Keep DuckDB Z2+Z3+Z4 attach queries and every SQL view intact through Package 1 milestone 2; partition discovery centralizes in `paths.py` without changing query results.
-4. Take Package 2 milestone 2 (Queue/Harbor separation) in `lane/execution` only after Ops reports; `lane/execution` must first rebase onto `origin/main` to drop its redundant pre-squash milestone-1 commits, then runner, queue, network, container lifecycle, and signal behaviour stay byte-for-byte behavioural.
+1. Package 1 milestone 2 (storage consolidation) is MERGED on `origin/main` at PR #231 `933b8a3`: the ADR-037 `job_name` CAS binding fix and centralized partition discovery in `paths.py` landed as one milestone PR; no manifest, CAS, or reason-code semantics were relaxed.
+2. The released Ops re-run is EXECUTED and VERIFIED PASS: `quarantine_job_identity_unresolved` is absent from every cohort row (17/17 `ANALYSIS_READY`, `quarantine_job_identity_unresolved = 0`), the four permanent quarantines keep their original reasons, every residual `HOLD` carries a separately diagnosed reason code, and two passes are byte-identical (digest `sha256:fef3ada0…`). Package 1 is fully closed.
+3. DuckDB Z2+Z3+Z4 attach queries and every SQL view survived Package 1 milestone 2; partition discovery centralized in `paths.py` without changing query results.
+4. Package 2 milestone 2 (Queue/Harbor separation) is STARTED in `lane/execution` (Agent Data `wK:p9` paged). `lane/execution` must first rebase onto `origin/main` to drop its redundant pre-squash milestone-1 commits and recreate the absent `.worktrees/lane-execution` worktree, then runner, queue, network, container lifecycle, and signal behaviour stay byte-for-byte behavioural.
 5. Keep Packages 3, 4, and 5 plan-only; select no synthetic family until the AgentAbstain external audit and independent oracle/partition gates clear.
 6. Resume the terminology milestone only on Peter's word; its evidence stays parked untracked at `research/inbox/parked-glossary-evidence-2026-08-27.md`.
 
@@ -569,25 +569,38 @@ that merges green, then re-runs the identical single pass once.
 
 ## Milestone status - 2026-08-27 (controller)
 
-Package 1 milestone 2 (storage consolidation) is IN FLIGHT in `lane/storage`
-(Platform `wH:p1`). The ADR-037 binding fix is verified in the worktree:
-`_bind_trial_identity` now binds CAS records on `record_id == job_name`,
-cross-checks the record `uri` against `cas_uri`, keeps `job_id` as the non-CAS
-execution identity, and fails closed on a missing or ambiguous `job_name` (9
-`job_name` occurrences in the file, 0 on `origin/main`). Partition discovery is
-in progress in the same changeset: `paths.py` +161 introduces `ParquetPartition`
-and `ParquetPartitionDiscovery`, with `attach.py` and `parquet_compaction.py`
-updated to consume it. DuckDB Z2+Z3+Z4 attach queries and every SQL view must
-stay intact.
+Package 1 milestone 2 (storage consolidation, PR #231 `933b8a3`) is MERGED on
+`origin/main` and VERIFIED by the released Ops re-run. The ADR-037 binding fix
+(`_bind_trial_identity` binds CAS records on `record_id == job_name`, cross-checks
+the record `uri` against `cas_uri`, keeps `job_id` as the non-CAS execution
+identity, fails closed on a missing or ambiguous `job_name`) and centralized
+partition discovery (`paths.py` `ParquetPartition`/`ParquetPartitionDiscovery`,
+consumed by `attach.py` and `parquet_compaction.py`) are in main; DuckDB
+Z2+Z3+Z4 attach queries and every SQL view stayed intact.
+
+ADR-037 Ops re-run VERIFIED PASS (Package 1 fully closed): exit 0 on both passes;
+ledger digest `sha256:fef3ada0c255ff48f3184e4f8c21bc4c4cd5337376a76296230ba4580c644cfb`
+is byte-identical across Pass 1 and Pass 2. 21 dispositions: 17 Analysis Cohort
+Trials `ANALYSIS_READY` (`hold_reasons: []`,
+`quarantine_job_identity_unresolved = 0`) and 4 Permanent Quarantines `HOLD`
+(`quarantined_darwin_docker_network_mode` x3, `quarantined_auth_timeout` x1).
+The ADR-037 acceptance contract is discharged: zero residual identity-unresolved
+rows, the four permanent quarantines keep their original reason codes, and no
+residual `HOLD` carries an invented identity.
 
 Package 2 milestone 1 (execution DTOs, PR #228 `d914850`) and Package 1 milestone
-1 (backfill entry point, PR #229 `1ceb7bc`) are merged. `lane/execution` still
-carries its two pre-squash milestone-1 commits (`768d8af`, `7461488`) and must
-rebase onto `origin/main` before Package 2 milestone 2 (Queue/Harbor separation)
-begins; that milestone waits for the Ops re-run per action 4. The
-`.worktrees/lane-execution` worktree named in the Active lanes table is absent
-from the worktree registry, so Agent Data must re-check out `lane/execution`
-first.
+1 (backfill entry point, PR #229 `1ceb7bc`) are merged. Agent Data `wK:p9` is
+paged to start Package 2 milestone 2 (Queue Driver & Harbor Watchdog separation)
+immediately; `lane/execution` must rebase onto `origin/main` to drop its
+redundant pre-squash milestone-1 commits (`768d8af`, `7461488`) and recreate the
+absent `.worktrees/lane-execution` worktree before landing. Runner, queue,
+network, container lifecycle, and signal behaviour stay byte-for-byte behavioural.
+
+Controller workstream: physical package migration of the flat `src/evallab/`
+module tree into `src/evallab/{execution,evidence,schemas,cli}/` subpackages with
+`__init__.py` re-export facades (the `recovery/` convention). Sequential order
+schemas → evidence → execution → cli; schemas/ is the dependency foundation and
+is non-conflicting with Agent Data, so it moves first.
 
 Golden CLI surface and leaf count are verified consistent at 83 leaf commands:
 `tests/test_cli_registry.py:180` asserts 83, and `test_cli_registry.py` and

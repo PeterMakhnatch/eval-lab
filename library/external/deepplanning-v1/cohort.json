@@ -1,0 +1,596 @@
+[
+  {
+    "task_id": "travel-kyoto-001",
+    "domain": "travel",
+    "prompt": "Plan a two-day Kyoto trip. Acquire every required source before proposing a plan; cite source IDs and return ordered steps with prices and minutes.",
+    "sources": [
+      {
+        "source_id": "flight-kix",
+        "kind": "flight",
+        "content": "KIX to Kyoto rail transfer: morning arrival 09:00, price 80, 90 minutes."
+      },
+      {
+        "source_id": "hotel-gion",
+        "kind": "hotel",
+        "content": "Gion hotel: city Kyoto, breakfast included, price 180 per night."
+      },
+      {
+        "source_id": "temple-pass",
+        "kind": "attraction",
+        "content": "Temple pass: reservation required, open 10:00, price 40, 120 minutes."
+      }
+    ],
+    "required_sources": [
+      "flight-kix",
+      "hotel-gion",
+      "temple-pass"
+    ],
+    "constraints": [
+      {
+        "constraint_id": "t1-local-city",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "city kyoto",
+        "evidence": [
+          "hotel-gion"
+        ]
+      },
+      {
+        "constraint_id": "t1-local-reservation",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "reservation required",
+        "evidence": [
+          "temple-pass"
+        ]
+      },
+      {
+        "constraint_id": "t1-flight-first",
+        "kind": "global",
+        "required": true,
+        "type": "depends_on",
+        "before": "flight",
+        "after": "temple",
+        "evidence": [
+          "flight-kix",
+          "temple-pass"
+        ]
+      },
+      {
+        "constraint_id": "t1-budget",
+        "kind": "global",
+        "required": true,
+        "type": "budget_lte",
+        "value": 500,
+        "evidence": [
+          "flight-kix",
+          "hotel-gion",
+          "temple-pass"
+        ]
+      },
+      {
+        "constraint_id": "t1-time",
+        "kind": "global",
+        "required": true,
+        "type": "time_lte",
+        "value": 360,
+        "evidence": [
+          "flight-kix",
+          "temple-pass"
+        ]
+      }
+    ],
+    "expected_status": "success",
+    "oracle": {
+      "status": "success",
+      "acquired_sources": [
+        "flight-kix",
+        "hotel-gion",
+        "temple-pass"
+      ],
+      "steps": [
+        {
+          "step_id": "flight",
+          "city": "Kyoto",
+          "price": 80,
+          "minutes": 90
+        },
+        {
+          "step_id": "hotel",
+          "city": "Kyoto",
+          "price": 360,
+          "minutes": 0
+        },
+        {
+          "step_id": "temple",
+          "reservation": "required",
+          "price": 40,
+          "minutes": 120
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "travel-lisbon-002",
+    "domain": "travel",
+    "prompt": "Find a Lisbon weekend itinerary under the stated budget. Acquire flight, hotel, and pass sources; if impossible, refuse explicitly with the benchmark refusal reason.",
+    "sources": [
+      {
+        "source_id": "flight-lis",
+        "kind": "flight",
+        "content": "Lisbon flight: price 450, 180 minutes."
+      },
+      {
+        "source_id": "hotel-baixa",
+        "kind": "hotel",
+        "content": "Baixa hotel: city Lisbon, price 600 total (300 per night, two nights required)."
+      },
+      {
+        "source_id": "museum-pass",
+        "kind": "attraction",
+        "content": "Museum pass: price 80, 90 minutes."
+      }
+    ],
+    "required_sources": [
+      "flight-lis",
+      "hotel-baixa",
+      "museum-pass"
+    ],
+    "constraints": [
+      {
+        "constraint_id": "t2-local-city",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "city lisbon",
+        "evidence": [
+          "hotel-baixa"
+        ]
+      },
+      {
+        "constraint_id": "t2-budget",
+        "kind": "global",
+        "required": true,
+        "type": "budget_lte",
+        "value": 900,
+        "evidence": [
+          "flight-lis",
+          "hotel-baixa",
+          "museum-pass"
+        ]
+      },
+      {
+        "constraint_id": "t2-time",
+        "kind": "global",
+        "required": true,
+        "type": "time_lte",
+        "value": 300,
+        "evidence": [
+          "flight-lis",
+          "museum-pass"
+        ]
+      }
+    ],
+    "expected_status": "infeasible",
+    "oracle": {
+      "status": "infeasible",
+      "refusal_reason": "minimum sourced cost is 1130, exceeding budget 900",
+      "acquired_sources": [
+        "flight-lis",
+        "hotel-baixa",
+        "museum-pass"
+      ]
+    },
+    "refusal_reason": "minimum sourced cost is 1130, exceeding budget 900"
+  },
+  {
+    "task_id": "travel-denver-003",
+    "domain": "travel",
+    "prompt": "Plan a Denver family day. Proactively acquire the transit, hotel, and aquarium sources, then provide a dependency-ordered plan satisfying accessibility, budget, and time.",
+    "sources": [
+      {
+        "source_id": "transit-den",
+        "kind": "transit",
+        "content": "Airport transit to Denver: accessible, price 35, 60 minutes."
+      },
+      {
+        "source_id": "hotel-den",
+        "kind": "hotel",
+        "content": "Denver hotel: family room, accessible, price 220."
+      },
+      {
+        "source_id": "aquarium-den",
+        "kind": "attraction",
+        "content": "Aquarium: reservation required, price 55, 150 minutes."
+      }
+    ],
+    "required_sources": [
+      "transit-den",
+      "hotel-den",
+      "aquarium-den"
+    ],
+    "constraints": [
+      {
+        "constraint_id": "t3-local-access",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "accessible",
+        "evidence": [
+          "transit-den",
+          "hotel-den"
+        ]
+      },
+      {
+        "constraint_id": "t3-local-family",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "family room",
+        "evidence": [
+          "hotel-den"
+        ]
+      },
+      {
+        "constraint_id": "t3-dependency",
+        "kind": "global",
+        "required": true,
+        "type": "depends_on",
+        "before": "transit",
+        "after": "aquarium",
+        "evidence": [
+          "transit-den",
+          "aquarium-den"
+        ]
+      },
+      {
+        "constraint_id": "t3-budget",
+        "kind": "global",
+        "required": true,
+        "type": "budget_lte",
+        "value": 400,
+        "evidence": [
+          "transit-den",
+          "hotel-den",
+          "aquarium-den"
+        ]
+      },
+      {
+        "constraint_id": "t3-time",
+        "kind": "global",
+        "required": true,
+        "type": "time_lte",
+        "value": 240,
+        "evidence": [
+          "transit-den",
+          "aquarium-den"
+        ]
+      }
+    ],
+    "expected_status": "success",
+    "oracle": {
+      "status": "success",
+      "acquired_sources": [
+        "transit-den",
+        "hotel-den",
+        "aquarium-den"
+      ],
+      "steps": [
+        {
+          "step_id": "transit",
+          "accessibility": "accessible",
+          "price": 35,
+          "minutes": 60
+        },
+        {
+          "step_id": "hotel",
+          "room": "family room",
+          "price": 220,
+          "minutes": 0
+        },
+        {
+          "step_id": "aquarium",
+          "reservation": "required",
+          "price": 55,
+          "minutes": 150
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "shopping-laptop-001",
+    "domain": "shopping",
+    "prompt": "Build a laptop bundle. Acquire product and coupon sources before choosing items; preserve the required memory and warranty facts and stay within budget.",
+    "sources": [
+      {
+        "source_id": "laptop-pro",
+        "kind": "product",
+        "content": "Laptop Pro: 16GB RAM, price 999."
+      },
+      {
+        "source_id": "warranty-2y",
+        "kind": "warranty",
+        "content": "Two-year warranty for Laptop Pro: price 99."
+      },
+      {
+        "source_id": "coupon-tech",
+        "kind": "coupon",
+        "content": "Tech coupon: subtract 150 when laptop and warranty are purchased together."
+      }
+    ],
+    "required_sources": [
+      "laptop-pro",
+      "warranty-2y",
+      "coupon-tech"
+    ],
+    "constraints": [
+      {
+        "constraint_id": "s1-local-memory",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "16gb ram",
+        "evidence": [
+          "laptop-pro"
+        ]
+      },
+      {
+        "constraint_id": "s1-local-coupon",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "subtract 150",
+        "evidence": [
+          "coupon-tech"
+        ]
+      },
+      {
+        "constraint_id": "s1-dependency",
+        "kind": "global",
+        "required": true,
+        "type": "depends_on",
+        "before": "laptop",
+        "after": "warranty",
+        "evidence": [
+          "laptop-pro",
+          "warranty-2y"
+        ]
+      },
+      {
+        "constraint_id": "s1-budget",
+        "kind": "global",
+        "required": true,
+        "type": "budget_lte",
+        "value": 1000,
+        "evidence": [
+          "laptop-pro",
+          "warranty-2y",
+          "coupon-tech"
+        ]
+      }
+    ],
+    "expected_status": "success",
+    "oracle": {
+      "status": "success",
+      "acquired_sources": [
+        "laptop-pro",
+        "warranty-2y",
+        "coupon-tech"
+      ],
+      "steps": [
+        {
+          "step_id": "laptop",
+          "memory": "16GB RAM",
+          "price": 999,
+          "minutes": 0
+        },
+        {
+          "step_id": "warranty",
+          "price": 99,
+          "minutes": 0
+        },
+        {
+          "step_id": "coupon",
+          "price": -150,
+          "minutes": 0
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "shopping-camping-002",
+    "domain": "shopping",
+    "prompt": "Assemble a lightweight camping kit. Acquire all catalog and discount sources; include the waterproof tent, preserve item dependencies, and keep total price and checkout time within limits.",
+    "sources": [
+      {
+        "source_id": "tent-waterproof",
+        "kind": "product",
+        "content": "Waterproof tent: price 140, lightweight."
+      },
+      {
+        "source_id": "sleeping-bag",
+        "kind": "product",
+        "content": "Sleeping bag: price 80, checkout 5 minutes."
+      },
+      {
+        "source_id": "camp-coupon",
+        "kind": "coupon",
+        "content": "Outdoor coupon: subtract 20 when tent and sleeping bag are together."
+      }
+    ],
+    "required_sources": [
+      "tent-waterproof",
+      "sleeping-bag",
+      "camp-coupon"
+    ],
+    "constraints": [
+      {
+        "constraint_id": "s2-local-tent",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "waterproof",
+        "evidence": [
+          "tent-waterproof"
+        ]
+      },
+      {
+        "constraint_id": "s2-local-coupon",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "subtract 20",
+        "evidence": [
+          "camp-coupon"
+        ]
+      },
+      {
+        "constraint_id": "s2-dependency",
+        "kind": "global",
+        "required": true,
+        "type": "depends_on",
+        "before": "tent",
+        "after": "sleeping-bag",
+        "evidence": [
+          "tent-waterproof",
+          "sleeping-bag"
+        ]
+      },
+      {
+        "constraint_id": "s2-budget",
+        "kind": "global",
+        "required": true,
+        "type": "budget_lte",
+        "value": 250,
+        "evidence": [
+          "tent-waterproof",
+          "sleeping-bag",
+          "camp-coupon"
+        ]
+      },
+      {
+        "constraint_id": "s2-time",
+        "kind": "global",
+        "required": true,
+        "type": "time_lte",
+        "value": 10,
+        "evidence": [
+          "tent-waterproof",
+          "sleeping-bag"
+        ]
+      }
+    ],
+    "expected_status": "success",
+    "oracle": {
+      "status": "success",
+      "acquired_sources": [
+        "tent-waterproof",
+        "sleeping-bag",
+        "camp-coupon"
+      ],
+      "steps": [
+        {
+          "step_id": "tent",
+          "feature": "waterproof",
+          "price": 140,
+          "minutes": 5
+        },
+        {
+          "step_id": "sleeping-bag",
+          "price": 80,
+          "minutes": 5
+        },
+        {
+          "step_id": "coupon",
+          "price": -20,
+          "minutes": 0
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "shopping-coffee-003",
+    "domain": "shopping",
+    "prompt": "Assemble the specified espresso setup under the budget. Acquire every product and coupon source. If the constraints make it impossible, do not substitute another product: return the exact refusal reason.",
+    "sources": [
+      {
+        "source_id": "espresso-machine",
+        "kind": "product",
+        "content": "Pro espresso machine: price 700, 15 minutes checkout."
+      },
+      {
+        "source_id": "grinder",
+        "kind": "product",
+        "content": "Burr grinder: price 240, 5 minutes checkout."
+      },
+      {
+        "source_id": "coffee-coupon",
+        "kind": "coupon",
+        "content": "Coffee coupon: subtract 20 for both products."
+      }
+    ],
+    "required_sources": [
+      "espresso-machine",
+      "grinder",
+      "coffee-coupon"
+    ],
+    "constraints": [
+      {
+        "constraint_id": "s3-local-machine",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "espresso machine",
+        "evidence": [
+          "espresso-machine"
+        ]
+      },
+      {
+        "constraint_id": "s3-local-grinder",
+        "kind": "local",
+        "required": true,
+        "type": "source_contains",
+        "value": "burr grinder",
+        "evidence": [
+          "grinder"
+        ]
+      },
+      {
+        "constraint_id": "s3-budget",
+        "kind": "global",
+        "required": true,
+        "type": "budget_lte",
+        "value": 800,
+        "evidence": [
+          "espresso-machine",
+          "grinder",
+          "coffee-coupon"
+        ]
+      },
+      {
+        "constraint_id": "s3-time",
+        "kind": "global",
+        "required": true,
+        "type": "time_lte",
+        "value": 30,
+        "evidence": [
+          "espresso-machine",
+          "grinder"
+        ]
+      }
+    ],
+    "expected_status": "infeasible",
+    "oracle": {
+      "status": "infeasible",
+      "refusal_reason": "minimum sourced cost is 920, exceeding budget 800",
+      "acquired_sources": [
+        "espresso-machine",
+        "grinder",
+        "coffee-coupon"
+      ]
+    },
+    "refusal_reason": "minimum sourced cost is 920, exceeding budget 800"
+  }
+]

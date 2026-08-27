@@ -1,0 +1,62 @@
+{
+  "task_id": "travel-lisbon-002",
+  "domain": "travel",
+  "prompt": "Find a Lisbon weekend itinerary under the stated budget. Acquire flight, hotel, and pass sources; if impossible, refuse explicitly with the benchmark refusal reason.",
+  "sources": [
+    {
+      "source_id": "flight-lis",
+      "kind": "flight",
+      "content": "Lisbon flight: price 450, 180 minutes."
+    },
+    {
+      "source_id": "hotel-baixa",
+      "kind": "hotel",
+      "content": "Baixa hotel: city Lisbon, price 600 total (300 per night, two nights required)."
+    },
+    {
+      "source_id": "museum-pass",
+      "kind": "attraction",
+      "content": "Museum pass: price 80, 90 minutes."
+    }
+  ],
+  "required_sources": [
+    "flight-lis",
+    "hotel-baixa",
+    "museum-pass"
+  ],
+  "constraints": [
+    {
+      "constraint_id": "t2-local-city",
+      "kind": "local",
+      "required": true,
+      "type": "source_contains",
+      "value": "city lisbon",
+      "evidence": [
+        "hotel-baixa"
+      ]
+    },
+    {
+      "constraint_id": "t2-budget",
+      "kind": "global",
+      "required": true,
+      "type": "budget_lte",
+      "value": 900,
+      "evidence": [
+        "flight-lis",
+        "hotel-baixa",
+        "museum-pass"
+      ]
+    },
+    {
+      "constraint_id": "t2-time",
+      "kind": "global",
+      "required": true,
+      "type": "time_lte",
+      "value": 300,
+      "evidence": [
+        "flight-lis",
+        "museum-pass"
+      ]
+    }
+  ]
+}

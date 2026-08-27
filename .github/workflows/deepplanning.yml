@@ -1,0 +1,47 @@
+name: deepplanning-canary
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "library/external/deepplanning-v1/**"
+      - "src/evallab/deepplanning.py"
+      - "tests/test_deepplanning.py"
+      - "tests/test_deepplanning_canary.py"
+      - ".github/workflows/deepplanning.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install uv and Python
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          uv python install 3.12
+          uv sync --locked
+      - name: Verify deterministic materialization
+        run: |
+          cp -a library/external/deepplanning-v1/tasks/travel-lisbon-002 "$RUNNER_TEMP/travel-lisbon-first"
+          uv run python library/external/deepplanning-v1/materialize.py --task-id travel-lisbon-002
+          diff -ru "$RUNNER_TEMP/travel-lisbon-first" library/external/deepplanning-v1/tasks/travel-lisbon-002
+      - name: Run focused tests
+        run: uv run pytest tests/test_deepplanning.py tests/test_deepplanning_canary.py -q
+      - name: Run deterministic local controls
+        run: bash library/external/deepplanning-v1/run_controls.sh
+      - name: Run Linux task-workbench controls
+        run: uv run python library/external/deepplanning-v1/workbench.py | tee "$RUNNER_TEMP/deepplanning-workbench.json"
+      - name: Upload certification packet
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: deepplanning-workbench-packet
+          path: |
+            research/registration/candidates/
+            ${{ runner.temp }}/deepplanning-workbench.json
+          if-no-files-found: error

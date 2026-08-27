@@ -1,0 +1,10 @@
+{
+  "task_id": "travel-lisbon-002",
+  "expected_status": "infeasible",
+  "expected_refusal_reason": "minimum sourced cost is 1130, exceeding budget 900",
+  "required_sources": [
+    "flight-lis",
+    "hotel-baixa",
+    "museum-pass"
+  ]
+}

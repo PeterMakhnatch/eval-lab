@@ -152,15 +152,15 @@ def _step_actions(ir: TrajectoryIR) -> list[tuple[int, int | None, tuple[str, st
     seen_events: set[str] = set()
 
     for ev in ir.events:
+        # Align only agent tool calls and verifier checks; keep filesystem state events isolated from action tokens
         if (
             ev.event_type in ("tool_call", "verifier_check")
             or ev.action_family in ("file_edit", "file_write", "verification")
-        ) and ev.event_id not in seen_events:
+        ) and ev.event_type != "state_change" and ev.event_id not in seen_events:
             actions.append((ev.step_index, ev.call_index, _action_token(ev), ev))
             seen_events.add(ev.event_id)
 
     return actions
-
 
 def align_action_sequences(
     seq_a: Sequence[tuple[int, int | None, tuple[str, str, str], IREvent]],
@@ -272,16 +272,15 @@ def align_trajectory_pair(
             f"Cannot align trials with mismatched task names: {ir_a.task_name!r} vs {ir_b.task_name!r}"
         )
 
-    if ir_a.task_digest and ir_b.task_digest and ir_a.task_digest != ir_b.task_digest:
+    if (ir_a.task_digest or ir_b.task_digest) and ir_a.task_digest != ir_b.task_digest:
         raise ConfoundedPairError(
             f"Task digest mismatch ({ir_a.task_digest} vs {ir_b.task_digest}); trials evaluated different task versions."
         )
 
-    if ir_a.verifier_digest and ir_b.verifier_digest and ir_a.verifier_digest != ir_b.verifier_digest:
+    if (ir_a.verifier_digest or ir_b.verifier_digest) and ir_a.verifier_digest != ir_b.verifier_digest:
         raise ConfoundedPairError(
             f"Verifier digest mismatch ({ir_a.verifier_digest} vs {ir_b.verifier_digest}); evaluation criteria differ."
         )
-
     # 2. Extract fine-grained step actions
     seq_a = _step_actions(ir_a)
     seq_b = _step_actions(ir_b)
@@ -326,11 +325,15 @@ def align_trajectory_pair(
                 )
 
     k_star_a: int | None = None
+    k_star_call_a: int | None = None
     k_star_b: int | None = None
+    k_star_call_b: int | None = None
     if k_star_idx is not None and k_star_idx < len(aligned_pairs):
         p_div = aligned_pairs[k_star_idx]
         k_star_a = p_div.step_a
+        k_star_call_a = p_div.call_index_a
         k_star_b = p_div.step_b
+        k_star_call_b = p_div.call_index_b
 
     curr_unmatched_a_start = None
     curr_unmatched_a_end = None
@@ -362,17 +365,16 @@ def align_trajectory_pair(
     cit_b: CitationHandle | None = None
 
     if k_star_a is not None:
-        for _, _, _, ev in seq_a:
-            if ev.step_index == k_star_a:
+        for s_idx, c_idx, _, ev in seq_a:
+            if s_idx == k_star_a and (k_star_call_a is None or c_idx == k_star_call_a):
                 cit_a = ev.source_citation
                 break
 
     if k_star_b is not None:
-        for _, _, _, ev in seq_b:
-            if ev.step_index == k_star_b:
+        for s_idx, c_idx, _, ev in seq_b:
+            if s_idx == k_star_b and (k_star_call_b is None or c_idx == k_star_call_b):
                 cit_b = ev.source_citation
                 break
-
     cfg_delta = (
         f"model: {ir_a.model_name} vs {ir_b.model_name}"
         if ir_a.model_name != ir_b.model_name

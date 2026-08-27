@@ -543,3 +543,90 @@ def test_multi_tool_call_ir_event_preservation(tmp_path: Path, repo_root: Path) 
     assert tool_events[1].status_owning_program == "cat"
     assert tool_events[2].action_family == "file_edit"
     assert ir.final_verdict == "PASS"
+
+
+def test_project_ir_graph_structure_and_edges(tmp_path: Path, repo_root: Path) -> None:
+    """Verify TrajectoryIR projects typed nodes and causal/sequential graph edges."""
+    from evallab.trajectory_ir import project_ir_graph
+
+    trial_dir = tmp_path / "graph-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-graph",
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Execute task"},
+            {
+                "step_id": 2,
+                "source": "agent",
+                "tool_calls": [{"name": "edit", "arguments": {"file": "code.py"}, "tool_call_id": "c1"}],
+                "observations": [{"source_call_id": "c1", "content": "saved"}],
+            },
+            {
+                "step_id": 3,
+                "source": "agent",
+                "tool_calls": [{"name": "pytest", "arguments": {"command": "pytest test.py"}, "tool_call_id": "c2"}],
+                "observations": [{"source_call_id": "c2", "content": "passed", "extra": {"exit_code": 0}}],
+            },
+            {"step_id": 4, "source": "verifier", "message": "verifier passed"},
+        ],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(json.dumps({"id": "g-id", "trial_name": "g-trial", "task_name": "synthetic/graph"}))
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+    graph = project_ir_graph(ir)
+
+    assert graph.node_count == len(ir.events)
+    assert graph.edge_count > 0
+    assert "chronological_sequence" in graph.edge_type_counts
+    assert "mutation_to_verification" in graph.edge_type_counts
+
+    # Node and edge dictionary projections
+    node_dicts = [n.to_projection_dict() for n in graph.nodes]
+    edge_dicts = [e.to_projection_dict() for e in graph.edges]
+    assert len(node_dicts) == graph.node_count
+    assert len(edge_dicts) == graph.edge_count
+    assert all("edge_id" in e for e in edge_dicts)
+
+
+def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_root: Path) -> None:
+    """Verify StateJournal inotify events and state diffs are normalized into IREvents."""
+    trial_dir = tmp_path / "state-trial"
+    (trial_dir / "agent").mkdir(parents=True)
+    (trial_dir / "state-journal").mkdir(parents=True)
+
+    raw_atif = {
+        "schema_version": "ATIF-v1.4",
+        "session_id": "sess-state",
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Edit file"},
+            {"step_id": 2, "source": "agent", "tool_calls": [{"name": "edit", "arguments": {"file": "app.py"}, "tool_call_id": "e1"}], "observations": [{"source_call_id": "e1", "content": "ok"}]},
+        ],
+    }
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(raw_atif, indent=2))
+    (trial_dir / "result.json").write_text(json.dumps({"id": "st-id", "trial_name": "state-trial", "task_name": "synthetic/state"}))
+
+    # Create state-events.jsonl
+    state_event_1 = {
+        "sequence": 1,
+        "operations": ["modify", "close_write"],
+        "path": "/app/app.py",
+        "before_state_digest": "sha256:before1",
+        "after_state_digest": "sha256:after1",
+    }
+    (trial_dir / "state-journal" / "state-events.jsonl").write_text(json.dumps(state_event_1) + "\n")
+    (trial_dir / "state-journal" / "state-diff.json").write_text(json.dumps({"initial_state_digest": "sha256:before1", "final_state_digest": "sha256:after1", "state_changed": True}))
+
+    ir = build_trajectory_ir(trial_dir, repo_root=tmp_path)
+
+    # Step 1 (user) + Step 2 (tool_call + observation) + State Change (1) = 4 events
+    assert len(ir.events) == 4
+    state_events = [e for e in ir.events if e.event_type == "state_change"]
+    assert len(state_events) == 1
+    assert state_events[0].actor == "environment"
+    assert state_events[0].status_owning_program == "inotify"
+    assert state_events[0].action_family == "other"
+    assert state_events[0].state_before_digest == "sha256:before1"
+    assert state_events[0].state_after_digest == "sha256:after1"
+    assert ir.evidence_coverage.get("state_diff_observed") is True

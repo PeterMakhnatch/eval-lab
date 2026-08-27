@@ -1,30 +1,92 @@
 ---
-status: plan-only
+status: in-progress
 owner: Architect
-date: 2026-08-26
-authority: TRAJECTORY-WORK-ORDERS-2026-08-26.md
+date: 2026-08-27
+authority: Peter assignment (2026-08-27)
 ---
 
 # Eval Lab Incremental Package Migration Plan
 
 ## Decision
 
-No mass rename, move, deletion, archive, or package split is authorized. This plan preserves the reconciled PR #200 audit baseline and its refreshed consumer/ownership delta at `442e602` as independently reviewable, behavior-preserving future packages. Implementation requires a separate Architect assignment after every current dependency and worktree gate clears.
+The 2026-08-27 Architect assignment authorizes a behavior-preserving physical
+move of the flat `src/evallab/` module tree into
+`src/evallab/{schemas,evidence,execution,cli}/` packages. Explicit
+`__init__.py` facades preserve public imports. The move is sequential:
+schemas → evidence → execution → cli.
 
-Dynamic loading, operator SQL, console scripts, public imports, test-only research utilities, generated products, and active worktrees count as consumers. Zero static imports, old age, a large file, or a similar name is never sufficient deletion evidence.
+This authority supersedes the prior plan-only stop state for physical packaging
+only. It does not authorize behavior changes, compatibility removal, generated
+product edits outside their generators, policy relaxation, or deletion based
+only on apparent lack of static imports. Dynamic loading, operator SQL, console
+scripts, public imports, test-only research utilities, generated products, and
+active worktrees remain consumers.
 
 ## Target boundaries
 
-| Boundary | Responsibility | Authorities preserved | Plan |
+| Boundary | Responsibility | Integration boundary |
+|---|---|---|
+| `schemas` | core typed models, immutable DTOs, trial specs, validation schemas | first wave; preserve serialized forms and `evallab.schemas` imports; no runtime-engine or database imports |
+| `evidence` | Trajectory IR, ATIF telemetry, CAS, Parquet/DuckDB partitioning, digest synthesis | second wave; preserve raw → IR → pack authority, digests, schemas, rows, SQL, and query results |
+| `execution` | trial lifecycle, Harbor sandbox orchestration, worker queues, quota gates | third wave, after Agent Data's Package 2 milestone 2 merges; preserve queue atomicity, fail-closed sandboxing, signals, cleanup, and command/environment snapshots |
+| `cli` | parser, command handlers, entrypoints, compatibility alias | final wave; `evallab.cli:main` and `evallab.cli:legacy_main` remain resolvable and the 83-leaf golden surface remains byte-identical |
+
+## Changed-path overlap inventory — 2026-08-27
+
+Source: registered Git worktrees, branch changes against `origin/main`, and
+working-tree status. A dirty worktree proves local mutation, not current owner
+activity. Divergent history alone is not treated as an inevitable conflict.
+
+| Classification | Branch / worktree | Observed migration-boundary paths | Disposition |
 |---|---|---|---|
-| `execution` | requests, queue leases, provider/network staging, lifecycle, quota | runner/queue/network/automation/quota and dynamic Harbor adapters | facade-first pure-contract extraction only |
-| `evidence` | raw/ATIF/state/facts/quality/IR/hydration/pack/CAS | Harbor/ATIF/CAS raw authority and Agent Data-owned trajectory files | break cycles after PR #199; no alternate producer |
-| `interpretation` | recipes, judgment, acceptance, reports | Platform runtime/judgment/acceptance and Analyst recipes | auto-accept remains disabled |
-| `storage` | PostgreSQL, DuckDB attach, Parquet discovery/compaction | database/attach/compaction and SQL operator surfaces | pure partition discovery first; no unverified SQL removal |
-| `experiments` | specs, cohorts, ladders, matrices | spec/cohort/ladder/screen/manifests | desired boundary only this wave |
-| `benchmarks` | adapters, materializers, controls | `library/benchmarks`, `library/adapters`, registry/workbench | no movement this wave |
-| `synthetic` | transforms, certification, projections | synthetic modules and `library/synthetic` | no movement before selected-family interfaces freeze |
-| `cli` | parser, handlers, entrypoint/compatibility | `cli.py`, primary command, permanent legacy CLI alias, golden surface | last code package |
+| controller scaffold | `main` / repository root | untracked `src/evallab/{schemas,evidence,execution,cli}/` directories containing package contracts | preserve and copy the contracts into `lane/migration`; do not mutate the primary checkout |
+| confirmed active writer | `lane/execution` / `.worktrees/lane-execution` | dirty `execution_contracts.py`, `harbor_watchdog.py`, `queue.py`, `queue_driver.py`, `runner.py` | Agent Data owns these paths until its milestone PR merges; the migration execution wave is blocked on that merge |
+| dirty, activity unconfirmed | `feature/data-backfill-command` / `.worktrees/data-backfill-command` | `cli.py`, `data_backfill.py` | preserve local work; no migration dependency unless the owner elects to land it before the corresponding wave |
+| dirty, activity unconfirmed | `feature/trajectory-interpretation-v1` / `.worktrees/trajectory-interpretation-v1` | `acceptance.py`, `cli.py`, `evidence_pack.py`, `schemas.py`, `trajectory_alignment.py`, `trajectory_hydration.py`, `trajectory_ir.py`, `docs/repo-map.md`, CLI golden | preserve local work; owner must merge before the affected wave or rebase onto the post-migration layout |
+| dirty, activity unconfirmed | `feature/canary-runs-ir-v1` / `.worktrees/canary-runs-ir-v1` | `canary_pipeline.py`, `docs/repo-map.md` | preserve local work; owner must merge before the affected wave or rebase after migration |
+| dirty, activity unconfirmed | `feature/benchmark-semantic-facts-v1` / `/private/tmp/eval-lab-wave-shared` | `cli.py`, `semantic_facts.py` | preserve local work; owner must merge before the affected wave or rebase after migration |
+| recent clean historical lane | `lane/storage` / `.worktrees/lane-storage` | `attach.py`, `data_backfill.py`, `parquet_compaction.py`, `paths.py`, `docs/repo-map.md` | Package 1 milestone 2 is already merged at `933b8a3`; no current dirty overlap |
+
+Thirty-four registered worktree branches have some committed divergence touching
+the broad migration boundary. That count is an integration watchlist, not
+evidence that thirty-four branches are active. Any branch resumed during the
+freeze follows the rule below.
+
+## WIP and freeze rule
+
+The freeze starts with `lane/migration` at
+`.worktrees/lane-migration` and ends only when its migration PR merges or the
+Architect explicitly releases it.
+
+1. Migration-owned paths are all flat `src/evallab/*.py` modules, all files
+   under `src/evallab/{schemas,evidence,execution,cli}/`, and the integration
+   surfaces `pyproject.toml`, `docs/repo-map.md`, and
+   `tests/golden/cli_surface.json`.
+2. No branch other than `lane/migration` starts a new edit, rename, or move in
+   those paths during the freeze. Repo Custodian efficiency work records
+   findings only across this boundary until the migration lands.
+3. Agent Data's already-started Package 2 milestone 2 is the sole exception.
+   Agent Data remains the only writer for its five observed dirty modules; the
+   migration does not move or edit them until that PR merges, then rebases onto
+   `origin/main` and moves the merged result.
+4. Existing uncommitted work is preserved. If an already-dirty branch must land,
+   it merges before the affected migration wave; otherwise it waits and rebases
+   onto the post-migration layout. No unpublished file is copied between
+   worktrees.
+5. An urgent fix to a migration-owned path lands on `main` first through its own
+   reviewed PR. `lane/migration` then rebases before continuing. No parallel
+   compatibility shim or second import convention is introduced.
+6. The no-change boundary remains binding: public import paths, serialized
+   forms, CLI arguments/defaults/help/exits, the 83-leaf golden CLI surface,
+   Hatch package discovery, both console-script entrypoints, policy approvals,
+   and the `recovery/__init__.py` explicit-facade convention do not change.
+
+## Superseded staged plan (historical record)
+
+The M0–M5 plan below records the pre-assignment gates. Its behavior,
+compatibility, deletion, and generated-product constraints remain binding; its
+plan-only implementation stop state and previous target shape are superseded by
+the current assignment above.
 
 ## M0 — documentation truth and compatibility inventory
 

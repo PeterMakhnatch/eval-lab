@@ -9,88 +9,83 @@ import signal
 import subprocess
 import sys
 import time
-from collections.abc import Mapping
 from contextlib import suppress
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from evallab.execution_contracts import (
+    _SUBSCRIPTION_ENVIRONMENT_KEYS,
+    CONTROL_AGENTS,
+    DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+    DEFAULT_TRIAL_TIMEOUT_SECONDS,
+    HARBOR_AGENT_IMPORT_PATHS,
+    HARBOR_STATE_JOURNAL_PLUGIN,
+    LOCAL_TO_HARBOR_MODEL,
+    MAX_TRIAL_TIMEOUT_SECONDS,
+    SUPPORT_COMMAND_TIMEOUT_SECONDS,
+    WATCHDOG_POLL_SECONDS,
+    ExecutionFailure,
+    HarborProcessResult,
+    RunRequest,
+    TransientHarnessFailure,
+    TrialTimeoutFailure,
+    build_command,
+    resolve_harbor_agent,
+    resolve_harbor_model,
+    subscription_command,
+    subscription_environment,
+    transient_provider_exception,
+    transient_provider_reason,
+    validate_request,
+)
 from evallab.harbor_network import NetworkAdaptation, adapt_task_toml_for_host
 from evallab.results import load_job
-from evallab.schemas import ExperimentMatrix, MatrixRun, RunProvenance
+from evallab.schemas import ExperimentMatrix, MatrixRun
 
-CONTROL_AGENTS = {"oracle", "nop"}
-SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
-DEFAULT_TRIAL_TIMEOUT_SECONDS = 1_800
-MAX_TRIAL_TIMEOUT_SECONDS = 21_600
-DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30.0
-SUPPORT_COMMAND_TIMEOUT_SECONDS = 10
-WATCHDOG_POLL_SECONDS = 0.1
+__all__ = [
+    "_SUBSCRIPTION_ENVIRONMENT_KEYS",
+    "CONTROL_AGENTS",
+    "DEFAULT_HEARTBEAT_INTERVAL_SECONDS",
+    "DEFAULT_TRIAL_TIMEOUT_SECONDS",
+    "HARBOR_AGENT_IMPORT_PATHS",
+    "HARBOR_STATE_JOURNAL_PLUGIN",
+    "LOCAL_TO_HARBOR_MODEL",
+    "MAX_TRIAL_TIMEOUT_SECONDS",
+    "SUPPORT_COMMAND_TIMEOUT_SECONDS",
+    "WATCHDOG_POLL_SECONDS",
+    "HarborProcessResult",
+    "RunRequest",
+    "TransientHarnessFailure",
+    "TrialTimeoutFailure",
+    "build_command",
+    "cleanup_new_harbor_containers",
+    "database_url_from_environment",
+    "expected_primary_reward",
+    "executor_state_path",
+    "git_state",
+    "harbor_container_ids",
+    "load_matrix",
+    "preflight_request",
+    "profile_for_request",
+    "request_from_matrix",
+    "resolve_harbor_agent",
+    "resolve_harbor_model",
+    "run_experiment",
+    "run_harbor_process",
+    "subscription_command",
+    "subscription_environment",
+    "tool_version",
+    "transient_provider_exception",
+    "transient_provider_reason",
+    "validate_request",
+]
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
-_PROVIDER_429 = re.compile(
-    r"(?:http(?:/\d(?:\.\d)?)?\s*429|status(?:\s+code)?\s*[:=]?\s*429|"
-    r"429.{0,80}(?:rate.?limit|too many requests)|"
-    r"(?:rate.?limit|too many requests).{0,80}429)",
-    re.IGNORECASE | re.DOTALL,
-)
-_PROVIDER_5XX = re.compile(
-    r"(?:http(?:/\d(?:\.\d)?)?\s*5\d\d|status(?:\s+code)?\s*[:=]?\s*5\d\d|"
-    r"\b5\d\d\b.{0,80}(?:provider|upstream|api|server|gateway|service unavailable))",
-    re.IGNORECASE | re.DOTALL,
-)
-_KNOWN_TRANSIENT_PROVIDER_EXCEPTIONS = {
-    "ApiRateLimitError": "transient_harness:provider_http_429",
-    "ApiInternalServerError": "transient_harness:provider_http_5xx",
-    "ApiOverloadedError": "transient_harness:provider_http_5xx",
-}
-_PROVIDER_WRAPPER_EXCEPTIONS = {
-    "AgentRunError",
-    "NonZeroAgentExitCodeError",
-    "UnknownApiError",
-}
-_SUBSCRIPTION_ENVIRONMENT_KEYS = {
-    # Antigravity (agy) reads a plaintext OAuth token file, not an API key, so
-    # forwarding these keeps the lab subscriptions-only. Harbor's
-    # antigravity_cli adapter resolves AGY_AUTH_JSON_PATH first, then falls
-    # back to ~/.gemini/antigravity-cli/antigravity-oauth-token when
-    # AGY_FORCE_AUTH_JSON is truthy. Mint the token with:
-    #   ~/.local/share/uv/tools/harbor/bin/python \
-    #     -m harbor.agents.installed.antigravity_login
-    # CURSOR_API_KEY is deliberately absent: Harbor's cursor_cli adapter
-    # requires an API key, which this lab's profiles forbid by name. Adding it
-    # is a policy decision for a human, not a plumbing fix.
-    "AGY_AUTH_JSON_PATH",
-    "AGY_FORCE_AUTH_JSON",
-    "CLAUDE_FORCE_OAUTH",
-    "CODEX_HOME",
-    "CODEX_FORCE_AUTH_JSON",
-    "DOCKER_CONFIG",
-    "DOCKER_CONTEXT",
-    "DOCKER_HOST",
-    "HOME",
-    "HARBOR_CLAUDE_KEYCHAIN_ACCOUNT",
-    "HARBOR_CLAUDE_KEYCHAIN_SERVICE",
-    "LANG",
-    "LC_ALL",
-    "LC_CTYPE",
-    "LOGNAME",
-    "PATH",
-    "REWARDKIT_FORCE_OAUTH",
-    "SECURITYSESSIONID",
-    "SHELL",
-    "SSH_AUTH_SOCK",
-    "TERM",
-    "TMPDIR",
-    "USER",
-    "XDG_CACHE_HOME",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
-}
 
 
 def _run_text_command(
@@ -98,100 +93,6 @@ def _run_text_command(
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, **kwargs)
-
-
-class ExecutionFailure(RuntimeError):
-    reason_code = "execution_failed"
-
-
-class TrialTimeoutFailure(ExecutionFailure):
-    reason_code = "trial_wall_clock_timeout"
-
-
-class TransientHarnessFailure(ExecutionFailure):
-    def __init__(self, reason_code: str, *, message: str | None = None) -> None:
-        self.reason_code = reason_code
-        super().__init__(message or reason_code)
-
-
-@dataclass(frozen=True)
-class RunRequest:
-    task: Path
-    agent: str
-    name: str
-    jobs_dir: Path
-    environment: str = "docker"
-    model: str | None = None
-    concurrency: int = 1
-    attempts: int = 1
-    timeout_seconds: int = DEFAULT_TRIAL_TIMEOUT_SECONDS
-    allow_billable: bool = False
-    provenance: RunProvenance | None = None
-    lease_path: Path | None = None
-    extra_instruction_path: Path | None = None
-
-    @property
-    def job_timeout_seconds(self) -> int:
-        """Conservative process deadline: one wall-clock allowance per attempt."""
-        return self.timeout_seconds * self.attempts
-
-
-def subscription_environment(
-    environment: Mapping[str, str] | None = None,
-) -> dict[str, str]:
-    """Build Harbor's environment from a non-secret allowlist.
-
-    Values of API-key variables are never accessed or forwarded. Subscription
-    agents authenticate through their auth file or Keychain integration.
-    """
-    source = os.environ if environment is None else environment
-    sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
-    # These switches are routing metadata, not credentials. Force Harbor's
-    # installed agents onto subscription authentication even when a caller did
-    # not source the optional interactive helper. API-key variables are never
-    # looked up above and therefore cannot leak into a child process.
-    sanitized["AGY_FORCE_AUTH_JSON"] = "1"
-    sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
-    sanitized["CLAUDE_FORCE_OAUTH"] = "1"
-    sanitized["REWARDKIT_FORCE_OAUTH"] = "1"
-    return sanitized
-
-
-def transient_provider_reason(text: str) -> str | None:
-    if _PROVIDER_429.search(text):
-        return "transient_harness:provider_http_429"
-    if _PROVIDER_5XX.search(text):
-        return "transient_harness:provider_http_5xx"
-    return None
-
-
-def transient_provider_exception(result: Mapping[str, Any]) -> str | None:
-    """Classify only structured provider-facing trial exceptions."""
-    exception = result.get("exception_info")
-    if not isinstance(exception, Mapping):
-        return None
-    exception_type = str(exception.get("exception_type") or "")
-    known_reason = _KNOWN_TRANSIENT_PROVIDER_EXCEPTIONS.get(exception_type)
-    if known_reason is not None:
-        return known_reason
-    if exception_type not in _PROVIDER_WRAPPER_EXCEPTIONS:
-        return None
-    message = exception.get("exception_message") or exception.get("message")
-    if not isinstance(message, str):
-        return None
-    # Installed-agent failures embed the full shell command (and therefore the
-    # task prompt) before the adapter's output. Never let a task that mentions
-    # an HTTP status manufacture a retry classification.
-    if message.startswith("Command failed"):
-        _, separator, adapter_output = message.rpartition("\nstdout:")
-        if not separator:
-            return None
-        message = adapter_output
-    elif exception_type == "NonZeroAgentExitCodeError":
-        return None
-    return transient_provider_reason(message)
-
-
 def _is_under(path: Path, root: Path) -> bool:
     try:
         path.resolve().relative_to(root.resolve())
@@ -361,150 +262,6 @@ def git_state(root: Path) -> dict[str, Any]:
         "dirty": bool(status.stdout.strip()) if status.returncode == 0 else None,
     }
 
-
-def validate_request(request: RunRequest) -> None:
-    if not request.task.is_dir():
-        raise ValueError(f"Task directory does not exist: {request.task}")
-    if not (request.task / "task.toml").is_file():
-        raise ValueError(f"Task directory has no task.toml: {request.task}")
-    if not SAFE_JOB_NAME.fullmatch(request.name):
-        raise ValueError("Job names must be 3-80 lowercase letters, numbers, or hyphens")
-    if (
-        request.concurrency < 1
-        or request.attempts < 1
-        or not 1 <= request.timeout_seconds <= MAX_TRIAL_TIMEOUT_SECONDS
-    ):
-        raise ValueError(
-            "Concurrency and attempts must be positive; timeout must be 1-21600 seconds"
-        )
-    if request.agent not in CONTROL_AGENTS and not request.allow_billable:
-        raise ValueError(
-            f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "
-            "after reviewing credentials, model, and expected cost."
-        )
-    if request.model and request.agent in CONTROL_AGENTS:
-        raise ValueError(f"The {request.agent} control does not accept a model")
-    if request.model and not request.allow_billable:
-        raise ValueError("A model requires --allow-billable")
-
-
-# Mapping from local CLI model identifiers to Harbor-compatible model identifiers.
-#
-# The only difference between the two namespaces is the provider prefix. Harbor
-# requires one; `agy` does not accept one:
-#  - Harbor rejects a bare id (`antigravity_cli.py:776-777`,
-#    `ValueError: Model name must be in the format provider/model_name`). That
-#    check lives in the run path, so a bare id fails mid-trial, after the
-#    container is built.
-#  - Harbor then strips the prefix (`antigravity_cli.py:779`) and passes the
-#    remainder verbatim as `agy --model <remainder>` (`:810-819`).
-#
-# The thinking level belongs *in* the model id, because that is how `agy` names
-# its models: `agy models` lists `gemini-3.7-flash-high`, `-medium`, `-low` as
-# distinct ids. Proven by a live containerised trial on 2026-08-19:
-#
-#   --model google/gemini-3.7-flash      -> agy exits non-zero:
-#       "invalid model selection (--model "gemini-3.7-flash" --effort ""):
-#        --model gemini-3.7-flash requires --effort (available: low, medium, high)"
-#   --model google/gemini-3.7-flash-high -> trial completes, primary reward 1.0
-#
-# Do not try to send the level separately as `--agent-kwarg reasoning_effort=`.
-# Harbor's adapter declares no `--effort` flag at all (`CLI_FLAGS` holds only
-# `sandbox`, `:47-53`); the kwarg only writes a `~/.agy` settings file that
-# Harbor's own comment says the *legacy* CLI reads (`:806-809`). It never reaches
-# the Go CLI, which is why the run above failed with an empty `--effort`.
-#
-# Cost note: `litellm.model_cost` has no entry for the suffixed id
-# (`antigravity_cli.py:625-629`), so Harbor cannot price these trials. That is
-# correct here - this lane bills against a subscription, not per token, and this
-# lab records provider dollar figures only as list-price equivalents.
-LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
-    ("antigravity-cli", "gemini-3.7-flash-high"): "google/gemini-3.7-flash-high",
-    ("antigravity-cli", "gemini-3.7-flash-medium"): "google/gemini-3.7-flash-medium",
-    ("antigravity-cli", "gemini-3.7-flash-low"): "google/gemini-3.7-flash-low",
-    ("antigravity-cli", "gemini-3.1-pro-high"): "google/gemini-3.1-pro-high",
-    ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
-}
-
-HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
-    "codex": "evallab.harbor_codex:PinnedCodex",
-    "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
-}
-
-HARBOR_STATE_JOURNAL_PLUGIN = "evallab.harbor_state_journal:StateJournalPlugin"
-
-
-def resolve_harbor_agent(agent: str) -> str:
-    """Use the lab-owned adapter where Harbor supports custom import paths."""
-    return HARBOR_AGENT_IMPORT_PATHS.get(agent, agent)
-
-
-def resolve_harbor_model(agent: str, model: str | None) -> str | None:
-    """Translate a local CLI model identifier to Harbor's expected model string.
-
-    Returns the mapped Harbor model if one is registered for (agent, model),
-    or the original model identifier if not mapped.
-    """
-    if model is None:
-        return None
-    return LOCAL_TO_HARBOR_MODEL.get((agent, model), model)
-
-
-def build_command(request: RunRequest) -> list[str]:
-    command = [
-        "harbor",
-        "run",
-        "--path",
-        str(request.task),
-        "--agent",
-        resolve_harbor_agent(request.agent),
-        "--env",
-        request.environment,
-        "--job-name",
-        request.name,
-        "--jobs-dir",
-        str(request.jobs_dir),
-        "--n-concurrent",
-        str(request.concurrency),
-        "--n-attempts",
-        str(request.attempts),
-    ]
-    command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
-    harbor_model = resolve_harbor_model(request.agent, request.model)
-    if harbor_model:
-        command.extend(["--model", harbor_model])
-    if request.extra_instruction_path is not None:
-        command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
-    return command
-
-
-def subscription_command(
-    request: RunRequest,
-    harbor_command: list[str],
-    *,
-    repo_root: Path,
-) -> list[str]:
-    """Route Claude through the Keychain-only OAuth wrapper.
-
-    Codex consumes ``~/.codex/auth.json`` after ``subscription_environment``
-    sets its non-secret routing flag. Claude's Harbor adapter needs the OAuth
-    token in its immediate child environment, so the wrapper reads only the
-    configured Keychain item and never aliases it to an API-key variable.
-    """
-    if request.agent != "claude-code":
-        return harbor_command
-    wrapper = (repo_root / "scripts/with-claude-auth").resolve()
-    if not wrapper.is_file():
-        raise RuntimeError(f"Claude subscription wrapper is missing: {wrapper}")
-    return [str(wrapper), *harbor_command]
-
-
-@dataclass(frozen=True)
-class HarborProcessResult:
-    returncode: int
-    timed_out: bool
-    log_path: Path
-    timed_out_trial: str | None = None
 
 
 def _terminate_process_group(process: subprocess.Popen[Any]) -> None:

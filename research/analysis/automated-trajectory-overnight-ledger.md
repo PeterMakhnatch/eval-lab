@@ -114,6 +114,7 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-033 | Package 2 execution packaging is SCHEDULED on `lane/execution` | approved / owner Agent Data `wK:p9` by explicit delegation | Platform delegates `runner.py`, `queue.py`, `harbor_network.py` for immutable DTO and validation extraction only; atomic `O_EXCL` leasing, auth and environment propagation, container lifecycle, and signal handling must stay byte-for-byte behavioural |
 | ADR-034 | The missing `evallab data backfill` entry point is the first Package 1 milestone, not a separate worktree | approved / supersedes ADR-030 routing only | ADR-030's HOLD on the actual all-durable Ops pass stands until the single entry point merges green inside `lane/storage`; the preserved `.worktrees/data-backfill-command` diff is cherry-picked, not resurrected as its own branch flow |
 | ADR-035 | Stale PR-less branches lose ownership-blocking status | approved | a branch with no open PR, no commit within two days, and tens of commits behind main cannot gate a scheduled package; its worktree and diff are preserved untouched, but the lane owns the file from `origin/main` forward |
+| ADR-036 | The ADR-030 hard stop is LIFTED; Ops is released for exactly one all-durable backfill pass | approved / owner Ops `wK:p8` | `evallab data backfill` merged green on `origin/main` at `1ceb7bc` (`src/evallab/data_backfill.py`, registered in `cli.py`, Gemini exact-head review zero findings, CI 5/5); Ops runs that one command once with no manual multi-command substitute, no judge/model call, no auto-accept, and no registration or publication; acceptance is exactly 21 reason-coded `ANALYSIS_READY`/`HOLD` dispositions across the 5 tracked campaign manifests and 16 CAS job archives, 4 permanent quarantines held uninterpreted, zero silent skips; a second identical invocation must reproduce byte-identical identities and digests |
 
 ## Blockers / hard stops
 
@@ -125,11 +126,11 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 
 ## Next controller actions
 
-1. Hold Ops at the ADR-030 gate: no manual multi-command substitute for the all-durable pass.
-2. Land the single `evallab data backfill` entry point as Package 1 milestone 1 in `lane/storage`.
-3. Land centralized partition discovery as Package 1 milestone 2; keep DuckDB Z2+Z3+Z4 attach queries and all SQL views intact.
-4. Land immutable execution DTO and validation extraction as Package 2 milestone 1 in `lane/execution` with unchanged runner, queue, network, and signal behaviour.
-5. Keep Packages 3, 4, and 5 plan-only; select no synthetic family until the AgentAbstain external audit and independent oracle/partition gates clear.
+1. Release Ops for exactly one `evallab data backfill` pass under ADR-036; require the 21-disposition ledger, the 4 held quarantines, zero silent skips, and a second identical invocation proving digest idempotence.
+2. Land centralized partition discovery as Package 1 milestone 2 in `lane/storage`; keep DuckDB Z2+Z3+Z4 attach queries and all SQL views intact.
+3. Take Package 2 milestone 2 in `lane/execution` only after Ops reports; runner, queue, network, container lifecycle, and signal behaviour stay byte-for-byte behavioural.
+4. Keep Packages 3, 4, and 5 plan-only; select no synthetic family until the AgentAbstain external audit and independent oracle/partition gates clear.
+5. Resume the terminology milestone only on Peter's word; its evidence stays parked untracked at `research/inbox/parked-glossary-evidence-2026-08-27.md`.
 
 ## Status update — 2026-08-26 late overnight (Architect)
 
@@ -499,3 +500,21 @@ resume without re-auditing. Its most useful findings for lane owners: the word
 `manifest` carries seven documented senses, `ANALYSIS_READY` has five distinct
 code carriers, and `evallab analyze batch <inventory>` actually requires a
 campaign manifest.
+
+### Package execution - first milestones merged
+
+Both scheduled lanes moved from assignment to merged milestone on 2026-08-27
+without a new worktree, which is the ADR-031 protocol working as intended.
+
+| Lane | Milestone | Merge | Evidence |
+|---|---|---|---|
+| Execution (Agent Data `wK:p9`) | Package 2 milestone 1 - immutable execution DTOs and typed network policy inputs | PR #228 at `d914850` | `execution_contracts.py` +344, `runner.py` -308, `queue.py` -74, `harbor_network.py` +4/-3, `tests/test_execution_contracts.py` +181; CI 5/5 green |
+| Storage (Platform `wH:p1`, controller-delegated build) | Package 1 milestone 1 - the single `evallab data backfill` operator entry point | PR #229 at `1ceb7bc` | `src/evallab/data_backfill.py` +684, `cli.py` +64, `tests/test_data_backfill_command.py` +457, golden CLI surface regenerated to 84 leaf commands; CI 5/5 green; adversarial exact-head review zero findings |
+
+The Package 2 re-export of `_SUBSCRIPTION_ENVIRONMENT_KEYS` and helper constants
+from `runner.py` was reviewed against clean-cutover policy and each re-export
+names a real in-repo consumer, so it is not a shim defect.
+
+ADR-030's hard stop is therefore discharged, not waived: the single entry point
+exists, is registered, is tested, and merged green. ADR-036 records the lift and
+the exact acceptance contract for the one Ops pass that follows.

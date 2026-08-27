@@ -54,6 +54,8 @@ inputs:
     digest: sha256:75394bae07ac0b085b1385189c6b17d4764a30e31fc5fe086a5d9e215910de4c
   - path: docs/data-architecture.md
     digest: sha256:d90ec1143b9ffaa6f8db6402fb3b29ea9f48c80630bc795dbf2969b2f61dbd2c
+  - path: docs/deepseek-v4-flash-lane.md
+    digest: sha256:7b2d72818a834a42dcb651b46aa285a2944e4098b5d58cf1ce0b232cf96efd7f
   - path: docs/design-additions.md
     digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md
@@ -97,7 +99,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:d500fb43d49af9f9d7c0742729dabff02f644d01f7f1866f4ccae7896ae8a70b
+    digest: sha256:d8cf65d488271cadd374f5dd03a4b1b4d2e430b07399beb4fc1d52a249fd5dc9
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -263,6 +265,7 @@ an operator can see what is archived.
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
+| `docs/deepseek-v4-flash-lane.md` | DeepSeek V4 Flash Harbor lane | `living` | `operator, runner` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
@@ -303,6 +306,7 @@ an operator can see what is archived.
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
+| `docs/deepseek-v4-flash-lane.md` | DeepSeek V4 Flash Harbor lane | `living` | `operator, runner` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |

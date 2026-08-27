@@ -1,0 +1,189 @@
+#!/bin/bash
+# Guarded Harbor lane for DeepSeek V4 Flash through mini-swe-agent + LiteLLM.
+# Credential values stay in the process environment and are never printed or
+# placed in argv. The install and plan paths explicitly remove model keys.
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+
+readonly MODEL_SELECTOR="deepseek/deepseek-v4-flash"
+readonly CANARY_TASK="$repo_root/library/tasks/transaction-reconciliation"
+readonly JOBS_DIR="$repo_root/runs/deepseek-v4-flash"
+readonly FRESH_KEY_CONFIRMATION="EVALLAB_DEEPSEEK_FRESH_KEY_CONFIRMED"
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/deepseek-v4-flash-lane COMMAND
+
+Commands:
+  probe          Report credential-name and container readiness only
+  install-smoke  Install mini-swe-agent + LiteLLM in the task container; no model call
+  plan-canary    Print the resolved one-trial Harbor config; no model call
+  canary         Run exactly one transaction-reconciliation trial
+EOF
+}
+
+present() {
+    local name="$1"
+    if [ -n "${!name:-}" ]; then
+        printf 'set'
+    else
+        printf 'unset'
+    fi
+}
+
+require_command() {
+    local name="$1"
+    if ! command -v "$name" >/dev/null 2>&1; then
+        printf 'required command missing: %s\n' "$name" >&2
+        return 1
+    fi
+}
+
+container_ready() {
+    command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
+}
+
+probe() {
+    local status=0
+    local harbor_state="missing"
+    local docker_cli_state="missing"
+    local docker_daemon_state="unreachable"
+
+    if command -v harbor >/dev/null 2>&1; then
+        harbor_state="available"
+    else
+        status=1
+    fi
+    if command -v docker >/dev/null 2>&1; then
+        docker_cli_state="available"
+        if container_ready; then
+            docker_daemon_state="reachable"
+        else
+            status=1
+        fi
+    else
+        status=1
+    fi
+    if [ -z "${DEEPSEEK_API_KEY:-}" ] || [ -z "${!FRESH_KEY_CONFIRMATION:-}" ]; then
+        status=1
+    fi
+
+    printf 'Harbor CLI: %s\n' "$harbor_state"
+    printf 'Docker CLI: %s\n' "$docker_cli_state"
+    printf 'Docker daemon: %s\n' "$docker_daemon_state"
+    printf 'DEEPSEEK_API_KEY: %s\n' "$(present DEEPSEEK_API_KEY)"
+    printf '%s: %s\n' "$FRESH_KEY_CONFIRMATION" "$(present "$FRESH_KEY_CONFIRMATION")"
+    return "$status"
+}
+
+require_container() {
+    require_command harbor
+    require_command docker
+    if ! container_ready; then
+        printf 'Docker daemon is not reachable\n' >&2
+        return 1
+    fi
+}
+
+without_model_credentials() {
+    (
+        unset DEEPSEEK_API_KEY MSWEA_API_KEY
+        unset DEEPSEEK_BASE_URL DEEPSEEK_API_BASE OPENAI_BASE_URL OPENAI_API_BASE
+        "$@"
+    )
+}
+
+with_canonical_deepseek_credential() {
+    (
+        unset MSWEA_API_KEY
+        unset DEEPSEEK_BASE_URL DEEPSEEK_API_BASE OPENAI_BASE_URL OPENAI_API_BASE
+        "$@"
+    )
+}
+
+common_args() {
+    printf '%s\n' \
+        run \
+        --path "$CANARY_TASK" \
+        --agent mini-swe-agent \
+        --model "$MODEL_SELECTOR" \
+        --env docker \
+        --n-attempts 1 \
+        --n-concurrent 1 \
+        --n-concurrent-agents 1 \
+        --n-tasks 1 \
+        --max-retries 0 \
+        --agent-kwarg cost_limit=2.5 \
+        --agent-kwarg max_tokens=8192 \
+        --allow-agent-host api.deepseek.com \
+        --jobs-dir "$JOBS_DIR" \
+        --yes
+}
+
+run_harbor() {
+    local job_name="$1"
+    shift
+    local args=()
+    while IFS= read -r arg; do
+        args+=("$arg")
+    done < <(common_args)
+    harbor "${args[@]}" --job-name "$job_name" "$@"
+}
+
+install_smoke() {
+    require_container
+    mkdir -p "$JOBS_DIR"
+    without_model_credentials run_harbor \
+        deepseek-v4-flash-install-smoke \
+        --install-only
+}
+
+plan_canary() {
+    require_command harbor
+    without_model_credentials run_harbor \
+        deepseek-v4-flash-canary-plan \
+        --print-config
+}
+
+require_fresh_key() {
+    if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
+        printf 'refusing model execution: DEEPSEEK_API_KEY is unset\n' >&2
+        return 1
+    fi
+    if [ -z "${!FRESH_KEY_CONFIRMATION:-}" ]; then
+        printf 'refusing model execution: %s is unset\n' "$FRESH_KEY_CONFIRMATION" >&2
+        return 1
+    fi
+}
+
+canary() {
+    require_container
+    require_fresh_key
+    mkdir -p "$JOBS_DIR"
+    with_canonical_deepseek_credential \
+        run_harbor "deepseek-v4-flash-canary-$(date -u +%Y%m%dT%H%M%SZ)"
+}
+
+case "${1:-}" in
+    probe)
+        probe
+        ;;
+    install-smoke)
+        install_smoke
+        ;;
+    plan-canary)
+        plan_canary
+        ;;
+    canary)
+        canary
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac

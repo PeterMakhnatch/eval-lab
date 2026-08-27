@@ -34,6 +34,8 @@ inputs:
     digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
   - path: docs/catalog-tables.md
     digest: sha256:ea8da71fe7a6ba15138c311b4649258dda8dbaa78e1674d1d2ced5ea8d7d2068
+  - path: docs/content-inventory.md
+    digest: sha256:c74e1ee82d2d0918ba1efdb7017f248e8bcc07e971f0ca1d08fa43162431f6d9
   - path: docs/context-packs.md
     digest: sha256:da5e79f7620f04f7eb3c88619330cb5a6b452095c985ff4608ab375931ba3879
   - path: docs/contracts.md
@@ -147,6 +149,7 @@ an operator can see what is archived.
 | `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
+| `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `living` | `builder, analyst, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
@@ -191,6 +194,7 @@ an operator can see what is archived.
 | `docs/automated-trajectory-interpretation-architecture-v1.md` | Automated trajectory interpretation architecture v1 | `living` | `builder, analyst, operator` |
 | `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
+| `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `living` | `builder, analyst, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
@@ -271,6 +275,7 @@ an operator can see what is archived.
 | `docs/build-plan.md` | Build plan (spec) | `living` | `builder, analyst, runner, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
+| `docs/content-inventory.md` | Content Inventory & Durable Asset Taxonomy | `living` | `builder, analyst, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |

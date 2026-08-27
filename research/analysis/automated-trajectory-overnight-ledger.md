@@ -108,6 +108,7 @@ Every role pages Architect on completion, blocker, PR creation, review failure, 
 | ADR-027 | Runtime history and verifier collection are distinct evidence surfaces | approved boundary / feature deferred | `StateJournalPlugin` may observe bounded `/app` filesystem history during the agent phase; `[[verifier.collect]]` creates post-agent snapshots. Document current limits only—no new hook/profile implementation in this loop |
 | ADR-028 | Trajectory bulk-work model budget is Gemini-primary with DeepSeek Flash as the only fallback | Peter override / effective immediately | no new Grok/Cursor Grok, Claude, Devin, Terra, Sol, Opus, or other paid/subscription routing; if both allowed providers are unavailable, STOP/HOLD without weakening quality gates |
 | ADR-029 | P0 is the automatic completed-Harbor-trial data layer; all other expansion pauses | Peter focus reset / supersedes ADR-028 routing | active roles are Platform, Agent Data, Ops, Tutor, Architect; model order is Gemini 3.7 High, Cursor Grok, DeepSeek Flash, otherwise HOLD; merge order is canonical Data validator before Platform integrity before one all-durable backfill |
+| ADR-030 | P0 operator automation is HOLD after integrity merge because no single-command backfill exists and no allowed builder route is available | hard stop | preserve `.worktrees/data-backfill-command`; require a new allowed Platform/Gemini-or-fallback execution session before implementation, review, CI, and the one all-durable Ops pass |
 
 ## Blockers / hard stops
 
@@ -366,3 +367,58 @@ Ops froze the operator contract at
 campaigns, four permanent quarantines, 16 CAS job archives, initialized
 PostgreSQL schema, and verified Parquet fact partitions. Execution waits for
 PRs #223 and #218.
+
+### P0 integrity merged; operator automation hard stop
+
+The integrity dependencies are complete:
+
+- PR #223 merged `291afce`: canonical strict state-diff document/changes
+  validation and loader.
+- PR #225 merged `0f90ab3`: strict metadata types, signed-int64 bounds,
+  producer-canonical paths, and file-kind field exclusivity.
+- PR #218 merged `ecdceff`: completed-trial evidence integrity, thin
+  `facts.py -> state_events.load_state_diff` delegation, artifact path jail,
+  exact campaign identities, CAS/Parquet orphan checks, and pack-bound
+  redaction-policy hydration.
+
+PR #218 passed the focused results/journal/events/event-mart/queue/pack/runtime/
+quality integration suite with two expected skips, touched-source ruff and ty,
+generated/governance checks, exact-head Gemini review, Agent Data owner review
+of `evidence_pack.py`/`trajectory_hydration.py`, and all five CI checks.
+
+Ops then verified the remaining operator blocker on main `ecdceff`:
+
+- no top-level `data` parser or `evallab data backfill` command exists;
+- `evallab analyze batch <manifest>` and
+  `evallab analyze quality <manifest>` each consume one manifest, requiring a
+  manual five-command loop;
+- no single command discovers the 21-trial/16-archive inventory, executes the
+  complete pipeline, checks every store, and emits exactly 21 dispositions.
+
+The target command and its behavior are frozen in
+`research/analysis/completed-trial-data-layer-backfill-contract.md`.
+Quarantines carry full trial/task/CAS identities; job/campaign identity may be
+bound only by a unique immutable CAS record. Missing/ambiguous bindings remain
+typed null with `quarantine_job_identity_unresolved`, still producing one HOLD
+ledger row and never entering interpretation or ready denominators.
+
+Platform created the isolated `.worktrees/data-backfill-command` checkpoint but
+its persistent-session execution budget expired before implementation or a
+provider call. This controller has no policy-compliant bulk builder route:
+Gemini 3.7 High, Cursor Grok, and DeepSeek Flash are unavailable through its
+enabled write agents, while direct controller implementation is outside the
+Architect ownership contract. No prohibited model fallback was attempted.
+
+Therefore no post-merge all-durable backfill was run. Existing pre-merge
+evidence still verifies 16 immutable job archives, 21 indexed trials, 17
+hold-only analysis-ready trials, four permanent quarantines, initialized
+PostgreSQL, and Parquet facts; those facts do not substitute for the missing
+automatic post-merge verification.
+
+**Unblock:** start a new Platform execution goal/session with the mandated model
+order, consume the preserved command contract/worktree, implement and review the
+single entry point, merge it green, then authorize Ops to run exactly one
+all-durable pass plus deterministic identity verification. Until then
+PostgreSQL/Parquet/CAS post-merge verification, exhaustive
+ANALYSIS_READY/HOLD reconciliation, and automatic 21-trial disposition remain
+HOLD.

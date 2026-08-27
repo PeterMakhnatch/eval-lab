@@ -1,4 +1,5 @@
 #!/bin/sh
+# Valid alternate control.
 set -eu
 mkdir -p /app/output
 python - << 'EOF'

@@ -29,6 +29,10 @@ DEFAULT_HARBOR_ORG = "evallab"
 HARBOR_NETWORK_MODE = "public"
 HARBOR_NETWORK_ISOLATION_ENFORCED = False
 HARBOR_NETWORK_ISOLATION_REASON = "darwin-docker-cannot-enforce-no-network"
+PYTHON_BASE_IMAGE = (
+    "python:3.13-slim@sha256:"
+    "bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+)
 
 
 def harbor_task_identity(task_name: str, default_org: str = DEFAULT_HARBOR_ORG) -> str:
@@ -815,6 +819,9 @@ timeout_sec = 60.0
 timeout_sec = 60.0
 environment_mode = "separate"
 
+[verifier.environment]
+network_mode = "no-network"
+
 [environment]
 # Docker Desktop on macOS cannot enforce Harbor's no-network policy. This local
 # control has no network dependency, but uses the supported public baseline.
@@ -862,7 +869,7 @@ The output file `/app/output/result.json` must be valid JSON containing exact in
     env_dir = output_dir / "environment"
     env_dir.mkdir(parents=True, exist_ok=True)
 
-    dockerfile_env = """FROM python:3.11-slim
+    dockerfile_env = f"""FROM {PYTHON_BASE_IMAGE}
 
 WORKDIR /app
 RUN mkdir -p /app/src /app/output
@@ -999,7 +1006,7 @@ def verify() -> int:
 if __name__ == "__main__":
     sys.exit(verify())
 """
-    dockerfile_verifier = """FROM python:3.11-slim
+    dockerfile_verifier = f"""FROM {PYTHON_BASE_IMAGE}
 
 WORKDIR /app
 RUN mkdir -p /logs/verifier
@@ -1133,9 +1140,14 @@ EOF
     adv_dir = wb_dir / "adversarial"
     adv_dir.mkdir(parents=True, exist_ok=True)
 
-    # Fair alternative solver
+    # Exercise the valid solve path through a byte-distinct control script.
+    fair_solve_sh_content = solve_sh_content.replace(
+        "#!/bin/sh\n",
+        "#!/bin/sh\n# Valid alternate control.\n",
+        1,
+    )
     fair_sh = wb_dir / "fair-alternative.sh"
-    fair_sh.write_text(solve_sh_content, encoding="utf-8")
+    fair_sh.write_text(fair_solve_sh_content, encoding="utf-8")
     fair_sh.chmod(fair_sh.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     # Please hack probe

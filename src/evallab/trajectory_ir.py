@@ -361,8 +361,8 @@ class IRGraphNode:
             "source_citation_sha256": self.source_citation.source_sha256,
             "summary": self.summary,
             "attributes_json": self.attributes_json,
+            "journal_sequence": self.journal_sequence,
         }
-
 
 @dataclass(frozen=True)
 class IRGraphEdge:
@@ -451,6 +451,7 @@ def project_ir_graph(ir: TrajectoryIR) -> TrajectoryGraphProjection:
                 source_citation=ev.source_citation,
                 summary=ev.summary,
                 attributes_json=json.dumps(attr, sort_keys=True),
+                journal_sequence=ev.journal_sequence,
             )
         )
 
@@ -524,30 +525,34 @@ def project_ir_graph(ir: TrajectoryIR) -> TrajectoryGraphProjection:
                     )
                     break
 
-    # Rule D: state_change_precedes_verifier_event (state edit/write/change -> subsequent verification)
+    # Rule D: state_change_precedes_verifier_event (state edit/write/change -> subsequent verifier event)
+    verifier_targets = [
+        cand for cand in sorted_events
+        if (cand.action_family == "verification" or cand.event_type == "verifier_check" or cand.phase == "verifier")
+    ]
     for i in range(n):
         ev = sorted_events[i]
         if ev.action_family in ("file_edit", "file_write") or ev.event_type == "state_change":
-            for j in range(i + 1, n):
-                cand = sorted_events[j]
-                if cand.action_family == "verification" or cand.event_type == "verifier_check":
-                    e_type = "state_change_precedes_verifier_event"
-                    edges.append(
-                        IRGraphEdge(
-                            edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, cand.event_id, e_type),
-                            trial_id=trial_id,
-                            source_node_id=ev.event_id,
-                            target_node_id=cand.event_id,
-                            edge_type=e_type,
-                            weight=1.0,
-                            metadata_json=json.dumps({
-                                "state_change_program": ev.status_owning_program,
-                                "verifier_program": cand.status_owning_program,
-                                "gap_events": j - i,
-                            }),
-                        )
+            target = next((c for c in sorted_events[i + 1:] if c in verifier_targets), None)
+            if target is None and ev.event_type == "state_change" and verifier_targets:
+                target = verifier_targets[0]
+            if target is not None:
+                e_type = "state_change_precedes_verifier_event"
+                edges.append(
+                    IRGraphEdge(
+                        edge_id=deterministic_ir_edge_id(trial_id, ev.event_id, target.event_id, e_type),
+                        trial_id=trial_id,
+                        source_node_id=ev.event_id,
+                        target_node_id=target.event_id,
+                        edge_type=e_type,
+                        weight=1.0,
+                        metadata_json=json.dumps({
+                            "state_change_program": ev.status_owning_program or "inotify",
+                            "verifier_program": target.status_owning_program or "verifier",
+                            "gap_events": abs(target.event_ordinal - ev.event_ordinal),
+                        }),
                     )
-                    break
+                )
     # Rule E: context_compaction_edge (context management -> next agent step)
     for i in range(n):
         ev = sorted_events[i]
@@ -948,10 +953,14 @@ def build_trajectory_ir(
             or None
         )
         if not verifier_digest:
-            verifier_spec = lock_dict.get("verifier") or (result_data.get("config") or {}).get("verifier")
-            if verifier_spec:
-                verifier_payload = json.dumps({"task_digest": task_digest, "verifier": verifier_spec}, sort_keys=True)
-                verifier_digest = f"sha256:{hashlib.sha256(verifier_payload.encode()).hexdigest()}"
+            from evallab.facts import digest_json
+            task_d = task_digest or (lock_dict.get("task") or {}).get("digest") or (lock_dict.get("task") or {}).get("checksum")
+            verifier_digest = digest_json(
+                {
+                    "task_digest": str(task_d) if task_d else None,
+                    "verifier": lock_dict.get("verifier") or {},
+                }
+            )
 
         manifest_candidates = (
             trial_dir / "manifest.json",

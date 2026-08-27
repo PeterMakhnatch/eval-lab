@@ -588,6 +588,7 @@ def test_project_ir_graph_structure_and_edges(tmp_path: Path, repo_root: Path) -
     assert len(node_dicts) == graph.node_count
     assert len(edge_dicts) == graph.edge_count
     assert all("edge_id" in e for e in edge_dicts)
+    assert all("journal_sequence" in n for n in node_dicts)
 
 
 def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_root: Path) -> None:
@@ -677,3 +678,11 @@ def test_state_journal_events_ingestion_and_projections(tmp_path: Path, repo_roo
     assert state_events[0].state_before_digest is not None
     assert state_events[0].state_after_digest is not None
     assert ir.evidence_coverage.get("state_diff_observed") is True
+
+    # Verify graph projection copies journal_sequence and connects state_change to verifiers
+    from evallab.trajectory_ir import project_ir_graph
+    graph = project_ir_graph(ir)
+    state_nodes = [n for n in graph.nodes if n.node_type == "state_change"]
+    assert len(state_nodes) == 1
+    assert state_nodes[0].journal_sequence == 1
+    assert state_nodes[0].to_projection_dict().get("journal_sequence") == 1

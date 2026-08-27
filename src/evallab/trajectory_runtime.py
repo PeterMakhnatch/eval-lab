@@ -868,7 +868,9 @@ def evaluate_deterministic_gates(
         omitted_cits: list[str] = []
         outside_cits: list[str] = []
         for cid, ev, _ in resolved:
-            in_selected, in_omitted = _step_in_windows(ev.step_index or 0, pack)
+            if ev.step_index is None:
+                continue
+            in_selected, in_omitted = _step_in_windows(ev.step_index, pack)
             if in_selected:
                 continue
             if in_omitted:

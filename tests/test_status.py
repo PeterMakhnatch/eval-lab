@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from evallab.cli import run_cli
-from evallab.facts import AnalyzerCallResult, run_trial_analysis
+from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
 from evallab.results import load_job
 from evallab.status import (
     SECTION_KEYS,

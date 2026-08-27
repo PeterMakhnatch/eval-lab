@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from evallab.atif import (
+from evallab.evidence.atif import (
     JOB_PROJECTION_FILE,
     PROJECTED_TABLES,
     _recorded_projection_exceptions_map,
@@ -432,7 +432,7 @@ def verify_idempotence(
     derived_root: Path | None = None,
 ) -> bool:
     """Verify that re-ingesting already-ingested jobs causes zero churn and preserves row counts."""
-    from evallab.atif import ingest_and_project
+    from evallab.evidence.atif import ingest_and_project
     from evallab.results import load_jobs
 
     root = repo_root.resolve()

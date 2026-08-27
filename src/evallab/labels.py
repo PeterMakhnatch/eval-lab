@@ -21,7 +21,7 @@ from uuid import UUID
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evallab.facts import AnalyzerCallable
+from evallab.evidence.facts import AnalyzerCallable
 from evallab.paths import derived_root_from_environment
 from evallab.schemas import (
     AnalysisEvidenceCitation,

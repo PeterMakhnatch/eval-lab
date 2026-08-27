@@ -18,8 +18,8 @@ from typing import Any, Literal
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evallab.atif import ExportedTable, ExportResult, project_trial
-from evallab.facts import StateChangeFact, extract_job_facts, sha256_file
+from evallab.evidence.atif import ExportedTable, ExportResult, project_trial
+from evallab.evidence.facts import StateChangeFact, extract_job_facts, sha256_file
 from evallab.results import JobRecord, TrialRecord
 from evallab.traj import outline_trajectory
 

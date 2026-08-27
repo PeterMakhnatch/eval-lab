@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 
 import duckdb
 
-from evallab.facts import project_recovery_facts
+from evallab.evidence.facts import project_recovery_facts
 from evallab.recovery.bundle import (
     CommandOutcome,
     PackageInventory,

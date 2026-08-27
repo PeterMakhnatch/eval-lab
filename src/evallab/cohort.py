@@ -16,7 +16,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from evallab.facts import TrialFact, digest_json, extract_trial_fact
+from evallab.evidence.facts import TrialFact, digest_json, extract_trial_fact
 from evallab.results import JobRecord, TrialRecord, load_job, load_jobs
 from evallab.schemas import CohortComparisonSpec, CohortSelector
 

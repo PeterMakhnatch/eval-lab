@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import duckdb
 import pytest
 
-from evallab.atif import (
+from evallab.evidence.atif import (
     JOB_PROJECTION_FILE,
     PROJECTED_TABLES,
     PROJECTION_FAILURE_REASON,

@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from evallab import database
 from evallab.cohort import NOT_COMPARABLE, CohortMember, bootstrap_mean_interval
-from evallab.facts import TrialFact
+from evallab.evidence.facts import TrialFact
 from evallab.queue import Executor
 from evallab.runner import database_url_from_environment
 from evallab.schemas import (

@@ -17,7 +17,7 @@ import pyarrow.parquet as pq
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from evallab.atif import ExportedTable, ExportResult, export_trajectories, project_trial
+from evallab.evidence.atif import ExportedTable, ExportResult, export_trajectories, project_trial
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
 from evallab.runner import subscription_environment
 from evallab.schemas import (
@@ -841,7 +841,7 @@ def export_facts(jobs: list[JobRecord], output_root: Path) -> ExportResult:
 
 
 def rebuild_from_raw(jobs: list[JobRecord], output_root: Path) -> RebuildResult:
-    from evallab.event_mart import export_event_mart
+    from evallab.evidence.event_mart import export_event_mart
 
     return RebuildResult(
         trajectory_export=export_trajectories(jobs, output_root),

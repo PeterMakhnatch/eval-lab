@@ -244,8 +244,8 @@ the agreement and coverage denominators.
 ```bash
 uv run pytest -q
 uv run pytest -q research/analysis/tests
-uv run ruff check src/evallab/atif.py src/evallab/facts.py \
-  src/evallab/cohort.py src/evallab/schemas.py src/evallab/cli.py \
+uv run ruff check src/evallab/evidence/atif.py src/evallab/evidence/facts.py \
+  src/evallab/cohort.py src/evallab/schemas/__init__.py src/evallab/cli.py \
   research/analysis/tests
 ```
 

@@ -104,7 +104,7 @@ generated `derived/` files.
   `unsupported`, or `none` without PostgreSQL; `--export` writes all ATIF and
   trial-fact tables beneath `derived/parquet/job_id=*/trial_id=*/`.
 - Harbor is installed as isolated tool version 0.21.0 and cannot be imported by
-  the project venv. `evallab.atif` uses Harbor's Pydantic model when it is
+  the project venv. `evallab.evidence.atif` uses Harbor's Pydantic model when it is
   importable and otherwise records use of its strict ATIF-v1.0–v1.7 fallback.
 - The fallback validates sequential steps, tool/observation links, embedded
   subagent IDs, continuations, and local external subagent files. Remote

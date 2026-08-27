@@ -13,7 +13,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from evallab import cli
-from evallab.facts import AnalyzerCallResult
+from evallab.evidence.facts import AnalyzerCallResult
 from evallab.labels import (
     evaluate_heuristic_precision,
     label_trajectory,

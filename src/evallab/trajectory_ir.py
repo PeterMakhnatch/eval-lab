@@ -952,7 +952,7 @@ def build_trajectory_ir(
             or None
         )
         if not verifier_digest and isinstance(verifier_spec, dict) and verifier_spec:
-            from evallab.facts import digest_json
+            from evallab.evidence.facts import digest_json
             verifier_digest = digest_json(
                 {
                     "task_digest": task_digest,

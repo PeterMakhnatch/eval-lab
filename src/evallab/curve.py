@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from evallab.cohort import TIMEOUT_BUDGET_EXCEPTION_CLASSES, compare
-from evallab.facts import digest_json
+from evallab.evidence.facts import digest_json
 from evallab.schemas import (
     CapabilityCurveReport,
     CapabilityCurveSpec,

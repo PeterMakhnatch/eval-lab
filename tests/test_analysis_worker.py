@@ -18,7 +18,7 @@ from evallab.analysis_worker import (
     AnalysisWorker,
     RequestStore,
 )
-from evallab.facts import AnalyzerCallResult
+from evallab.evidence.facts import AnalyzerCallResult
 from evallab.profiles import AgentProfile, ProbeResult
 from evallab.schemas import StandingApprovalsPolicy
 
@@ -422,7 +422,7 @@ def _nightly(tmp_path, *, stager, ingester):
 
 
 def _ok_ingest(order):
-    from evallab.atif import IngestProjectionResult
+    from evallab.evidence.atif import IngestProjectionResult
 
     def ingest():
         order.append("ingest")

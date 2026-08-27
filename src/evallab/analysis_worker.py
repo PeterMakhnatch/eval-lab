@@ -48,8 +48,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from evallab import facts
-from evallab.facts import AnalyzerCallable, ingest_analysis_sidecar, run_trial_analysis
+from evallab.evidence import facts
+from evallab.evidence.facts import AnalyzerCallable, ingest_analysis_sidecar, run_trial_analysis
 from evallab.profiles import AgentProfile, PreflightDecision, ProbeFn, preflight
 from evallab.results import JobRecord, TrialRecord, load_jobs
 from evallab.schemas import (

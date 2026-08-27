@@ -41,7 +41,7 @@ from evallab.authoring import (
     verify_inversion_reproducibility,
     write_ledger,
 )
-from evallab.facts import AnalyzerCallResult
+from evallab.evidence.facts import AnalyzerCallResult
 from evallab.lineage import read_artifact_inputs, resolve_lineage
 from evallab.modeladapter import (
     ModelAdapterExecutionError,

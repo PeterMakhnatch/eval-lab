@@ -115,7 +115,7 @@ it:
 
 - **Embedded subagents.** ATIF v1.7 subagent trajectories share their parent's
   `session_id` and are disambiguated by `trajectory_id`
-  (`harbor_atif2otel/ids.py:45-55`). `evallab.atif._flatten_payloads` writes one
+  (`harbor_atif2otel/ids.py:45-55`). `evallab.evidence.atif._flatten_payloads` writes one
   `trajectory_documents` row per embedded payload, so one multi-agent trial
   legitimately yields several rows with the same `session_id`. A
   `UNIQUE (session_id)` constraint does not deduplicate that — it **aborts the

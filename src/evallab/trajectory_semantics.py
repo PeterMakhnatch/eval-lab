@@ -32,7 +32,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import Field, field_validator, model_validator
 
-from evallab.atif import TrajectoryFact, project_trial
+from evallab.evidence.atif import TrajectoryFact, project_trial
 from evallab.results import JobRecord, TrialRecord
 from evallab.schemas import ContractModel
 

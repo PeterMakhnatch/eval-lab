@@ -17,7 +17,7 @@ import pytest
 
 from evallab import cli, database
 from evallab.cli import run_cli
-from evallab.facts import AnalyzerCallResult, run_trial_analysis
+from evallab.evidence.facts import AnalyzerCallResult, run_trial_analysis
 from evallab.results import load_job
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -197,7 +197,7 @@ def test_analyze_review_on_a_missing_sidecar_says_what_to_pass(
 def test_doctor_names_the_catalog_it_inspected_without_credentials(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from evallab.atif import ProjectionInvariant
+    from evallab.evidence.atif import ProjectionInvariant
 
     task = tmp_path / "library/tasks/event-summary/task.toml"
     task.parent.mkdir(parents=True)
@@ -369,7 +369,7 @@ def test_analyze_stub_without_index_says_it_did_not_index(
 def test_ingest_sidecar_reports_the_reviews_it_swept_in(
     tmp_path: Path, catalog_statements: list[tuple[str, Any]], capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from evallab.facts import write_analysis_review
+    from evallab.evidence.facts import write_analysis_review
 
     sidecar_path = _scratch_with_sidecar(tmp_path)
     scratch = sidecar_path.parents[2]

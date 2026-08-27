@@ -144,7 +144,7 @@ CREATE INDEX IF NOT EXISTS trajectory_documents_status_idx
 -- Uniqueness holds in today's data (23/23 distinct) but not by construction.
 -- ATIF v1.7 embedded subagent trajectories share their parent's `session_id`
 -- and are disambiguated by `trajectory_id` (harbor_atif2otel/ids.py:45-55),
--- and `evallab.atif._flatten_payloads` writes one row per embedded payload,
+-- and `evallab.evidence.atif._flatten_payloads` writes one row per embedded payload,
 -- so one multi-agent trial legitimately yields several rows with the same
 -- `session_id`. A UNIQUE constraint here would abort that ingest. Callers
 -- must therefore treat the lookup as one-to-many and refuse ambiguity

@@ -25,7 +25,7 @@ import pyarrow as pa
 
 from evallab.cohort import NOT_COMPARABLE, wilson_interval
 from evallab.craft import CRAFT_SCHEMA, CraftRecord, TaskSource, scan
-from evallab.facts import TRIAL_FACT_SCHEMA
+from evallab.evidence.facts import TRIAL_FACT_SCHEMA
 from evallab.lineage import compute_file_digest, resolve_lineage
 
 GENERATED_HEADER = "generated-by: lessons v1"

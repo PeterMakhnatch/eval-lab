@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from evallab import atif, cli
+from evallab import cli
+from evallab.evidence import atif
 
 TOP_LEVEL_COMMANDS = (
     "claims",

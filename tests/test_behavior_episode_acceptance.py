@@ -21,7 +21,7 @@ from evallab.behavior_episodes import (
     normalize_behavior_actions,
     persist_behavior_episodes,
 )
-from evallab.event_mart import EventMartProjection
+from evallab.evidence.event_mart import EventMartProjection
 from evallab.labels import select_behavior_episode_review_queue
 from evallab.phoenix_annotations import (
     publish_behavior_episodes,

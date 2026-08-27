@@ -29,8 +29,8 @@ All pydantic v2 contract models live in `src/evallab/schemas.py` per platform-ar
 | AgentProfile | `src/evallab/profiles.py` | agent_name |
 | TaskVersion / TaskRegistryRecord | `src/evallab/schemas.py` (consumed in `src/evallab/registry.py`) | (task_ref, version) |
 | Job | `src/evallab/explorer.py` | job_id |
-| Trial | `src/evallab/atif.py` | trial_id |
-| Trajectory | `src/evallab/atif.py` | trial_id |
+| Trial | `src/evallab/evidence/atif.py` | trial_id |
+| Trajectory | `src/evallab/evidence/atif.py` | trial_id |
 | CraftRecord | `src/evallab/craft.py` | (task_ref, facets_schema_version) |
 | Proposal | `src/evallab/authoring.py` | proposal_id |
 | Lesson | `src/evallab/lessons.py` | lesson_id |

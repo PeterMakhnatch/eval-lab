@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from evallab.facts import load_state_journal, rebuild_from_raw
+from evallab.evidence.facts import load_state_journal, rebuild_from_raw
 from evallab.harbor_state_journal import compose_project_name, monitor_command
 from evallab.results import load_job
 

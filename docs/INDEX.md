@@ -6,8 +6,16 @@ audience:
   - runner
   - operator
 inputs:
+  - path: docs/ACTIVE-VS-HISTORICAL.md
+    digest: sha256:5aa795040fa3349f80fcb948c007aa4921774fcf537cc9306a0ce60072223e71
+  - path: docs/GLOSSARY.md
+    digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/STATUS.md
     digest: sha256:55f23857af607c7619bc568cadc5f4264e38191331823b16aff28982c525e02b
+  - path: docs/SYSTEM-TOUR.md
+    digest: sha256:f49295b1ec74f32900711ea4a78942915aefc601616a9909422863d6d1ecd689
+  - path: docs/WHERE-DOES-THIS-GO.md
+    digest: sha256:c06e0d28eb81949d5207c28b61b43b2f565d2f863dc4b25bd5cf390b86b14e6e
   - path: docs/agent-analysis.md
     digest: sha256:e490de090539722b445fb03f342254afe39f6109a39f5d6cb73fce3146ea8b89
   - path: docs/agent-profiles.md
@@ -89,7 +97,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:719200a4654ff04837facbbda0ba8353d3096a139bfcd4eda1e58f145e7931a1
+    digest: sha256:d500fb43d49af9f9d7c0742729dabff02f644d01f7f1866f4ccae7896ae8a70b
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -140,7 +148,11 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
+| `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
+| `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
+| `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
@@ -186,6 +198,10 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
+| `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
+| `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/analysis-loop.md` | Evidence-to-experiment analysis loop | `living` | `analyst` |
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
@@ -235,7 +251,11 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
+| `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
+| `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
+| `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
@@ -265,7 +285,11 @@ an operator can see what is archived.
 
 | Path | Title | Status | Audience |
 |---|---|---|---|
+| `docs/ACTIVE-VS-HISTORICAL.md` | Active vs Historical Asset Taxonomy & Lifecycle Rules | `living` | `builder, analyst, runner, operator` |
+| `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-08-26 | `living` | `operator, builder, runner` |
+| `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |

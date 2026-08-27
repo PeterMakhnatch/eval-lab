@@ -60,6 +60,14 @@ inputs:
     digest: sha256:8f3394ba7f6796eb0159d887d0ec1ed5132cd0b7310b1e8cb8db5141da317f79
   - path: src/evallab/eventlog.py
     digest: sha256:2abb54a59cf5c3e04b10b834df497f7a4c863eb6e773d3ba6b7d0cfaf1f2281b
+  - path: src/evallab/evidence/__init__.py
+    digest: sha256:46db4e0acc620435b773d4dda71c0c6b1ea21a7d6bcc15dbb28e07c51adcf373
+  - path: src/evallab/evidence/atif.py
+    digest: sha256:d1cc212edc416a5fbe94d8570e95f5445c1856ed07f79a48f7e6ef50b2d3a3d7
+  - path: src/evallab/evidence/event_mart.py
+    digest: sha256:96498655e942b8cbd6ceef30653b9160d8a7ca22b8d9bfa3a4e23d3e9cee08ef
+  - path: src/evallab/evidence/facts.py
+    digest: sha256:bd19013fb0e1da1b7dbbbfd65294a86b375e1b94529a4009c0038bc04ca62b1a
   - path: src/evallab/evidence_store.py
     digest: sha256:f24fcae3adf48166963456375385f1b04d97db7f6f76474f0513aa89d741def9
   - path: src/evallab/execution_contracts.py
@@ -82,6 +90,46 @@ inputs:
     digest: sha256:aec63c4c4f1dcf29e8111a74e170f332e98913f4be7f4ac23a955aa154ef9d31
   - path: src/evallab/ingest_verify.py
     digest: sha256:50d8b9f0ca17fe48d3d9518e191ffc0c8d1d049ce587852a4f9d4041f364a8ce
+  - path: src/evallab/interpretation/__init__.py
+    digest: sha256:794887a6965c2d8e74832bdfd3a3143e6066e3563398bd8650fbdf65a7aeac26
+  - path: src/evallab/interpretation/evidence_pack.py
+    digest: sha256:c43db9dbc4cd2f664087316d1927625ce97709b64dd4406e006a3fd23511511d
+  - path: src/evallab/interpretation/traj_baseline.py
+    digest: sha256:6f790b27eb6fd6d0e259b79b9b07d31e38933c450926b79e0d3ef4f68edb93cb
+  - path: src/evallab/interpretation/traj_card.py
+    digest: sha256:f2b782c7efa85daa52cc0061dc12eb9851bfe472375fac86b5042b3c8eacf729
+  - path: src/evallab/interpretation/trajectory_acceptance.py
+    digest: sha256:49c3c1c819291d739ab3329cdfacf47dc920be3a93181550bd7fb26356020cf4
+  - path: src/evallab/interpretation/trajectory_alignment.py
+    digest: sha256:1ccc594db9fd3908bf92dfcce4646cc4fb35750a77625ee365f1ec7298924b4a
+  - path: src/evallab/interpretation/trajectory_calibration.py
+    digest: sha256:8463031e0c2a46d1cf268870f3408fd3a46bf8a451907bf5620b824306168c12
+  - path: src/evallab/interpretation/trajectory_context.py
+    digest: sha256:2b40874f9a8a5c2abf9fafb5f505fa4fc4e089049749356b1d6dff7f430de4cd
+  - path: src/evallab/interpretation/trajectory_data_quality.py
+    digest: sha256:389f3071d4a5b993aaa6b514a8768de9b811954dd450b9e3366b66e9df923a16
+  - path: src/evallab/interpretation/trajectory_hydration.py
+    digest: sha256:3c9b1b91199881a35f4c9a785732bc1a185d681cb514ebf9c60b07e1d3f4caf7
+  - path: src/evallab/interpretation/trajectory_ir.py
+    digest: sha256:359e3151aeb21d98f6378e4a16cd86e0eb21b8f13080167240924dc8bd4f5ff5
+  - path: src/evallab/interpretation/trajectory_judgment.py
+    digest: sha256:c570d2595e0b3c84d08a5c55df60625fd20f483681e75289c0a945523d7351fb
+  - path: src/evallab/interpretation/trajectory_quality.py
+    digest: sha256:a05726573cfed11fae5bcb13f21abdd2d2080f260b9f7217499152e4a4340ec4
+  - path: src/evallab/interpretation/trajectory_readiness.py
+    digest: sha256:28fadb4ab32976a37c0e341febd830ab2502dd179b4ea5a3db5401897ae31991
+  - path: src/evallab/interpretation/trajectory_recipe_run.py
+    digest: sha256:9d4d98f14f39c66de50a6d109e3662e68c28477cfc3c23b2bbe7d146927fe40a
+  - path: src/evallab/interpretation/trajectory_recipes.py
+    digest: sha256:ee344f58667fef5573da90d9a0fa9c5d81b95580ae777c7285ae70190ce3a0ed
+  - path: src/evallab/interpretation/trajectory_runtime.py
+    digest: sha256:55d85b8a478c84eae8326bf68a4456dfaddf1e18c779ea2703cdc2d4e13fe7cf
+  - path: src/evallab/interpretation/trajectory_semantic_producers.py
+    digest: sha256:f13a0cb0d4f2ba9291869658de4884f89d52685439971b9829342df35e2c53ce
+  - path: src/evallab/interpretation/trajectory_semantics.py
+    digest: sha256:b17e3a18a34a6260455a3012b3cd697832dbed72f34885ca84cb169dd641cea2
+  - path: src/evallab/interpretation/trajectory_sequence.py
+    digest: sha256:030d78e91c1e011b3d1ffec49b34e653a211e9ba527ca3d89fb5a1514fb697cc
   - path: src/evallab/labels.py
     digest: sha256:eb7b48e2f00d422ab3938033fc7d0d590b06c9290d1293b5a62687ad6ab5624e
   - path: src/evallab/ladder.py
@@ -110,10 +158,20 @@ inputs:
     digest: sha256:36c48391e74c9907c9f1cb6f5e03a20c7dce8d771a8cb633e9bcfe2ea080c24e
   - path: src/evallab/quota.py
     digest: sha256:ee109b9d0b13e7b5f603978744296a26234ba87246d7382fbea0c01c69d25952
+  - path: src/evallab/recovery/__init__.py
+    digest: sha256:ba0d2b1aa7f10102c728cfd0353c49b6a3ad15dea27cc9321890dbdda8ae1fdc
+  - path: src/evallab/recovery/bundle.py
+    digest: sha256:a809f068a2da233285d2f787ecf32896b5582c45ae1a7c8db3b5108db5a222c1
+  - path: src/evallab/recovery/certify.py
+    digest: sha256:174a905b91db87aa4e2bd0265d033981f245acde20668975785d40344fd1c799
+  - path: src/evallab/recovery/pilot.py
+    digest: sha256:0f61bb0178773471952b4e871fe4ffe9af3af5df392383c293a2cbf48f323e2e
+  - path: src/evallab/recovery/wrapper.py
+    digest: sha256:fd9b47d60880281cb3c3e97a000cd03660df21f72effc023c2e140a91860822e
   - path: src/evallab/registry.py
     digest: sha256:3b93c5747c4320b57a19092ff74ba6f2ebf098901a7130c10bf9be53c0b7509c
   - path: src/evallab/repomap.py
-    digest: sha256:f64169da6e1d4442422cfd2b63025c0d15d39ef4f81629c6429037f467e28be0
+    digest: sha256:30e95fbe6712510ecece0c9c92670ce97a86c9f3990ba00fbc0b092ca9b600d2
   - path: src/evallab/report.py
     digest: sha256:555289bba1aa3ef83b39aaacd0c13f8b11bf22cf73ed80db9f9ec84935c7c3ae
   - path: src/evallab/researchers.py
@@ -122,6 +180,8 @@ inputs:
     digest: sha256:cd87845822f920b7e1fc3feb269c88d544ccf27bed2d9cde9549b116c61a0adc
   - path: src/evallab/runner.py
     digest: sha256:acf9a130dbdeea2aa2def8492ee0866d051da19e14a057ea9a029901eebb1f47
+  - path: src/evallab/schemas/__init__.py
+    digest: sha256:0f7a74e529fede4d81e703aada72b3cafdcc54e9be4e14c017c3432270a0bc06
   - path: src/evallab/screen.py
     digest: sha256:02fc0895b8a945fe4101cd68a7ee5384ed7885b77c695036d681d15fcfed5fae
   - path: src/evallab/semantic_facts.py
@@ -138,6 +198,16 @@ inputs:
     digest: sha256:6b15275f18c7cbd2de503754ec1f96703cd460ea975fca1aee1e6b0b29aee7de
   - path: src/evallab/status_generator.py
     digest: sha256:38a10eecd36d74fae369bb03edd0d5dfe1eb711476339858681cbc68176aaae5
+  - path: src/evallab/storage/__init__.py
+    digest: sha256:25d87c03da7238912ce4cdb6828e00da360c3729b0f9ad217d85d9f41270c6d8
+  - path: src/evallab/storage/attach.py
+    digest: sha256:1139bb44d35e88bba3b153475fd8dd731d28a0187c57bc95dc1e53fa52abcabe
+  - path: src/evallab/storage/data_backfill.py
+    digest: sha256:a115375fc054bdf6d956d46211105bfa0abdf5e32a466606d3877eebc6c764eb
+  - path: src/evallab/storage/parquet_compaction.py
+    digest: sha256:ef83272049aa1ea0cc876c837972935ebbb859a9faf198717e804d0a9221ba1a
+  - path: src/evallab/storage/paths.py
+    digest: sha256:a622b5f0c6534c740bcb14403b47cd1be3027ffff7257922c0cec91d08493871
   - path: src/evallab/storm.py
     digest: sha256:5dbea869e14ff18f7134dc47598f64cbfeb8039f9ad90f3fc4e5655d00de639c
   - path: src/evallab/synthetic_cert.py
@@ -186,27 +256,31 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `analyst` | 1223 | ANALYST: Durable agent analysis with stored reasoning trajectories. | — |
 | `antigravity` | 341 | Convert Antigravity CLI machine-readable output into ATIF. | — |
 | `authoring` | 3619 | BUILDER authoring pipeline (WS-C). | `python -m evallab.authoring propose`, `python -m evallab.authoring model-propose`, `python -m evallab.authoring harvest`, `python -m evallab.authoring battery`, `python -m evallab.authoring review`, `python -m evallab.authoring register`, `python -m evallab.authoring sample`, `python -m evallab.authoring batch` |
-| `automation` | 1003 | Return boolean-only readiness without reading credential values into Python. | `doctor`, `schedule install`, `research` |
+| `automation` | 1003 | Return boolean-only readiness without reading credential values into Python. | `doctor`, `research` |
 | `backups` | 173 | Publish one immutable dump/manifest generation with one atomic rename. | — |
 | `behavior` | 736 | Behavioral analysis over the unified attach surface (trial_facts, steps, tool_calls). | — |
 | `behavior_calibration` | 274 | Human-grounded calibration for ATIF behavior episodes. | — |
 | `behavior_catalog` | 155 | Human-reviewable catalog for the frozen ATIF behavior dimensions. | — |
 | `behavior_episodes` | 847 | Canonical ATIF behavior episodes, conservative detectors, and storage. | — |
 | `calibrate` | 1720 | Dispatch one approved Codex calibration without requiring a Claude credential. | `calibrate` |
-| `canary` | 168 | Digest sorted relative paths and file digests, independent of checkout location. | `canary import-terminal-bench` |
+| `canary` | 168 | Digest sorted relative paths and file digests, independent of checkout location. | — |
 | `capability_contract` | 910 | Typed, evidence-bound P/R/U/C/Y capability admission. | — |
 | `capability_workflow` | 420 | Deterministic, offline M052 integration over four bounded evidence components. | — |
 | `cards` | 649 | E11: eval-card generator with purpose-bound shape and mandatory uncertainty. | — |
-| `cli` | 4175 | Run, inspect, and analyze agent evaluations through Harbor. | `claims`, `claims pack`, `schedule`, `canary`, `curve`, `curve validate`, `curve build`, `curve report`, `report`, `analyze`, `analyze worker-plan`, `analyze worker-status`, `analyze worker-run-one`, `analyze worker-resolve-ambiguous`, `analyze quality`, `data`, `data backfill`, `db`, `analyst`, `analyst list`, `analyst show`, `card`, `card validate`, `semantic-facts`, `semantic_facts project`, `semantic_facts query`, `semantics`, `evidence`, `evidence archive`, `evidence restore`, `tasks`, `tasks import`, `ladder`, `ladder validate`, `ladder generate`, `ladder screen`, `screen stage1`, `screen analyze`, `screen stage2`, `registry`, `registry list`, `registry audit`, `registry promote`, `registry register`, `tidy`, `traj`, `traj card`, `traj ir`, `traj pack`, `traj align` |
+| `cli` | 4175 | Run, inspect, and analyze agent evaluations through Harbor. | `claims`, `pack`, `schedule`, `install`, `canary`, `import-terminal-bench`, `curve`, `validate`, `build`, `report`, `family`, `card`, `analyze`, `plan`, `worker-plan`, `worker-status`, `worker-run-one`, `worker-resolve-ambiguous`, `stub`, `ingest-sidecar`, `review`, `agreement`, `trial`, `batch`, `inspect`, `quality`, `data`, `backfill`, `db`, `init`, `list`, `attach`, `analyst`, `show`, `generate`, `semantic-facts`, `project`, `query`, `semantics`, `coverage`, `evidence`, `archive`, `restore`, `tasks`, `import`, `ladder`, `screen`, `stage1`, `stage2`, `registry`, `audit`, `promote`, `register`, `tidy`, `traj`, `outline`, `queue`, `label`, `ir`, `align` |
 | `cohort` | 1506 | Percentile interval that resamples the supplied evidence units. | `compare`, `power` |
 | `contextpack` | 1039 | Context Pack Compiler (WS-B). | `python -m evallab.contextpack build`, `python -m evallab.contextpack list-docs` |
 | `craft` | 1352 | CRAFT: the deterministic half of the task-corpus analyzer (WS-A). | `python -m evallab.craft scan` |
 | `credentials` | 170 | Credential availability probes shared by the doctor and the executor. | — |
 | `curve` | 558 | Defines `load_curve_spec`, `load_curve_report`, `build_curve`, `write_curve`. | — |
-| `database` | 561 | Count recent failures while treating provider capacity as neutral noise. | `analyze ingest-sidecar`, `analyze review`, `db init`, `db list` |
+| `database` | 561 | Count recent failures while treating provider capacity as neutral noise. | — |
 | `digest` | 858 | True for a run the lab generated to test itself rather than a model. | — |
 | `docindex` | 405 | Documentation index generator and archive sweep (WS-E item 7). | `python -m evallab.docindex generate`, `python -m evallab.docindex check` |
 | `eventlog` | 50 | Serialize event-log operations across both threads and processes. | — |
+| `evidence` | 1 | Canonical evidence projection package. | — |
+| `evidence.atif` | 1016 | Land completed jobs in the catalog, then rebuild their derived Parquet. | — |
+| `evidence.event_mart` | 379 | Canonical event/action projections over Harbor trial evidence. | — |
+| `evidence.facts` | 1741 | Upsert deterministic document/fact records after the base job ingest. | — |
 | `evidence_store` | 177 | Content-addressed durable bundles for raw Harbor evidence. | — |
 | `execution_contracts` | 344 | Immutable execution contracts, DTOs, and validation for runner and queue subsystems. | — |
 | `explorer` | 1455 | Read-only run and analysis explorer (M005). | — |
@@ -218,7 +292,27 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `harbor_network` | 280 | Platform-aware Harbor Docker network policy for the execution staging adapter. | — |
 | `harbor_state_journal` | 293 | Passive filesystem state journal for Harbor Docker trials. | — |
 | `ingest_verify` | 517 | Ingest completeness verification and gap reconciliation (LOOP-INGEST). | — |
-| `labels` | 857 | Unified human, heuristic, and model behavior labels. | `traj queue`, `traj label`, `traj report` |
+| `interpretation` | 1 | Interpretation and trajectory analysis domain package. | — |
+| `interpretation.evidence_pack` | 896 | EvidencePack v1: Hierarchical, bounded, citation-preserving input for interpreting models. | — |
+| `interpretation.traj_baseline` | 662 | Mechanical baseline facts, Screening heuristics, and Trace Baseline View (v_trace_baseline). | — |
+| `interpretation.traj_card` | 526 | Trajectory Interpretation Card Renderer (evallab traj card <trial>). | — |
+| `interpretation.trajectory_acceptance` | 280 | Platform-owned AcceptanceDecision v1 contract and pure fail-closed gate. | — |
+| `interpretation.trajectory_alignment` | 429 | Counterfactual pair matching, sequence alignment, and divergence k* detection. | — |
+| `interpretation.trajectory_calibration` | 296 | Fail-closed Platform serializers for frozen CalibrationReport versions. | — |
+| `interpretation.trajectory_context` | 1285 | Disposable trajectory context pack for agent-facing runtime context. | — |
+| `interpretation.trajectory_data_quality` | 1438 | Deterministic per-campaign data-quality operator (Platform-only). | — |
+| `interpretation.trajectory_hydration` | 663 | CAS/raw-ATIF-backed redacted hydration API for cited trajectory content. | — |
+| `interpretation.trajectory_ir` | 1651 | TrajectoryIR v1: Canonical intermediate representation for agent trajectories. | — |
+| `interpretation.trajectory_judgment` | 177 | Platform-owned MachineJudgment v1 contract. | — |
+| `interpretation.trajectory_quality` | 614 | Durable Trajectory Quality Ledger and Inspection Engine. | — |
+| `interpretation.trajectory_readiness` | 277 | Trajectory Readiness and HOLD Audit Report Generator. | — |
+| `interpretation.trajectory_recipe_run` | 663 | Run the seven trajectory recipes and write deterministic findings artifacts. | — |
+| `interpretation.trajectory_recipes` | 1986 | Analyst recipe engine v1 (R1–R7). | — |
+| `interpretation.trajectory_runtime` | 2485 | Track A5 pack-only automated interpretation runtime. | — |
+| `interpretation.trajectory_semantic_producers` | 459 | Focused semantic-fact producers for AgentAbstain and Recovery evidence. | — |
+| `interpretation.trajectory_semantics` | 1590 | Typed, versioned trajectory semantics profiles and semantic action projections. | — |
+| `interpretation.trajectory_sequence` | 848 | Deterministic empirical sequence and transition analysis over ATIF/event rows. | — |
+| `labels` | 857 | Unified human, heuristic, and model behavior labels. | — |
 | `ladder` | 1515 | LADDER: Evaluation grid generator (v2 §4). | `python -m evallab.ladder generate`, `python -m evallab.ladder screen`, `python -m evallab.ladder stage1`, `python -m evallab.ladder analyze`, `python -m evallab.ladder stage2` |
 | `lance` | 676 | LANCE: LanceDB vector store for tasks, trials, steps, and analyses beside DuckDB. | `python -m evallab.lance build`, `python -m evallab.lance search` |
 | `lessons` | 1116 | Statistical lesson aggregation views and findings engine (WS-D). | — |
@@ -227,17 +321,23 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `operational_restraint` | 2006 | Operational Restraint Synthetic Evaluation Package (S7 Conflict-Pair V0). | — |
 | `phoenix_annotations` | 464 | Optional Phoenix span annotations for reviewed behavior episodes. | — |
 | `power` | 59 | Statistical power planning and sample size estimation for eval-lab comparisons. | — |
-| `preflight` | 688 | `evallab preflight` — is it safe and sensible to run right now? The surface an operator (or the nightly, at tick start) reads *before* anything runs. | `preflight` |
+| `preflight` | 688 | `evallab preflight` — is it safe and sensible to run right now? The surface an operator (or the nightly, at tick start) reads *before* anything runs. | `preflight`, `tick` |
 | `profiles` | 628 | Provider-neutral agent profiles for a subscriptions-only lab (M003). | — |
 | `provenance` | 404 | PROVENANCE: explicit task origin classification across corpora. | `python -m evallab.provenance classify`, `python -m evallab.provenance report` |
-| `queue` | 2034 | The refusal an operator reads — in `submit` output and in queue/reasons/. | `submit`, `tick`, `approve`, `reject`, `stop`, `resume`, `ingest`, `trajectories` |
+| `queue` | 2034 | The refusal an operator reads — in `submit` output and in queue/reasons/. | `submit`, `approve`, `reject`, `stop`, `resume`, `ingest`, `trajectories` |
 | `quota` | 994 | Subscription-quota accounting for paid agents, measured instead of estimated. | — |
+| `recovery` | 71 | Package `evallab.recovery`. | — |
+| `recovery.bundle` | 216 | Defines `RecoveryContractModel`, `CommandOutcome`, `FileEntry`, `FilesystemManifest`, …. | — |
+| `recovery.certify` | 260 | Defines `CertificationCriterion`, `StateCertificate`, `evaluate_archive_hash`, `evaluate_manifest_equivalence`, …. | — |
+| `recovery.pilot` | 356 | Create a canonical test bundle representative of the given task class. | — |
+| `recovery.wrapper` | 163 | Format starting context for the recovery agent based on experimental message_mode. | — |
 | `registry` | 2095 | Explicit task registry and admission trust boundary for eval-lab. | — |
-| `repomap` | 1163 | Generated repository map for `src/evallab/` (WS-F navigation). | `python -m evallab.repomap generate`, `python -m evallab.repomap check` |
-| `report` | 519 | Defines `family_report`, `render_family_report`, `write_family_report`, `load_completed_spec`, …. | `report family`, `report card` |
+| `repomap` | 1123 | Generated repository map for `src/evallab/` (WS-F navigation). | `python -m evallab.repomap generate`, `python -m evallab.repomap check` |
+| `report` | 519 | Defines `family_report`, `render_family_report`, `write_family_report`, `load_completed_spec`, …. | — |
 | `researchers` | 1452 | Run schema-constrained Codex with read-only, networkless evidence access. | — |
-| `results` | 303 | True for a path inside a dot-prefixed bookkeeping directory. | `run`, `matrix`, `summarize` |
-| `runner` | 844 | Return only containers proven by labels to belong to Harbor for this task. | — |
+| `results` | 303 | True for a path inside a dot-prefixed bookkeeping directory. | `summarize` |
+| `runner` | 844 | Return only containers proven by labels to belong to Harbor for this task. | `dashboard`, `run`, `matrix` |
+| `schemas` | 2166 | Strict base for durable lab contracts. | — |
 | `screen` | 1131 | Difficulty screening and follow-up generation for eval-lab (v2 §4). | — |
 | `semantic_facts` | 476 | Typed, provenance-preserving semantic facts for benchmark analysis. | — |
 | `seqgen` | 1462 | Deterministic, sequence-first synthetic Harbor-task generator (SEQGEN v0). | — |
@@ -246,6 +346,11 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `state_events` | 660 | Append-only projection of state-journal producer events. | — |
 | `status` | 538 | Read-only operator snapshot of completed Harbor evidence and lab stores. | `status` |
 | `status_generator` | 682 | STATUS.md Generator: deterministic projection of live catalog and queue state. | — |
+| `storage` | 1 | Storage subsystem package. | `behavior` |
+| `storage.attach` | 448 | E04: unified DuckDB attach surface (Z2 + Z3 + Z4). | — |
+| `storage.data_backfill` | 672 | Single-command all-durable completed-trial backfill orchestrator. | — |
+| `storage.parquet_compaction` | 856 | Deterministic Parquet compaction engine (WS-E item 4). | `python -m evallab.storage.parquet_compaction compact` |
+| `storage.paths` | 322 | Return the primary checkout for a repository or linked worktree. | — |
 | `storm` | 517 | Storm Alarms Engine: detect repeated reason_code events in queue logs. | — |
 | `synthetic_cert` | 675 | Eight-point Certification Gate for Synthetic Agent-Capability Evaluations (V0). | — |
 | `synthetic_contracts` | 358 | Contracts and schemas for synthetic agent-capability evaluations (V0). | — |
@@ -257,7 +362,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `task_workbench` | 3722 | Deterministic, non-admitting quality workbench for Harbor task candidates. | `python -m evallab.task_workbench plan`, `python -m evallab.task_workbench check`, `python -m evallab.task_workbench packet` |
 | `tidy` | 1136 | E16: working tree tidy sweep reporting strays, stale worktrees, and retention violations. | — |
 | `tracing` | 808 | ATIF → OpenTelemetry conversion and Phoenix shipping. | `nightly`, `trace` |
-| `traj` | 1424 | M030 LOOP-TRAJ: Trajectory analysis, mechanical feature extraction, and human review queue. | `traj outline`, `traj project` |
+| `traj` | 1424 | M030 LOOP-TRAJ: Trajectory analysis, mechanical feature extraction, and human review queue. | — |
 | `upstream_adapter` | 567 | Offline, file-only boundaries for pinned upstream evaluation results. | — |
 | `verdicts` | 527 | Verdict persistence, validation, and query engine (§2.1, §2.2). | — |
 
@@ -269,107 +374,92 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | Command | Module | Help |
 |---|---|---|
 | `claims` | `cli` | Compile durable, provenance-backed claims context |
-| `claims pack` | `cli` | Compile one trial's accepted/current claims |
+| `pack` | `cli` | Compile one trial's accepted/current claims |
 | `doctor` | `automation` | Check local Harbor, Docker, uv, and PostgreSQL |
-| `dashboard` | `storage` | Open the read-only research overview |
+| `dashboard` | `runner` | Open the read-only research overview |
 | `status` | `status` | Read-only operator snapshot of recent work, health, and saved analysis |
 | `preflight` | `preflight` | Read-only: remaining quota per provider, the queue by purpose, power warnings |
 | `submit` | `queue` | Validate and submit one experiment spec |
-| `tick` | `queue` | Reconcile and drain the approved experiment queue |
+| `tick` | `preflight` | Reconcile and drain the approved experiment queue |
 | `approve` | `queue` | Authorize one queued experiment; required before any billable agent runs |
 | `reject` | `queue` | Reject one queued experiment |
 | `stop` | `queue` | Stop dispatch after the current trial |
 | `resume` | `queue` | Remove the queue stop marker |
 | `schedule` | `cli` | Manage unattended launchd schedules |
-| `schedule install` | `automation` | Install and load tick/nightly LaunchAgents |
+| `install` | `cli` | Install and load tick/nightly LaunchAgents |
 | `digest` | `gc` | Render one daily digest from catalog and events |
 | `nightly` | `tracing` | Run the fail-closed unattended nightly cycle |
 | `research` | `automation` | Run one guarded analyst/synthesizer/proposer pass |
 | `canary` | `cli` | Manage version-pinned nightly canaries |
-| `canary import-terminal-bench` | `canary` | Import one task through an immutable Harbor dataset download |
+| `import-terminal-bench` | `cli` | Import one task through an immutable Harbor dataset download |
 | `calibrate` | `calibrate` | Measure a judge against one sealed calibration family |
-| `run` | `results` | Run one explicitly named Harbor job |
-| `matrix` | `results` | Run a checked-in JSON experiment matrix |
+| `run` | `runner` | Run one explicitly named Harbor job |
+| `matrix` | `runner` | Run a checked-in JSON experiment matrix |
 | `summarize` | `results` | Print trial results directly from Harbor job directories |
 | `ingest` | `queue` | Upsert Harbor job metadata into PostgreSQL |
 | `trajectories` | `queue` | Validate ATIF; optionally rebuild catalog and deterministic Parquet facts |
 | `compare` | `cohort` | Compare declared trial cohorts |
 | `curve` | `cli` | Validate, build, or read an empirical paired capability curve |
-| `curve validate` | `cli` | Validate a curve spec and its paired cohort inputs as JSON |
-| `curve build` | `cli` | Build a provenance-backed empirical curve artifact |
-| `curve report` | `cli` | Validate and emit a frozen curve artifact as JSON |
+| `validate` | `cli` | Validate a curve spec and its paired cohort inputs as JSON |
+| `build` | `cli` | Build a provenance-backed empirical curve artifact |
+| `report` | `cli` | Validate and emit a frozen curve artifact as JSON |
 | `power` | `cohort` | Plan task-paired pass@k comparison power |
-| `report` | `cli` | Render trajectory families and eval cards |
-| `report family` | `report` | Explain one task family from Parquet and canonical ATIF |
-| `report card` | `report` | Draft a provenance-bearing eval card from a completed spec |
+| `family` | `cli` | Explain one task family from Parquet and canonical ATIF |
+| `card` | `cli` | Draft a provenance-bearing eval card from a completed spec |
 | `analyze` | `cli` | Plan or index bounded trial analyses |
-| `analyze plan` | `evidence` | Show a no-call stage-5 analysis plan |
-| `analyze worker-plan` | `cli` | Read-only: what an analysis-worker cycle would do |
-| `analyze worker-status` | `cli` | Read-only: analysis request counts and states |
-| `analyze worker-run-one` | `cli` | Run ONE request through normal admission (never self-approves) |
-| `analyze worker-resolve-ambiguous` | `cli` | Explicitly retry or quarantine one possibly-paid ambiguous invocation |
-| `analyze stub` | `evidence` | Validate a saved response and write an immutable sidecar |
-| `analyze ingest-sidecar` | `database` | Index one durable analysis sidecar |
-| `analyze review` | `database` | Append a human review without editing the analysis |
-| `analyze agreement` | `evidence` | Compare valid analysis categories with fixed labels |
-| `analyze trial` | `interpretation` | Analyze one cohort-style input from CAS (pack-only, no model) |
-| `analyze batch` | `interpretation` | Consume the merged five-TB3 machine-analysis inventory |
-| `analyze inspect` | `interpretation` | Reopen artifact lineage and exact citations for one decision |
-| `analyze calibrate` | `interpretation` | Parse a committed CalibrationReport and report hold-only status |
-| `analyze quality` | `cli` | Report per-campaign data-quality HOLD, coverage, CAS identity, and projections (no judge) |
+| `plan` | `cli` | Show a no-call stage-5 analysis plan |
+| `worker-plan` | `cli` | Read-only: what an analysis-worker cycle would do |
+| `worker-status` | `cli` | Read-only: analysis request counts and states |
+| `worker-run-one` | `cli` | Run ONE request through normal admission (never self-approves) |
+| `worker-resolve-ambiguous` | `cli` | Explicitly retry or quarantine one possibly-paid ambiguous invocation |
+| `stub` | `cli` | Validate a saved response and write an immutable sidecar |
+| `ingest-sidecar` | `cli` | Index one durable analysis sidecar |
+| `review` | `cli` | Append a human review without editing the analysis |
+| `agreement` | `cli` | Compare valid analysis categories with fixed labels |
+| `trial` | `cli` | Analyze one cohort-style input from CAS (pack-only, no model) |
+| `batch` | `cli` | Consume the merged five-TB3 machine-analysis inventory |
+| `inspect` | `cli` | Reopen artifact lineage and exact citations for one decision |
+| `quality` | `cli` | Report per-campaign data-quality HOLD, coverage, CAS identity, and projections (no judge) |
 | `data` | `cli` | Completed-trial data layer: reconcile durable trials to ANALYSIS_READY or HOLD |
-| `data backfill` | `cli` | Reconcile every durable completed trial to a reason-coded disposition |
+| `backfill` | `cli` | Reconcile every durable completed trial to a reason-coded disposition |
 | `db` | `cli` | Manage the derived PostgreSQL index |
-| `db init` | `database` | Apply the idempotent schema |
-| `db list` | `database` | List recently ingested trials |
-| `db attach` | `storage` | Attach unified DuckDB surface (Z2+Z3+Z4) |
+| `init` | `cli` | Apply the idempotent schema |
+| `list` | `cli` | List recently ingested trials |
+| `attach` | `cli` | Attach unified DuckDB surface (Z2+Z3+Z4) |
 | `lineage` | `lineage` | Trace recursive lineage of generated artifacts back to Z1 |
 | `analyst` | `cli` | Run, list, and inspect durable trial analyses with reasoning trajectories |
-| `analyst run` | `storage` | Run analysis on one trial (deterministic stub by default; --model spends tokens) |
-| `analyst list` | `cli` | List stored analysis conclusions |
-| `analyst show` | `cli` | Show an analysis conclusion and its recorded trajectory |
-| `card` | `cli` | Generate and validate purpose-bound eval cards from completed evidence |
-| `card generate` | `storage` | Generate an eval card from a spec_id or job_id |
-| `card validate` | `cli` | Validate an eval card against schema and mandatory caveats |
+| `show` | `cli` | Show an analysis conclusion and its recorded trajectory |
+| `generate` | `cli` | Generate an eval card from a spec_id or job_id |
 | `behavior` | `storage` | Analyze agent execution behavior, effort, and efficiency |
 | `semantic-facts` | `cli` | Project and query typed benchmark analysis facts |
-| `semantic_facts project` | `cli` | Project a normalized JSON fact bundle to typed Parquet |
-| `semantic_facts query` | `cli` | Query benchmark×construct analysis-readiness scorecards |
+| `project` | `cli` | Project a normalized JSON fact bundle to typed Parquet |
+| `query` | `cli` | Query benchmark×construct analysis-readiness scorecards |
 | `semantics` | `cli` | Project and query profile-derived semantic action facts |
-| `semantics project` | `storage` | Project normalized ATIF with explicit task-to-profile bindings |
-| `semantics coverage` | `storage` | Query per-trial semantic coverage at an explicit threshold |
+| `coverage` | `cli` | Query per-trial semantic coverage at an explicit threshold |
 | `evidence` | `cli` | Archive and restore content-addressed raw evidence |
-| `evidence archive` | `cli` | — |
-| `evidence restore` | `cli` | — |
+| `archive` | `cli` | — |
+| `restore` | `cli` | — |
 | `tasks` | `cli` | Import and manage task corpora |
-| `tasks import` | `cli` | Restartable batch import of local Harbor task packages |
+| `import` | `cli` | Restartable batch import of local Harbor task packages |
 | `ladder` | `cli` | Expand Cartesian evaluation grids into ExperimentSpecs |
-| `ladder validate` | `cli` | Validate and cardinality-check a plan without writing or submitting |
-| `ladder generate` | `cli` | Expand a grid specification into ExperimentSpec files |
-| `ladder screen` | `cli` | Staged difficulty screening and follow-up generation |
-| `screen stage1` | `cli` | Emit Stage 1 screening specs (k=1) across tasks and model levels |
-| `screen analyze` | `cli` | Analyze completed Stage 1 results and classify task separation |
-| `screen stage2` | `cli` | Emit Stage 2 follow-up specs (k=3) for separating tasks only |
+| `screen` | `cli` | Staged difficulty screening and follow-up generation |
+| `stage1` | `cli` | Emit Stage 1 screening specs (k=1) across tasks and model levels |
+| `stage2` | `cli` | Emit Stage 2 follow-up specs (k=3) for separating tasks only |
 | `trace` | `tracing` | Convert ATIF trajectories to OTel and ship them to Phoenix |
 | `fetch` | `fetch` | Acquire a pinned Harbor Hub dataset into library/benchmarks/ |
 | `gc` | `gc` | Plan or apply compression/pruning of unpromoted ingested runs |
 | `registry` | `cli` | Inspect and audit explicit registered tasks |
-| `registry list` | `cli` | List explicit task registry records |
-| `registry audit` | `cli` | Audit task registry records and queue claims |
-| `registry promote` | `cli` | Promote a task package into the explicit task registry |
-| `registry register` | `cli` | Register a candidate task in the explicit task registry with human approval |
+| `audit` | `cli` | Audit task registry records and queue claims |
+| `promote` | `cli` | Promote a task package into the explicit task registry |
+| `register` | `cli` | Register a candidate task in the explicit task registry with human approval |
 | `tidy` | `cli` | Sweep working tree strays, stale worktrees, and retention violations |
 | `verdict` | `fetch` | Record, list, or inspect append-only human verdicts on discoveries |
 | `traj` | `cli` | Analyze, feature-extract, outline, and label trajectories |
-| `traj outline` | `traj` | Deterministic step outline of an ATIF trajectory |
-| `traj queue` | `labels` | Deterministic daily reading/review queue |
-| `traj label` | `labels` | Persist a human or heuristic trajectory behavior label |
-| `traj project` | `traj` | Extract mechanical features to Parquet |
-| `traj report` | `labels` | Precision report of heuristic labels vs human ground truth |
-| `traj card` | `cli` | Render a Trajectory Interpretation Card for a trial |
-| `traj ir` | `cli` | Build a deterministic TrajectoryIR intermediate representation |
-| `traj pack` | `cli` | Build a bounded, citation-preserving EvidencePack for model interpretation |
-| `traj align` | `cli` | Align two counterfactual trajectory branches and detect divergence k* |
+| `outline` | `cli` | Deterministic step outline of an ATIF trajectory |
+| `queue` | `cli` | Deterministic daily reading/review queue |
+| `label` | `cli` | Persist a human or heuristic trajectory behavior label |
+| `ir` | `cli` | Build a deterministic TrajectoryIR intermediate representation |
+| `align` | `cli` | Align two counterfactual trajectory branches and detect divergence k* |
 | `python -m evallab.authoring propose` | `authoring` | seed a quarantined proposal |
 | `python -m evallab.authoring model-propose` | `authoring` | model-design one quarantined proposal (spends subscription quota) |
 | `python -m evallab.authoring harvest` | `authoring` | harvest a verified task from completed Harbor job into _proposed/ |
@@ -394,6 +484,7 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `python -m evallab.provenance report` | `provenance` | full deterministic report of discovered tasks |
 | `python -m evallab.repomap generate` | `repomap` | Write a deterministic repository map |
 | `python -m evallab.repomap check` | `repomap` | Fail-closed validation of module descriptions and map freshness |
+| `python -m evallab.storage.parquet_compaction compact` | `storage.parquet_compaction` | compact closed-day data into derived/parquet/compact/dt=YYYY-MM-DD/ |
 | `python -m evallab.task_workbench plan` | `task_workbench` | inspect and print frozen local control plan |
 | `python -m evallab.task_workbench check` | `task_workbench` | run static checks and assess/run controls |
 | `python -m evallab.task_workbench packet` | `task_workbench` | write deterministic candidate review records |
@@ -404,14 +495,14 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 
 | Name | Location | Written by |
 |---|---|---|
-| `proposed` | `queue/proposed/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
-| `pending` | `queue/pending/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
-| `approved` | `queue/approved/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
-| `waiting` | `queue/waiting/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
-| `rejected` | `queue/rejected/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
-| `running` | `queue/running/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
-| `done` | `queue/done/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
-| `failed` | `queue/failed/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
+| `proposed` | `queue/proposed/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.facts`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
+| `pending` | `queue/pending/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.facts`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
+| `approved` | `queue/approved/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.facts`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
+| `waiting` | `queue/waiting/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.facts`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
+| `rejected` | `queue/rejected/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.facts`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
+| `running` | `queue/running/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.facts`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
+| `done` | `queue/done/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.facts`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
+| `failed` | `queue/failed/` | `analysis_worker`, `calibrate`, `cards`, `cli`, `evidence.facts`, `ingest_verify`, `queue`, `researchers`, `storm`, `tidy` |
 | `STOP` | `queue/STOP` | `queue` |
 | `events.jsonl` | `queue/events.jsonl` | `queue`, `researchers`, `storm` |
 | `calibration-specs` | `queue/calibration-specs` | `calibrate` |
@@ -419,27 +510,48 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `done` | `queue/done/` | `cards` |
 | `calls.jsonl` | `queue/researchers/calls.jsonl` | `researchers` |
 | `passes` | `queue/researchers/passes` | `ingest_verify`, `researchers` |
+| `running` | `queue/running` | `evidence.facts` |
 | `stub-calibration-records` | `queue/stub-calibration-records` | `cli` |
 
 ### Derived Parquet
 
 | Name | Location | Written by |
 |---|---|---|
-| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `contextpack`, `craft`, `fetch`, `ingest_verify`, `labels`, `lance`, `lessons`, `lineage`, `report`, `semantic_facts`, `status`, `status_generator`, `tidy`, `traj` |
-| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `contextpack`, `craft`, `fetch`, `ingest_verify`, `labels`, `lance`, `lessons`, `lineage`, `report`, `semantic_facts`, `status`, `status_generator`, `tidy`, `traj` |
+| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `contextpack`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `fetch`, `ingest_verify`, `interpretation.traj_card`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `report`, `semantic_facts`, `status`, `status_generator`, `storage.data_backfill`, `storage.parquet_compaction`, `storage.paths`, `tidy`, `traj` |
+| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `contextpack`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `fetch`, `ingest_verify`, `interpretation.traj_card`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `report`, `semantic_facts`, `status`, `status_generator`, `storage.data_backfill`, `storage.parquet_compaction`, `storage.paths`, `tidy`, `traj` |
+| `acceptance_decisions.parquet` | `acceptance_decisions/acceptance_decisions.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
+| `action_effects.parquet` | `derived/parquet/**/action_effects.parquet` | `evidence.atif` |
+| `action_transition_edges.parquet` | `derived/parquet/**/action_transition_edges.parquet` | `interpretation.trajectory_sequence` |
+| `agent_actions.parquet` | `derived/parquet/**/agent_actions.parquet` | `evidence.atif` |
 | `analyses.parquet` | `derived/parquet/**/analyses.parquet` | `analyst`, `lance` |
 | `analyst_trajectories.parquet` | `derived/parquet/**/analyst_trajectories.parquet` | `analyst` |
+| `artifact_facts.parquet` | `derived/parquet/**/artifact_facts.parquet` | `evidence.atif`, `evidence.facts` |
 | `behavior_episodes.parquet` | `derived/parquet/**/behavior_episodes.parquet` | `behavior_episodes` |
 | `behavior_labels.parquet` | `derived/parquet/**/behavior_labels.parquet` | `labels` |
 | `capability_opportunities.parquet` | `derived/parquet/**/capability_opportunities.parquet` | `semantic_facts` |
 | `craft.parquet` | `craft/craft.parquet` | `authoring`, `contextpack`, `craft`, `lessons` |
-| `evidence_coverage.parquet` | `derived/parquet/**/evidence_coverage.parquet` | `semantic_facts` |
+| `evidence_coverage.parquet` | `derived/parquet/**/evidence_coverage.parquet` | `interpretation.traj_card`, `semantic_facts` |
+| `interpretation_artifacts.parquet` | `derived/parquet/**/interpretation_artifacts.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime`, `storage.data_backfill` |
+| `jobs.parquet` | `derived/parquet/**/jobs.parquet` | `evidence.atif`, `interpretation.trajectory_data_quality` |
 | `ledger.parquet` | `qualification/ledger.parquet` | `authoring` |
-| `observations.parquet` | `derived/parquet/**/observations.parquet` | `report` |
-| `tool_calls.parquet` | `derived/parquet/**/tool_calls.parquet` | `report` |
+| `llm_calls.parquet` | `derived/parquet/**/llm_calls.parquet` | `evidence.atif` |
+| `machine_judgments.parquet` | `machine_judgments/machine_judgments.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
+| `motif_summaries.parquet` | `derived/parquet/**/motif_summaries.parquet` | `interpretation.trajectory_sequence` |
+| `observable_motifs.parquet` | `derived/parquet/**/observable_motifs.parquet` | `interpretation.trajectory_sequence` |
+| `observations.parquet` | `derived/parquet/**/observations.parquet` | `evidence.atif`, `report` |
+| `reward_facts.parquet` | `derived/parquet/**/reward_facts.parquet` | `evidence.atif`, `evidence.facts` |
+| `semantic_action_coverage.parquet` | `job_id=*/trial_id=*/semantic_action_coverage.parquet` | `interpretation.trajectory_semantics` |
+| `semantic_action_facts.parquet` | `derived/parquet/**/semantic_action_facts.parquet` | `interpretation.trajectory_semantics` |
+| `state_changes.parquet` | `derived/parquet/**/state_changes.parquet` | `evidence.atif`, `evidence.facts` |
+| `state_events.parquet` | `derived/parquet/**/state_events.parquet` | `evidence.atif`, `evidence.facts` |
+| `steps.parquet` | `derived/parquet/**/steps.parquet` | `evidence.atif`, `interpretation.trajectory_context` |
+| `tool_calls.parquet` | `derived/parquet/**/tool_calls.parquet` | `evidence.atif`, `interpretation.trajectory_context`, `report` |
+| `tool_usage.parquet` | `derived/parquet/**/tool_usage.parquet` | `evidence.atif`, `evidence.facts` |
 | `traj_features.parquet` | `derived/parquet/**/traj_features.parquet` | `traj` |
-| `trajectories.parquet` | `job_id=*/trial_id=*/trajectories.parquet` | `ingest_verify` |
-| `trial_facts.parquet` | `derived/parquet/**/trial_facts.parquet` | `lessons`, `report` |
+| `trajectories.parquet` | `derived/parquet/**/trajectories.parquet` | `evidence.atif`, `evidence.facts`, `ingest_verify` |
+| `trajectory_events.parquet` | `derived/parquet/**/trajectory_events.parquet` | `evidence.atif` |
+| `trajectory_phases.parquet` | `derived/parquet/**/trajectory_phases.parquet` | `evidence.atif` |
+| `trial_facts.parquet` | `derived/parquet/**/trial_facts.parquet` | `evidence.atif`, `evidence.facts`, `interpretation.trajectory_data_quality`, `lessons`, `report` |
 
 ### DuckDB views (`sql/`)
 

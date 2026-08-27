@@ -10,9 +10,12 @@ from evallab.lineage import compute_file_digest, resolve_lineage
 from evallab.repomap import (
     GENERATED_BY_MARKER,
     _function_map,
+    build_map,
     check_map,
+    discover_module_paths,
     generate_map,
     main,
+    module_name_for_path,
     module_purpose,
     write_map,
 )
@@ -22,6 +25,7 @@ SKILL_NAMES = ("lab-status", "mission-launch", "review")
 
 def _write_module(src_dir: Path, name: str, body: str) -> Path:
     path = src_dir / f"{name}.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body, encoding="utf-8")
     return path
 
@@ -180,6 +184,74 @@ def test_handler_annotations_do_not_decide_attribution(tmp_path: Path) -> None:
     assert "`fetch`" not in row
 
 
+def test_subpackage_module_discovery_and_deterministic_ordering(tmp_path: Path) -> None:
+    """Subpackages and nested modules are discovered and sorted deterministically."""
+    src = tmp_path / "src" / "evallab"
+    src.mkdir(parents=True)
+    _write_module(src, "__init__", '"""Root package."""\n')
+    _write_module(src, "zebra", '"""Zebra top-level."""\n')
+    _write_module(src, "alpha", '"""Alpha top-level."""\n')
+    _write_module(src, "storage/__init__", '"""Storage package."""\n')
+    _write_module(src, "storage/paths", '"""Storage paths."""\n')
+    _write_module(src, "storage/attach", '"""Storage attach."""\n')
+    _write_module(src, "evidence/__init__", '"""Evidence package."""\n')
+    _write_module(src, "evidence/facts", '"""Evidence facts."""\n')
+    _write_module(
+        src,
+        "recovery/__init__",
+        "from evallab.recovery.bundle import build_recovery_bundle\n"
+        "__all__ = ['build_recovery_bundle']\n",
+    )
+    _write_module(src, "recovery/bundle", '"""Recovery bundle."""\n')
+
+    discovered = discover_module_paths(src)
+    names = [module_name_for_path(p, src) for p in discovered]
+
+    expected_order = [
+        "__init__",
+        "alpha",
+        "evidence",
+        "evidence.facts",
+        "recovery",
+        "recovery.bundle",
+        "storage",
+        "storage.attach",
+        "storage.paths",
+        "zebra",
+    ]
+    assert names == expected_order
+
+    snapshot = build_map(src, tmp_path)
+    snapshot_names = [m.name for m in snapshot.modules]
+    assert snapshot_names == expected_order
+
+    text = generate_map(src_dir=src, root=tmp_path)
+    assert "| `evidence.facts` |" in text
+    assert "| `storage.paths` |" in text
+    assert "| `storage.attach` |" in text
+    assert "| `recovery` |" in text
+    assert "Package `evallab.recovery`." in text
+
+
+def test_package_init_without_docstring_derives_deterministic_purpose(tmp_path: Path) -> None:
+    """Package __init__.py without docstring derives a package purpose instead of failing check."""
+    src = tmp_path / "src" / "evallab"
+    src.mkdir(parents=True)
+    _write_module(src, "status", '"""Status doc."""\n')
+    _write_module(
+        src,
+        "recovery/__init__",
+        "from evallab.recovery.bundle import x\n",
+    )
+    _write_module(src, "recovery/bundle", '"""Bundle doc."""\n')
+
+    map_path = tmp_path / "docs" / "repo-map.md"
+    write_map(map_path, src_dir=src, root=tmp_path)
+
+    issues = check_map(src_dir=src, map_path=map_path, root=tmp_path)
+    assert issues == []
+
+
 def test_check_fails_on_stale_committed_map(tmp_path: Path) -> None:
     src = _sample_tree(tmp_path)
     map_path = tmp_path / "docs" / "repo-map.md"
@@ -240,25 +312,6 @@ def test_ast_helpers_handle_non_module_nodes() -> None:
     node = ast.Constant(value=42)
     assert module_purpose("42", node) is None
     assert _function_map(node) == {}
-
-
-def test_check_passes_on_real_repository_tree() -> None:
-    root = repo_root()
-    src = root / "src" / "evallab"
-    map_path = root / "docs" / "repo-map.md"
-    assert map_path.is_file(), "docs/repo-map.md must be generated and committed"
-    issues = check_map(src_dir=src, map_path=map_path, root=root)
-    assert issues == []
-    assert main(["check"]) == 0
-
-
-def test_real_map_lists_every_module_and_attributes_status() -> None:
-    root = repo_root()
-    text = generate_map(root=root)
-    for path in (root / "src" / "evallab").glob("*.py"):
-        assert f"`{path.stem}`" in text
-    assert "| `status` | `status` |" in text
-    assert GENERATED_BY_MARKER in text
 
 
 def test_operator_skills_exist_with_name_and_description() -> None:

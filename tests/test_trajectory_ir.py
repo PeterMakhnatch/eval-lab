@@ -145,7 +145,7 @@ def test_sql_projection_views_round_trip(canary_trial_dir: Path, repo_root: Path
     assert len(pack_cols) == 24
     assert pack_cols == list(pack_proj.keys())
 
-    # 3. Test paired_alignments and v_paired_alignments (24 columns)
+    # 3. Test paired_alignments and v_paired_alignments (25 columns)
     align_proj = alignment.to_projection_dict()
     placeholders_align = ", ".join(["?"] * len(align_proj))
     conn.execute(
@@ -155,7 +155,7 @@ def test_sql_projection_views_round_trip(canary_trial_dir: Path, repo_root: Path
     align_rows = conn.execute("SELECT * FROM v_paired_alignments WHERE alignment_id = ?", [alignment.alignment_id]).fetchall()
     assert len(align_rows) == 1
     align_cols = [desc[0] for desc in conn.description]
-    assert len(align_cols) == 24
+    assert len(align_cols) == 25
     assert align_cols == list(align_proj.keys())
 
 

@@ -19,6 +19,7 @@ from typing import Any
 
 from evallab.trajectory_hydration import CitationHandle
 from evallab.trajectory_ir import IREvent, TrajectoryIR
+from evallab.trajectory_sequence import normalized_edit_distance
 
 
 class ConfoundedPairError(ValueError):
@@ -75,11 +76,11 @@ class PairedAlignmentResult:
     unmatched_ranges_a: tuple[tuple[int, int], ...]
     unmatched_ranges_b: tuple[tuple[int, int], ...]
     alignment_score: float
+    normalized_edit_distance: float
     total_aligned_steps: int
     aligned_pairs: tuple[AlignedStepPair, ...]
     summary: str
     created_at: str
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "alignment_id": self.alignment_id,
@@ -102,6 +103,7 @@ class PairedAlignmentResult:
             "unmatched_ranges_a": list(self.unmatched_ranges_a),
             "unmatched_ranges_b": list(self.unmatched_ranges_b),
             "alignment_score": self.alignment_score,
+            "normalized_edit_distance": self.normalized_edit_distance,
             "total_aligned_steps": self.total_aligned_steps,
             "aligned_pairs": [asdict(p) for p in self.aligned_pairs],
             "summary": self.summary,
@@ -131,6 +133,7 @@ class PairedAlignmentResult:
             "unmatched_ranges_a_json": json.dumps(list(self.unmatched_ranges_a)),
             "unmatched_ranges_b_json": json.dumps(list(self.unmatched_ranges_b)),
             "alignment_score": self.alignment_score,
+            "normalized_edit_distance": self.normalized_edit_distance,
             "total_aligned_steps": self.total_aligned_steps,
             "aligned_pairs_count": len(self.aligned_pairs),
             "summary": self.summary,
@@ -285,7 +288,9 @@ def align_trajectory_pair(
     seq_b = _step_actions(ir_b)
 
     aligned_pairs, score = align_action_sequences(seq_a, seq_b)
-
+    tokens_a = [_action_token(ev) for _, _, _, ev in seq_a]
+    tokens_b = [_action_token(ev) for _, _, _, ev in seq_b]
+    norm_edit_dist = round(normalized_edit_distance(tokens_a, tokens_b), 4)
     # 3. Analyze local divergences vs permanent non-reconvergent divergence k*
     local_divergences: list[LocalDivergenceRecord] = []
     unmatched_a: list[tuple[int, int]] = []
@@ -416,6 +421,7 @@ def align_trajectory_pair(
         unmatched_ranges_a=tuple(unmatched_a),
         unmatched_ranges_b=tuple(unmatched_b),
         alignment_score=score,
+        normalized_edit_distance=norm_edit_dist,
         total_aligned_steps=len(aligned_pairs),
         aligned_pairs=tuple(aligned_pairs),
         summary=summary,

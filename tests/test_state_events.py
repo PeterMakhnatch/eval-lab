@@ -469,11 +469,17 @@ def test_validate_state_diff_real_producer_build_diff_fixture() -> None:
     assert doc.changes[0].change_type == "modified"
     assert doc.changes[0].before is not None
     assert doc.changes[0].after is not None
+    assert doc.dropped_event_count == 0
 
     raw_payload = json.loads(fixture_diff.read_text(encoding="utf-8"))
     doc2 = validate_state_diff_payload(raw_payload)
     assert doc2 == doc
 
+    # Test producer diff with dropped_event_count
+    raw_payload_dropped = dict(raw_payload)
+    raw_payload_dropped["dropped_event_count"] = 4
+    doc_dropped = validate_state_diff_payload(raw_payload_dropped)
+    assert doc_dropped.dropped_event_count == 4
 
 def test_validate_state_diff_payload_valid_v1_document() -> None:
     """Valid schema v1 state-diff document parses and validates correctly."""
@@ -574,15 +580,16 @@ def test_validate_state_diff_payload_valid_v1_document() -> None:
     assert len(d["changes"]) == 3
 
 
-def test_validate_state_diff_payload_valid_list() -> None:
-    """Direct list of change records is accepted and validated."""
-    from evallab.state_events import validate_state_diff_payload
+def test_validate_state_diff_bare_list_rejected() -> None:
+    """Bare list payload is rejected: state-diff must be a top-level schema v1 dict."""
+    from evallab.state_events import StateEventValidationError, validate_state_diff_payload
 
     valid_sha = "sha256:" + "c" * 64
     changes_list = [
         {
             "path": "config/settings.json",
             "change_type": "added",
+            "event_count": 0,
             "before": None,
             "after": {
                 "path": "config/settings.json",
@@ -596,12 +603,8 @@ def test_validate_state_diff_payload_valid_list() -> None:
         }
     ]
 
-    doc = validate_state_diff_payload(changes_list)
-    assert doc.schema_version == 1
-    assert doc.status == "available"
-    assert doc.change_count == 1
-    assert len(doc.changes) == 1
-    assert doc.changes[0].path == "config/settings.json"
+    with pytest.raises(StateEventValidationError, match="must be a schema_version 1 object with changes"):
+        validate_state_diff_payload(changes_list)
 
 
 @pytest.mark.parametrize(
@@ -613,24 +616,56 @@ def test_validate_state_diff_path_safety_and_normalization(bad_path: str) -> Non
     from evallab.state_events import StateEventValidationError, validate_state_diff_payload
 
     valid_sha = "sha256:" + "d" * 64
-    payload = [
-        {
-            "path": bad_path,
-            "change_type": "added",
-            "before": None,
-            "after": {
+    payload = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 0,
+        "changes": [
+            {
                 "path": bad_path,
-                "type": "file",
-                "size_bytes": 10,
-                "sha256": valid_sha,
-                "mode": "-rw-r--r--",
-                "mtime_ns": 1,
-                "hash_status": "complete",
-            },
-        }
-    ]
+                "change_type": "added",
+                "event_count": 0,
+                "before": None,
+                "after": {
+                    "path": bad_path,
+                    "type": "file",
+                    "size_bytes": 10,
+                    "sha256": valid_sha,
+                    "mode": "-rw-r--r--",
+                    "mtime_ns": 1,
+                    "hash_status": "complete",
+                },
+            }
+        ],
+    }
 
     with pytest.raises(StateEventValidationError, match="path is invalid"):
+        validate_state_diff_payload(payload)
+
+
+@pytest.mark.parametrize(
+    "bad_status",
+    ["recording", "unknown", "disabled", "unavailable", "custom", "", "  ", "invalid_status"],
+)
+def test_validate_state_diff_status_strict_available_or_partial(bad_status: str) -> None:
+    """Status must be strictly 'available' or 'partial'."""
+    from evallab.state_events import StateEventValidationError, validate_state_diff_payload
+
+    payload = {
+        "schema_version": 1,
+        "status": bad_status,
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 0,
+        "event_count": 0,
+        "changes": [],
+    }
+    with pytest.raises(StateEventValidationError, match="status must be 'available' or 'partial'"):
         validate_state_diff_payload(payload)
 
 
@@ -643,25 +678,36 @@ def test_validate_state_diff_allowed_change_types(bad_change_type: str) -> None:
     from evallab.state_events import StateEventValidationError, validate_state_diff_payload
 
     valid_sha = "sha256:" + "e" * 64
-    payload = [
-        {
-            "path": "app.py",
-            "change_type": bad_change_type,
-            "before": None,
-            "after": {
+    payload = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 0,
+        "changes": [
+            {
                 "path": "app.py",
-                "type": "file",
-                "size_bytes": 10,
-                "sha256": valid_sha,
-                "mode": "-rw-r--r--",
-                "mtime_ns": 1,
-                "hash_status": "complete",
-            },
-        }
-    ]
+                "change_type": bad_change_type,
+                "event_count": 0,
+                "before": None,
+                "after": {
+                    "path": "app.py",
+                    "type": "file",
+                    "size_bytes": 10,
+                    "sha256": valid_sha,
+                    "mode": "-rw-r--r--",
+                    "mtime_ns": 1,
+                    "hash_status": "complete",
+                },
+            }
+        ],
+    }
 
     with pytest.raises(StateEventValidationError, match="not an allowed change type"):
         validate_state_diff_payload(payload)
+
 
 def test_validate_state_diff_transition_consistency() -> None:
     """Before/after presence must be consistent with change_type."""
@@ -678,17 +724,29 @@ def test_validate_state_diff_transition_consistency() -> None:
         "hash_status": "complete",
     }
 
-    # added requires before=None
-    with pytest.raises(StateEventValidationError, match="requires before=None"):
-        validate_state_diff_payload([{"path": "app.py", "change_type": "added", "before": meta_valid, "after": meta_valid}])
+    def make_doc(change: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "status": "available",
+            "root": "/app",
+            "before_captured_at": "2026-08-24T12:00:00.000000Z",
+            "after_captured_at": "2026-08-24T12:00:05.000000Z",
+            "change_count": 1,
+            "event_count": 0,
+            "changes": [change],
+        }
 
-    # deleted requires after=None
+    # added requires before=None and after!=None
+    with pytest.raises(StateEventValidationError, match="requires before=None and after!=None"):
+        validate_state_diff_payload(make_doc({"path": "app.py", "change_type": "added", "event_count": 0, "before": meta_valid, "after": meta_valid}))
+
+    # deleted requires before!=None and after=None
     with pytest.raises(StateEventValidationError, match="requires before!=None and after=None"):
-        validate_state_diff_payload([{"path": "app.py", "change_type": "deleted", "before": meta_valid, "after": meta_valid}])
+        validate_state_diff_payload(make_doc({"path": "app.py", "change_type": "deleted", "event_count": 0, "before": None, "after": None}))
 
     # modified requires both before and after
     with pytest.raises(StateEventValidationError, match="requires both before and after"):
-        validate_state_diff_payload([{"path": "app.py", "change_type": "modified", "before": None, "after": meta_valid}])
+        validate_state_diff_payload(make_doc({"path": "app.py", "change_type": "modified", "event_count": 0, "before": None, "after": meta_valid}))
 
 
 def test_validate_state_diff_metadata_enclosing_path_equality() -> None:
@@ -696,22 +754,32 @@ def test_validate_state_diff_metadata_enclosing_path_equality() -> None:
     from evallab.state_events import StateEventValidationError, validate_state_diff_payload
 
     valid_sha = "sha256:" + "a" * 64
-    payload = [
-        {
-            "path": "pkg/module.py",
-            "change_type": "added",
-            "before": None,
-            "after": {
-                "path": "pkg/different.py",
-                "type": "file",
-                "size_bytes": 10,
-                "sha256": valid_sha,
-                "mode": "-rw-r--r--",
-                "mtime_ns": 1,
-                "hash_status": "complete",
-            },
-        }
-    ]
+    payload = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 0,
+        "changes": [
+            {
+                "path": "pkg/module.py",
+                "change_type": "added",
+                "event_count": 0,
+                "before": None,
+                "after": {
+                    "path": "pkg/different.py",
+                    "type": "file",
+                    "size_bytes": 10,
+                    "sha256": valid_sha,
+                    "mode": "-rw-r--r--",
+                    "mtime_ns": 1,
+                    "hash_status": "complete",
+                },
+            }
+        ],
+    }
 
     with pytest.raises(StateEventValidationError, match="conflicts with change path"):
         validate_state_diff_payload(payload)
@@ -720,6 +788,18 @@ def test_validate_state_diff_metadata_enclosing_path_equality() -> None:
 def test_validate_state_diff_producer_hash_rules() -> None:
     """Hash rules for complete, size_limit, and unreadable files are enforced."""
     from evallab.state_events import StateEventValidationError, validate_state_diff_payload
+
+    def make_doc(meta: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "status": "available",
+            "root": "/app",
+            "before_captured_at": "2026-08-24T12:00:00.000000Z",
+            "after_captured_at": "2026-08-24T12:00:05.000000Z",
+            "change_count": 1,
+            "event_count": 0,
+            "changes": [{"path": "data.bin", "change_type": "added", "event_count": 0, "before": None, "after": meta}],
+        }
 
     # complete requires sha256
     bad_complete = {
@@ -732,7 +812,7 @@ def test_validate_state_diff_producer_hash_rules() -> None:
         "hash_status": "complete",
     }
     with pytest.raises(StateEventValidationError, match="hash_status='complete' requires sha256"):
-        validate_state_diff_payload([{"path": "data.bin", "change_type": "added", "before": None, "after": bad_complete}])
+        validate_state_diff_payload(make_doc(bad_complete))
 
     # size_limit must not have sha256
     bad_size_limit = {
@@ -745,7 +825,20 @@ def test_validate_state_diff_producer_hash_rules() -> None:
         "hash_status": "size_limit",
     }
     with pytest.raises(StateEventValidationError, match="must not have sha256"):
-        validate_state_diff_payload([{"path": "data.bin", "change_type": "added", "before": None, "after": bad_size_limit}])
+        validate_state_diff_payload(make_doc(bad_size_limit))
+
+    # directory cannot have symlink target
+    bad_dir = {
+        "path": "data.bin",
+        "type": "directory",
+        "size_bytes": 4096,
+        "sha256": None,
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1,
+        "target": "some_symlink_target",
+    }
+    with pytest.raises(StateEventValidationError, match="directory cannot have symlink target"):
+        validate_state_diff_payload(make_doc(bad_dir))
 
 
 def test_validate_state_diff_timestamps_and_temporal_order() -> None:
@@ -763,36 +856,109 @@ def test_validate_state_diff_timestamps_and_temporal_order() -> None:
         "hash_status": "complete",
     }
 
-    # Naive timestamp without timezone offset
-    payload_naive = [
-        {
-            "path": "app.py",
-            "change_type": "added",
-            "first_event_at": "2026-08-24T12:00:00",
-            "before": None,
-            "after": meta_valid,
-        }
-    ]
+    # Naive timestamp without timezone offset in before_captured_at
+    payload_naive = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 0,
+        "changes": [{"path": "app.py", "change_type": "added", "event_count": 0, "before": None, "after": meta_valid}],
+    }
     with pytest.raises(StateEventValidationError, match="must include an offset"):
         validate_state_diff_payload(payload_naive)
 
+    # after_captured_at preceding before_captured_at
+    payload_reversed_captured = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:05.000000Z",
+        "after_captured_at": "2026-08-24T12:00:00.000000Z",
+        "change_count": 1,
+        "event_count": 0,
+        "changes": [{"path": "app.py", "change_type": "added", "event_count": 0, "before": None, "after": meta_valid}],
+    }
+    with pytest.raises(StateEventValidationError, match="after_captured_at.*precedes before_captured_at"):
+        validate_state_diff_payload(payload_reversed_captured)
+
     # last_event_at preceding first_event_at
-    payload_reversed = [
-        {
-            "path": "app.py",
-            "change_type": "added",
-            "first_event_at": "2026-08-24T12:00:05.000000Z",
-            "last_event_at": "2026-08-24T12:00:01.000000Z",
-            "before": None,
-            "after": meta_valid,
-        }
-    ]
+    payload_reversed = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 2,
+        "changes": [
+            {
+                "path": "app.py",
+                "change_type": "added",
+                "event_count": 2,
+                "first_event_at": "2026-08-24T12:00:05.000000Z",
+                "last_event_at": "2026-08-24T12:00:01.000000Z",
+                "before": None,
+                "after": meta_valid,
+            }
+        ],
+    }
     with pytest.raises(StateEventValidationError, match="last_event_at.*precedes first_event_at"):
         validate_state_diff_payload(payload_reversed)
 
+    # event_count == 0 with timestamps
+    payload_zero_events_with_time = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 0,
+        "changes": [
+            {
+                "path": "app.py",
+                "change_type": "added",
+                "event_count": 0,
+                "first_event_at": "2026-08-24T12:00:01.000000Z",
+                "last_event_at": "2026-08-24T12:00:01.000000Z",
+                "before": None,
+                "after": meta_valid,
+            }
+        ],
+    }
+    with pytest.raises(StateEventValidationError, match="event_count=0 requires first_event_at and last_event_at to be None"):
+        validate_state_diff_payload(payload_zero_events_with_time)
+
+    # event_count > 0 with missing first_event_at
+    payload_missing_first_at = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 1,
+        "event_count": 1,
+        "changes": [
+            {
+                "path": "app.py",
+                "change_type": "added",
+                "event_count": 1,
+                "first_event_at": None,
+                "last_event_at": "2026-08-24T12:00:01.000000Z",
+                "before": None,
+                "after": meta_valid,
+            }
+        ],
+    }
+    with pytest.raises(StateEventValidationError, match="event_count > 0 requires non-null first_event_at and last_event_at"):
+        validate_state_diff_payload(payload_missing_first_at)
+
 
 def test_validate_state_diff_count_consistency_and_duplicates() -> None:
-    """change_count mismatch and duplicate paths fail closed."""
+    """change_count mismatch, negative counts, and duplicate paths fail closed."""
     from evallab.state_events import StateEventValidationError, validate_state_diff_payload
 
     valid_sha = "sha256:" + "1" * 64
@@ -810,16 +976,43 @@ def test_validate_state_diff_count_consistency_and_duplicates() -> None:
     payload_count_mismatch = {
         "schema_version": 1,
         "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
         "change_count": 5,
-        "changes": [{"path": "app.py", "change_type": "added", "before": None, "after": meta}],
+        "event_count": 0,
+        "changes": [{"path": "app.py", "change_type": "added", "event_count": 0, "before": None, "after": meta}],
     }
     with pytest.raises(StateEventValidationError, match="does not match changes length"):
         validate_state_diff_payload(payload_count_mismatch)
 
+    # negative change_count
+    payload_neg_count = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": -1,
+        "event_count": 0,
+        "changes": [],
+    }
+    with pytest.raises(StateEventValidationError, match="change_count must be a non-negative integer"):
+        validate_state_diff_payload(payload_neg_count)
+
     # duplicate path
-    payload_duplicate = [
-        {"path": "app.py", "change_type": "added", "before": None, "after": meta},
-        {"path": "app.py", "change_type": "added", "before": None, "after": meta},
-    ]
+    payload_duplicate = {
+        "schema_version": 1,
+        "status": "available",
+        "root": "/app",
+        "before_captured_at": "2026-08-24T12:00:00.000000Z",
+        "after_captured_at": "2026-08-24T12:00:05.000000Z",
+        "change_count": 2,
+        "event_count": 0,
+        "changes": [
+            {"path": "app.py", "change_type": "added", "event_count": 0, "before": None, "after": meta},
+            {"path": "app.py", "change_type": "added", "event_count": 0, "before": None, "after": meta},
+        ],
+    }
     with pytest.raises(StateEventValidationError, match="duplicate or conflicting path"):
         validate_state_diff_payload(payload_duplicate)

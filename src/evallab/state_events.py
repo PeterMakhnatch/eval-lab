@@ -12,7 +12,7 @@ import posixpath
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import ValidationError
 
@@ -214,15 +214,16 @@ class StateDiffChange:
 
 @dataclass(frozen=True)
 class StateDiffDocument:
-    """Canonical validated state-diff.json document."""
+    """Canonical validated state-diff.json document matching producer.py schema v1."""
 
     schema_version: int
-    status: str
-    root: str | None
-    before_captured_at: str | None
-    after_captured_at: str | None
+    status: Literal["available", "partial"] | str
+    root: str
+    before_captured_at: str
+    after_captured_at: str
     change_count: int
     event_count: int
+    dropped_event_count: int
     changes: tuple[StateDiffChange, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -234,61 +235,68 @@ class StateDiffDocument:
             "after_captured_at": self.after_captured_at,
             "change_count": self.change_count,
             "event_count": self.event_count,
+            "dropped_event_count": self.dropped_event_count,
             "changes": [c.to_dict() for c in self.changes],
         }
 
 
 def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
-    """Validate a state-diff document or change list against canonical schema v1 rules."""
-    if isinstance(payload, list):
-        raw_changes = payload
-        schema_version = 1
-        status = "available"
-        root = None
-        before_cap = None
-        after_cap = None
-        doc_change_count = len(raw_changes)
-        doc_event_count = None
-    elif isinstance(payload, dict):
-        schema_ver = payload.get("schema_version")
-        if type(schema_ver) is not int or schema_ver != 1:
-            raise StateEventValidationError(
-                "state-diff.json must be a schema_version 1 object with changes"
-            )
-        raw_changes = payload.get("changes")
-        if not isinstance(raw_changes, list):
-            raise StateEventValidationError(
-                "state-diff.json must be a schema_version 1 object with changes"
-            )
-        schema_version = 1
-        raw_status = payload.get("status")
-        if not isinstance(raw_status, str) or not raw_status.strip():
-            raise StateEventValidationError("state-diff.json status must be a non-empty string")
-        status = raw_status.strip()
-        root = str(payload.get("root")) if payload.get("root") is not None else None
+    """Validate a state-diff document against canonical producer schema v1 rules."""
+    if not isinstance(payload, dict):
+        raise StateEventValidationError(
+            "state-diff.json must be a schema_version 1 object with changes"
+        )
 
-        before_cap = payload.get("before_captured_at")
-        if before_cap is not None:
-            _parse_iso_timestamp(before_cap, context="state-diff.json before_captured_at")
-        after_cap = payload.get("after_captured_at")
-        if after_cap is not None:
-            _parse_iso_timestamp(after_cap, context="state-diff.json after_captured_at")
-        if before_cap is not None and after_cap is not None:
-            b_dt = _parse_iso_timestamp(before_cap, context="state-diff.json before_captured_at")
-            a_dt = _parse_iso_timestamp(after_cap, context="state-diff.json after_captured_at")
-            if a_dt < b_dt:
-                raise StateEventValidationError(
-                    f"state-diff.json after_captured_at ({after_cap}) precedes before_captured_at ({before_cap})"
-                )
+    schema_ver = payload.get("schema_version")
+    if type(schema_ver) is not int or schema_ver != 1:
+        raise StateEventValidationError(
+            "state-diff.json must be a schema_version 1 object with changes"
+        )
+    schema_version = int(schema_ver)
+    raw_status = payload.get("status")
+    if not isinstance(raw_status, str) or raw_status not in ("available", "partial"):
+        raise StateEventValidationError(
+            f"state-diff.json status must be 'available' or 'partial', got {raw_status!r}"
+        )
+    status = raw_status
 
-        doc_change_count = payload.get("change_count")
-        if doc_change_count is not None and (type(doc_change_count) is not int or doc_change_count < 0):
-            raise StateEventValidationError("state-diff.json change_count must be a non-negative integer")
-        doc_event_count = payload.get("event_count")
-        if doc_event_count is not None and (type(doc_event_count) is not int or doc_event_count < 0):
-            raise StateEventValidationError("state-diff.json event_count must be a non-negative integer")
-    else:
-        raise StateEventValidationError("state-diff.json must be a schema_version 1 object with changes")
+    raw_root = payload.get("root")
+    if not isinstance(raw_root, str) or not raw_root.strip():
+        raise StateEventValidationError("state-diff.json root must be a non-empty string")
+    root = raw_root.strip()
+
+    before_cap = payload.get("before_captured_at")
+    if not isinstance(before_cap, str) or not before_cap.strip():
+        raise StateEventValidationError("state-diff.json before_captured_at is required")
+    b_dt = _parse_iso_timestamp(before_cap, context="state-diff.json before_captured_at")
+
+    after_cap = payload.get("after_captured_at")
+    if not isinstance(after_cap, str) or not after_cap.strip():
+        raise StateEventValidationError("state-diff.json after_captured_at is required")
+    a_dt = _parse_iso_timestamp(after_cap, context="state-diff.json after_captured_at")
+
+    if a_dt < b_dt:
+        raise StateEventValidationError(
+            f"state-diff.json after_captured_at ({after_cap}) precedes before_captured_at ({before_cap})"
+        )
+
+    doc_change_count = payload.get("change_count")
+    if type(doc_change_count) is not int or doc_change_count < 0:
+        raise StateEventValidationError("state-diff.json change_count must be a non-negative integer")
+
+    doc_event_count = payload.get("event_count")
+    if type(doc_event_count) is not int or doc_event_count < 0:
+        raise StateEventValidationError("state-diff.json event_count must be a non-negative integer")
+
+    doc_dropped = payload.get("dropped_event_count", 0)
+    if type(doc_dropped) is not int or doc_dropped < 0:
+        raise StateEventValidationError("state-diff.json dropped_event_count must be a non-negative integer")
+
+    raw_changes = payload.get("changes")
+    if not isinstance(raw_changes, list):
+        raise StateEventValidationError(
+            "state-diff.json must be a schema_version 1 object with changes"
+        )
 
     validated_changes: list[StateDiffChange] = []
     seen_paths: set[str] = set()
@@ -305,19 +313,7 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
         seen_paths.add(path)
 
         change_type = change.get("change_type")
-        if change_type is None:
-            # Infer default change_type from before/after presence if omitted
-            has_b = "before" in change and change["before"] is not None
-            has_a = "after" in change and change["after"] is not None
-            if has_b and has_a:
-                change_type = "modified"
-            elif has_a:
-                change_type = "added"
-            elif has_b:
-                change_type = "deleted"
-            else:
-                change_type = "modified"
-        elif not isinstance(change_type, str) or change_type not in ALLOWED_CHANGE_TYPES:
+        if not isinstance(change_type, str) or change_type not in ALLOWED_CHANGE_TYPES:
             raise StateEventValidationError(
                 f"{ctx}: change_type {change_type!r} is not an allowed change type"
             )
@@ -339,7 +335,6 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
             else None
         )
 
-        # Transition consistency checks
         if change_type == "added":
             if b_meta is not None or a_meta is None:
                 raise StateEventValidationError(
@@ -354,18 +349,24 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
             raise StateEventValidationError(
                 f"{ctx}: change_type 'modified' requires both before and after metadata"
             )
-        raw_ec = change.get("event_count", 0)
-        if type(raw_ec) is not int or raw_ec < 0:
+
+        if "event_count" not in change or type(change["event_count"]) is not int or change["event_count"] < 0:
             raise StateEventValidationError(f"{ctx}: event_count must be a non-negative integer")
-        c_event_count = raw_ec
+        c_event_count = change["event_count"]
 
         first_at = change.get("first_event_at")
-        if first_at is not None:
-            _parse_iso_timestamp(first_at, context=f"{ctx} first_event_at")
         last_at = change.get("last_event_at")
-        if last_at is not None:
-            _parse_iso_timestamp(last_at, context=f"{ctx} last_event_at")
-        if first_at is not None and last_at is not None:
+
+        if c_event_count == 0:
+            if first_at is not None or last_at is not None:
+                raise StateEventValidationError(
+                    f"{ctx}: event_count=0 requires first_event_at and last_event_at to be None"
+                )
+        else:
+            if not isinstance(first_at, str) or not isinstance(last_at, str):
+                raise StateEventValidationError(
+                    f"{ctx}: event_count > 0 requires non-null first_event_at and last_event_at"
+                )
             f_dt = _parse_iso_timestamp(first_at, context=f"{ctx} first_event_at")
             l_dt = _parse_iso_timestamp(last_at, context=f"{ctx} last_event_at")
             if l_dt < f_dt:
@@ -385,15 +386,10 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
             )
         )
 
-    final_change_count = len(validated_changes)
-    if doc_change_count is not None and doc_change_count != final_change_count:
+    if doc_change_count != len(validated_changes):
         raise StateEventValidationError(
-            f"state-diff.json change_count ({doc_change_count}) does not match changes length ({final_change_count})"
+            f"state-diff.json change_count ({doc_change_count}) does not match changes length ({len(validated_changes)})"
         )
-
-    final_event_count = (
-        doc_event_count if doc_event_count is not None else sum(c.event_count for c in validated_changes)
-    )
 
     return StateDiffDocument(
         schema_version=schema_version,
@@ -401,11 +397,11 @@ def validate_state_diff_payload(payload: Any) -> StateDiffDocument:
         root=root,
         before_captured_at=before_cap,
         after_captured_at=after_cap,
-        change_count=final_change_count,
-        event_count=final_event_count,
+        change_count=doc_change_count,
+        event_count=doc_event_count,
+        dropped_event_count=doc_dropped,
         changes=tuple(validated_changes),
     )
-
 
 def load_state_diff(diff_path: Path) -> StateDiffDocument:
     """Load and validate state-diff.json, failing closed with StateEventValidationError."""

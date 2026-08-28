@@ -1,0 +1,32 @@
+name: action-memory
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "library/benchmarks/action-memory-v1/**"
+      - "tests/test_action_memory_v1.py"
+      - ".github/workflows/action-memory.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "library/benchmarks/action-memory-v1/**"
+      - "tests/test_action_memory_v1.py"
+      - ".github/workflows/action-memory.yml"
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Exercise action-memory CI contract
+        run: python3 library/benchmarks/action-memory-v1/ci_contract.py
+      - name: Run focused pytest suite
+        run: python3 -m pytest tests/test_action_memory_v1.py -v
+      - name: Reject committed generated output
+        run: |
+          test -z "$(git ls-files 'library/benchmarks/action-memory-v1/tasks/*')"
+          test -z "$(git ls-files 'derived/harbor-tasks/action-memory/*')"

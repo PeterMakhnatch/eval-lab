@@ -44,6 +44,7 @@ def test_fastmcp_script_generation_and_requirements_pinning():
             MCPToolParameter(name="x", type_name="int", description="First number"),
             MCPToolParameter(name="y", type_name="int", description="Second number"),
         ),
+        metadata={"op_kind": "add_op"},
     )
     script = generate_fastmcp_server_script([tool], server_name="test-server", port=8080)
     assert "from fastmcp import FastMCP" in script
@@ -52,34 +53,68 @@ def test_fastmcp_script_generation_and_requirements_pinning():
     assert "def calculate_sum(x: int, y: int) -> dict[str, Any]:" in script
     assert 'mcp.run(transport="streamable-http", host="0.0.0.0", port=8080)' in script
 
-    # Verify requirements.txt is hash locked
-    assert "fastmcp==" in FASTMCP_SIDECAR_REQUIREMENTS_TXT
-    assert "--hash=sha256:" in FASTMCP_SIDECAR_REQUIREMENTS_TXT
+    # Verify requirements.txt has all packages strictly hash locked with sha256
+    lines = [
+        line.strip()
+        for line in FASTMCP_SIDECAR_REQUIREMENTS_TXT.splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+    for req_line in lines:
+        assert "==" in req_line
+        assert "--hash=sha256:" in req_line
+
+
+def test_mcp_substrate_digest_sensitivity_to_metadata_and_body():
+    doc = render_mcp_compose_document()
+    tool1 = MCPToolDefinition(
+        name="tool_a",
+        description="Tool A",
+        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
+        metadata={"op_kind": "op_v1"},
+        execution_body="return {'x': x}",
+    )
+    tool2 = MCPToolDefinition(
+        name="tool_a",
+        description="Tool A",
+        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
+        metadata={"op_kind": "op_v2"},
+        execution_body="return {'x': x}",
+    )
+    tool3 = MCPToolDefinition(
+        name="tool_a",
+        description="Tool A",
+        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
+        metadata={"op_kind": "op_v1"},
+        execution_body="return {'x': x + 1}",
+    )
+
+    d1 = compute_mcp_substrate_digest(doc, [tool1])
+    d2 = compute_mcp_substrate_digest(doc, [tool2])
+    d3 = compute_mcp_substrate_digest(doc, [tool3])
+
+    assert d1 != d2, "Digest must differ when metadata/op_kind differs"
+    assert d1 != d3, "Digest must differ when execution_body differs"
 
 
 def test_mcp_compose_validation_rejects_unauthorized_constructs():
-    # 1. Custom host ports
     bad_doc1 = render_mcp_compose_document()
     bad_doc1["services"]["mcp-service"]["ports"] = ["8080:8080"]
     valid, errs = validate_mcp_compose_document(bad_doc1)
     assert not valid
     assert any("ports" in e for e in errs)
 
-    # 2. Main service environment variable
     bad_doc2 = render_mcp_compose_document()
     bad_doc2["services"]["main"]["environment"] = {"SECRET_KEY": "leaked"}
     valid, errs = validate_mcp_compose_document(bad_doc2)
     assert not valid
     assert any("main service may not declare an environment" in e for e in errs)
 
-    # 3. Main service writable volume
     bad_doc3 = render_mcp_compose_document()
     bad_doc3["services"]["main"]["volumes"] = ["evidence-volume:/app/output:rw"]
     valid, errs = validate_mcp_compose_document(bad_doc3)
     assert not valid
     assert any("read-only" in e for e in errs)
 
-    # 4. Custom network mode / networks
     bad_doc4 = render_mcp_compose_document()
     bad_doc4["services"]["mcp-service"]["network_mode"] = "host"
     valid, errs = validate_mcp_compose_document(bad_doc4)
@@ -87,24 +122,8 @@ def test_mcp_compose_validation_rejects_unauthorized_constructs():
     assert any("network_mode" in e for e in errs)
 
 
-def test_mcp_substrate_digest_calculation():
-    tool = MCPToolDefinition(
-        name="tool_add",
-        description="Add two numbers",
-        parameters=(
-            MCPToolParameter(name="a", type_name="int", description="first operand"),
-            MCPToolParameter(name="b", type_name="int", description="second operand"),
-        ),
-    )
-    doc = render_mcp_compose_document()
-    digest1 = compute_mcp_substrate_digest(doc, [tool])
-    digest2 = compute_mcp_substrate_digest(doc, [tool])
-    assert digest1 == digest2
-    assert len(digest1) == 64
-
-
 def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
-    """Proves standard initialize, tools/list, tools/call JSON-RPC compliance over streamable HTTP."""
+    """Proves standard initialize, notifications/initialized, tools/list, tools/call JSON-RPC compliance."""
     tool1 = MCPToolDefinition(
         name="compute_power",
         description="Compute base ** exponent",
@@ -158,7 +177,21 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
         assert init_res["result"]["protocolVersion"] == DEFAULT_PROTOCOL_VERSION
         assert "tools" in init_res["result"]["capabilities"]
 
-        # 3. tools/list
+        # 3. notifications/initialized notification (Standard MCP client lifecycle post-initialize)
+        notif_payload = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized",
+                "params": {},
+            }
+        )
+        conn.request(
+            "POST", "/mcp", body=notif_payload, headers={"Content-Type": "application/json"}
+        )
+        notif_res = conn.getresponse()
+        assert notif_res.status in (200, 204)
+
+        # 4. tools/list
         list_payload = json.dumps(
             {
                 "jsonrpc": "2.0",
@@ -179,7 +212,7 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
         assert "inputSchema" in tools[0]
         assert "base" in tools[0]["inputSchema"]["properties"]
 
-        # 4. tools/call
+        # 5. tools/call returning standard CallToolResult format
         call_payload = json.dumps(
             {
                 "jsonrpc": "2.0",
@@ -194,9 +227,14 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
         res = conn.getresponse()
         assert res.status == 200
         call_res = json.loads(res.read().decode())
-        assert call_res["result"]["value"] == 256
+        tool_result = call_res["result"]
+        assert "content" in tool_result
+        assert isinstance(tool_result["content"], list)
+        assert tool_result["content"][0]["type"] == "text"
+        assert tool_result["isError"] is False
+        assert tool_result["value"] == 256
 
-        # 5. Invalid tool call
+        # 6. Invalid tool call
         bad_call = json.dumps(
             {
                 "jsonrpc": "2.0",
@@ -211,7 +249,7 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
         bad_res = json.loads(res.read().decode())
         assert "error" in bad_res
 
-        # 6. Event ledger check
+        # 7. Event ledger check
         conn.request("GET", "/events")
         res = conn.getresponse()
         assert res.status == 200
@@ -227,7 +265,6 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
 
 
 def test_fault_interceptor_middleware_determinism(tmp_path: Path):
-    """Test deterministic fault injection at target ordinal across fault classes."""
     fault_hash = "1" * 64
     verifier_hash = "2" * 64
 
@@ -260,7 +297,7 @@ def test_fault_interceptor_middleware_determinism(tmp_path: Path):
     res1, code1 = runtime.call_tool("db_query", {"sql": "SELECT 1"})
     assert code1 == 200
     assert "result" in res1
-    assert res1["result"]["rows"] == [{"id": 1}]
+    assert res1["result"]["value"] == {"rows": [{"id": 1}]}
 
     # Call 2 -> Intercepted at ordinal 2
     res2, code2 = runtime.call_tool("db_query", {"sql": "SELECT 1"})

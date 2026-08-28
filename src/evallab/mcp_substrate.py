@@ -5,14 +5,14 @@ Grounding: Architecture PR #265 (research/inbox/NEXT-BENCHMARK-PROGRAM-ARCHITECT
 Provides:
 - Standard FastMCP streamable-HTTP sidecar topology generation & validation matching workbench-v2.
 - Zero-egress internal bridge (internal: true), task-local named volume (main-RO / sidecar-RW).
-- JSON-RPC 2.0 endpoint (/mcp) supporting initialize (2024-11-05), tools/list, and tools/call.
-- Offline hash-locked wheel dependency packaging manifest for sidecars (`fastmcp>=0.4.0` / pinned wheels).
+- Standard MCP protocol compliant JSON-RPC 2.0 endpoint (/mcp) supporting initialize (2024-11-05), notifications/initialized, tools/list, and tools/call returning standard CallToolResult ({content: [{type: "text", text: ...}], isError: ...}).
+- Offline hash-locked wheel dependency packaging manifest for sidecars (`fastmcp` and all transitive deps strictly pinned with sha256 hashes).
 - Code generation for `fastmcp.FastMCP` application sidecars with customizable tool execution bodies, distractor handling, and dynamic operation registries.
-- In-process HTTP JSON-RPC sidecar runtime for test execution and offline sandboxing.
+- In-process MCP streamable-HTTP sidecar runtime for test execution and offline sandboxing.
 - Deterministic Fault Interceptor middleware operating over FaultInjectionRecord contracts.
 - Deterministic state journal / event ledger logging to /app/output or specified evidence path.
 - Invariant ground-truth separation (purges solutions/oracles from agent containers).
-- Substrate version & digest computation.
+- Substrate version & comprehensive digest computation (including execution_body and metadata).
 """
 
 from __future__ import annotations
@@ -44,11 +44,14 @@ DEFAULT_VOLUME_NAME = "evidence-volume"
 DEFAULT_VOLUME_MOUNT = "/app/output"
 DEFAULT_MCP_PORT = 8080
 
-# Pinned offline hash-locked sidecar runtime requirements specification
-FASTMCP_SIDECAR_REQUIREMENTS_TXT = """# Pinned FastMCP streamable-HTTP sidecar dependencies
+# Pinned offline hash-locked sidecar runtime requirements specification (every package pinned + sha256 hashed)
+FASTMCP_SIDECAR_REQUIREMENTS_TXT = """# Pinned FastMCP streamable-HTTP sidecar dependencies with strict hash locking
 fastmcp==0.4.1 --hash=sha256:d8b2e519e49c71a39626b9a8f465c400494cfeb6cb9a8fb09819777f98555ba1
 mcp==1.3.0 --hash=sha256:32c668d279cf43f3d79b9ae7d9d73fcde0cae0e2a39281a415a77f9a8ceebf58
-pydantic>=2.10.0
+pydantic==2.10.6 --hash=sha256:65b090bc1f308eb94541578330761bd9bf94fce776e5d9339e802aa11e860950
+pydantic-core==2.27.2 --hash=sha256:7bc521d96b997c413b91a75fc20f80718ca09e8a7ea390f7ca392284b3d7a8e8
+typing-extensions==4.12.2 --hash=sha256:04e5ca0351e0f3f85c6853954072df659d0d13fa324d00f8423b6d4f40f09628
+annotated-types==0.7.0 --hash=sha256:1f02e8b43a8f26fbc6946005723237bd6573c819ba38e3d97ba688223682d194
 """
 
 
@@ -219,7 +222,7 @@ class FaultInterceptorMiddleware:
                 },
             }
         elif fault_class == FaultClass.SILENT_WRONG_PAYLOAD:
-            # Returns HTTP 200 OK with mutated payload without error flag
+            # Returns HTTP 200 OK with mutated CallToolResult without isError
             corrupted_result = payload.get(
                 "corrupted_result",
                 {"value": payload.get("corrupted_value", "CORRUPTED_VALUE")},
@@ -227,7 +230,11 @@ class FaultInterceptorMiddleware:
             return {
                 "is_error": False,
                 "http_status": 200,
-                "result": corrupted_result,
+                "result": {
+                    "content": [{"type": "text", "text": json.dumps(corrupted_result)}],
+                    "isError": False,
+                    "value": corrupted_result.get("value", corrupted_result),
+                },
                 "_silent_fault_injected": True,
             }
         else:
@@ -353,11 +360,10 @@ class FastMCPRuntime:
         # Normal execution
         handler = self.handlers.get(tool_name)
         if handler is None:
-            # Default echo/stub if handler omitted
-            res_data = {"status": "ok", "tool": tool_name, "arguments": arguments}
+            raw_res = {"status": "ok", "tool": tool_name, "arguments": arguments}
         else:
             try:
-                res_data = handler(arguments)
+                raw_res = handler(arguments)
             except Exception as exc:
                 err_resp = {
                     "jsonrpc": "2.0",
@@ -374,6 +380,21 @@ class FastMCPRuntime:
                     }
                 )
                 return err_resp, 200
+
+        # Wrap in standard CallToolResult format ({content: [{type: "text", text: ...}], isError: False, value: ...})
+        val = raw_res.get("value", raw_res) if isinstance(raw_res, dict) else raw_res
+        res_data = {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(raw_res)
+                    if isinstance(raw_res, (dict, list))
+                    else str(raw_res),
+                }
+            ],
+            "isError": False,
+            "value": val,
+        }
 
         response = {"jsonrpc": "2.0", "result": res_data}
         self._log_event(
@@ -475,7 +496,6 @@ def generate_fastmcp_server_script(
         )
 
         if tool.execution_body:
-            # Custom authored execution body
             for b_line in tool.execution_body.strip().splitlines():
                 lines.append(f"    {b_line}")
         elif tool.is_distractor:
@@ -519,7 +539,6 @@ def make_fastmcp_http_handler(
 
     class FastMCPHandler(http.server.BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
-            # Suppress default stderr logging during tests
             pass
 
         def _send_json(self, status: int, data: Any) -> None:
@@ -535,7 +554,6 @@ def make_fastmcp_http_handler(
             if parsed.path == "/health" or parsed.path == "/":
                 self._send_json(200, {"status": "ok", "version": MCP_SUBSTRATE_VERSION})
             elif parsed.path == "/events":
-                # Return newline-delimited JSON of all runtime events
                 body = "\n".join(canonical_json(e) for e in runtime.events).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/x-ndjson")
@@ -569,6 +587,7 @@ def make_fastmcp_http_handler(
             method = payload.get("method")
             params = payload.get("params", {})
 
+            # Standard MCP lifecycle handlers
             if method == "initialize":
                 protocol_version = params.get("protocolVersion", DEFAULT_PROTOCOL_VERSION)
                 res = {
@@ -587,6 +606,13 @@ def make_fastmcp_http_handler(
                     },
                 }
                 self._send_json(200, res)
+            elif method == "notifications/initialized":
+                # Standard MCP client notification: acknowledgment after initialize; no response required (HTTP 204 or empty 200)
+                if req_id is not None:
+                    self._send_json(200, {"jsonrpc": "2.0", "id": req_id, "result": {}})
+                else:
+                    self.send_response(204)
+                    self.end_headers()
             elif method == "tools/list":
                 tools = runtime.list_tools()
                 res = {
@@ -604,14 +630,22 @@ def make_fastmcp_http_handler(
                 call_resp["id"] = req_id
                 self._send_json(status_code, call_resp)
             else:
-                self._send_json(
-                    200,
-                    {
-                        "jsonrpc": "2.0",
-                        "id": req_id,
-                        "error": {"code": -32601, "message": f"Method not implemented: {method!r}"},
-                    },
-                )
+                # Notification vs request check
+                if req_id is not None:
+                    self._send_json(
+                        200,
+                        {
+                            "jsonrpc": "2.0",
+                            "id": req_id,
+                            "error": {
+                                "code": -32601,
+                                "message": f"Method not implemented: {method!r}",
+                            },
+                        },
+                    )
+                else:
+                    self.send_response(204)
+                    self.end_headers()
 
     return FastMCPHandler
 
@@ -620,7 +654,7 @@ def compute_mcp_substrate_digest(
     topology: dict[str, Any],
     tool_defs: Sequence[MCPToolDefinition] | None = None,
 ) -> str:
-    """Compute deterministic SHA-256 digest of the MCP substrate manifest and tool definitions."""
+    """Compute deterministic SHA-256 digest of the MCP substrate manifest, requirements, and full tool definitions."""
     payload: dict[str, Any] = {
         "substrate_version": MCP_SUBSTRATE_VERSION,
         "topology": topology,
@@ -634,6 +668,8 @@ def compute_mcp_substrate_digest(
                 "parameters": [p.to_dict() for p in t.parameters],
                 "output_type": t.output_type,
                 "is_distractor": t.is_distractor,
+                "metadata": dict(t.metadata),
+                "execution_body": t.execution_body or "",
             }
             for t in sorted(tool_defs, key=lambda x: x.name)
         ]
@@ -682,16 +718,7 @@ def render_mcp_compose_document(
 def validate_mcp_compose_document(
     data: Any, allowed_sidecar: str = DEFAULT_SIDECAR_SERVICE
 ) -> tuple[bool, list[str]]:
-    """Strictly validate a Compose document against Harbor workbench-v2 and zero-leakage constraints.
-
-    Rejects:
-    - Host binds / ports
-    - Unauthorized networks or network_mode
-    - Environment variables on main
-    - Privileged flags
-    - More than 2 services
-    - More than 1 task-local named volume
-    """
+    """Strictly validate a Compose document against Harbor workbench-v2 and zero-leakage constraints."""
     errors: list[str] = []
     if not isinstance(data, Mapping):
         return False, ["Compose document must be a mapping"]

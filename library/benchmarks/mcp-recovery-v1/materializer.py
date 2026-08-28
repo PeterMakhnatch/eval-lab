@@ -43,8 +43,8 @@ def materialize_task(
     # 1. task.toml (workbench v2 compliant, Linux no-network baseline)
     task_toml = f"""schema_version = "1.4"
 artifacts = [
-    "/app/shared_state/benchmark-events.jsonl",
-    "/app/shared_state/final-state.json",
+    "/app/evidence/benchmark-events.jsonl",
+    "/app/evidence/final-state.json",
 ]
 
 [task]
@@ -68,11 +68,11 @@ environment_mode = "separate"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ -f /app/shared_state/benchmark-events.jsonl ]; then cp /app/shared_state/benchmark-events.jsonl /app/shared_state/benchmark-events.jsonl; fi"
+command = "if [ -f /app/shared_state/benchmark-events.jsonl ]; then cp /app/shared_state/benchmark-events.jsonl /app/evidence/benchmark-events.jsonl; fi"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ -f /app/shared_state/final-state.json ]; then cp /app/shared_state/final-state.json /app/shared_state/final-state.json; fi"
+command = "if [ -f /app/shared_state/final-state.json ]; then cp /app/shared_state/final-state.json /app/evidence/final-state.json; fi"
 
 [verifier.environment]
 network_mode = "no-network"
@@ -139,7 +139,7 @@ volumes:
 
 WORKDIR /app
 
-RUN mkdir -p /app/shared_state
+RUN mkdir -p /app/shared_state /app/evidence
 """
     (env_dir / "Dockerfile").write_text(main_dockerfile, encoding="utf-8")
 
@@ -396,7 +396,7 @@ for attempt in range(10):
         call_mcp("tools/call", {"name": "fallback_query", "arguments": {"query": target_key}})
         continue
     elif st in (408, 500, 502) or not res.startswith("{"):
-        # Timeout or malformed stream: retry with exponential backoff / strategy mutation
+        # Timeout or malformed stream: retry with backoff
         time.sleep(0.2 * (attempt + 1))
         continue
     elif st == 200:
@@ -428,7 +428,7 @@ PY
 
 COPY . /tests
 
-RUN mkdir -p /app/shared_state /logs/verifier \\
+RUN mkdir -p /app/shared_state /app/evidence /logs/verifier \\
     && chmod +x /tests/test.sh
 
 WORKDIR /app
@@ -443,14 +443,14 @@ exec python /tests/verify.py
     test_sh_path.write_text(test_sh, encoding="utf-8")
     test_sh_path.chmod(0o755)
 
-    # tests/verify.py (Strict verifier checking adaptation, numeric reward only in reward.json)
+    # tests/verify.py (Strict verifier checking collected evidence and state invariants)
     verify_py = f"""import json
 import sys
 from pathlib import Path
 
 LOG_DIR = Path("/logs/verifier")
-EVIDENCE_FILE = Path("/app/shared_state/benchmark-events.jsonl")
-FINAL_STATE_FILE = Path("/app/shared_state/final-state.json")
+EVIDENCE_FILE = Path("/app/evidence/benchmark-events.jsonl")
+FINAL_STATE_FILE = Path("/app/evidence/final-state.json")
 
 EXPECTED_FAULT_MODE = "{slug_mode}"
 EXPECTED_PERSISTENCE = {persistence}
@@ -490,7 +490,6 @@ def main():
                 # For timeout/malformed, must observe required fault hits before tool success
                 adaptation = len(faults) >= EXPECTED_PERSISTENCE and len(tools) >= 1
 
-            # NOP and blind-retry without adaptive tool calls will fail adaptation
             passed = monotonic and invariants and adaptation and len(faults) >= EXPECTED_PERSISTENCE
             reason = "ok" if passed else f"failed verification (monotonic={{monotonic}}, invariants={{invariants}}, adaptation={{adaptation}}, faults={{len(faults)}})"
             checks = {{

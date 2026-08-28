@@ -1,0 +1,34 @@
+name: MCP Recovery Benchmark CI
+
+on:
+  pull_request:
+    paths:
+      - "library/benchmarks/mcp-recovery-v1/**"
+      - "scripts/mcp_recovery/**"
+      - "tests/test_mcp_recovery_v1.py"
+      - ".github/workflows/mcp-recovery.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "library/benchmarks/mcp-recovery-v1/**"
+      - "scripts/mcp_recovery/**"
+      - "tests/test_mcp_recovery_v1.py"
+      - ".github/workflows/mcp-recovery.yml"
+
+jobs:
+  test-mcp-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run CI Contract
+        run: |
+          python3 library/benchmarks/mcp-recovery-v1/ci_contract.py
+      - name: Run Focused Tests
+        run: |
+          pip install pytest
+          pytest tests/test_mcp_recovery_v1.py

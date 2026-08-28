@@ -1,0 +1,38 @@
+{
+  "name": "mcp-recovery",
+  "version": "v1.0.0",
+  "license": {
+    "spdx": "MIT",
+    "name": "MIT License",
+    "reference_repo": "https://github.com/mcp-bench/recovery-bench",
+    "notes": "Source-only certified twin architecture. Inspired by MIT Recovery-Bench concepts but re-engineered without vendored code or replay-drift limitations."
+  },
+  "benchmark": {
+    "family": "mcp-recovery-v1",
+    "construct": "Deterministic MCP error recovery across clean/fault twins, state certificates, and discrete persistence levels",
+    "campaign": "Campaign 0 calibration",
+    "fault_classes": [
+      "permission_denied",
+      "not_found",
+      "timeout",
+      "malformed_output",
+      "silent_wrong_result"
+    ],
+    "persistence_levels": [
+      1,
+      2
+    ],
+    "calibration_seeds": [
+      42,
+      101,
+      2024
+    ]
+  },
+  "runtime": {
+    "protocol": "streamable-http",
+    "mcp_spec_version": "2024-11-05",
+    "twin_modes": ["clean", "fault"],
+    "evidence_path": "/app/evidence/benchmark-events.jsonl",
+    "final_state_path": "/app/evidence/final-state.json"
+  }
+}

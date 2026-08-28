@@ -13,6 +13,8 @@ CONSTRUCT = "MCP tool selection, composition, and value propagation over depende
 # Saturation states for calibration
 SATURATION_STATES = ("NON_SATURATED", "CEILING_SATURATION", "FLOOR_SATURATION")
 
+CALIBRATION_SEEDS = [42, 101, 2024]
+
 
 @dataclass(frozen=True)
 class CellFactors:
@@ -54,26 +56,34 @@ class BenchmarkContract:
         return json.dumps(self.to_dict(), indent=2, sort_keys=True)
 
 
-# Standard Campaign 0 Calibration Grid (One Factor At A Time)
-CAMPAIGN_0_CELLS: list[dict[str, Any]] = [
-    # Baseline cell
-    {"name": "baseline", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "seed": 42},
+# Generate Campaign 0 Calibration Grid with 3 deterministic seeds per factor condition
+CAMPAIGN_0_CELLS: list[dict[str, Any]] = []
+
+FACTOR_VARIATIONS = [
+    # Baseline
+    {"name": "baseline", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     # Depth ladder
-    {"name": "depth_2", "depth": 2, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "seed": 42},
-    {"name": "depth_4", "depth": 4, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "seed": 42},
+    {"name": "depth_2", "depth": 2, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "depth_4", "depth": 4, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     # Width ladder
-    {"name": "width_3", "depth": 3, "width": 3, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "seed": 42},
-    {"name": "width_4", "depth": 3, "width": 4, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "seed": 42},
+    {"name": "width_3", "depth": 3, "width": 3, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "width_4", "depth": 3, "width": 4, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     # Distractor ladder
-    {"name": "distractors_0", "depth": 3, "width": 2, "distractor_count": 0, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "seed": 42},
-    {"name": "distractors_5", "depth": 3, "width": 2, "distractor_count": 5, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False, "seed": 42},
+    {"name": "distractors_0", "depth": 3, "width": 2, "distractor_count": 0, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
+    {"name": "distractors_5", "depth": 3, "width": 2, "distractor_count": 5, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": False},
     # Name similarity
-    {"name": "name_similarity_high", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "high", "schema_token_volume": "concise", "schema_drift": False, "seed": 42},
+    {"name": "name_similarity_high", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "high", "schema_token_volume": "concise", "schema_drift": False},
     # Schema token volume
-    {"name": "schema_tokens_verbose", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "verbose", "schema_drift": False, "seed": 42},
+    {"name": "schema_tokens_verbose", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "verbose", "schema_drift": False},
     # Schema drift clean twin
-    {"name": "schema_drift_twin", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": True, "seed": 42},
+    {"name": "schema_drift_twin", "depth": 3, "width": 2, "distractor_count": 2, "name_similarity": "low", "schema_token_volume": "concise", "schema_drift": True},
 ]
+
+for var in FACTOR_VARIATIONS:
+    for s in CALIBRATION_SEEDS:
+        cell_def = dict(var)
+        cell_def["seed"] = s
+        CAMPAIGN_0_CELLS.append(cell_def)
 
 
 def make_benchmark_contract(

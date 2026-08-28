@@ -1665,7 +1665,7 @@ def _validate_service_volume_mounts(
                 )
             )
             continue
-        if source == volume_name and target is None:
+        if target is None:
             diagnostics.append(
                 _diag(
                     "compose_volume_mount_invalid",

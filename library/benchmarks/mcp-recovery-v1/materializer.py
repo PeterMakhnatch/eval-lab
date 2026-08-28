@@ -103,8 +103,9 @@ FAULT_CLASS = "{fault_class.value}"
 PERSISTENCE = {persistence}
 HITS = 0
 DB: dict[str, Any] = {{"session_status": "initialized"}}
-RECOVERY_EVENTS = Path("/app/output/benchmark-events.jsonl")
-FINAL_STATE_FILE = Path("/app/output/final-state.json")
+OUT_DIR = Path(os.environ.get("MCP_RECOVERY_OUTPUT", "/app/output"))
+RECOVERY_EVENTS = OUT_DIR / "benchmark-events.jsonl"
+FINAL_STATE_FILE = OUT_DIR / "final-state.json"
 
 
 def persist_certificate() -> None:
@@ -159,19 +160,25 @@ def recovery_read_record(key: str) -> dict[str, Any]:
 
 def recovery_write_record(key: str, value: str) -> dict[str, Any]:
     global HITS
-    if FAULT_CLASS == "persistent_signature_error" and DB.get("__auth__") != "admin_write":
-        HITS += 1
-        log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
-        raise ValueError("Permission denied: write requires admin_write scope")
-    if FAULT_CLASS == "persistent_schema_mismatch" and not DB.get("__fallback_synced__"):
-        HITS += 1
-        log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
-        raise ValueError("Not found")
-    if HITS < PERSISTENCE and FAULT_CLASS == "transient_network_timeout":
+    if FAULT_CLASS == "persistent_signature_error":
+        if HITS < PERSISTENCE:
+            HITS += 1
+            log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
+            raise ValueError("Permission denied: write requires admin_write scope")
+        if DB.get("__auth__") != "admin_write":
+            raise ValueError("Permission denied: write requires admin_write scope")
+    elif FAULT_CLASS == "persistent_schema_mismatch":
+        if HITS < PERSISTENCE:
+            HITS += 1
+            log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
+            raise ValueError("Not found")
+        if not DB.get("__fallback_synced__"):
+            raise ValueError("Not found")
+    elif FAULT_CLASS == "transient_network_timeout" and HITS < PERSISTENCE:
         HITS += 1
         log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
         raise TimeoutError("Timeout")
-    if HITS < PERSISTENCE and FAULT_CLASS == "transient_http_5xx":
+    elif FAULT_CLASS == "transient_http_5xx" and HITS < PERSISTENCE:
         HITS += 1
         log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
         raise RuntimeError("502 Bad Gateway unparseable chunk")
@@ -189,156 +196,88 @@ def generate_recovery_server_script(fault_class: FaultClass, persistence: int) -
         port=DEFAULT_MCP_PORT,
         evidence_path="/app/output/substrate-events.jsonl",
     )
+    if "import os\n" not in script:
+        script = script.replace("from pathlib import Path\n", "from pathlib import Path\nimport os\n", 1)
     script = script.replace(
         "EVENT_ORDINAL = 0\n",
         "EVENT_ORDINAL = 0\n" + _recovery_prelude(fault_class, persistence),
         1,
     )
     script = script.replace('mcp.run(transport="sse"', 'mcp.run(transport="http"')
+    script = script.replace('host="0.0.0.0"', 'host=os.environ.get("MCP_RECOVERY_HOST", "0.0.0.0")')
+    script = script.replace(
+        f"port={DEFAULT_MCP_PORT}",
+        'port=int(os.environ.get("MCP_RECOVERY_PORT", "8080"))',
+    )
     return script
 
 
+def _embed_client() -> str:
+    return (Path(__file__).resolve().parent / "client.py").read_text(encoding="utf-8")
+
+
 def _oracle_script() -> str:
-    return '''#!/bin/sh
-set -eu
-python - <<'PY'
-import json
-import http.client
+    return (
+        "#!/bin/sh\nset -eu\npython - <<'PY'\n"
+        + _embed_client()
+        + """
 import time
 
-def call_mcp(method, params=None):
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params is not None:
-        payload["params"] = params
-    body = json.dumps(payload)
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json, text/event-stream",
-    }
-    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
-    try:
-        conn.request("POST", "/mcp", body, headers)
-        resp = conn.getresponse()
-        data = resp.read().decode("utf-8")
-        return resp.status, data
-    except Exception as exc:
-        return 500, str(exc)
-    finally:
-        conn.close()
-
-def rpc_error(status, raw):
-    if status in (403, 404, 408, 500, 502):
-        return status, raw
-    if not raw.startswith("{"):
-        return status, raw
-    try:
-        parsed = json.loads(raw)
-    except Exception:
-        return status, raw
-    err = parsed.get("error") or {}
-    message = str(err.get("message", ""))
-    if "Permission denied" in message:
-        return 403, raw
-    if "Not found" in message:
-        return 404, raw
-    if "Timeout" in message:
-        return 408, raw
-    if "502" in message or "unparseable" in message:
-        return 502, raw
-    return status, raw
-
+session = McpHttpSession()
 for _ in range(30):
-    status, raw = call_mcp("initialize")
+    status, _raw = session.initialize()
     if status == 200:
         break
     time.sleep(0.5)
-
-call_mcp("tools/list")
+session.request({"jsonrpc": "2.0", "id": 3, "method": "tools/list"})
 target_key = "canary_key"
 target_val = "verified_value"
-for attempt in range(10):
-    status, raw = rpc_error(*call_mcp("tools/call", {"name": "write_record", "arguments": {"key": target_key, "value": target_val}}))
-    if status == 403:
-        call_mcp("tools/call", {"name": "refresh_auth", "arguments": {"scope": "admin_write"}})
+for _attempt in range(12):
+    _status, kind, _blob = session.call_tool(
+        "write_record", {"key": target_key, "value": target_val}
+    )
+    if kind == "permission":
+        session.call_tool("refresh_auth", {"scope": "admin_write"})
         continue
-    if status == 404:
-        call_mcp("tools/call", {"name": "fallback_query", "arguments": {"query": target_key}})
+    if kind == "not_found":
+        session.call_tool("fallback_query", {"query": target_key})
         continue
-    if status in (408, 500, 502) or not str(raw).startswith("{"):
-        time.sleep(0.2 * (attempt + 1))
+    if kind in ("timeout", "malformed", "error"):
+        session.call_tool("fallback_query", {"query": target_key})
         continue
-    read_status, read_raw = call_mcp("tools/call", {"name": "read_record", "arguments": {"key": target_key}})
-    if read_status == 200 and target_val in read_raw:
+    _rs, _rk, rblob = session.call_tool("read_record", {"key": target_key})
+    if target_val in rblob:
         break
-    time.sleep(0.2)
 PY
-'''
+"""
+    )
 
 
 def _blind_retry_script() -> str:
-    return '''#!/bin/sh
-set -eu
-python - <<'PY'
-import json
-import http.client
-import time
-
-def call_mcp(method, params=None):
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params is not None:
-        payload["params"] = params
-    body = json.dumps(payload)
-    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
-    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
-    try:
-        conn.request("POST", "/mcp", body, headers)
-        resp = conn.getresponse()
-        return resp.status, resp.read().decode("utf-8")
-    except Exception as exc:
-        return 500, str(exc)
-    finally:
-        conn.close()
-
-for _ in range(30):
-    if call_mcp("initialize")[0] == 200:
-        break
-    time.sleep(0.5)
-call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
+    return (
+        "#!/bin/sh\nset -eu\npython - <<'PY'\n"
+        + _embed_client()
+        + """
+session = McpHttpSession()
+session.initialize()
+for _ in range(6):
+    session.call_tool("write_record", {"key": "canary_key", "value": "verified_value"})
 PY
-'''
+"""
+    )
 
 
 def _wrong_repair_script() -> str:
-    return '''#!/bin/sh
-set -eu
-python - <<'PY'
-import json
-import http.client
-import time
-
-def call_mcp(method, params=None):
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params is not None:
-        payload["params"] = params
-    body = json.dumps(payload)
-    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
-    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
-    try:
-        conn.request("POST", "/mcp", body, headers)
-        resp = conn.getresponse()
-        return resp.status, resp.read().decode("utf-8")
-    except Exception as exc:
-        return 500, str(exc)
-    finally:
-        conn.close()
-
-for _ in range(30):
-    if call_mcp("initialize")[0] == 200:
-        break
-    time.sleep(0.5)
-call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "wrong_key", "value": "corrupted_val"}})
+    return (
+        "#!/bin/sh\nset -eu\npython - <<'PY'\n"
+        + _embed_client()
+        + """
+session = McpHttpSession()
+session.initialize()
+session.call_tool("write_record", {"key": "wrong_key", "value": "corrupted_val"})
 PY
-'''
+"""
+    )
 
 
 def _verifier_py(fault_class: FaultClass, persistence: int) -> str:
@@ -350,6 +289,13 @@ EVIDENCE_FILE = Path("/app/output/benchmark-events.jsonl")
 CERT_PATH = Path("/app/output/final-state.json")
 EXPECTED_FAULT_MODE = "{fault_class.value}"
 EXPECTED_PERSISTENCE = {persistence}
+NEED_TOOL = {{
+    "persistent_signature_error": "refresh_auth",
+    "persistent_schema_mismatch": "fallback_query",
+    "transient_network_timeout": "fallback_query",
+    "transient_http_5xx": "fallback_query",
+    "silent_wrong_payload": "read_record",
+}}
 
 
 def main() -> None:
@@ -359,6 +305,7 @@ def main() -> None:
         passed = False
         reason = "missing evidence artifacts"
         checks = {{"evidence_present": {{"passed": False, "message": "artifacts missing"}}}}
+        auto_clear = False
     else:
         events = [
             json.loads(line)
@@ -374,21 +321,18 @@ def main() -> None:
         )
         faults = [event for event in events if event.get("event_type") == "fault_injected"]
         tools = [event for event in events if event.get("event_type") == "tool_executed"]
-        adaptation = False
-        if EXPECTED_FAULT_MODE == "persistent_signature_error":
-            adaptation = any(item.get("payload", {{}}).get("tool") == "refresh_auth" for item in tools)
-        elif EXPECTED_FAULT_MODE == "persistent_schema_mismatch":
-            adaptation = any(item.get("payload", {{}}).get("tool") == "fallback_query" for item in tools)
-        elif EXPECTED_FAULT_MODE == "silent_wrong_payload":
-            adaptation = any(item.get("payload", {{}}).get("tool") == "read_record" for item in tools)
-        else:
-            adaptation = len(faults) >= EXPECTED_PERSISTENCE and len(tools) >= 1
+        need = NEED_TOOL.get(EXPECTED_FAULT_MODE, "")
+        names = [(item.get("payload") or {{}}).get("tool") for item in tools]
+        adaptation = bool(need) and need in names
+        auto_clear = bool(invariants and len(faults) >= EXPECTED_PERSISTENCE and not adaptation)
         passed = bool(monotonic and invariants and adaptation and len(faults) >= EXPECTED_PERSISTENCE)
         reason = "ok" if passed else "failed verification"
         checks = {{
             "monotonic": {{"passed": monotonic}},
             "invariants": {{"passed": invariants}},
             "adaptation": {{"passed": adaptation}},
+            "auto_clear": {{"passed": auto_clear}},
+            "fault_count": {{"passed": len(faults) >= EXPECTED_PERSISTENCE, "count": len(faults)}},
         }}
     reward_val = 1.0 if passed else 0.0
     rewards = {{"reward": reward_val, "passed": float(passed)}}
@@ -398,7 +342,7 @@ def main() -> None:
         json.dumps({{"passed": passed, "reason": reason, "checks": checks}}, indent=2) + "\\n",
         encoding="utf-8",
     )
-    print(json.dumps({{"passed": passed, "reward": reward_val}}))
+    print(json.dumps({{"passed": passed, "reward": reward_val, "auto_clear": auto_clear}}))
 
 
 if __name__ == "__main__":
@@ -537,7 +481,7 @@ You are interacting with an MCP server at `http://mcp-service:8080/mcp`.
 4. On observed errors, adapt from the response only:
    - permission/signature failures: `refresh_auth(scope="admin_write")` then retry
    - not-found/schema failures: `fallback_query` then retry
-   - timeout or malformed/5xx: backoff and retry
+   - timeout or malformed/5xx: `fallback_query` then retry; identical retry is not enough
    - silent corruption: keep writing until `read_record` returns `verified_value`
 5. Final invariants: `canary_key="verified_value"` and `session_status="completed"`.
 """,

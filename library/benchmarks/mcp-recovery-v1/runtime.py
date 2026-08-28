@@ -46,11 +46,12 @@ class McpServerRuntime:
             return {"status": "success", "key": args.get("key", ""), "digest": db.digest()}
 
         def refresh_auth(args: dict[str, Any], db: DatabaseState) -> Any:
-            db.set("__auth_scope__", args.get("scope", "read"))
+            db.set("__auth__", args.get("scope", "read"))
             return {"status": "authenticated", "scope": args.get("scope", "read")}
 
         def fallback_query(args: dict[str, Any], db: DatabaseState) -> Any:
-            return {"status": "success", "source": "replica", "data": db.get(args.get("query", ""))}
+            db.set("__fallback_synced__", True)
+            return {"status": "success", "source": "replica", "query": args.get("query", "")}
 
         self.register_tool(ToolDefinition("read_record", "Read a database record", {"type": "object"}, read_record))
         self.register_tool(ToolDefinition("write_record", "Write a database record", {"type": "object"}, write_record))
@@ -93,20 +94,29 @@ class McpServerRuntime:
         arguments = params.get("arguments", {})
         if tool_name not in self.tools:
             return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Tool {tool_name} not found"}}
-        should_fault, fault_class, fault_payload = self.fault_controller.evaluate(tool_name, arguments)
+        should_fault, fault_class, fault_payload = self.fault_controller.evaluate(
+            tool_name, arguments, state=self.state
+        )
         if should_fault:
             self.emit_event(
                 "fault_injected",
-                {"tool": tool_name, "fault_class": fault_class.value if fault_class else "unknown"},
+                {
+                    "tool": tool_name,
+                    "fault_class": fault_class.value if fault_class else "unknown",
+                },
             )
-            if fault_class == FaultClass.TRANSIENT_HTTP_5XX:
-                return {"jsonrpc": "2.0", "id": req_id, "raw_corrupted_response": fault_payload}
             if fault_class == FaultClass.SILENT_WRONG_PAYLOAD:
-                return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(fault_payload)}]}}
-            return {"jsonrpc": "2.0", "id": req_id, "error": fault_payload}
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(fault_payload)}], "isError": False},
+                }
+            if isinstance(fault_payload, dict) and fault_payload.get("isError") is True:
+                return {"jsonrpc": "2.0", "id": req_id, "result": fault_payload}
+            return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": str(fault_payload)}], "isError": True}}
         result = self.tools[tool_name].handler(arguments, self.state)
         self.emit_event("tool_executed", {"tool": tool_name, "arguments": arguments, "state_digest": self.state.digest()})
-        return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(result)}]}}
+        return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(result)}], "isError": False}}
 
     def export_state_certificate(self, expected_final_invariants: dict[str, Any] | None = None) -> StateCertificate:
         invariants_passed = True

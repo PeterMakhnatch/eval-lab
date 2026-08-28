@@ -106,7 +106,7 @@ class FeatureRegistry:
         return {k: v for k, v in self._features.items() if v.family == family}
 
     def by_construct(self, construct: str) -> dict[str, FeatureDefinition]:
-        """Return all features registered for a specific capability construct."""
+        """Return all features registered for a specific construct."""
         return {k: v for k, v in self._features.items() if v.construct == construct}
 
     def by_category(self, category: FeatureCategory) -> dict[str, FeatureDefinition]:

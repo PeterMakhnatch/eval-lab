@@ -1,8 +1,8 @@
-"""Comprehensive test suite for Benchmark Trajectory Program and Capability Observables.
+"""Comprehensive test suite for Benchmark Trajectory Program and Observables.
 
 Tests:
 1. Strict benchmark event ingestion, canonical ordering, gap rejection, and call-ID correlation.
-2. Benchmark capability feature producers (Action Memory, MCP FuncDAG, MCP Recovery) with strict NULL preservation.
+2. Benchmark feature producers (Action Memory, MCP FuncDAG, MCP Recovery) with strict NULL preservation.
 3. Feature registry contracts and CI verification.
 4. DuckDB benchmark baseline and diagnostic views.
 5. Trajectory card generation with benchmark observables.

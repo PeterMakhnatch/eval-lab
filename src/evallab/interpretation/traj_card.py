@@ -357,7 +357,7 @@ def build_traj_card_data(
         loop_reasons_list = tuple(json.loads(baseline.loop_reasons_json))
     except Exception:
         loop_reasons_list = ()
-    # Check for benchmark capability trial
+    # Check for benchmark trial
     benchmark_family: str | None = None
     benchmark_feat_dict: dict[str, Any] | None = None
     if (
@@ -684,7 +684,7 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
             f"- **Result File:** `{card.result_path}` (SHA-256: `{card.result_sha256 or 'n/a'}`)"
         )
     lines.append("")
-    # Section 9: Benchmark Capability Observables (when present)
+    # Section 9: Benchmark Observables (when present)
     if card.benchmark_family and card.benchmark_features:
         lines.append(f"## 9. Benchmark Observables (`{card.benchmark_family}`)")
         bf = card.benchmark_features

@@ -161,22 +161,41 @@ def extract_mcp_recovery_features(
 
     injected_fault_record = json.dumps(injected_faults) if injected_faults else None
 
-    # Certified autonomous recovery requires:
-    # 1. Injected fault occurred
-    # 2. Zero human intervention
-    # 3. Final state invariants passed
-    # 4. Recovery step occurred strictly after fault step (step_to_recovery > step_to_first_fault)
+    # Certified autonomous recovery requires all 5 gates:
+    # 1. Injected fault occurred (injected_fault_count > 0)
+    # 2. Zero human intervention (human_interventions == 0 and no human intervention event in stream)
+    # 3. Final state invariants passed (task_success is True)
+    # 4. Recovery step occurred strictly after first fault (step_to_recovery > step_to_first_fault)
+    # 5. Paired fixed-policy failure gate: Agent adapted behavior (blind_retries < post_fault_retries or fault_detected_count > 0)
     human_interventions = int(final_state.details.get("human_interventions_count", 0))
+    has_human_intervention_event = any(
+        e.event_type
+        in (
+            "human_intervention",
+            "user_intervention",
+            "operator_intervention",
+            "manual_override",
+        )
+        or (isinstance(e.payload, dict) and e.payload.get("is_human", False))
+        for e in events
+    )
+    no_human_intervention = human_interventions == 0 and not has_human_intervention_event
+
     has_valid_step_recovery = (
         step_to_recovery is not None
         and step_to_first_fault is not None
         and step_to_recovery > step_to_first_fault
     )
+    fixed_policy_failure_gate = (
+        blind_retries < post_fault_retries or fault_detected_count > 0 or post_fault_retries == 0
+    )
+
     is_c3_certified = (
         injected_fault_count > 0
         and task_success
-        and human_interventions == 0
-        and (has_valid_step_recovery or certified_recovered_faults > 0)
+        and no_human_intervention
+        and has_valid_step_recovery
+        and fixed_policy_failure_gate
     )
     if is_c3_certified:
         certified_recovered_faults = max(certified_recovered_faults, 1)

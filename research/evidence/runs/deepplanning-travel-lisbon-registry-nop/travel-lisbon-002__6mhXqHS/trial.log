@@ -1,0 +1,18 @@
+Skipping image OS validation for hb__695cada7d6ccd6e38db723bcd6aad521: docker inspect returned 1
+Collecting main service artifacts
+Failed to download artifact '/app/answer.json' from service 'main' (best-effort)
+Traceback (most recent call last):
+  File "/home/runner/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/trial/artifact_handler.py", line 351, in _download_artifact
+    await source_env.service_download_file(
+  File "/home/runner/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 1052, in service_download_file
+    await self.download_file(source_path, target_path)
+  File "/home/runner/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 1037, in download_file
+    await self._platform.download_file(source_path, target_path)
+  File "/home/runner/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker_unix.py", line 185, in download_file
+    await self._env._run_docker_compose_command(
+  File "/home/runner/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 656, in _run_docker_compose_command
+    raise RuntimeError(
+RuntimeError: Docker compose command failed for environment travel-lisbon-002. Command: docker compose --project-name travel-lisbon-002__6mhxqhs__env --project-directory /home/runner/work/eval-lab/eval-lab/library/tasks/experimental/deepplanning-v1/travel-lisbon-002/environment -f /tmp/tmpl2n77d8v/travel-lisbon-002__6mhXqHS__env-docker-compose-resources.json -f /home/runner/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker-compose-build.yaml -f /tmp/tmpiy_m17p5/docker-compose-environment.json -f /tmp/tmpqyfzki3b/docker-compose-mounts.json cp main:/app/answer.json runs/deepplanning-registry/deepplanning-travel-lisbon-registry-nop/travel-lisbon-002__6mhXqHS/artifacts/app/answer.json. Return code: 1. Stdout:  travel-lisbon-002__6mhxqhs__env-main-1 copy travel-lisbon-002__6mhxqhs__env-main-1:/app/answer.json to runs/deepplanning-registry/deepplanning-travel-lisbon-registry-nop/travel-lisbon-002__6mhXqHS/artifacts/app/answer.json Copying
+Error response from daemon: Could not find the file /app/answer.json in container 3980cfeb49d4a291ff613dd852b6d89bbd5992dc459116dbcf36898200f1336b
+. Stderr: None. 
+Skipping image OS validation for hb__6eecd20035286bde3ea3984f49aea241: docker inspect returned 1

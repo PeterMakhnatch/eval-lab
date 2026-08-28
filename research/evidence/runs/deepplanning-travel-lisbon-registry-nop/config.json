@@ -1,0 +1,15 @@
+{
+    "job_name": "deepplanning-travel-lisbon-registry-nop",
+    "jobs_dir": "runs/deepplanning-registry",
+    "n_concurrent_trials": 1,
+    "agents": [
+        {
+            "name": "nop"
+        }
+    ],
+    "tasks": [
+        {
+            "path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002"
+        }
+    ]
+}

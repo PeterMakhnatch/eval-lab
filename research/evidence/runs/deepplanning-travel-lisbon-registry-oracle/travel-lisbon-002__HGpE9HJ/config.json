@@ -1,0 +1,8 @@
+{
+    "task": {
+        "path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002"
+    },
+    "trial_name": "travel-lisbon-002__HGpE9HJ",
+    "trials_dir": "runs/deepplanning-registry/deepplanning-travel-lisbon-registry-oracle",
+    "job_id": "cc830702-9a2c-4858-810d-37f82c19578b"
+}

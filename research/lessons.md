@@ -75,7 +75,7 @@ inputs:
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-08-28 02:40:09Z
+- **Generated at:** 2026-08-28 03:52:57Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
 - **Corpus Summary:** 9 craft tasks, 0 trials, 25 observation records, 0 analysis sidecars
 - **Findings Gate:** 0 statistically powered finding(s), 3 observation row(s) gated with `insufficient n`

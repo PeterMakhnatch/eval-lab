@@ -1,0 +1,11 @@
+{
+    "task": {
+        "path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002"
+    },
+    "trial_name": "travel-lisbon-002__6mhXqHS",
+    "trials_dir": "runs/deepplanning-registry/deepplanning-travel-lisbon-registry-nop",
+    "agent": {
+        "name": "nop"
+    },
+    "job_id": "2373bb63-0516-462a-a71b-b941953dd738"
+}

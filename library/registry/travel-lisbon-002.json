@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "task_id": "travel-lisbon-002",
+  "version": "1.0.0",
+  "task_path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+  "digests": {
+    "task_toml": "sha256:f09edc851fd462e17dab153b50a5122901ad1d29a9540f5b872d1a63b1d9d1aa",
+    "instruction": "sha256:1cf64eb0ec441bff98814e32f6a30c00d119cdbaeeed8cb2d9a16b91f8a9f0f1",
+    "environment": "sha256:4a228bcddccf22ea42c3c898be5b869cc75cf54208f0550855d43d934485faa2",
+    "verifier": "sha256:0fbda1cd0c982b41946adb9ea2ac5da92cef5dc7511613adae14e887a844b76c",
+    "package": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa"
+  },
+  "source_uri": "https://huggingface.co/datasets/Qwen/DeepPlanning",
+  "source_ref": "213876cce679f993a476d01042e13d111c0e3648",
+  "license": "Apache-2.0",
+  "provenance_zone": "01-external",
+  "is_synthetic": false,
+  "limits": {
+    "timeout_seconds": 180,
+    "max_memory_mb": 512,
+    "max_cpus": 1.0
+  },
+  "control_evidence": {
+    "oracle": {
+      "job_name": "deepplanning-travel-lisbon-registry-oracle",
+      "trial_name": "travel-lisbon-002__HGpE9HJ",
+      "reward": 1.0,
+      "evidence_path": "research/evidence/runs/deepplanning-travel-lisbon-registry-oracle/travel-lisbon-002__HGpE9HJ/result.json",
+      "evidence_digest": "sha256:d2c34487923679b0300ead7df15abd261e1e4b784c7000d8386093ec9c1a848e",
+      "lock_digest": "sha256:bd4a19de3238793e072a9b407831f84640debf2d42987b4187f53d610ae0e3dd",
+      "observed_at": "2026-08-28T03:43:56.073506Z",
+      "task_id": "travel-lisbon-002",
+      "task_version": "1.0.0",
+      "task_digests": {
+        "task_toml": "sha256:f09edc851fd462e17dab153b50a5122901ad1d29a9540f5b872d1a63b1d9d1aa",
+        "instruction": "sha256:1cf64eb0ec441bff98814e32f6a30c00d119cdbaeeed8cb2d9a16b91f8a9f0f1",
+        "environment": "sha256:4a228bcddccf22ea42c3c898be5b869cc75cf54208f0550855d43d934485faa2",
+        "verifier": "sha256:0fbda1cd0c982b41946adb9ea2ac5da92cef5dc7511613adae14e887a844b76c",
+        "package": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa"
+      },
+      "harbor_task_digest": "sha256:45610e3dcd4dc277b8ce34a0d1028619510b2bab38f1c974d945a514c288d81c"
+    },
+    "nop": {
+      "job_name": "deepplanning-travel-lisbon-registry-nop",
+      "trial_name": "travel-lisbon-002__6mhXqHS",
+      "reward": 0.0,
+      "evidence_path": "research/evidence/runs/deepplanning-travel-lisbon-registry-nop/travel-lisbon-002__6mhXqHS/result.json",
+      "evidence_digest": "sha256:e1e85601bdaacfec21bd51cfb33108b0413507f25c01572b6638639ee2d8f4f4",
+      "lock_digest": "sha256:10215621cab52785f470d6e8f80f09e90ed85779680523b687c009a4d60132f6",
+      "observed_at": "2026-08-28T03:44:30.354762Z",
+      "task_id": "travel-lisbon-002",
+      "task_version": "1.0.0",
+      "task_digests": {
+        "task_toml": "sha256:f09edc851fd462e17dab153b50a5122901ad1d29a9540f5b872d1a63b1d9d1aa",
+        "instruction": "sha256:1cf64eb0ec441bff98814e32f6a30c00d119cdbaeeed8cb2d9a16b91f8a9f0f1",
+        "environment": "sha256:4a228bcddccf22ea42c3c898be5b869cc75cf54208f0550855d43d934485faa2",
+        "verifier": "sha256:0fbda1cd0c982b41946adb9ea2ac5da92cef5dc7511613adae14e887a844b76c",
+        "package": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa"
+      },
+      "harbor_task_digest": "sha256:45610e3dcd4dc277b8ce34a0d1028619510b2bab38f1c974d945a514c288d81c"
+    }
+  },
+  "certification": {
+    "state": "bound",
+    "reason": "bound_workbench_certificate_packet",
+    "certification_id": "cert-8f7f00bea8b78db5eae8d70c",
+    "packet_path": "research/registration/candidates/candidate-2752263ee529902909e3b08d/certification.json",
+    "packet_sha256": "sha256:720ea63e622bdd412cafdce6312afce26100243c02975465cce8a51251c55c62",
+    "candidate_id": "candidate-2752263ee529902909e3b08d",
+    "candidate_record_digest": "sha256:10bae70979b3486b1ac12bd571e2a854678cccbbb14241a44046403d665aebb4",
+    "candidate_package_digest": "sha256:45e439116d6cf79dbcd8217254805c367791c5f3a277c9725a9895ac0e058820",
+    "package_digest": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa",
+    "workbench_version": "m049-v1",
+    "check_vector": {
+      "all_controls_completed": true,
+      "static": true,
+      "oracle_exact_1_x3": true,
+      "oracle_stable_output": true,
+      "nop_exact_0_x2": true,
+      "invalid_outputs_rejected": true,
+      "fair_alternative_exact_1": true,
+      "please_hack_executed": true,
+      "hack_detected": false,
+      "leakage_scan_clean": true,
+      "isolation": true
+    },
+    "control_summary": {
+      "oracle_runs": 3,
+      "nop_runs": 2,
+      "invalid_probe_runs": 4,
+      "fair_alternative_runs": 1,
+      "please_hack_runs": 1,
+      "result_digests": [
+        "sha256:992c1bf267fdaaa3cb444f13b4c7de3f5e6835457b4aaf02c6e6c215b3931126",
+        "sha256:38481db872a1f79f3fc229e6f87591b7684b702bd32696cd50f5d43417081781",
+        "sha256:9d36be288ff0cf32250eb596f5214861af4e2be44754bb07c41f6b27fc36376f",
+        "sha256:f2711945faca7c6446226499bee7b55b69eb83a22e5338b6683b265d85380e58",
+        "sha256:bf00d64e5c110381064354aa31239258dbb65922ac2ced4c647bebcf0724605e",
+        "sha256:2a3597b68959e2e953c636524375d163fee6e00bdf9b3d536aa5c107f6ea632d",
+        "sha256:f5d5302fe9ab12029a332b0292d4e1d61b5f7eb71863b554fdcbc83229b55e08",
+        "sha256:e619d9e1dea5bed3a62e730b146bd184be48846be493874a34db0ae8cd7071e4",
+        "sha256:f29d6ec8dd2d635916c8215beb8b639477bfaffd3633d5c085873df42606d7cf",
+        "sha256:97855a587c2e5225aa9d994f7d818609e332ee4873367b22a91e6ca47d86aaf6",
+        "sha256:8cc377f12097b253f88be6d0ae2ebfc7809d7bb82c0b171e0e6bbdf81a714a93"
+      ]
+    },
+    "axes": {
+      "task_correctness": {
+        "status": "passed",
+        "reason": "all control jobs completed after backend environment setup; this is not an independent image-build attestation",
+        "evidence": [
+          "oracle-1",
+          "oracle-2",
+          "oracle-3"
+        ]
+      },
+      "verifier_soundness": {
+        "status": "passed",
+        "reason": "executed nop, invalid, and please-hack probes were rejected; this bounded probe set does not prove security",
+        "evidence": [
+          "nop-1",
+          "nop-2",
+          "adversarial-empty-output",
+          "adversarial-missing-sources",
+          "adversarial-wrong-refusal",
+          "adversarial-wrong-status",
+          "please-hack"
+        ]
+      },
+      "verifier_completeness": {
+        "status": "passed",
+        "reason": "byte-distinct fair alternative scored 1",
+        "evidence": [
+          "fair-alternative"
+        ]
+      },
+      "solvability": {
+        "status": "passed",
+        "reason": "oracle and independent fair alternative both succeeded",
+        "evidence": [
+          "oracle-1",
+          "oracle-2",
+          "oracle-3",
+          "fair-alternative"
+        ]
+      },
+      "difficulty_calibration": {
+        "status": "not_applicable",
+        "reason": "local certificate controls do not measure task difficulty",
+        "evidence": []
+      },
+      "realism_review": {
+        "status": "not_assessed",
+        "reason": "realism requires separate human or domain review",
+        "evidence": []
+      }
+    },
+    "generator_identity": {
+      "code_digest": "sha256:afae63d2ad061cf432d43906a41183d02e5cd5a39adc90aae3292571a66fb272",
+      "execution": "local",
+      "model": null,
+      "prompt_digest": null
+    },
+    "validator_identity": {
+      "code_digest": "sha256:9dbe7452d9020785e6af492c0e0653ad45fba6a86c6a8b083b30ed6376468bf5",
+      "execution": "local",
+      "model": null,
+      "prompt_digest": null
+    }
+  },
+  "state": "registered",
+  "allowed_uses": [
+    "measurement",
+    "training"
+  ],
+  "contamination": null,
+  "human_minutes": 30,
+  "approved_by": "Peter Makhnatch",
+  "approved_at": "2026-08-28T03:52:43.151298Z",
+  "state_reason": null
+}

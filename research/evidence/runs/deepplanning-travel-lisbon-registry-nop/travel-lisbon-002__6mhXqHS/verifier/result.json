@@ -1,0 +1,5 @@
+{
+  "status": "failed",
+  "reason": "answer file not found at /app/answer.json",
+  "reward": 0.0
+}

@@ -188,26 +188,14 @@ class TrialComplianceRecord(ContractModel):
     def _seal(self) -> TrialComplianceRecord:
         reasons = sorted(set(self.hold_reasons))
         ready = self.disposition == "QUALITY_PASS" and not reasons
+        object.__setattr__(self, "hold_reasons", reasons)
+        object.__setattr__(self, "analysis_ready", ready)
+        object.__setattr__(self, "source_digest", self.trial_source_digest)
         payload = self.model_dump(mode="json", exclude={"record_digest", "row_digest"})
-        payload["hold_reasons"] = reasons
-        payload["analysis_ready"] = ready
         digest = canonical_digest(payload)
-        if (
-            reasons == self.hold_reasons
-            and ready == self.analysis_ready
-            and digest == self.record_digest
-            and digest == self.row_digest
-        ):
-            return self
-        return self.model_copy(
-            update={
-                "hold_reasons": reasons,
-                "analysis_ready": ready,
-                "row_digest": digest,
-                "record_digest": digest,
-                "source_digest": self.trial_source_digest,
-            }
-        )
+        object.__setattr__(self, "row_digest", digest)
+        object.__setattr__(self, "record_digest", digest)
+        return self
 
 
 def _repeat_group_id(task_name: str | None, model_name: str | None) -> str | None:
@@ -373,9 +361,14 @@ def evaluate_trial_compliance(bundle: TrialEvidenceBundle) -> TrialComplianceRec
         alphabet_ready=bundle.alphabet_ready is True,
         dose_ready=bundle.dose_ready is True,
         sequence_eligible=sequence_eligible,
-        cascade_eligible=sequence_eligible
-        and t_lock_present
-        and "CENSORING_UNAVAILABLE" not in reasons,
+        cascade_eligible=(
+            sequence_eligible
+            and t_lock_present
+            and bundle.first_error_step is not None
+            and "T_LOCK_UNAVAILABLE" not in reasons
+            and "CENSORING_UNAVAILABLE" not in reasons
+            and "SHORT_TRAJECTORY" not in reasons
+        ),
         recovery_censored=recovery_censored,
         t_lock_contract_present=t_lock_present,
         producer_live=bundle.producer_live,
@@ -413,19 +406,36 @@ def ingest_settled_trial_idempotent(
     return current
 
 
+MALFORMED_REGISTRY = "malformed_registry_mapping"
+
+
+def _registry_column_name(raw: Mapping[str, Any] | object) -> str | None:
+    if not isinstance(raw, Mapping):
+        return None
+    name = raw.get("column_name")
+    if not isinstance(name, str) or not name.strip():
+        return None
+    return name
+
+
 def t11_lineage_blocking(registry_rows: Sequence[Mapping[str, Any]]) -> list[str]:
     blocked: list[str] = []
     for raw in registry_rows:
-        if "declared_inputs" not in raw:
-            blocked.append(str(raw["column_name"]))
+        name = _registry_column_name(raw)
+        if name is None:
+            blocked.append(MALFORMED_REGISTRY)
+            continue
+        if "declared_inputs" not in raw or "available_before_verdict" not in raw:
+            blocked.append(name)
             continue
         declared = list(raw.get("declared_inputs") or [])
         role = str(raw.get("measurement_role") or "process")
         if role == "process" and (
-            lineage_depends_on_outcome(declared) or raw.get("available_before_verdict") is False
+            lineage_depends_on_outcome(declared) or raw.get("available_before_verdict") is not True
         ):
-            blocked.append(str(raw["column_name"]))
+            blocked.append(name)
     return blocked
+
 
 
 def denominator_policy_refusal(
@@ -455,25 +465,48 @@ def denominator_policy_refusal(
 
 def missing_denominator_declaration(registry_rows: Sequence[Mapping[str, Any]]) -> list[str]:
     """Report-only overlay. Does not tighten FeatureRegistry.validate_contract."""
-    known = {str(row["column_name"]) for row in registry_rows}
+    known = {name for raw in registry_rows if (name := _registry_column_name(raw))}
     missing: list[str] = []
     for raw in registry_rows:
+        name = _registry_column_name(raw)
+        if name is None:
+            missing.append(MALFORMED_REGISTRY)
+            continue
         refusal, _basis = denominator_policy_refusal(raw, known_columns=known)
         if refusal == "MISSING_DENOMINATOR_DECLARATION":
-            missing.append(str(raw["column_name"]))
+            missing.append(name)
     return missing
 
 
 def provenance_catalog(registry_rows: Sequence[Mapping[str, Any]]) -> list[FeatureProvenanceEntry]:
-    known = {str(row["column_name"]) for row in registry_rows}
+    known = {name for raw in registry_rows if (name := _registry_column_name(raw))}
     entries: list[FeatureProvenanceEntry] = []
     for raw in registry_rows:
+        name = _registry_column_name(raw)
+        if name is None:
+            entries.append(
+                FeatureProvenanceEntry(
+                    column_name=MALFORMED_REGISTRY,
+                    definition="",
+                    formula_or_rule="",
+                    producer_module="unknown",
+                    producer_version="unknown",
+                    coverage="unknown",
+                    refusal=MALFORMED_REGISTRY,
+                    basis="REGISTRY_CONFIRMED",
+                    measurement_role="process",
+                    available_before_verdict=False,
+                    source_table="",
+                    null_condition="NULL",
+                )
+            )
+            continue
         declared = list(raw.get("declared_inputs") or [])
         role_raw = str(raw.get("measurement_role") or "process")
         role: MeasurementRole = (
             role_raw if role_raw in {"process", "outcome", "denominator", "identity"} else "process"
         )
-        missing_lineage = "declared_inputs" not in raw
+        missing_lineage = "declared_inputs" not in raw or "available_before_verdict" not in raw
         outcome_violation = role == "process" and lineage_depends_on_outcome(declared)
         denom_refusal, denom_basis = denominator_policy_refusal(raw, known_columns=known)
         policy_raw = raw.get("denominator_policy")
@@ -498,7 +531,7 @@ def provenance_catalog(registry_rows: Sequence[Mapping[str, Any]]) -> list[Featu
             consumer = raw.get("named_consumer")
         entries.append(
             FeatureProvenanceEntry(
-                column_name=str(raw["column_name"]),
+                column_name=name,
                 definition=str(raw.get("description") or raw.get("formula_or_rule") or ""),
                 named_consumer=consumer,
                 formula_or_rule=str(raw.get("formula_or_rule") or ""),

@@ -1,0 +1,117 @@
+name: action-memory
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "library/benchmarks/action-memory-v1/**"
+      - "tests/test_action_memory_v1.py"
+      - ".github/workflows/action-memory.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "library/benchmarks/action-memory-v1/**"
+      - "tests/test_action_memory_v1.py"
+      - ".github/workflows/action-memory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary-controls:
+    name: action-memory-canary-controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Reject committed generated corpus
+        run: |
+          python3 -c 'import subprocess,sys; p=subprocess.check_output(["git","ls-files"],text=True).splitlines(); bad=[x for x in p if x.startswith(("library/benchmarks/action-memory-v1/tasks/","derived/harbor-tasks/action-memory/"))]; print("forbidden tracked paths:", bad); sys.exit(bool(bad))'
+      - name: Install uv
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          uv tool install "harbor==0.21.0"
+      - name: Exercise action-memory CI contract and focused tests
+        run: |
+          uv run python library/benchmarks/action-memory-v1/ci_contract.py
+          uv run pytest tests/test_action_memory_v1.py -v
+      - name: Materialize canary and prove deterministic regeneration
+        run: |
+          mkdir -p derived/harbor-tasks/action-memory
+          task_dir="$(uv run python -c 'import sys; sys.path.insert(0, "library/benchmarks/action-memory-v1"); from materializer import materialize; print(materialize(cell_id="clean-baseline-4k", seed=42)["output_path"])')"
+          echo "TASK_PATH=$task_dir" >> "$GITHUB_ENV"
+      - name: Freeze workbench plan
+        id: plan
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/action-memory
+          uv run python -m evallab.task_workbench plan "$TASK_PATH" \
+            --repo-root . \
+            --source-uri "eval-lab/action-memory/clean-baseline-4k" \
+            --source-ref "local/eval-lab/action-memory@1.0.0" \
+            --license "Apache-2.0" \
+            --zone "03-synthetic" \
+            | tee artifacts/action-memory/plan.json
+          candidate_id="$(jq -r '.candidate.candidate_id' artifacts/action-memory/plan.json)"
+          test -n "$candidate_id"
+          test "$candidate_id" != null
+          echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
+      - name: Run complete workbench controls
+        run: |
+          set -euo pipefail
+          uv run python -m evallab.task_workbench check "$TASK_PATH" \
+            --repo-root . \
+            --source-uri "eval-lab/action-memory/clean-baseline-4k" \
+            --source-ref "local/eval-lab/action-memory@1.0.0" \
+            --license "Apache-2.0" \
+            --zone "03-synthetic" \
+            --run-controls \
+            | tee artifacts/action-memory/check.json
+          test "$(jq -r '.disposition' artifacts/action-memory/check.json)" = "certified_for_review"
+      - name: Write workbench certification packet
+        env:
+          CANDIDATE_ID: ${{ steps.plan.outputs.candidate_id }}
+        run: |
+          set -euo pipefail
+          controls="runs/task-workbench/${CANDIDATE_ID}/controls.json"
+          packet_root="research/registration/candidates/ci/${GITHUB_RUN_ID}/action-memory-clean-baseline-4k"
+          test -s "$controls"
+          uv run python -m evallab.task_workbench packet "$TASK_PATH" \
+            --repo-root . \
+            --source-uri "eval-lab/action-memory/clean-baseline-4k" \
+            --source-ref "local/eval-lab/action-memory@1.0.0" \
+            --license "Apache-2.0" \
+            --zone "03-synthetic" \
+            --controls "$controls" \
+            --output-root "$packet_root" \
+            | tee artifacts/action-memory/packet.json
+          test "$(jq -r '.disposition' artifacts/action-memory/packet.json)" = "certified_for_review"
+      - name: Produce durable exact-task controls
+        run: |
+          set -euo pipefail
+          jobs="research/evidence/runs"
+          oracle_job="action-memory-registry-oracle-${GITHUB_RUN_ID}"
+          nop_job="action-memory-registry-nop-${GITHUB_RUN_ID}"
+          harbor run --path "$TASK_PATH" \
+            --agent oracle --env docker --job-name "$oracle_job" --jobs-dir "$jobs" \
+            --n-concurrent 1 --n-attempts 1 --yes
+          harbor run --path "$TASK_PATH" \
+            --agent nop --env docker --job-name "$nop_job" --jobs-dir "$jobs" \
+            --n-concurrent 1 --n-attempts 1 --yes
+          uv run python library/benchmarks/action-memory-v1/ci_contract.py --assert-harbor-reward "$jobs/$oracle_job" 1.0
+          uv run python library/benchmarks/action-memory-v1/ci_contract.py --assert-harbor-reward "$jobs/$nop_job" 0.0
+      - name: Upload review packet and retained evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: action-memory-workbench
+          path: |
+            artifacts/action-memory/
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/controls.json
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/jobs/
+            research/registration/candidates/ci/${{ github.run_id }}/action-memory-clean-baseline-4k/
+            research/evidence/runs/action-memory-registry-oracle-${{ github.run_id }}/
+            research/evidence/runs/action-memory-registry-nop-${{ github.run_id }}/
+          if-no-files-found: error

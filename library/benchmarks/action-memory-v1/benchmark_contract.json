@@ -1,0 +1,63 @@
+{
+  "benchmark_family": "action-memory-v1",
+  "version": "1.0.0",
+  "construct": "actionable_entity_memory_and_value_binding",
+  "seeds": [42, 1337, 2026],
+  "cells": [
+    {
+      "cell_id": "clean-baseline-4k",
+      "dose_bytes": 4096,
+      "arm": "clean",
+      "inversion_count": 1,
+      "update_opportunity_count": 1,
+      "read_opportunity_count": 7,
+      "mutation_opportunity_count": 1
+    },
+    {
+      "cell_id": "neutral-padding-16k-prefix",
+      "dose_bytes": 16384,
+      "arm": "neutral_padding",
+      "padding_position": "prefix",
+      "inversion_count": 1,
+      "update_opportunity_count": 1,
+      "read_opportunity_count": 19,
+      "mutation_opportunity_count": 1
+    },
+    {
+      "cell_id": "neutral-padding-16k-middle",
+      "dose_bytes": 16384,
+      "arm": "neutral_padding",
+      "padding_position": "middle",
+      "inversion_count": 1,
+      "update_opportunity_count": 1,
+      "read_opportunity_count": 19,
+      "mutation_opportunity_count": 1
+    },
+    {
+      "cell_id": "semantic-distractor-16k",
+      "dose_bytes": 16384,
+      "arm": "semantic_distractor",
+      "distractor_count": 12,
+      "inversion_count": 1,
+      "update_opportunity_count": 1,
+      "read_opportunity_count": 28,
+      "mutation_opportunity_count": 1
+    },
+    {
+      "cell_id": "multi-inversion-semantic-distractor-64k",
+      "dose_bytes": 65536,
+      "arm": "semantic_distractor",
+      "distractor_count": 48,
+      "inversion_count": 2,
+      "update_opportunity_count": 2,
+      "read_opportunity_count": 105,
+      "mutation_opportunity_count": 1
+    }
+  ],
+  "artifact_paths": {
+    "benchmark_events": "/app/output/benchmark-events.jsonl",
+    "final_state": "/app/output/final-state.json",
+    "verifier_reward": "/logs/verifier/reward.txt"
+  },
+  "verifier_truth_digest": "sha256:d81e3a6f1a8c9b3e70d4b4a54c6a953e5e2e8e7a0f671c50b556f082e66bf2e9"
+}

@@ -382,13 +382,19 @@ NETWORK_OVERLAY_CONTENT = (
 def _network_overlay_content(
     sidecar_name: str | None = None,
     volume: Mapping[str, Any] | None = None,
+    network_name: str | None = None,
 ) -> bytes:
     if sidecar_name is None:
         if volume is not None:
             raise WorkbenchError("volume declared without sidecar service")
+        if network_name is not None:
+            raise WorkbenchError("network declared without sidecar service")
         return NETWORK_OVERLAY_CONTENT
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", sidecar_name):
         raise WorkbenchError(f"unsafe sidecar service name in frozen candidate: {sidecar_name!r}")
+    net_name = network_name if network_name is not None else "workbench-internal"
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", net_name):
+        raise WorkbenchError(f"unsafe network name in frozen candidate: {net_name!r}")
     volume_name = str(volume.get("name")) if isinstance(volume, Mapping) else None
     mount_path = str(volume.get("mount_path")) if isinstance(volume, Mapping) else None
     has_volume = bool(volume_name and mount_path)
@@ -398,7 +404,7 @@ def _network_overlay_content(
         "    build:",
         "      network: none",
         "    networks:",
-        "      - workbench-internal",
+        f"      - {net_name}",
     ]
     if has_volume:
         lines.append("    volumes:")
@@ -408,7 +414,7 @@ def _network_overlay_content(
         "    build:",
         "      network: none",
         "    networks:",
-        "      - workbench-internal",
+        f"      - {net_name}",
     ])
     if has_volume:
         lines.append("    volumes:")
@@ -420,7 +426,7 @@ def _network_overlay_content(
         ])
     lines.extend([
         "networks:",
-        "  workbench-internal:",
+        f"  {net_name}:",
         "    internal: true",
     ])
     return "\n".join(lines).encode()
@@ -430,9 +436,12 @@ def _candidate_network_overlay(candidate: Mapping[str, Any]) -> bytes:
     topology = candidate.get("compose_topology")
     sidecar = topology.get("sidecar_service") if isinstance(topology, Mapping) else None
     volume = topology.get("volume") if isinstance(topology, Mapping) else None
+    network = topology.get("network") if isinstance(topology, Mapping) else None
+    network_name = network.get("name") if isinstance(network, Mapping) else None
     return _network_overlay_content(
         str(sidecar) if sidecar is not None else None,
         volume=volume,
+        network_name=str(network_name) if sidecar is not None and network_name is not None else None,
     )
 
 Severity = Literal["error", "warning", "info"]
@@ -1786,6 +1795,135 @@ def _extract_sidecar_env(service_env: Any) -> dict[str, str]:
     return result
 
 
+def _validate_compose_networks(
+    data: Mapping[str, Any],
+    rel_path: str,
+    diagnostics: list[Diagnostic],
+) -> tuple[dict[str, Any] | None, str | None, bool]:
+    """Validate the top-level networks section, if any.
+
+    Returns `(network_record, network_name, is_valid)`.
+    A valid record contains exactly one network whose definition is only
+    ``internal: true``, using a safe task-local name.
+    """
+    top_networks = data.get("networks")
+    if top_networks is None:
+        return None, None, True
+    if not isinstance(top_networks, Mapping):
+        diagnostics.append(
+            _diag(
+                "compose_networks_unsupported",
+                rel_path,
+                "top-level 'networks' must be a mapping",
+            )
+        )
+        return None, None, False
+    if not top_networks:
+        diagnostics.append(
+            _diag(
+                "compose_networks_unsupported",
+                rel_path,
+                "top-level 'networks' must declare exactly one network",
+            )
+        )
+        return None, None, False
+    if len(top_networks) > 1:
+        diagnostics.append(
+            _diag(
+                "compose_networks_unsupported",
+                rel_path,
+                f"top-level 'networks' may contain at most 1 network, got {len(top_networks)}: {list(top_networks)}",
+            )
+        )
+        return None, None, False
+    net_name, net_def = next(iter(top_networks.items()))
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", net_name):
+        diagnostics.append(
+            _diag(
+                "compose_networks_unsupported",
+                rel_path,
+                f"network name {net_name!r} is not a safe task-local name",
+            )
+        )
+        return None, None, False
+    if not isinstance(net_def, Mapping):
+        diagnostics.append(
+            _diag(
+                "compose_networks_unsupported",
+                rel_path,
+                f"network {net_name!r} definition must be a mapping",
+            )
+        )
+        return None, None, False
+    for key in sorted(net_def):
+        if key != "internal":
+            diagnostics.append(
+                _diag(
+                    "compose_networks_unsupported",
+                    rel_path,
+                    f"network {net_name!r} declares unsupported key {key!r}",
+                )
+            )
+            return None, None, False
+    if net_def.get("internal") is not True:
+        diagnostics.append(
+            _diag(
+                "compose_networks_unsupported",
+                rel_path,
+                f"network {net_name!r} must set internal: true",
+            )
+        )
+        return None, None, False
+    return {"name": net_name, "internal": True}, net_name, True
+
+
+def _validate_service_networks(
+    service_name: str,
+    networks: Any,
+    network_name: str,
+    rel_path: str,
+    diagnostics: list[Diagnostic],
+) -> None:
+    """Validate a service attaches only to the one declared internal network."""
+    if isinstance(networks, list):
+        if len(networks) != 1 or not isinstance(networks[0], str) or networks[0] != network_name:
+            diagnostics.append(
+                _diag(
+                    "compose_networks_unsupported",
+                    rel_path,
+                    f"service {service_name!r} must declare exactly one network attachment to {network_name!r}",
+                )
+            )
+        return
+    if isinstance(networks, Mapping):
+        if set(networks) != {network_name}:
+            diagnostics.append(
+                _diag(
+                    "compose_networks_unsupported",
+                    rel_path,
+                    f"service {service_name!r} may only attach to the declared network {network_name!r}",
+                )
+            )
+            return
+        value = networks[network_name]
+        if value is not None and value != {}:
+            diagnostics.append(
+                _diag(
+                    "compose_networks_unsupported",
+                    rel_path,
+                    f"service {service_name!r} may not declare network options for {network_name!r}",
+                )
+            )
+        return
+    diagnostics.append(
+        _diag(
+            "compose_networks_unsupported",
+            rel_path,
+            f"service {service_name!r} 'networks' must be a list or mapping",
+        )
+    )
+
+
 def _validate_compose_topology(
     task_dir: Path,
     diagnostics: list[Diagnostic],
@@ -1812,12 +1950,12 @@ def _validate_compose_topology(
         return None, None
     volume_definition: dict[str, Any] | None = None
     for top_key in data:
-        if top_key not in {"services", "version", "volumes"}:
+        if top_key not in {"services", "version", "volumes", "networks"}:
             diagnostics.append(
                 _diag(
                     "custom_compose_unsupported",
                     rel_path,
-                    f"top-level Compose key {top_key!r} is unsupported; only 'services' and 'volumes' are modelled",
+                    f"top-level Compose key {top_key!r} is unsupported; only 'services', 'volumes', and 'networks' are modelled",
                 )
             )
     services = data.get("services")
@@ -1867,6 +2005,9 @@ def _validate_compose_topology(
                 )
             if volume_name:
                 volume_definition = {volume_name: None}
+    network_record, network_name, networks_valid = _validate_compose_networks(
+        data, rel_path, diagnostics
+    )
     service_names = list(services.keys())
     if len(service_names) > 2:
         diagnostics.append(
@@ -1927,11 +2068,26 @@ def _validate_compose_topology(
             )
             continue
         if "networks" in s_config:
+            if not networks_valid:
+                pass
+            elif network_name is None:
+                diagnostics.append(
+                    _diag(
+                        "compose_networks_unsupported",
+                        rel_path,
+                        f"service {name!r} declares networks but no top-level network is defined",
+                    )
+                )
+            else:
+                _validate_service_networks(
+                    name, s_config["networks"], network_name, rel_path, diagnostics
+                )
+        elif networks_valid and network_name is not None:
             diagnostics.append(
                 _diag(
                     "compose_networks_unsupported",
                     rel_path,
-                    f"service {name!r} declares custom networks",
+                    f"service {name!r} must attach to declared network {network_name!r}",
                 )
             )
         if s_config.get("depends_on"):
@@ -2137,10 +2293,19 @@ def _validate_compose_topology(
             "mount_path": mount_path,
             "definition": volume_definition,
         }
+    if networks_valid and network_name is not None and sidecar_name is None:
+        diagnostics.append(
+            _diag(
+                "compose_networks_unsupported",
+                rel_path,
+                f"internal network {network_name!r} requires a sidecar service",
+            )
+        )
     topology_record = {
         "compose_file": rel_path,
         "services": service_summaries,
         "sidecar_service": sidecar_name,
+        "network": network_record,
         "volume": volume_record,
         "digest": _sha256_bytes(_canonical_bytes(data)),
     }
@@ -3360,9 +3525,24 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
         fair_alternative,
         please_hack,
     )
+    network_record = (
+        compose_topology.get("network")
+        if isinstance(compose_topology, Mapping)
+        else None
+    )
+    network_name = (
+        network_record.get("name") if isinstance(network_record, Mapping) else None
+    )
+    overlay_network_name = network_name if sidecar_name is not None else None
     control_overlay = _network_overlay_content(
         sidecar_name,
         volume=compose_topology.get("volume") if isinstance(compose_topology, Mapping) else None,
+        network_name=overlay_network_name,
+    )
+    control_network = (
+        network_name
+        if sidecar_name is not None and network_name is not None
+        else "workbench-internal"
     )
     candidate: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -3390,14 +3570,14 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
             "verifier_effective_phase": verifier_phase,
             "agent_build_network": "denied by overlay build.network=none",
             "agent_runtime_network": (
-                "isolated on workbench-internal (internal: true)"
+                f"isolated on {control_network} (internal: true)"
                 if sidecar_name is not None
                 else "denied by overlay network_mode=none"
             ),
             "verifier_build_network": "static scan of tests/ only; overlay not applied",
             "verifier_runtime_network": "declared in task.toml; overlay not applied",
             "control_enforcement": (
-                "docker-compose main + sidecar on workbench-internal with build.network=none"
+                f"docker-compose main + sidecar on {control_network} with build.network=none"
                 if sidecar_name is not None
                 else "docker-compose main build.network=none and network_mode=none"
             ),

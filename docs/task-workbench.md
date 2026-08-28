@@ -76,40 +76,47 @@ directory contributes exactly:
 | Filename | Consumed by | v1 |
 | --- | --- | --- |
 | `Dockerfile` | `environments/definition.py` (`DOCKERFILE_NAME`), `DockerEnvironment._dockerfile_path` | modelled |
-| `docker-compose.yaml` | `COMPOSE_FILE_NAME`, `_environment_docker_compose_path`, layered into `_docker_compose_paths` for `build` and `up`, reparsed by `_egress_controlled_service_names` | refused |
+| `docker-compose.yaml` | `COMPOSE_FILE_NAME`, `_environment_docker_compose_path`, layered into `_docker_compose_paths` for `build` and `up`, reparsed by `_egress_controlled_service_names` | modelled (single sidecar only) |
 | `.env` | the Compose CLI, because Harbor passes `--project-directory <environment dir>` and never `--env-file` | refused |
 | `.dockerignore` | Docker's builder, to drop paths from the context | refused |
 
 The refusal is a pattern over that namespace — every `compose`/`docker-compose`
 `.yaml`/`.yml`/`.json` spelling including `.override` variants, every `.env*`
 spelling, and `.dockerignore` — applied in **both** build contexts and at every
-depth, not a list of forbidden paths. A list of forbidden paths is what the
-earlier rounds walked around: `environment/docker-compose.yaml` was refused by
-exact path, while the identical two lines under `tests/` — the directory
-`Trial._verifier_env_build_context` hands the separate verifier as its
-environment directory — reached that image build and that `docker compose up`
-unexamined. Because `_egress_controlled_service_names` excludes any service
-declaring its own `network_mode` or `networks` from the egress-control rewrite
-that implements `no-network`, `services: {main: {network_mode: bridge}}` there
-turned a fully compliant `task.toml` into a verifier with full egress while the
-workbench emitted nothing. Only a context root is consumed by Harbor 0.21.0, but
-nested matches are refused too: which directory becomes an environment directory
-is Harbor's choice, and the cost of a false refusal is renaming a fixture while
-the cost of a miss is a false certification.
+depth, not a list of forbidden paths. `environment/docker-compose.yaml` (or
+`.yml`) is the sole exception: it may declare a `main` service plus one MCP
+sidecar. The sidecar must be built from the task package, may carry only a
+credential-backed `environment`, and may mount one task-local named volume. A
+top-level `networks` section is allowed only when it defines a single
+`internal: true` bridge to which both `main` and the sidecar attach; any other
+top-level network definition, or any service-level `networks`/`network_mode`
+declaration that does not match that exact internal network, is refused.
+Because `_egress_controlled_service_names` excludes any service declaring its
+own `network_mode` or `networks` from the egress-control rewrite that implements
+`no-network`, unmodelled task-authored networking in `tests/` or other build
+contexts would turn a fully compliant `task.toml` into a verifier with full
+egress while the workbench emitted nothing. Only a context root is consumed by
+Harbor 0.21.0, but nested matches are refused too: which directory becomes an
+environment directory is Harbor's choice, and the cost of a false refusal is
+renaming a fixture while the cost of a miss is a false certification.
 
 ### What denies the network, and where
 
 Isolation is not uniform across the four phases, and the packet records them
 separately rather than as one overlay claim. For every control the workbench
-injects a fixed Docker Compose overlay on Harbor's `main` service setting both
-`build: {network: none}` and `network_mode: none`. The overlay is named in the
+injects a fixed Docker Compose overlay. For a single-service task, the overlay
+sets both `build: {network: none}` and `network_mode: none` on `main`. For a
+task with one MCP sidecar, the overlay sets `build: {network: none}` on both
+services, attaches both to an internal bridge with `internal: true`, and reuses
+the task-declared network name when the task declares a valid single `networks`
+entry (otherwise it falls back to `workbench-internal`). The overlay is named in the
 frozen command, included in the staged-task digest, and revalidated after the
 run. It reaches the agent phases only:
 
 | Phase | Denied by | Boundary |
 | --- | --- | --- |
 | Agent build | overlay `build.network: none` | container runtime |
-| Agent runtime | overlay `network_mode: none` | container runtime |
+| Agent runtime | overlay `network_mode: none` for one service, or `networks` on an `internal: true` bridge for two services | container runtime |
 | Verifier build | filename allowlist plus static text scan of `tests/` | **static checks only** |
 | Verifier runtime | filename allowlist plus `task.toml` declaration, checked statically | **static checks only** |
 
@@ -134,7 +141,7 @@ boundary, and the distinction is load-bearing:
   `test_verifier_network_resolution_matches_harbor` additionally runs Harbor's own
   resolver in Harbor's own interpreter when the binary is present, and fails if
   the two stop agreeing. The declaration is only enforceable because a
-  task-authored `tests/docker-compose.yaml` is refused: a service there declaring
+  task-authored `tests/docker-compose.yaml` (and any other Compose file outside the modelled `environment/docker-compose.yaml` spelling) is refused: a service there declaring
   its own `network_mode` is excluded from Harbor's egress-control rewrite, so
   `no-network` would be declared and not applied.
 - The verifier image build is covered by the filename allowlist above plus a
@@ -348,7 +355,7 @@ separate verifier isolation, hidden/golden data exposure, pinned images and
 dependencies, runtime network use, nondeterministic verifier constructs,
 reward output, adversarial coverage, and forged registration claims.
 
-Eight refusals exist specifically to stop the packet from claiming isolation it
+Nine refusals exist specifically to stop the packet from claiming isolation it
 cannot back:
 
 - `unsupported_task_configuration` — the task uses a `task.toml` construct this
@@ -361,12 +368,19 @@ cannot back:
 - `build_context_unreadable` — a file under `environment/` or `tests/` is not
   decodable UTF-8, so it cannot be scanned for build-time network use; it is
   refused rather than skipped;
-- `custom_compose_unsupported` — a build context contains a Compose file. Harbor
-  layers an environment directory's Compose file into `docker compose build` and
-  `up` alike, and excludes any service declaring its own `network_mode` or
-  `networks` from the egress control that implements `no-network`, so v1 cannot
-  prove isolation for task-authored Compose services; refused in `environment/`
-  and in `tests/`, which is what Harbor hands the separate verifier;
+- `custom_compose_unsupported` — a build context contains a Compose file other
+  than `environment/docker-compose.yaml` (or `.yml`), or that file declares
+  unmodelled networking. Harbor layers an environment directory's Compose file
+  into `docker compose build` and `up` alike, and excludes any service declaring
+  its own `network_mode` or `networks` from the egress control that implements
+  `no-network`, so v1 cannot prove isolation for task-authored Compose services
+  unless they stay inside the constrained single-sidecar, internal-bridge model;
+  refused in `tests/` and in any other build-context location;
+- `compose_networks_unsupported` — `environment/docker-compose.yaml` declares a
+  `networks` section that is not exactly one `internal: true` bridge, or a
+  service attaches a network that is not that single declared bridge, attaches
+  more than one network, or adds service-level network options such as
+  `aliases` or `ipv4_address`;
 - `compose_env_file_unsupported` — a build context contains `.env`. Harbor runs
   `docker compose --project-directory` on that directory and never passes
   `--env-file`, so Compose interpolates the file into every Compose document,

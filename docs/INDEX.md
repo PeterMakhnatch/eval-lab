@@ -131,7 +131,7 @@ inputs:
   - path: docs/task-registry.md
     digest: sha256:fc5cc3ceeca53378e23a249ebca3ce9365eacef65d99ed5b2fb97668010ae030
   - path: docs/task-workbench.md
-    digest: sha256:472f511912d533fa44786c92c3cd8ea16ce3c9c33e22b37177e1b60f3de8d60b
+    digest: sha256:f77824bd91eaadead28d7495fbad0eefa5d7099905ac3adb5997e7dcf34bfbe8
   - path: docs/tidy.md
     digest: sha256:d0a846245e70105e2d77a685d8121acbf7a1a12d8702e79b24f4d9cff724d8a7
   - path: docs/verdicts.md

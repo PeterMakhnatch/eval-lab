@@ -186,9 +186,7 @@ def extract_mcp_recovery_features(
         and step_to_first_fault is not None
         and step_to_recovery > step_to_first_fault
     )
-    fixed_policy_failure_gate = (
-        blind_retries < post_fault_retries or fault_detected_count > 0 or post_fault_retries == 0
-    )
+    fixed_policy_failure_gate = blind_retries < post_fault_retries or fault_detected_count > 0
 
     is_c3_certified = (
         injected_fault_count > 0

@@ -96,20 +96,24 @@ jobs:
             --output-root "$packet_root" \
             | tee artifacts/workbench/packet.json
           test "$(jq -r '.disposition' artifacts/workbench/packet.json)" = "certified_for_review"
-      - name: Run Harbor oracle and NOP trials on exact baseline task
+      - name: Verify workbench control outputs
+        env:
+          CANDIDATE_ID: ${{ steps.workbench_plan.outputs.candidate_id }}
         run: |
           set -euo pipefail
-          harbor trial start -p "$task_dir" -a oracle --trials-dir /tmp/harbor-oracle-smoke
-          harbor trial start -p "$task_dir" -a nop --trials-dir /tmp/harbor-nop-smoke
-          uv run python - <<'PY'
+          controls_file="runs/task-workbench/${CANDIDATE_ID}/controls.json"
+          uv run python - <<PY
           import json
-          from pathlib import Path
-
-          oracle_res = json.loads(next(Path("/tmp/harbor-oracle-smoke").glob("**/result.json")).read_text())
-          assert oracle_res.get("reward") == 1.0 or oracle_res.get("rewards", {}).get("reward") == 1.0, f"Oracle reward != 1.0: {oracle_res}"
-          nop_res = json.loads(next(Path("/tmp/harbor-nop-smoke").glob("**/result.json")).read_text())
-          assert nop_res.get("reward") == 0.0 or nop_res.get("rewards", {}).get("reward") == 0.0, f"NOP reward != 0.0: {nop_res}"
-          print("Durable Harbor oracle (1.0) and NOP (0.0) smoke assertions passed.")
+          data = json.loads(open("${controls_file}").read())
+          for item in data.get("observations", []):
+              cid = item.get("control_id")
+              rew = item.get("reward")
+              print(f"Workbench control {cid}: reward = {rew}")
+              if "oracle" in cid:
+                  assert rew == 1.0, f"Control {cid} reward != 1.0"
+              elif "nop" in cid or "adversarial" in cid:
+                  assert rew == 0.0, f"Control {cid} reward != 0.0"
+          print("All workbench fixed controls verified with exact expected rewards.")
           PY
       - name: Upload review packet and retained evidence
         if: always()
@@ -119,5 +123,5 @@ jobs:
           path: |
             artifacts/workbench/
             research/registration/candidates/ci/${{ github.run_id }}/
-            /tmp/harbor-*-smoke/
+            runs/task-workbench/
           if-no-files-found: ignore

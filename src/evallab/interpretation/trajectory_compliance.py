@@ -191,7 +191,7 @@ class TrialComplianceRecord(ContractModel):
         object.__setattr__(self, "hold_reasons", reasons)
         object.__setattr__(self, "analysis_ready", ready)
         object.__setattr__(self, "source_digest", self.trial_source_digest)
-        payload = self.model_dump(mode="json", exclude={"record_digest", "row_digest"})
+        payload = self.model_dump(mode="json", exclude={"record_digest", "row_digest", "evaluated_at"})
         digest = canonical_digest(payload)
         object.__setattr__(self, "row_digest", digest)
         object.__setattr__(self, "record_digest", digest)
@@ -373,7 +373,7 @@ def evaluate_trial_compliance(bundle: TrialEvidenceBundle) -> TrialComplianceRec
         t_lock_contract_present=t_lock_present,
         producer_live=bundle.producer_live,
         lag_ms=lag_ms,
-        evaluated_at=datetime.now(UTC).isoformat(),
+        evaluated_at=bundle.finished_at or bundle.ingested_at or datetime.now(UTC).isoformat(),
         source_digest=bundle.trial_source_digest,
     ))
 

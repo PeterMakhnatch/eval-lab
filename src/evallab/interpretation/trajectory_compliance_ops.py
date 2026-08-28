@@ -1,44 +1,77 @@
 """Data-private ingest hook, readiness gates, catalog, and bloat/quarantine ops.
 
-Does not edit cli.py, storage/data_backfill.py, feature_registry.py, or SQL views.
-Consumes PlatformSettlement after catalog+CAS; never writes Z2.
+Platform integration surface is ingest_after_settlement(identity, refs, finished_at).
+Data evaluates purely from those frozen inputs and raises typed exceptions.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from collections.abc import Sequence
+from typing import Any
 
 from pydantic import Field
 
 from evallab.interpretation.trajectory_compliance import (
+    ComplianceDisposition,
     FeatureProvenanceEntry,
     PlatformSettlement,
     TrialComplianceRecord,
     TrialEvidenceBundle,
     canonical_digest,
+    canonical_json,
     evaluate_trial_compliance,
-    ingest_settled_trial,
     provenance_catalog,
     tracked_output_is_manifest_only,
 )
 from evallab.schemas import ContractModel
 
 GOLD_RATER_MIN = 3
-BackpressureReason = Literal[
-    "ingest_lag",
-    "quality_audit_lag",
-    "catalog_or_cas_not_settled",
-    "quarantine_fraction_exceeded",
-]
+_CLOCK_KEYS = frozenset({"evaluated_at"})
 
 
-class BackpressureHold(ContractModel):
-    held: Literal[True] = True
-    reason: BackpressureReason
-    lag_seconds: int | None = None
-    max_lag_seconds: int | None = None
-    settlement: PlatformSettlement
+class ComplianceError(Exception):
+    """Typed compliance exception. Platform must not fabricate a Data report."""
+
+
+class ComplianceSettlementError(ComplianceError):
+    """Catalog/CAS is not settled; Data refuses evaluation."""
+
+
+class ComplianceEngineError(ComplianceError):
+    """Unexpected evaluation failure. Platform must not fabricate a Data report."""
+
+
+class SettlementIdentity(ContractModel):
+    """Immutable job/trial/CAS/catalog settlement identity."""
+
+    job_id: str
+    trial_id: str
+    cas_uri: str
+    cataloged: bool
+    cas_settled: bool
+    catalog_digest: str | None = None
+    source_watermark: str | None = None
+    projection_watermark: str | None = None
+    ingested_at: str | None = None
+
+
+class ArtifactRefs(ContractModel):
+    """Resolved immutable evaluation payload plus CAS artifact URIs and digests."""
+
+    result_uri: str | None = None
+    result_digest: str | None = None
+    atif_uri: str | None = None
+    atif_digest: str | None = None
+    ir_uri: str | None = None
+    ir_digest: str | None = None
+    pack_uri: str | None = None
+    pack_digest: str | None = None
+    loss_manifest_uri: str | None = None
+    loss_manifest_digest: str | None = None
+    extra_digests: dict[str, str] = Field(default_factory=dict)
+    tracked_paths: tuple[str, ...] = Field(default_factory=tuple)
+    registry_rows: tuple[dict[str, Any], ...] = Field(default_factory=tuple)
+    evaluation: dict[str, Any] = Field(default_factory=dict)
 
 
 class ReadinessGates(ContractModel):
@@ -60,13 +93,57 @@ class ReadinessGates(ContractModel):
 
 
 class ComplianceIngestReport(ContractModel):
+    report_digest: str = ""
+    disposition: ComplianceDisposition
+    reasons: list[str] = Field(default_factory=list)
+    lag_ms: int | None
     record: TrialComplianceRecord
     gates: ReadinessGates
-    lag_ms: int | None
-    backpressure: BackpressureHold | None = None
     catalog_entries: list[FeatureProvenanceEntry] = Field(default_factory=list)
     bloat_clean: bool
-    report_digest: str = ""
+
+
+def artifact_digests(refs: ArtifactRefs) -> dict[str, str]:
+    items: dict[str, str] = {}
+    for name in ("result_digest", "atif_digest", "ir_digest", "pack_digest", "loss_manifest_digest"):
+        value = getattr(refs, name)
+        if isinstance(value, str) and value:
+            items[name] = value
+    items.update(refs.extra_digests)
+    return items
+
+
+def idempotency_key(identity: SettlementIdentity, refs: ArtifactRefs) -> str:
+    return canonical_digest(
+        {
+            "job_id": identity.job_id,
+            "trial_id": identity.trial_id,
+            "cas_uri": identity.cas_uri,
+            "artifact_digests": artifact_digests(refs),
+        }
+    )
+
+
+def _strip_clocks(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _strip_clocks(item) for key, item in value.items() if key not in _CLOCK_KEYS}
+    if isinstance(value, list):
+        return [_strip_clocks(item) for item in value]
+    return value
+
+
+def canonical_report_payload(report: ComplianceIngestReport) -> dict[str, Any]:
+    return _strip_clocks(report.model_dump(mode="json", exclude={"report_digest"}))
+
+
+def canonical_report_bytes(report: ComplianceIngestReport) -> bytes:
+    return canonical_json(canonical_report_payload(report)).encode("utf-8")
+
+
+def _seal_report(report: ComplianceIngestReport) -> ComplianceIngestReport:
+    digest = canonical_digest(canonical_report_payload(report))
+    object.__setattr__(report, "report_digest", digest)
+    return report
 
 
 def _gold_ready(bundle: TrialEvidenceBundle) -> bool:
@@ -86,7 +163,7 @@ def readiness_gates(bundle: TrialEvidenceBundle, record: TrialComplianceRecord) 
         refusals.append("ALPHABET_NOT_READY")
     if not record.t_lock_contract_present:
         refusals.append("T_LOCK_UNAVAILABLE")
-    censor_ok = record.right_censored is True or record.lock_event_observed is True
+    censor_ok = record.recovery_censored is not None
     if not censor_ok:
         refusals.append("CENSORING_UNAVAILABLE")
     gold_ok = _gold_ready(bundle)
@@ -94,7 +171,7 @@ def readiness_gates(bundle: TrialEvidenceBundle, record: TrialComplianceRecord) 
         refusals.append("gold_set_three_rater_not_ready")
     join_ok = bool(record.model_name and record.agent_name and record.task_name)
     if not join_ok:
-        refusals.append("MISSING_DIMENSION")
+        refusals.append("JOIN_IDENTITY_MISSING")
     return ReadinessGates(
         job_id=record.job_id,
         trial_id=record.trial_id,
@@ -114,39 +191,63 @@ def readiness_gates(bundle: TrialEvidenceBundle, record: TrialComplianceRecord) 
     )
 
 
-def ingest_after_settlement(
-    bundle: TrialEvidenceBundle,
-    *,
-    max_lag_seconds: int | None = None,
-    tracked_paths: Sequence[str] = (),
-    registry_rows: Sequence[Mapping[str, Any]] = (),
-) -> ComplianceIngestReport | BackpressureHold:
-    """Event-driven hook. Platform must have cataloged+CAS-settled first."""
-    settlement = bundle.settlement
-    if not settlement.cataloged or not settlement.cas_settled:
-        return BackpressureHold(reason="catalog_or_cas_not_settled", settlement=settlement)
-    record = ingest_settled_trial(bundle)
-    lag_seconds = None if record.lag_ms is None else record.lag_ms / 1000.0
-    if max_lag_seconds is not None and (lag_seconds is None or lag_seconds > max_lag_seconds):
-        return BackpressureHold(
-            reason="ingest_lag",
-            lag_seconds=None if lag_seconds is None else int(lag_seconds),
-            max_lag_seconds=max_lag_seconds,
-            settlement=settlement,
-        )
-    gates = readiness_gates(bundle, record)
-    catalog = list(provenance_catalog(registry_rows)) if registry_rows else []
-    bloat_clean = tracked_output_is_manifest_only(tracked_paths) if tracked_paths else True
-    report = ComplianceIngestReport(
-        record=record,
-        gates=gates,
-        lag_ms=record.lag_ms,
-        catalog_entries=catalog,
-        bloat_clean=bloat_clean,
+def _evaluation_view(
+    identity: SettlementIdentity,
+    refs: ArtifactRefs,
+    finished_at: str,
+) -> TrialEvidenceBundle:
+    """Materialize the evaluator view from frozen Platform inputs. No CAS I/O."""
+    payload = dict(refs.evaluation)
+    payload.pop("settlement", None)
+    payload["settlement"] = PlatformSettlement(
+        job_id=identity.job_id,
+        trial_id=identity.trial_id,
+        cas_uri=identity.cas_uri,
+        cataloged=identity.cataloged,
+        cas_settled=identity.cas_settled,
+        catalog_digest=identity.catalog_digest,
+        source_watermark=identity.source_watermark,
+        projection_watermark=identity.projection_watermark,
     )
-    digest = canonical_digest(report.model_dump(mode="json", exclude={"report_digest"}))
-    object.__setattr__(report, "report_digest", digest)
-    return report
+    payload["finished_at"] = finished_at
+    payload["ingested_at"] = identity.ingested_at
+    if refs.ir_digest is not None:
+        payload["source_ir_digest"] = refs.ir_digest
+    if refs.pack_digest is not None:
+        payload["evidence_pack_digest"] = refs.pack_digest
+    return TrialEvidenceBundle.model_validate(payload)
+
+
+def ingest_after_settlement(
+    settlement_identity: SettlementIdentity,
+    artifact_refs: ArtifactRefs,
+    finished_at: str,
+) -> ComplianceIngestReport:
+    """Pure evaluation after terminal execution, sanitization, CAS, and catalog settlement."""
+    if not settlement_identity.cataloged or not settlement_identity.cas_settled:
+        raise ComplianceSettlementError("catalog_or_cas_not_settled")
+    try:
+        bundle = _evaluation_view(settlement_identity, artifact_refs, finished_at)
+        record = evaluate_trial_compliance(bundle)
+        gates = readiness_gates(bundle, record)
+        catalog = list(provenance_catalog(artifact_refs.registry_rows)) if artifact_refs.registry_rows else []
+        bloat_clean = (
+            tracked_output_is_manifest_only(artifact_refs.tracked_paths) if artifact_refs.tracked_paths else True
+        )
+        report = ComplianceIngestReport(
+            disposition=record.disposition,
+            reasons=list(record.hold_reasons),
+            lag_ms=record.lag_ms,
+            record=record,
+            gates=gates,
+            catalog_entries=catalog,
+            bloat_clean=bloat_clean,
+        )
+        return _seal_report(report)
+    except ComplianceError:
+        raise
+    except Exception as exc:
+        raise ComplianceEngineError(type(exc).__name__) from exc
 
 
 def agent_readable_catalog(entries: Sequence[FeatureProvenanceEntry]) -> list[dict[str, Any]]:

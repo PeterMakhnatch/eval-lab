@@ -639,13 +639,16 @@ def _evaluate_cascade(row: CascadeTrialInput) -> CascadeTrialResult:
         return _cascade_refusal(row, RefusalCode.SHORT_TRAJECTORY)
     if row.first_error_step is None or not 0 <= row.first_error_step < row.step_count:
         return _cascade_refusal(row, RefusalCode.T_ERR_UNAVAILABLE)
-    if not row.lock_predicate_id or not row.lock_predicate_version:
-        return _cascade_refusal(row, RefusalCode.T_LOCK_UNAVAILABLE)
     if row.lock_event_observed and row.right_censored:
         return _cascade_refusal(row, RefusalCode.CENSORING_UNAVAILABLE)
 
     if row.lock_event_observed:
-        if row.lock_step is None or not row.lock_evidence_ref:
+        if (
+            not row.lock_predicate_id
+            or not row.lock_predicate_version
+            or row.lock_step is None
+            or not row.lock_evidence_ref
+        ):
             return _cascade_refusal(row, RefusalCode.T_LOCK_UNAVAILABLE)
         if not row.first_error_step <= row.lock_step < row.step_count:
             return _cascade_refusal(row, RefusalCode.INVALID_CASCADE_ORDER)

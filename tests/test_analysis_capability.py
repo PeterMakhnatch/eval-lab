@@ -437,6 +437,39 @@ def test_t13_censored_trajectory_handling() -> None:
     assert res.refusal_code is None
 
 
+def test_t13_censored_without_lock_predicate_is_censored() -> None:
+    """Valid right-censored input must not require a lock predicate or evidence."""
+    trials = [
+        CascadeTrialInput(
+            trial_id="t_censored_no_predicate",
+            step_count=12,
+            first_error_step=3,
+            lock_step=None,
+            lock_event_observed=False,
+            right_censored=True,
+            censor_step=11,
+            lock_predicate_id=None,
+            lock_predicate_version=None,
+            lock_evidence_ref=None,
+            source_digest=DIGEST_A,
+        )
+    ]
+
+    report = analyze_cascade_distance(
+        trials=trials,
+        source_analysis_snapshot_digest=DIGEST_A,
+    )
+
+    assert len(report.results) == 1
+    res = report.results[0]
+    assert res.status == CascadeStatus.CENSORED
+    assert res.first_error_step == 3
+    assert res.censor_step == 11
+    assert res.lock_step is None
+    assert res.cascade_distance is None
+    assert res.refusal_code is None
+
+
 @pytest.mark.parametrize(
     ("trial", "expected_code"),
     [

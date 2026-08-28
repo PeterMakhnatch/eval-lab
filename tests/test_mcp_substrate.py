@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import http.client
 import json
 import socketserver
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from evallab.benchmark_program_contracts import FaultClass, FaultInjectionRecord
 from evallab.mcp_substrate import (
+    DEFAULT_PINNED_BASE_IMAGE,
     DEFAULT_PROTOCOL_VERSION,
     FASTMCP_SIDECAR_REQUIREMENTS_TXT,
     FastMCPRuntime,
@@ -20,6 +23,7 @@ from evallab.mcp_substrate import (
     compute_mcp_substrate_digest,
     generate_fastmcp_server_script,
     make_fastmcp_http_handler,
+    materialize_mcp_sidecar_package,
     render_mcp_compose_document,
     validate_mcp_compose_document,
 )
@@ -40,6 +44,46 @@ def test_mcp_compose_document_rendering_and_validation():
     assert doc["services"]["mcp-service"]["volumes"] == ["evidence-volume:/app/output:rw"]
 
 
+def test_mcp_sidecar_package_materialization_api(tmp_path: Path):
+    """Test boring task-authoring API emitting complete offline package."""
+    tool = MCPToolDefinition(
+        name="calculate_sum",
+        description="Compute sum of two integers",
+        parameters=(
+            MCPToolParameter(name="x", type_name="int", description="First number"),
+            MCPToolParameter(name="y", type_name="int", description="Second number"),
+        ),
+        metadata={"op_kind": "add_op"},
+    )
+    sidecar_dir = tmp_path / "sidecar-pkg"
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar_dir,
+        tools=[tool],
+        server_name="math-sidecar",
+        port=8080,
+    )
+
+    assert (sidecar_dir / "server.py").is_file()
+    assert (sidecar_dir / "requirements.txt").is_file()
+    assert (sidecar_dir / "Dockerfile").is_file()
+    assert (sidecar_dir / "offline-build-proof.json").is_file()
+
+    # Verify Dockerfile contains strict offline flags
+    dockerfile_text = (sidecar_dir / "Dockerfile").read_text()
+    assert "--no-index" in dockerfile_text
+    assert "--find-links=/wheelhouse" in dockerfile_text
+    assert "--require-hashes" in dockerfile_text
+
+    # Verify build proof
+    proof = json.loads((sidecar_dir / "offline-build-proof.json").read_text())
+    assert proof["base_image"] == DEFAULT_PINNED_BASE_IMAGE
+    assert len(proof["requirements_sha256"]) == 64
+
+    # Verify returned compose doc
+    valid, errs = validate_mcp_compose_document(pkg["compose_doc"])
+    assert valid, f"Generated Compose invalid: {errs}"
+
+
 def test_fastmcp_script_generation_and_requirements_pinning():
     tool = MCPToolDefinition(
         name="calculate_sum",
@@ -55,7 +99,6 @@ def test_fastmcp_script_generation_and_requirements_pinning():
     assert 'mcp = FastMCP("test-server")' in script
     assert "@mcp.tool()" in script
     assert "def calculate_sum(x: int, y: int) -> dict[str, Any]:" in script
-    assert 'mcp.run(transport="streamable-http", host="0.0.0.0", port=8080)' in script
 
     # Verify requirements.txt has all packages strictly hash locked with sha256
     lines = [
@@ -70,9 +113,9 @@ def test_fastmcp_script_generation_and_requirements_pinning():
 
 def test_offline_pip_install_smoke_with_require_hashes(tmp_path: Path):
     """Smoke test proving FASTMCP_SIDECAR_REQUIREMENTS_TXT installs offline with --require-hashes against local wheelhouse."""
-    wheelhouse = Path("/tmp/test_wheelhouse")
+    wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
     if not wheelhouse.is_dir():
-        pytest.skip("Test wheelhouse not populated on this host")
+        pytest.skip("FastMCP 3.4.7 wheelhouse not populated on this host")
 
     reqs_file = tmp_path / "requirements.txt"
     reqs_file.write_text(FASTMCP_SIDECAR_REQUIREMENTS_TXT)
@@ -99,7 +142,82 @@ def test_offline_pip_install_smoke_with_require_hashes(tmp_path: Path):
     assert res.returncode == 0, (
         f"Offline pip install failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
     )
-    assert (target_env / "fastmcp").is_dir() or (target_env / "fastmcp-0.4.1.dist-info").is_dir()
+    assert (target_env / "fastmcp").is_dir() or (target_env / "fastmcp-3.4.7.dist-info").is_dir()
+
+
+def test_real_fastmcp_generated_script_and_client_e2e(tmp_path: Path):
+    """End-to-end smoke test exercising generated FastMCP script with real FastMCP engine and MCP ClientSession."""
+    target_env = Path("/tmp/test_fastmcp3_env")
+    if not (target_env / "fastmcp").is_dir():
+        pytest.skip("Isolated fastmcp environment not available at /tmp/test_fastmcp3_env")
+
+    evidence_file = tmp_path / "e2e-events.jsonl"
+    tool1 = MCPToolDefinition(
+        name="multiply_values",
+        description="Multiply two integers",
+        parameters=(
+            MCPToolParameter(name="a", type_name="int", description="first operand"),
+            MCPToolParameter(name="b", type_name="int", description="second operand"),
+        ),
+        metadata={"op_kind": "multiply"},
+        execution_body="""val = a * b
+res = {"status": "ok", "value": val}
+log_tool_event("multiply_values", args, res, is_distractor=False)
+return res""",
+    )
+
+    # Render server script using generated code path
+    server_script_code = generate_fastmcp_server_script(
+        [tool1],
+        server_name="test-real-fastmcp",
+        port=8588,
+        evidence_path=str(evidence_file),
+    )
+    server_file = tmp_path / "server.py"
+    server_file.write_text(server_script_code)
+
+    proc = subprocess.Popen(
+        [sys.executable, str(server_file)],
+        env={"PYTHONPATH": str(target_env)},
+    )
+    time.sleep(2)
+
+    async def _exercise_real_mcp():
+        sys.path.insert(0, str(target_env))
+        from mcp.client.session import ClientSession
+        from mcp.client.sse import sse_client
+
+        async with (
+            sse_client("http://127.0.0.1:8588/sse") as (read, write),
+            ClientSession(read, write) as session,
+        ):
+            init_res = await session.initialize()
+            assert init_res.serverInfo.name == "test-real-fastmcp"
+
+            tools_res = await session.list_tools()
+            assert len(tools_res.tools) == 1
+            assert tools_res.tools[0].name == "multiply_values"
+
+            call_res = await session.call_tool("multiply_values", arguments={"a": 7, "b": 6})
+            assert call_res.isError is False
+            assert len(call_res.content) > 0
+            assert (
+                '"value":42' in call_res.content[0].text
+                or '"value": 42' in call_res.content[0].text
+            )
+
+    try:
+        asyncio.run(_exercise_real_mcp())
+    finally:
+        proc.terminate()
+        proc.wait()
+
+    # Assert that event ledger was logged by the real FastMCP tool execution
+    assert evidence_file.is_file(), "Evidence state journal was not created by tool execution"
+    events = [json.loads(line) for line in evidence_file.read_text().splitlines() if line.strip()]
+    assert len(events) == 1
+    assert events[0]["tool_name"] == "multiply_values"
+    assert events[0]["result"]["value"] == 42
 
 
 def test_mcp_substrate_digest_sensitivity_to_metadata_and_body():

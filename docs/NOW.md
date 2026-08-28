@@ -23,24 +23,33 @@ Three product layers, in this order:
 | **Data pipeline** | ATIF → facts → Parquet features | `src/evallab/evidence/`, `storage/`, `interpretation/feature_registry.py` |
 | **Research analysis** | Questions over those tables | `research/analysis/`, `sql/`, `src/evallab/cohort.py`, `curve.py` |
 
-Later, not now: synthetic training sets and SFT/RLVR (`docs/path-forward-2026-08.md`
-stages S3–S5). Do not start a training stack.
+**Harbor-native synthetic benchmarks are now.** They are measurement tasks on
+the platform, not a training stack. Three construct families are in flight on
+other branches:
 
-A separate **measurement program** (context/memory, MCP-FuncDAG, recovery)
-runs *on* those layers. That program is in-flight on other branches. Do not
-rewrite it here.
+| Vertical | Construct | Do not rewrite here |
+|---|---|---|
+| A | Context / actionable memory | `feat/action-memory-v1` (PR #262) |
+| B | MCP-FuncDAG tool composition | `feat/mcp-funcdag-v1` (PR #263), shared substrate PR #268 |
+| C | MCP single-fault recovery | `feat/mcp-recovery-v1` (PR #261) |
+
+**Later, not now:** synthetic *training* sets and SFT/RLVR
+(`docs/path-forward-2026-08.md` stages S3–S5). Do not start a trainer, a
+preference dataset, or an RL loop. The word "synthetic" in those PRs means
+Harbor task generators, not fine-tuning data.
 
 ## Honest bottleneck
 
 The bottleneck is **runs and populated columns**, not more methods or more
 docs. The mechanical tables (`steps`, `tool_calls`, `observations`) have data.
 The semantic/capability tables (`capability_opportunities`,
-`paired_condition_facts`, and siblings) are empty schemas. Many registered
-features are all-null or constant on the current corpus because older trials
-predate state-journal instrumentation.
+`paired_condition_facts`, and siblings) are empty schemas. Error-timing
+columns (`step_to_first_error` and siblings) are all-null on the current
+corpus because those trials predate state-journal instrumentation.
 
-Do not add a feature without a named consumer and a denominator. Do not
-report rates over rows with `status != 'featured'`.
+The usable analysis corpus is the `status = 'featured'` slice, not the full
+feature table. Do not add a feature without a named consumer and a
+denominator. Do not report rates over rows with `status != 'featured'`.
 
 ## Do not rebuild
 
@@ -48,8 +57,9 @@ report rates over rows with `status != 'featured'`.
   approves a new migration.
 - Do not merge or delete the two TrajectoryIR modules
   (`src/evallab/trajectory_ir.py` and
-  `src/evallab/interpretation/trajectory_ir.py`). Canonical choice is a
-  separate Peter-approved gate.
+  `src/evallab/interpretation/trajectory_ir.py`). That is a named
+  Peter-approved gate (PR-0 in the three-vertical program). No facade
+  re-export.
 - `src/evallab/cli/` and `src/evallab/execution/` are empty reserved directories.
   CLI is `src/evallab/cli.py`. Runner/queue are top-level modules.
 - Do not install Cursor Pstack, Graphite, Bun, or TypeScript helpers.
@@ -68,18 +78,21 @@ report rates over rows with `status != 'featured'`.
 5. The `AGENTS.md` next to the package you will touch — after the layout-truth
    note in `src/evallab/AGENTS.md`.
 
-Skip `docs/research/` and `agents/archive/` unless you were sent there.
+Skip `docs/research/` and `agents/archive/` (closed-mission notes) unless you
+were sent there. `research/inbox/` is a drop box, not a map.
 
 ## Live writers — do not collide
 
 One writer per worktree. Before editing, check `gh pr list` and
 `git worktree list`. As of 2026-08-28, leave these alone unless you own them:
 
-- Benchmark / MCP families: PRs around shared FastMCP substrate, trajectory
-  program, FuncDAG, action-memory, mcp-recovery.
-- Architect: `lane/architect` (overnight ledger / ADR-030).
+- Benchmark / MCP families: PRs #268, #267, #263, #262, #261.
+- Three-vertical spec: `architecture/three-vertical-program`.
+- Architect: `lane/architect` (overnight ledger / ADR-030, PR #230).
 - OMP skills: `research/repo-standards-pstack` (PR #260).
 - Storage / execution / data lanes under `.worktrees/lane-*`.
+- Do not revive `hardening/repo-lean-v1` as a prune; it is old CI/type
+  hardening that still touches live `src/` files.
 
 If a path is in someone else's open PR, stop.
 

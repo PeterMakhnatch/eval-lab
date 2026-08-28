@@ -1,4 +1,44 @@
 {
   "target": "n_4_0",
-  "value": 26
+  "value": 26,
+  "dependency_trace": [
+    {
+      "node": "n_1_0",
+      "inputs": [
+        {
+          "id": "in_1",
+          "value": 15
+        },
+        {
+          "id": "in_2",
+          "value": 5
+        }
+      ],
+      "value": 10
+    },
+    {
+      "node": "n_2_1",
+      "inputs": [
+        {
+          "id": "in_1",
+          "value": 15
+        },
+        {
+          "id": "n_1_0",
+          "value": 10
+        }
+      ],
+      "value": 10
+    },
+    {
+      "node": "n_4_0",
+      "inputs": [
+        {
+          "id": "n_2_1",
+          "value": 10
+        }
+      ],
+      "value": 26
+    }
+  ]
 }

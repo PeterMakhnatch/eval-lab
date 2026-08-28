@@ -1,4 +1,128 @@
 {
   "target": "n_6_0",
-  "value": 9
+  "value": 9,
+  "dependency_trace": [
+    {
+      "node": "n_1_1",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": 14
+        },
+        {
+          "id": "in_2",
+          "value": 12
+        }
+      ],
+      "value": 26
+    },
+    {
+      "node": "n_1_3",
+      "inputs": [
+        {
+          "id": "in_3",
+          "value": 9
+        },
+        {
+          "id": "in_2",
+          "value": 12
+        }
+      ],
+      "value": 3
+    },
+    {
+      "node": "n_2_1",
+      "inputs": [
+        {
+          "id": "n_1_3",
+          "value": 3
+        },
+        {
+          "id": "in_2",
+          "value": 12
+        }
+      ],
+      "value": 15
+    },
+    {
+      "node": "n_2_2",
+      "inputs": [
+        {
+          "id": "in_1",
+          "value": 8
+        },
+        {
+          "id": "in_0",
+          "value": 14
+        }
+      ],
+      "value": 112
+    },
+    {
+      "node": "n_2_3",
+      "inputs": [
+        {
+          "id": "in_2",
+          "value": 12
+        },
+        {
+          "id": "in_1",
+          "value": 8
+        }
+      ],
+      "value": 20
+    },
+    {
+      "node": "n_3_0",
+      "inputs": [
+        {
+          "id": "n_2_1",
+          "value": 15
+        },
+        {
+          "id": "n_1_1",
+          "value": 26
+        }
+      ],
+      "value": -11
+    },
+    {
+      "node": "n_3_2",
+      "inputs": [
+        {
+          "id": "n_2_3",
+          "value": 20
+        },
+        {
+          "id": "n_2_2",
+          "value": 112
+        }
+      ],
+      "value": 20
+    },
+    {
+      "node": "n_4_3",
+      "inputs": [
+        {
+          "id": "n_3_0",
+          "value": -11
+        },
+        {
+          "id": "n_3_2",
+          "value": 20
+        }
+      ],
+      "value": -220
+    },
+    {
+      "node": "n_6_0",
+      "inputs": [
+        {
+          "id": "n_4_3",
+          "value": -220
+        }
+      ],
+      "value": 9
+    }
+  ]
 }

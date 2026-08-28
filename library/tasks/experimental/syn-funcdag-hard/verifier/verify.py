@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Deterministic execution verifier for Function-DAG task."""
+"""Exact dependency-trace verifier for Function-DAG task."""
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
-GOLDEN = {"target": "n_6_0", "value": 9}
+GOLDEN = {"dependency_trace": [{"inputs": [{"id": "in_0", "value": 14}, {"id": "in_2", "value": 12}], "node": "n_1_1", "value": 26}, {"inputs": [{"id": "in_3", "value": 9}, {"id": "in_2", "value": 12}], "node": "n_1_3", "value": 3}, {"inputs": [{"id": "n_1_3", "value": 3}, {"id": "in_2", "value": 12}], "node": "n_2_1", "value": 15}, {"inputs": [{"id": "in_1", "value": 8}, {"id": "in_0", "value": 14}], "node": "n_2_2", "value": 112}, {"inputs": [{"id": "in_2", "value": 12}, {"id": "in_1", "value": 8}], "node": "n_2_3", "value": 20}, {"inputs": [{"id": "n_2_1", "value": 15}, {"id": "n_1_1", "value": 26}], "node": "n_3_0", "value": -11}, {"inputs": [{"id": "n_2_3", "value": 20}, {"id": "n_2_2", "value": 112}], "node": "n_3_2", "value": 20}, {"inputs": [{"id": "n_3_0", "value": -11}, {"id": "n_3_2", "value": 20}], "node": "n_4_3", "value": -220}, {"inputs": [{"id": "n_4_3", "value": -220}], "node": "n_6_0", "value": 9}], "target": "n_6_0", "value": 9}
 RESULT_PATH = Path("/app/output/result.json")
 LOG_DIR = Path("/logs/verifier")
 
@@ -29,13 +29,28 @@ def _record(passed: bool, reason: str, **extra: Any) -> int:
     return 1
 
 
+def _exact_json_equal(observed: Any, expected: Any) -> bool:
+    if type(observed) is not type(expected):
+        return False
+    if isinstance(expected, dict):
+        return observed.keys() == expected.keys() and all(
+            _exact_json_equal(observed[key], value)
+            for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return len(observed) == len(expected) and all(
+            _exact_json_equal(observed_item, expected_item)
+            for observed_item, expected_item in zip(observed, expected, strict=True)
+        )
+    return observed == expected
+
+
 def verify() -> int:
     if not RESULT_PATH.exists():
         return _record(
             False,
             f"Result file does not exist: {RESULT_PATH}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
+            expected_contract="dependency-trace/v1",
         )
 
     try:
@@ -44,75 +59,45 @@ def verify() -> int:
             return _record(
                 False,
                 "Result file is empty",
-                expected_target=GOLDEN["target"],
-                expected_value=GOLDEN["value"],
+                expected_contract="dependency-trace/v1",
             )
         data = json.loads(content)
     except Exception as exc:
         return _record(
             False,
             f"Invalid JSON format: {exc}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
+            expected_contract="dependency-trace/v1",
         )
 
     if not isinstance(data, dict):
         return _record(
             False,
             f"Expected JSON object, got {type(data).__name__}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
+            expected_contract="dependency-trace/v1",
         )
 
-    if "target" not in data or "value" not in data:
+    if data.keys() != GOLDEN.keys():
         return _record(
             False,
-            f"Missing required keys 'target' or 'value' in result: {data}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
+            "Result must contain exactly target, value, and dependency_trace",
+            expected_keys=list(GOLDEN),
+            observed_keys=list(data),
+        )
+
+    if not _exact_json_equal(data, GOLDEN):
+        return _record(
+            False,
+            "Result does not exactly match the dependency-trace contract",
+            expected=GOLDEN,
             observed=data,
-        )
-
-    observed_target = data.get("target")
-    if observed_target != GOLDEN["target"]:
-        return _record(
-            False,
-            f"Target mismatch: expected {GOLDEN['target']}, got {observed_target}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
-            observed_target=observed_target,
-            observed_value=data.get("value"),
-        )
-
-    try:
-        val = int(data["value"])
-    except (ValueError, TypeError):
-        return _record(
-            False,
-            f"Value must be an integer: {data['value']}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
-            observed_target=observed_target,
-            observed_value=data.get("value"),
-        )
-
-    if val != GOLDEN["value"]:
-        return _record(
-            False,
-            f"Value mismatch: expected {GOLDEN['value']}, got {val}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
-            observed_target=observed_target,
-            observed_value=val,
         )
 
     return _record(
         True,
-        f"Correctly computed target {GOLDEN['target']} = {GOLDEN['value']}",
-        expected_target=GOLDEN["target"],
-        expected_value=GOLDEN["value"],
-        observed_target=observed_target,
-        observed_value=val,
+        f"Verified exact dependency trace for {GOLDEN['target']} = {GOLDEN['value']}",
+        observed_target=data["target"],
+        observed_value=data["value"],
+        trace_length=len(data["dependency_trace"]),
     )
 
 

@@ -2612,8 +2612,15 @@ def _traj_report_command(
 def _traj_card_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    from evallab.interpretation.benchmark_events import ingest_benchmark_trial
+    from evallab.interpretation.benchmark_projection import (
+        agent_readable_projection_provenance,
+        build_projection_dimensions,
+        load_compliance_report,
+    )
     from evallab.interpretation.traj_card import generate_traj_card
     from evallab.interpretation.trajectory_hydration import RedactionPolicy
+    from evallab.traj import resolve_trial_target
 
     runs_roots = [_resolve(root, args.runs_dir)] if args.runs_dir else None
     output_path = _resolve(root, args.output) if args.output else None
@@ -2621,13 +2628,32 @@ def _traj_card_command(
     policy = RedactionPolicy(redact_secrets=not args.no_redact)
 
     try:
-        rendered, card = generate_traj_card(
+        projection_provenance = None
+        if getattr(args, "compliance_report", None):
+            report = load_compliance_report(_resolve(root, args.compliance_report))
+            metadata = (
+                json.loads(_resolve(root, args.projection_metadata).read_text(encoding="utf-8"))
+                if getattr(args, "projection_metadata", None)
+                else {}
+            )
+            if not isinstance(metadata, dict):
+                raise ValueError("projection metadata must be a JSON object")
+            trial_dir, _, _ = resolve_trial_target(
+                args.trial, repo_root=root, explicit_runs_root=runs_roots[0] if runs_roots else None
+            )
+            dimensions = build_projection_dimensions(
+                ingest_benchmark_trial(trial_dir), report, metadata=metadata
+            )
+            projection_provenance = agent_readable_projection_provenance(report, dimensions)
+
+        rendered, _card = generate_traj_card(
             target=args.trial,
             repo_root=root,
             runs_roots=runs_roots,
             output_path=output_path,
             output_format=fmt,
             policy=policy,
+            projection_provenance=projection_provenance,
         )
         print(rendered)
         return 0
@@ -4193,6 +4219,16 @@ def parser() -> argparse.ArgumentParser:
     traj_card.add_argument("--json", action="store_true", help="Emit card data as JSON")
     traj_card.add_argument(
         "--no-redact", action="store_true", help="Disable on-read secret redaction"
+    )
+    traj_card.add_argument(
+        "--compliance-report",
+        type=Path,
+        help="Materialized Data ComplianceIngestReport JSON; never invokes the compliance hook",
+    )
+    traj_card.add_argument(
+        "--projection-metadata",
+        type=Path,
+        help="Agent-Data dimension JSON: harness/scaffold/repeat/dose/alphabet/source digest",
     )
     traj_card.set_defaults(func=_traj_card_command)
 

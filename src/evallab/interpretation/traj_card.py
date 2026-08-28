@@ -112,6 +112,7 @@ class TrajectoryCardData:
     result_sha256: str | None
     benchmark_family: str | None = None
     benchmark_features: dict[str, Any] | None = None
+    projection_provenance: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -151,6 +152,7 @@ class TrajectoryCardData:
             "result_sha256": self.result_sha256,
             "benchmark_family": self.benchmark_family,
             "benchmark_features": self.benchmark_features,
+            "projection_provenance": self.projection_provenance,
         }
 
 
@@ -270,6 +272,7 @@ def build_traj_card_data(
     repo_root: Path,
     runs_roots: Sequence[Path] | None = None,
     policy: RedactionPolicy | None = None,
+    projection_provenance: dict[str, Any] | None = None,
 ) -> TrajectoryCardData:
     """Build the complete structured data payload for a Trajectory Interpretation Card."""
     if policy is None:
@@ -419,6 +422,7 @@ def build_traj_card_data(
         result_sha256=result_sha,
         benchmark_family=benchmark_family,
         benchmark_features=benchmark_feat_dict,
+        projection_provenance=projection_provenance,
     )
 
 
@@ -717,7 +721,22 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
             dtype = feat_meta.data_type if feat_meta else "VARCHAR"
             val_str = "NULL" if v is None else str(v)
             lines.append(f"| `{k}` | **{val_str}** | `{dtype}` | `{cat}` |")
-        lines.append("")
+        if card.projection_provenance is not None:
+            lines.append("### Projection Provenance")
+            lines.append(
+                f"- **Compliance Report:** `{card.projection_provenance.get('report_digest') or 'unavailable'}`"
+            )
+            lines.append(
+                f"- **Projection Identity:** `{card.projection_provenance.get('projection_identity')}`"
+            )
+            lines.append(
+                f"- **Analysis Ready:** `{card.projection_provenance.get('analysis_ready')}`"
+            )
+            refusals = card.projection_provenance.get("projection_refusals", [])
+            lines.append(f"- **Refusals:** `{', '.join(refusals) if refusals else 'none'}`")
+            for entry in card.projection_provenance.get("catalog", []):
+                lines.append(f"- **Catalog:** `{entry['column_name']}` — {entry['definition']}")
+            lines.append("")
 
     return "\n".join(lines)
 
@@ -729,10 +748,15 @@ def generate_traj_card(
     output_path: Path | None = None,
     output_format: str = "markdown",
     policy: RedactionPolicy | None = None,
+    projection_provenance: dict[str, Any] | None = None,
 ) -> tuple[str, TrajectoryCardData]:
     """Generate a Trajectory Interpretation Card, optionally write it to disk, and return formatted content."""
     card_data = build_traj_card_data(
-        target, repo_root=repo_root, runs_roots=runs_roots, policy=policy
+        target,
+        repo_root=repo_root,
+        runs_roots=runs_roots,
+        policy=policy,
+        projection_provenance=projection_provenance,
     )
 
     if output_format == "json":

@@ -1,21 +1,25 @@
 from __future__ import annotations
 
-import json
-import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1] / "library" / "benchmarks" / "mcp-recovery-v1"
 sys.path.insert(0, str(ROOT))
 
-from contract import get_benchmark_contract
-from faults import FaultClass, FaultController, FaultSpec
-from materializer import materialize, output_path
-from runtime import McpServerRuntime
-from state import DatabaseState, StateCertificate, compute_digest
-from templates import mutants, run_blind_retry_control, run_nop_baseline, run_oracle_repair, run_wrong_repair_mutant
-from verifier import verify_harbor_task, verify_recovery_evidence
-from evallab.task_workbench import CandidateSource, inspect_candidate
+from contract import get_benchmark_contract  # noqa: E402
+from faults import FaultClass, FaultController, FaultSpec  # noqa: E402
+from materializer import materialize, output_path  # noqa: E402
+from runtime import McpServerRuntime  # noqa: E402
+from state import DatabaseState, StateCertificate  # noqa: E402
+from templates import (  # noqa: E402
+    run_blind_retry_control,
+    run_nop_baseline,
+    run_oracle_repair,
+    run_wrong_repair_mutant,
+)
+from verifier import verify_harbor_task  # noqa: E402
+
+from evallab.task_workbench import CandidateSource, inspect_candidate  # noqa: E402
 
 
 def test_contract_schema():
@@ -103,8 +107,8 @@ def test_verifier_oracle_nop_and_mutants(tmp_path):
 
 def test_task_workbench_static_inspection():
     repo_root = Path(__file__).resolve().parents[1]
-    task_dir = output_path(seed=42)
-    materialize(task_dir, seed=42)
+    task_dir = output_path(seed=42, fault_mode="permission_denied", persistence=1)
+    materialize(task_dir, seed=42, fault_mode="permission_denied", persistence=1)
     
     source = CandidateSource(
         source_uri="https://github.com/PeterMakhnatch/eval-lab",

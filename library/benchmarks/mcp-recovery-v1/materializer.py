@@ -3,29 +3,44 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from source import reject_committed_corpora, source_digest
 
 DEFAULT_OUT_DIR = Path("derived/harbor-tasks/mcp-recovery")
 PINNED_BASE_IMAGE = "python@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
 
+FAULT_MODES = [
+    "permission-denied",
+    "not-found",
+    "timeout",
+    "malformed-output",
+    "silent-wrong-result",
+]
 
-def output_path(seed: int = 42, fault_mode: str = "permission_denied", persistence: int = 1) -> Path:
-    digest = source_digest(f"seed:{seed}:fault:{fault_mode}:persistence:{persistence}")[:16]
-    return DEFAULT_OUT_DIR / digest / f"mcp-recovery-seed{seed}-{fault_mode}-p{persistence}"
+PERSISTENCE_LEVELS = [1, 2]
+
+
+def safe_slug_fault_mode(mode: str) -> str:
+    return mode.replace("_", "-")
+
+
+def output_path(seed: int = 42, fault_mode: str = "permission-denied", persistence: int = 1) -> Path:
+    slug_mode = safe_slug_fault_mode(fault_mode)
+    digest = source_digest(f"seed:{seed}:fault:{slug_mode}:persistence:{persistence}")[:16]
+    return DEFAULT_OUT_DIR / digest / f"mcp-recovery-seed{seed}-{slug_mode}-p{persistence}"
 
 
 def materialize_task(
     target_dir: Path,
     seed: int = 42,
-    fault_mode: str = "permission_denied",
+    fault_mode: str = "permission-denied",
     persistence: int = 1,
 ) -> Path:
+    slug_mode = safe_slug_fault_mode(fault_mode)
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. task.toml (workbench v2 compliant)
+    # 1. task.toml (workbench v2 compliant, Linux no-network baseline)
     task_toml = f"""schema_version = "1.4"
 artifacts = [
     "/app/shared_state/benchmark-events.jsonl",
@@ -33,9 +48,9 @@ artifacts = [
 ]
 
 [task]
-name = "local-lab/mcp-recovery-seed{seed}"
+name = "local-lab/mcp-recovery-seed{seed}-{slug_mode}-p{persistence}"
 version = "1.0.0"
-description = "MCP error recovery and state certificate benchmark under {fault_mode} with persistence {persistence}"
+description = "MCP error recovery and state certificate benchmark under {slug_mode} with persistence {persistence}"
 keywords = ["mcp", "error-recovery", "streamable-http", "synthetic", "separate-verifier"]
 
 [[task.authors]]
@@ -66,7 +81,7 @@ network_mode = "no-network"
 timeout_sec = 120.0
 
 [environment]
-network_mode = "public"
+network_mode = "no-network"
 build_timeout_sec = 300.0
 os = "linux"
 cpus = 1
@@ -150,7 +165,7 @@ SHARED_DIR = Path("/app/shared_state")
 EVENTS_FILE = SHARED_DIR / "benchmark-events.jsonl"
 FINAL_STATE_FILE = SHARED_DIR / "final-state.json"
 
-FAULT_MODE = "{fault_mode}"
+FAULT_MODE = "{slug_mode}"
 PERSISTENCE = {persistence}
 hits = 0
 event_idx = 0
@@ -242,13 +257,13 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
                 if hits < PERSISTENCE:
                     hits += 1
                     log_event("fault_injected", {{"tool": "write_record", "fault_class": FAULT_MODE, "hit": hits}})
-                    if FAULT_MODE == "permission_denied":
+                    if FAULT_MODE == "permission-denied":
                         self.send_response(403)
                         self.send_header('Content-Type', 'application/json')
                         self.end_headers()
                         self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "error": {{"code": 403, "message": "Permission denied"}}}}).encode('utf-8'))
                         return
-                    elif FAULT_MODE == "not_found":
+                    elif FAULT_MODE == "not-found":
                         self.send_response(404)
                         self.send_header('Content-Type', 'application/json')
                         self.end_headers()
@@ -260,13 +275,13 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
                         self.end_headers()
                         self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "error": {{"code": 408, "message": "Timeout"}}}}).encode('utf-8'))
                         return
-                    elif FAULT_MODE == "malformed_output":
+                    elif FAULT_MODE == "malformed-output":
                         self.send_response(200)
                         self.send_header('Content-Type', 'text/html')
                         self.end_headers()
                         self.wfile.write(b"<html>502 Bad Gateway unparseable chunk\\x00\\xff")
                         return
-                    elif FAULT_MODE == "silent_wrong_result":
+                    elif FAULT_MODE == "silent-wrong-result":
                         self.send_response(200)
                         self.send_header('Content-Type', 'application/json')
                         self.end_headers()
@@ -334,14 +349,14 @@ for _ in range(30):
 st1, res1 = call_mcp("tools/call", {{"name": "write_record", "arguments": {{"key": "canary_key", "value": "verified_value"}}}})
 
 # Step 2: Adaptation based on fault
-fault_mode = "{fault_mode}"
-if fault_mode == "permission_denied":
+fault_mode = "{slug_mode}"
+if fault_mode == "permission-denied":
     call_mcp("tools/call", {{"name": "refresh_auth", "arguments": {{"scope": "admin_write"}}}})
-elif fault_mode == "not_found":
+elif fault_mode == "not-found":
     call_mcp("tools/call", {{"name": "fallback_query", "arguments": {{"query": "canary_key"}}}})
 
 # Persistence retry if required
-if {persistence} > 1 and fault_mode in ("timeout", "malformed_output", "silent_wrong_result"):
+if {persistence} > 1 and fault_mode in ("timeout", "malformed-output", "silent-wrong-result"):
     call_mcp("tools/call", {{"name": "write_record", "arguments": {{"key": "canary_key", "value": "verified_value"}}}})
 
 # Final successful mutation
@@ -550,7 +565,18 @@ PY
     return target_dir
 
 
-def materialize(target: Path | None = None, seed: int = 42, fault_mode: str = "permission_denied", persistence: int = 1) -> Path:
+def materialize(target: Path | None = None, seed: int = 42, fault_mode: str = "permission-denied", persistence: int = 1) -> Path:
     reject_committed_corpora()
     out = target or output_path(seed, fault_mode, persistence)
     return materialize_task(out, seed=seed, fault_mode=fault_mode, persistence=persistence)
+
+
+def materialize_all_campaign0(seed: int = 42) -> list[Path]:
+    """Materializes all 10 Campaign 0 cells (5 fault classes x 2 persistence levels)."""
+    reject_committed_corpora()
+    paths = []
+    for fm in FAULT_MODES:
+        for p in PERSISTENCE_LEVELS:
+            path = materialize_task(output_path(seed=seed, fault_mode=fm, persistence=p), seed=seed, fault_mode=fm, persistence=p)
+            paths.append(path)
+    return paths

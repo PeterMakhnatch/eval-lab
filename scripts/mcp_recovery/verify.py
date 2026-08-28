@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2] / "library" / "benchmarks" / "mcp-recovery-v1"
 sys.path.insert(0, str(ROOT))
 
-from verifier import verify_harbor_task
+from verifier import verify_harbor_task  # noqa: E402
 
 
 def main() -> None:

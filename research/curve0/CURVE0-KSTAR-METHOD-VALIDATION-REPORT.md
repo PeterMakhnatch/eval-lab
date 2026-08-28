@@ -123,12 +123,12 @@ a smoke-test substrate only.
    irreversibility. Do not promote it. If a state-based predicate is wanted it
    must use *environment* state, not interface state — and no public corpus we
    obtained carries per-step environment state.
-2. **The information-intake proxy is corpus-dependent.** Raw observation-digest
-   equality is defeated by nondeterministic content (wall-time strings,
-   timestamps, PIDs). Instability ranged 0.045 → 1.0 across three corpora. Fix:
-   compute digests over **normalized** observations (strip known nondeterministic
-   spans), and report the instability rate alongside every P1/P2 result so nulls
-   are never misread as negatives.
+2. **The information-intake proxy is corpus-dependent** — instability ranged
+   0.045 → 1.0 across three corpora, so a null on an unstable corpus is
+   inconclusive rather than negative. Arm 1 attributed this to nondeterministic
+   rendering (wall-time, timestamps, PIDs). **Arm 2 tested that attribution and
+   it did not hold** — see §Arm 2. The instability rate must be reported beside
+   every P1/P2 result regardless.
 3. **Exit codes are flattened into text across the entire public ecosystem.**
    Three corpora, zero with structured exit codes. `error_cascade_to_end` is
    untestable on public data. This independently justifies the P2 error-semantics
@@ -152,11 +152,68 @@ statistic; any claim that $k^*$ is usable as an SFT/DPO pruning gate yet — rec
 is far too low ($n = 3$ fires total) to gate anything. The amplifier thesis
 remains untested: no corpus obtained had both long horizons and a valid proxy.
 
+## Arm 2 — normalized-observation proxy (preregistered, executed)
+
+Arm 1's defect 2 proposed a fix: digest **normalized** observations, stripping
+nondeterministic spans. Arm 2 preregistered that fix as a method arm with its
+own rejection criterion, then ran it. Arm 1 numbers are **byte-identical** before
+and after — no retro-fitting.
+
+Preregistered decision rule (digest `20c5f9f04ccd5ecd…`, fixed before any arm-2
+outcome was computed):
+
+- **ACCEPT** iff on a corpus whose raw instability $> 0.5$, normalized
+  instability $< 0.2$ **and** all normalized FPR $\leq 0.05$.
+- **REJECT_OVER_NORMALIZED** iff normalized FPR $> 0.05$ on any corpus whose raw
+  FPR was $0.0$ (over-normalization manufactures false equality).
+- **INCONCLUSIVE** otherwise.
+
+Rule set was deliberately conservative: ambiguous single-letter duration units
+excluded, line numbers never stripped (they carry real information in
+SWE-agent file views), because under-normalizing is the safe error direction.
+
+### Result: INCONCLUSIVE on all three corpora
+
+| Corpus | instability raw → norm | chars removed | rules fired | FPR raw → norm | verdict |
+|---|---|---|---|---|---|
+| `swebench-verified-sweagent-gpt4` | 0.580 → **0.570** | 0.069% | 5 | 0.0 → 0.0 | INCONCLUSIVE |
+| `taubench-airline-gpt4o` | 0.0455 → 0.0455 | 1.48% | 2 | 0.0 → 0.0 | INCONCLUSIVE (raw never hit the 0.5 trigger) |
+| `local-atif-harbor` | 1.000 → **1.000** | 2.25% | 6 | 0.0 → 0.0 | INCONCLUSIVE |
+
+**The normalization failed to repair the proxy, and the failure mode is
+under-coverage, not over-aggression.** FPR was unchanged at 0.0 everywhere, so
+nothing was over-normalized. The rules fired heavily where applicable — on
+`local-atif-harbor` they stripped 2.25% of characters across 6 rule types (149
+duration spans, 178 long-hex, 18 UUIDs, 13 wall-time lines) — and instability
+still did not move a single point, staying at 1.000.
+
+### This corrects arm 1's causal story
+
+Arm 1 asserted the instability was nondeterministic *rendering*. Arm 2 attacked
+exactly that and moved instability by 0.01 on SWE-bench and 0.000 on the other
+two. The more likely explanation is now the alternative:
+
+> Repeated identical actions return different observations because **the
+> environment genuinely changed between them** — a file was edited, a test now
+> fails differently. That is not an artifact. It is real information.
+
+If that is right, "differing observation digests across repeated actions" is
+**correct behavior**, not a broken proxy, and arm 1's `PROXY_INVALID` label
+conflated two distinct causes: nondeterministic rendering (an artifact, fixable)
+and genuine environment change (real signal, must never be normalized away).
+
+**Recommendation: do NOT add more normalization rules.** Marginal return is
+demonstrably near zero, while the risk is destroying real signal — and
+over-normalization is the one failure mode that would corrupt precision, which
+is currently the method's only strong property. The predicate needs a different
+definition of "no new information": grounded in **state change** or in the
+agent's own subsequent behaviour, not in observation text at all.
+
 ## Next steps
 
-1. **Normalized-observation predicate**, then re-run. Highest value, cheap: it
-   converts SWE-bench from inconclusive to interpretable and is the single change
-   most likely to raise recall.
+1. **Do not extend normalization** (arm 2 result). Instead define information
+   intake over **state change** rather than observation text. Our state journal
+   supports this; no public corpus obtained does.
 2. **Recall is the binding problem, not precision.** Both surviving predicates
    are near-zero recall. Either the predicates are too strict, or genuine
    irreversibility is rarer than assumed — which would itself be a finding worth

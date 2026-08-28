@@ -89,6 +89,15 @@
       ],
       "n_duplicates_dropped": 0,
       "n_trials": 60,
+      "normalization_hits": {
+        "_chars_after": 2032080,
+        "_chars_before": 2033479,
+        "clock_time": 24,
+        "hex_address": 25,
+        "iso_timestamp": 16,
+        "long_hex": 5,
+        "trailing_ws": 154
+      },
       "notes": [
         "Sampling is deterministic: sorted(resolved)[:30] + sorted(generated-resolved)[:30].",
         "state is INTERFACE state (open_file, working_dir), NOT full environment state; aci_state_stall therefore measures navigation stall, not environment divergence."
@@ -136,6 +145,12 @@
       ],
       "n_duplicates_dropped": 0,
       "n_trials": 200,
+      "normalization_hits": {
+        "_chars_after": 733892,
+        "_chars_before": 744926,
+        "clock_time": 1422,
+        "iso_timestamp": 546
+      },
       "notes": [
         "Upstream tau-bench drops usage/logprobs/finish_reason at the agent loop (tool_calling_agent.py keeps only choices[0].message), so per-step token telemetry is absent by construction, not by our parsing."
       ],
@@ -184,6 +199,16 @@
       ],
       "n_duplicates_dropped": 3,
       "n_trials": 26,
+      "normalization_hits": {
+        "_chars_after": 305907,
+        "_chars_before": 312950,
+        "duration_unambiguous": 149,
+        "iso_timestamp": 32,
+        "long_hex": 178,
+        "temp_path": 3,
+        "uuid": 18,
+        "wall_time_line": 13
+      },
       "notes": [
         "Short-horizon only: cannot validate any long-horizon claim.",
         "reasoning_output_tokens present under metrics.extra but dropped by the current ingest path (evidence/atif.py) - block J data loss confirmed."
@@ -213,6 +238,7 @@
       "models": [],
       "n_duplicates_dropped": 0,
       "n_trials": 0,
+      "normalization_hits": {},
       "notes": [
         "No rows emitted. Absence recorded, never simulated."
       ],
@@ -235,6 +261,7 @@
       "models": [],
       "n_duplicates_dropped": 0,
       "n_trials": 0,
+      "normalization_hits": {},
       "notes": [
         "No rows emitted. Absence recorded, never simulated."
       ],
@@ -257,6 +284,7 @@
       "models": [],
       "n_duplicates_dropped": 0,
       "n_trials": 0,
+      "normalization_hits": {},
       "notes": [
         "No rows emitted. Absence recorded, never simulated."
       ],
@@ -279,6 +307,7 @@
       "models": [],
       "n_duplicates_dropped": 0,
       "n_trials": 0,
+      "normalization_hits": {},
       "notes": [
         "No rows emitted. Absence recorded, never simulated."
       ],
@@ -290,11 +319,22 @@
       "unavailable_reason": "single parquet is ~2.08 GB; deferred to a later pass rather than fetched now."
     }
   ],
-  "generated_at": "2026-08-28T03:52:58.688478+00:00",
+  "generated_at": "2026-08-28T04:15:42.063959+00:00",
   "preregistration": {
-    "digest": "5b762f9da633edc380b1768bc0e824335bfdb6ec4003eaffa0cacbdab3065d85",
-    "note": "transcribed from the Curve 0 spec; not third-party timestamped",
-    "text": "P1 no_progress_lock; P2 blind_retry_lock; P3 error_cascade_to_end; P4 aci_state_stall; TAIL_MIN=3; MIN_N=5; rates conditioned on ELIGIBLE trials (>=TAIL_MIN+1 actions and required fields present); primary metric=false_positive_on_later_success; no pooling of effects across corpora"
+    "arm1_raw_proxy": {
+      "digest": "5b762f9da633edc380b1768bc0e824335bfdb6ec4003eaffa0cacbdab3065d85",
+      "text": "P1 no_progress_lock; P2 blind_retry_lock; P3 error_cascade_to_end; P4 aci_state_stall; TAIL_MIN=3; MIN_N=5; rates conditioned on ELIGIBLE trials (>=TAIL_MIN+1 actions and required fields present); primary metric=false_positive_on_later_success; no pooling of effects across corpora"
+    },
+    "arm2_normalized_proxy": {
+      "decision_thresholds": {
+        "accept_fpr_max": 0.05,
+        "accept_instability_max": 0.2,
+        "raw_instability_trigger": 0.5
+      },
+      "digest": "20c5f9f04ccd5ecd7ae20cdd3720678c025480367175a775d44fb4b1f52d1def",
+      "text": "ARM2 normalized-observation proxy; P1n no_progress_lock_normalized; P2n blind_retry_lock_normalized; normalization rules=iso_timestamp,clock_time,wall_time_line,duration_unambiguous,hex_address,uuid,long_hex,pid,temp_path,trailing_ws; line numbers never stripped; ambiguous single-letter duration units excluded; DECISION RULE: ACCEPT iff on a corpus whose raw instability > 0.5 the normalized instability < 0.2 AND normalized FPR <= 0.05; REJECT_OVER_NORMALIZED iff normalized FPR > 0.05 on any corpus whose raw FPR was 0.0; else INCONCLUSIVE; instability rate reported for BOTH raw and normalized on every corpus; no pooling of effects across corpora"
+    },
+    "note": "transcribed from the Curve 0 spec; not third-party timestamped. Arm 2 predicates, normalization rule set, and decision rule were fixed before any arm-2 outcome was computed."
   },
   "results": [
     {
@@ -302,6 +342,14 @@
         "11-30": 31,
         "31-100": 9,
         "4-10": 20
+      },
+      "arm2_decision": {
+        "findings": [
+          "normalization reduced instability 0.58 -> 0.57 but not below 0.2; proxy still unusable"
+        ],
+        "instability_normalized": 0.57,
+        "instability_raw": 0.58,
+        "verdict": "INCONCLUSIVE"
       },
       "corpus_id": "swebench-verified-sweagent-gpt4",
       "is_public": true,
@@ -314,12 +362,34 @@
       "n_success": 30,
       "n_trials_total": 60,
       "n_with_outcome": 60,
+      "normalization_audit": {
+        "chars_after": 2032080,
+        "chars_before": 2033479,
+        "chars_removed_fraction": 0.000688,
+        "rule_hits": {
+          "clock_time": 24,
+          "hex_address": 25,
+          "iso_timestamp": 16,
+          "long_hex": 5,
+          "trailing_ws": 154
+        },
+        "rules_fired": 5
+      },
       "observation_digest_stability": {
         "differing_observations": 58,
         "identical_observations": 42,
         "instability_rate": 0.58,
+        "proxy": "obs_digests",
         "repeated_action_groups": 100,
-        "verdict": "PROXY_INVALID: repeated actions yield differing observation digests (nondeterministic content); P1/P2 nulls are INCONCLUSIVE, not negative"
+        "verdict": "PROXY_INVALID: repeated actions yield differing observation digests (nondeterministic content); nulls are INCONCLUSIVE, not negative"
+      },
+      "observation_digest_stability_normalized": {
+        "differing_observations": 57,
+        "identical_observations": 43,
+        "instability_rate": 0.57,
+        "proxy": "obs_digests_norm",
+        "repeated_action_groups": 100,
+        "verdict": "PROXY_INVALID: repeated actions yield differing observation digests (nondeterministic content); nulls are INCONCLUSIVE, not negative"
       },
       "predicates": {
         "aci_state_stall": {
@@ -377,6 +447,42 @@
           "n_ineligible_excluded": 0,
           "rate_null_reason": null
         }
+      },
+      "predicates_normalized": {
+        "blind_retry_lock_normalized": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 0,
+          "fire_rate_on_failed_runs": 0.0,
+          "kstar_normalized_position_on_failures": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
+          },
+          "n_eligible_fail": 30,
+          "n_eligible_success": 30,
+          "n_ineligible_excluded": 0,
+          "rate_null_reason": null
+        },
+        "no_progress_lock_normalized": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 0,
+          "fire_rate_on_failed_runs": 0.0,
+          "kstar_normalized_position_on_failures": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
+          },
+          "n_eligible_fail": 30,
+          "n_eligible_success": 30,
+          "n_ineligible_excluded": 0,
+          "rate_null_reason": null
+        }
       }
     },
     {
@@ -385,6 +491,14 @@
         "1-3": 68,
         "11-30": 34,
         "4-10": 80
+      },
+      "arm2_decision": {
+        "findings": [
+          "raw instability 0.0455 did not exceed the 0.5 trigger; this corpus cannot accept or reject the normalization"
+        ],
+        "instability_normalized": 0.0455,
+        "instability_raw": 0.0455,
+        "verdict": "INCONCLUSIVE"
       },
       "corpus_id": "taubench-airline-gpt4o",
       "is_public": true,
@@ -397,10 +511,29 @@
       "n_success": 84,
       "n_trials_total": 200,
       "n_with_outcome": 200,
+      "normalization_audit": {
+        "chars_after": 733892,
+        "chars_before": 744926,
+        "chars_removed_fraction": 0.014812,
+        "rule_hits": {
+          "clock_time": 1422,
+          "iso_timestamp": 546
+        },
+        "rules_fired": 2
+      },
       "observation_digest_stability": {
         "differing_observations": 1,
         "identical_observations": 21,
         "instability_rate": 0.0455,
+        "proxy": "obs_digests",
+        "repeated_action_groups": 22,
+        "verdict": "PROXY_USABLE: repeated actions mostly yield identical digests"
+      },
+      "observation_digest_stability_normalized": {
+        "differing_observations": 1,
+        "identical_observations": 21,
+        "instability_rate": 0.0455,
+        "proxy": "obs_digests_norm",
         "repeated_action_groups": 22,
         "verdict": "PROXY_USABLE: repeated actions mostly yield identical digests"
       },
@@ -447,6 +580,42 @@
           "n_ineligible_excluded": 86,
           "rate_null_reason": null
         }
+      },
+      "predicates_normalized": {
+        "blind_retry_lock_normalized": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 1,
+          "fire_rate_on_failed_runs": 0.0128,
+          "kstar_normalized_position_on_failures": {
+            "max": 0.826,
+            "median": 0.826,
+            "min": 0.826,
+            "n": 1
+          },
+          "n_eligible_fail": 78,
+          "n_eligible_success": 36,
+          "n_ineligible_excluded": 86,
+          "rate_null_reason": null
+        },
+        "no_progress_lock_normalized": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 2,
+          "fire_rate_on_failed_runs": 0.0256,
+          "kstar_normalized_position_on_failures": {
+            "max": 0.783,
+            "median": 0.783,
+            "min": 0.609,
+            "n": 2
+          },
+          "n_eligible_fail": 78,
+          "n_eligible_success": 36,
+          "n_ineligible_excluded": 86,
+          "rate_null_reason": null
+        }
       }
     },
     {
@@ -455,6 +624,14 @@
         "1-3": 6,
         "11-30": 6,
         "4-10": 8
+      },
+      "arm2_decision": {
+        "findings": [
+          "normalization reduced instability 1.0 -> 1.0 but not below 0.2; proxy still unusable"
+        ],
+        "instability_normalized": 1.0,
+        "instability_raw": 1.0,
+        "verdict": "INCONCLUSIVE"
       },
       "corpus_id": "local-atif-harbor",
       "is_public": false,
@@ -467,12 +644,35 @@
       "n_success": 11,
       "n_trials_total": 26,
       "n_with_outcome": 26,
+      "normalization_audit": {
+        "chars_after": 305907,
+        "chars_before": 312950,
+        "chars_removed_fraction": 0.022505,
+        "rule_hits": {
+          "duration_unambiguous": 149,
+          "iso_timestamp": 32,
+          "long_hex": 178,
+          "temp_path": 3,
+          "uuid": 18,
+          "wall_time_line": 13
+        },
+        "rules_fired": 6
+      },
       "observation_digest_stability": {
         "differing_observations": 3,
         "identical_observations": 0,
         "instability_rate": 1.0,
+        "proxy": "obs_digests",
         "repeated_action_groups": 3,
-        "verdict": "PROXY_INVALID: repeated actions yield differing observation digests (nondeterministic content); P1/P2 nulls are INCONCLUSIVE, not negative"
+        "verdict": "PROXY_INVALID: repeated actions yield differing observation digests (nondeterministic content); nulls are INCONCLUSIVE, not negative"
+      },
+      "observation_digest_stability_normalized": {
+        "differing_observations": 3,
+        "identical_observations": 0,
+        "instability_rate": 1.0,
+        "proxy": "obs_digests_norm",
+        "repeated_action_groups": 3,
+        "verdict": "PROXY_INVALID: repeated actions yield differing observation digests (nondeterministic content); nulls are INCONCLUSIVE, not negative"
       },
       "predicates": {
         "aci_state_stall": {
@@ -501,6 +701,42 @@
           "reason": "no structured exit codes; ATIF observation results carry only {content, source_call_id}"
         },
         "no_progress_lock": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 0,
+          "fire_rate_on_failed_runs": 0.0,
+          "kstar_normalized_position_on_failures": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
+          },
+          "n_eligible_fail": 9,
+          "n_eligible_success": 5,
+          "n_ineligible_excluded": 12,
+          "rate_null_reason": null
+        }
+      },
+      "predicates_normalized": {
+        "blind_retry_lock_normalized": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 0,
+          "fire_rate_on_failed_runs": 0.0,
+          "kstar_normalized_position_on_failures": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
+          },
+          "n_eligible_fail": 9,
+          "n_eligible_success": 5,
+          "n_ineligible_excluded": 12,
+          "rate_null_reason": null
+        },
+        "no_progress_lock_normalized": {
           "disposition": "COMPUTED",
           "false_positive_count": 0,
           "false_positive_on_later_success": 0.0,

@@ -65,6 +65,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -83,6 +84,89 @@ PREREGISTRATION_TEXT = (
     "no pooling of effects across corpora"
 )
 
+# --------------------------------------------------------------------------- #
+# ARM 2 PREREGISTRATION - normalized-observation proxy
+#
+# Arm 1 found the information-intake proxy (raw observation-digest equality) is
+# defeated by nondeterministic content: instability ranged 0.045 -> 1.0 across
+# corpora, making arm-1 nulls on unstable corpora INCONCLUSIVE rather than
+# negative. Arm 2 tests whether digesting NORMALIZED observations repairs the
+# proxy without inflating false positives.
+#
+# Normalization is itself a hypothesis with a specific failure mode:
+# OVER-normalization manufactures false equality, which inflates predicate
+# firing and therefore false positives. So the arm is only accepted if it fixes
+# instability AND holds precision. The decision rule is fixed here, before any
+# arm-2 outcome is computed.
+#
+# Rule set is deliberately CONSERVATIVE and general-purpose. Ambiguous
+# single-letter duration units (s/m/h) are excluded on purpose: under-
+# normalizing is the safe error direction, since over-normalizing corrupts
+# precision. Line numbers are NEVER stripped - they carry real information in
+# file-view observations (SWE-agent).
+# --------------------------------------------------------------------------- #
+_NORM_RULES: tuple[tuple[str, re.Pattern[str], str], ...] = (
+    (
+        "iso_timestamp",
+        re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?"),
+        "<TS>",
+    ),
+    ("clock_time", re.compile(r"\b\d{1,2}:\d{2}:\d{2}\b"), "<TIME>"),
+    ("wall_time_line", re.compile(r"(?i)\bwall time\b[^\n]*"), "<WALL>"),
+    (
+        "duration_unambiguous",
+        re.compile(
+            r"(?i)\b\d+(?:\.\d+)?\s*"
+            r"(?:ns|us|\u00b5s|ms|sec|secs|seconds|min|mins|minutes|hr|hrs|hours)\b"
+        ),
+        "<DUR>",
+    ),
+    ("hex_address", re.compile(r"\b0x[0-9a-fA-F]+\b"), "<ADDR>"),
+    (
+        "uuid",
+        re.compile(
+            r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+            r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
+        ),
+        "<UUID>",
+    ),
+    ("long_hex", re.compile(r"\b[0-9a-fA-F]{16,}\b"), "<HEX>"),
+    ("pid", re.compile(r"(?i)\bpid[=: ]\s*\d+"), "<PID>"),
+    (
+        "temp_path",
+        re.compile(r"(?:/tmp|/var/folders|/private/var/folders)/[\w./-]+"),
+        "<TMP>",
+    ),
+    ("trailing_ws", re.compile(r"[ \t]+$", re.MULTILINE), ""),
+)
+
+ARM2_PREREGISTRATION_TEXT = (
+    "ARM2 normalized-observation proxy; "
+    "P1n no_progress_lock_normalized; P2n blind_retry_lock_normalized; "
+    "normalization rules=" + ",".join(name for name, _, _ in _NORM_RULES) + "; "
+    "line numbers never stripped; ambiguous single-letter duration units excluded; "
+    "DECISION RULE: ACCEPT iff on a corpus whose raw instability > 0.5 the "
+    "normalized instability < 0.2 AND normalized FPR <= 0.05; "
+    "REJECT_OVER_NORMALIZED iff normalized FPR > 0.05 on any corpus whose raw "
+    "FPR was 0.0; else INCONCLUSIVE; "
+    "instability rate reported for BOTH raw and normalized on every corpus; "
+    "no pooling of effects across corpora"
+)
+ARM2_ACCEPT_INSTABILITY_MAX = 0.2
+ARM2_RAW_INSTABILITY_TRIGGER = 0.5
+ARM2_ACCEPT_FPR_MAX = 0.05
+
+
+def normalize_observation(text: str) -> tuple[str, dict[str, int]]:
+    """Apply the preregistered rule set. Returns normalized text and per-rule hits."""
+    hits: dict[str, int] = {}
+    out = text
+    for name, pattern, repl in _NORM_RULES:
+        out, n = pattern.subn(repl, out)
+        if n:
+            hits[name] = hits.get(name, 0) + n
+    return out, hits
+
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -98,6 +182,18 @@ def _sha256_file(path: Path) -> str:
 
 def _digest_any(value: Any) -> str:
     return _sha256_text(value if isinstance(value, str) else json.dumps(value, sort_keys=True))
+
+
+def _digest_norm(value: Any, hits: dict[str, int]) -> str:
+    """Digest of the NORMALIZED observation. Accumulates per-rule hit counts so
+    over-normalization is auditable rather than invisible."""
+    text = value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+    normalized, rule_hits = normalize_observation(text)
+    for name, n in rule_hits.items():
+        hits[name] = hits.get(name, 0) + n
+    hits["_chars_before"] = hits.get("_chars_before", 0) + len(text)
+    hits["_chars_after"] = hits.get("_chars_after", 0) + len(normalized)
+    return _sha256_text(normalized)
 
 
 @dataclass
@@ -119,6 +215,7 @@ class CorpusDescriptor:
     predicates_available: list[str] = field(default_factory=list)
     predicates_unavailable: dict[str, str] = field(default_factory=dict)
     unavailable_reason: str | None = None
+    normalization_hits: dict[str, int] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
 
@@ -138,19 +235,19 @@ class Trial:
 # --------------------------------------------------------------------------- #
 # predicates
 # --------------------------------------------------------------------------- #
-def _cumulative_obs(actions: list[dict[str, Any]]) -> list[set[str]]:
+def _cumulative_obs(actions: list[dict[str, Any]], obs_key: str = "obs_digests") -> list[set[str]]:
     seen: set[str] = set()
     out = []
     for a in actions:
-        seen = seen | set(a["obs_digests"])
+        seen = seen | set(a[obs_key])
         out.append(set(seen))
     return out
 
 
-def p_no_progress_lock(t: Trial) -> int | None:
+def p_no_progress_lock(t: Trial, obs_key: str = "obs_digests") -> int | None:
     acts = t.actions
     n = len(acts)
-    cum = _cumulative_obs(acts)
+    cum = _cumulative_obs(acts, obs_key)
     total = cum[-1]
     for k in range(n - TAIL_MIN):
         if cum[k] == total:
@@ -158,20 +255,25 @@ def p_no_progress_lock(t: Trial) -> int | None:
     return None
 
 
-def p_blind_retry_lock(t: Trial) -> int | None:
+def p_blind_retry_lock(t: Trial, obs_key: str = "obs_digests") -> int | None:
     acts = t.actions
     n = len(acts)
     for k in range(n - TAIL_MIN):
         prior_keys = {a["key"] for a in acts[: k + 1]}
         prior_obs: set[str] = set()
         for a in acts[: k + 1]:
-            prior_obs |= set(a["obs_digests"])
-        if all(
-            a["key"] in prior_keys and not (set(a["obs_digests"]) - prior_obs)
-            for a in acts[k + 1 :]
-        ):
+            prior_obs |= set(a[obs_key])
+        if all(a["key"] in prior_keys and not (set(a[obs_key]) - prior_obs) for a in acts[k + 1 :]):
             return k
     return None
+
+
+def p_no_progress_lock_normalized(t: Trial) -> int | None:
+    return p_no_progress_lock(t, obs_key="obs_digests_norm")
+
+
+def p_blind_retry_lock_normalized(t: Trial) -> int | None:
+    return p_blind_retry_lock(t, obs_key="obs_digests_norm")
 
 
 def p_error_cascade_to_end(t: Trial) -> int | None:
@@ -212,6 +314,16 @@ PREDICATE_REQUIRES = {
 }
 PREDICATE_IDS = tuple(PREDICATES)
 
+# arm 2: same predicates, normalized information-intake proxy
+PREDICATES_NORMALIZED: dict[str, Callable[[Trial], int | None]] = {
+    "no_progress_lock_normalized": p_no_progress_lock_normalized,
+    "blind_retry_lock_normalized": p_blind_retry_lock_normalized,
+}
+NORMALIZED_BASE = {
+    "no_progress_lock_normalized": "no_progress_lock",
+    "blind_retry_lock_normalized": "blind_retry_lock",
+}
+
 
 # --------------------------------------------------------------------------- #
 # loaders
@@ -219,6 +331,7 @@ PREDICATE_IDS = tuple(PREDICATES)
 def load_local_atif(runs_root: Path) -> tuple[CorpusDescriptor, list[Trial]]:
     paths = sorted(runs_root.glob("**/agent/trajectory.json"))
     trials: list[Trial] = []
+    norm_hits: dict[str, int] = {}
     seen: set[str] = set()
     dup = 0
     models: set[str] = set()
@@ -258,16 +371,19 @@ def load_local_atif(runs_root: Path) -> tuple[CorpusDescriptor, list[Trial]]:
                 "reasoning_output_tokens"
             ) is not None:
                 any_reasoning_tokens = True
-            obs_digests = [
-                _digest_any(r["content"])
+            obs_contents = [
+                r["content"]
                 for r in ((s.get("observation") or {}).get("results") or [])
                 if r.get("content") is not None
             ]
+            obs_digests = [_digest_any(c) for c in obs_contents]
+            obs_digests_norm = [_digest_norm(c, norm_hits) for c in obs_contents]
             for tc in s.get("tool_calls") or []:
                 actions.append(
                     {
                         "key": _digest_any(f"{tc.get('function_name')}::{tc.get('arguments')}"),
                         "obs_digests": obs_digests,
+                        "obs_digests_norm": obs_digests_norm,
                         "exit_code": None,
                         "state_digest": None,
                     }
@@ -329,6 +445,7 @@ def load_local_atif(runs_root: Path) -> tuple[CorpusDescriptor, list[Trial]]:
     )
     desc.predicates_available = [p for p in PREDICATE_IDS if p not in desc.predicates_unavailable]
     _ = any_exit
+    desc.normalization_hits = norm_hits
     return desc, trials
 
 
@@ -340,6 +457,7 @@ def load_swebench_sweagent(cache_dir: Path) -> tuple[CorpusDescriptor, list[Tria
     generated = set(results.get("generated") or [])
 
     trials: list[Trial] = []
+    norm_hits: dict[str, int] = {}
     digests: dict[str, str] = {"results.json": _sha256_file(results_p)}
     for p in sorted(trajs_dir.glob("*.traj")):
         instance = p.stem
@@ -357,6 +475,7 @@ def load_swebench_sweagent(cache_dir: Path) -> tuple[CorpusDescriptor, list[Tria
                 {
                     "key": _digest_any(action if action is not None else ""),
                     "obs_digests": [_digest_any(obs)] if obs is not None else [],
+                    "obs_digests_norm": ([_digest_norm(obs, norm_hits)] if obs is not None else []),
                     "exit_code": None,
                     "state_digest": _digest_any(state) if state is not None else None,
                 }
@@ -412,12 +531,14 @@ def load_swebench_sweagent(cache_dir: Path) -> tuple[CorpusDescriptor, list[Tria
         ],
     )
     desc.predicates_available = [p for p in PREDICATE_IDS if p not in desc.predicates_unavailable]
+    desc.normalization_hits = norm_hits
     return desc, trials
 
 
 def load_taubench(path: Path) -> tuple[CorpusDescriptor, list[Trial]]:
     doc = json.loads(path.read_text(encoding="utf-8"))
     trials: list[Trial] = []
+    norm_hits: dict[str, int] = {}
     for i, trial in enumerate(doc):
         traj = trial.get("traj") or []
         actions = []
@@ -434,6 +555,7 @@ def load_taubench(path: Path) -> tuple[CorpusDescriptor, list[Trial]]:
                     {
                         "key": key,
                         "obs_digests": [_digest_any(turn.get("content") or "")],
+                        "obs_digests_norm": [_digest_norm(turn.get("content") or "", norm_hits)],
                         "exit_code": None,
                         "state_digest": None,
                     }
@@ -490,6 +612,7 @@ def load_taubench(path: Path) -> tuple[CorpusDescriptor, list[Trial]]:
         ],
     )
     desc.predicates_available = [p for p in PREDICATE_IDS if p not in desc.predicates_unavailable]
+    desc.normalization_hits = norm_hits
     return desc, trials
 
 
@@ -525,13 +648,20 @@ def _eligible(t: Trial, predicate: str) -> bool:
     return any(a["obs_digests"] for a in t.actions)
 
 
-def observation_digest_stability(trials: list[Trial]) -> dict[str, Any]:
-    """Validity check on the information-intake proxy used by P1/P2."""
+def observation_digest_stability(
+    trials: list[Trial], obs_key: str = "obs_digests"
+) -> dict[str, Any]:
+    """Validity check on the information-intake proxy used by P1/P2.
+
+    Reported for BOTH the raw and normalized proxy on every corpus, per the arm-2
+    preregistration: a null result on an unstable proxy is inconclusive, never
+    negative, and that distinction must be visible in the artifact.
+    """
     same = diff = 0
     for t in trials:
         bykey: dict[str, list[tuple[str, ...]]] = {}
         for a in t.actions:
-            bykey.setdefault(a["key"], []).append(tuple(sorted(a["obs_digests"])))
+            bykey.setdefault(a["key"], []).append(tuple(sorted(a[obs_key])))
         for obs_list in bykey.values():
             if len(obs_list) < 2:
                 continue
@@ -541,6 +671,7 @@ def observation_digest_stability(trials: list[Trial]) -> dict[str, Any]:
                 diff += 1
     total = same + diff
     return {
+        "proxy": obs_key,
         "repeated_action_groups": total,
         "identical_observations": same,
         "differing_observations": diff,
@@ -549,8 +680,8 @@ def observation_digest_stability(trials: list[Trial]) -> dict[str, Any]:
             "NO_REPEATS: corpus contains too few repeated actions to assess the proxy"
             if total == 0
             else "PROXY_INVALID: repeated actions yield differing observation digests "
-            "(nondeterministic content); P1/P2 nulls are INCONCLUSIVE, not negative"
-            if diff / total > 0.5
+            "(nondeterministic content); nulls are INCONCLUSIVE, not negative"
+            if diff / total > ARM2_RAW_INSTABILITY_TRIGGER
             else "PROXY_USABLE: repeated actions mostly yield identical digests"
         ),
     }
@@ -585,7 +716,12 @@ def evaluate_corpus(desc: CorpusDescriptor, trials: list[Trial]) -> dict[str, An
             )
         ),
         "observation_digest_stability": observation_digest_stability(trials),
+        "observation_digest_stability_normalized": observation_digest_stability(
+            trials, "obs_digests_norm"
+        ),
+        "normalization_audit": _normalization_audit(desc.normalization_hits),
         "predicates": {},
+        "predicates_normalized": {},
     }
 
     if succ and fail:
@@ -609,38 +745,137 @@ def evaluate_corpus(desc: CorpusDescriptor, trials: list[Trial]) -> dict[str, An
                 "reason": desc.predicates_unavailable[pid],
             }
             continue
-        fn = PREDICATES[pid]
-        el_succ = [t for t in succ if _eligible(t, pid)]
-        el_fail = [t for t in fail if _eligible(t, pid)]
-        # evaluate each predicate exactly once per trial
-        fired_fail = [(t, fn(t)) for t in el_fail]
-        fired_succ = [(t, fn(t)) for t in el_succ]
-        nf = sum(1 for _, k in fired_fail if k is not None)
-        ns = sum(1 for _, k in fired_succ if k is not None)
-        pos = sorted(round(k / len(t.actions), 3) for t, k in fired_fail if k is not None)
-        reasons = []
-        if len(el_fail) < MIN_N:
-            reasons.append(f"eligible failed runs {len(el_fail)} < MIN_N={MIN_N}")
-        if len(el_succ) < MIN_N:
-            reasons.append(f"eligible success runs {len(el_succ)} < MIN_N={MIN_N}")
-        out["predicates"][pid] = {
-            "disposition": "COMPUTED",
-            "n_eligible_fail": len(el_fail),
-            "n_eligible_success": len(el_succ),
-            "n_ineligible_excluded": len(scored) - len(el_fail) - len(el_succ),
-            "fire_count_fail": nf,
-            "fire_rate_on_failed_runs": _rate(nf, len(el_fail)),
-            "false_positive_count": ns,
-            "false_positive_on_later_success": _rate(ns, len(el_succ)),
-            "kstar_normalized_position_on_failures": {
-                "n": len(pos),
-                "min": pos[0] if pos else None,
-                "median": pos[len(pos) // 2] if pos else None,
-                "max": pos[-1] if pos else None,
-            },
-            "rate_null_reason": "; ".join(reasons) or None,
-        }
+        out["predicates"][pid] = _score_predicate(PREDICATES[pid], pid, succ, fail, len(scored))
+
+    # ---- arm 2: same predicates over the normalized information-intake proxy --
+    for pid, fn in PREDICATES_NORMALIZED.items():
+        base = NORMALIZED_BASE[pid]
+        if base in desc.predicates_unavailable:
+            out["predicates_normalized"][pid] = {
+                "disposition": "PREDICATE_UNAVAILABLE",
+                "reason": desc.predicates_unavailable[base],
+            }
+            continue
+        out["predicates_normalized"][pid] = _score_predicate(fn, base, succ, fail, len(scored))
+
+    out["arm2_decision"] = _arm2_decision(out)
     return out
+
+
+def _normalization_audit(hits: dict[str, int]) -> dict[str, Any]:
+    """Expose how aggressively normalization fired, so over-normalization is
+    visible rather than hidden behind an improved instability number."""
+    before = hits.get("_chars_before", 0)
+    after = hits.get("_chars_after", 0)
+    rules = {k: v for k, v in sorted(hits.items()) if not k.startswith("_")}
+    return {
+        "chars_before": before,
+        "chars_after": after,
+        "chars_removed_fraction": (round((before - after) / before, 6) if before else None),
+        "rule_hits": rules,
+        "rules_fired": len(rules),
+    }
+
+
+def _score_predicate(
+    fn: Callable[[Trial], int | None],
+    eligibility_id: str,
+    succ: list[Trial],
+    fail: list[Trial],
+    n_scored: int,
+) -> dict[str, Any]:
+    el_succ = [t for t in succ if _eligible(t, eligibility_id)]
+    el_fail = [t for t in fail if _eligible(t, eligibility_id)]
+    # evaluate each predicate exactly once per trial
+    fired_fail = [(t, fn(t)) for t in el_fail]
+    fired_succ = [(t, fn(t)) for t in el_succ]
+    nf = sum(1 for _, k in fired_fail if k is not None)
+    ns = sum(1 for _, k in fired_succ if k is not None)
+    pos = sorted(round(k / len(t.actions), 3) for t, k in fired_fail if k is not None)
+    reasons = []
+    if len(el_fail) < MIN_N:
+        reasons.append(f"eligible failed runs {len(el_fail)} < MIN_N={MIN_N}")
+    if len(el_succ) < MIN_N:
+        reasons.append(f"eligible success runs {len(el_succ)} < MIN_N={MIN_N}")
+    return {
+        "disposition": "COMPUTED",
+        "n_eligible_fail": len(el_fail),
+        "n_eligible_success": len(el_succ),
+        "n_ineligible_excluded": n_scored - len(el_fail) - len(el_succ),
+        "fire_count_fail": nf,
+        "fire_rate_on_failed_runs": _rate(nf, len(el_fail)),
+        "false_positive_count": ns,
+        "false_positive_on_later_success": _rate(ns, len(el_succ)),
+        "kstar_normalized_position_on_failures": {
+            "n": len(pos),
+            "min": pos[0] if pos else None,
+            "median": pos[len(pos) // 2] if pos else None,
+            "max": pos[-1] if pos else None,
+        },
+        "rate_null_reason": "; ".join(reasons) or None,
+    }
+
+
+def _arm2_decision(out: dict[str, Any]) -> dict[str, Any]:
+    """Apply the PREREGISTERED arm-2 decision rule. Fixed before any arm-2
+    outcome was computed; see ARM2_PREREGISTRATION_TEXT."""
+    raw = out["observation_digest_stability"]["instability_rate"]
+    norm = out["observation_digest_stability_normalized"]["instability_rate"]
+    findings: list[str] = []
+    verdict = "INCONCLUSIVE"
+
+    over_normalized = False
+    for pid, p in out["predicates_normalized"].items():
+        if p.get("disposition") != "COMPUTED":
+            continue
+        base = out["predicates"].get(NORMALIZED_BASE[pid], {})
+        raw_fpr = base.get("false_positive_on_later_success")
+        norm_fpr = p.get("false_positive_on_later_success")
+        if raw_fpr == 0.0 and norm_fpr is not None and norm_fpr > ARM2_ACCEPT_FPR_MAX:
+            over_normalized = True
+            findings.append(
+                f"{pid}: FPR rose {raw_fpr} -> {norm_fpr} above "
+                f"{ARM2_ACCEPT_FPR_MAX}; normalization is over-aggressive"
+            )
+
+    fixed_proxy = (
+        raw is not None
+        and norm is not None
+        and raw > ARM2_RAW_INSTABILITY_TRIGGER
+        and norm < ARM2_ACCEPT_INSTABILITY_MAX
+    )
+    precision_held = all(
+        (p.get("false_positive_on_later_success") or 0.0) <= ARM2_ACCEPT_FPR_MAX
+        for p in out["predicates_normalized"].values()
+        if p.get("disposition") == "COMPUTED"
+    )
+
+    if over_normalized:
+        verdict = "REJECT_OVER_NORMALIZED"
+    elif fixed_proxy and precision_held:
+        verdict = "ACCEPT"
+        findings.append(
+            f"instability {raw} -> {norm} (below {ARM2_ACCEPT_INSTABILITY_MAX}) "
+            f"with all normalized FPR <= {ARM2_ACCEPT_FPR_MAX}"
+        )
+    else:
+        if raw is not None and raw <= ARM2_RAW_INSTABILITY_TRIGGER:
+            findings.append(
+                f"raw instability {raw} did not exceed the "
+                f"{ARM2_RAW_INSTABILITY_TRIGGER} trigger; this corpus cannot "
+                "accept or reject the normalization"
+            )
+        elif norm is not None and norm >= ARM2_ACCEPT_INSTABILITY_MAX:
+            findings.append(
+                f"normalization reduced instability {raw} -> {norm} but not below "
+                f"{ARM2_ACCEPT_INSTABILITY_MAX}; proxy still unusable"
+            )
+    return {
+        "verdict": verdict,
+        "instability_raw": raw,
+        "instability_normalized": norm,
+        "findings": findings,
+    }
 
 
 def main() -> int:
@@ -717,9 +952,22 @@ def main() -> int:
         "artifact": "curve0-kstar-method-validation",
         "generated_at": datetime.now(UTC).isoformat(),
         "preregistration": {
-            "text": PREREGISTRATION_TEXT,
-            "digest": _sha256_text(PREREGISTRATION_TEXT),
-            "note": "transcribed from the Curve 0 spec; not third-party timestamped",
+            "arm1_raw_proxy": {
+                "text": PREREGISTRATION_TEXT,
+                "digest": _sha256_text(PREREGISTRATION_TEXT),
+            },
+            "arm2_normalized_proxy": {
+                "text": ARM2_PREREGISTRATION_TEXT,
+                "digest": _sha256_text(ARM2_PREREGISTRATION_TEXT),
+                "decision_thresholds": {
+                    "raw_instability_trigger": ARM2_RAW_INSTABILITY_TRIGGER,
+                    "accept_instability_max": ARM2_ACCEPT_INSTABILITY_MAX,
+                    "accept_fpr_max": ARM2_ACCEPT_FPR_MAX,
+                },
+            },
+            "note": "transcribed from the Curve 0 spec; not third-party timestamped. "
+            "Arm 2 predicates, normalization rule set, and decision rule were fixed "
+            "before any arm-2 outcome was computed.",
         },
         "scope": {
             "claim_type": "METHOD VALIDATION ONLY",

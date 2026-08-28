@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import http.client
 import importlib.util
 import json
+import socketserver
 import sys
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "mcp-funcdag-v1"
@@ -82,21 +85,17 @@ def test_streamable_mcp_runtime_and_events(tmp_path):
     assert "result" in out
     assert out["result"]["value"] == spec.reference_node_values[target_node.node_id]
 
-    # Repeated identical call -> counted as redundant
     out_dup = runtime.call_tool(target_node.tool_name, args)
     assert "result" in out_dup
     assert runtime.redundant_calls == 1
 
-    # Same tool name with DIFFERENT args is NOT redundant
     different_args = {k: (v + 1 if isinstance(v, int) else v) for k, v in args.items()}
     runtime.call_tool(target_node.tool_name, different_args)
-    assert runtime.redundant_calls == 1  # Still 1!
+    assert runtime.redundant_calls == 1
 
-    # Schema error tool call
     bad_out = runtime.call_tool(target_node.tool_name, {"x": "not_an_int"})
     assert "error" in bad_out
 
-    # Unknown tool call
     unk_out = runtime.call_tool("non_existent_tool", {})
     assert "error" in unk_out
 
@@ -154,13 +153,13 @@ def test_materializer_harbor_topology_and_controls(tmp_path):
     res_nop = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
     assert res_nop["reward"] == 0.0
 
-    # Test Answer-only exploit without tool execution -> must fail (0.0)
+    # Test Answer-only exploit without tool execution -> 0.0
     materializer_mod.materialize_task(cell, output_root=tmp_path)
     runtime = runtime_mod.MCPRuntime(spec_data, evidence_dir)
     truth_data = json.loads(truth_path.read_text())
     (workspace_dir / "result.json").write_text(json.dumps({"target_value": truth_data["expected_target_value"]}))
     res_answer_only = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
-    assert res_answer_only["reward"] == 0.0, "Answer-only exploit was incorrectly accepted!"
+    assert res_answer_only["reward"] == 0.0
 
     # Test Mutants -> 0.0
     for mname, mfn in templates_mod.get_mutants().items():
@@ -169,3 +168,79 @@ def test_materializer_harbor_topology_and_controls(tmp_path):
         mfn(runtime, spec_data, workspace_dir)
         res_mutant = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
         assert res_mutant["reward"] == 0.0, f"Mutant {mname} did not score 0.0"
+
+
+def test_non_oracle_mcp_client_call_and_events(tmp_path):
+    """Smoke test: non-oracle client performs HTTP MCP tool calls against runtime server; proves exact event ledger recorded."""
+    dag_gen = load_module("dag_generator")
+    runtime_mod = load_module("runtime")
+    spec = dag_gen.generate_dag_spec(seed=42, depth=2, width=2, distractor_count=1)
+
+    spec_dict = {
+        "tools": [
+            {
+                "name": t.name,
+                "description": t.description,
+                "parameters": [
+                    {"name": p.name, "type_name": p.type_name, "description": p.description, "required": p.required}
+                    for p in t.parameters
+                ],
+                "output_type": t.output_type,
+                "is_distractor": t.is_distractor,
+                "op_kind": t.op_kind,
+            }
+            for t in spec.tools
+        ],
+        "nodes": [
+            {"node_id": n.node_id, "tool_name": n.tool_name, "op_name": n.op_name, "input_bindings": n.input_bindings}
+            for n in spec.nodes
+        ],
+        "initial_inputs": spec.initial_inputs,
+        "target_node_id": spec.target_node_id,
+        "topological_order": spec.topological_order,
+    }
+
+    evidence_dir = tmp_path / "evidence"
+    runtime = runtime_mod.MCPRuntime(spec_dict, evidence_dir)
+    handler = runtime_mod.make_mcp_handler(runtime)
+
+    server = socketserver.TCPServer(("127.0.0.1", 0), handler)
+    port = server.server_address[1]
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", "/mcp")
+        res = conn.getresponse()
+        assert res.status == 200
+        tools_data = json.loads(res.read().decode())
+        assert len(tools_data["tools"]) == len(spec.tools)
+
+        target_node = spec.nodes[0]
+        args = {k: spec.initial_inputs[src] for k, src in target_node.input_bindings.items()}
+        payload = json.dumps({
+            "jsonrpc": "2.0",
+            "id": "smoke_call_1",
+            "method": "tools/call",
+            "params": {"name": target_node.tool_name, "arguments": args}
+        })
+        conn.request("POST", "/mcp", body=payload, headers={"Content-Type": "application/json"})
+        call_res = conn.getresponse()
+        assert call_res.status == 200
+        call_data = json.loads(call_res.read().decode())
+        assert call_data["result"]["value"] == spec.reference_node_values[target_node.node_id]
+
+        conn.request("GET", "/events")
+        ev_res = conn.getresponse()
+        assert ev_res.status == 200
+        ev_lines = ev_res.read().decode().splitlines()
+        assert len(ev_lines) == 1
+        ev = json.loads(ev_lines[0])
+        assert ev["event_type"] == "tool_call_success"
+        assert ev["tool_name"] == target_node.tool_name
+        assert ev["result"] == spec.reference_node_values[target_node.node_id]
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()

@@ -106,7 +106,7 @@ def materialize_task(
         for t in dag_spec.tools
     ]
     
-    # Agent-visible graph topology (node IDs, tool names, and input bindings WITHOUT any values or topological sequence)
+    # Agent-visible graph topology
     agent_graph_nodes = [
         {
             "node_id": n.node_id,
@@ -174,7 +174,7 @@ Evaluate the root target node `{dag_spec.target_node_id}` by discovering and cal
 The local streamable-HTTP MCP tool server is available at: `http://mcp-server:8000/mcp` (transport: `streamable-http`).
 
 ## Deliverable:
-Save the final calculated integer result to `/app/result.json` in format:
+Save the final calculated integer result to `/app/output/result.json` in format:
 ```json
 {{
   "target_value": <INTEGER_VALUE>
@@ -183,10 +183,11 @@ Save the final calculated integer result to `/app/result.json` in format:
 """
     (target_dir / "instruction.md").write_text(instruction_content, encoding="utf-8")
 
-    # 4. Environment Dockerfile and docker-compose.yaml
+    # 4. Environment Dockerfile and docker-compose.yaml with task-local named volume
     agent_dockerfile = f"""FROM {PYTHON_BASE_IMAGE}
 
 WORKDIR /app
+RUN mkdir -p /app/output /app/evidence
 """
     (environment / "Dockerfile").write_text(agent_dockerfile, encoding="utf-8")
 
@@ -203,16 +204,24 @@ WORKDIR /app
 COPY runtime.py /app/runtime.py
 COPY dag_generator.py /app/dag_generator.py
 COPY runtime_tools.json /app/runtime_tools.json
+RUN mkdir -p /app/evidence
 ENTRYPOINT ["python3", "/app/runtime.py", "--spec", "/app/runtime_tools.json", "--evidence-dir", "/app/evidence", "--port", "8000", "--host", "0.0.0.0"]
 """
     (mcp_server_dir / "Dockerfile").write_text(mcp_dockerfile, encoding="utf-8")
 
-    # docker-compose.yaml with main and mcp-server services
+    # docker-compose.yaml with task-local named volume shared between main and sidecar
     compose_yaml = """services:
   main:
     build: .
+    volumes:
+      - mcp_evidence:/app/evidence:ro
   mcp-server:
     build: ./mcp-server
+    volumes:
+      - mcp_evidence:/app/evidence:rw
+
+volumes:
+  mcp_evidence:
 """
     (environment / "docker-compose.yaml").write_text(compose_yaml, encoding="utf-8")
 
@@ -234,23 +243,6 @@ import sys
 import http.client
 from pathlib import Path
 
-def fetch_events_from_sidecar():
-    for _ in range(10):
-        try:
-            conn = http.client.HTTPConnection("mcp-server", 8000, timeout=3)
-            conn.request("GET", "/events")
-            res = conn.getresponse()
-            if res.status == 200:
-                data = res.read().decode("utf-8")
-                conn.close()
-                lines = [json.loads(line) for line in data.splitlines() if line.strip()]
-                if lines:
-                    return lines
-            conn.close()
-        except Exception:
-            pass
-    return []
-
 def main():
     truth_file = Path("/tests/verifier_truth.json")
     if not truth_file.exists():
@@ -263,11 +255,14 @@ def main():
     node_tool_map = truth["node_tool_map"]
     required_tools = [node_tool_map[nid] for nid in topological_order]
 
-    res_file = Path("/app/result.json")
+    # Result resolution from /app/output/result.json or collected fallback
+    res_file = Path("/app/output/result.json")
     if not res_file.exists():
-        res_file = Path("agent_workspace/result.json")
+        res_file = Path("/app/result.json")
         if not res_file.exists():
-            res_file = Path("result.json")
+            res_file = Path("agent_workspace/result.json")
+            if not res_file.exists():
+                res_file = Path("result.json")
 
     agent_val = None
     if res_file.exists():
@@ -277,7 +272,13 @@ def main():
         except Exception:
             pass
 
-    events_file = Path("/app/evidence/benchmark-events.jsonl")
+    # Events resolution from collected /app/output/benchmark-events.jsonl or /app/evidence
+    events_file = Path("/app/output/benchmark-events.jsonl")
+    if not events_file.exists():
+        events_file = Path("/app/evidence/benchmark-events.jsonl")
+        if not events_file.exists():
+            events_file = Path("evidence/benchmark-events.jsonl")
+
     events = []
     if events_file.exists():
         for line in events_file.read_text(encoding="utf-8").splitlines():
@@ -287,8 +288,19 @@ def main():
                     events.append(json.loads(line))
                 except Exception:
                     pass
+
+    # Fallback to direct sidecar query if files not collected
     if not events:
-        events = fetch_events_from_sidecar()
+        try:
+            conn = http.client.HTTPConnection("mcp-server", 8000, timeout=3)
+            conn.request("GET", "/events")
+            res = conn.getresponse()
+            if res.status == 200:
+                data = res.read().decode("utf-8")
+                events = [json.loads(line) for line in data.splitlines() if line.strip()]
+            conn.close()
+        except Exception:
+            pass
 
     successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
     executed_tools = [e["tool_name"] for e in successful_calls]
@@ -351,9 +363,13 @@ python3 /tests/verifier_eval.py
     (tests / "test.sh").write_text(test_sh_content, encoding="utf-8")
     (tests / "test.sh").chmod(0o755)
 
-    # 6. task.toml (Harbor 0.21.0 & Task Workbench v2 schema compliant)
+    # 6. task.toml (Harbor 0.21.0 & Task Workbench v2 schema compliant with /app/output collect hooks)
     task_toml_content = f"""schema_version = "1.4"
-artifacts = ["/app/result.json", "/app/evidence/benchmark-events.jsonl", "/app/evidence/final-state.json"]
+artifacts = [
+  "/app/output/result.json",
+  "/app/output/benchmark-events.jsonl",
+  "/app/output/final-state.json",
+]
 
 [task]
 name = "{full_task_name}"
@@ -378,7 +394,15 @@ environment_mode = "separate"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ ! -f /app/result.json ] && [ -f /logs/agent/result.json ]; then cp /logs/agent/result.json /app/result.json; fi"
+command = "if [ -f /app/output/result.json ]; then cp /app/output/result.json /app/output/result.json; fi"
+
+[[verifier.collect]]
+service = "main"
+command = "if [ -f /app/evidence/benchmark-events.jsonl ]; then cp /app/evidence/benchmark-events.jsonl /app/output/benchmark-events.jsonl; fi"
+
+[[verifier.collect]]
+service = "main"
+command = "if [ -f /app/evidence/final-state.json ]; then cp /app/evidence/final-state.json /app/output/final-state.json; fi"
 
 [verifier.environment]
 network_mode = "{net_mode}"
@@ -397,7 +421,7 @@ url = "http://mcp-server:8000/mcp"
 """
     (target_dir / "task.toml").write_text(task_toml_content, encoding="utf-8")
 
-    # 7. Solution solver: solve.sh and solve.py (mounted under /solution in Harbor trial)
+    # 7. Solution solver: solve.sh and solve.py (writes strictly to /app/output/result.json via MCP calls)
     solve_sh_content = """#!/bin/bash
 set -euo pipefail
 if [ -f /solution/solve.py ]; then
@@ -465,31 +489,10 @@ for nid in topological_order:
 
 target_val = node_values[target_node_id]
 
-# Write result.json for agent artifact collection
-res_path = Path("/app/result.json")
-res_path.parent.mkdir(parents=True, exist_ok=True)
-res_path.write_text(json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8")
-
-# Also write directly to /logs/agent/result.json if /logs/agent exists
-if Path("/logs/agent").exists():
-    Path("/logs/agent/result.json").write_text(json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8")
-
-# Fetch and persist evidence from sidecar to /app/evidence
-try:
-    conn = http.client.HTTPConnection("mcp-server", 8000, timeout=5)
-    conn.request("GET", "/events")
-    res = conn.getresponse()
-    if res.status == 200:
-        events_text = res.read().decode("utf-8")
-        evidence_p = Path("/app/evidence/benchmark-events.jsonl")
-        evidence_p.parent.mkdir(parents=True, exist_ok=True)
-        evidence_p.write_text(events_text, encoding="utf-8")
-        if Path("/logs/agent").exists():
-            (Path("/logs/agent") / "benchmark-events.jsonl").write_text(events_text, encoding="utf-8")
-    conn.close()
-except Exception as e:
-    print(f"Warning: could not sync sidecar events: {{e}}")
-
+# Standard model output destination
+out_dir = Path("/app/output")
+out_dir.mkdir(parents=True, exist_ok=True)
+(out_dir / "result.json").write_text(json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8")
 print(f"Oracle solved with target_value: {{target_val}}")
 """
     (solution / "solve.py").write_text(solve_py_content, encoding="utf-8")
@@ -499,13 +502,11 @@ print(f"Oracle solved with target_value: {{target_val}}")
     fair_alt_content = f"""#!/bin/bash
 set -euo pipefail
 
-# Fair alternative computes via dynamic MCP discovery and topological execution
 python3 - <<'PYEOF'
 import json
 import http.client
 from pathlib import Path
 
-# Initial inputs from instruction
 init_inputs = {json.dumps(dag_spec.initial_inputs)}
 nodes_spec = {json.dumps([{"node_id": n.node_id, "tool_name": n.tool_name, "bindings": n.input_bindings} for n in dag_spec.nodes])}
 topo_order = {json.dumps(dag_spec.topological_order)}
@@ -534,7 +535,7 @@ for nid in topo_order:
     vals[nid] = execute_remote_tool(n["tool_name"], args)
 
 final_val = vals[target_id]
-out_p = Path("/app/result.json")
+out_p = Path("/app/output/result.json")
 out_p.parent.mkdir(parents=True, exist_ok=True)
 out_p.write_text(json.dumps({{"target_value": final_val}}, indent=2) + "\\n", encoding="utf-8")
 print(f"Fair alternative completed: target_value={{final_val}}")
@@ -545,36 +546,31 @@ PYEOF
 
     please_hack_content = """#!/bin/bash
 set -euo pipefail
-# Please-hack replay probe writes invalid state
-mkdir -p /app
-echo '{"target_value": -1}' > /app/result.json
+mkdir -p /app/output
+echo '{"target_value": -1}' > /app/output/result.json
 """
     (workbench / "please-hack.sh").write_text(please_hack_content, encoding="utf-8")
     (workbench / "please-hack.sh").chmod(0o755)
 
-    # 3 Adversarial Probes using real generated distractor tool names if present
     first_distractor = next((t.name for t in dag_spec.tools if t.is_distractor), "dag_tool_add_integers")
     
     probe1_content = """#!/bin/bash
 set -euo pipefail
-# NOP probe
-mkdir -p /app
+mkdir -p /app/output
 """
     (adversarial / "probe-nop.sh").write_text(probe1_content, encoding="utf-8")
     (adversarial / "probe-nop.sh").chmod(0o755)
 
     probe2_content = """#!/bin/bash
 set -euo pipefail
-# Corrupted answer probe
-mkdir -p /app
-echo '{"target_value": 99999999}' > /app/result.json
+mkdir -p /app/output
+echo '{"target_value": 99999999}' > /app/output/result.json
 """
     (adversarial / "probe-corrupt-value.sh").write_text(probe2_content, encoding="utf-8")
     (adversarial / "probe-corrupt-value.sh").chmod(0o755)
 
     probe3_content = f"""#!/bin/bash
 set -euo pipefail
-# Distractor noise probe calling real generated distractor: {first_distractor}
 python3 - <<'PYEOF'
 import json, http.client
 from pathlib import Path
@@ -593,7 +589,9 @@ try:
 except Exception:
     pass
 
-Path("/app/result.json").write_text(json.dumps({{"target_value": 0}}) + "\\n")
+out_p = Path("/app/output/result.json")
+out_p.parent.mkdir(parents=True, exist_ok=True)
+out_p.write_text(json.dumps({{"target_value": 0}}) + "\\n")
 PYEOF
 """
     (adversarial / "probe-distractor-only.sh").write_text(probe3_content, encoding="utf-8")

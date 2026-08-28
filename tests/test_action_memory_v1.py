@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "action-memory-v1"
-sys.path.insert(0, str(ROOT))
 
 
 def load(name: str, filename: str | None = None):
@@ -35,7 +34,7 @@ def test_contract_metadata_and_cell_factors():
 
 
 def test_contract_opportunity_counts_match_generator_output():
-    state_mod = load("state_contract_match", "state")
+    state_mod = load("action_memory_state_match", "state")
     contract_file = ROOT / "benchmark_contract.json"
     contract = json.loads(contract_file.read_text(encoding="utf-8"))
     for cell in contract["cells"]:
@@ -58,7 +57,7 @@ def test_contract_opportunity_counts_match_generator_output():
 
 
 def test_state_generation_deterministic_and_dosed():
-    state_mod = load("state_test", "state")
+    state_mod = load("action_memory_state_gen", "state")
     spec1 = state_mod.generate_scenario(seed=42, cell_id="clean_baseline_4k", arm="clean")
     spec2 = state_mod.generate_scenario(seed=42, cell_id="clean_baseline_4k", arm="clean")
     assert spec1 == spec2
@@ -70,7 +69,7 @@ def test_state_generation_deterministic_and_dosed():
 
 
 def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
-    mat_mod = load("mat_test", "materializer")
+    mat_mod = load("action_memory_mat_test", "materializer")
     target = tmp_path / "action_mem_task"
     mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
     assert (target / "task.toml").exists()
@@ -88,9 +87,9 @@ def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
 
 
 def test_mcp_server_client_protocol_interaction(tmp_path):
-    mat_mod = load("mat_mcp_test", "materializer")
-    runtime_mod = load("runtime_mcp_test", "runtime")
-    oracle_mod = load("oracle_mcp_test", "oracle")
+    mat_mod = load("action_memory_mat_mcp", "materializer")
+    runtime_mod = load("action_memory_runtime_mcp", "runtime")
+    oracle_mod = load("action_memory_oracle_mcp", "oracle")
 
     task_dir = tmp_path / "mcp_task"
     mat_mod.materialize(output_dir=task_dir, cell_id="clean_baseline_4k", seed=42)
@@ -150,9 +149,9 @@ def test_mcp_server_client_protocol_interaction(tmp_path):
 
 
 def test_verifier_discriminates_oracle_nop_and_mutants(tmp_path):
-    mat_mod = load("mat_discrim", "materializer")
-    ver_mod = load("ver_discrim", "verifier")
-    tmpl_mod = load("tmpl_discrim", "templates")
+    mat_mod = load("action_memory_mat_discrim", "materializer")
+    ver_mod = load("action_memory_ver_discrim", "verifier")
+    tmpl_mod = load("action_memory_tmpl_discrim", "templates")
 
     target = tmp_path / "task_for_discrim"
     mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
@@ -180,8 +179,8 @@ def test_verifier_discriminates_oracle_nop_and_mutants(tmp_path):
 
 
 def test_verifier_rejects_corrupted_event_order_or_invalid_truth(tmp_path):
-    mat_mod = load("mat_corrupt", "materializer")
-    ver_mod = load("ver_corrupt", "verifier")
+    mat_mod = load("action_memory_mat_corrupt", "materializer")
+    ver_mod = load("action_memory_ver_corrupt", "verifier")
 
     target = tmp_path / "task_for_corrupt"
     mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)

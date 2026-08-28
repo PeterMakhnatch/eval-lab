@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import shutil
 import sys
@@ -14,6 +15,18 @@ REPO = ROOT.parents[2]
 DERIVED = REPO / "derived" / "harbor-tasks" / "action-memory"
 
 PINNED_PYTHON_IMAGE = "python:3.13-slim@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+
+
+def _get_state_module():
+    mod_name = "action_memory_state_module"
+    if mod_name in sys.modules:
+        return sys.modules[mod_name]
+    spec = importlib.util.spec_from_file_location(mod_name, ROOT / "state.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[mod_name] = mod
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def output_path(cell_id: str = "clean-baseline-4k", seed: int = 42) -> Path:
@@ -43,7 +56,8 @@ def materialize(
     padding_position: str | None = None,
     distractor_count: int = 4,
 ) -> dict[str, object]:
-    from state import generate_scenario
+    state_mod = _get_state_module()
+    generate_scenario = state_mod.generate_scenario
 
     safe_cell = cell_id.replace("_", "-")
     if output_dir is None:

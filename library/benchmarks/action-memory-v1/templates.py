@@ -1,15 +1,30 @@
 """Control templates and mutant behaviors for action-memory-v1."""
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from oracle import solve_direct
+ROOT = Path(__file__).resolve().parent
+
+
+def _get_solve_direct():
+    mod_name = "action_memory_oracle_module"
+    if mod_name in sys.modules:
+        return sys.modules[mod_name].solve_direct
+    spec = importlib.util.spec_from_file_location(mod_name, ROOT / "oracle.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[mod_name] = mod
+    spec.loader.exec_module(mod)
+    return mod.solve_direct
 
 
 def oracle(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
-    return solve_direct(task_dir, evidence_dir)
+    solve_fn = _get_solve_direct()
+    return solve_fn(task_dir, evidence_dir)
 
 
 def nop(task_dir: Path, evidence_dir: Path) -> None:

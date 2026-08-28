@@ -2,23 +2,36 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
-from runtime import MCPClient
+ROOT = Path(__file__).resolve().parent
+
+
+def _get_mcp_client():
+    mod_name = "action_memory_runtime_module"
+    if mod_name in sys.modules:
+        return sys.modules[mod_name].MCPClient
+    spec = importlib.util.spec_from_file_location(mod_name, ROOT / "runtime.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[mod_name] = mod
+    spec.loader.exec_module(mod)
+    return mod.MCPClient
 
 
 def solve_via_mcp(mcp_url: str = "http://mcp-server:8080/mcp", target_entity: str | None = None) -> dict[str, Any]:
-    client = MCPClient(mcp_url)
+    client_cls = _get_mcp_client()
+    client = client_cls(mcp_url)
     
     # Initialize session
     client.initialize()
-    tools = client.list_tools()
+    client.list_tools()
     
     # Fetch list of context chunk IDs
     res = client.call_tool("list_context_chunks", {})

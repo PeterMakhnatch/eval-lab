@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from runtime import McpServerRuntime
 from state import DatabaseState, StateCertificate, compute_digest
 from templates import mutants, run_blind_retry_control, run_nop_baseline, run_oracle_repair, run_wrong_repair_mutant
 from verifier import verify_harbor_task, verify_recovery_evidence
+from evallab.task_workbench import CandidateSource, inspect_candidate
 
 
 def test_contract_schema():
@@ -97,3 +99,20 @@ def test_verifier_oracle_nop_and_mutants(tmp_path):
     run_wrong_repair_mutant(task_dir, task_dir / "agent_workspace")
     res_wrong = verify_harbor_task(task_dir)
     assert res_wrong["reward"] == 0.0
+
+
+def test_task_workbench_static_inspection():
+    repo_root = Path(__file__).resolve().parents[1]
+    task_dir = output_path(seed=42)
+    materialize(task_dir, seed=42)
+    
+    source = CandidateSource(
+        source_uri="https://github.com/PeterMakhnatch/eval-lab",
+        source_ref="local/mcp-recovery@1.0",
+        license="MIT",
+        provenance_zone="03-synthetic",
+    )
+    
+    inspection = inspect_candidate(repo_root=repo_root, task_path=task_dir, source=source)
+    assert inspection.static_passed is True, f"Inspection failed: {inspection.diagnostics}"
+    assert inspection.candidate["candidate_id"] is not None

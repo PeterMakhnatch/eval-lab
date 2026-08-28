@@ -19,6 +19,11 @@ from typing import Any
 from evallab.interpretation.benchmark_events import (
     TrialBundle,
 )
+from evallab.interpretation.benchmark_projection import (
+    BenchmarkProjectionDimensions,
+    build_projection_dimensions,
+    projection_feature_fields,
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,28 @@ class McpFuncDagFeatures:
     schema_drift: bool
     construct: str
     causal_grade: str
+    job_id: str | None
+    cas_uri: str | None
+    model_name: str | None
+    agent_name: str | None
+    task_name: str | None
+    harness_version: str | None
+    scaffold_version: str | None
+    repeat_group_id: str | None
+    dose_axis: str | None
+    dose_value: float | None
+    dose_unit: str | None
+    alphabet_id: str | None
+    alphabet_version: str | None
+    quality_status: str | None
+    report_digest: str | None
+    source_digest: str | None
+    producer_version: str
+    projection_identity: str
+    dimension_digest: str
+    projection_status: str
+    analysis_ready: bool
+    projection_refusals: str
     # L1 Facts (C0, C1, Grade A)
     task_success: bool
     total_tool_calls: int
@@ -70,13 +97,14 @@ def extract_mcp_funcdag_features(
     bundle: TrialBundle,
     step_tokens: Sequence[int] | None = None,
     cache_hits: Sequence[bool] | None = None,
+    dimensions: BenchmarkProjectionDimensions | None = None,
 ) -> McpFuncDagFeatures:
     """Extract deterministic mechanical facts and L2 metrics from an mcp-funcdag trial bundle."""
     contract = bundle.contract
     final_state = bundle.final_state
     events = bundle.events
     calls = bundle.correlated_calls
-
+    dimensions = dimensions or build_projection_dimensions(bundle, None)
     cell_factors = contract.cell_factors
     opp_counts = contract.opportunity_counts
 
@@ -249,6 +277,7 @@ def extract_mcp_funcdag_features(
         construct=contract.construct
         or str(contract.cell_factors.get("construct", "tool_call_dag_conformance")),
         causal_grade=str(contract.cell_factors.get("causal_grade", "L2_derived")),
+        **projection_feature_fields(dimensions),
         task_success=task_success,
         total_tool_calls=total_tool_calls,
         model_call_count=model_call_count,

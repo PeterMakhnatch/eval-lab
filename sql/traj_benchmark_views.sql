@@ -101,104 +101,94 @@ CREATE TABLE IF NOT EXISTS mcp_recovery_features (
     verifier_truth_digest VARCHAR NOT NULL
 );
 
+-- Idempotent dimension migration for existing benchmark fact tables.  Rows without
+-- these fields remain present for audit but cannot enter analysis-ready views.
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS job_id VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS cas_uri VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS model_name VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS agent_name VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS task_name VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS harness_version VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS scaffold_version VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS repeat_group_id VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS dose_axis VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS dose_value DOUBLE;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS dose_unit VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS alphabet_id VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS alphabet_version VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS quality_status VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS report_digest VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS source_digest VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS producer_version VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS projection_identity VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS dimension_digest VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS projection_status VARCHAR;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS analysis_ready BOOLEAN;
+ALTER TABLE action_memory_features ADD COLUMN IF NOT EXISTS projection_refusals VARCHAR;
+
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS job_id VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS cas_uri VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS model_name VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS agent_name VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS task_name VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS harness_version VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS scaffold_version VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS repeat_group_id VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS dose_axis VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS dose_value DOUBLE;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS dose_unit VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS alphabet_id VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS alphabet_version VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS quality_status VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS report_digest VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS source_digest VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS producer_version VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS projection_identity VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS dimension_digest VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS projection_status VARCHAR;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS analysis_ready BOOLEAN;
+ALTER TABLE mcp_funcdag_features ADD COLUMN IF NOT EXISTS projection_refusals VARCHAR;
+
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS job_id VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS cas_uri VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS model_name VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS agent_name VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS task_name VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS harness_version VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS scaffold_version VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS repeat_group_id VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS dose_axis VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS dose_value DOUBLE;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS dose_unit VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS alphabet_id VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS alphabet_version VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS quality_status VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS report_digest VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS source_digest VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS producer_version VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS projection_identity VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS dimension_digest VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS projection_status VARCHAR;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS analysis_ready BOOLEAN;
+ALTER TABLE mcp_recovery_features ADD COLUMN IF NOT EXISTS projection_refusals VARCHAR;
+
 -- 1. Action Memory Baseline View
 CREATE OR REPLACE VIEW v_action_memory_baseline AS
-SELECT
-    trial_id,
-    family,
-    task_id,
-    seed,
-    cell_id,
-    arm,
-    dose_bytes,
-    construct,
-    causal_grade,
-    task_success,
-    total_tool_calls,
-    model_call_count,
-    prompt_tokens_per_step,
-    prompt_cache_hit_rate,
-    raw_binding_opportunities,
-    raw_conflicting_opportunities,
-    bound_target_entity,
-    bound_target_attribute,
-    bound_target_value,
-    binding_matched,
-    stale_value_bound,
-    schema_conformance_rate,
-    binding_survival_rate,
-    stale_value_override_rate,
-    context_burn_velocity,
-    occupancy_first_failure,
-    citation,
-    verifier_truth_digest
-FROM action_memory_features;
+SELECT *
+FROM action_memory_features
+WHERE analysis_ready IS TRUE;
 
 -- 2. MCP-FuncDAG Baseline View
 CREATE OR REPLACE VIEW v_mcp_funcdag_baseline AS
-SELECT
-    trial_id,
-    family,
-    task_id,
-    seed,
-    depth,
-    width,
-    distractor_count,
-    name_similarity,
-    schema_drift,
-    task_success,
-    total_tool_calls,
-    model_call_count,
-    prompt_tokens_per_step,
-    prompt_cache_hit_rate,
-    required_dag_edges,
-    required_value_bindings,
-    executed_dag_edges,
-    correct_value_bindings,
-    redundant_tool_calls,
-    cycle_violations,
-    satisfied_edge_opportunities,
-    first_edge_step,
-    schema_conformance_rate,
-    value_propagation_accuracy,
-    dag_edge_conformance_rate,
-    redundant_call_ratio,
-    first_edge_latency,
-    citation,
-    verifier_truth_digest
-FROM mcp_funcdag_features;
+SELECT *
+FROM mcp_funcdag_features
+WHERE analysis_ready IS TRUE;
 
 -- 3. MCP-Recovery Baseline View
 CREATE OR REPLACE VIEW v_mcp_recovery_baseline AS
-SELECT
-    trial_id,
-    family,
-    task_id,
-    seed,
-    fault_class,
-    persistence_level,
-    mode,
-    task_success,
-    total_tool_calls,
-    model_call_count,
-    prompt_tokens_per_step,
-    prompt_cache_hit_rate,
-    injected_fault_record,
-    injected_fault_count,
-    fault_detected_count,
-    post_fault_retries,
-    blind_retries,
-    certified_recovered_faults,
-    step_to_first_fault,
-    step_to_recovery,
-    schema_conformance_rate,
-    autonomous_recovery_rate,
-    fault_detection_rate,
-    blind_retry_rate,
-    fault_recovery_latency,
-    citation,
-    verifier_truth_digest
-FROM mcp_recovery_features;
+SELECT *
+FROM mcp_recovery_features
+WHERE analysis_ready IS TRUE;
 
 -- 4. Matched-Pair Contrasts View
 CREATE OR REPLACE VIEW v_benchmark_contrasts AS
@@ -206,6 +196,16 @@ WITH mem_pairs AS (
     SELECT
         c.seed,
         c.cell_id AS entity_id,
+        c.model_name,
+        c.agent_name,
+        c.task_name,
+        c.harness_version,
+        c.scaffold_version,
+        c.repeat_group_id,
+        c.dose_axis,
+        c.dose_unit,
+        c.alphabet_id,
+        c.alphabet_version,
         'action-memory-v1' AS family,
         'clean_vs_inversion' AS contrast_type,
         c.trial_id AS control_trial_id,
@@ -223,6 +223,18 @@ WITH mem_pairs AS (
     JOIN action_memory_features t
       ON c.seed = t.seed
      AND c.cell_id = t.cell_id
+     AND c.model_name = t.model_name
+     AND c.agent_name = t.agent_name
+     AND c.task_name = t.task_name
+     AND c.harness_version = t.harness_version
+     AND c.scaffold_version = t.scaffold_version
+     AND c.repeat_group_id = t.repeat_group_id
+     AND c.dose_axis = t.dose_axis
+     AND c.dose_unit = t.dose_unit
+     AND c.alphabet_id = t.alphabet_id
+     AND c.alphabet_version = t.alphabet_version
+     AND c.analysis_ready IS TRUE
+     AND t.analysis_ready IS TRUE
      AND c.arm = 'clean'
      AND t.arm != 'clean'
 ),
@@ -230,6 +242,16 @@ rec_pairs AS (
     SELECT
         c.seed,
         COALESCE(t.fault_class, 'unknown') AS entity_id,
+        c.model_name,
+        c.agent_name,
+        c.task_name,
+        c.harness_version,
+        c.scaffold_version,
+        c.repeat_group_id,
+        c.dose_axis,
+        c.dose_unit,
+        c.alphabet_id,
+        c.alphabet_version,
         'mcp-recovery-v1' AS family,
         'clean_vs_fault' AS contrast_type,
         c.trial_id AS control_trial_id,
@@ -243,6 +265,18 @@ rec_pairs AS (
     JOIN mcp_recovery_features t
       ON c.seed = t.seed
      AND c.task_id = t.task_id
+     AND c.model_name = t.model_name
+     AND c.agent_name = t.agent_name
+     AND c.task_name = t.task_name
+     AND c.harness_version = t.harness_version
+     AND c.scaffold_version = t.scaffold_version
+     AND c.repeat_group_id = t.repeat_group_id
+     AND c.dose_axis = t.dose_axis
+     AND c.dose_unit = t.dose_unit
+     AND c.alphabet_id = t.alphabet_id
+     AND c.alphabet_version = t.alphabet_version
+     AND c.analysis_ready IS TRUE
+     AND t.analysis_ready IS TRUE
      AND c.mode = 'clean'
      AND t.mode = 'fault'
 )
@@ -256,11 +290,21 @@ SELECT
     trial_id,
     family,
     task_id,
+    task_name,
+    model_name,
+    agent_name,
+    harness_version,
+    scaffold_version,
+    repeat_group_id,
+    quality_status,
+    report_digest,
+    analysis_ready,
     'action-memory-v1' AS benchmark_vertical,
     raw_binding_opportunities > 0 AS has_binding_eligibility,
     raw_conflicting_opportunities > 0 AS has_conflict_eligibility,
-    (raw_binding_opportunities = 0 OR total_tool_calls = 0) AS is_refused_underpowered,
+    (analysis_ready IS NOT TRUE OR raw_binding_opportunities = 0 OR total_tool_calls = 0) AS is_refused_underpowered,
     CASE
+        WHEN analysis_ready IS NOT TRUE THEN coalesce(nullif(projection_refusals, ''), 'DIMENSION_OR_QUALITY_REFUSED')
         WHEN total_tool_calls = 0 THEN 'NO_TOOL_CALLS_INITIATED'
         WHEN raw_binding_opportunities = 0 THEN 'ZERO_OPPORTUNITY_UNDERPOWERED'
         ELSE NULL
@@ -268,14 +312,14 @@ SELECT
 FROM action_memory_features
 UNION ALL
 SELECT
-    trial_id,
-    family,
-    task_id,
+    trial_id, family, task_id, task_name, model_name, agent_name, harness_version,
+    scaffold_version, repeat_group_id, quality_status, report_digest, analysis_ready,
     'mcp-funcdag-v1' AS benchmark_vertical,
     required_dag_edges > 0 AS has_binding_eligibility,
     required_value_bindings > 0 AS has_conflict_eligibility,
-    (required_dag_edges = 0 OR total_tool_calls = 0) AS is_refused_underpowered,
+    (analysis_ready IS NOT TRUE OR required_dag_edges = 0 OR total_tool_calls = 0) AS is_refused_underpowered,
     CASE
+        WHEN analysis_ready IS NOT TRUE THEN coalesce(nullif(projection_refusals, ''), 'DIMENSION_OR_QUALITY_REFUSED')
         WHEN total_tool_calls = 0 THEN 'NO_TOOL_CALLS_INITIATED'
         WHEN required_dag_edges = 0 THEN 'ZERO_REQUIRED_EDGES_UNDERPOWERED'
         ELSE NULL
@@ -283,14 +327,14 @@ SELECT
 FROM mcp_funcdag_features
 UNION ALL
 SELECT
-    trial_id,
-    family,
-    task_id,
+    trial_id, family, task_id, task_name, model_name, agent_name, harness_version,
+    scaffold_version, repeat_group_id, quality_status, report_digest, analysis_ready,
     'mcp-recovery-v1' AS benchmark_vertical,
     injected_fault_count > 0 AS has_binding_eligibility,
     post_fault_retries > 0 AS has_conflict_eligibility,
-    ((injected_fault_count = 0 AND mode = 'fault') OR total_tool_calls = 0) AS is_refused_underpowered,
+    (analysis_ready IS NOT TRUE OR (injected_fault_count = 0 AND mode = 'fault') OR total_tool_calls = 0) AS is_refused_underpowered,
     CASE
+        WHEN analysis_ready IS NOT TRUE THEN coalesce(nullif(projection_refusals, ''), 'DIMENSION_OR_QUALITY_REFUSED')
         WHEN total_tool_calls = 0 THEN 'NO_TOOL_CALLS_INITIATED'
         WHEN injected_fault_count = 0 AND mode = 'fault' THEN 'FAULT_ARM_MISSING_INJECTION'
         ELSE NULL
@@ -307,6 +351,7 @@ SELECT
     round(avg(binding_survival_rate), 4) AS primary_l2_rate,
     'binding_survival_rate' AS primary_l2_name
 FROM action_memory_features
+WHERE analysis_ready IS TRUE
 UNION ALL
 SELECT
     'mcp-funcdag-v1' AS family,
@@ -317,6 +362,7 @@ SELECT
     round(avg(dag_edge_conformance_rate), 4) AS primary_l2_rate,
     'dag_edge_conformance_rate' AS primary_l2_name
 FROM mcp_funcdag_features
+WHERE analysis_ready IS TRUE
 UNION ALL
 SELECT
     'mcp-recovery-v1' AS family,
@@ -326,4 +372,5 @@ SELECT
     round(avg(schema_conformance_rate), 4) AS avg_schema_conformance_rate,
     round(avg(autonomous_recovery_rate), 4) AS primary_l2_rate,
     'autonomous_recovery_rate' AS primary_l2_name
-FROM mcp_recovery_features;
+FROM mcp_recovery_features
+WHERE analysis_ready IS TRUE;

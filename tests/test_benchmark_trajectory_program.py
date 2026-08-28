@@ -26,6 +26,10 @@ from evallab.interpretation.benchmark_events import (
     parse_benchmark_contract,
     parse_benchmark_events,
 )
+from evallab.interpretation.benchmark_projection import (
+    backfill_benchmark_projection_rows,
+    build_projection_dimensions,
+)
 from evallab.interpretation.feature_registry import (
     TRAJECTORY_FEATURE_REGISTRY,
     verify_feature_registry,
@@ -40,6 +44,11 @@ from evallab.interpretation.producers.mcp_recovery import (
     extract_mcp_recovery_features,
 )
 from evallab.interpretation.traj_card import generate_traj_card
+from evallab.interpretation.trajectory_compliance import TrialComplianceRecord
+from evallab.interpretation.trajectory_compliance_ops import (
+    ComplianceIngestReport,
+    ReadinessGates,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -870,3 +879,124 @@ def test_canonical_family_a_adapter_uses_only_declared_canonical_fields():
     assert canonical.canonical_cell_factors is not None
     assert canonical.canonical_cell_factors.dilation_tokens == 4096
     assert canonical.canonical_cell_factors.forced_compaction is False
+
+
+def _quality_pass_report(bundle) -> ComplianceIngestReport:
+    source_digest = "sha256:" + "a" * 64
+    record = TrialComplianceRecord(
+        disposition="QUALITY_PASS",
+        analysis_ready=True,
+        job_id="job-dimension",
+        trial_id=bundle.trial_id,
+        cas_uri="cas://sha256:" + "b" * 64,
+        task_name="dimension-task",
+        model_name="model-a",
+        agent_name="agent-a",
+        repeat_group_id="repeat-a",
+        trial_source_digest=source_digest,
+        evaluated_at="2026-08-28T00:00:00Z",
+    )
+    gates = ReadinessGates(
+        job_id=record.job_id,
+        trial_id=record.trial_id,
+        cas_uri=record.cas_uri,
+        model_name=record.model_name,
+        agent_name=record.agent_name,
+        task_name=record.task_name,
+        repeat_eligible=True,
+        sequence_eligible=True,
+        dose_ready=True,
+        alphabet_ready=True,
+        t_lock_contract_present=True,
+        censoring_available=True,
+        gold_set_three_rater_ready=True,
+        join_ready=True,
+    )
+    return ComplianceIngestReport(
+        record=record,
+        gates=gates,
+        lag_ms=1,
+        bloat_clean=True,
+        report_digest="sha256:" + "c" * 64,
+    )
+
+
+def test_projection_dimensions_fail_closed_and_are_idempotent(action_memory_trial_dir: Path):
+    """Missing Data dimensions refuse; complete QUALITY_PASS metadata yields stable identity."""
+    bundle = load_trial_bundle(action_memory_trial_dir)
+    refused = build_projection_dimensions(bundle, None)
+    assert refused.analysis_ready is False
+    assert "MISSING_COMPLIANCE_REPORT" in refused.refusals
+
+    report = _quality_pass_report(bundle)
+    metadata = {
+        "harness_version": "harbor-v1",
+        "scaffold_version": "scaffold-v1",
+        "repeat_group_id": "repeat-a",
+        "dose_axis": "context_bytes",
+        "dose_value": 4096,
+        "dose_unit": "bytes",
+        "alphabet_id": "atif-actions",
+        "alphabet_version": "v1",
+    }
+    first = build_projection_dimensions(bundle, report, metadata=metadata)
+    second = build_projection_dimensions(bundle, report, metadata=metadata)
+    assert first.analysis_ready is True
+    assert first.projection_identity == second.projection_identity
+    assert first.model_name == "model-a"
+
+    backfilled = backfill_benchmark_projection_rows(
+        [{"trial_id": bundle.trial_id, "source_digest": first.source_digest}],
+        [first],
+    )
+    assert backfilled[0]["analysis_ready"] is True
+    assert backfilled[0]["model_name"] == "model-a"
+
+
+def test_benchmark_contrasts_do_not_cross_model_dimensions():
+    """Matched contrasts must never join clean/treatment trials from different model strata."""
+    con = duckdb.connect()
+    con.execute(Path("sql/traj_benchmark_views.sql").read_text(encoding="utf-8"))
+
+    statement = """
+        INSERT INTO action_memory_features (
+            trial_id, family, task_id, seed, cell_id, arm, dose_bytes, construct,
+            causal_grade, task_success, total_tool_calls, model_call_count,
+            raw_binding_opportunities, raw_conflicting_opportunities, binding_matched,
+            stale_value_bound, citation, verifier_truth_digest, model_name, agent_name,
+            task_name, harness_version, scaffold_version, repeat_group_id, dose_axis,
+            dose_value, dose_unit, alphabet_id, alphabet_version, quality_status,
+            report_digest, source_digest, producer_version, projection_identity,
+            dimension_digest, projection_status, analysis_ready, projection_refusals
+        ) VALUES (
+            ?, 'action-memory-v1', 'task-id', 7, 'cell-a', ?, 4096, 'memory',
+            'C1', true, 1, 1, 1, 1, true, false, 'cas:trial', 'sha256:truth',
+            ?, 'agent-a', 'task-name', 'harness-v1', 'scaffold-v1', ?, 'context_bytes',
+            ?, 'bytes', 'atif', 'v1', 'QUALITY_PASS', 'sha256:report',
+            ?, 'benchmark-dimension-quality/v1', ?, ?, 'PROJECTED', true, ''
+        )
+    """
+    for model, arm, trial in (
+        ("model-a", "clean", "a-clean"),
+        ("model-a", "treatment", "a-treatment"),
+        ("model-b", "clean", "b-clean"),
+        ("model-b", "treatment", "b-treatment"),
+    ):
+        con.execute(
+            statement,
+            [
+                trial,
+                arm,
+                model,
+                f"repeat-{model}",
+                4096 if arm == "clean" else 16384,
+                f"sha256:source-{trial}",
+                f"sha256:projection-{trial}",
+                f"sha256:dimension-{trial}",
+            ],
+        )
+
+    rows = con.execute(
+        "SELECT model_name, count(*) FROM v_benchmark_contrasts GROUP BY model_name ORDER BY model_name"
+    ).fetchall()
+    assert rows == [("model-a", 1), ("model-b", 1)]

@@ -12,6 +12,8 @@ from typing import Any, Literal
 
 import pyarrow as pa
 
+from evallab.analysis_capability import FeatureContractRow
+
 FeatureCategory = Literal[
     "identity",
     "mechanical_fact",
@@ -21,6 +23,7 @@ FeatureCategory = Literal[
     "benchmark_l2_metric",
 ]
 FeatureDataType = Literal["VARCHAR", "BIGINT", "DOUBLE", "BOOLEAN"]
+DenominatorPolicy = Literal["required", "not_applicable"]
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,11 @@ class FeatureDefinition:
     description: str
     denominator_sibling: str | None = None
     null_on_zero_denominator: bool = False
+    denominator_policy: DenominatorPolicy | None = None
+    declared_inputs: tuple[str, ...] | None = None
+    available_before_verdict: bool | None = None
+    binary_projection: bool = False
+    is_new_feature: bool = False
     producer_module: str = "evallab.traj"
     construct: str | None = None
     causal_grade: str | None = None
@@ -145,6 +153,44 @@ class FeatureRegistry:
         return errors
 
 
+def audit_denominator_policy(feature: FeatureDefinition) -> str | None:
+    """Return the T1.1 registry verdict for an explicit denominator declaration."""
+    if feature.denominator_policy is None:
+        return "MISSING_DENOMINATOR_APPLICABILITY_DECLARATION"
+    if feature.denominator_policy == "required" and not feature.denominator_sibling:
+        return "MISSING_DENOMINATOR_DECLARATION"
+    if feature.denominator_policy == "required" and not feature.null_on_zero_denominator:
+        return "MISSING_NULL_ON_ZERO_DECLARATION"
+    if feature.denominator_policy == "not_applicable" and (
+        feature.denominator_sibling or feature.null_on_zero_denominator
+    ):
+        return "INVALID_DENOMINATOR_DECLARATION"
+    return None
+
+
+def feature_contract_row(feature: FeatureDefinition) -> FeatureContractRow:
+    """Adapt registry metadata to the immutable T1.1 consumer contract."""
+    return FeatureContractRow(
+        feature_name=feature.column_name,
+        is_new_feature=feature.is_new_feature,
+        declared_inputs=feature.declared_inputs,
+        available_before_verdict=feature.available_before_verdict,
+        denominator_policy=feature.denominator_policy,
+        denominator_sibling=feature.denominator_sibling,
+        null_on_zero_denominator=feature.null_on_zero_denominator,
+        binary_projection=feature.binary_projection,
+    )
+
+
+def audit_registry_denominator_policies() -> dict[str, str]:
+    """Report legacy denominator-policy debt without tightening import-time validation."""
+    return {
+        feature.column_name: verdict
+        for feature in TRAJECTORY_FEATURE_REGISTRY.all_features().values()
+        if (verdict := audit_denominator_policy(feature)) is not None
+    }
+
+
 # Global pre-populated registry instance
 TRAJECTORY_FEATURE_REGISTRY = FeatureRegistry()
 
@@ -161,6 +207,11 @@ def register_trajectory_feature(
     description: str,
     denominator_sibling: str | None = None,
     null_on_zero_denominator: bool = False,
+    denominator_policy: DenominatorPolicy | None = None,
+    declared_inputs: tuple[str, ...] | None = None,
+    available_before_verdict: bool | None = None,
+    binary_projection: bool = False,
+    is_new_feature: bool = False,
     producer_module: str = "evallab.traj",
     construct: str | None = None,
     causal_grade: str | None = None,
@@ -181,6 +232,11 @@ def register_trajectory_feature(
         description=description,
         denominator_sibling=denominator_sibling,
         null_on_zero_denominator=null_on_zero_denominator,
+        denominator_policy=denominator_policy,
+        declared_inputs=declared_inputs,
+        available_before_verdict=available_before_verdict,
+        binary_projection=binary_projection,
+        is_new_feature=is_new_feature,
         producer_module=producer_module,
         construct=construct,
         causal_grade=causal_grade,
@@ -1585,6 +1641,7 @@ def verify_benchmark_feature_coverage(
         ):
             # L1 facts should generally have non-zero yield in valid runs
             zero_yield_features.append(col_name)
+
     passed = len(missing_features) == 0 and len(zero_yield_features) == 0
     return {
         "family": family,
@@ -1593,3 +1650,41 @@ def verify_benchmark_feature_coverage(
         "zero_yield_features": zero_yield_features,
         "diagnostics": yield_diag,
     }
+
+
+# Dimension-safe benchmark projection fields.  These are explicit registry facts,
+# not inferred labels; all must be present before an analysis-ready view admits a row.
+for _name, _type, _rule in (
+    ("cas_uri", "VARCHAR", "Settled Data CAS URI"),
+    ("harness_version", "VARCHAR", "Declared harness version"),
+    ("scaffold_version", "VARCHAR", "Declared agent scaffold version"),
+    ("repeat_group_id", "VARCHAR", "Declared repeated-measure group identifier"),
+    ("dose_axis", "VARCHAR", "Declared treatment dose axis"),
+    ("dose_value", "DOUBLE", "Declared treatment dose value"),
+    ("dose_unit", "VARCHAR", "Declared treatment dose unit"),
+    ("alphabet_id", "VARCHAR", "Declared action alphabet identifier"),
+    ("alphabet_version", "VARCHAR", "Declared action alphabet version"),
+    ("quality_status", "VARCHAR", "Read-only Data compliance disposition"),
+    ("report_digest", "VARCHAR", "Read-only ComplianceIngestReport digest"),
+    ("source_digest", "VARCHAR", "Settled source artifact digest"),
+    ("producer_version", "VARCHAR", "Agent-Data producer version"),
+    ("projection_identity", "VARCHAR", "Idempotent projection identity"),
+    ("dimension_digest", "VARCHAR", "Full join-dimension digest"),
+    ("projection_status", "VARCHAR", "Projected or refused dimension state"),
+    ("projection_refusals", "VARCHAR", "Deterministic projection refusal codes"),
+    ("analysis_ready", "BOOLEAN", "QUALITY_PASS and fully verified join dimensions"),
+):
+    register_trajectory_feature(
+        _name,
+        data_type=_type,
+        category="identity",
+        is_screening=False,
+        source_table="benchmark_projection",
+        formula_or_rule=_rule,
+        null_condition="NULL or false refuses analysis-ready projection",
+        description=_rule,
+        denominator_policy="not_applicable",
+        declared_inputs=(),
+        available_before_verdict=True,
+        producer_module="evallab.interpretation.benchmark_projection",
+    )

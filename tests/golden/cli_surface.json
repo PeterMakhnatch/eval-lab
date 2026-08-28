@@ -5506,6 +5506,20 @@
   "traj benchmark": {
     "options": [
       {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "compliance_report",
+        "flags": [
+          "--compliance-report"
+        ],
+        "help": "Materialized Data ComplianceIngestReport JSON; never invokes the compliance hook",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
+      },
+      {
         "action": "_HelpAction",
         "choices": null,
         "default": "==SUPPRESS==",
@@ -5533,6 +5547,20 @@
         "nargs": 0,
         "required": false,
         "type": null
+      },
+      {
+        "action": "_StoreAction",
+        "choices": null,
+        "default": null,
+        "dest": "projection_metadata",
+        "flags": [
+          "--projection-metadata"
+        ],
+        "help": "Agent-Data dimension JSON: harness/scaffold/repeat/dose/alphabet/source digest",
+        "metavar": null,
+        "nargs": null,
+        "required": false,
+        "type": "Path"
       },
       {
         "action": "_StoreAction",

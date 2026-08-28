@@ -24,10 +24,13 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import urllib.parse
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol, cast
+
+import yaml
 
 from evallab.results import load_job
 from evallab.runner import subscription_environment
@@ -46,11 +49,44 @@ LEAKAGE_DIAGNOSTIC_CODES = frozenset(
 )
 ISOLATION_DIAGNOSTIC_CODES = frozenset(
     {
+        "agent_env_unsupported",
         "build_context_unreadable",
         "build_network_use",
+        "build_proof_invalid",
+        "build_proof_lockfile_mismatch",
+        "build_proof_lockfile_missing",
+        "build_proof_unpinned_dependency",
+        "collect_hooks_invalid",
+        "collect_service_invalid",
+        "compose_build_path_escape",
+        "compose_feature_unsupported",
+        "compose_host_ports_unsupported",
+        "compose_image_unpinned",
+        "compose_main_service_missing",
+        "compose_network_mode_unsupported",
+        "compose_networks_unsupported",
+        "compose_privileged_unsupported",
+        "compose_structure_invalid",
+        "compose_syntax_error",
+        "compose_topology_invalid",
+        "custom_compose_unsupported",
+        "mcp_server_host_invalid",
+        "mcp_server_unbound",
+        "mcp_servers_invalid",
+        "mcp_transport_unsupported",
+        "mcp_url_auth_invalid",
+        "mcp_url_invalid",
+        "mcp_url_path_missing",
+        "mcp_url_port_missing",
+        "mcp_url_scheme_invalid",
         "path_escape",
         "prebuilt_image_unsupported",
+        "solution_env_unsupported",
         "symlink_unsupported",
+        "verifier_collect_unsupported",
+        "verifier_credential_unauthorized",
+        "verifier_env_invalid",
+        "verifier_env_literal_secret",
         "verifier_not_isolated",
         "verifier_network_not_isolated",
         "verifier_phase_network_not_isolated",
@@ -123,10 +159,14 @@ SUPPORTED_TASK_CONFIG: dict[str, frozenset[str] | None] = {
     # verifier image has.
     "verifier.environment": _SUPPORTED_ENVIRONMENT_KEYS - {"docker_image"},
     "environment": _SUPPORTED_ENVIRONMENT_KEYS,
+    "environment.mcp_servers": frozenset({"name", "transport", "url"}),
+    "verifier.collect": frozenset({"command", "service"}),
+    "verifier.env": None,
     # SolutionConfig carries exactly one field, `env` (Harbor 0.21.0
     # models/task/config.py:335-336), so naming it closes the table.
     "solution": frozenset({"env"}),
 }
+
 # Notes for the constructs most likely to be reached, so the refusal explains
 # itself instead of only naming a path.
 _UNSUPPORTED_CONFIG_NOTES: dict[str, str] = {
@@ -201,7 +241,7 @@ _MODELLED_ENVIRONMENT_VALUES: dict[str, _ModelledValue] = {
     "os": _ModelledValue(
         accepts=_is_default_task_os,
         note=(
-            "v1 models only os = 'linux', which is the TaskOS default and therefore "
+            "v1/v2 models only os = 'linux', which is the TaskOS default and therefore "
             "identical to omitting the key. os = 'windows' is refused because Harbor "
             "cannot enforce this workbench's isolation claim there: DockerEnvironment "
             "raises 'Docker network allowlist and dynamic network policy are only "
@@ -210,31 +250,19 @@ _MODELLED_ENVIRONMENT_VALUES: dict[str, _ModelledValue] = {
             "every network_mode other than public "
             "(environments/docker/docker.py:265-275). A Windows task also switches the "
             "file-transfer and exec platform and the artifact convention source, none of "
-            "which v1 reproduces"
+            "which v1/v2 reproduces"
         ),
     ),
     "gpus": _ModelledValue(
         accepts=_is_zero_gpus,
         note=(
-            "v1 models only gpus = 0, which Harbor folds to the same 0 as omitting the "
+            "v1/v2 models only gpus = 0, which Harbor folds to the same 0 as omitting the "
             "key (environments/base.py:367-369). A nonzero request cannot run under the "
             "local controls the workbench executes at all — DockerEnvironment leaves "
             "EnvironmentCapabilities.gpus at False, so Harbor raises 'Task requires N "
             "GPU(s) but docker environment does not support GPU allocation' "
             "(environments/base.py:745-750) — and the GPU-capable environments it steers "
-            "to are cloud providers whose isolation v1 does not model"
-        ),
-    ),
-    "mcp_servers": _ModelledValue(
-        accepts=_is_empty_array,
-        note=(
-            "v1 models only an empty mcp_servers array. Harbor merges every declared "
-            "server straight into the agent's constructor kwargs with no network-policy "
-            "filter (trial/trial.py:829-837), and MCPServerConfig admits both a remote "
-            "url for the sse and streamable-http transports and a command the stdio "
-            "transport spawns (models/task/config.py:616-636). That is an egress and exec "
-            "path granted beside the network_mode this workbench reasons about, and the "
-            "workbench cannot review the server behind it"
+            "to are cloud providers whose isolation v1/v2 does not model"
         ),
     ),
     "env": _ModelledValue(accepts=_is_empty_table, note=_EMPTY_ENV_NOTE),
@@ -248,20 +276,33 @@ _MODELLED_CONSTRUCT_VALUES: dict[str, _ModelledValue] = {
         f"verifier.environment.{key}": model
         for key, model in _MODELLED_ENVIRONMENT_VALUES.items()
     },
-    "verifier.env": _ModelledValue(accepts=_is_empty_table, note=_EMPTY_ENV_NOTE),
-    "solution.env": _ModelledValue(accepts=_is_empty_table, note=_EMPTY_ENV_NOTE),
-    "verifier.collect": _ModelledValue(
+    "verifier.environment.mcp_servers": _ModelledValue(
         accepts=_is_empty_array,
         note=(
-            "v1 models only an empty collect array. Each hook is a shell command Harbor "
-            "runs with service_exec inside a compose service after the agent phase and "
-            "before artifact collection, best-effort, with a nonzero exit only logged "
-            "(trial/trial.py:999-1029). It is therefore an unscanned command executing "
-            "under the agent environment's network policy, in a service the workbench's "
-            "build-context scan never sees"
+            "verifier environment may not declare MCP servers; verifier executes in isolation "
+            "(harbor/trial/trial.py:648-650)"
         ),
     ),
+    "solution.env": _ModelledValue(accepts=_is_empty_table, note=_EMPTY_ENV_NOTE),
 }
+
+_COLLECT_GUARD_CP_PATTERN = re.compile(
+    r"^if\s+\[\s*!\s*-f\s+(?P<dst_guard>/[^\s\]]+)\s*\]\s*&&\s*\[\s*-f\s+(?P<src_guard>/[^\s\]]+)\s*\]\s*;\s*then\s+cp\s+(?:-f\s+)?(?P<src>/[^\s;]+)\s+(?P<dst>/[^\s;]+)\s*;\s*fi$",
+    re.IGNORECASE,
+)
+_COLLECT_SRC_GUARD_CP_PATTERN = re.compile(
+    r"^if\s+\[\s*-f\s+(?P<src_guard>/[^\s\]]+)\s*\]\s*;\s*then\s+cp\s+(?:-f\s+)?(?P<src>/[^\s;]+)\s+(?P<dst>/[^\s;]+)\s*;\s*fi$",
+    re.IGNORECASE,
+)
+_COLLECT_TEST_CP_PATTERN = re.compile(
+    r"^test\s+-f\s+(?P<src_guard>/[^\s&]+)\s*&&\s*cp\s+(?:-f\s+)?(?P<src>/[^\s]+)\s+(?P<dst>/[^\s]+)$",
+    re.IGNORECASE,
+)
+_COLLECT_PLAIN_CP_PATTERN = re.compile(
+    r"^cp\s+(?:-f\s+)?(?P<src>/[^\s]+)\s+(?P<dst>/[^\s]+)$",
+    re.IGNORECASE,
+)
+
 NETWORK_SCRIPT_PATTERN = re.compile(
     r"(?:https?://|\bcurl\b|\bwget\b|\bapt(?:-get)?\b|\bpip(?:3)?\s+install\b|"
     r"\buvx\b|\bnpm\s+(?:install|ci)\b|\byarn\s+install\b|\bgit\s+clone\b|"
@@ -317,6 +358,34 @@ NETWORK_OVERLAY_CONTENT = (
     b"      network: none\n"
     b"    network_mode: none\n"
 )
+
+def _network_overlay_content(sidecar_name: str | None = None) -> bytes:
+    if sidecar_name is None:
+        return NETWORK_OVERLAY_CONTENT
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", sidecar_name):
+        raise WorkbenchError(f"unsafe sidecar service name in frozen candidate: {sidecar_name!r}")
+    return (
+        "services:\n"
+        "  main:\n"
+        "    build:\n"
+        "      network: none\n"
+        "    networks:\n"
+        "      - workbench-internal\n"
+        f"  {sidecar_name}:\n"
+        "    build:\n"
+        "      network: none\n"
+        "    networks:\n"
+        "      - workbench-internal\n"
+        "networks:\n"
+        "  workbench-internal:\n"
+        "    internal: true\n"
+    ).encode()
+
+
+def _candidate_network_overlay(candidate: Mapping[str, Any]) -> bytes:
+    topology = candidate.get("compose_topology")
+    sidecar = topology.get("sidecar_service") if isinstance(topology, Mapping) else None
+    return _network_overlay_content(str(sidecar) if sidecar is not None else None)
 
 Severity = Literal["error", "warning", "info"]
 Classification = Literal["task_defect", "harness_defect", "agent_failure", "expected"]
@@ -495,14 +564,36 @@ class CandidateSource:
     source_ref: str
     license: str
     provenance_zone: ProvenanceZone = "03-synthetic"
+    credentials: tuple[str, ...] = ()
 
-    def to_dict(self) -> dict[str, str]:
-        return {
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
             "source_uri": self.source_uri,
             "source_ref": self.source_ref,
             "license": self.license,
             "provenance_zone": self.provenance_zone,
         }
+        if self.credentials:
+            data["credentials"] = list(self.credentials)
+        return data
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> CandidateSource:
+        raw_creds = value.get("credentials")
+        creds: tuple[str, ...] = (
+            tuple(str(item) for item in raw_creds if isinstance(item, str))
+            if isinstance(raw_creds, (list, tuple))
+            else ()
+        )
+        return cls(
+            source_uri=_required_string(value, "source_uri"),
+            source_ref=_required_string(value, "source_ref"),
+            license=_required_string(value, "license"),
+            provenance_zone=cast(
+                ProvenanceZone, value.get("provenance_zone", "03-synthetic")
+            ),
+            credentials=creds,
+        )
 
 
 @dataclass(frozen=True)
@@ -897,6 +988,9 @@ def _scan_supported_table(
         if key not in allowed:
             diagnostics.append(_unsupported_configuration(child_location))
             continue
+        if key in {"mcp_servers", "collect"} and isinstance(table[key], Mapping):
+            diagnostics.append(_unsupported_configuration(child_location))
+            continue
         model = _MODELLED_CONSTRUCT_VALUES.get(child_spec)
         if model is not None:
             # A key admitted for one value is decided by that value and never
@@ -941,6 +1035,20 @@ def _is_pinned_ref(value: str) -> bool:
     if re.fullmatch(r"local/[a-z0-9][a-z0-9._/-]+@\d+\.\d+(?:\.\d+)?", normalized):
         return True
     return bool(re.fullmatch(r"[a-z0-9][a-z0-9._/-]+@v?\d+(?:\.\d+){0,2}", normalized))
+
+def _is_pinned_image_ref(value: str) -> bool:
+    normalized = value.strip()
+    return bool(
+        re.fullmatch(
+            r"[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}",
+            normalized,
+            re.IGNORECASE,
+        )
+        or re.fullmatch(
+            r"[A-Za-z0-9._/-]+:v?\d+(?:\.\d+){1,2}(?:[-+][A-Za-z0-9.-]+)?",
+            normalized,
+        )
+    )
 
 
 def _validate_source(source: CandidateSource, diagnostics: list[Diagnostic]) -> None:
@@ -1151,19 +1259,54 @@ def _docker_copy_sources(arguments: str) -> tuple[list[str], bool]:
     return tokens[:-1], False
 
 
+def _is_proven_offline_install(line: str) -> bool:
+    """Accept only exact package-manager commands that cannot contact a registry."""
+    normalized = line.strip()
+    if re.fullmatch(r"(?:RUN\s+)?uv\s+sync(?:\s+--[A-Za-z0-9=._/-]+)+", normalized):
+        tokens = normalized.split()
+        return "--offline" in tokens and "--frozen" in tokens
+    if not re.fullmatch(
+        r"(?:RUN\s+)?(?:python(?:3)?\s+-m\s+)?pip(?:3)?\s+install"
+        r"(?:\s+--[A-Za-z0-9=._/-]+|\s+-r\s+\S+)+",
+        normalized,
+    ):
+        return False
+    tokens = shlex.split(normalized)
+    if tokens and tokens[0] == "RUN":
+        tokens = tokens[1:]
+    try:
+        requirement = tokens[tokens.index("-r") + 1]
+    except (ValueError, IndexError):
+        return False
+    requirement_path = PurePosixPath(requirement)
+    local_requirement = bool(
+        re.fullmatch(r"/?[A-Za-z0-9._/-]+", requirement)
+        and ".." not in requirement_path.parts
+        and "//" not in requirement
+        and not urllib.parse.urlsplit(requirement).scheme
+    )
+    return (
+        "--no-index" in tokens
+        and "--require-hashes" in tokens
+        and local_requirement
+    )
+
+
 def _validate_build_network(
-    text: str, relative: str, diagnostics: list[Diagnostic]
+    text: str, relative: str, diagnostics: list[Diagnostic], has_proof: bool = False
 ) -> None:
     for line in _docker_logical_lines(text):
         if line.startswith("#") or re.match(r"(?i)^FROM\s+", line):
             continue
         if BUILD_NETWORK_PATTERN.search(line):
+            if has_proof and _is_proven_offline_install(line):
+                continue
             diagnostics.append(
                 _diag(
                     "build_network_use",
                     relative,
                     "Docker builds may not fetch from a network or invoke an online package "
-                    "manager; use a separately reviewed immutable offline input",
+                    "manager; reviewed proof permits only exact offline frozen installs",
                 )
             )
             return
@@ -1179,105 +1322,774 @@ _BUILD_CONTEXTS: tuple[tuple[str, str], ...] = (
 
 
 # --- The build-context filenames this workbench version claims to understand --
-# A build context holds two kinds of file: inert payload that only matters
-# because a Dockerfile instruction copies it, and *configuration* that Harbor,
-# the Compose CLI, or the Docker builder reads by name. The payload is covered by
-# the content scan below. The configuration namespace is closed and small, and
-# `Dockerfile` is the only member of it this version models, so it is the entire
-# allowlist.
-#
-# Reading Harbor 0.21.0, an environment directory contributes exactly these
-# names:
-#   * `Dockerfile` — `environments/definition.py:7` (`DOCKERFILE_NAME`), used by
-#     `has_agent_environment_definition`, `should_use_prebuilt_docker_image`, and
-#     `DockerEnvironment._dockerfile_path` (docker.py:309).
-#   * `docker-compose.yaml` — `environments/definition.py:8`
-#     (`COMPOSE_FILE_NAME`) and `DockerEnvironment._environment_docker_compose_path`
-#     (docker.py:311-313), layered into `_docker_compose_paths` (docker.py:363-364)
-#     for `docker compose build` as well as `up`, and parsed again by
-#     `_egress_controlled_service_names` (docker.py:381-420).
-#   * `.env` — Harbor invokes `docker compose --project-directory <environment
-#     dir>` (docker.py:620-621) and never passes `--env-file`, so Compose reads
-#     the project directory's `.env` and interpolates it into every `-f`
-#     document, Harbor's own included.
-# Docker's builder adds `.dockerignore`, which decides which of the files the
-# workbench scanned actually reach the image.
-#
-# The refusal is written as a pattern over that namespace rather than as a list
-# of forbidden paths, because a list of forbidden paths is exactly what the
-# earlier rounds walked around: `environment/docker-compose.yaml` was refused by
-# exact path, while the identical two lines under `tests/` — the directory
-# `Trial._verifier_env_build_context` (trial.py:694-702) hands the separate
-# verifier as its environment directory — reached that build and that `up`
-# unexamined. `_egress_controlled_service_names` excludes any service declaring
-# its own `network_mode` or `networks` from the egress-control rewrite that
-# implements `no-network`, so `services: {main: {network_mode: bridge}}` there
-# turned a compliant `task.toml` into a verifier with full egress.
-#
-# Only a context root is consumed by Harbor 0.21.0, but a nested match is
-# refused too: which directory becomes an environment directory is Harbor's
-# choice, not the workbench's, and the cost of a false refusal is renaming a
-# fixture while the cost of a miss is a false certification.
 _COMPOSE_CONFIG_NAME = re.compile(r"^(?:docker-)?compose\b.*\.(?:ya?ml|json)$", re.IGNORECASE)
 _COMPOSE_ENV_CONFIG_NAME = re.compile(r"^\.env(?:\..+)?$", re.IGNORECASE)
 _BUILDER_CONFIG_NAMES = frozenset({".dockerignore"})
 
 
-def _unmodelled_build_config(name: str) -> tuple[str, str] | None:
+def _unmodelled_build_config(name: str, context: str = "environment") -> tuple[str, str] | None:
     """Classify a build-context filename read as configuration but not modelled."""
     if _COMPOSE_CONFIG_NAME.match(name):
+        if context == "environment" and name in {"docker-compose.yaml", "docker-compose.yml"}:
+            return None
         return (
             "custom_compose_unsupported",
             "Harbor layers a Compose file from an environment directory into both "
             "`docker compose build` and `docker compose up`, and excludes any service "
             "that declares its own network_mode or networks from the egress control "
-            "that implements no-network; v1 cannot prove network isolation for "
-            "task-authored Compose services",
+            "that implements no-network; arbitrary task-authored Compose files are "
+            "refused",
         )
     if _COMPOSE_ENV_CONFIG_NAME.match(name):
         return (
             "compose_env_file_unsupported",
             "Harbor runs `docker compose --project-directory` on this directory, so "
             "Compose reads this file and interpolates it into every Compose document "
-            "including its own; v1 does not model task-supplied Compose variables",
+            "including its own; v1/v2 does not model task-supplied Compose variables",
         )
     if name in _BUILDER_CONFIG_NAMES:
         return (
             "build_context_ignore_unsupported",
             "Docker's builder reads this file to drop paths from the build context, so "
-            "the files the workbench scanned would not be the files in the image; v1 "
+            "the files the workbench scanned would not be the files in the image; v1/v2 "
             "certifies a context exactly as it stands",
         )
+    if name in {"build-proof.json", "offline-build-proof.json"}:
+        return None
     return None
 
 
-def _validate_build_context_contents(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
-    """Refuse unmodelled configuration files, then content-scan the payload.
+def _is_exact_dependency_version(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip()
+    if not normalized or normalized.lower() in FLOATING_REFS:
+        return False
+    return bool(
+        re.fullmatch(
+            r"(?:v?[0-9][A-Za-z0-9._+-]*|[0-9a-f]{40,64}|sha256:[0-9a-f]{64}|"
+            r"[A-Za-z0-9._+-]+@sha256:[0-9a-f]{64})",
+            normalized,
+        )
+    )
 
-    Two separate jobs on one traversal.
 
-    First, the filename allowlist. `Dockerfile` is the only name in a build
-    context that Harbor, Compose, or the Docker builder reads as configuration
-    *and* that this version models; `_unmodelled_build_config` refuses the rest
-    of that namespace by name, in every context, so a file Harbor would consume
-    can no longer be silently ignored because it sits in a directory an earlier
-    round did not think to name.
+def _validate_offline_build_proofs(
+    task_dir: Path, diagnostics: list[Diagnostic]
+) -> dict[str, dict[str, Any]]:
+    proofs: dict[str, dict[str, Any]] = {}
+    for context, _image in _BUILD_CONTEXTS:
+        root = task_dir / context
+        if not root.is_dir():
+            continue
+        for proof_name in ("build-proof.json", "offline-build-proof.json"):
+            proof_path = root / proof_name
+            if not proof_path.is_file():
+                continue
+            rel_proof = proof_path.relative_to(task_dir).as_posix()
+            try:
+                data = json.loads(proof_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                diagnostics.append(
+                    _diag("build_proof_invalid", rel_proof, f"build proof is not valid JSON: {exc}")
+                )
+                continue
+            if not isinstance(data, Mapping):
+                diagnostics.append(
+                    _diag("build_proof_invalid", rel_proof, "build proof must be a JSON object")
+                )
+                continue
+            if data.get("kind") != "offline_build_proof":
+                diagnostics.append(
+                    _diag(
+                        "build_proof_invalid",
+                        rel_proof,
+                        "build proof kind must be 'offline_build_proof'",
+                    )
+                )
+                continue
+            ecosystem = data.get("ecosystem")
+            if not isinstance(ecosystem, str) or not ecosystem.strip():
+                diagnostics.append(
+                    _diag("build_proof_invalid", rel_proof, "build proof requires 'ecosystem'")
+                )
+                continue
+            lockfile_rel = data.get("lockfile")
+            if not isinstance(lockfile_rel, str) or not lockfile_rel.strip():
+                diagnostics.append(
+                    _diag("build_proof_invalid", rel_proof, "build proof requires 'lockfile'")
+                )
+                continue
+            lockfile_path = root / lockfile_rel
+            if not lockfile_path.is_file() or not _is_under(lockfile_path, root):
+                diagnostics.append(
+                    _diag(
+                        "build_proof_lockfile_missing",
+                        rel_proof,
+                        f"declared lockfile {lockfile_rel!r} does not exist in build context",
+                    )
+                )
+                continue
+            declared_lock_digest = data.get("lockfile_digest")
+            if not isinstance(declared_lock_digest, str) or not SHA256_PATTERN.match(declared_lock_digest):
+                diagnostics.append(
+                    _diag(
+                        "build_proof_invalid",
+                        rel_proof,
+                        "build proof requires valid sha256 'lockfile_digest'",
+                    )
+                )
+                continue
+            actual_lock_digest = _sha256_file(lockfile_path)
+            if actual_lock_digest != declared_lock_digest:
+                diagnostics.append(
+                    _diag(
+                        "build_proof_lockfile_mismatch",
+                        rel_proof,
+                        f"lockfile digest {actual_lock_digest} does not match declared {declared_lock_digest}",
+                    )
+                )
+                continue
+            pinned_deps = data.get("pinned_dependencies")
+            if not isinstance(pinned_deps, (Mapping, Sequence)) or not pinned_deps:
+                diagnostics.append(
+                    _diag(
+                        "build_proof_invalid",
+                        rel_proof,
+                        "build proof requires non-empty 'pinned_dependencies'",
+                    )
+                )
+                continue
+            has_unpinned = False
+            if isinstance(pinned_deps, Mapping):
+                for dep_name, dep_ver in pinned_deps.items():
+                    if (
+                        not isinstance(dep_name, str)
+                        or not dep_name.strip()
+                        or not _is_exact_dependency_version(dep_ver)
+                    ):
+                        diagnostics.append(
+                            _diag(
+                                "build_proof_unpinned_dependency",
+                                rel_proof,
+                                f"dependency {dep_name!r} has floating/unpinned reference {dep_ver!r}",
+                            )
+                        )
+                        has_unpinned = True
+                        break
+            elif isinstance(pinned_deps, Sequence):
+                for item in pinned_deps:
+                    if not isinstance(item, Mapping) or not item.get("name") or not item.get("version"):
+                        diagnostics.append(
+                            _diag(
+                                "build_proof_invalid",
+                                rel_proof,
+                                "each pinned dependency item must declare name and version",
+                            )
+                        )
+                        has_unpinned = True
+                        break
+                    ver_str = item.get("version")
+                    if not _is_exact_dependency_version(ver_str):
+                        diagnostics.append(
+                            _diag(
+                                "build_proof_unpinned_dependency",
+                                rel_proof,
+                                f"dependency {item.get('name')!r} has floating/unpinned reference {ver_str!r}",
+                            )
+                        )
+                        has_unpinned = True
+                        break
+            if has_unpinned:
+                continue
+            reviewed_by = data.get("reviewed_by")
+            if not isinstance(reviewed_by, str) or not reviewed_by.strip():
+                diagnostics.append(
+                    _diag("build_proof_invalid", rel_proof, "build proof requires 'reviewed_by'")
+                )
+                continue
+            proofs[context] = {
+                "context": context,
+                "proof_path": rel_proof,
+                "lockfile": lockfile_rel,
+                "lockfile_digest": actual_lock_digest,
+                "ecosystem": ecosystem,
+                "reviewed_by": reviewed_by,
+                "pinned_dependencies_count": len(pinned_deps),
+                "proof_digest": _sha256_file(proof_path),
+            }
+    return proofs
 
-    Second, the content scan. `COPY setup.sh /tmp/setup.sh` followed by
-    `RUN sh /tmp/setup.sh` puts every fetch inside a file the Dockerfile never
-    spells out, so scanning Dockerfile lines alone cannot see it. Every regular
-    file in a build context is part of the image built from it, so every one of
-    them is read with the build-time pattern.
 
-    The verifier context is the stricter of the two. Harbor constructs the
-    separate verifier environment with `extra_docker_compose: []`, so the
-    workbench's `build.network=none` overlay never reaches that build and this
-    scan is the only boundary it has. Scanning `tests/` with the runtime pattern
-    alone missed `apk add`, `cargo install`, `go get` and friends.
+def _validate_compose_topology(
+    task_dir: Path, diagnostics: list[Diagnostic]
+) -> tuple[dict[str, Any] | None, str | None]:
+    compose_path = task_dir / "environment/docker-compose.yaml"
+    if not compose_path.is_file():
+        compose_path = task_dir / "environment/docker-compose.yml"
+        if not compose_path.is_file():
+            return None, None
+    rel_path = compose_path.relative_to(task_dir).as_posix()
+    try:
+        raw_text = compose_path.read_text(encoding="utf-8")
+        data = yaml.safe_load(raw_text)
+    except Exception as exc:
+        diagnostics.append(
+            _diag("compose_syntax_error", rel_path, f"docker-compose.yaml syntax error: {exc}")
+        )
+        return None, None
+    if not isinstance(data, Mapping):
+        diagnostics.append(
+            _diag("compose_structure_invalid", rel_path, "docker-compose.yaml must be a mapping")
+        )
+        return None, None
+    for top_key in data:
+        if top_key not in {"services", "version"}:
+            diagnostics.append(
+                _diag(
+                    "custom_compose_unsupported",
+                    rel_path,
+                    f"top-level Compose key {top_key!r} is unsupported; only 'services' is modelled",
+                )
+            )
+    services = data.get("services")
+    if not isinstance(services, Mapping) or not services:
+        diagnostics.append(
+            _diag("compose_structure_invalid", rel_path, "docker-compose.yaml must declare 'services'")
+        )
+        return None, None
+    if "main" not in services:
+        diagnostics.append(
+            _diag("compose_main_service_missing", rel_path, "Compose topology must declare a 'main' service")
+        )
+        return None, None
+    service_names = list(services.keys())
+    if len(service_names) > 2:
+        diagnostics.append(
+            _diag(
+                "compose_topology_invalid",
+                rel_path,
+                f"Compose topology admits at most 2 services ('main' + 1 MCP sidecar), got {len(service_names)}: {service_names}",
+            )
+        )
+    sidecar_name: str | None = None
+    for name in service_names:
+        if name != "main":
+            sidecar_name = name
+            if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name, re.IGNORECASE):
+                diagnostics.append(
+                    _diag("compose_topology_invalid", rel_path, f"sidecar service name {name!r} is invalid")
+                )
+    service_summaries: dict[str, Any] = {}
+    for name, s_config in services.items():
+        if not isinstance(s_config, Mapping):
+            diagnostics.append(
+                _diag("compose_structure_invalid", rel_path, f"service {name!r} configuration must be a mapping")
+            )
+            continue
+        allowed_service_keys = {"build", "image"}
+        dedicated_service_keys = {
+            "network_mode",
+            "networks",
+            "ports",
+            "privileged",
+            "pid",
+            "ipc",
+        }
+        unsupported_service_keys = sorted(
+            set(s_config) - allowed_service_keys - dedicated_service_keys
+        )
+        if unsupported_service_keys:
+            diagnostics.append(
+                _diag(
+                    "compose_service_key_unsupported",
+                    rel_path,
+                    f"service {name!r} uses unsupported keys {unsupported_service_keys}; "
+                    "v2 models only local build or pinned image",
+                )
+            )
+        if "network_mode" in s_config:
+            diagnostics.append(
+                _diag(
+                    "custom_compose_unsupported",
+                    rel_path,
+                    f"service {name!r} declares custom network_mode {s_config['network_mode']!r}",
+                )
+            )
+            continue
+        if "networks" in s_config:
+            diagnostics.append(
+                _diag(
+                    "compose_networks_unsupported",
+                    rel_path,
+                    f"service {name!r} declares custom networks",
+                )
+            )
+        if "ports" in s_config and s_config["ports"]:
+            diagnostics.append(
+                _diag(
+                    "compose_host_ports_unsupported",
+                    rel_path,
+                    f"service {name!r} may not publish host ports",
+                )
+            )
+        if s_config.get("privileged") is True:
+            diagnostics.append(
+                _diag(
+                    "compose_privileged_unsupported",
+                    rel_path,
+                    f"service {name!r} may not request privileged mode",
+                )
+            )
+        if s_config.get("pid") == "host" or s_config.get("ipc") == "host":
+            diagnostics.append(
+                _diag(
+                    "compose_privileged_unsupported",
+                    rel_path,
+                    f"service {name!r} may not share host PID/IPC namespace",
+                )
+            )
+        build_cfg = s_config.get("build")
+        image_cfg = s_config.get("image")
+        build_context_rel: str | None = None
+        if build_cfg is not None:
+            if isinstance(build_cfg, str):
+                ctx_str = build_cfg
+            elif isinstance(build_cfg, Mapping):
+                unsupported_build_keys = sorted(set(build_cfg) - {"context"})
+                if unsupported_build_keys:
+                    diagnostics.append(
+                        _diag(
+                            "compose_build_key_unsupported",
+                            rel_path,
+                            f"service {name!r} build uses unsupported keys {unsupported_build_keys}",
+                        )
+                    )
+                ctx_str = str(build_cfg.get("context", "."))
+            else:
+                ctx_str = "."
+            resolved_ctx = (task_dir / "environment" / ctx_str).resolve()
+            if not _is_under(resolved_ctx, task_dir / "environment"):
+                diagnostics.append(
+                    _diag(
+                        "compose_build_path_escape",
+                        rel_path,
+                        f"service {name!r} build context {ctx_str!r} escapes environment directory",
+                    )
+                )
+            else:
+                build_context_rel = resolved_ctx.relative_to(task_dir).as_posix()
+                nested_dockerfile = resolved_ctx / "Dockerfile"
+                if not nested_dockerfile.is_file():
+                    diagnostics.append(
+                        _diag(
+                            "compose_build_dockerfile_missing",
+                            rel_path,
+                            f"service {name!r} local build context has no Dockerfile",
+                        )
+                    )
+                else:
+                    nested_relative = nested_dockerfile.relative_to(task_dir).as_posix()
+                    nested_text = _read_text(nested_dockerfile)
+                    _validate_build_network(nested_text, nested_relative, diagnostics)
+                    from_lines = [
+                        line
+                        for line in _docker_logical_lines(nested_text)
+                        if re.match(r"(?i)^FROM\s+", line)
+                    ]
+                    if not from_lines:
+                        diagnostics.append(
+                            _diag(
+                                "compose_build_from_missing",
+                                nested_relative,
+                                f"service {name!r} Dockerfile has no FROM instruction",
+                            )
+                        )
+                    for from_line in from_lines:
+                        ref = from_line.split()[1] if len(from_line.split()) >= 2 else ""
+                        if not _is_pinned_image_ref(ref):
+                            diagnostics.append(
+                                _diag(
+                                    "compose_image_unpinned",
+                                    nested_relative,
+                                    f"service {name!r} base image {ref!r} is not immutable",
+                                )
+                            )
+        elif image_cfg is not None:
+            if not isinstance(image_cfg, str) or not _is_pinned_image_ref(image_cfg):
+                diagnostics.append(
+                    _diag(
+                        "compose_image_unpinned",
+                        rel_path,
+                        f"service {name!r} image {image_cfg!r} must be pinned by @sha256 digest or immutable version",
+                    )
+                )
+        else:
+            diagnostics.append(
+                _diag(
+                    "compose_structure_invalid",
+                    rel_path,
+                    f"service {name!r} must declare either 'build' context or pinned 'image'",
+                )
+            )
+        service_summaries[name] = {
+            "name": name,
+            "build_context": build_context_rel,
+            "image": image_cfg if isinstance(image_cfg, str) else None,
+        }
+    topology_record = {
+        "compose_file": rel_path,
+        "services": service_summaries,
+        "sidecar_service": sidecar_name,
+        "digest": _sha256_bytes(_canonical_bytes(data)),
+    }
+    return topology_record, sidecar_name
 
-    Files that cannot be decoded as UTF-8 are refused rather than skipped,
-    matching the fail-closed posture of `_docker_copy_sources`.
-    """
+
+def _validate_mcp_servers(
+    config: Mapping[str, Any],
+    sidecar_name: str | None,
+    diagnostics: list[Diagnostic],
+) -> list[dict[str, Any]]:
+    environment = config.get("environment")
+    if not isinstance(environment, Mapping):
+        return []
+    raw_mcp = environment.get("mcp_servers")
+    if raw_mcp is None or raw_mcp == []:
+        return []
+    if not isinstance(raw_mcp, Sequence) or isinstance(raw_mcp, (str, bytes)):
+        diagnostics.append(
+            _diag(
+                "mcp_servers_invalid",
+                "task.toml",
+                "[environment].mcp_servers must be a list of server tables",
+            )
+        )
+        return []
+    servers: list[dict[str, Any]] = []
+    for idx, item in enumerate(raw_mcp):
+        location = f"environment.mcp_servers[{idx}]"
+        if not isinstance(item, Mapping):
+            diagnostics.append(
+                _diag("mcp_servers_invalid", "task.toml", f"{location} must be a table")
+            )
+            continue
+        name = item.get("name")
+        if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name, re.IGNORECASE):
+            diagnostics.append(
+                _diag("mcp_servers_invalid", "task.toml", f"{location}.name must be a safe identifier")
+            )
+        transport = item.get("transport")
+        if transport != "streamable-http":
+            diagnostics.append(
+                _diag(
+                    "mcp_transport_unsupported",
+                    "task.toml",
+                    f"{location}.transport is {transport!r}; only 'streamable-http' is supported in this v2 slice (stdio/SSE rejected)",
+                )
+            )
+        url_str = item.get("url")
+        if not isinstance(url_str, str) or not url_str.strip():
+            diagnostics.append(
+                _diag("mcp_url_invalid", "task.toml", f"{location}.url must be a non-empty URL string")
+            )
+            continue
+        try:
+            parsed = urllib.parse.urlparse(url_str)
+        except Exception:
+            diagnostics.append(
+                _diag("mcp_url_invalid", "task.toml", f"{location}.url {url_str!r} cannot be parsed")
+            )
+            continue
+        if parsed.scheme.lower() != "http":
+            diagnostics.append(
+                _diag(
+                    "mcp_url_scheme_invalid",
+                    "task.toml",
+                    f"{location}.url scheme is {parsed.scheme!r}; only 'http' is supported for local MCP sidecars",
+                )
+            )
+        if parsed.username or parsed.password:
+            diagnostics.append(
+                _diag(
+                    "mcp_url_auth_invalid",
+                    "task.toml",
+                    f"{location}.url may not contain embedded credentials",
+                )
+            )
+        host = parsed.hostname
+        if not host or host.lower() in {"localhost", "127.0.0.1", "::1"} or re.match(r"^\d+\.\d+\.\d+\.\d+$", host):
+            diagnostics.append(
+                _diag(
+                    "mcp_server_host_invalid",
+                    "task.toml",
+                    f"{location}.url host {host!r} is invalid; must name a declared local Compose service, not localhost or IP",
+                )
+            )
+        elif sidecar_name is None or host != sidecar_name:
+            diagnostics.append(
+                _diag(
+                    "mcp_server_unbound",
+                    "task.toml",
+                    f"{location}.url host {host!r} does not match declared task Compose sidecar service {sidecar_name!r}",
+                )
+            )
+        if parsed.port is None or not (1 <= parsed.port <= 65535):
+            diagnostics.append(
+                _diag(
+                    "mcp_url_port_missing",
+                    "task.toml",
+                    f"{location}.url must specify an explicit port (1-65535)",
+                )
+            )
+        if not parsed.path or parsed.path in {"", "/"}:
+            diagnostics.append(
+                _diag(
+                    "mcp_url_path_missing",
+                    "task.toml",
+                    f"{location}.url must specify an explicit non-empty endpoint path",
+                )
+            )
+        if parsed.query or parsed.fragment:
+            diagnostics.append(
+                _diag(
+                    "mcp_url_invalid",
+                    "task.toml",
+                    f"{location}.url may not contain query parameters or fragments",
+                )
+            )
+        servers.append({
+            "name": str(name),
+            "transport": str(transport),
+            "url": str(url_str),
+            "host": host,
+            "port": parsed.port,
+            "path": parsed.path,
+        })
+    return servers
+
+
+def _validate_verifier_collect(
+    config: Mapping[str, Any],
+    artifacts: list[str],
+    diagnostics: list[Diagnostic],
+) -> list[dict[str, str]]:
+    verifier = config.get("verifier")
+    if not isinstance(verifier, Mapping):
+        return []
+    raw_collect = verifier.get("collect")
+    if raw_collect is None or raw_collect == []:
+        return []
+    if not isinstance(raw_collect, Sequence) or isinstance(raw_collect, (str, bytes)):
+        diagnostics.append(
+            _diag("collect_hooks_invalid", "task.toml", "[verifier.collect] must be a list of hook tables")
+        )
+        return []
+    hooks: list[dict[str, str]] = []
+    artifacts_set = set(artifacts)
+    for idx, item in enumerate(raw_collect):
+        location = f"verifier.collect[{idx}]"
+        if not isinstance(item, Mapping):
+            diagnostics.append(
+                _diag("collect_hooks_invalid", "task.toml", f"{location} must be a table")
+            )
+            continue
+        service = item.get("service")
+        if service != "main":
+            diagnostics.append(
+                _diag(
+                    "collect_service_invalid",
+                    "task.toml",
+                    f"{location}.service is {service!r}; only fixed service 'main' is permitted",
+                )
+            )
+        cmd_raw = item.get("command")
+        if not isinstance(cmd_raw, str) or not cmd_raw.strip():
+            diagnostics.append(
+                _diag("verifier_collect_unsupported", "task.toml", f"{location}.command must be a non-empty string")
+            )
+            continue
+        command = cmd_raw.strip()
+        m = (
+            _COLLECT_GUARD_CP_PATTERN.match(command)
+            or _COLLECT_SRC_GUARD_CP_PATTERN.match(command)
+            or _COLLECT_TEST_CP_PATTERN.match(command)
+            or _COLLECT_PLAIN_CP_PATTERN.match(command)
+        )
+        if not m:
+            diagnostics.append(
+                _diag(
+                    "verifier_collect_unsupported",
+                    "task.toml",
+                    f"{location}.command {command!r} does not match deterministic copy-hook grammar",
+                )
+            )
+            continue
+        groups = m.groupdict()
+        src = groups.get("src", "")
+        dst = groups.get("dst", "")
+        dst_guard = groups.get("dst_guard")
+        src_guard = groups.get("src_guard")
+        if dst_guard is not None and dst_guard != dst:
+            diagnostics.append(
+                _diag(
+                    "verifier_collect_unsupported",
+                    "task.toml",
+                    f"{location}.command destination guard {dst_guard!r} does not match destination {dst!r}",
+                )
+            )
+            continue
+        if src_guard is not None and src_guard != src:
+            diagnostics.append(
+                _diag(
+                    "verifier_collect_unsupported",
+                    "task.toml",
+                    f"{location}.command source guard {src_guard!r} does not match source {src!r}",
+                )
+            )
+            continue
+        pure_src = PurePosixPath(src)
+        pure_dst = PurePosixPath(dst)
+        safe_path = re.compile(r"^/[A-Za-z0-9._/-]+$")
+        if (
+            not safe_path.fullmatch(src)
+            or not pure_src.is_absolute()
+            or ".." in pure_src.parts
+            or "//" in src
+        ):
+            diagnostics.append(
+                _diag(
+                    "verifier_collect_unsupported",
+                    "task.toml",
+                    f"{location}.command source path {src!r} must be an absolute normalized literal path",
+                )
+            )
+            continue
+        if (
+            not safe_path.fullmatch(dst)
+            or not pure_dst.is_absolute()
+            or ".." in pure_dst.parts
+            or "//" in dst
+        ):
+            diagnostics.append(
+                _diag(
+                    "verifier_collect_unsupported",
+                    "task.toml",
+                    f"{location}.command destination path {dst!r} must be an absolute normalized literal path",
+                )
+            )
+            continue
+        if any(part in FORBIDDEN_AGENT_IMAGE_PARTS for part in pure_src.parts):
+            diagnostics.append(
+                _diag(
+                    "verifier_collect_unsupported",
+                    "task.toml",
+                    f"{location}.command source {src!r} exposes hidden task component",
+                )
+            )
+            continue
+        if dst not in artifacts_set:
+            diagnostics.append(
+                _diag(
+                    "verifier_collect_unsupported",
+                    "task.toml",
+                    f"{location}.command destination {dst!r} is not declared in artifacts {sorted(artifacts_set)}",
+                )
+            )
+            continue
+        hooks.append({"service": "main", "command": command, "src": src, "dst": dst})
+    return hooks
+
+
+def _validate_verifier_env(
+    config: Mapping[str, Any],
+    source: CandidateSource,
+    diagnostics: list[Diagnostic],
+) -> list[str]:
+    verifier = config.get("verifier")
+    if not isinstance(verifier, Mapping):
+        return []
+    v_env = verifier.get("env")
+    if v_env is None or v_env == {}:
+        return []
+    if not isinstance(v_env, Mapping):
+        diagnostics.append(
+            _diag("verifier_env_invalid", "task.toml", "[verifier.env] must be a table of environment variables")
+        )
+        return []
+    allowed_credentials = set(source.credentials)
+    validated_vars: list[str] = []
+    for key, value in sorted(v_env.items()):
+        location = f"verifier.env.{key}"
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_]+", key):
+            diagnostics.append(
+                _diag("verifier_env_invalid", "task.toml", f"{location} variable name is invalid")
+            )
+            continue
+        if not isinstance(value, str):
+            diagnostics.append(
+                _diag("verifier_env_literal_secret", "task.toml", f"{location} value must be a placeholder string")
+            )
+            continue
+        match = re.fullmatch(r"^\$\{([A-Za-z0-9_]+)\}$|^\$([A-Za-z0-9_]+)$", value.strip())
+        if not match:
+            diagnostics.append(
+                _diag(
+                    "verifier_env_literal_secret",
+                    "task.toml",
+                    f"{location} contains a literal value or complex interpolation {value!r}; only simple placeholders '${{VAR}}' are allowed",
+                )
+            )
+            continue
+        var_ref = match.group(1) or match.group(2)
+        if var_ref not in allowed_credentials:
+            diagnostics.append(
+                _diag(
+                    "verifier_credential_unauthorized",
+                    "task.toml",
+                    f"{location} references credential {var_ref!r} which is not declared in source metadata credentials {sorted(allowed_credentials)}",
+                )
+            )
+            continue
+        if key != var_ref:
+            diagnostics.append(
+                _diag(
+                    "verifier_credential_alias_unsupported",
+                    "task.toml",
+                    f"{location} must use the same declared credential name on both sides of the placeholder",
+                )
+            )
+            continue
+        validated_vars.append(key)
+    env_cfg = config.get("environment")
+    if isinstance(env_cfg, Mapping):
+        agent_env = env_cfg.get("env")
+        if isinstance(agent_env, Mapping) and agent_env:
+            diagnostics.append(
+                _diag(
+                    "agent_env_unsupported",
+                    "task.toml",
+                    "[environment].env must remain empty; credentials may not propagate to agent",
+                )
+            )
+    sol_cfg = config.get("solution")
+    if isinstance(sol_cfg, Mapping):
+        sol_env = sol_cfg.get("env")
+        if isinstance(sol_env, Mapping) and sol_env:
+            diagnostics.append(
+                _diag(
+                    "solution_env_unsupported",
+                    "task.toml",
+                    "[solution].env must remain empty; credentials may not propagate to solution",
+                )
+            )
+    return validated_vars
+
+
+def _validate_build_context_contents(
+    task_dir: Path, diagnostics: list[Diagnostic], build_proofs: Mapping[str, Any] | None = None
+) -> None:
+    """Refuse unmodelled configuration files, then content-scan the payload."""
     for context, image in _BUILD_CONTEXTS:
         root = task_dir / context
         if not root.is_dir():
@@ -1288,17 +2100,17 @@ def _validate_build_context_contents(task_dir: Path, diagnostics: list[Diagnosti
                 continue
             relative = path.relative_to(task_dir).as_posix()
             if relative == dockerfile:
-                # Already scanned with Dockerfile line semantics (continuations
-                # joined, comments and FROM references exempt).
                 continue
-            unmodelled = _unmodelled_build_config(path.name)
+            if context == "environment" and path.name in {"docker-compose.yaml", "docker-compose.yml"}:
+                continue
+            if path.name in {"build-proof.json", "offline-build-proof.json"}:
+                continue
+            unmodelled = _unmodelled_build_config(path.name, context)
             if unmodelled is not None:
                 code, detail = unmodelled
                 diagnostics.append(
                     _diag(code, relative, f"{detail}; refused in the build context for {image}")
                 )
-                # The refusal already names the file; a content finding on the
-                # same path would only add noise to a report that is over.
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
@@ -1314,15 +2126,25 @@ def _validate_build_context_contents(task_dir: Path, diagnostics: list[Diagnosti
                 )
                 continue
             if BUILD_NETWORK_PATTERN.search(text):
-                diagnostics.append(
-                    _diag(
-                        "build_network_use",
-                        relative,
-                        f"files in the build context for {image} may not fetch from a network "
-                        "or invoke an online package manager, including from a script the "
-                        "Dockerfile runs",
+                unapproved = any(
+                    BUILD_NETWORK_PATTERN.search(line)
+                    and not (
+                        build_proofs
+                        and context in build_proofs
+                        and _is_proven_offline_install(line)
                     )
+                    for line in _docker_logical_lines(text)
                 )
+                if unapproved:
+                    diagnostics.append(
+                        _diag(
+                            "build_network_use",
+                            relative,
+                            f"files in the build context for {image} may not fetch from a network "
+                            "or invoke an online package manager; proof permits only exact offline "
+                            "frozen installs",
+                        )
+                    )
 
 
 def _is_remote_docker_source(source: str) -> bool:
@@ -1333,12 +2155,14 @@ def _is_remote_docker_source(source: str) -> bool:
     )
 
 
-def _validate_dockerfile(task_dir: Path, diagnostics: list[Diagnostic]) -> str | None:
+def _validate_dockerfile(
+    task_dir: Path, diagnostics: list[Diagnostic], has_proof: bool = False
+) -> str | None:
     path = task_dir / "environment/Dockerfile"
     if not path.is_file():
         return None
     text = _read_text(path)
-    _validate_build_network(text, "environment/Dockerfile", diagnostics)
+    _validate_build_network(text, "environment/Dockerfile", diagnostics, has_proof=has_proof)
     base_ref: str | None = None
     for line in _docker_logical_lines(text):
         if line.startswith("#"):
@@ -1396,51 +2220,54 @@ def _validate_dockerfile(task_dir: Path, diagnostics: list[Diagnostic]) -> str |
                     )
 
     normalized = text.replace("\\\n", " ")
-    for match in re.finditer(r"\bpip(?:3)?\s+install\s+([^;&\n]+)", normalized, re.IGNORECASE):
-        try:
-            dependencies = [
-                item for item in shlex.split(match.group(1)) if not item.startswith("-")
-            ]
-        except ValueError:
-            dependencies = []
-        for dependency in dependencies:
-            if "==" not in dependency and "@" not in dependency:
-                diagnostics.append(
-                    _diag(
-                        "dependency_unpinned",
-                        "environment/Dockerfile",
-                        "pip dependencies must use exact == or immutable @ pins",
+    if not has_proof:
+        for match in re.finditer(r"\bpip(?:3)?\s+install\s+([^;&\n]+)", normalized, re.IGNORECASE):
+            try:
+                dependencies = [
+                    item for item in shlex.split(match.group(1)) if not item.startswith("-")
+                ]
+            except ValueError:
+                dependencies = []
+            for dependency in dependencies:
+                if "==" not in dependency and "@" not in dependency:
+                    diagnostics.append(
+                        _diag(
+                            "dependency_unpinned",
+                            "environment/Dockerfile",
+                            "pip dependencies must use exact == or immutable @ pins",
+                        )
                     )
-                )
-                break
-    for match in re.finditer(r"\bapt(?:-get)?\s+install\s+([^;&\n]+)", normalized, re.IGNORECASE):
-        try:
-            dependencies = [
-                item for item in shlex.split(match.group(1)) if not item.startswith("-")
-            ]
-        except ValueError:
-            dependencies = []
-        for dependency in dependencies:
-            if dependency in {"install"}:
-                continue
-            if "=" not in dependency:
-                diagnostics.append(
-                    _diag(
-                        "dependency_unpinned",
-                        "environment/Dockerfile",
-                        "apt dependencies must use exact package=version pins",
+                    break
+        for match in re.finditer(r"\bapt(?:-get)?\s+install\s+([^;&\n]+)", normalized, re.IGNORECASE):
+            try:
+                dependencies = [
+                    item for item in shlex.split(match.group(1)) if not item.startswith("-")
+                ]
+            except ValueError:
+                dependencies = []
+            for dependency in dependencies:
+                if dependency in {"install"}:
+                    continue
+                if "=" not in dependency:
+                    diagnostics.append(
+                        _diag(
+                            "dependency_unpinned",
+                            "environment/Dockerfile",
+                            "apt dependencies must use exact package=version pins",
+                        )
                     )
-                )
-                break
+                    break
     return base_ref
 
 
-def _validate_verifier_image(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
+def _validate_verifier_image(
+    task_dir: Path, diagnostics: list[Diagnostic], has_proof: bool = False
+) -> None:
     path = task_dir / "tests/Dockerfile"
     if not path.is_file():
         return
     text = _read_text(path)
-    _validate_build_network(text, "tests/Dockerfile", diagnostics)
+    _validate_build_network(text, "tests/Dockerfile", diagnostics, has_proof=has_proof)
     found_from = False
     for line in _docker_logical_lines(text):
         if line.startswith("#") or not re.match(r"(?i)^FROM\s+", line):
@@ -1470,7 +2297,6 @@ def _validate_verifier_image(task_dir: Path, diagnostics: list[Diagnostic]) -> N
                 "separate verifier Dockerfile must declare a FROM image",
             )
         )
-
 
 def _effective_verifier_network(config: Mapping[str, Any]) -> tuple[str, str, str]:
     """Resolve the verifier's effective network modes the way Harbor 0.21.0 does.
@@ -1970,9 +2796,18 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     _validate_supported_configuration(config, diagnostics)
     task_name, task_version, keywords = _validate_task_metadata(config, task_dir, diagnostics)
     artifacts = _validate_timeouts_and_artifacts(config, diagnostics)
-    base_image = _validate_dockerfile(task_dir, diagnostics)
-    _validate_build_context_contents(task_dir, diagnostics)
-    _validate_verifier_image(task_dir, diagnostics)
+    compose_topology, sidecar_name = _validate_compose_topology(task_dir, diagnostics)
+    build_proofs = _validate_offline_build_proofs(task_dir, diagnostics)
+    mcp_servers = _validate_mcp_servers(config, sidecar_name, diagnostics)
+    collect_hooks = _validate_verifier_collect(config, artifacts, diagnostics)
+    _validate_verifier_env(config, source, diagnostics)
+    base_image = _validate_dockerfile(
+        task_dir, diagnostics, has_proof=("environment" in build_proofs)
+    )
+    _validate_build_context_contents(task_dir, diagnostics, build_proofs)
+    _validate_verifier_image(
+        task_dir, diagnostics, has_proof=("tests" in build_proofs)
+    )
     _validate_network_and_isolation(config, task_dir, diagnostics)
     verifier_baseline, verifier_phase, _verifier_origin = _effective_verifier_network(config)
     _validate_golden_leak(task_dir, diagnostics)
@@ -2035,6 +2870,7 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
         fair_alternative,
         please_hack,
     )
+    control_overlay = _network_overlay_content(sidecar_name)
     candidate: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "task_workbench_candidate",
@@ -2066,7 +2902,7 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
             "control_enforcement": (
                 "docker-compose main build.network=none and network_mode=none"
             ),
-            "control_overlay_digest": _sha256_bytes(NETWORK_OVERLAY_CONTENT),
+            "control_overlay_digest": _sha256_bytes(control_overlay),
         },
         "keywords": keywords,
         "artifacts": artifacts,
@@ -2099,6 +2935,16 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
             "required_next_actor": "human-created library/registry record",
         },
     }
+    if compose_topology is not None:
+        candidate["compose_topology"] = compose_topology
+    if mcp_servers:
+        candidate["mcp_servers"] = mcp_servers
+    if build_proofs:
+        candidate["offline_build_proofs"] = build_proofs
+    if collect_hooks:
+        candidate["collect_hooks"] = collect_hooks
+    if source.credentials:
+        candidate["credentials"] = list(source.credentials)
     candidate["candidate_record_digest"] = _sha256_bytes(_canonical_bytes(candidate))
     return Inspection(
         candidate=candidate,
@@ -2187,12 +3033,7 @@ def _source_from_candidate(candidate: Mapping[str, Any]) -> CandidateSource:
     zone = _required_string(raw, "provenance_zone")
     if zone not in {"01-external", "02-local-evidence", "03-synthetic", "04-curated"}:
         raise WorkbenchError("frozen source provenance_zone is invalid")
-    return CandidateSource(
-        source_uri=_required_string(raw, "source_uri"),
-        source_ref=_required_string(raw, "source_ref"),
-        license=_required_string(raw, "license"),
-        provenance_zone=zone,
-    )
+    return CandidateSource.from_dict(raw)
 
 
 def _reinspect_frozen_candidate(
@@ -2390,7 +3231,7 @@ class HarborControlBackend:
             solution.chmod(mutation.stat().st_mode)
         overlay = stage / NETWORK_OVERLAY_RELATIVE
         overlay.parent.mkdir(parents=True, exist_ok=True)
-        overlay.write_bytes(NETWORK_OVERLAY_CONTENT)
+        overlay.write_bytes(_candidate_network_overlay(candidate))
         staged_digest = _tree_digest(stage)
         if staged_digest != _expected_stage_digest(candidate, plan):
             raise WorkbenchError("isolated staged task bytes do not match the frozen control plan")
@@ -2761,8 +3602,8 @@ def _expected_stage_digest(
             "path": NETWORK_OVERLAY_RELATIVE,
             "role": "image",
             "type": "file",
-            "size_bytes": len(NETWORK_OVERLAY_CONTENT),
-            "digest": _sha256_bytes(NETWORK_OVERLAY_CONTENT),
+            "size_bytes": len(_candidate_network_overlay(candidate)),
+            "digest": _sha256_bytes(_candidate_network_overlay(candidate)),
         }
     )
     tree_payload = [
@@ -2875,7 +3716,7 @@ def _validate_control_evidence(
         )
     else:
         overlay = stage / NETWORK_OVERLAY_RELATIVE
-        if not overlay.is_file() or overlay.read_bytes() != NETWORK_OVERLAY_CONTENT:
+        if not overlay.is_file() or overlay.read_bytes() != _candidate_network_overlay(inspection.candidate):
             diagnostics.append(
                 _diag(
                     "control_network_isolation_missing",
@@ -2980,7 +3821,7 @@ def _validate_control_evidence(
         == [
             {
                 "path": expected_overlay_path,
-                "digest": _sha256_bytes(NETWORK_OVERLAY_CONTENT),
+                "digest": _sha256_bytes(_candidate_network_overlay(inspection.candidate)),
             }
         ]
         and isinstance(lock_verifier, Mapping)
@@ -3626,11 +4467,14 @@ def write_packet(
 
 
 def _source_from_args(args: argparse.Namespace) -> CandidateSource:
+    raw_creds = getattr(args, "credentials", None) or ()
+    creds = tuple(str(item) for item in raw_creds) if isinstance(raw_creds, (list, tuple)) else ()
     return CandidateSource(
         source_uri=args.source_uri,
         source_ref=args.source_ref,
         license=args.license,
         provenance_zone=args.zone,
+        credentials=creds,
     )
 
 
@@ -3644,6 +4488,14 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
         "--zone",
         choices=("01-external", "02-local-evidence", "03-synthetic", "04-curated"),
         default="03-synthetic",
+    )
+    parser.add_argument(
+        "--credential",
+        "--credentials",
+        dest="credentials",
+        action="append",
+        default=[],
+        help="Declared host credential names authorized for verifier environment placeholders",
     )
 
 

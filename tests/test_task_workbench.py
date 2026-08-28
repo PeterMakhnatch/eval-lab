@@ -42,6 +42,7 @@ from evallab.task_workbench import (
     PacketConflictError,
     UnsafePathError,
     WorkbenchError,
+    _candidate_network_overlay,
     _effective_verifier_network,
     _harbor_task_digest,
     _registry_package_digest,
@@ -216,7 +217,7 @@ class FixtureBackend:
             shutil.copyfile(mutation, stage / "solution/solve.sh")
         overlay = stage / NETWORK_OVERLAY_RELATIVE
         overlay.parent.mkdir(parents=True, exist_ok=True)
-        overlay.write_bytes(NETWORK_OVERLAY_CONTENT)
+        overlay.write_bytes(_candidate_network_overlay(candidate))
         staged_digest = _tree_digest(stage)
         verifier_output_digest = None
         evidence_digest = None
@@ -279,7 +280,7 @@ class FixtureBackend:
                         "extra_docker_compose": [
                             {
                                 "path": overlay_path,
-                                "digest": _digest(NETWORK_OVERLAY_CONTENT),
+                                "digest": _digest(_candidate_network_overlay(candidate)),
                             }
                         ],
                         "verifier": {
@@ -1040,21 +1041,9 @@ def test_inert_declarations_do_not_change_the_frozen_candidate_identity(
         ('network_mode = "no-network"', 'os = "Windows"\n', "environment.os"),
         ('network_mode = "no-network"', "gpus = 1\n", "environment.gpus"),
         ('network_mode = "no-network"', "gpus = true\n", "environment.gpus"),
-        (
-            'network_mode = "no-network"',
-            'mcp_servers = [{ name = "docs", url = "https://example.invalid" }]\n',
-            "environment.mcp_servers",
-        ),
-        (
-            'network_mode = "no-network"',
-            'mcp_servers = [{ name = "local", transport = "stdio", command = "/bin/sh" }]\n',
-            "environment.mcp_servers",
-        ),
         ('network_mode = "no-network"', 'env = { TOKEN = "${TOKEN}" }\n', "environment.env"),
         ('network_mode = "no-network"', 'env = { SEED = "1" }\n', "environment.env"),
         # verifier.* and solution.* — appended as their own tables.
-        (None, '[[verifier.collect]]\ncommand = "pg_dump > /tmp/state.sql"\n', "verifier.collect"),
-        (None, '[verifier.env]\nOPENAI_API_KEY = "${OPENAI_API_KEY}"\n', "verifier.env"),
         (None, '[solution.env]\nSEED = "1"\n', "solution.env"),
         # The same value models must hold on the verifier side of the surface.
         (
@@ -1192,20 +1181,20 @@ def test_every_key_admitted_for_one_value_arrives_with_that_value_model() -> Non
         "collect",
         "env",
     }
+    assert SUPPORTED_TASK_CONFIG["environment.mcp_servers"] == {"name", "transport", "url"}
+    assert SUPPORTED_TASK_CONFIG["verifier.collect"] == {"command", "service"}
+    assert SUPPORTED_TASK_CONFIG["verifier.env"] is None
     assert SUPPORTED_TASK_CONFIG["solution"] == {"env"}
 
     # Every key admitted for exactly one value carries the model that decides it.
     admitted_for_one_value = {
         "environment.os",
         "environment.gpus",
-        "environment.mcp_servers",
         "environment.env",
         "verifier.environment.os",
         "verifier.environment.gpus",
         "verifier.environment.mcp_servers",
         "verifier.environment.env",
-        "verifier.collect",
-        "verifier.env",
         "solution.env",
     }
     assert set(_MODELLED_CONSTRUCT_VALUES) == admitted_for_one_value
@@ -2188,3 +2177,623 @@ def test_load_bundle_fixture_file_and_unknown_json_fail_closed(tmp_path: Path) -
     path.write_text("{not-json")
     with pytest.raises(WorkbenchError, match="invalid control bundle"):
         load_control_bundle(path)
+
+# --- V2: Local MCP, Compose, Collect Hooks, Credentials, Offline Build Proofs ---
+
+
+def test_v2_mcp_servers_accepted_and_rejected(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "mcp-base")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+    )
+
+    stdio_task = task / "task.toml"
+    base_toml = stdio_task.read_text()
+
+    # 1a. Transport is stdio -> rejected
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "stdio", url = "http://mcp-server:8000/mcp" }]',
+        )
+    )
+    stdio_insp = _inspect(repo, task)
+    assert not stdio_insp.static_passed
+    assert "mcp_transport_unsupported" in _codes(stdio_insp)
+
+    # 1b. Transport is sse -> rejected
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "sse", url = "http://mcp-server:8000/mcp" }]',
+        )
+    )
+    sse_insp = _inspect(repo, task)
+    assert not sse_insp.static_passed
+    assert "mcp_transport_unsupported" in _codes(sse_insp)
+
+    # 1c. Scheme is https -> rejected
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "streamable-http", url = "https://mcp-server:8000/mcp" }]',
+        )
+    )
+    https_insp = _inspect(repo, task)
+    assert not https_insp.static_passed
+    assert "mcp_url_scheme_invalid" in _codes(https_insp)
+
+    # 1d. Host is localhost / 127.0.0.1 -> rejected
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "streamable-http", url = "http://localhost:8000/mcp" }]',
+        )
+    )
+    lh_insp = _inspect(repo, task)
+    assert not lh_insp.static_passed
+    assert "mcp_server_host_invalid" in _codes(lh_insp)
+
+    # 1e. Host is unbound (names undeclared compose service) -> rejected
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "streamable-http", url = "http://other-service:8000/mcp" }]',
+        )
+    )
+    unbound_insp = _inspect(repo, task)
+    assert not unbound_insp.static_passed
+    assert "mcp_server_unbound" in _codes(unbound_insp)
+
+    # 1f. Port missing -> rejected
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "streamable-http", url = "http://mcp-server/mcp" }]',
+        )
+    )
+    noport_insp = _inspect(repo, task)
+    assert not noport_insp.static_passed
+    assert "mcp_url_port_missing" in _codes(noport_insp)
+
+    # 1g. Path missing -> rejected
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "streamable-http", url = "http://mcp-server:8000/" }]',
+        )
+    )
+    nopath_insp = _inspect(repo, task)
+    assert not nopath_insp.static_passed
+    assert "mcp_url_path_missing" in _codes(nopath_insp)
+
+    # 1h. URL auth -> rejected
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "streamable-http", url = "http://user:pass@mcp-server:8000/mcp" }]',
+        )
+    )
+    auth_insp = _inspect(repo, task)
+    assert not auth_insp.static_passed
+    assert "mcp_url_auth_invalid" in _codes(auth_insp)
+
+    # 2. Accepted path: streamable-http with matching compose sidecar
+    stdio_task.write_text(
+        base_toml.replace(
+            "storage_mb = 512",
+            'storage_mb = 512\nmcp_servers = [{ name = "local", transport = "streamable-http", url = "http://mcp-server:8000/mcp" }]',
+        )
+    )
+    accepted_insp = _inspect(repo, task)
+    assert accepted_insp.static_passed, _codes(accepted_insp)
+    assert accepted_insp.candidate.get("mcp_servers") == [
+        {
+            "name": "local",
+            "transport": "streamable-http",
+            "url": "http://mcp-server:8000/mcp",
+            "host": "mcp-server",
+            "port": 8000,
+            "path": "/mcp",
+        }
+    ]
+
+
+def test_v2_compose_topology_accepted_and_rejected(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "compose-base")
+    compose_path = task / "environment/docker-compose.yaml"
+
+    # 1. Negative control: top-level custom networks
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "networks:\n"
+        "  custom:\n"
+    )
+    assert "custom_compose_unsupported" in _codes(_inspect(repo, task))
+
+    # 2. Negative control: service network_mode
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "    network_mode: host\n"
+    )
+    assert "custom_compose_unsupported" in _codes(_inspect(repo, task))
+
+    # 3. Negative control: service custom networks
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - default\n"
+    )
+    assert "compose_networks_unsupported" in _codes(_inspect(repo, task))
+
+    # 4. Negative control: published host ports
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "    ports:\n"
+        '      - "8080:8080"\n'
+    )
+    assert "compose_host_ports_unsupported" in _codes(_inspect(repo, task))
+
+    # 5. Negative control: privileged: true
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "    privileged: true\n"
+    )
+    assert "compose_privileged_unsupported" in _codes(_inspect(repo, task))
+
+    # 6. Negative control: missing main service
+    compose_path.write_text(
+        "services:\n"
+        "  worker:\n"
+        "    build: .\n"
+    )
+    assert "compose_main_service_missing" in _codes(_inspect(repo, task))
+
+    # 7. Negative control: 3 services
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  sidecar1:\n"
+        "    build: .\n"
+        "  sidecar2:\n"
+        "    build: .\n"
+    )
+    assert "compose_topology_invalid" in _codes(_inspect(repo, task))
+
+    # 8. Negative control: build context escaping environment
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: ../solution\n"
+    )
+    assert "compose_build_path_escape" in _codes(_inspect(repo, task))
+
+    # 9. Negative control: unpinned image ref
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  sidecar:\n"
+        '    image: "mcp-service:latest"\n'
+    )
+    assert "compose_image_unpinned" in _codes(_inspect(repo, task))
+
+    # 10. Accepted path: main (build: .) + sidecar (build: .)
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+    )
+    insp = _inspect(repo, task)
+    assert insp.static_passed, _codes(insp)
+    assert "compose_topology" in insp.candidate
+    overlay = yaml.safe_load(_candidate_network_overlay(insp.candidate))
+    assert overlay["networks"]["workbench-internal"]["internal"] is True
+    assert set(overlay["services"]) == {"main", "mcp-server"}
+    assert overlay["services"]["main"]["networks"] == ["workbench-internal"]
+    assert overlay["services"]["mcp-server"]["networks"] == ["workbench-internal"]
+
+
+@pytest.mark.parametrize(
+    "fragment",
+    [
+        "    volumes:\n      - /:/host\n",
+        "    command: curl https://example.invalid\n",
+        "    entrypoint: /bin/sh\n",
+        "    cap_add:\n      - SYS_ADMIN\n",
+        "    devices:\n      - /dev/null:/dev/escape\n",
+        "    env_file: .env\n",
+        "    environment:\n      SECRET: value\n",
+    ],
+)
+def test_v2_compose_rejects_unmodelled_service_execution_surfaces(
+    tmp_path: Path, fragment: str
+) -> None:
+    repo, task = _copy_candidate(tmp_path / "compose-service-surface")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        + fragment
+    )
+    assert "compose_service_key_unsupported" in _codes(_inspect(repo, task))
+
+
+def test_v2_compose_scans_nested_sidecar_dockerfile(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "compose-nested-docker")
+    sidecar = task / "environment/sidecar"
+    sidecar.mkdir()
+    (sidecar / "Dockerfile").write_text("FROM alpine:latest\n")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: ./sidecar\n"
+    )
+    assert "compose_image_unpinned" in _codes(_inspect(repo, task))
+
+
+def test_v2_verifier_collect_accepted_and_rejected(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "collect-base")
+    task_toml = task / "task.toml"
+    base_toml = task_toml.read_text()
+
+    # 1. Negative control: service is not main
+    task_toml.write_text(
+        base_toml + '\n[[verifier.collect]]\nservice = "mcp-server"\ncommand = "cp /logs/out.txt /app/output/result.txt"\n'
+    )
+    insp = _inspect(repo, task)
+    assert "collect_service_invalid" in _codes(insp)
+
+    # 2. Negative control: arbitrary shell command (pg_dump)
+    task_toml.write_text(
+        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "pg_dump > /tmp/state.sql"\n'
+    )
+    insp = _inspect(repo, task)
+    assert "verifier_collect_unsupported" in _codes(insp)
+
+    # 3. Negative control: pipeline
+    task_toml.write_text(
+        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cat /logs/a | tee /app/output/result.txt"\n'
+    )
+    assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
+
+    # 4. Negative control: path traversal in source
+    task_toml.write_text(
+        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/../etc/passwd /app/output/result.txt"\n'
+    )
+    assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
+
+    # 5. Negative control: globs in source
+    task_toml.write_text(
+        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/*.txt /app/output/result.txt"\n'
+    )
+    assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
+
+    # 5b. Negative control: shell command substitution in a path
+    task_toml.write_text(
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "main"\n'
+        + 'command = "cp /logs/$(id).txt /app/output/result.txt"\n'
+    )
+    assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
+
+    # 5c. Negative control: backtick substitution in a path
+    task_toml.write_text(
+        base_toml
+        + '\n[[verifier.collect]]\nservice = "main"\n'
+        + 'command = "cp /logs/out.txt /app/output/`id`.txt"\n'
+    )
+    assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
+
+    # 6. Negative control: destination not in artifacts
+    task_toml.write_text(
+        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /logs/out.txt /app/undeclared.txt"\n'
+    )
+    assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
+
+    # 7. Negative control: source exposes forbidden solution/tests
+    task_toml.write_text(
+        base_toml + '\n[[verifier.collect]]\nservice = "main"\ncommand = "cp /solution/solve.sh /app/output/result.txt"\n'
+    )
+    assert "verifier_collect_unsupported" in _codes(_inspect(repo, task))
+
+    # 8. Accepted path: guard form
+    task_toml.write_text(
+        base_toml + (
+            '\n[[verifier.collect]]\n'
+            'service = "main"\n'
+            'command = "if [ ! -f /app/output/result.txt ] && [ -f /logs/agent/result.txt ]; then cp /logs/agent/result.txt /app/output/result.txt; fi"\n'
+        )
+    )
+    insp = _inspect(repo, task)
+    assert insp.static_passed, _codes(insp)
+    assert "collect_hooks" in insp.candidate
+
+
+def test_v2_verifier_env_credentials_accepted_and_rejected(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "env-creds")
+    task_toml = task / "task.toml"
+    base_toml = task_toml.read_text()
+
+    source_with_creds = CandidateSource(
+        source_uri="https://example.invalid/eval-lab/uppercase-fixture.git",
+        source_ref="v1.0.0",
+        license="MIT",
+        provenance_zone="03-synthetic",
+        credentials=("SIMULATED_USER", "OPENAI_API_KEY"),
+    )
+
+    # 1. Negative control: literal secret in verifier.env
+    task_toml.write_text(base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "sk-1234567890abcdef"\n')
+    insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
+    assert "verifier_env_literal_secret" in _codes(insp)
+
+    # 2. Negative control: default expression containing secret
+    task_toml.write_text(base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${OPENAI_API_KEY:-fallback_secret}"\n')
+    insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
+    assert "verifier_env_literal_secret" in _codes(insp)
+
+    # 3. Negative control: unauthorized credential not in source metadata allowlist
+    task_toml.write_text(base_toml + '\n[verifier.env]\nUNAUTHORIZED = "${UNAUTHORIZED}"\n')
+    insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
+    assert "verifier_credential_unauthorized" in _codes(insp)
+
+    # 3b. Negative control: authorized container name aliases an unauthorized host variable
+    task_toml.write_text(
+        base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${UNAUTHORIZED}"\n'
+    )
+    insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
+    assert "verifier_credential_unauthorized" in _codes(insp)
+
+    # 3c. Negative control: credential aliases are refused even when both names are authorized
+    task_toml.write_text(
+        base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${SIMULATED_USER}"\n'
+    )
+    insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
+    assert "verifier_credential_alias_unsupported" in _codes(insp)
+
+    # 4. Negative control: credential in environment.env (leak to agent)
+    task_toml.write_text(
+        base_toml.replace('network_mode = "no-network"', 'network_mode = "no-network"\nenv = { API_KEY = "${OPENAI_API_KEY}" }')
+    )
+    insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
+    assert not insp.static_passed
+
+    # 5. Negative control: credential in solution.env
+    task_toml.write_text(base_toml + '\n[solution.env]\nAPI_KEY = "${OPENAI_API_KEY}"\n')
+    insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
+    assert not insp.static_passed
+
+    # 6. Accepted path: authorized placeholder in verifier.env
+    task_toml.write_text(base_toml + '\n[verifier.env]\nOPENAI_API_KEY = "${OPENAI_API_KEY}"\n')
+    insp = inspect_candidate(repo_root=repo, task_path=task, source=source_with_creds)
+    assert insp.static_passed, _codes(insp)
+    assert insp.candidate.get("credentials") == ["SIMULATED_USER", "OPENAI_API_KEY"]
+
+
+def test_v2_offline_build_proof_accepted_and_rejected(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "proof-base")
+    tests_dockerfile = task / "tests/Dockerfile"
+    base_docker = tests_dockerfile.read_text()
+
+    # 1. Negative control: package manager (uv sync) without proof
+    tests_dockerfile.write_text(base_docker + "\nRUN uv sync --frozen --offline\n")
+    insp = _inspect(repo, task)
+    assert "build_network_use" in _codes(insp)
+
+    # 2. Negative control: malformed proof JSON
+    (task / "tests/build-proof.json").write_text("{malformed-json")
+    insp = _inspect(repo, task)
+    assert "build_proof_invalid" in _codes(insp)
+
+    # 3. Negative control: missing lockfile
+    (task / "tests/build-proof.json").write_text(
+        json.dumps({
+            "schema_version": "1.0",
+            "kind": "offline_build_proof",
+            "ecosystem": "python",
+            "lockfile": "nonexistent.lock",
+            "lockfile_digest": "sha256:" + "0" * 64,
+            "pinned_dependencies": {"pkg": "1.0.0"},
+            "reviewed_by": "eval-lab",
+        })
+    )
+    insp = _inspect(repo, task)
+    assert "build_proof_lockfile_missing" in _codes(insp)
+
+    # 4. Negative control: lockfile digest mismatch
+    (task / "tests/uv.lock").write_text("lock-data-v1\n", encoding="utf-8")
+    (task / "tests/build-proof.json").write_text(
+        json.dumps({
+            "schema_version": "1.0",
+            "kind": "offline_build_proof",
+            "ecosystem": "python",
+            "lockfile": "uv.lock",
+            "lockfile_digest": "sha256:" + "f" * 64,
+            "pinned_dependencies": {"pkg": "1.0.0"},
+            "reviewed_by": "eval-lab",
+        })
+    )
+    insp = _inspect(repo, task)
+    assert "build_proof_lockfile_mismatch" in _codes(insp)
+
+    # 5. Negative control: unpinned dependency in proof
+    lock_digest = f"sha256:{hashlib.sha256(b'lock-data-v1\n').hexdigest()}"
+    (task / "tests/build-proof.json").write_text(
+        json.dumps({
+            "schema_version": "1.0",
+            "kind": "offline_build_proof",
+            "ecosystem": "python",
+            "lockfile": "uv.lock",
+            "lockfile_digest": lock_digest,
+            "pinned_dependencies": {"pkg": "latest"},
+            "reviewed_by": "eval-lab",
+        })
+    )
+    insp = _inspect(repo, task)
+    assert "build_proof_unpinned_dependency" in _codes(insp)
+
+    # 5b. Negative controls: version ranges and wildcards are not immutable pins
+    for version in ("*", ">=1.0.0", "^2.0", "~=1.4"):
+        (task / "tests/build-proof.json").write_text(
+            json.dumps({
+                "schema_version": "1.0",
+                "kind": "offline_build_proof",
+                "ecosystem": "python",
+                "lockfile": "uv.lock",
+                "lockfile_digest": lock_digest,
+                "pinned_dependencies": {"pkg": version},
+                "reviewed_by": "eval-lab",
+            })
+        )
+        assert "build_proof_unpinned_dependency" in _codes(_inspect(repo, task))
+
+    # 6. Accepted path: valid proof matching lockfile allows uv sync
+    (task / "tests/build-proof.json").write_text(
+        json.dumps({
+            "schema_version": "1.0",
+            "kind": "offline_build_proof",
+            "ecosystem": "python",
+            "lockfile": "uv.lock",
+            "lockfile_digest": lock_digest,
+            "pinned_dependencies": {"pkg": "1.0.0@sha256:" + "a" * 64},
+            "reviewed_by": "eval-lab-reviewer",
+        })
+    )
+    insp = _inspect(repo, task)
+    assert insp.static_passed, _codes(insp)
+    assert "offline_build_proofs" in insp.candidate
+
+    # 7. A valid proof never authorizes arbitrary network commands.
+    tests_dockerfile.write_text(base_docker + "\nRUN curl https://example.invalid/payload\n")
+    assert "build_network_use" in _codes(_inspect(repo, task))
+    tests_dockerfile.write_text(
+        base_docker
+        + "\nRUN pip install --no-index --require-hashes "
+        "-r https://example.invalid/requirements.txt\n"
+    )
+    assert "build_network_use" in _codes(_inspect(repo, task))
+    tests_dockerfile.write_text(base_docker + "\nRUN uv sync --frozen --offline\n")
+    assert _inspect(repo, task).static_passed
+
+
+def test_v2_complete_safe_fixture_proving_accepted_path(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "complete-v2")
+
+    # 1. task.toml with MCP server, collect hook, and verifier.env
+    (task / "task.toml").write_text(
+        'schema_version = "1.4"\n'
+        'artifacts = ["/app/output/result.txt"]\n\n'
+        '[task]\n'
+        'name = "local-lab/v2-agentic-fixture"\n'
+        'version = "1.0.0"\n'
+        'description = "Complete v2 agentic task candidate"\n'
+        'keywords = ["mcp", "compose", "collect", "credentials"]\n\n'
+        '[[task.authors]]\n'
+        'name = "Eval Lab"\n'
+        'email = "eval-lab@example.invalid"\n\n'
+        '[metadata]\n'
+        'difficulty = "easy"\n'
+        'category = "agentic"\n'
+        'tags = ["v2", "mcp", "offline-proof"]\n\n'
+        '[agent]\n'
+        'timeout_sec = 30.0\n\n'
+        '[verifier]\n'
+        'timeout_sec = 30.0\n'
+        'environment_mode = "separate"\n\n'
+        '[[verifier.collect]]\n'
+        'service = "main"\n'
+        'command = "if [ ! -f /app/output/result.txt ] && [ -f /logs/agent/result.txt ]; then cp /logs/agent/result.txt /app/output/result.txt; fi"\n\n'
+        '[verifier.env]\n'
+        'SIMULATED_USER = "${SIMULATED_USER}"\n\n'
+        '[environment]\n'
+        'network_mode = "no-network"\n'
+        'build_timeout_sec = 120.0\n'
+        'cpus = 1\n'
+        'memory_mb = 256\n'
+        'storage_mb = 512\n\n'
+        '[[environment.mcp_servers]]\n'
+        'name = "local-tools"\n'
+        'transport = "streamable-http"\n'
+        'url = "http://mcp-server:8000/mcp"\n'
+    )
+
+    # 2. Compose file with main and mcp-server
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+    )
+
+    # 3. Verifier Dockerfile with uv sync and offline build proof
+    tests_dockerfile = task / "tests/Dockerfile"
+    tests_dockerfile.write_text(
+        "FROM alpine@sha256:0839e23eb00137d57f59eaee49633e21147a468bfb36f734493393967399580a\n"
+        "RUN uv sync --frozen --offline\n"
+    )
+    lock_data = b"complete-v2-lock-content\n"
+    (task / "tests/uv.lock").write_bytes(lock_data)
+    lock_digest = f"sha256:{hashlib.sha256(lock_data).hexdigest()}"
+    (task / "tests/build-proof.json").write_text(
+        json.dumps({
+            "schema_version": "1.0",
+            "kind": "offline_build_proof",
+            "ecosystem": "python",
+            "lockfile": "uv.lock",
+            "lockfile_digest": lock_digest,
+            "pinned_dependencies": {
+                "tau2-bench": "1.0.0@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+            },
+            "reviewed_by": "eval-lab-reviewer",
+        })
+    )
+
+    source = CandidateSource(
+        source_uri="https://example.invalid/eval-lab/v2-fixture.git",
+        source_ref="v1.0.0",
+        license="MIT",
+        provenance_zone="03-synthetic",
+        credentials=("SIMULATED_USER",),
+    )
+
+    inspection = inspect_candidate(repo_root=repo, task_path=task, source=source)
+    assert inspection.static_passed, _codes(inspection)
+    assert inspection.diagnostics == ()
+    assert "compose_topology" in inspection.candidate
+    assert "mcp_servers" in inspection.candidate
+    assert "offline_build_proofs" in inspection.candidate
+    assert "collect_hooks" in inspection.candidate
+    assert inspection.candidate.get("credentials") == ["SIMULATED_USER"]
+
+    # Test full check and packet generation
+    report = check_candidate(inspection, _bundle(inspection, repo=repo, task=task), repo_root=repo)
+    assert report.disposition == "certified_for_review"
+    assert report.passed is True
+    candidate_path, cert_path = write_packet(repo_root=repo, report=report)
+    assert candidate_path.is_file()
+    assert cert_path.is_file()
+    cert = json.loads(cert_path.read_text())
+    assert cert["certified"] is True

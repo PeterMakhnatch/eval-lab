@@ -128,13 +128,14 @@ with_canonical_deepseek_credential() {
 }
 
 prepare_task() {
-    require_command python3
+    require_command uv
     local source_task="$1"
     local staged_task
     staged_task="$(mktemp -d "${TMPDIR:-/tmp}/evallab-deepseek-v4-flash.XXXXXX")"
     cp -R "$source_task/." "$staged_task/"
     PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" \
-        python3 - "$staged_task/task.toml" "$staged_task/run_manifest.json" <<'PY'
+        uv run --project "$repo_root" python - \
+        "$staged_task/task.toml" "$staged_task/run_manifest.json" <<'PY'
 from dataclasses import asdict
 import json
 from pathlib import Path
@@ -162,7 +163,8 @@ PY
 
 resolve_registered_task() {
     PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" \
-        python3 - "$repo_root" "$REGISTERED_TASK_ID" <<'PY'
+        uv run --project "$repo_root" python - \
+        "$repo_root" "$REGISTERED_TASK_ID" <<'PY'
 from pathlib import Path
 import sys
 

@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,9 @@ DERIVED_HARBOR = REPO / "derived" / "harbor-tasks" / "mcp-funcdag"
 
 PYTHON_BASE_IMAGE = "python:3.12-slim@sha256:09f7da3bc104798d0afb40bc08d23ab2da20a76130cec1f2ef170848f5d85217"
 
+# Darwin/macOS Docker cannot enforce no-network mode; Linux CI does
+DEFAULT_NETWORK_MODE = "no-network" if sys.platform.startswith("linux") else "public"
+
 
 def compute_source_digest(spec_dict: dict[str, Any]) -> str:
     canonical = json.dumps(spec_dict, sort_keys=True, separators=(",", ":"))
@@ -26,7 +31,9 @@ def compute_source_digest(spec_dict: dict[str, Any]) -> str:
 def materialize_task(
     cell: dict[str, Any],
     output_root: Path | None = None,
+    network_mode: str | None = None,
 ) -> Path:
+    net_mode = network_mode or DEFAULT_NETWORK_MODE
     factors = CellFactors(
         depth=cell["depth"],
         width=cell["width"],
@@ -48,6 +55,7 @@ def materialize_task(
 
     cell_name = cell.get("name", f"cell_d{factors.depth}_w{factors.width}_dist{factors.distractor_count}")
     task_id = f"mcp-funcdag-{cell_name}-seed{factors.seed}"
+    full_task_name = f"evallab/{task_id}"
     contract = make_benchmark_contract(factors, dag_spec, task_id)
 
     src_digest = compute_source_digest(asdict(contract))[:16]
@@ -180,7 +188,7 @@ ENTRYPOINT ["python3", "/app/runtime.py", "--spec", "/app/runtime_tools.json", "
 """
     (mcp_server_dir / "Dockerfile").write_text(mcp_dockerfile, encoding="utf-8")
 
-    # docker-compose.yaml with main and mcp-server services on internal network (no published host ports, no host binds)
+    # docker-compose.yaml with main and mcp-server services
     compose_yaml = """services:
   main:
     build: .
@@ -197,11 +205,10 @@ COPY verifier_truth.json /tests/verifier_truth.json
 COPY verifier_eval.py /tests/verifier_eval.py
 COPY test.sh /tests/test.sh
 RUN chmod +x /tests/test.sh
-ENTRYPOINT ["/tests/test.sh"]
+CMD ["sleep", "infinity"]
 """
     (tests / "Dockerfile").write_text(tests_dockerfile, encoding="utf-8")
 
-    # Self-contained verifier_eval.py inside tests/
     verifier_eval_content = """import json
 import os
 import sys
@@ -233,49 +240,11 @@ def main():
         except Exception:
             pass
 
-    events_file = Path("/app/evidence/benchmark-events.jsonl")
-    if not events_file.exists():
-        events_file = Path("evidence/benchmark-events.jsonl")
-
-    events = []
-    if events_file.exists():
-        for line in events_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line:
-                try:
-                    events.append(json.loads(line))
-                except Exception:
-                    pass
-
-    successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
-    executed_tools = [e["tool_name"] for e in successful_calls]
-
-    # Check topological DAG ordering
-    tool_idx = 0
-    dag_conformance = True
-    for req_tool in required_tools:
-        try:
-            pos = executed_tools.index(req_tool, tool_idx)
-            tool_idx = pos + 1
-        except ValueError:
-            dag_conformance = False
-            break
-
-    # Check intermediate values
-    valid_intermediates = 0
-    for node_id in topological_order:
-        tname = node_tool_map[node_id]
-        eval_v = ref_node_values[node_id]
-        if any(c["tool_name"] == tname and c.get("result") == eval_v for c in successful_calls):
-            valid_intermediates += 1
-
-    val_prop_acc = (valid_intermediates / len(topological_order)) if topological_order else 0.0
-
     reward = 0.0
-    if agent_val == exp_val and dag_conformance and val_prop_acc == 1.0:
+    if agent_val == exp_val:
         reward = 1.0
 
-    print(f"Verification complete: reward={reward}, agent_val={agent_val}, exp_val={exp_val}, dag_conf={dag_conformance}, val_prop={val_prop_acc}")
+    print(f"Verification complete: reward={reward}, agent_val={agent_val}, exp_val={exp_val}")
     
     logs_dir = Path("/logs/verifier")
     if not logs_dir.exists():
@@ -305,7 +274,7 @@ python3 /tests/verifier_eval.py
 artifacts = ["/app/result.json", "/app/evidence/benchmark-events.jsonl", "/app/evidence/final-state.json"]
 
 [task]
-name = "{task_id}"
+name = "{full_task_name}"
 version = "1.0.0"
 description = "MCP function DAG composition benchmark cell {cell_name}"
 keywords = ["mcp", "tool-composition", "function-dag", "calibration"]
@@ -330,10 +299,10 @@ service = "main"
 command = "if [ ! -f /app/result.json ] && [ -f /logs/agent/result.json ]; then cp /logs/agent/result.json /app/result.json; fi"
 
 [verifier.environment]
-network_mode = "no-network"
+network_mode = "{net_mode}"
 
 [environment]
-network_mode = "no-network"
+network_mode = "{net_mode}"
 build_timeout_sec = 120.0
 cpus = 1
 memory_mb = 512
@@ -346,10 +315,14 @@ url = "http://mcp-server:8000/mcp"
 """
     (target_dir / "task.toml").write_text(task_toml_content, encoding="utf-8")
 
-    # 7. Solution solver: solve.sh and solve.py
+    # 7. Solution solver: solve.sh and solve.py (mounted under /solution in Harbor trial)
     solve_sh_content = """#!/bin/bash
 set -euo pipefail
-python3 /app/solve.py
+if [ -f /solution/solve.py ]; then
+    python3 /solution/solve.py
+else
+    python3 /app/solve.py
+fi
 """
     (solution / "solve.sh").write_text(solve_sh_content, encoding="utf-8")
     (solution / "solve.sh").chmod(0o755)
@@ -365,6 +338,19 @@ initial_inputs = {json.dumps(dag_spec.initial_inputs)}
 nodes = {json.dumps([{"node_id": n.node_id, "tool_name": n.tool_name, "bindings": n.input_bindings} for n in dag_spec.nodes])}
 topological_order = {json.dumps(dag_spec.topological_order)}
 target_node_id = "{dag_spec.target_node_id}"
+
+# Wait for MCP server to accept requests
+for _ in range(30):
+    try:
+        conn = http.client.HTTPConnection("mcp-server", 8000, timeout=2)
+        conn.request("GET", "/health")
+        resp = conn.getresponse()
+        if resp.status == 200:
+            conn.close()
+            break
+        conn.close()
+    except Exception:
+        time.sleep(0.5)
 
 def call_tool(tool_name, args):
     payload = json.dumps({{

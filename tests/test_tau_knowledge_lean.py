@@ -67,7 +67,7 @@ def test_missing_source_and_credentials_fail_closed_without_trial() -> None:
 def test_user_simulator_credential_and_oracle_boundary_isolation(tmp_path: Path) -> None:
     """Ensure user-simulator credentials & oracle payload never leak into agent-visible bytes or decisions."""
     preflight = _load(PREFLIGHT, "tau_knowledge_preflight_leak")
-    secret_key = "sk-proj-secret-user-simulator-token-12345"
+    secret_key = "simulator-credential-value-marker-12345"
     decision = preflight.credential_preflight(
         "reference",
         env={"OPENAI_API_KEY": secret_key},
@@ -115,9 +115,20 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
         materializer.validate_agent_boundary(task_dir, manifest)
 
     dockerfile.write_text("FROM python:3.12-slim\n", encoding="utf-8")
-    task_toml.write_text("OPENAI_API_KEY must be set\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="simulator_credential_boundary_leak"):
-        materializer.validate_agent_boundary(task_dir, manifest)
+    credential_value = "simulator-credential-value-marker-12345"
+    task_toml.write_text("credential_env = OPENAI_API_KEY\n", encoding="utf-8")
+    materializer.validate_agent_boundary(
+        task_dir,
+        manifest,
+        credential_environment={"OPENAI_API_KEY": credential_value},
+    )
+    task_toml.write_text(credential_value + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="simulator_credential_value_leak"):
+        materializer.validate_agent_boundary(
+            task_dir,
+            manifest,
+            credential_environment={"OPENAI_API_KEY": credential_value},
+        )
 
 
 def test_harbor_repository_layout_resolves_nested_tau_adapter(tmp_path: Path) -> None:

@@ -93,8 +93,13 @@ def _load_adapter(root: Path) -> type[Any]:
     raise RuntimeError(f"blocked:adapter_package_missing:{root}")
 
 
-def validate_agent_boundary(task_dir: Path, manifest: Mapping[str, Any]) -> None:
-    """Reject credentials, hidden-file aliases, and duplicated oracle spans."""
+def validate_agent_boundary(
+    task_dir: Path,
+    manifest: Mapping[str, Any],
+    *,
+    credential_environment: Mapping[str, str] | None = None,
+) -> None:
+    """Reject credential values, hidden-file aliases, and duplicated oracle spans."""
     visible_paths = [
         task_dir / "task.toml",
         task_dir / "instruction.md",
@@ -103,6 +108,12 @@ def validate_agent_boundary(task_dir: Path, manifest: Mapping[str, Any]) -> None
     environment = task_dir / "environment"
     if environment.is_dir():
         visible_paths.extend(sorted(environment.rglob("*")))
+    source_environment = os.environ if credential_environment is None else credential_environment
+    credential_values = [
+        value
+        for name in manifest["credentials"]["simulated_user"]["required_env"]
+        if len(value := (source_environment.get(name) or "").strip()) >= 8
+    ]
 
     visible_text: list[str] = []
     for path in visible_paths:
@@ -112,10 +123,10 @@ def validate_agent_boundary(task_dir: Path, manifest: Mapping[str, Any]) -> None
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         visible_text.append(text)
-        for credential_env in manifest["credentials"]["simulated_user"]["required_env"]:
-            if credential_env in text:
+        for credential_value in credential_values:
+            if credential_value in text:
                 raise RuntimeError(
-                    f"blocked:simulator_credential_boundary_leak:{path.relative_to(task_dir)}"
+                    f"blocked:simulator_credential_value_leak:{path.relative_to(task_dir)}"
                 )
 
     combined_visible = "\n".join(visible_text)

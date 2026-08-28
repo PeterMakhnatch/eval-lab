@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -173,3 +174,48 @@ def test_coexistence_with_loca_lean():
     spec.loader.exec_module(mod)
     loca_source = mod.load("loca_source_coexist", "source")
     assert loca_source is not None
+
+def test_ensure_wheelhouse_uses_uv_managed_pip_not_venv_pip(tmp_path):
+    """Project uv venvs have no pip; wheelhouse download must not call sys.executable -m pip."""
+    venv = tmp_path / "pipless"
+    subprocess.run(["uv", "venv", "--no-project", str(venv)], check=True, capture_output=True)
+    venv_python = venv / "bin" / "python"
+    pip_probe = subprocess.run(
+        [str(venv_python), "-m", "pip", "--version"],
+        capture_output=True,
+        text=True,
+    )
+    assert pip_probe.returncode != 0
+
+    spec = importlib.util.spec_from_file_location(
+        "mcp_funcdag_ensure_wheelhouse",
+        Path(__file__).parents[1] / "scripts" / "mcp_funcdag" / "ensure_wheelhouse.py",
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    reqs = tmp_path / "requirements.txt"
+    dest = tmp_path / "wheels"
+    cmd = mod.download_command(reqs, dest)
+    assert cmd[:5] == ["uv", "run", "--with", "pip", "--no-project"]
+    assert cmd[5:9] == ["python", "-m", "pip", "download"]
+    assert "--require-hashes" in cmd
+    assert str(venv_python) not in cmd
+
+    recorded: list[list[str]] = []
+
+    def fake_run(argv, check=False):
+        recorded.append(list(argv))
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "idna-3.19-py3-none-any.whl").write_bytes(b"wheel")
+        return subprocess.CompletedProcess(argv, 0)
+
+    empty = tmp_path / "empty-house"
+    mod.ensure_wheelhouse(empty, run=fake_run)
+    assert recorded, "download should be invoked when no wheels exist"
+    assert recorded[0][:5] == ["uv", "run", "--with", "pip", "--no-project"]
+    assert "--require-hashes" in recorded[0]
+    lock = (empty / "requirements.txt").read_text(encoding="utf-8")
+    assert "--hash=sha256:" in lock
+    assert "fastmcp==3.4.7" in lock

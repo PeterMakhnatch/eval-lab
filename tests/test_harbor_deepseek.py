@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
@@ -127,3 +129,54 @@ def test_wrapper_rejects_non_deepseek_models(wrapper_module: ModuleType) -> None
 
     with pytest.raises(ValueError, match="requires a deepseek/\\* model"):
         _ = agent.model_connection
+
+
+def test_native_trajectory_sanitizer_removes_authorization_and_secret_values(
+    wrapper_module: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = wrapper_module
+    path = tmp_path / "mini-swe-agent.trajectory.json"
+    path.write_text(
+        json.dumps(
+            {
+                "info": {
+                    "config": {
+                        "extra_headers": {
+                            "Authorization": f"Bearer {SECRET_SENTINEL}",
+                            "X-Safe": "kept",
+                        },
+                        "api_key": SECRET_SENTINEL,
+                    }
+                },
+                "messages": [{"content": SECRET_SENTINEL}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
+
+    module._sanitize_native_trajectory(path)
+
+    text = path.read_text(encoding="utf-8")
+    payload = json.loads(text)
+    assert SECRET_SENTINEL not in text
+    assert payload["info"]["config"]["extra_headers"]["Authorization"] == "<redacted>"
+    assert payload["info"]["config"]["extra_headers"]["X-Safe"] == "kept"
+    assert payload["info"]["config"]["api_key"] == "<redacted>"
+    assert payload["messages"][0]["content"] == "<redacted>"
+
+
+def test_unparseable_native_trajectory_is_removed(
+    wrapper_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "mini-swe-agent.trajectory.json"
+    path.write_text("{not-json", encoding="utf-8")
+
+    wrapper_module._sanitize_native_trajectory(path)
+
+    assert json.loads(path.read_text(encoding="utf-8")) == {
+        "redacted": "unparseable native trajectory removed"
+    }

@@ -36,6 +36,12 @@ jobs:
         run: uv run pytest tests/test_deepplanning.py tests/test_deepplanning_canary.py -q
       - name: Run deterministic local controls
         run: bash library/external/deepplanning-v1/run_controls.sh
+      - name: Run durable Harbor registration controls
+        run: |
+          harbor run --path library/tasks/experimental/deepplanning-v1/travel-lisbon-002 --agent oracle --env docker --job-name deepplanning-travel-lisbon-registry-oracle --jobs-dir runs/deepplanning-registry --n-concurrent 1 --n-attempts 1 -y
+          harbor run --path library/tasks/experimental/deepplanning-v1/travel-lisbon-002 --agent nop --env docker --job-name deepplanning-travel-lisbon-registry-nop --jobs-dir runs/deepplanning-registry --n-concurrent 1 --n-attempts 1 -y
+          python3 scripts/agentabstain/assert_reward.py runs/deepplanning-registry/deepplanning-travel-lisbon-registry-oracle 1
+          python3 scripts/agentabstain/assert_reward.py runs/deepplanning-registry/deepplanning-travel-lisbon-registry-nop 0
       - name: Run Linux task-workbench controls
         run: uv run python library/external/deepplanning-v1/workbench.py | tee "$RUNNER_TEMP/deepplanning-workbench.json"
       - name: Upload certification packet
@@ -45,5 +51,6 @@ jobs:
           path: |
             research/registration/candidates/
             runs/task-workbench/
+            runs/deepplanning-registry/
             ${{ runner.temp }}/deepplanning-workbench.json
           if-no-files-found: error

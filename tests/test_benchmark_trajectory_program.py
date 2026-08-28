@@ -17,6 +17,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
+from evallab import cli
 from evallab.interpretation.benchmark_events import (
     BenchmarkEventDuplicateError,
     BenchmarkEventGapError,
@@ -555,6 +556,26 @@ def test_traj_card_with_benchmark_observables(action_memory_trial_dir: Path, tmp
         in rendered
     )
     assert "`binding_survival_rate`" in rendered
+
+
+def test_traj_benchmark_cli_emits_observables_json(
+    action_memory_trial_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """The registered CLI leaf extracts benchmark observables from a real trial directory."""
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+
+    exit_code = cli.run_cli(
+        ["traj", "benchmark", str(action_memory_trial_dir), "--json"],
+        workspace=tmp_path,
+    )
+
+    assert exit_code == 0
+    rendered = json.loads(capsys.readouterr().out)
+    assert rendered["family"] == "action-memory-v1"
+    assert rendered["binding_survival_rate"] == 1.0
 
 
 def test_fault_injection_correlation_edge_cases():

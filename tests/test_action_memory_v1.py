@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import sys
 import threading
 import time
@@ -96,12 +97,17 @@ def test_mcp_server_client_protocol_interaction(tmp_path):
     # Run oracle solver over the live MCP protocol
     oracle_mod.solve_via_mcp(mcp_url=f"http://127.0.0.1:{port}/mcp")
 
-    # Verify produced evidence
+    # Verify produced evidence in evidence/ and simulate collect transfer to output/
     evidence_dir = task_dir / "evidence"
+    output_dir = task_dir / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
     assert (evidence_dir / "benchmark-events.jsonl").exists()
     assert (evidence_dir / "final-state.json").exists()
 
-    final_state = json.loads((evidence_dir / "final-state.json").read_text(encoding="utf-8"))
+    shutil.copy2(evidence_dir / "benchmark-events.jsonl", output_dir / "benchmark-events.jsonl")
+    shutil.copy2(evidence_dir / "final-state.json", output_dir / "final-state.json")
+
+    final_state = json.loads((output_dir / "final-state.json").read_text(encoding="utf-8"))
     assert final_state["status"] == "executed"
     assert final_state["bound_value"] != ""
 
@@ -142,10 +148,10 @@ def test_verifier_rejects_corrupted_event_order_or_invalid_truth(tmp_path):
 
     target = tmp_path / "task_for_corrupt"
     mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
-    evidence_dir = target / "evidence"
+    output_dir = target / "output"
     rewards = target / "tests" / "rewards"
 
-    # Setup valid final state
+    # Setup valid final state in output directory (post-collect destination)
     scenario = json.loads((target / "task_state" / "scenario.json").read_text(encoding="utf-8"))
     valid_final_state = {
         "status": "executed",
@@ -153,19 +159,19 @@ def test_verifier_rejects_corrupted_event_order_or_invalid_truth(tmp_path):
         "target_attribute": scenario["target_attribute"],
         "bound_value": scenario["latest_value"],
     }
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    (evidence_dir / "final-state.json").write_text(json.dumps(valid_final_state), encoding="utf-8")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "final-state.json").write_text(json.dumps(valid_final_state), encoding="utf-8")
 
     # Corrupt event log with non-monotone descending event indices: [2, 1]
     corrupt_events = [
         {"event_index": 2, "event_type": "read_chunk", "payload": {}},
         {"event_index": 1, "event_type": "execute_mutation", "payload": {}},
     ]
-    with (evidence_dir / "benchmark-events.jsonl").open("w", encoding="utf-8") as f:
+    with (output_dir / "benchmark-events.jsonl").open("w", encoding="utf-8") as f:
         for ev in corrupt_events:
             f.write(json.dumps(ev) + "\n")
 
-    # Materialized verifier must reject and award 0.0
-    res_corrupt = ver_mod.verify(target / "tests", evidence_dir, reward_dir=rewards / "corrupt_events")
+    # Materialized verifier targeting output_dir must reject and award 0.0
+    res_corrupt = ver_mod.verify(target / "tests", output_dir, reward_dir=rewards / "corrupt_events")
     assert res_corrupt["reward"] == 0.0
     assert res_corrupt["reason"] == "non_monotone_event_indices"

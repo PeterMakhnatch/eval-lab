@@ -99,7 +99,7 @@ def materialize(
     (tests / "fixtures" / "target_spec.json").write_text(target_spec_str, encoding="utf-8")
     (verifier_dir / "fixtures" / "target_spec.json").write_text(target_spec_str, encoding="utf-8")
 
-    # Main Agent Container Dockerfile
+    # Main Agent Container Dockerfile & entrypoint with explicit /app/output directory creation
     (environment / "entrypoint.sh").write_text(
         "#!/bin/sh\nset -eu\nmkdir -p /app/evidence /app/output\nif [ \"$#\" -gt 0 ]; then exec \"$@\"; fi\nexec sleep infinity\n",
         encoding="utf-8",
@@ -107,14 +107,14 @@ def materialize(
     (environment / "entrypoint.sh").chmod(0o755)
 
     (environment / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nCOPY entrypoint.sh /app/entrypoint.sh\nRUN chmod +x /app/entrypoint.sh && mkdir -p /app/evidence /app/output\nENTRYPOINT [\"/app/entrypoint.sh\"]\n",
+        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /app/evidence /app/output\nCOPY entrypoint.sh /app/entrypoint.sh\nRUN chmod +x /app/entrypoint.sh\nENTRYPOINT [\"/app/entrypoint.sh\"]\n",
         encoding="utf-8",
     )
 
     # MCP Sidecar Container
     shutil.copy2(ROOT / "runtime.py", mcp_sidecar_dir / "runtime.py")
     (mcp_sidecar_dir / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /srv\nCOPY runtime.py /srv/runtime.py\nCOPY scenario.json /srv/scenario.json\nRUN mkdir -p /app/evidence\nENTRYPOINT [\"python3\", \"/srv/runtime.py\", \"--task-dir\", \"/srv\", \"--evidence-dir\", \"/app/evidence\", \"--port\", \"8080\"]\n",
+        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /srv\nRUN mkdir -p /app/evidence\nCOPY runtime.py /srv/runtime.py\nCOPY scenario.json /srv/scenario.json\nENTRYPOINT [\"python3\", \"/srv/runtime.py\", \"--task-dir\", \"/srv\", \"--evidence-dir\", \"/app/evidence\", \"--port\", \"8080\"]\n",
         encoding="utf-8",
     )
 
@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
     # Tests / Verifier Dockerfile and test.sh
     (tests / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /tests\nCOPY verify.py /tests/verify.py\nCOPY fixtures /tests/fixtures\nRUN mkdir -p /logs/verifier /app/output\nCMD [\"sleep\", \"infinity\"]\n",
+        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /tests\nRUN mkdir -p /logs/verifier /app/output\nCOPY verify.py /tests/verify.py\nCOPY fixtures /tests/fixtures\nCMD [\"sleep\", \"infinity\"]\n",
         encoding="utf-8",
     )
     (tests / "test.sh").write_text(
@@ -209,7 +209,7 @@ if __name__ == "__main__":
     (tests / "test.sh").chmod(0o755)
 
     (verifier_dir / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /verifier\nCOPY verify.py /verifier/verify.py\nCOPY fixtures /verifier/fixtures\nRUN mkdir -p /logs/verifier /app/output\nCMD [\"sleep\", \"infinity\"]\n",
+        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /verifier\nRUN mkdir -p /logs/verifier /app/output\nCOPY verify.py /verifier/verify.py\nCOPY fixtures /verifier/fixtures\nCMD [\"sleep\", \"infinity\"]\n",
         encoding="utf-8",
     )
     (verifier_dir / "test.sh").write_text(

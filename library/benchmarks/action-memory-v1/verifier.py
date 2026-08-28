@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -29,23 +30,28 @@ def verify(
             "expected_bound_value": scenario["latest_value"],
             "dose_bytes": scenario.get("dose_bytes", 4096),
         }
+        spec_bytes = (task_dir / "scenario.json").read_bytes()
     elif spec_path.exists():
-        spec_data = json.loads(spec_path.read_text(encoding="utf-8"))
+        spec_bytes = spec_path.read_bytes()
+        spec_data = json.loads(spec_bytes.decode("utf-8"))
     else:
         res = {"reward": 0.0, "reason": "missing_target_spec_file"}
         _record(reward_dir, res)
         return res
 
+    # Compute and verify truth spec digest
+    truth_digest = f"sha256:{hashlib.sha256(spec_bytes).hexdigest()}"
+
     final_state_file = evidence_dir / "final-state.json"
     if not final_state_file.exists():
-        res = {"reward": 0.0, "reason": "missing_final_state_evidence"}
+        res = {"reward": 0.0, "reason": "missing_final_state_evidence", "truth_digest": truth_digest}
         _record(reward_dir, res)
         return res
 
     try:
         final_state = json.loads(final_state_file.read_text(encoding="utf-8"))
     except Exception as exc:
-        res = {"reward": 0.0, "reason": f"corrupt_final_state: {exc}"}
+        res = {"reward": 0.0, "reason": f"corrupt_final_state: {exc}", "truth_digest": truth_digest}
         _record(reward_dir, res)
         return res
 
@@ -65,7 +71,7 @@ def verify(
                 event_count += 1
                 ev_idx = ev.get("event_index", 0)
                 if ev_idx <= last_index:
-                    res = {"reward": 0.0, "reason": "non_monotone_event_indices"}
+                    res = {"reward": 0.0, "reason": "non_monotone_event_indices", "truth_digest": truth_digest}
                     _record(reward_dir, res)
                     return res
                 last_index = ev_idx
@@ -90,6 +96,7 @@ def verify(
             "reason": "exact_latest_value_bound",
             "target_entity": obs_entity,
             "bound_value": obs_val,
+            "truth_digest": truth_digest,
             "events_validated": event_count,
             "read_events": read_events,
             "mutation_events": mutation_events,
@@ -100,6 +107,7 @@ def verify(
             "reason": "mismatch",
             "expected": spec_data,
             "observed": final_state,
+            "truth_digest": truth_digest,
         }
 
     _record(reward_dir, res)

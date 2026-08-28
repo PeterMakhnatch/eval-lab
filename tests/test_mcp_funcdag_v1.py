@@ -8,21 +8,34 @@ import sys
 import threading
 from pathlib import Path
 
-ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "mcp-funcdag-v1"
-sys.path.insert(0, str(ROOT))
+BENCH_ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "mcp-funcdag-v1"
 
 
-def load_module(name: str):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+def _load_module(name: str):
+    module_name = f"mcp_funcdag_{name}"
+    if module_name in sys.modules:
+        return sys.modules[module_name]
+
+    # Pre-register module in sys.modules so dataclasses/types can inspect cls.__module__
+    orig_path = list(sys.path)
+    sys.path.insert(0, str(BENCH_ROOT))
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, BENCH_ROOT / f"{name}.py")
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = mod
+        spec.loader.exec_module(mod)
+        return mod
+    finally:
+        sys.path[:] = orig_path
+        # Clean generic unqualified names that might leak into sys.modules
+        for generic_name in ("contract", "dag_generator", "materializer", "runtime", "templates", "verifier"):
+            if generic_name in sys.modules and sys.modules[generic_name].__file__.startswith(str(BENCH_ROOT)):
+                del sys.modules[generic_name]
 
 
 def test_dag_generator_determinism():
-    dag_gen = load_module("dag_generator")
+    dag_gen = _load_module("dag_generator")
     spec1 = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
     spec2 = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
 
@@ -34,8 +47,8 @@ def test_dag_generator_determinism():
 
 
 def test_benchmark_contract_and_campaign_cells():
-    contract_mod = load_module("contract")
-    dag_gen = load_module("dag_generator")
+    contract_mod = _load_module("contract")
+    dag_gen = _load_module("dag_generator")
     factors = contract_mod.CellFactors(depth=3, width=2, distractor_count=2)
     spec = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
     contract = contract_mod.make_benchmark_contract(factors, spec, "test-task-1")
@@ -47,8 +60,8 @@ def test_benchmark_contract_and_campaign_cells():
 
 
 def test_streamable_mcp_runtime_and_events(tmp_path):
-    dag_gen = load_module("dag_generator")
-    runtime_mod = load_module("runtime")
+    dag_gen = _load_module("dag_generator")
+    runtime_mod = _load_module("runtime")
     spec = dag_gen.generate_dag_spec(seed=42, depth=2, width=2, distractor_count=1)
 
     spec_dict = {
@@ -111,11 +124,11 @@ def test_streamable_mcp_runtime_and_events(tmp_path):
 
 
 def test_materializer_harbor_topology_and_controls(tmp_path):
-    contract_mod = load_module("contract")
-    materializer_mod = load_module("materializer")
-    runtime_mod = load_module("runtime")
-    templates_mod = load_module("templates")
-    verifier_mod = load_module("verifier")
+    contract_mod = _load_module("contract")
+    materializer_mod = _load_module("materializer")
+    runtime_mod = _load_module("runtime")
+    templates_mod = _load_module("templates")
+    verifier_mod = _load_module("verifier")
 
     cell = contract_mod.CAMPAIGN_0_CELLS[0]
     task_dir = materializer_mod.materialize_task(cell, output_root=tmp_path)
@@ -172,9 +185,8 @@ def test_materializer_harbor_topology_and_controls(tmp_path):
 
 def test_standard_mcp_client_compatibility_and_event_ledger(tmp_path):
     """Standard client compatibility: initialize, tools/list, and tools/call JSON-RPC methods against /mcp endpoint."""
-    dag_gen = load_module("dag_generator")
-    runtime_mod = load_module("runtime")
-    # Baseline cell with 5 DAG nodes (2 unique ops) + 2 distractors -> 7 tools total
+    dag_gen = _load_module("dag_generator")
+    runtime_mod = _load_module("runtime")
     spec = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
 
     spec_dict = {
@@ -269,3 +281,15 @@ def test_standard_mcp_client_compatibility_and_event_ledger(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_coexistence_with_loca_lean():
+    """Ensure mcp-funcdag imports do not pollute sys.modules or break test_loca_lean.py."""
+    loca_test_path = Path(__file__).parents[1] / "tests" / "test_loca_lean.py"
+    if loca_test_path.exists():
+        spec = importlib.util.spec_from_file_location("test_loca_lean_isolated", loca_test_path)
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        loca_source = mod.load("loca_source_coexist", "source")
+        assert loca_source is not None

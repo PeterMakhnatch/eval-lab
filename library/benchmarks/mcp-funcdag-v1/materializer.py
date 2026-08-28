@@ -106,7 +106,6 @@ def materialize_task(
         for t in dag_spec.tools
     ]
     
-    # Agent-visible graph topology
     agent_graph_nodes = [
         {
             "node_id": n.node_id,
@@ -240,7 +239,6 @@ CMD ["sleep", "infinity"]
     verifier_eval_content = """import json
 import os
 import sys
-import http.client
 from pathlib import Path
 
 def main():
@@ -288,19 +286,6 @@ def main():
                     events.append(json.loads(line))
                 except Exception:
                     pass
-
-    # Fallback to direct sidecar query if files not collected
-    if not events:
-        try:
-            conn = http.client.HTTPConnection("mcp-server", 8000, timeout=3)
-            conn.request("GET", "/events")
-            res = conn.getresponse()
-            if res.status == 200:
-                data = res.read().decode("utf-8")
-                events = [json.loads(line) for line in data.splitlines() if line.strip()]
-            conn.close()
-        except Exception:
-            pass
 
     successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
     executed_tools = [e["tool_name"] for e in successful_calls]
@@ -405,7 +390,7 @@ service = "main"
 command = "if [ -f /app/evidence/final-state.json ]; then cp /app/evidence/final-state.json /app/output/final-state.json; fi"
 
 [verifier.environment]
-network_mode = "{net_mode}"
+network_mode = "no-network"
 
 [environment]
 network_mode = "{net_mode}"
@@ -421,7 +406,7 @@ url = "http://mcp-server:8000/mcp"
 """
     (target_dir / "task.toml").write_text(task_toml_content, encoding="utf-8")
 
-    # 7. Solution solver: solve.sh and solve.py (writes strictly to /app/output/result.json via MCP calls)
+    # 7. Solution solver: solve.sh and solve.py
     solve_sh_content = """#!/bin/bash
 set -euo pipefail
 if [ -f /solution/solve.py ]; then

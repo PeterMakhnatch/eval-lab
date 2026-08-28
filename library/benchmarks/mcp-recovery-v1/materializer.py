@@ -43,8 +43,8 @@ def materialize_task(
     # 1. task.toml (workbench v2 compliant, Linux no-network baseline)
     task_toml = f"""schema_version = "1.4"
 artifacts = [
-    "/app/evidence/benchmark-events.jsonl",
-    "/app/evidence/final-state.json",
+    "/app/shared_state/benchmark-events.jsonl",
+    "/app/shared_state/final-state.json",
 ]
 
 [task]
@@ -68,11 +68,11 @@ environment_mode = "separate"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ -f /app/shared_state/benchmark-events.jsonl ]; then cp /app/shared_state/benchmark-events.jsonl /app/evidence/benchmark-events.jsonl; fi"
+command = "if [ -f /app/shared_state/benchmark-events.jsonl ]; then cp /app/shared_state/benchmark-events.jsonl /app/shared_state/benchmark-events.jsonl; fi"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ -f /app/shared_state/final-state.json ]; then cp /app/shared_state/final-state.json /app/evidence/final-state.json; fi"
+command = "if [ -f /app/shared_state/final-state.json ]; then cp /app/shared_state/final-state.json /app/shared_state/final-state.json; fi"
 
 [verifier.environment]
 network_mode = "no-network"
@@ -139,7 +139,7 @@ volumes:
 
 WORKDIR /app
 
-RUN mkdir -p /app/shared_state /app/evidence
+RUN mkdir -p /app/shared_state
 """
     (env_dir / "Dockerfile").write_text(main_dockerfile, encoding="utf-8")
 
@@ -443,14 +443,14 @@ exec python /tests/verify.py
     test_sh_path.write_text(test_sh, encoding="utf-8")
     test_sh_path.chmod(0o755)
 
-    # tests/verify.py (Strict verifier checking collected evidence and state invariants)
+    # tests/verify.py (Check state invariants and error recovery evidence)
     verify_py = f"""import json
 import sys
 from pathlib import Path
 
 LOG_DIR = Path("/logs/verifier")
-EVIDENCE_FILE = Path("/app/evidence/benchmark-events.jsonl")
-FINAL_STATE_FILE = Path("/app/evidence/final-state.json")
+EVIDENCE_FILE = Path("/app/shared_state/benchmark-events.jsonl")
+FINAL_STATE_FILE = Path("/app/shared_state/final-state.json")
 
 EXPECTED_FAULT_MODE = "{slug_mode}"
 EXPECTED_PERSISTENCE = {persistence}

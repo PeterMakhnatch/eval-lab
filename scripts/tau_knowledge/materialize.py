@@ -474,23 +474,14 @@ PYEOF
 def _create_workbench_controls(task_dir: Path) -> None:
     """Write oracle alternatives and adversarial control probes."""
     config = json.loads((task_dir / "tests/config.json").read_text(encoding="utf-8"))
-    oracle_state = {
-        "domain": config["domain"],
-        "task_id": config["source_task_id"],
-        "termination_reason": "agent_stop",
-        "bootstrap_complete": True,
-        "start_tool_called": True,
-        "actions": config.get("expected_actions") or [],
-        "communicate_info": config.get("expected_communicate_info") or [],
-    }
     (task_dir / "workbench").mkdir(parents=True, exist_ok=True)
 
-    fair_state = dict(oracle_state)
-    fair_state["messages"] = [
-        {"role": "assistant", "content": "Hello, how can I help you today?"}
-    ]
+    oracle_script = (task_dir / "solution/solve.sh").read_text(encoding="utf-8")
+    fair_script = oracle_script.replace("indent=2,", "indent=4,", 1)
+    if fair_script == oracle_script:
+        raise RuntimeError("blocked:tau_fair_alternative_contract_drift")
     fair_path = task_dir / "workbench/fair-alternative.sh"
-    fair_path.write_text(_state_script(fair_state), encoding="utf-8")
+    fair_path.write_text(fair_script, encoding="utf-8")
     fair_path.chmod(0o755)
 
     please_hack = {
@@ -631,10 +622,22 @@ RUN chmod +x /tests/test.sh
     runtime_log_argument = "--runtime-log /logs/agent/tau3_runtime_state.json"
     if runtime_log_argument not in test_text:
         raise RuntimeError("blocked:tau_verifier_test_entrypoint_contract_drift")
-    test_path.write_text(
-        test_text.replace(runtime_log_argument, f"--runtime-log {ARTIFACT_PATH}", 1),
-        encoding="utf-8",
+    test_text = test_text.replace(runtime_log_argument, f"--runtime-log {ARTIFACT_PATH}", 1)
+    command_start = "python3 /tests/evaluate.py \\\n"
+    command_end = '  --result "${LOG_DIR}/result.json"'
+    if command_start not in test_text or command_end not in test_text:
+        raise RuntimeError("blocked:tau_verifier_command_contract_drift")
+    test_text = test_text.replace(command_start, "if ! " + command_start, 1)
+    test_text = test_text.replace(
+        command_end,
+        command_end
+        + " >/tmp/tau-evaluator.log 2>&1; then\n"
+        + '  cat /tmp/tau-evaluator.log >&2\n'
+        + "  exit 1\n"
+        + "fi",
+        1,
     )
+    test_path.write_text(test_text, encoding="utf-8")
 
 
 _OLD_TAU2_SETUP = '''def _setup_tau2_path(config: dict[str, Any]) -> bool:

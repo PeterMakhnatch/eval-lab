@@ -140,8 +140,13 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
         encoding="utf-8",
     )
     (tests / "test.sh").write_text(
-        "#!/bin/sh\npython3 /tests/evaluate.py "
-        "--runtime-log /logs/agent/tau3_runtime_state.json\n",
+        "#!/bin/bash\n"
+        'LOG_DIR="/logs/verifier"\n'
+        "python3 /tests/evaluate.py \\\n"
+        "  --config /tests/config.json \\\n"
+        "  --runtime-log /logs/agent/tau3_runtime_state.json \\\n"
+        '  --reward "${LOG_DIR}/reward.txt" \\\n'
+        '  --result "${LOG_DIR}/result.json"\n',
         encoding="utf-8",
     )
     (solution / "solve.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -149,6 +154,7 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     materializer.harden_agent_environment(task_dir)
     materializer.harden_oracle_solution(task_dir)
     materializer.harden_verifier_environment(task_dir, manifest)
+    materializer._create_workbench_controls(task_dir)
     assert "env = {}" in task_toml.read_text(encoding="utf-8")
     assert "tau2-bench" not in dockerfile.read_text(encoding="utf-8")
     assert "/opt/tau2-bench" not in (solution / "solve.sh").read_text(encoding="utf-8")
@@ -172,6 +178,15 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     assert "--runtime-log /app/tau3_runtime_state.json" in (
         tests / "test.sh"
     ).read_text(encoding="utf-8")
+    test_entrypoint = (tests / "test.sh").read_text(encoding="utf-8")
+    assert ">/tmp/tau-evaluator.log 2>&1" in test_entrypoint
+    assert "cat /tmp/tau-evaluator.log >&2" in test_entrypoint
+    oracle_script = (solution / "solve.sh").read_text(encoding="utf-8")
+    fair_script = (task_dir / "workbench/fair-alternative.sh").read_text(
+        encoding="utf-8"
+    )
+    assert fair_script != oracle_script
+    assert "indent=4," in fair_script
 
     materializer.validate_agent_boundary(task_dir, manifest)
 

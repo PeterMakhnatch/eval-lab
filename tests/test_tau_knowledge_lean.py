@@ -100,13 +100,22 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     task_toml = task_dir / "task.toml"
     dockerfile = environment / "Dockerfile"
     task_toml.write_text(
-        '[task]\nname = "tau3-banking_knowledge-task-001"\n',
+        '[task]\nname = "tau3-banking_knowledge-task-001"\n'
+        '[environment]\nenv = { OPENAI_API_KEY = "${OPENAI_API_KEY}" }\n',
         encoding="utf-8",
     )
-    dockerfile.write_text("FROM python:3.12-slim\n", encoding="utf-8")
+    dockerfile.write_text(
+        "FROM python:3.12-slim\nRUN git clone tau2-bench /opt/tau2-bench\n",
+        encoding="utf-8",
+    )
     hidden_payload = '{"ground_truth":"hidden-database-state-for-task-001"}'
     (tests / "config.json").write_text(hidden_payload + "\n", encoding="utf-8")
     (solution / "solve.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+
+    materializer.harden_agent_environment(task_dir)
+    assert "env = {}" in task_toml.read_text(encoding="utf-8")
+    assert "OPENAI_API_KEY" not in task_toml.read_text(encoding="utf-8")
+    assert "tau2-bench" not in dockerfile.read_text(encoding="utf-8")
 
     materializer.validate_agent_boundary(task_dir, manifest)
 
@@ -114,7 +123,7 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     with pytest.raises(RuntimeError, match="oracle_boundary_leak"):
         materializer.validate_agent_boundary(task_dir, manifest)
 
-    dockerfile.write_text("FROM python:3.12-slim\n", encoding="utf-8")
+    dockerfile.write_text(materializer.AGENT_DOCKERFILE, encoding="utf-8")
     credential_value = "simulator-credential-value-marker-12345"
     task_toml.write_text("credential_env = OPENAI_API_KEY\n", encoding="utf-8")
     materializer.validate_agent_boundary(

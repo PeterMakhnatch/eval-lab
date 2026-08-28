@@ -17,6 +17,17 @@ from typing import Any
 
 DEFAULT_MANIFEST = Path("library/benchmarks/tau-knowledge/cohort.manifest.json")
 DEFAULT_OUTPUT = Path("derived/harbor-tasks/tau")
+PYTHON_BASE_IMAGE = (
+    "python:3.13-slim@sha256:"
+    "bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+)
+AGENT_DOCKERFILE = f"""FROM {PYTHON_BASE_IMAGE}
+
+WORKDIR /app
+RUN apt-get update \\
+    && apt-get install -y --no-install-recommends ca-certificates git \\
+    && rm -rf /var/lib/apt/lists/*
+"""
 
 try:
     from preflight import sha256, validate_source
@@ -93,6 +104,26 @@ def _load_adapter(root: Path) -> type[Any]:
     raise RuntimeError(f"blocked:adapter_package_missing:{root}")
 
 
+def harden_agent_environment(task_dir: Path) -> None:
+    """Remove simulator secrets and benchmark source data from the agent service."""
+    task_config = task_dir / "task.toml"
+    lines = task_config.read_text(encoding="utf-8").splitlines()
+    section = ""
+    rewritten: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped
+        if section == "[environment]" and stripped.startswith("env ="):
+            rewritten.append("env = {}")
+        else:
+            rewritten.append(line)
+    task_config.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+
+    agent_dockerfile = task_dir / "environment/Dockerfile"
+    agent_dockerfile.write_text(AGENT_DOCKERFILE, encoding="utf-8")
+
+
 def validate_agent_boundary(
     task_dir: Path,
     manifest: Mapping[str, Any],
@@ -105,9 +136,9 @@ def validate_agent_boundary(
         task_dir / "instruction.md",
         task_dir / "instructions.md",
     ]
-    environment = task_dir / "environment"
-    if environment.is_dir():
-        visible_paths.extend(sorted(environment.rglob("*")))
+    agent_dockerfile = task_dir / "environment/Dockerfile"
+    if agent_dockerfile.is_file():
+        visible_paths.append(agent_dockerfile)
     source_environment = os.environ if credential_environment is None else credential_environment
     credential_values = [
         value
@@ -184,6 +215,7 @@ def materialize(
         task_dir / "tests/config.json"
     ).is_file():
         raise RuntimeError(f"adapter did not produce complete task: {task_dir}")
+    harden_agent_environment(task_dir)
     validate_agent_boundary(task_dir, manifest)
     metadata = {
         "schema_version": "tau-knowledge-materialization/v1",

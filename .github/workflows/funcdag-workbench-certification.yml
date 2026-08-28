@@ -91,6 +91,39 @@ jobs:
             --controls "$controls" \
             | tee "artifacts/${DIFFICULTY}/packet.json"
           test "$(jq -r '.disposition' "artifacts/${DIFFICULTY}/packet.json")" = "certified_for_review"
+      - name: Produce durable easy registry controls
+        if: matrix.difficulty == 'easy'
+        run: |
+          set -euo pipefail
+          task="library/tasks/experimental/syn-funcdag-easy"
+          jobs="research/evidence/runs"
+          harbor run --path "$task" \
+            --agent oracle \
+            --env docker \
+            --job-name "syn-funcdag-easy-registry-oracle-${GITHUB_RUN_ID}" \
+            --jobs-dir "$jobs" \
+            --n-concurrent 1 \
+            --n-attempts 1 \
+            --yes
+          harbor run --path "$task" \
+            --agent nop \
+            --env docker \
+            --job-name "syn-funcdag-easy-registry-nop-${GITHUB_RUN_ID}" \
+            --jobs-dir "$jobs" \
+            --n-concurrent 1 \
+            --n-attempts 1 \
+            --yes
+          uv run python - <<'PY'
+          from pathlib import Path
+          from evallab.registry import discover_control_evidence
+
+          evidence = discover_control_evidence(
+              Path("library/tasks/experimental/syn-funcdag-easy"),
+              Path.cwd(),
+          )
+          assert evidence.oracle.reward == 1.0
+          assert evidence.nop.reward == 0.0
+          PY
       - name: Upload review packet and retained evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -100,4 +133,5 @@ jobs:
             artifacts/${{ matrix.difficulty }}/
             runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/
             research/registration/candidates/${{ steps.plan.outputs.candidate_id }}/
+            research/evidence/runs/
           if-no-files-found: error

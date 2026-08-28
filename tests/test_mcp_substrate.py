@@ -3,8 +3,12 @@ from __future__ import annotations
 import http.client
 import json
 import socketserver
+import subprocess
+import sys
 import threading
 from pathlib import Path
+
+import pytest
 
 from evallab.benchmark_program_contracts import FaultClass, FaultInjectionRecord
 from evallab.mcp_substrate import (
@@ -62,6 +66,40 @@ def test_fastmcp_script_generation_and_requirements_pinning():
     for req_line in lines:
         assert "==" in req_line
         assert "--hash=sha256:" in req_line
+
+
+def test_offline_pip_install_smoke_with_require_hashes(tmp_path: Path):
+    """Smoke test proving FASTMCP_SIDECAR_REQUIREMENTS_TXT installs offline with --require-hashes against local wheelhouse."""
+    wheelhouse = Path("/tmp/test_wheelhouse")
+    if not wheelhouse.is_dir():
+        pytest.skip("Test wheelhouse not populated on this host")
+
+    reqs_file = tmp_path / "requirements.txt"
+    reqs_file.write_text(FASTMCP_SIDECAR_REQUIREMENTS_TXT)
+
+    target_env = tmp_path / "target_env"
+    target_env.mkdir()
+
+    cmd = [
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        sys.executable,
+        "--no-index",
+        "--find-links",
+        str(wheelhouse),
+        "--require-hashes",
+        "-r",
+        str(reqs_file),
+        "--target",
+        str(target_env),
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, (
+        f"Offline pip install failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
+    )
+    assert (target_env / "fastmcp").is_dir() or (target_env / "fastmcp-0.4.1.dist-info").is_dir()
 
 
 def test_mcp_substrate_digest_sensitivity_to_metadata_and_body():
@@ -169,7 +207,10 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
             }
         )
         conn.request(
-            "POST", "/mcp", body=init_payload, headers={"Content-Type": "application/json"}
+            "POST",
+            "/mcp",
+            body=init_payload,
+            headers={"Content-Type": "application/json"},
         )
         res = conn.getresponse()
         assert res.status == 200
@@ -186,7 +227,10 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
             }
         )
         conn.request(
-            "POST", "/mcp", body=notif_payload, headers={"Content-Type": "application/json"}
+            "POST",
+            "/mcp",
+            body=notif_payload,
+            headers={"Content-Type": "application/json"},
         )
         notif_res = conn.getresponse()
         assert notif_res.status in (200, 204)
@@ -201,7 +245,10 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
             }
         )
         conn.request(
-            "POST", "/mcp", body=list_payload, headers={"Content-Type": "application/json"}
+            "POST",
+            "/mcp",
+            body=list_payload,
+            headers={"Content-Type": "application/json"},
         )
         res = conn.getresponse()
         assert res.status == 200
@@ -218,11 +265,17 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
                 "jsonrpc": "2.0",
                 "id": 3,
                 "method": "tools/call",
-                "params": {"name": "compute_power", "arguments": {"base": 2, "exponent": 8}},
+                "params": {
+                    "name": "compute_power",
+                    "arguments": {"base": 2, "exponent": 8},
+                },
             }
         )
         conn.request(
-            "POST", "/mcp", body=call_payload, headers={"Content-Type": "application/json"}
+            "POST",
+            "/mcp",
+            body=call_payload,
+            headers={"Content-Type": "application/json"},
         )
         res = conn.getresponse()
         assert res.status == 200
@@ -240,10 +293,18 @@ def test_standard_fastmcp_http_server_and_jsonrpc_protocol(tmp_path: Path):
                 "jsonrpc": "2.0",
                 "id": 4,
                 "method": "tools/call",
-                "params": {"name": "compute_power", "arguments": {"base": 2}},  # missing exponent
+                "params": {
+                    "name": "compute_power",
+                    "arguments": {"base": 2},
+                },  # missing exponent
             }
         )
-        conn.request("POST", "/mcp", body=bad_call, headers={"Content-Type": "application/json"})
+        conn.request(
+            "POST",
+            "/mcp",
+            body=bad_call,
+            headers={"Content-Type": "application/json"},
+        )
         res = conn.getresponse()
         assert res.status == 200
         bad_res = json.loads(res.read().decode())

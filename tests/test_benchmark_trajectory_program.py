@@ -836,3 +836,16 @@ def test_canonical_contract_adapter_preserves_legacy_payload_without_unit_infere
     assert canonical.canonical_family is not None
     assert canonical.canonical_cell_factors is not None
     assert canonical.canonical_cell_factors.critical_path_depth == 3
+
+
+def test_canonical_family_a_adapter_uses_only_declared_canonical_fields():
+    """Optional canonical CellFactorsA defaults must not require unrelated legacy fields."""
+    canonical = parse_benchmark_contract(
+        {
+            "family": "family_a_state_inversion",
+            "cell_factors": {"dilation_tokens": 4096, "seed": 42},
+        }
+    )
+    assert canonical.canonical_cell_factors is not None
+    assert canonical.canonical_cell_factors.dilation_tokens == 4096
+    assert canonical.canonical_cell_factors.forced_compaction is False

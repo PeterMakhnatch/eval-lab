@@ -197,7 +197,7 @@ def _canonical_cell_factors(
         return None
     try:
         return model_type.model_validate(
-            {name: cell_factors[name] for name in model_type.model_fields}
+            {name: cell_factors[name] for name in model_type.model_fields if name in cell_factors}
         )
     except ValueError:
         return None

@@ -205,6 +205,25 @@ class TrajectoryOutline:
     autonomous_step_count: int = 0
     assisted_step_count: int = 0
     intervention_count: int = 0
+    state_diff_observed: bool = False
+    state_journal_status: str = "not_observed"
+    state_journal_reason: str | None = None
+    state_events_count: int = 0
+    state_mutations_count: int = 0
+    state_files_created_count: int = 0
+    state_files_modified_count: int = 0
+    state_files_deleted_count: int = 0
+    state_diff_path_count: int = 0
+    state_diff_bytes_delta: int = 0
+    unobserved_state_mutations_count: int = 0
+    path_reference_count: int = 0
+    valid_path_reference_count: int = 0
+    invalid_path_reference_count: int = 0
+    citation_reference_count: int = 0
+    valid_citation_reference_count: int = 0
+    invalid_citation_reference_count: int = 0
+    edit_call_count: int = 0
+    state_coverage_extra: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -264,6 +283,27 @@ class TrajectoryFeatures:
     autonomous_step_count: int = 0
     assisted_step_count: int = 0
     intervention_count: int = 0
+    state_diff_observed: bool = False
+    state_journal_status: str = "not_observed"
+    state_journal_reason: str | None = None
+    state_events_count: int = 0
+    state_mutations_count: int = 0
+    state_files_created_count: int = 0
+    state_files_modified_count: int = 0
+    state_files_deleted_count: int = 0
+    state_diff_path_count: int = 0
+    state_diff_bytes_delta: int = 0
+    unobserved_state_mutations_count: int = 0
+    path_reference_count: int = 0
+    valid_path_reference_count: int = 0
+    invalid_path_reference_count: int = 0
+    citation_reference_count: int = 0
+    valid_citation_reference_count: int = 0
+    invalid_citation_reference_count: int = 0
+    edit_call_count: int = 0
+    edit_efficiency_screening: float | None = None
+    path_reference_validity_rate_screening: float | None = None
+    citation_reference_validity_rate_screening: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -333,6 +373,27 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
         pa.field("autonomous_step_count", pa.int64(), nullable=False),
         pa.field("assisted_step_count", pa.int64(), nullable=False),
         pa.field("intervention_count", pa.int64(), nullable=False),
+        pa.field("state_diff_observed", pa.bool_(), nullable=False),
+        pa.field("state_journal_status", pa.string(), nullable=False),
+        pa.field("state_journal_reason", pa.string(), nullable=True),
+        pa.field("state_events_count", pa.int64(), nullable=False),
+        pa.field("state_mutations_count", pa.int64(), nullable=False),
+        pa.field("state_files_created_count", pa.int64(), nullable=False),
+        pa.field("state_files_modified_count", pa.int64(), nullable=False),
+        pa.field("state_files_deleted_count", pa.int64(), nullable=False),
+        pa.field("state_diff_path_count", pa.int64(), nullable=False),
+        pa.field("state_diff_bytes_delta", pa.int64(), nullable=False),
+        pa.field("unobserved_state_mutations_count", pa.int64(), nullable=False),
+        pa.field("path_reference_count", pa.int64(), nullable=False),
+        pa.field("valid_path_reference_count", pa.int64(), nullable=False),
+        pa.field("invalid_path_reference_count", pa.int64(), nullable=False),
+        pa.field("citation_reference_count", pa.int64(), nullable=False),
+        pa.field("valid_citation_reference_count", pa.int64(), nullable=False),
+        pa.field("invalid_citation_reference_count", pa.int64(), nullable=False),
+        pa.field("edit_call_count", pa.int64(), nullable=False),
+        pa.field("edit_efficiency_screening", pa.float64(), nullable=True),
+        pa.field("path_reference_validity_rate_screening", pa.float64(), nullable=True),
+        pa.field("citation_reference_validity_rate_screening", pa.float64(), nullable=True),
     ]
 )
 
@@ -530,6 +591,186 @@ def _compute_exit_code_cascade(steps: Sequence[StepOutline]) -> int:
     return max_streak
 
 
+_PATH_TOKEN_PATTERN = re.compile(
+    r"(?:[a-zA-Z0-9_\-\.]+/)+[a-zA-Z0-9_\-\.]+|/[a-zA-Z0-9_\-\.]+(?:/[a-zA-Z0-9_\-\.]+)*|\b[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]{1,8}\b"
+)
+
+
+def _extract_state_journal_metrics(
+    trial_dir: Path | None,
+    steps: Sequence[StepOutline],
+    citations: Sequence[SourceCitation] = (),
+) -> dict[str, Any]:
+    """Extract mechanical state diff and state journal metrics from trial artifacts."""
+    not_observed = {
+        "state_diff_observed": False,
+        "state_journal_status": "not_observed",
+        "state_journal_reason": "state-diff.json not present in trial directory",
+        "state_events_count": 0,
+        "state_mutations_count": 0,
+        "state_files_created_count": 0,
+        "state_files_modified_count": 0,
+        "state_files_deleted_count": 0,
+        "state_diff_path_count": 0,
+        "state_diff_bytes_delta": 0,
+        "unobserved_state_mutations_count": 0,
+        "state_coverage_extra": {},
+    }
+    if trial_dir is None or not trial_dir.is_dir():
+        return not_observed
+
+    candidate_diff_paths = [
+        trial_dir / "state-diff.json",
+        trial_dir / "agent" / "state-diff.json",
+        trial_dir / "journal" / "state-diff.json",
+        trial_dir / "state_journal" / "state-diff.json",
+    ]
+    diff_path: Path | None = None
+    for p in candidate_diff_paths:
+        if p.is_file():
+            diff_path = p
+            break
+
+    if diff_path is None:
+        events_path = trial_dir / "state-events.jsonl"
+        if not events_path.is_file():
+            events_path = trial_dir / "agent" / "state-events.jsonl"
+        if events_path.is_file():
+            return {
+                **not_observed,
+                "state_journal_status": "incomplete_stream",
+                "state_journal_reason": "state-events.jsonl present but state-diff.json missing",
+            }
+        return not_observed
+
+    try:
+        raw_diff = json.loads(diff_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            **not_observed,
+            "state_diff_observed": True,
+            "state_journal_status": "malformed",
+            "state_journal_reason": f"unparseable_state_diff: {type(exc).__name__}: {exc}",
+        }
+
+    if not isinstance(raw_diff, dict):
+        return {
+            **not_observed,
+            "state_diff_observed": True,
+            "state_journal_status": "malformed",
+            "state_journal_reason": "state_diff_not_dict",
+        }
+
+    status = str(raw_diff.get("status") or "available")
+    reason = raw_diff.get("reason")
+    event_count = int(raw_diff.get("event_count") or 0)
+    changes = raw_diff.get("changes")
+    if not isinstance(changes, list):
+        changes = []
+
+    created = 0
+    modified = 0
+    deleted = 0
+    bytes_delta = 0
+    mutated_paths: set[str] = set()
+
+    for ch in changes:
+        if not isinstance(ch, dict):
+            continue
+        ctype = str(ch.get("change_type") or "").lower()
+        path_str = ch.get("path")
+        if path_str:
+            mutated_paths.add(str(path_str))
+        if ctype in ("added", "created"):
+            created += 1
+        elif ctype == "modified":
+            modified += 1
+        elif ctype == "deleted":
+            deleted += 1
+
+        before = ch.get("before") if isinstance(ch.get("before"), dict) else None
+        after = ch.get("after") if isinstance(ch.get("after"), dict) else None
+        size_before = int(before.get("size_bytes") or 0) if before else 0
+        size_after = int(after.get("size_bytes") or 0) if after else 0
+        bytes_delta += size_after - size_before
+
+    step_referenced_paths: set[str] = set()
+    for s in steps:
+        if s.tool_command:
+            for token in _PATH_TOKEN_PATTERN.findall(s.tool_command):
+                step_referenced_paths.add(Path(token).name)
+                step_referenced_paths.add(token)
+    for c in citations:
+        step_referenced_paths.add(Path(c.path).name)
+        step_referenced_paths.add(c.path)
+    unobserved_mutations = 0
+    for p in mutated_paths:
+        p_name = Path(p).name
+        if p not in step_referenced_paths and p_name not in step_referenced_paths:
+            unobserved_mutations += 1
+
+    return {
+        "state_diff_observed": True,
+        "state_journal_status": status,
+        "state_journal_reason": str(reason) if reason is not None else None,
+        "state_events_count": event_count,
+        "state_mutations_count": len(changes),
+        "state_files_created_count": created,
+        "state_files_modified_count": modified,
+        "state_files_deleted_count": deleted,
+        "state_diff_path_count": len(mutated_paths),
+        "state_diff_bytes_delta": bytes_delta,
+        "unobserved_state_mutations_count": unobserved_mutations,
+        "state_coverage_extra": {
+            "root": raw_diff.get("root"),
+            "schema_version": raw_diff.get("schema_version"),
+        },
+    }
+
+
+def _extract_reference_and_citation_metrics(
+    trial_dir: Path | None,
+    steps: Sequence[StepOutline],
+    citations: Sequence[SourceCitation],
+) -> dict[str, Any]:
+    """Extract mechanical path reference and citation validity counts."""
+    path_refs: list[str] = []
+    for s in steps:
+        if s.tool_command:
+            for token in _PATH_TOKEN_PATTERN.findall(s.tool_command):
+                path_refs.append(token)
+
+    valid_paths = 0
+    invalid_paths = 0
+    for p in path_refs:
+        if "\x00" in p or ".." in p.split("/"):
+            invalid_paths += 1
+        else:
+            valid_paths += 1
+
+    total_paths = len(path_refs)
+
+    valid_cites = 0
+    invalid_cites = 0
+    for c in citations:
+        sha = c.sha256.strip()
+        sha_hex = sha[7:] if sha.startswith("sha256:") else sha
+        if len(sha_hex) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in sha_hex) and c.path:
+            valid_cites += 1
+        else:
+            invalid_cites += 1
+
+    total_cites = len(citations)
+    return {
+        "path_reference_count": total_paths,
+        "valid_path_reference_count": valid_paths,
+        "invalid_path_reference_count": invalid_paths,
+        "citation_reference_count": total_cites,
+        "valid_citation_reference_count": valid_cites,
+        "invalid_citation_reference_count": invalid_cites,
+    }
+
+
 def _build_phases(steps: Sequence[StepOutline]) -> tuple[PhaseOutline, ...]:
     """Group ordered steps into semantic phases."""
     if not steps:
@@ -676,6 +917,25 @@ def _unavailable_outline(
         autonomous_step_count=0,
         assisted_step_count=0,
         intervention_count=0,
+        state_diff_observed=False,
+        state_journal_status="not_observed",
+        state_journal_reason=reason,
+        state_events_count=0,
+        state_mutations_count=0,
+        state_files_created_count=0,
+        state_files_modified_count=0,
+        state_files_deleted_count=0,
+        state_diff_path_count=0,
+        state_diff_bytes_delta=0,
+        unobserved_state_mutations_count=0,
+        path_reference_count=0,
+        valid_path_reference_count=0,
+        invalid_path_reference_count=0,
+        citation_reference_count=len(citations),
+        valid_citation_reference_count=len(citations),
+        invalid_citation_reference_count=0,
+        edit_call_count=0,
+        state_coverage_extra={},
     )
 
 
@@ -1309,6 +1569,10 @@ def outline_trajectory(
     )
     loop_suspicion = _analyze_loop_suspicion(steps_out)
     phases = _build_phases(steps_out)
+    state_metrics = _extract_state_journal_metrics(trial_dir, steps_out, citations)
+    ref_metrics = _extract_reference_and_citation_metrics(trial_dir, steps_out, citations)
+    edit_call_count = sum(1 for s in steps_out if _is_edit_action(s.tool_name, s.tool_command))
+
     return TrajectoryOutline(
         trial_id=trial_id,
         job_id=job_id,
@@ -1357,6 +1621,25 @@ def outline_trajectory(
         autonomous_step_count=autonomous_steps,
         assisted_step_count=assisted_steps,
         intervention_count=intervention_cnt,
+        state_diff_observed=state_metrics["state_diff_observed"],
+        state_journal_status=state_metrics["state_journal_status"],
+        state_journal_reason=state_metrics["state_journal_reason"],
+        state_events_count=state_metrics["state_events_count"],
+        state_mutations_count=state_metrics["state_mutations_count"],
+        state_files_created_count=state_metrics["state_files_created_count"],
+        state_files_modified_count=state_metrics["state_files_modified_count"],
+        state_files_deleted_count=state_metrics["state_files_deleted_count"],
+        state_diff_path_count=state_metrics["state_diff_path_count"],
+        state_diff_bytes_delta=state_metrics["state_diff_bytes_delta"],
+        unobserved_state_mutations_count=state_metrics["unobserved_state_mutations_count"],
+        path_reference_count=ref_metrics["path_reference_count"],
+        valid_path_reference_count=ref_metrics["valid_path_reference_count"],
+        invalid_path_reference_count=ref_metrics["invalid_path_reference_count"],
+        citation_reference_count=ref_metrics["citation_reference_count"],
+        valid_citation_reference_count=ref_metrics["valid_citation_reference_count"],
+        invalid_citation_reference_count=ref_metrics["invalid_citation_reference_count"],
+        edit_call_count=edit_call_count,
+        state_coverage_extra=state_metrics["state_coverage_extra"],
     )
 
 
@@ -1413,6 +1696,45 @@ def extract_features(outline: TrajectoryOutline) -> TrajectoryFeatures:
         autonomous_step_count=outline.autonomous_step_count,
         assisted_step_count=outline.assisted_step_count,
         intervention_count=outline.intervention_count,
+        state_diff_observed=outline.state_diff_observed,
+        state_journal_status=outline.state_journal_status,
+        state_journal_reason=outline.state_journal_reason,
+        state_events_count=outline.state_events_count,
+        state_mutations_count=outline.state_mutations_count,
+        state_files_created_count=outline.state_files_created_count,
+        state_files_modified_count=outline.state_files_modified_count,
+        state_files_deleted_count=outline.state_files_deleted_count,
+        state_diff_path_count=outline.state_diff_path_count,
+        state_diff_bytes_delta=outline.state_diff_bytes_delta,
+        unobserved_state_mutations_count=outline.unobserved_state_mutations_count,
+        path_reference_count=outline.path_reference_count,
+        valid_path_reference_count=outline.valid_path_reference_count,
+        invalid_path_reference_count=outline.invalid_path_reference_count,
+        citation_reference_count=outline.citation_reference_count,
+        valid_citation_reference_count=outline.valid_citation_reference_count,
+        invalid_citation_reference_count=outline.invalid_citation_reference_count,
+        edit_call_count=outline.edit_call_count,
+        edit_efficiency_screening=(
+            round(float(outline.state_mutations_count) / float(outline.edit_call_count), 4)
+            if outline.edit_call_count > 0
+            else None
+        ),
+        path_reference_validity_rate_screening=(
+            round(
+                float(outline.valid_path_reference_count) / float(outline.path_reference_count), 4
+            )
+            if outline.path_reference_count > 0
+            else None
+        ),
+        citation_reference_validity_rate_screening=(
+            round(
+                float(outline.valid_citation_reference_count)
+                / float(outline.citation_reference_count),
+                4,
+            )
+            if outline.citation_reference_count > 0
+            else None
+        ),
     )
 
 
@@ -1600,6 +1922,27 @@ def project_trajectory_features(
                 autonomous_step_count=0,
                 assisted_step_count=0,
                 intervention_count=0,
+                state_diff_observed=False,
+                state_journal_status="not_observed",
+                state_journal_reason=None,
+                state_events_count=0,
+                state_mutations_count=0,
+                state_files_created_count=0,
+                state_files_modified_count=0,
+                state_files_deleted_count=0,
+                state_diff_path_count=0,
+                state_diff_bytes_delta=0,
+                unobserved_state_mutations_count=0,
+                path_reference_count=0,
+                valid_path_reference_count=0,
+                invalid_path_reference_count=0,
+                citation_reference_count=0,
+                valid_citation_reference_count=0,
+                invalid_citation_reference_count=0,
+                edit_call_count=0,
+                edit_efficiency_screening=None,
+                path_reference_validity_rate_screening=None,
+                citation_reference_validity_rate_screening=None,
             )
             features_list.append(feat)
             unavailable_count += 1

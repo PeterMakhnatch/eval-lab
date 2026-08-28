@@ -67,7 +67,28 @@ CREATE TABLE IF NOT EXISTS traj_features (
     intervention_category VARCHAR,
     autonomous_step_count BIGINT,
     assisted_step_count BIGINT,
-    intervention_count BIGINT
+    intervention_count BIGINT,
+    state_diff_observed BOOLEAN,
+    state_journal_status VARCHAR,
+    state_journal_reason VARCHAR,
+    state_events_count BIGINT,
+    state_mutations_count BIGINT,
+    state_files_created_count BIGINT,
+    state_files_modified_count BIGINT,
+    state_files_deleted_count BIGINT,
+    state_diff_path_count BIGINT,
+    state_diff_bytes_delta BIGINT,
+    unobserved_state_mutations_count BIGINT,
+    path_reference_count BIGINT,
+    valid_path_reference_count BIGINT,
+    invalid_path_reference_count BIGINT,
+    citation_reference_count BIGINT,
+    valid_citation_reference_count BIGINT,
+    invalid_citation_reference_count BIGINT,
+    edit_call_count BIGINT,
+    edit_efficiency_screening DOUBLE,
+    path_reference_validity_rate_screening DOUBLE,
+    citation_reference_validity_rate_screening DOUBLE
 );
 
 CREATE TABLE IF NOT EXISTS behavior_labels (
@@ -245,7 +266,28 @@ SELECT
     duration_seconds,
     created_at,
     context_burn_velocity_screening,
-    max_exit_code_cascade_screening
+    max_exit_code_cascade_screening,
+    state_diff_observed,
+    state_journal_status,
+    state_journal_reason,
+    state_events_count,
+    state_mutations_count,
+    state_files_created_count,
+    state_files_modified_count,
+    state_files_deleted_count,
+    state_diff_path_count,
+    state_diff_bytes_delta,
+    unobserved_state_mutations_count,
+    path_reference_count,
+    valid_path_reference_count,
+    invalid_path_reference_count,
+    citation_reference_count,
+    valid_citation_reference_count,
+    invalid_citation_reference_count,
+    edit_call_count,
+    edit_efficiency_screening,
+    path_reference_validity_rate_screening,
+    citation_reference_validity_rate_screening
 FROM traj_features;
 
 CREATE OR REPLACE VIEW v_traj_loops AS
@@ -456,6 +498,36 @@ SELECT
     loop_suspicion_detected,
     loop_reasons_json,
     repeated_command_count,
+    state_diff_observed,
+    state_journal_status,
+    state_journal_reason,
+    state_events_count,
+    state_mutations_count,
+    state_files_created_count,
+    state_files_modified_count,
+    state_files_deleted_count,
+    state_diff_path_count,
+    state_diff_bytes_delta,
+    unobserved_state_mutations_count,
+    path_reference_count,
+    valid_path_reference_count,
+    invalid_path_reference_count,
+    citation_reference_count,
+    valid_citation_reference_count,
+    invalid_citation_reference_count,
+    edit_call_count,
+    CASE
+        WHEN edit_call_count > 0 THEN round(state_mutations_count * 1.0 / edit_call_count, 4)
+        ELSE NULL
+    END AS edit_efficiency_screening,
+    CASE
+        WHEN path_reference_count > 0 THEN round(valid_path_reference_count * 1.0 / path_reference_count, 4)
+        ELSE NULL
+    END AS path_reference_validity_rate_screening,
+    CASE
+        WHEN citation_reference_count > 0 THEN round(valid_citation_reference_count * 1.0 / citation_reference_count, 4)
+        ELSE NULL
+    END AS citation_reference_validity_rate_screening,
     created_at
 FROM traj_features;
 

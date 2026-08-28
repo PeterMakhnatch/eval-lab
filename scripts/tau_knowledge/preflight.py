@@ -12,7 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-DEFAULT_AGENT = "evallab.harbor_codex:PinnedCodex"
+DEFAULT_SIMULATOR_PROVIDER = "openai"
+DEFAULT_SIMULATOR_MODEL = "gpt-4o-mini-2024-07-18"
+DEFAULT_SIMULATOR_CREDENTIAL_ENV = "OPENAI_API_KEY"
 
 
 @dataclass(frozen=True)
@@ -21,9 +23,10 @@ class Decision:
     proceed: bool
     reason_code: str | None = None
     detail: str = ""
+    simulator_metadata: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "phase": self.phase,
             "status": "proceed" if self.proceed else "blocked",
             "proceed": self.proceed,
@@ -31,6 +34,10 @@ class Decision:
             "detail": self.detail,
             "created_trial": False,
         }
+        if self.simulator_metadata is not None:
+            # Metadata must be log-safe: only non-sensitive provider/model/env-name descriptors
+            result["simulator"] = self.simulator_metadata
+        return result
 
 
 def sha256(path: Path) -> str:
@@ -78,65 +85,74 @@ def validate_source(root: Path, manifest: Mapping[str, Any]) -> Path:
     return root
 
 
-def _auth_file_ok(home: Path) -> bool:
-    path = home.expanduser() / ".codex" / "auth.json"
-    if not path.is_file() or path.stat().st_size == 0:
-        return False
-    try:
-        json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return False
-    return True
 
 
 def credential_preflight(
-    phase: str, *, env: Mapping[str, str], home: Path, agent: str | None = None
+    phase: str,
+    *,
+    env: Mapping[str, str],
+    simulator_provider: str = DEFAULT_SIMULATOR_PROVIDER,
+    simulator_model: str = DEFAULT_SIMULATOR_MODEL,
+    simulator_credential_env: str = DEFAULT_SIMULATOR_CREDENTIAL_ENV,
 ) -> Decision:
     """Check presence/routing only; credential values never enter the decision."""
-    if phase in {"reference", "luna"} and not (env.get("OPENAI_API_KEY") or "").strip():
-        return Decision(
-            phase,
-            False,
-            "blocked:missing_openai_api_key_for_simulated_user",
-            "Harness credential block: tau3 simulated-user runtime requires OPENAI_API_KEY; "
-            "this is not a model or verifier failure.",
-        )
-    if (
-        phase == "luna"
-        and (agent or DEFAULT_AGENT).strip() in {DEFAULT_AGENT, "PinnedCodex", "codex"}
-        and not _auth_file_ok(home)
-    ):
-        return Decision(
-            phase,
-            False,
-            "blocked:missing_codex_auth_json",
-            "Harness credential block: PinnedCodex requires ~/.codex/auth.json "
-            "with CODEX_FORCE_AUTH_JSON=1; this is not a model failure.",
-        )
-    return Decision(phase, True, detail="Credential preflight passed.")
+    sim_meta = {
+        "provider": simulator_provider,
+        "model": simulator_model,
+        "credential_env": simulator_credential_env,
+    }
+    if phase in {"reference", "evaluation"}:
+        key_val = (env.get(simulator_credential_env) or "").strip()
+        if not key_val:
+            return Decision(
+                phase,
+                False,
+                f"blocked:missing_{simulator_credential_env.lower()}_for_simulated_user",
+                f"Harness credential block: tau3 simulated-user runtime ({simulator_provider}/{simulator_model}) "
+                f"requires {simulator_credential_env}; this is not a model or verifier failure.",
+                simulator_metadata=sim_meta,
+            )
+    return Decision(phase, True, detail="Credential preflight passed.", simulator_metadata=sim_meta)
 
 
 def preflight_tau_phase(
     phase: str,
     *,
     env: Mapping[str, str],
-    home: Path,
     source_root: Path | None = None,
     manifest: Mapping[str, Any] | None = None,
-    agent: str | None = None,
+    simulator_provider: str = DEFAULT_SIMULATOR_PROVIDER,
+    simulator_model: str = DEFAULT_SIMULATOR_MODEL,
+    simulator_credential_env: str = DEFAULT_SIMULATOR_CREDENTIAL_ENV,
 ) -> Decision:
     if source_root is not None and manifest is not None:
         try:
             validate_source(source_root, manifest)
         except RuntimeError as exc:
-            return Decision(phase, False, ":".join(str(exc).split(":")[:2]), str(exc))
-    return credential_preflight(phase, env=env, home=home, agent=agent)
+            return Decision(
+                phase,
+                False,
+                ":".join(str(exc).split(":")[:2]),
+                str(exc),
+                simulator_metadata={
+                    "provider": simulator_provider,
+                    "model": simulator_model,
+                    "credential_env": simulator_credential_env,
+                },
+            )
+    return credential_preflight(
+        phase,
+        env=env,
+        simulator_provider=simulator_provider,
+        simulator_model=simulator_model,
+        simulator_credential_env=simulator_credential_env,
+    )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--phase", choices=["oracle", "reference", "luna"], default="oracle"
+        "--phase", choices=["oracle", "reference", "evaluation"], default="oracle"
     )
     parser.add_argument("--source", type=Path, default=None)
     parser.add_argument(
@@ -144,6 +160,9 @@ def main() -> int:
         type=Path,
         default=Path("library/benchmarks/tau-knowledge/cohort.manifest.json"),
     )
+    parser.add_argument("--simulator-provider", default=DEFAULT_SIMULATOR_PROVIDER)
+    parser.add_argument("--simulator-model", default=DEFAULT_SIMULATOR_MODEL)
+    parser.add_argument("--simulator-credential-env", default=DEFAULT_SIMULATOR_CREDENTIAL_ENV)
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     source = args.source or (
@@ -154,9 +173,11 @@ def main() -> int:
     decision = preflight_tau_phase(
         args.phase,
         env=os.environ,
-        home=Path.home(),
         source_root=source,
         manifest=manifest if source else None,
+        simulator_provider=args.simulator_provider,
+        simulator_model=args.simulator_model,
+        simulator_credential_env=args.simulator_credential_env,
     )
     print(json.dumps(decision.to_dict(), indent=2))
     return 0 if decision.proceed else 2

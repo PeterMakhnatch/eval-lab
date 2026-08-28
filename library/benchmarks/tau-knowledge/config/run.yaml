@@ -9,13 +9,17 @@ canary_task_id: task_001
 limits:
   timeout_seconds: 900
   max_steps: 80
+simulator:
+  provider: openai
+  model: gpt-4o-mini-2024-07-18
+  credential_env: OPENAI_API_KEY
+  temperature: 0.0
 credentials:
   simulated_user:
+    provider: openai
+    model: gpt-4o-mini-2024-07-18
     required_env: [OPENAI_API_KEY]
-    phases: [reference, luna]
-  pinned_codex:
-    required_file: ~/.codex/auth.json
-    phases: [luna]
+    phases: [reference, evaluation]
 controls:
   oracle: [uv, run, harbor, trial, start, -p, "{task_path}", -a, oracle]
   nop: [uv, run, harbor, trial, start, -p, "{task_path}", -a, nop]

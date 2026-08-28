@@ -26,13 +26,13 @@ jobs:
         run: |
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          uv tool install "harbor==0.21.0"
       - name: Pin tau2 source and Harbor adapter
         run: |
           git clone --depth 1 --branch v1.0.1 https://github.com/sierra-research/tau2-bench.git "$RUNNER_TEMP/tau2-bench"
           git -C "$RUNNER_TEMP/tau2-bench" checkout fc0055dc4e0a316c3f83133267fbd6faaa770992
           git clone --filter=blob:none https://github.com/harbor-framework/harbor.git "$RUNNER_TEMP/harbor"
           git -C "$RUNNER_TEMP/harbor" checkout 636a2d0295d3ee233666bcd7d77fa81f7f090a19
-          uv sync --locked --project "$RUNNER_TEMP/harbor"
       - name: Materialize canary and prove deterministic regeneration
         env:
           TAU2_BENCH_ROOT: ${{ runner.temp }}/tau2-bench
@@ -48,13 +48,11 @@ jobs:
           echo "TASK_ROOT=$task_root" >> "$GITHUB_ENV"
       - name: Run oracle, nop, and mutant controls
         env:
-          HARBOR_ROOT: ${{ runner.temp }}/harbor
           # Required only for task.toml interpolation; endpoint is unreachable and unused by controls.
           OPENAI_API_KEY: ci-unused-marker
           OPENAI_BASE_URL: http://127.0.0.1:9/v1
           TAU_TRIALS_ROOT: ${{ runner.temp }}/tau-trials
         run: |
-          cd "$HARBOR_ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode oracle --trials-dir "$TAU_TRIALS_ROOT/oracle" --expect-reward 1
           python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode nop --trials-dir "$TAU_TRIALS_ROOT/nop" --expect-reward 0
           python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode mutant --trials-dir "$TAU_TRIALS_ROOT/mutant" --expect-reward 0

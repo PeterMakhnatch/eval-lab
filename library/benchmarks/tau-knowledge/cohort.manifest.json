@@ -44,7 +44,13 @@
     {"task_id":"task_021","task_sha256":"sha256:083e3bfb6860a8ba25fde6bae719badb00c6ba74747f69130d37cf130d73734c","criteria_sha256":"sha256:2680c15457ab7e3cbeaa1e8dd19795e659ce54e87623f901319f249c8fdbbcca","reward_basis":["DB"],"action_names":["call_discoverable_user_tool","give_discoverable_user_tool","log_verification"]}
   ],
   "credentials": {
-    "simulated_user": {"consumer":"tau3-runtime","required_env":["OPENAI_API_KEY"],"required_phases":["reference","luna"],"oauth_equivalent":false},
-    "pinned_codex": {"consumer":"evallab.harbor_codex:PinnedCodex","routing_env":{"CODEX_FORCE_AUTH_JSON":"1"},"auth_file":"~/.codex/auth.json","required_phases":["luna"]}
+    "simulated_user": {
+      "consumer": "tau3-runtime",
+      "provider": "openai",
+      "model": "gpt-4o-mini-2024-07-18",
+      "required_env": ["OPENAI_API_KEY"],
+      "required_phases": ["reference", "evaluation"],
+      "oauth_equivalent": false
+    }
   }
 }

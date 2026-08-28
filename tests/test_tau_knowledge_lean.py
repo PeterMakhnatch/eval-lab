@@ -26,16 +26,26 @@ def _load(path: Path, name: str):
 
 
 def test_cohort_preserves_immutable_pins_and_selected_order() -> None:
-    manifest = json.loads(MANIFEST.read_text())
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert manifest["immutable"] is True
     assert manifest["selection"]["task_ids"] == [row["task_id"] for row in manifest["tasks"]]
     assert manifest["required_upstream"]["commit"] == "fc0055dc4e0a316c3f83133267fbd6faaa770992"
+    assert manifest["required_upstream"]["license"] == "MIT"
     assert manifest["adapter_evidence"]["commit"] == "636a2d0295d3ee233666bcd7d77fa81f7f090a19"
+    # Ensure TASTE tau-c is excluded
+    assert manifest["benchmark_family"] == "tau3-bench"
+    assert "tau-c" not in json.dumps(manifest).lower()
+    simulator = manifest["credentials"]["simulated_user"]
+    assert simulator["provider"] == "openai"
+    assert simulator["model"] == "gpt-4o-mini-2024-07-18"
+    assert simulator["required_env"] == ["OPENAI_API_KEY"]
+    assert simulator["required_phases"] == ["reference", "evaluation"]
+    assert set(manifest["credentials"]) == {"simulated_user"}
 
 
 def test_source_digest_is_stable_and_bounded() -> None:
     materializer = _load(MATERIALIZER, "tau_knowledge_materialize")
-    manifest = json.loads(MANIFEST.read_text())
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     digest = materializer.source_digest(manifest)
     assert digest == "2519b16fa4ffc1b755a7b0ae63d0fa2b363450ccdff2fd284e1e5c60f1a4864c"
     assert len(digest) == 64
@@ -43,15 +53,142 @@ def test_source_digest_is_stable_and_bounded() -> None:
 
 def test_missing_source_and_credentials_fail_closed_without_trial() -> None:
     preflight = _load(PREFLIGHT, "tau_knowledge_preflight")
-    manifest = json.loads(MANIFEST.read_text())
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     source = preflight.preflight_tau_phase(
-        "oracle", env={}, home=Path("/tmp/does-not-exist"), source_root=Path("/tmp/missing"), manifest=manifest
+        "oracle", env={}, source_root=Path("/tmp/missing"), manifest=manifest
     )
     assert source.proceed is False
     assert source.reason_code == "blocked:missing_source_checkout"
-    credential = preflight.credential_preflight("reference", env={}, home=Path("/tmp/empty-home"))
+    credential = preflight.credential_preflight("reference", env={})
     assert credential.reason_code == "blocked:missing_openai_api_key_for_simulated_user"
     assert credential.to_dict()["created_trial"] is False
+
+
+def test_user_simulator_credential_and_oracle_boundary_isolation(tmp_path: Path) -> None:
+    """Ensure user-simulator credentials & oracle payload never leak into agent-visible bytes or decisions."""
+    preflight = _load(PREFLIGHT, "tau_knowledge_preflight_leak")
+    secret_key = "simulator-credential-value-marker-12345"
+    decision = preflight.credential_preflight(
+        "reference",
+        env={"OPENAI_API_KEY": secret_key},
+        simulator_provider="openai",
+        simulator_model="gpt-4o-mini-2024-07-18",
+        simulator_credential_env="OPENAI_API_KEY",
+    )
+    assert decision.proceed is True
+    decision_dict = decision.to_dict()
+    # The key string MUST NEVER appear anywhere in the serialized decision dict/detail
+    assert secret_key not in json.dumps(decision_dict)
+    assert secret_key not in decision.detail
+    assert decision_dict["simulator"]["provider"] == "openai"
+    assert decision_dict["simulator"]["model"] == "gpt-4o-mini-2024-07-18"
+    assert decision_dict["simulator"]["credential_env"] == "OPENAI_API_KEY"
+
+
+def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
+    tmp_path: Path,
+) -> None:
+    materializer = _load(MATERIALIZER, "tau_knowledge_boundary")
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    task_dir = tmp_path / "tau3-banking_knowledge-task-001"
+    environment = task_dir / "environment"
+    tests = task_dir / "tests"
+    solution = task_dir / "solution"
+    environment.mkdir(parents=True)
+    tests.mkdir()
+    solution.mkdir()
+    task_toml = task_dir / "task.toml"
+    dockerfile = environment / "Dockerfile"
+    task_toml.write_text(
+        'schema_version = "1.1"\n'
+        '[task]\nname = "tau3-banking_knowledge-task-001"\n'
+        '[verifier]\ntimeout_sec = 300.0\n'
+        '[agent]\ntimeout_sec = 3600.0\n'
+        '[environment]\nenv = { OPENAI_API_KEY = "${OPENAI_API_KEY}" }\n',
+        encoding="utf-8",
+    )
+    dockerfile.write_text(
+        "FROM python:3.12-slim\nRUN git clone tau2-bench /opt/tau2-bench\n",
+        encoding="utf-8",
+    )
+    hidden_payload = json.dumps(
+        {
+            "domain": "banking_knowledge",
+            "source_task_id": "task_001",
+            "task": {"initial_state": None},
+            "expected_actions": [
+                {
+                    "name": "apply_for_credit_card",
+                    "arguments": {"card_type": "Gold Rewards Card"},
+                    "requestor": "user",
+                }
+            ],
+            "expected_communicate_info": [],
+            "ground_truth": "hidden-database-state-for-task-001",
+        },
+        separators=(",", ":"),
+    )
+    (tests / "config.json").write_text(hidden_payload + "\n", encoding="utf-8")
+    (tests / "evaluate.py").write_text(
+        'from pathlib import Path\n'
+        'DEFAULT_RUNTIME_LOG_PATH = Path("/logs/agent/tau3_runtime_state.json")\n',
+        encoding="utf-8",
+    )
+    (tests / "test.sh").write_text(
+        "#!/bin/sh\npython3 /tests/evaluate.py "
+        "--runtime-log /logs/agent/tau3_runtime_state.json\n",
+        encoding="utf-8",
+    )
+    (solution / "solve.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+
+    materializer.harden_agent_environment(task_dir)
+    materializer.harden_oracle_solution(task_dir)
+    materializer.harden_verifier_environment(task_dir, manifest)
+    assert "env = {}" in task_toml.read_text(encoding="utf-8")
+    assert "tau2-bench" not in dockerfile.read_text(encoding="utf-8")
+    assert "/opt/tau2-bench" not in (solution / "solve.sh").read_text(encoding="utf-8")
+    assert 'state_path = Path("/app/tau3_runtime_state.json")' in (
+        solution / "solve.sh"
+    ).read_text(encoding="utf-8")
+    verifier_config = task_toml.read_text(encoding="utf-8")
+    assert 'environment_mode = "separate"' in verifier_config
+    assert '[verifier.environment]\nnetwork_mode = "no-network"' in verifier_config
+    assert 'artifacts = ["/app/tau3_runtime_state.json"]' in verifier_config
+    assert "[[verifier.collect]]" in verifier_config
+    assert (
+        "cp /logs/agent/tau3_runtime_state.json /app/tau3_runtime_state.json"
+    ) in verifier_config
+    assert manifest["required_upstream"]["commit"] in (
+        tests / "Dockerfile"
+    ).read_text(encoding="utf-8")
+    assert 'Path("/app/tau3_runtime_state.json")' in (
+        tests / "evaluate.py"
+    ).read_text(encoding="utf-8")
+    assert "--runtime-log /app/tau3_runtime_state.json" in (
+        tests / "test.sh"
+    ).read_text(encoding="utf-8")
+
+    materializer.validate_agent_boundary(task_dir, manifest)
+
+    dockerfile.write_text(hidden_payload + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="oracle_boundary_leak"):
+        materializer.validate_agent_boundary(task_dir, manifest)
+
+    dockerfile.write_text(materializer.AGENT_DOCKERFILE, encoding="utf-8")
+    credential_value = "simulator-credential-value-marker-12345"
+    task_toml.write_text("credential_env = OPENAI_API_KEY\n", encoding="utf-8")
+    materializer.validate_agent_boundary(
+        task_dir,
+        manifest,
+        credential_environment={"OPENAI_API_KEY": credential_value},
+    )
+    task_toml.write_text(credential_value + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="simulator_credential_value_leak"):
+        materializer.validate_agent_boundary(
+            task_dir,
+            manifest,
+            credential_environment={"OPENAI_API_KEY": credential_value},
+        )
 
 
 def test_harbor_repository_layout_resolves_nested_tau_adapter(tmp_path: Path) -> None:
@@ -75,7 +212,7 @@ def test_adapter_digest_pins_are_enforced(tmp_path: Path, monkeypatch: pytest.Mo
     for relative in ("pyproject.toml", "README.md", "src/tau3_bench/adapter.py"):
         (package / relative).write_text("fixture\n", encoding="utf-8")
     root = tmp_path
-    manifest = json.loads(MANIFEST.read_text())
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     monkeypatch.setattr(
         materializer.subprocess,
         "run",
@@ -113,11 +250,25 @@ def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) ->
     (task / "task.toml").write_text("[task]\n", encoding="utf-8")
     for mode in ("oracle", "nop", "mutant"):
         command = controls.run_control(task, mode, dry_run=True)
-        assert command[:6] == ["uv", "run", "harbor", "trial", "start", "-p"]
-        assert command[-1] == ("oracle" if mode in {"oracle", "mutant"} else "nop")
+        assert command[:4] == ["harbor", "trial", "start", "-p"]
+        assert Path(command[4]).name == task.name
+        assert command[5:] == [
+            "-a",
+            "oracle" if mode in {"oracle", "mutant"} else "nop",
+            "--force-build",
+        ]
 
 
 def test_generated_corpus_is_not_tracked() -> None:
     tracked = subprocess.check_output(["git", "ls-files"], cwd=ROOT, text=True).splitlines()
-    forbidden = ("library/benchmarks/tau-knowledge/generated/", "library/benchmarks/tau-knowledge/evidence/trials/", "library/benchmarks/tau-knowledge/evidence/luna/")
-    assert not [path for path in tracked if path.startswith(forbidden) or path.endswith(".parquet") and "tau-knowledge" in path]
+    forbidden = (
+        "library/benchmarks/tau-knowledge/generated/",
+        "library/benchmarks/tau-knowledge/evidence/trials/",
+        "library/benchmarks/tau-knowledge/evidence/luna/",
+    )
+    assert not [
+        path
+        for path in tracked
+        if path.startswith(forbidden)
+        or (path.endswith(".parquet") and "tau-knowledge" in path)
+    ]

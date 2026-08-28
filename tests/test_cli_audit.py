@@ -96,6 +96,7 @@ NESTED_COMMANDS = (
     ("traj", "label"),
     ("traj", "project"),
     ("traj", "report"),
+    ("traj", "benchmark"),
     ("semantic-facts", "project"),
     ("semantic-facts", "query"),
 )

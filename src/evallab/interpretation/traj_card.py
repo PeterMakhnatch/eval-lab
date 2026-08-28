@@ -20,6 +20,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from evallab.interpretation.benchmark_events import ingest_benchmark_trial
+from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
+from evallab.interpretation.producers.action_memory import extract_action_memory_features
+from evallab.interpretation.producers.mcp_funcdag import extract_mcp_funcdag_features
+from evallab.interpretation.producers.mcp_recovery import extract_mcp_recovery_features
 from evallab.interpretation.traj_baseline import TraceBaselineRecord, compute_trace_baseline
 from evallab.interpretation.trajectory_hydration import (
     HydratedEvidence,
@@ -105,6 +110,8 @@ class TrajectoryCardData:
     trajectory_sha256: str
     result_path: str | None
     result_sha256: str | None
+    benchmark_family: str | None = None
+    benchmark_features: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -142,6 +149,8 @@ class TrajectoryCardData:
             "trajectory_sha256": self.trajectory_sha256,
             "result_path": self.result_path,
             "result_sha256": self.result_sha256,
+            "benchmark_family": self.benchmark_family,
+            "benchmark_features": self.benchmark_features,
         }
 
 
@@ -348,6 +357,30 @@ def build_traj_card_data(
         loop_reasons_list = tuple(json.loads(baseline.loop_reasons_json))
     except Exception:
         loop_reasons_list = ()
+    # Check for benchmark trial
+    benchmark_family: str | None = None
+    benchmark_feat_dict: dict[str, Any] | None = None
+    if (
+        (trial_dir / "benchmark_contract.json").is_file()
+        or (trial_dir / "benchmark-contract.json").is_file()
+        or (trial_dir / "contract.json").is_file()
+    ):
+        try:
+            bundle = ingest_benchmark_trial(trial_dir)
+            step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
+            benchmark_family = bundle.contract.family
+            if benchmark_family == "action-memory-v1":
+                feat_obj = extract_action_memory_features(bundle, step_tokens=step_tokens)
+                benchmark_feat_dict = asdict(feat_obj)
+            elif benchmark_family == "mcp-funcdag-v1":
+                feat_obj = extract_mcp_funcdag_features(bundle, step_tokens=step_tokens)
+                benchmark_feat_dict = asdict(feat_obj)
+            elif benchmark_family == "mcp-recovery-v1":
+                feat_obj = extract_mcp_recovery_features(bundle, step_tokens=step_tokens)
+                benchmark_feat_dict = asdict(feat_obj)
+        except Exception:
+            benchmark_family = None
+            benchmark_feat_dict = None
 
     return TrajectoryCardData(
         trial_id=baseline.trial_id,
@@ -384,6 +417,8 @@ def build_traj_card_data(
         trajectory_sha256=baseline.source_sha256,
         result_path=result_path.name if result_path else None,
         result_sha256=result_sha,
+        benchmark_family=benchmark_family,
+        benchmark_features=benchmark_feat_dict,
     )
 
 
@@ -649,6 +684,40 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
             f"- **Result File:** `{card.result_path}` (SHA-256: `{card.result_sha256 or 'n/a'}`)"
         )
     lines.append("")
+    # Section 9: Benchmark Observables (when present)
+    if card.benchmark_family and card.benchmark_features:
+        lines.append(f"## 9. Benchmark Observables (`{card.benchmark_family}`)")
+        bf = card.benchmark_features
+        lines.append(f"- **Benchmark Family:** `{card.benchmark_family}`")
+        if "construct" in bf and bf["construct"]:
+            lines.append(f"- **Construct:** `{bf['construct']}`")
+        if "causal_grade" in bf and bf["causal_grade"]:
+            lines.append(f"- **Causal Grade:** `{bf['causal_grade']}`")
+        if "verifier_truth_digest" in bf and bf["verifier_truth_digest"]:
+            lines.append(f"- **Verifier Ground Truth Digest:** `{bf['verifier_truth_digest']}`")
+        lines.append("")
+        lines.append("### Ground Truth & Derived Observables")
+        lines.append("| Metric | Value | Data Type | Category / Provenance |")
+        lines.append("|---|---|---|---|")
+        for k, v in bf.items():
+            if k in (
+                "trial_id",
+                "job_id",
+                "task_name",
+                "agent_name",
+                "construct",
+                "causal_grade",
+                "verifier_truth_digest",
+                "created_at",
+                "contract_family",
+            ):
+                continue
+            feat_meta = TRAJECTORY_FEATURE_REGISTRY.get(k)
+            cat = feat_meta.category if feat_meta else "benchmark_metric"
+            dtype = feat_meta.data_type if feat_meta else "VARCHAR"
+            val_str = "NULL" if v is None else str(v)
+            lines.append(f"| `{k}` | **{val_str}** | `{dtype}` | `{cat}` |")
+        lines.append("")
 
     return "\n".join(lines)
 

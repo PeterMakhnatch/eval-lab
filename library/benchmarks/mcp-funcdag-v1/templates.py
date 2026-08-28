@@ -85,11 +85,23 @@ def run_wrong_value_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], works
 def run_distractor_trace_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], workspace: Path) -> None:
     """Only calls distractor tools and outputs a dummy answer."""
     distractors = [t for t in spec_data["tools"] if t.get("is_distractor", False)]
+    if not distractors:
+        # Fallback to first tool if no distractors in cell
+        distractors = spec_data["tools"][:1]
     for d in distractors:
-        runtime.call_tool(d["name"], {"input_payload": "noise_test", "flag": True})
+        if d.get("is_distractor", False):
+            runtime.call_tool(d["name"], {"input_payload": "noise_test", "flag": True})
+        else:
+            runtime.call_tool(d["name"], {})
 
     workspace.mkdir(parents=True, exist_ok=True)
     (workspace / "result.json").write_text(json.dumps({"target_value": -999999}) + "\n", encoding="utf-8")
+
+
+def run_answer_only_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], workspace: Path) -> None:
+    """Writes the expected target value directly without executing ANY tools in the DAG."""
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "result.json").write_text(json.dumps({"target_value": 42}) + "\n", encoding="utf-8")
 
 
 def get_mutants() -> dict[str, Callable[[MCPRuntime, dict[str, Any], Path], None]]:
@@ -97,4 +109,5 @@ def get_mutants() -> dict[str, Callable[[MCPRuntime, dict[str, Any], Path], None
         "wrong_order": run_wrong_order_mutant,
         "wrong_value": run_wrong_value_mutant,
         "distractor_trace": run_distractor_trace_mutant,
+        "answer_only": run_answer_only_mutant,
     }

@@ -4,14 +4,11 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, Literal
+from typing import Any
 
 FAMILY = "mcp-funcdag-v1"
 VERSION = "1.0.0"
 CONSTRUCT = "MCP tool selection, composition, and value propagation over dependency DAGs"
-
-# Saturation states for calibration
-SATURATION_STATES = ("NON_SATURATED", "CEILING_SATURATION", "FLOOR_SATURATION")
 
 CALIBRATION_SEEDS = [42, 101, 2024]
 
@@ -47,7 +44,6 @@ class BenchmarkContract:
     opportunity_counts: dict[str, Any]
     verifier_truth_digest: str
     artifact_paths: dict[str, str]
-    saturation_state: str = "NON_SATURATED"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

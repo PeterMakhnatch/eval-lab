@@ -17,7 +17,7 @@ def check_oracle_leak_exclusion(task_dir: Path) -> None:
             for fname in files:
                 fpath = Path(root) / fname
                 if fpath.name == "result.json":
-                    continue  # Result written by agent is allowed
+                    continue
                 try:
                     text = fpath.read_text(encoding="utf-8", errors="ignore")
                     for token in forbidden_tokens:
@@ -47,7 +47,7 @@ def verify_execution(
     topological_order = verifier_truth["topological_order"]
     required_tools = [verifier_truth["node_tool_map"][nid] for nid in topological_order]
 
-    # 3. Check workspace result (check both result.json and nested forms)
+    # 3. Check workspace result
     result_file = workspace_dir / "result.json"
     if not result_file.exists():
         return {
@@ -101,15 +101,16 @@ def verify_execution(
             dag_conformance = False
             break
 
-    # Check intermediate values
+    # Check intermediate values with strictly one-to-one event consumption
+    consumed_indices: set[int] = set()
     valid_intermediate_count = 0
     for node_id in topological_order:
         tool_name = verifier_truth["node_tool_map"][node_id]
         expected_val = reference_node_values[node_id]
-        # Find matching call
         matched = False
-        for call in successful_calls:
-            if call["tool_name"] == tool_name and call.get("result") == expected_val:
+        for idx, call in enumerate(successful_calls):
+            if idx not in consumed_indices and call["tool_name"] == tool_name and call.get("result") == expected_val:
+                consumed_indices.add(idx)
                 matched = True
                 break
         if matched:
@@ -117,7 +118,7 @@ def verify_execution(
 
     value_propagation_accuracy = (valid_intermediate_count / len(topological_order)) if topological_order else 0.0
 
-    # Final outcome evaluation
+    # Final outcome evaluation (strictly requires target value match + dag conformance + 100% value propagation)
     reward = 0.0
     if agent_target_value == expected_target_value and dag_conformance and value_propagation_accuracy == 1.0:
         reward = 1.0

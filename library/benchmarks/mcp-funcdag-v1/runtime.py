@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import http.server
 import json
 import os
@@ -65,13 +66,12 @@ class MCPRuntime:
         self.recorder = EventRecorder(evidence_dir)
         self.tools = {t["name"]: t for t in spec_data["tools"]}
         self.nodes = {n["node_id"]: n for n in spec_data.get("nodes", [])}
+        self.executed_calls: list[str] = []  # list of call digests (tool_name + args_json)
         self.executed_tools: list[str] = []
-        self.intermediate_values: dict[str, Any] = {}
         self.total_calls = 0
         self.redundant_calls = 0
 
     def list_tools(self) -> list[dict[str, Any]]:
-        # Format tools as standard MCP JSON-RPC tool schemas
         mcp_tools = []
         for t in self.tools.values():
             properties = {}
@@ -95,8 +95,14 @@ class MCPRuntime:
             })
         return mcp_tools
 
+    def _call_digest(self, name: str, arguments: dict[str, Any]) -> str:
+        canonical_args = json.dumps(arguments, sort_keys=True, separators=(",", ":"))
+        return f"{name}:{canonical_args}"
+
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         self.total_calls += 1
+        call_key = self._call_digest(name, arguments)
+
         if name not in self.tools:
             err = f"Tool '{name}' not found."
             self.recorder.record_event(
@@ -140,9 +146,8 @@ class MCPRuntime:
                     )
                     return {"error": {"code": -32602, "message": err}}
 
-        # Check for redundant execution
-        call_key = (name, json.dumps(arguments, sort_keys=True))
-        is_redundant = name in self.executed_tools
+        # Check for redundant execution: exact same (tool_name, arguments)
+        is_redundant = call_key in self.executed_calls
         if is_redundant:
             self.redundant_calls += 1
 
@@ -163,7 +168,6 @@ class MCPRuntime:
                 )
                 return {"error": {"code": -32000, "message": err}}
             try:
-                # Map arguments by name
                 result = fn(**arguments)
             except Exception as e:
                 err = f"Execution exception: {e}"
@@ -176,6 +180,7 @@ class MCPRuntime:
                 )
                 return {"error": {"code": -32000, "message": err}}
 
+        self.executed_calls.append(call_key)
         self.executed_tools.append(name)
         self.recorder.record_event(
             event_type="tool_call_success",
@@ -183,12 +188,13 @@ class MCPRuntime:
             arguments=arguments,
             result=result,
             schema_conforming=True,
-            extra={"is_redundant": is_redundant},
+            extra={"is_redundant": is_redundant, "call_digest": call_key},
         )
 
         final_state = {
             "total_calls": self.total_calls,
             "executed_tools": self.executed_tools,
+            "executed_calls": self.executed_calls,
             "redundant_calls": self.redundant_calls,
             "last_result": result,
         }
@@ -213,6 +219,14 @@ def make_mcp_handler(runtime: MCPRuntime):
                 self.end_headers()
                 self.wfile.write(json.dumps({"tools": tools}, indent=2).encode("utf-8"))
                 return
+            if self.path == "/events":
+                events_file = runtime.recorder.events_path
+                content = events_file.read_bytes() if events_file.exists() else b""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(content)
+                return
             self.send_response(404)
             self.end_headers()
 
@@ -228,7 +242,6 @@ def make_mcp_handler(runtime: MCPRuntime):
                 self.wfile.write(json.dumps({"error": f"Invalid JSON: {e}"}).encode("utf-8"))
                 return
 
-            # Support JSON-RPC 2.0 streamable-HTTP MCP endpoint
             method = data.get("method")
             msg_id = data.get("id")
 
@@ -255,7 +268,6 @@ def make_mcp_handler(runtime: MCPRuntime):
                     },
                 }
             else:
-                # Direct tool call endpoint fallback
                 name = data.get("tool") or data.get("name")
                 args = data.get("arguments") or data.get("args", {})
                 if name:
@@ -270,7 +282,6 @@ def make_mcp_handler(runtime: MCPRuntime):
             self.wfile.write(json.dumps(resp, indent=2).encode("utf-8"))
 
         def log_message(self, format, *args):
-            # Suppress default noisy stderr HTTP logging
             pass
 
     return MCPHTTPHandler

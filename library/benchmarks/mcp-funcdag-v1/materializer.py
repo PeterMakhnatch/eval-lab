@@ -106,6 +106,16 @@ def materialize_task(
         for t in dag_spec.tools
     ]
     
+    # Agent-visible graph topology (node IDs, tool names, and input bindings WITHOUT any values or topological sequence)
+    agent_graph_nodes = [
+        {
+            "node_id": n.node_id,
+            "tool_name": n.tool_name,
+            "input_bindings": n.input_bindings,
+        }
+        for n in dag_spec.nodes
+    ]
+
     runtime_tools_spec = {
         "tools": agent_tools,
         "nodes": [
@@ -139,14 +149,23 @@ def materialize_task(
         json.dumps(verifier_truth, indent=2, sort_keys=True), encoding="utf-8"
     )
 
-    # 3. Instruction
+    # 3. Instruction with complete agent-visible graph topology
     inputs_desc = ", ".join(f"`{k}={v}`" for k, v in dag_spec.initial_inputs.items())
+    nodes_desc_lines = []
+    for n in agent_graph_nodes:
+        bindings_str = ", ".join(f"{param}={src}" for param, src in n["input_bindings"].items())
+        nodes_desc_lines.append(f"- Node `{n['node_id']}`: uses tool `{n['tool_name']}` with inputs ({bindings_str})")
+    nodes_desc = "\n".join(nodes_desc_lines)
+
     instruction_content = f"""# MCP Tool Composition: Function DAG Evaluation
 
 You are tasked with evaluating the target output value for a composite function DAG.
 
 ## Initial Inputs:
 {inputs_desc}
+
+## Dependency Graph Nodes:
+{nodes_desc}
 
 ## Target Objective:
 Evaluate the root target node `{dag_spec.target_node_id}` by discovering and calling the appropriate streamable-HTTP MCP tools in prerequisite topological order, correctly propagating intermediate values between dependent tools.
@@ -212,7 +231,25 @@ CMD ["sleep", "infinity"]
     verifier_eval_content = """import json
 import os
 import sys
+import http.client
 from pathlib import Path
+
+def fetch_events_from_sidecar():
+    for _ in range(10):
+        try:
+            conn = http.client.HTTPConnection("mcp-server", 8000, timeout=3)
+            conn.request("GET", "/events")
+            res = conn.getresponse()
+            if res.status == 200:
+                data = res.read().decode("utf-8")
+                conn.close()
+                lines = [json.loads(line) for line in data.splitlines() if line.strip()]
+                if lines:
+                    return lines
+            conn.close()
+        except Exception:
+            pass
+    return []
 
 def main():
     truth_file = Path("/tests/verifier_truth.json")
@@ -240,11 +277,56 @@ def main():
         except Exception:
             pass
 
+    events_file = Path("/app/evidence/benchmark-events.jsonl")
+    events = []
+    if events_file.exists():
+        for line in events_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    events.append(json.loads(line))
+                except Exception:
+                    pass
+    if not events:
+        events = fetch_events_from_sidecar()
+
+    successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
+    executed_tools = [e["tool_name"] for e in successful_calls]
+
+    # Check topological DAG ordering
+    tool_idx = 0
+    dag_conformance = True
+    for req_tool in required_tools:
+        try:
+            pos = executed_tools.index(req_tool, tool_idx)
+            tool_idx = pos + 1
+        except ValueError:
+            dag_conformance = False
+            break
+
+    # Check intermediate values strictly one-to-one without duplicate consumption
+    consumed_indices = set()
+    valid_intermediates = 0
+    for node_id in topological_order:
+        tname = node_tool_map[node_id]
+        eval_v = ref_node_values[node_id]
+        matched = False
+        for idx, c in enumerate(successful_calls):
+            if idx not in consumed_indices and c["tool_name"] == tname and c.get("result") == eval_v:
+                consumed_indices.add(idx)
+                matched = True
+                break
+        if matched:
+            valid_intermediates += 1
+
+    val_prop_acc = (valid_intermediates / len(topological_order)) if topological_order else 0.0
+
+    # Verification requires matching target value, DAG conformance, and full value propagation
     reward = 0.0
-    if agent_val == exp_val:
+    if agent_val == exp_val and dag_conformance and val_prop_acc == 1.0:
         reward = 1.0
 
-    print(f"Verification complete: reward={reward}, agent_val={agent_val}, exp_val={exp_val}")
+    print(f"Verification complete: reward={reward}, agent_val={agent_val}, exp_val={exp_val}, dag_conf={dag_conformance}, val_prop={val_prop_acc}")
     
     logs_dir = Path("/logs/verifier")
     if not logs_dir.exists():
@@ -383,9 +465,31 @@ for nid in topological_order:
 
 target_val = node_values[target_node_id]
 
+# Write result.json for agent artifact collection
 res_path = Path("/app/result.json")
 res_path.parent.mkdir(parents=True, exist_ok=True)
 res_path.write_text(json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8")
+
+# Also write directly to /logs/agent/result.json if /logs/agent exists
+if Path("/logs/agent").exists():
+    Path("/logs/agent/result.json").write_text(json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8")
+
+# Fetch and persist evidence from sidecar to /app/evidence
+try:
+    conn = http.client.HTTPConnection("mcp-server", 8000, timeout=5)
+    conn.request("GET", "/events")
+    res = conn.getresponse()
+    if res.status == 200:
+        events_text = res.read().decode("utf-8")
+        evidence_p = Path("/app/evidence/benchmark-events.jsonl")
+        evidence_p.parent.mkdir(parents=True, exist_ok=True)
+        evidence_p.write_text(events_text, encoding="utf-8")
+        if Path("/logs/agent").exists():
+            (Path("/logs/agent") / "benchmark-events.jsonl").write_text(events_text, encoding="utf-8")
+    conn.close()
+except Exception as e:
+    print(f"Warning: could not sync sidecar events: {{e}}")
+
 print(f"Oracle solved with target_value: {{target_val}}")
 """
     (solution / "solve.py").write_text(solve_py_content, encoding="utf-8")
@@ -448,7 +552,9 @@ echo '{"target_value": -1}' > /app/result.json
     (workbench / "please-hack.sh").write_text(please_hack_content, encoding="utf-8")
     (workbench / "please-hack.sh").chmod(0o755)
 
-    # 3 Adversarial Probes
+    # 3 Adversarial Probes using real generated distractor tool names if present
+    first_distractor = next((t.name for t in dag_spec.tools if t.is_distractor), "dag_tool_add_integers")
+    
     probe1_content = """#!/bin/bash
 set -euo pipefail
 # NOP probe
@@ -466,28 +572,28 @@ echo '{"target_value": 99999999}' > /app/result.json
     (adversarial / "probe-corrupt-value.sh").write_text(probe2_content, encoding="utf-8")
     (adversarial / "probe-corrupt-value.sh").chmod(0o755)
 
-    probe3_content = """#!/bin/bash
+    probe3_content = f"""#!/bin/bash
 set -euo pipefail
-# Distractor noise probe
+# Distractor noise probe calling real generated distractor: {first_distractor}
 python3 - <<'PYEOF'
 import json, http.client
 from pathlib import Path
 
-payload = json.dumps({
+payload = json.dumps({{
     "jsonrpc": "2.0",
     "id": "probe3",
     "method": "tools/call",
-    "params": {"name": "noise_distractor", "arguments": {}}
-})
+    "params": {{"name": "{first_distractor}", "arguments": {{"input_payload": "noise", "flag": True}}}}
+}})
 try:
     conn = http.client.HTTPConnection("mcp-server", 8000, timeout=2)
-    conn.request("POST", "/mcp", body=payload, headers={"Content-Type": "application/json"})
+    conn.request("POST", "/mcp", body=payload, headers={{"Content-Type": "application/json"}})
     conn.getresponse()
     conn.close()
 except Exception:
     pass
 
-Path("/app/result.json").write_text(json.dumps({"target_value": 0}) + "\n")
+Path("/app/result.json").write_text(json.dumps({{"target_value": 0}}) + "\\n")
 PYEOF
 """
     (adversarial / "probe-distractor-only.sh").write_text(probe3_content, encoding="utf-8")

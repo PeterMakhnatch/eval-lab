@@ -40,7 +40,6 @@ def test_benchmark_contract_and_campaign_cells():
     assert contract.family == "mcp-funcdag-v1"
     assert contract.opportunity_counts["required_node_count"] == 5
     assert contract.opportunity_counts["distractor_count"] == 2
-    # 10 factor variations x 3 seeds = 30 cells
     assert len(contract_mod.CAMPAIGN_0_CELLS) == 30
 
 
@@ -83,24 +82,33 @@ def test_streamable_mcp_runtime_and_events(tmp_path):
     assert "result" in out
     assert out["result"]["value"] == spec.reference_node_values[target_node.node_id]
 
+    # Repeated identical call -> counted as redundant
     out_dup = runtime.call_tool(target_node.tool_name, args)
     assert "result" in out_dup
     assert runtime.redundant_calls == 1
 
+    # Same tool name with DIFFERENT args is NOT redundant
+    different_args = {k: (v + 1 if isinstance(v, int) else v) for k, v in args.items()}
+    runtime.call_tool(target_node.tool_name, different_args)
+    assert runtime.redundant_calls == 1  # Still 1!
+
+    # Schema error tool call
     bad_out = runtime.call_tool(target_node.tool_name, {"x": "not_an_int"})
     assert "error" in bad_out
 
+    # Unknown tool call
     unk_out = runtime.call_tool("non_existent_tool", {})
     assert "error" in unk_out
 
     events_file = tmp_path / "benchmark-events.jsonl"
     assert events_file.exists()
     lines = [json.loads(line) for line in events_file.read_text().splitlines() if line.strip()]
-    assert len(lines) == 4
+    assert len(lines) == 5
     assert lines[0]["event_type"] == "tool_call_success"
     assert lines[1]["is_redundant"] is True
-    assert lines[2]["schema_conforming"] is False
-    assert lines[3]["event_type"] == "tool_call_rejected"
+    assert lines[2]["is_redundant"] is False
+    assert lines[3]["schema_conforming"] is False
+    assert lines[4]["event_type"] == "tool_call_rejected"
 
 
 def test_materializer_harbor_topology_and_controls(tmp_path):
@@ -114,7 +122,9 @@ def test_materializer_harbor_topology_and_controls(tmp_path):
     task_dir = materializer_mod.materialize_task(cell, output_root=tmp_path)
     
     assert (task_dir / "task.toml").exists()
-    assert (task_dir / "instruction.md").exists()
+    instruction_text = (task_dir / "instruction.md").read_text()
+    assert "Dependency Graph Nodes:" in instruction_text
+    assert "uses tool" in instruction_text
     assert (task_dir / "environment" / "Dockerfile").exists()
     assert (task_dir / "environment" / "docker-compose.yaml").exists()
     assert (task_dir / "environment" / "mcp-server" / "Dockerfile").exists()
@@ -134,6 +144,8 @@ def test_materializer_harbor_topology_and_controls(tmp_path):
     templates_mod.run_oracle_solve(runtime, spec_data, workspace_dir)
     res_oracle = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
     assert res_oracle["reward"] == 1.0
+    assert res_oracle["dag_conformance"] is True
+    assert res_oracle["value_propagation_accuracy"] == 1.0
 
     # Test NOP -> 0.0
     materializer_mod.materialize_task(cell, output_root=tmp_path)
@@ -141,6 +153,14 @@ def test_materializer_harbor_topology_and_controls(tmp_path):
     templates_mod.run_nop_solve(runtime, spec_data, workspace_dir)
     res_nop = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
     assert res_nop["reward"] == 0.0
+
+    # Test Answer-only exploit without tool execution -> must fail (0.0)
+    materializer_mod.materialize_task(cell, output_root=tmp_path)
+    runtime = runtime_mod.MCPRuntime(spec_data, evidence_dir)
+    truth_data = json.loads(truth_path.read_text())
+    (workspace_dir / "result.json").write_text(json.dumps({"target_value": truth_data["expected_target_value"]}))
+    res_answer_only = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
+    assert res_answer_only["reward"] == 0.0, "Answer-only exploit was incorrectly accepted!"
 
     # Test Mutants -> 0.0
     for mname, mfn in templates_mod.get_mutants().items():

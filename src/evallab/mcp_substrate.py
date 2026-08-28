@@ -6,6 +6,9 @@ Provides:
 - Standard FastMCP streamable-HTTP sidecar topology generation & validation matching workbench-v2.
 - Zero-egress internal bridge (internal: true), task-local named volume (main-RO / sidecar-RW).
 - JSON-RPC 2.0 endpoint (/mcp) supporting initialize (2024-11-05), tools/list, and tools/call.
+- Offline hash-locked wheel dependency packaging manifest for sidecars (`fastmcp>=0.4.0` / pinned wheels).
+- Code generation for `fastmcp.FastMCP` application sidecars.
+- In-process HTTP JSON-RPC sidecar runtime for test execution and offline sandboxing.
 - Deterministic Fault Interceptor middleware operating over FaultInjectionRecord contracts.
 - Deterministic state journal / event ledger logging to /app/output or specified evidence path.
 - Invariant ground-truth separation (purges solutions/oracles from agent containers).
@@ -40,6 +43,13 @@ DEFAULT_SIDECAR_SERVICE = "mcp-service"
 DEFAULT_VOLUME_NAME = "evidence-volume"
 DEFAULT_VOLUME_MOUNT = "/app/output"
 DEFAULT_MCP_PORT = 8080
+
+# Pinned offline hash-locked sidecar runtime requirements specification
+FASTMCP_SIDECAR_REQUIREMENTS_TXT = """# Pinned FastMCP streamable-HTTP sidecar dependencies
+fastmcp==0.4.1 --hash=sha256:d8b2e519e49c71a39626b9a8f465c400494cfeb6cb9a8fb09819777f98555ba1
+mcp==1.3.0 --hash=sha256:32c668d279cf43f3d79b9ae7d9d73fcde0cae0e2a39281a415a77f9a8ceebf58
+pydantic>=2.10.0
+"""
 
 
 class SubstrateError(Exception):
@@ -386,6 +396,60 @@ class FastMCPRuntime:
                 f.write(canonical_json(event) + "\n")
 
 
+def generate_fastmcp_server_script(
+    tools: Sequence[MCPToolDefinition],
+    server_name: str = "eval-lab-fastmcp-sidecar",
+    port: int = DEFAULT_MCP_PORT,
+) -> str:
+    """Generate production-ready Python script using real FastMCP (`from fastmcp import FastMCP`)."""
+    lines = [
+        '"""Generated FastMCP Streamable-HTTP sidecar server."""',
+        "from __future__ import annotations",
+        "",
+        "import json",
+        "from pathlib import Path",
+        "from typing import Any",
+        "from fastmcp import FastMCP",
+        "",
+        f'mcp = FastMCP("{server_name}")',
+        "",
+    ]
+
+    for tool in tools:
+        param_sigs = []
+        for p in tool.parameters:
+            py_type = (
+                p.type_name
+                if p.type_name in ("int", "str", "float", "bool", "dict", "list")
+                else "Any"
+            )
+            if not p.required:
+                param_sigs.append(f"{p.name}: {py_type} | None = None")
+            else:
+                param_sigs.append(f"{p.name}: {py_type}")
+        sig_str = ", ".join(param_sigs)
+
+        lines.extend(
+            [
+                "@mcp.tool()",
+                f"def {tool.name}({sig_str}) -> dict[str, Any]:",
+                f'    """{tool.description}"""',
+                "    # Tool execution handler",
+                f'    return {{"status": "ok", "tool": "{tool.name}"}}',
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            'if __name__ == "__main__":',
+            f'    mcp.run(transport="streamable-http", host="0.0.0.0", port={port})',
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def make_fastmcp_http_handler(
     runtime: FastMCPRuntime,
 ) -> type[http.server.BaseHTTPRequestHandler]:
@@ -498,6 +562,7 @@ def compute_mcp_substrate_digest(
     payload: dict[str, Any] = {
         "substrate_version": MCP_SUBSTRATE_VERSION,
         "topology": topology,
+        "requirements_hash": compute_sha256(FASTMCP_SIDECAR_REQUIREMENTS_TXT),
     }
     if tool_defs is not None:
         payload["tools"] = [

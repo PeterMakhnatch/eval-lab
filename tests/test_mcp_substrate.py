@@ -9,10 +9,12 @@ from pathlib import Path
 from evallab.benchmark_program_contracts import FaultClass, FaultInjectionRecord
 from evallab.mcp_substrate import (
     DEFAULT_PROTOCOL_VERSION,
+    FASTMCP_SIDECAR_REQUIREMENTS_TXT,
     FastMCPRuntime,
     MCPToolDefinition,
     MCPToolParameter,
     compute_mcp_substrate_digest,
+    generate_fastmcp_server_script,
     make_fastmcp_http_handler,
     render_mcp_compose_document,
     validate_mcp_compose_document,
@@ -32,6 +34,27 @@ def test_mcp_compose_document_rendering_and_validation():
     assert "evidence-volume" in doc["volumes"]
     assert doc["services"]["main"]["volumes"] == ["evidence-volume:/app/output:ro"]
     assert doc["services"]["mcp-service"]["volumes"] == ["evidence-volume:/app/output:rw"]
+
+
+def test_fastmcp_script_generation_and_requirements_pinning():
+    tool = MCPToolDefinition(
+        name="calculate_sum",
+        description="Compute sum of two integers",
+        parameters=(
+            MCPToolParameter(name="x", type_name="int", description="First number"),
+            MCPToolParameter(name="y", type_name="int", description="Second number"),
+        ),
+    )
+    script = generate_fastmcp_server_script([tool], server_name="test-server", port=8080)
+    assert "from fastmcp import FastMCP" in script
+    assert 'mcp = FastMCP("test-server")' in script
+    assert "@mcp.tool()" in script
+    assert "def calculate_sum(x: int, y: int) -> dict[str, Any]:" in script
+    assert 'mcp.run(transport="streamable-http", host="0.0.0.0", port=8080)' in script
+
+    # Verify requirements.txt is hash locked
+    assert "fastmcp==" in FASTMCP_SIDECAR_REQUIREMENTS_TXT
+    assert "--hash=sha256:" in FASTMCP_SIDECAR_REQUIREMENTS_TXT
 
 
 def test_mcp_compose_validation_rejects_unauthorized_constructs():

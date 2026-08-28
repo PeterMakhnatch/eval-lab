@@ -8,11 +8,18 @@ typed, documented, and declare its denominator sibling for null-on-zero invarian
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import pyarrow as pa
 
-FeatureCategory = Literal["identity", "mechanical_fact", "screening_heuristic"]
+FeatureCategory = Literal[
+    "identity",
+    "mechanical_fact",
+    "screening_heuristic",
+    "benchmark_ground_truth",
+    "benchmark_l1_fact",
+    "benchmark_l2_metric",
+]
 FeatureDataType = Literal["VARCHAR", "BIGINT", "DOUBLE", "BOOLEAN"]
 
 
@@ -31,6 +38,12 @@ class FeatureDefinition:
     denominator_sibling: str | None = None
     null_on_zero_denominator: bool = False
     producer_module: str = "evallab.traj"
+    construct: str | None = None
+    causal_grade: str | None = None
+    evidence_grade: str | None = None
+    metric_order: int | None = None
+    eligibility_precondition: str | None = None
+    family: str | None = None
 
     def validate_contract(self) -> list[str]:
         """Validate naming, typing, and denominator invariants for this feature."""
@@ -88,6 +101,18 @@ class FeatureRegistry:
         """Return shallow copy of all registered features."""
         return dict(self._features)
 
+    def by_family(self, family: str) -> dict[str, FeatureDefinition]:
+        """Return all features registered for a specific benchmark family."""
+        return {k: v for k, v in self._features.items() if v.family == family}
+
+    def by_construct(self, construct: str) -> dict[str, FeatureDefinition]:
+        """Return all features registered for a specific capability construct."""
+        return {k: v for k, v in self._features.items() if v.construct == construct}
+
+    def by_category(self, category: FeatureCategory) -> dict[str, FeatureDefinition]:
+        """Return all features registered under a specific category."""
+        return {k: v for k, v in self._features.items() if v.category == category}
+
     def verify_against_schema(self, schema: pa.Schema) -> list[str]:
         """Verify that all fields in a PyArrow schema match registered contracts."""
         errors: list[str] = []
@@ -137,6 +162,12 @@ def register_trajectory_feature(
     denominator_sibling: str | None = None,
     null_on_zero_denominator: bool = False,
     producer_module: str = "evallab.traj",
+    construct: str | None = None,
+    causal_grade: str | None = None,
+    evidence_grade: str | None = None,
+    metric_order: int | None = None,
+    eligibility_precondition: str | None = None,
+    family: str | None = None,
 ) -> FeatureDefinition:
     """Helper to register a trajectory feature in the global registry."""
     feat = FeatureDefinition(
@@ -151,6 +182,12 @@ def register_trajectory_feature(
         denominator_sibling=denominator_sibling,
         null_on_zero_denominator=null_on_zero_denominator,
         producer_module=producer_module,
+        construct=construct,
+        causal_grade=causal_grade,
+        evidence_grade=evidence_grade,
+        metric_order=metric_order,
+        eligibility_precondition=eligibility_precondition,
+        family=family,
     )
     return TRAJECTORY_FEATURE_REGISTRY.register(feat)
 
@@ -869,3 +906,641 @@ def verify_feature_registry() -> list[str]:
     for feat in TRAJECTORY_FEATURE_REGISTRY.all_features().values():
         errors.extend(feat.validate_contract())
     return errors
+
+
+# =============================================================================
+# Benchmark-Specific Feature Registrations (Action Memory, Tool Composition, Error Recovery)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. Action Memory (action-memory-v1 / Context & Actionable Memory)
+# -----------------------------------------------------------------------------
+register_trajectory_feature(
+    "raw_binding_opportunities",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Opportunity count for target entity binding from contract",
+    null_condition="Never NULL for action-memory trials",
+    description="Opportunity count for target entity binding (denominator for binding_survival_rate).",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "raw_conflicting_opportunities",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Opportunity count for conflicting/stale entity binding from contract",
+    null_condition="Never NULL for action-memory trials",
+    description="Opportunity count for conflicting entity binding (denominator for stale_value_override_rate).",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "bound_target_entity",
+    data_type="VARCHAR",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Entity identifier bound in mutations",
+    null_condition="NULL if no entity mutation occurred",
+    description="Target entity identifier mutated by the agent.",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C0",
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "bound_target_attribute",
+    data_type="VARCHAR",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Attribute identifier bound in mutations",
+    null_condition="NULL if no attribute mutation occurred",
+    description="Target attribute identifier mutated by the agent.",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C0",
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "bound_target_value",
+    data_type="VARCHAR",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Value string bound in mutations",
+    null_condition="NULL if no value was bound",
+    description="Target value bound in state mutations.",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C0",
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "binding_matched",
+    data_type="BOOLEAN",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Boolean flag indicating bound value matched latest target entity ground truth",
+    null_condition="False if unfulfilled",
+    description="Whether the bound value matched the latest target value.",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "stale_value_bound",
+    data_type="BOOLEAN",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Boolean flag indicating bound value matched initial/stale value instead of latest",
+    null_condition="False if unfulfilled",
+    description="Whether the agent bound an outdated/stale value.",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "binding_survival_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="binding_matched / raw_binding_opportunities",
+    null_condition="NULL when raw_binding_opportunities == 0",
+    description="Fraction of target entity binding opportunities correctly surviving to final state.",
+    denominator_sibling="raw_binding_opportunities",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=2,
+    eligibility_precondition="raw_binding_opportunities > 0",
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "stale_value_override_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="(1.0 - stale_value_bound) / raw_conflicting_opportunities if raw_conflicting_opportunities > 0",
+    null_condition="NULL when raw_conflicting_opportunities == 0",
+    description="Rate of successfully overriding stale memory values when conflicting updates occurred.",
+    denominator_sibling="raw_conflicting_opportunities",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=2,
+    eligibility_precondition="raw_conflicting_opportunities > 0",
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "context_burn_velocity",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="OLS slope of prompt tokens across trajectory step sequence",
+    null_condition="NULL when step count < 2",
+    description="Prompt token accumulation velocity (tokens per step slope).",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C0",
+    metric_order=2,
+    family="action-memory-v1",
+)
+register_trajectory_feature(
+    "occupancy_first_failure",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Context byte/token occupancy ratio at step of first failure",
+    null_condition="NULL if no failure occurred",
+    description="Context buffer occupancy fraction when first failure was observed.",
+    producer_module="evallab.interpretation.producers.action_memory",
+    construct="Context & Actionable Memory",
+    causal_grade="C0",
+    metric_order=2,
+    family="action-memory-v1",
+)
+
+# -----------------------------------------------------------------------------
+# 2. Tool Composition (mcp-funcdag-v1 / Tool Selection & Composition)
+# -----------------------------------------------------------------------------
+register_trajectory_feature(
+    "required_dag_edges",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Required dependency edges in composition DAG from contract",
+    null_condition="Never NULL for mcp-funcdag trials",
+    description="Required dependency edge count in the composition DAG.",
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "required_value_bindings",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Required intermediate/sink value bindings from contract",
+    null_condition="Never NULL for mcp-funcdag trials",
+    description="Required value binding count across DAG nodes.",
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "executed_dag_edges",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of successfully executed DAG dependency edges",
+    null_condition="0 by default",
+    description="Count of successfully executed composition DAG edges.",
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C1",
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "correct_value_bindings",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of correctly bound intermediate/sink values",
+    null_condition="0 by default",
+    description="Count of correctly bound values in composition chain.",
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C1",
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "redundant_tool_calls",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of repeated identical tool calls or distractor invocations",
+    null_condition="0 by default",
+    description="Count of redundant or distractor tool invocations.",
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C0",
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "satisfied_edge_opportunities",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="min(executed_dag_edges, required_dag_edges)",
+    null_condition="0 by default",
+    description="Count of satisfied edge opportunities eligible for latency analysis.",
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C0",
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "first_edge_step",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="1-based step index when first DAG edge was executed",
+    null_condition="NULL if no DAG edges executed",
+    description="Step index of first composition edge execution.",
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C0",
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "value_propagation_accuracy",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="correct_value_bindings / required_value_bindings",
+    null_condition="NULL when required_value_bindings == 0",
+    description="Accuracy of value propagation through intermediate and sink nodes.",
+    denominator_sibling="required_value_bindings",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=2,
+    eligibility_precondition="required_value_bindings > 0",
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "dag_edge_conformance_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="min(executed_dag_edges, required_dag_edges) / required_dag_edges",
+    null_condition="NULL when required_dag_edges == 0",
+    description="Conformance rate of executed dependency edges against required DAG schema.",
+    denominator_sibling="required_dag_edges",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=2,
+    eligibility_precondition="required_dag_edges > 0",
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "redundant_call_ratio",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="redundant_tool_calls / total_tool_calls",
+    null_condition="NULL when total_tool_calls == 0",
+    description="Ratio of redundant/distractor tool calls to total tool requests.",
+    denominator_sibling="tool_call_count",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C0",
+    metric_order=2,
+    eligibility_precondition="total_tool_calls > 0",
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
+    "first_edge_latency",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="first_edge_step if satisfied_edge_opportunities > 0 else NULL",
+    null_condition="NULL when satisfied_edge_opportunities == 0",
+    description="Latency (in steps) to execute first composition edge under satisfied opportunities.",
+    denominator_sibling="satisfied_edge_opportunities",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C0",
+    metric_order=2,
+    eligibility_precondition="satisfied_edge_opportunities > 0",
+    family="mcp-funcdag-v1",
+)
+
+# -----------------------------------------------------------------------------
+# 3. Error Recovery (mcp-recovery-v1 / Error Detection & Autonomous Recovery)
+# -----------------------------------------------------------------------------
+register_trajectory_feature(
+    "injected_fault_record",
+    data_type="VARCHAR",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="JSON array of injected fault classes",
+    null_condition="NULL if no faults injected",
+    description="Record of injected fault classes in trial.",
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C3",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "injected_fault_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of fault injection events",
+    null_condition="0 by default",
+    description="Number of faults injected during trial.",
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C3",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "fault_detected_count",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of faults acknowledged by argument modification or tool switch",
+    null_condition="0 by default",
+    description="Number of faults actively detected and handled by the agent.",
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C2",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "post_fault_retries",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of tool call attempts following a fault injection",
+    null_condition="0 by default",
+    description="Number of retry attempts executed after fault occurrence.",
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C0",
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "blind_retries",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of retries repeating exact identical failing arguments without change",
+    null_condition="0 by default",
+    description="Number of blind retries repeating identical failing parameters.",
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C0",
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "certified_recovered_faults",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of faults recovered with final invariants verified",
+    null_condition="0 by default",
+    description="Number of faults certified as recovered with verified final state.",
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C3",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "step_to_first_fault",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="1-based step index of first injected fault",
+    null_condition="NULL if no faults injected",
+    description="Step index of first injected fault.",
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C0",
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "step_to_recovery",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="1-based step index of successful recovery call",
+    null_condition="NULL if no recovery occurred",
+    description="Step index when successful recovery call completed.",
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C0",
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "autonomous_recovery_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="certified_recovered_faults / injected_fault_count",
+    null_condition="NULL when injected_fault_count == 0",
+    description="Rate of autonomous certified fault recoveries over injected faults.",
+    denominator_sibling="injected_fault_count",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C3",
+    evidence_grade="Grade A",
+    metric_order=2,
+    eligibility_precondition="injected_fault_count > 0",
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "fault_detection_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="min(fault_detected_count, injected_fault_count) / injected_fault_count",
+    null_condition="NULL when injected_fault_count == 0",
+    description="Rate of fault detection and diagnostic reaction over injected faults.",
+    denominator_sibling="injected_fault_count",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C2",
+    evidence_grade="Grade A",
+    metric_order=2,
+    eligibility_precondition="injected_fault_count > 0",
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "blind_retry_rate",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="blind_retries / post_fault_retries",
+    null_condition="NULL when post_fault_retries == 0",
+    description="Fraction of retries repeating exact failing arguments blindly.",
+    denominator_sibling="post_fault_retries",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C0",
+    metric_order=2,
+    eligibility_precondition="post_fault_retries > 0",
+    family="mcp-recovery-v1",
+)
+register_trajectory_feature(
+    "fault_recovery_latency",
+    data_type="DOUBLE",
+    category="benchmark_l2_metric",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="(step_to_recovery - step_to_first_fault) if certified_recovered_faults > 0 else NULL",
+    null_condition="NULL when certified_recovered_faults == 0",
+    description="Step latency from fault injection to certified recovery under recovered trials.",
+    denominator_sibling="certified_recovered_faults",
+    null_on_zero_denominator=True,
+    producer_module="evallab.interpretation.producers.mcp_recovery",
+    construct="Error Detection & Autonomous Recovery",
+    causal_grade="C0",
+    metric_order=2,
+    eligibility_precondition="certified_recovered_faults > 0",
+    family="mcp-recovery-v1",
+)
+
+
+def compute_benchmark_feature_yield(
+    records: list[dict[str, Any]],
+    family: str | None = None,
+) -> dict[str, Any]:
+    """Compute per-feature yield and coverage diagnostics over benchmark records."""
+    if not records:
+        return {
+            "total_records": 0,
+            "family": family,
+            "feature_stats": {},
+        }
+
+    total_count = len(records)
+    target_features = (
+        TRAJECTORY_FEATURE_REGISTRY.by_family(family)
+        if family
+        else TRAJECTORY_FEATURE_REGISTRY.all_features()
+    )
+
+    feature_stats: dict[str, dict[str, Any]] = {}
+    for col_name, feat in target_features.items():
+        non_null_count = sum(1 for r in records if r.get(col_name) is not None)
+        null_count = total_count - non_null_count
+        yield_pct = (non_null_count / total_count * 100.0) if total_count > 0 else 0.0
+
+        feature_stats[col_name] = {
+            "total": total_count,
+            "non_null": non_null_count,
+            "null": null_count,
+            "yield_pct": round(yield_pct, 2),
+            "category": feat.category,
+            "construct": feat.construct,
+            "causal_grade": feat.causal_grade,
+            "evidence_grade": feat.evidence_grade,
+            "null_on_zero_denominator": feat.null_on_zero_denominator,
+            "denominator_sibling": feat.denominator_sibling,
+        }
+
+    return {
+        "total_records": total_count,
+        "family": family,
+        "feature_stats": feature_stats,
+    }
+
+
+def verify_benchmark_feature_coverage(
+    records: list[dict[str, Any]],
+    family: str,
+) -> dict[str, Any]:
+    """Verify that all registered features for a family are present in records with expected nullity."""
+    yield_diag = compute_benchmark_feature_yield(records, family=family)
+    missing_features: list[str] = []
+    zero_yield_features: list[str] = []
+
+    family_feats = TRAJECTORY_FEATURE_REGISTRY.by_family(family)
+    stats = yield_diag["feature_stats"]
+
+    for col_name, feat in family_feats.items():
+        if col_name not in stats:
+            missing_features.append(col_name)
+        elif (
+            stats[col_name]["non_null"] == 0
+            and not feat.null_on_zero_denominator
+            and feat.category == "benchmark_l1_fact"
+        ):
+            # L1 facts should generally have non-zero yield in valid runs
+            zero_yield_features.append(col_name)
+    passed = len(missing_features) == 0 and len(zero_yield_features) == 0
+    return {
+        "family": family,
+        "passed": passed,
+        "missing_features": missing_features,
+        "zero_yield_features": zero_yield_features,
+        "diagnostics": yield_diag,
+    }

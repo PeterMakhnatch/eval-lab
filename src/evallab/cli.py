@@ -1457,7 +1457,6 @@ def _analyze_quality_command(
     return 0
 
 
-
 def _data_backfill_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2781,6 +2780,74 @@ def _traj_align_command(
         return 1
 
 
+def _traj_benchmark_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.interpretation.benchmark_events import ingest_benchmark_trial
+    from evallab.interpretation.producers.action_memory import extract_action_memory_features
+    from evallab.interpretation.producers.mcp_funcdag import extract_mcp_funcdag_features
+    from evallab.interpretation.producers.mcp_recovery import extract_mcp_recovery_features
+    from evallab.traj import outline_trajectory, resolve_trial_target
+
+    explicit_root = _resolve(root, args.runs_dir) if getattr(args, "runs_dir", None) else None
+    if explicit_root is None:
+        try:
+            target_path = Path(args.trial).resolve()
+            repo_resolved = root.resolve()
+            if target_path != repo_resolved and repo_resolved not in target_path.parents:
+                explicit_root = target_path.parent if target_path.is_file() else target_path
+        except Exception:
+            pass
+
+    try:
+        trial_dir, traj_path, result_path = resolve_trial_target(
+            args.trial, repo_root=root, explicit_runs_root=explicit_root
+        )
+        bundle = ingest_benchmark_trial(trial_dir)
+        outline = outline_trajectory(args.trial, repo_root=root, explicit_runs_root=explicit_root)
+        step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]
+
+        feat_obj: Any = None
+        if bundle.contract.family == "action-memory-v1":
+            feat_obj = extract_action_memory_features(bundle, step_tokens=step_tokens)
+        elif bundle.contract.family == "mcp-funcdag-v1":
+            feat_obj = extract_mcp_funcdag_features(bundle, step_tokens=step_tokens)
+        elif bundle.contract.family == "mcp-recovery-v1":
+            feat_obj = extract_mcp_recovery_features(bundle, step_tokens=step_tokens)
+        else:
+            raise ValueError(f"Unknown benchmark family: {bundle.contract.family}")
+
+        data = asdict(feat_obj)
+        if getattr(args, "json", False):
+            print(json.dumps(data, indent=2, default=str))
+        else:
+            print(f"BENCHMARK OBSERVABLES ({bundle.contract.family}):")
+            print(f"  Trial ID:       {data.get('trial_id')}")
+            print(f"  Task:           {data.get('task_name')}")
+            print(f"  Agent:          {data.get('agent_name')}")
+            print(f"  Construct:      {data.get('construct')}")
+            print(f"  Causal Grade:   {data.get('causal_grade')}")
+            print(f"  Truth Digest:   {data.get('verifier_truth_digest')}")
+            print("\n  Metrics:")
+            for k, v in data.items():
+                if k not in (
+                    "trial_id",
+                    "job_id",
+                    "task_name",
+                    "agent_name",
+                    "construct",
+                    "causal_grade",
+                    "verifier_truth_digest",
+                    "created_at",
+                    "contract_family",
+                ):
+                    print(f"    {k}: {v}")
+        return 0
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
 # ---------------------------------------------------------------------------
 # Declarative CLI Parser Construction
 # ---------------------------------------------------------------------------
@@ -3362,7 +3429,6 @@ def parser() -> argparse.ArgumentParser:
         help="Select named report paths using {name:.path,...} syntax",
     )
     analyze_quality.set_defaults(func=_analyze_quality_command)
-
 
     data = commands.add_parser(
         "data",
@@ -4139,6 +4205,13 @@ def parser() -> argparse.ArgumentParser:
     traj_align.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
     traj_align.add_argument("--output", "-o", type=Path, help="Write alignment JSON to file")
     traj_align.set_defaults(func=_traj_align_command)
+    traj_bm = traj_commands.add_parser(
+        "benchmark", help="Extract and inspect benchmark capability observables for a trial"
+    )
+    traj_bm.add_argument("trial", help="Trial identifier, directory, or result.json")
+    traj_bm.add_argument("--runs-dir", type=Path, help="Override candidate runs root")
+    traj_bm.add_argument("--json", action="store_true", help="Emit observables as JSON")
+    traj_bm.set_defaults(func=_traj_benchmark_command)
     return root
 
 

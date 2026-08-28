@@ -34,6 +34,29 @@ def test_contract_metadata_and_cell_factors():
     assert "semantic_distractor" in cell_arms
 
 
+def test_contract_opportunity_counts_match_generator_output():
+    state_mod = load("state_contract_match", "state")
+    contract_file = ROOT / "benchmark_contract.json"
+    contract = json.loads(contract_file.read_text(encoding="utf-8"))
+    for cell in contract["cells"]:
+        spec = state_mod.generate_scenario(
+            seed=42,
+            cell_id=cell["cell_id"],
+            arm=cell["arm"],
+            dose_bytes=cell["dose_bytes"],
+            inversion_count=cell["inversion_count"],
+            padding_position=cell.get("padding_position"),
+            distractor_count=cell.get("distractor_count", 4),
+        )
+        assert cell["read_opportunity_count"] == spec.read_opportunity_count, (
+            f"Cell {cell['cell_id']} read_opportunity_count mismatch: "
+            f"declared {cell['read_opportunity_count']} != generated {spec.read_opportunity_count}"
+        )
+        assert cell["update_opportunity_count"] == spec.update_opportunity_count
+        assert cell["mutation_opportunity_count"] == spec.mutation_opportunity_count
+        assert cell["dose_bytes"] == spec.dose_bytes
+
+
 def test_state_generation_deterministic_and_dosed():
     state_mod = load("state_test", "state")
     spec1 = state_mod.generate_scenario(seed=42, cell_id="clean_baseline_4k", arm="clean")

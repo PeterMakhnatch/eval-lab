@@ -10,7 +10,7 @@
       "arm": "clean",
       "inversion_count": 1,
       "update_opportunity_count": 1,
-      "read_opportunity_count": 6,
+      "read_opportunity_count": 7,
       "mutation_opportunity_count": 1
     },
     {
@@ -20,7 +20,7 @@
       "padding_position": "prefix",
       "inversion_count": 1,
       "update_opportunity_count": 1,
-      "read_opportunity_count": 18,
+      "read_opportunity_count": 19,
       "mutation_opportunity_count": 1
     },
     {
@@ -30,7 +30,7 @@
       "padding_position": "middle",
       "inversion_count": 1,
       "update_opportunity_count": 1,
-      "read_opportunity_count": 18,
+      "read_opportunity_count": 19,
       "mutation_opportunity_count": 1
     },
     {
@@ -40,7 +40,7 @@
       "distractor_count": 12,
       "inversion_count": 1,
       "update_opportunity_count": 1,
-      "read_opportunity_count": 30,
+      "read_opportunity_count": 28,
       "mutation_opportunity_count": 1
     },
     {
@@ -50,7 +50,7 @@
       "distractor_count": 48,
       "inversion_count": 2,
       "update_opportunity_count": 2,
-      "read_opportunity_count": 114,
+      "read_opportunity_count": 105,
       "mutation_opportunity_count": 1
     }
   ],

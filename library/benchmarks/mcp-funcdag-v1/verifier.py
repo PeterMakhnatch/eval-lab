@@ -47,7 +47,7 @@ def verify_execution(
     topological_order = verifier_truth["topological_order"]
     required_tools = [verifier_truth["node_tool_map"][nid] for nid in topological_order]
 
-    # 3. Check workspace result
+    # 3. Check workspace result (check both result.json and nested forms)
     result_file = workspace_dir / "result.json"
     if not result_file.exists():
         return {

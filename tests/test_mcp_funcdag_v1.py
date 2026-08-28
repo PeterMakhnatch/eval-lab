@@ -107,7 +107,7 @@ def test_streamable_mcp_runtime_and_events(tmp_path):
     assert lines[3]["event_type"] == "tool_call_rejected"
 
 
-def test_materializer_oracle_nop_and_mutants(tmp_path):
+def test_materializer_harbor_topology_and_controls(tmp_path):
     contract_mod = load_module("contract")
     materializer_mod = load_module("materializer")
     runtime_mod = load_module("runtime")
@@ -116,9 +116,17 @@ def test_materializer_oracle_nop_and_mutants(tmp_path):
 
     cell = contract_mod.CAMPAIGN_0_CELLS[0]
     task_dir = materializer_mod.materialize_task(cell, output_root=tmp_path)
+    
+    # Check Harbor task structure
     assert (task_dir / "task.toml").exists()
     assert (task_dir / "instruction.md").exists()
     assert (task_dir / "environment" / "Dockerfile").exists()
+    assert (task_dir / "environment" / "docker-compose.yaml").exists()
+    assert (task_dir / "environment" / "mcp-server" / "Dockerfile").exists()
+    assert (task_dir / "solution" / "solve.sh").exists()
+    assert (task_dir / "solution" / "solve.py").exists()
+    assert (task_dir / "tests" / "Dockerfile").exists()
+    assert (task_dir / "tests" / "test.sh").exists()
     assert (task_dir / "tests" / "verifier_truth.json").exists()
 
     spec_data = json.loads((task_dir / "environment" / "runtime_tools.json").read_text())

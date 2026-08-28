@@ -29,10 +29,9 @@ def run_oracle_solve(runtime: MCPRuntime, spec_data: dict[str, Any], workspace: 
         node_values[node_id] = val
 
     target_val = node_values[spec_data["target_node_id"]]
-    # Write final answer to workspace
     workspace.mkdir(parents=True, exist_ok=True)
     ans_file = workspace / "result.json"
-    ans_file.write_text(json.dumps({"target_value": target_val}, indent=2), encoding="utf-8")
+    ans_file.write_text(json.dumps({"target_value": target_val}, indent=2) + "\n", encoding="utf-8")
     return target_val
 
 
@@ -59,7 +58,7 @@ def run_wrong_order_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], works
             node_values[node_id] = call_out["result"]["value"]
 
     workspace.mkdir(parents=True, exist_ok=True)
-    (workspace / "result.json").write_text(json.dumps({"target_value": node_values.get(spec_data["target_node_id"], 0)}), encoding="utf-8")
+    (workspace / "result.json").write_text(json.dumps({"target_value": node_values.get(spec_data["target_node_id"], 0)}) + "\n", encoding="utf-8")
 
 
 def run_wrong_value_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], workspace: Path) -> None:
@@ -80,7 +79,7 @@ def run_wrong_value_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], works
             node_values[node_id] = call_out["result"]["value"]
 
     workspace.mkdir(parents=True, exist_ok=True)
-    (workspace / "result.json").write_text(json.dumps({"target_value": node_values.get(spec_data["target_node_id"], 0)}), encoding="utf-8")
+    (workspace / "result.json").write_text(json.dumps({"target_value": node_values.get(spec_data["target_node_id"], 0)}) + "\n", encoding="utf-8")
 
 
 def run_distractor_trace_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], workspace: Path) -> None:
@@ -90,7 +89,7 @@ def run_distractor_trace_mutant(runtime: MCPRuntime, spec_data: dict[str, Any], 
         runtime.call_tool(d["name"], {"input_payload": "noise_test", "flag": True})
 
     workspace.mkdir(parents=True, exist_ok=True)
-    (workspace / "result.json").write_text(json.dumps({"target_value": -999999}), encoding="utf-8")
+    (workspace / "result.json").write_text(json.dumps({"target_value": -999999}) + "\n", encoding="utf-8")
 
 
 def get_mutants() -> dict[str, Callable[[MCPRuntime, dict[str, Any], Path], None]]:

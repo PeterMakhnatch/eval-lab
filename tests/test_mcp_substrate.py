@@ -7,11 +7,14 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 
 from evallab.benchmark_program_contracts import FaultClass, FaultInjectionRecord
 from evallab.mcp_substrate import (
+    DEFAULT_PINNED_BASE_IMAGE,
     FASTMCP_SIDECAR_REQUIREMENTS_TXT,
     MCPToolDefinition,
     MCPToolParameter,
@@ -22,6 +25,7 @@ from evallab.mcp_substrate import (
     render_mcp_compose_document,
     validate_mcp_compose_document,
 )
+from evallab.task_workbench import _validate_compose_topology
 
 
 def test_mcp_compose_document_rendering_and_validation():
@@ -37,6 +41,54 @@ def test_mcp_compose_document_rendering_and_validation():
     assert "evidence-volume" in doc["volumes"]
     assert doc["services"]["main"]["volumes"] == ["evidence-volume:/app/output:ro"]
     assert doc["services"]["mcp-service"]["volumes"] == ["evidence-volume:/app/output:rw"]
+    assert doc["networks"]["workbench-internal"] == {"internal": True}
+    assert doc["services"]["main"]["networks"] == ["workbench-internal"]
+    assert doc["services"]["mcp-service"]["networks"] == ["workbench-internal"]
+
+
+def test_mcp_substrate_workbench_v2_integration_acceptance(tmp_path: Path):
+    """Integration test proving materialize_mcp_sidecar_package's rendered Compose topology is accepted by updated task_workbench."""
+    resolved_root = tmp_path.resolve()
+    env_dir = resolved_root / "environment"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / "Dockerfile").write_text(
+        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\nWORKDIR /app\n", encoding="utf-8"
+    )
+
+    sidecar_dir = env_dir / "mcp-server"
+    tool = MCPToolDefinition(
+        name="test_tool",
+        description="A test tool",
+        parameters=(MCPToolParameter(name="x", type_name="int", description="val"),),
+    )
+    wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
+
+    if wheelhouse.is_dir():
+        pkg = materialize_mcp_sidecar_package(
+            target_dir=sidecar_dir,
+            tools=[tool],
+            wheelhouse_source=wheelhouse,
+        )
+    else:
+        pkg = materialize_mcp_sidecar_package(
+            target_dir=sidecar_dir,
+            tools=[tool],
+            plan_only=True,
+        )
+        (sidecar_dir / "Dockerfile").write_text(
+            f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8"
+        )
+        (sidecar_dir / "offline-build-proof.json").write_text("{}\n", encoding="utf-8")
+
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(pkg["compose_doc"]), encoding="utf-8")
+
+    diagnostics: list[Any] = []
+    topology, sidecar_name = _validate_compose_topology(resolved_root, diagnostics)
+    assert sidecar_name == "mcp-service"
+    assert topology is not None
+    assert len(diagnostics) == 0, f"task_workbench emitted unexpected diagnostics: {diagnostics}"
+    assert topology["sidecar_service"] == "mcp-service"
+    assert topology["volume"]["name"] == "evidence-volume"
 
 
 def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path: Path):

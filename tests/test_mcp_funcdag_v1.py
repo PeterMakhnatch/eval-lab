@@ -1,0 +1,151 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "mcp-funcdag-v1"
+sys.path.insert(0, str(ROOT))
+
+
+def load_module(name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_dag_generator_determinism():
+    dag_gen = load_module("dag_generator")
+    spec1 = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
+    spec2 = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
+
+    assert spec1.target_node_id == spec2.target_node_id
+    assert spec1.expected_target_value == spec2.expected_target_value
+    assert spec1.topological_order == spec2.topological_order
+    assert len(spec1.tools) == len(spec2.tools)
+    assert len(spec1.nodes) == 5  # Layer 0: 2, Layer 1: 2, Layer 2: 1
+
+
+def test_benchmark_contract_and_campaign_cells():
+    contract_mod = load_module("contract")
+    dag_gen = load_module("dag_generator")
+    factors = contract_mod.CellFactors(depth=3, width=2, distractor_count=2)
+    spec = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
+    contract = contract_mod.make_benchmark_contract(factors, spec, "test-task-1")
+
+    assert contract.family == "mcp-funcdag-v1"
+    assert contract.opportunity_counts["required_node_count"] == 5
+    assert contract.opportunity_counts["distractor_count"] == 2
+    assert len(contract_mod.CAMPAIGN_0_CELLS) == 10
+
+
+def test_streamable_mcp_runtime_and_events(tmp_path):
+    dag_gen = load_module("dag_generator")
+    runtime_mod = load_module("runtime")
+    spec = dag_gen.generate_dag_spec(seed=42, depth=2, width=2, distractor_count=1)
+
+    spec_dict = {
+        "tools": [
+            {
+                "name": t.name,
+                "description": t.description,
+                "parameters": [
+                    {"name": p.name, "type_name": p.type_name, "description": p.description, "required": p.required}
+                    for p in t.parameters
+                ],
+                "output_type": t.output_type,
+                "is_distractor": t.is_distractor,
+                "op_kind": t.op_kind,
+            }
+            for t in spec.tools
+        ],
+        "nodes": [
+            {"node_id": n.node_id, "tool_name": n.tool_name, "op_name": n.op_name, "input_bindings": n.input_bindings}
+            for n in spec.nodes
+        ],
+        "initial_inputs": spec.initial_inputs,
+        "target_node_id": spec.target_node_id,
+        "topological_order": spec.topological_order,
+    }
+
+    runtime = runtime_mod.MCPRuntime(spec_dict, tmp_path)
+    tools = runtime.list_tools()
+    assert len(tools) == len(spec.tools)
+
+    # Valid tool call
+    target_node = spec.nodes[0]
+    args = {k: spec.initial_inputs[src] for k, src in target_node.input_bindings.items()}
+    out = runtime.call_tool(target_node.tool_name, args)
+    assert "result" in out
+    assert out["result"]["value"] == spec.reference_node_values[target_node.node_id]
+
+    # Redundant tool call
+    out_dup = runtime.call_tool(target_node.tool_name, args)
+    assert "result" in out_dup
+    assert runtime.redundant_calls == 1
+
+    # Schema error tool call
+    bad_out = runtime.call_tool(target_node.tool_name, {"x": "not_an_int"})
+    assert "error" in bad_out
+
+    # Unknown tool call
+    unk_out = runtime.call_tool("non_existent_tool", {})
+    assert "error" in unk_out
+
+    # Verify event ledger
+    events_file = tmp_path / "benchmark-events.jsonl"
+    assert events_file.exists()
+    lines = [json.loads(line) for line in events_file.read_text().splitlines() if line.strip()]
+    assert len(lines) == 4
+    assert lines[0]["event_type"] == "tool_call_success"
+    assert lines[1]["is_redundant"] is True
+    assert lines[2]["schema_conforming"] is False
+    assert lines[3]["event_type"] == "tool_call_rejected"
+
+
+def test_materializer_oracle_nop_and_mutants(tmp_path):
+    contract_mod = load_module("contract")
+    materializer_mod = load_module("materializer")
+    runtime_mod = load_module("runtime")
+    templates_mod = load_module("templates")
+    verifier_mod = load_module("verifier")
+
+    cell = contract_mod.CAMPAIGN_0_CELLS[0]
+    task_dir = materializer_mod.materialize_task(cell, output_root=tmp_path)
+    assert (task_dir / "task.toml").exists()
+    assert (task_dir / "instruction.md").exists()
+    assert (task_dir / "environment" / "Dockerfile").exists()
+    assert (task_dir / "tests" / "verifier_truth.json").exists()
+
+    spec_data = json.loads((task_dir / "environment" / "runtime_tools.json").read_text())
+    truth_path = task_dir / "tests" / "verifier_truth.json"
+    evidence_dir = task_dir / "evidence"
+    workspace_dir = task_dir / "agent_workspace"
+
+    # Test Oracle -> 1.0
+    runtime = runtime_mod.MCPRuntime(spec_data, evidence_dir)
+    templates_mod.run_oracle_solve(runtime, spec_data, workspace_dir)
+    res_oracle = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
+    assert res_oracle["reward"] == 1.0
+    assert res_oracle["schema_conformance_rate"] == 1.0
+    assert res_oracle["dag_conformance"] is True
+    assert res_oracle["value_propagation_accuracy"] == 1.0
+
+    # Test NOP -> 0.0
+    materializer_mod.materialize_task(cell, output_root=tmp_path)
+    runtime = runtime_mod.MCPRuntime(spec_data, evidence_dir)
+    templates_mod.run_nop_solve(runtime, spec_data, workspace_dir)
+    res_nop = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
+    assert res_nop["reward"] == 0.0
+
+    # Test Mutants -> 0.0
+    for mname, mfn in templates_mod.get_mutants().items():
+        materializer_mod.materialize_task(cell, output_root=tmp_path)
+        runtime = runtime_mod.MCPRuntime(spec_data, evidence_dir)
+        mfn(runtime, spec_data, workspace_dir)
+        res_mutant = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
+        assert res_mutant["reward"] == 0.0, f"Mutant {mname} did not score 0.0"

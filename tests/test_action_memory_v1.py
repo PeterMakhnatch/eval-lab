@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
-import subprocess
 import sys
 import threading
 import time
@@ -48,7 +46,7 @@ def test_state_generation_deterministic_and_dosed():
 def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
     mat_mod = load("mat_test", "materializer")
     target = tmp_path / "action_mem_task"
-    manifest = mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
+    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
     assert (target / "task.toml").exists()
     assert (target / "instruction.md").exists()
     assert (target / "environment" / "docker-compose.yaml").exists()
@@ -82,6 +80,7 @@ def test_mcp_server_client_protocol_interaction(tmp_path):
 
     # Exercise client session: initialize, list_tools, call_tools
     client = runtime_mod.MCPClient(f"http://127.0.0.1:{port}/mcp")
+    assert client.wait_until_ready(timeout_sec=5.0)
     init_res = client.initialize()
     assert init_res["serverInfo"]["name"] == "action-memory-mcp"
 

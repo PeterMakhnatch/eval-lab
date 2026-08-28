@@ -16,7 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: astral-sh/setup-uv@e60862c062b84f001832ce9f8e1e4de3ae704451
+      - name: Install uv 0.9.24 from PyPI
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: uv python install 3.12
       - run: uv sync --locked --group dev
       - name: Stage actual CPython 3.12 manylinux cffi wheel

@@ -17,19 +17,24 @@ def verify(
         reward_dir = Path("/logs/verifier")
     reward_dir.mkdir(parents=True, exist_ok=True)
 
-    scenario_file = task_dir / "scenario.json"
-    if not scenario_file.exists() and (task_dir / "task_state" / "scenario.json").exists():
-        scenario_file = task_dir / "task_state" / "scenario.json"
-
-    if not scenario_file.exists():
-        res = {"reward": 0.0, "reason": "missing_scenario_file"}
+    # Resolve target spec / golden specification
+    spec_path = task_dir / "fixtures" / "target_spec.json"
+    if not spec_path.exists():
+        spec_path = task_dir / "target_spec.json"
+    if not spec_path.exists() and (task_dir / "scenario.json").exists():
+        scenario = json.loads((task_dir / "scenario.json").read_text(encoding="utf-8"))
+        spec_data = {
+            "target_entity": scenario["target_entity"],
+            "target_attribute": scenario["target_attribute"],
+            "expected_bound_value": scenario["latest_value"],
+            "dose_bytes": scenario.get("dose_bytes", 4096),
+        }
+    elif spec_path.exists():
+        spec_data = json.loads(spec_path.read_text(encoding="utf-8"))
+    else:
+        res = {"reward": 0.0, "reason": "missing_target_spec_file"}
         _record(reward_dir, res)
         return res
-
-    scenario = json.loads(scenario_file.read_text(encoding="utf-8"))
-    expected_entity = scenario["target_entity"]
-    expected_attr = scenario["target_attribute"]
-    expected_val = scenario["latest_value"]
 
     final_state_file = evidence_dir / "final-state.json"
     if not final_state_file.exists():
@@ -44,27 +49,57 @@ def verify(
         _record(reward_dir, res)
         return res
 
-    observed_entity = final_state.get("target_entity")
-    observed_attr = final_state.get("target_attribute")
-    observed_val = final_state.get("bound_value")
+    # Validate benchmark-events.jsonl for monotone event index and read/execute logs
+    events_file = evidence_dir / "benchmark-events.jsonl"
+    event_count = 0
+    read_events = 0
+    mutation_events = 0
+    if events_file.exists():
+        last_index = 0
+        for line in events_file.read_text(encoding="utf-8").splitlines():
+            line_str = line.strip()
+            if not line_str:
+                continue
+            try:
+                ev = json.loads(line_str)
+                event_count += 1
+                ev_idx = ev.get("event_index", 0)
+                if ev_idx <= last_index:
+                    res = {"reward": 0.0, "reason": "non_monotone_event_indices"}
+                    _record(reward_dir, res)
+                    return res
+                last_index = ev_idx
+                if ev.get("event_type") in {"read_chunk", "get_context_chunk"}:
+                    read_events += 1
+                elif ev.get("event_type") in {"execute_mutation", "mutation"}:
+                    mutation_events += 1
+            except Exception:
+                pass
 
-    if (
-        observed_entity == expected_entity
-        and observed_attr == expected_attr
-        and observed_val == expected_val
-    ):
+    obs_entity = final_state.get("target_entity")
+    obs_attr = final_state.get("target_attribute")
+    obs_val = final_state.get("bound_value")
+
+    exp_entity = spec_data.get("target_entity")
+    exp_attr = spec_data.get("target_attribute")
+    exp_val = spec_data.get("expected_bound_value")
+
+    if obs_entity == exp_entity and obs_attr == exp_attr and obs_val == exp_val:
         res = {
             "reward": 1.0,
             "reason": "exact_latest_value_bound",
-            "target_entity": observed_entity,
-            "bound_value": observed_val,
+            "target_entity": obs_entity,
+            "bound_value": obs_val,
+            "events_validated": event_count,
+            "read_events": read_events,
+            "mutation_events": mutation_events,
         }
     else:
         res = {
             "reward": 0.0,
-            "reason": "value_mismatch_or_stale_binding",
-            "expected": {"entity": expected_entity, "attr": expected_attr, "value": expected_val},
-            "observed": {"entity": observed_entity, "attr": observed_attr, "value": observed_val},
+            "reason": "mismatch",
+            "expected": spec_data,
+            "observed": final_state,
         }
 
     _record(reward_dir, res)
@@ -80,7 +115,7 @@ def _record(reward_dir: Path, result: dict[str, Any]) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task-dir", type=Path, default=Path("/tests"))
-    parser.add_argument("--evidence-dir", type=Path, default=Path("/app/evidence"))
+    parser.add_argument("--evidence-dir", type=Path, default=Path("/app/output"))
     parser.add_argument("--reward-dir", type=Path, default=Path("/logs/verifier"))
     args = parser.parse_args()
 

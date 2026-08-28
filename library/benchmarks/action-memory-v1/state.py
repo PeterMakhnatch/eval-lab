@@ -34,6 +34,10 @@ class ScenarioSpec:
     initial_value: str
     latest_value: str
     inversion_steps: list[str]
+    inversion_count: int
+    update_opportunity_count: int
+    read_opportunity_count: int
+    mutation_opportunity_count: int
     dose_bytes: int
     padding_position: str | None
     chunks: list[dict[str, Any]]
@@ -121,11 +125,12 @@ def generate_scenario(
     while needed_bytes > 0:
         p_len = min(needed_bytes, 1024)
         if p_len < 40:
-            noise = f"[PAD {p_idx:03d}] " + ("." * max(0, p_len - 12)) + "\n"
+            noise_core = "." * max(0, p_len - 11)
+            noise = f"[PAD {p_idx:03d}] {noise_core}\n"
         else:
-            noise = f"[DIAGNOSTIC NOISE {p_idx:04d}] " + ("." * (p_len - 30)) + "\n"
+            noise_core = "." * (p_len - 30)
+            noise = f"[DIAGNOSTIC NOISE {p_idx:04d}] {noise_core}\n"
         
-        # Adjust exactly
         b_noise = noise.encode("utf-8")
         if len(b_noise) > needed_bytes:
             b_noise = b_noise[:needed_bytes]
@@ -144,6 +149,23 @@ def generate_scenario(
         })
         needed_bytes -= b_len
         p_idx += 1
+
+    # Exact single-byte finish if any rounding occurred
+    actual_current = (
+        sum(c["byte_count"] for c in chunks)
+        + sum(c["byte_count"] for c in inversion_chunks)
+        + sum(c["byte_count"] for c in distractor_chunks)
+        + sum(c["byte_count"] for c in padding_chunks)
+    )
+    if actual_current < dose_bytes:
+        diff = dose_bytes - actual_current
+        filler = ("#" * (diff - 1)) + "\n" if diff > 1 else "\n"
+        padding_chunks.append({
+            "chunk_id": f"chunk_pad_exact_{p_idx:03d}",
+            "content": filler,
+            "chunk_type": "padding",
+            "byte_count": len(filler.encode("utf-8")),
+        })
 
     # Assemble chunks based on arm and padding_position
     if padding_position == "prefix":
@@ -174,6 +196,10 @@ def generate_scenario(
         initial_value=initial_value,
         latest_value=latest_value,
         inversion_steps=inversion_steps,
+        inversion_count=inversion_count,
+        update_opportunity_count=inversion_count,
+        read_opportunity_count=len(all_chunks),
+        mutation_opportunity_count=1,
         dose_bytes=realized_dose,
         padding_position=padding_position,
         chunks=all_chunks,

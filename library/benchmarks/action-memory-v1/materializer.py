@@ -91,6 +91,9 @@ def materialize(
         "target_attribute": spec.target_attribute,
         "expected_bound_value": spec.latest_value,
         "dose_bytes": spec.dose_bytes,
+        "update_opportunity_count": spec.update_opportunity_count,
+        "read_opportunity_count": spec.read_opportunity_count,
+        "mutation_opportunity_count": spec.mutation_opportunity_count,
     }
     target_spec_str = json.dumps(target_spec_dict, indent=2, sort_keys=True) + "\n"
     (tests / "fixtures" / "target_spec.json").write_text(target_spec_str, encoding="utf-8")

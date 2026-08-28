@@ -442,6 +442,11 @@ def test_valid_candidate_inspection_freezes_every_digest_and_safe_command(
         for item in inspection.control_plan
     )
     assert all("--extra-docker-compose" in item.command for item in inspection.control_plan)
+    assert all("--include-task-name" in item.command for item in inspection.control_plan)
+    assert all(
+        item.command[item.command.index("--include-task-name") + 1] == item.control_id
+        for item in inspection.control_plan
+    )
     assert all(
         item.command[item.command.index("--extra-docker-compose") + 1].endswith(
             NETWORK_OVERLAY_RELATIVE
@@ -2109,8 +2114,12 @@ def test_cli_run_controls_composes_fixed_harbor_subprocess_commands(
 
     def runner(command, **kwargs):
         captured.append(command)
-        stage = Path(command[command.index("--path") + 1])
+        dataset = Path(command[command.index("--path") + 1])
+        included_task = command[command.index("--include-task-name") + 1]
+        stage = dataset / included_task
         overlay = Path(command[command.index("--extra-docker-compose") + 1])
+        assert dataset.is_dir()
+        assert included_task in {path.name for path in dataset.iterdir()}
         assert stage.is_dir()
         assert overlay == stage / NETWORK_OVERLAY_RELATIVE
         assert overlay.read_bytes() == NETWORK_OVERLAY_CONTENT
@@ -2412,19 +2421,19 @@ def test_v2_compose_topology_accepted_and_rejected(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "fragment",
+    ("fragment", "expected_code"),
     [
-        "    volumes:\n      - /:/host\n",
-        "    command: curl https://example.invalid\n",
-        "    entrypoint: /bin/sh\n",
-        "    cap_add:\n      - SYS_ADMIN\n",
-        "    devices:\n      - /dev/null:/dev/escape\n",
-        "    env_file: .env\n",
-        "    environment:\n      SECRET: value\n",
+        ("    volumes:\n      - /:/host\n", "compose_volume_escape"),
+        ("    command: curl https://example.invalid\n", "compose_service_key_unsupported"),
+        ("    entrypoint: /bin/sh\n", "compose_service_key_unsupported"),
+        ("    cap_add:\n      - SYS_ADMIN\n", "compose_service_key_unsupported"),
+        ("    devices:\n      - /dev/null:/dev/escape\n", "compose_service_key_unsupported"),
+        ("    env_file: .env\n", "compose_service_key_unsupported"),
+        ("    environment:\n      SECRET: value\n", "compose_sidecar_env_invalid"),
     ],
 )
 def test_v2_compose_rejects_unmodelled_service_execution_surfaces(
-    tmp_path: Path, fragment: str
+    tmp_path: Path, fragment: str, expected_code: str
 ) -> None:
     repo, task = _copy_candidate(tmp_path / "compose-service-surface")
     (task / "environment/docker-compose.yaml").write_text(
@@ -2434,8 +2443,10 @@ def test_v2_compose_rejects_unmodelled_service_execution_surfaces(
         "  mcp-server:\n"
         "    build: .\n"
         + fragment
+        + "volumes:\n"
+        "  tau3-logs:\n"
     )
-    assert "compose_service_key_unsupported" in _codes(_inspect(repo, task))
+    assert expected_code in _codes(_inspect(repo, task))
 
 
 def test_v2_compose_scans_nested_sidecar_dockerfile(tmp_path: Path) -> None:

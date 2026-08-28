@@ -7,6 +7,8 @@ on:
       - "library/benchmarks/tau-knowledge/**"
       - "scripts/tau_knowledge/**"
       - "tests/test_tau_knowledge_lean.py"
+      - "tests/test_task_workbench.py"
+      - "src/evallab/task_workbench.py"
       - ".github/workflows/tau-knowledge.yml"
   workflow_dispatch:
 
@@ -45,14 +47,85 @@ jobs:
           python3 scripts/tau_knowledge/materialize.py --task-id task_001 --output-root "$GITHUB_WORKSPACE/derived/harbor-tasks/tau" --overwrite > /dev/null
           diff -ru "$RUNNER_TEMP/tau-first" "$task_root"
           test -f "$task_root/tau3-banking_knowledge-task-001/task.toml"
-          echo "TASK_ROOT=$task_root" >> "$GITHUB_ENV"
-      - name: Run oracle, nop, and mutant controls
+          echo "TASK_PATH=$task_root/tau3-banking_knowledge-task-001" >> "$GITHUB_ENV"
+      - name: Freeze workbench plan
+        id: plan
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/tau
+          uv run python -m evallab.task_workbench plan "$TASK_PATH" \
+            --source-uri "https://github.com/sierra-research/tau2-bench" \
+            --source-ref "fc0055dc4e0a316c3f83133267fbd6faaa770992" \
+            --license "MIT" \
+            --zone "01-external" \
+            --credential OPENAI_API_KEY \
+            | tee artifacts/tau/plan.json
+          candidate_id="$(jq -r '.candidate.candidate_id' artifacts/tau/plan.json)"
+          test -n "$candidate_id"
+          test "$candidate_id" != null
+          echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
+      - name: Run complete workbench controls
         env:
-          # Required only for task.toml interpolation; endpoint is unreachable and unused by controls.
           OPENAI_API_KEY: ci-unused-marker
           OPENAI_BASE_URL: http://127.0.0.1:9/v1
-          TAU_TRIALS_ROOT: ${{ runner.temp }}/tau-trials
         run: |
-          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode oracle --trials-dir "$TAU_TRIALS_ROOT/oracle" --expect-reward 1
-          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode nop --trials-dir "$TAU_TRIALS_ROOT/nop" --expect-reward 0
-          python3 "$GITHUB_WORKSPACE/scripts/tau_knowledge/controls.py" --task "$TASK_ROOT/tau3-banking_knowledge-task-001" --mode mutant --trials-dir "$TAU_TRIALS_ROOT/mutant" --expect-reward 0
+          set -euo pipefail
+          uv run python -m evallab.task_workbench check "$TASK_PATH" \
+            --source-uri "https://github.com/sierra-research/tau2-bench" \
+            --source-ref "fc0055dc4e0a316c3f83133267fbd6faaa770992" \
+            --license "MIT" \
+            --zone "01-external" \
+            --credential OPENAI_API_KEY \
+            --run-controls \
+            | tee artifacts/tau/check.json
+          test "$(jq -r '.disposition' artifacts/tau/check.json)" = "certified_for_review"
+      - name: Write workbench certification packet
+        env:
+          CANDIDATE_ID: ${{ steps.plan.outputs.candidate_id }}
+        run: |
+          set -euo pipefail
+          controls="runs/task-workbench/${CANDIDATE_ID}/controls.json"
+          packet_root="research/registration/candidates/ci/${GITHUB_RUN_ID}/tau-task-001"
+          test -s "$controls"
+          uv run python -m evallab.task_workbench packet "$TASK_PATH" \
+            --source-uri "https://github.com/sierra-research/tau2-bench" \
+            --source-ref "fc0055dc4e0a316c3f83133267fbd6faaa770992" \
+            --license "MIT" \
+            --zone "01-external" \
+            --credential OPENAI_API_KEY \
+            --controls "$controls" \
+            --output-root "$packet_root" \
+            | tee artifacts/tau/packet.json
+          test "$(jq -r '.disposition' artifacts/tau/packet.json)" = "certified_for_review"
+      - name: Produce durable exact-task controls
+        env:
+          OPENAI_API_KEY: ci-unused-marker
+          OPENAI_BASE_URL: http://127.0.0.1:9/v1
+        run: |
+          set -euo pipefail
+          jobs="research/evidence/runs"
+          task_dataset="$(dirname "$TASK_PATH")"
+          task_name="$(basename "$TASK_PATH")"
+          oracle_job="tau-task-001-registry-oracle-${GITHUB_RUN_ID}"
+          nop_job="tau-task-001-registry-nop-${GITHUB_RUN_ID}"
+          harbor run --path "$task_dataset" --include-task-name "$task_name" \
+            --agent oracle --env docker --job-name "$oracle_job" --jobs-dir "$jobs" \
+            --n-concurrent 1 --n-attempts 1 --yes
+          harbor run --path "$task_dataset" --include-task-name "$task_name" \
+            --agent nop --env docker --job-name "$nop_job" --jobs-dir "$jobs" \
+            --n-concurrent 1 --n-attempts 1 --yes
+          python3 scripts/agentabstain/assert_reward.py "$jobs/$oracle_job" 1
+          python3 scripts/agentabstain/assert_reward.py "$jobs/$nop_job" 0
+      - name: Upload review packet and retained evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: tau-task-001-workbench
+          path: |
+            artifacts/tau/
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/controls.json
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/jobs/
+            research/registration/candidates/ci/${{ github.run_id }}/tau-task-001/
+            research/evidence/runs/tau-task-001-registry-oracle-${{ github.run_id }}/
+            research/evidence/runs/tau-task-001-registry-nop-${{ github.run_id }}/
+          if-no-files-found: error

@@ -2316,7 +2316,7 @@ def test_v2_compose_topology_accepted_and_rejected(tmp_path: Path) -> None:
     repo, task = _copy_candidate(tmp_path / "compose-base")
     compose_path = task / "environment/docker-compose.yaml"
 
-    # 1. Negative control: top-level custom networks
+    # 1. Negative control: top-level custom networks (missing internal: true)
     compose_path.write_text(
         "services:\n"
         "  main:\n"
@@ -2324,7 +2324,7 @@ def test_v2_compose_topology_accepted_and_rejected(tmp_path: Path) -> None:
         "networks:\n"
         "  custom:\n"
     )
-    assert "custom_compose_unsupported" in _codes(_inspect(repo, task))
+    assert "compose_networks_unsupported" in _codes(_inspect(repo, task))
 
     # 2. Negative control: service network_mode
     compose_path.write_text(
@@ -2418,6 +2418,467 @@ def test_v2_compose_topology_accepted_and_rejected(tmp_path: Path) -> None:
     assert set(overlay["services"]) == {"main", "mcp-server"}
     assert overlay["services"]["main"]["networks"] == ["workbench-internal"]
     assert overlay["services"]["mcp-server"]["networks"] == ["workbench-internal"]
+
+    # 11. Accepted path: main + sidecar with a task-declared internal bridge
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "networks:\n"
+        "  mcp-net:\n"
+        "    internal: true\n"
+    )
+    insp = _inspect(repo, task)
+    assert insp.static_passed, _codes(insp)
+    assert insp.candidate["compose_topology"]["network"] == {
+        "name": "mcp-net",
+        "internal": True,
+    }
+    overlay = yaml.safe_load(_candidate_network_overlay(insp.candidate))
+    assert overlay["networks"]["mcp-net"]["internal"] is True
+    assert set(overlay["services"]) == {"main", "mcp-server"}
+    assert overlay["services"]["main"]["networks"] == ["mcp-net"]
+    assert overlay["services"]["mcp-server"]["networks"] == ["mcp-net"]
+
+
+@pytest.mark.parametrize(
+    ("compose_text", "expected_code"),
+    [
+        # top-level network forbidden or malformed definitions
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    external: true\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    driver: overlay\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    driver_opts:\n"
+            "      foo: bar\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    name: custom_name\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    ipam:\n"
+            "      driver: default\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    attachable: true\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    labels:\n"
+            "      - key=value\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    enable_ipv6: true\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: false\n",
+            "compose_networks_unsupported",
+        ),
+        # more than one network or invalid name
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n"
+            "  other:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  MCP-NET:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp.net:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        # top-level network declared but a service is not attached
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        # service attaches the wrong or undeclared network
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - wrong-net\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        # service-level network options are forbidden
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      mcp-net:\n"
+            "        aliases:\n"
+            "          - alias1\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      mcp-net:\n"
+            "        ipv4_address: 10.0.0.2\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        # network_mode together with networks is rejected
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "    network_mode: bridge\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n",
+            "custom_compose_unsupported",
+        ),
+        # no top-level network but service declares networks
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - default\n"
+            "  mcp-server:\n"
+            "    build: .\n",
+            "compose_networks_unsupported",
+        ),
+        # top-level network requires a sidecar
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+        # service networks list with multiple entries
+        (
+            "services:\n"
+            "  main:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "      - other\n"
+            "  mcp-server:\n"
+            "    build: .\n"
+            "    networks:\n"
+            "      - mcp-net\n"
+            "networks:\n"
+            "  mcp-net:\n"
+            "    internal: true\n",
+            "compose_networks_unsupported",
+        ),
+    ],
+)
+def test_v2_compose_networks_topology_rejected_cases(
+    tmp_path: Path, compose_text: str, expected_code: str
+) -> None:
+    repo, task = _copy_candidate(tmp_path / "networks-rejected")
+    (task / "environment/docker-compose.yaml").write_text(compose_text)
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert expected_code in _codes(inspection)
+
+
+@pytest.mark.parametrize(
+    "net_key",
+    ["123", "true", "null"],
+)
+def test_v2_rejects_non_string_network_key(tmp_path: Path, net_key: str) -> None:
+    repo, task = _copy_candidate(tmp_path / f"non-string-net-key-{net_key}")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        "networks:\n"
+        f"  {net_key}:\n"
+        "    internal: true\n"
+    )
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert "compose_networks_unsupported" in _codes(inspection)
+    assert any(
+        "is not a safe task-local name" in item.message
+        for item in inspection.diagnostics
+    )
+
+
+def test_v2_rejects_non_string_volume_key(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "non-string-vol-key")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        "volumes:\n"
+        "  123:\n"
+    )
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert "compose_volume_invalid" in _codes(inspection)
+    assert any(
+        "is not a safe task-local name" in item.message
+        for item in inspection.diagnostics
+    )
+
+
+@pytest.mark.parametrize(
+    "networks_fragment",
+    [
+        "    networks:\n"
+        "      mcp-net:\n",
+        "    networks:\n"
+        "      mcp-net:\n"
+        "        aliases:\n"
+        "          - alias1\n",
+        "    networks:\n"
+        "      mcp-net: {}\n",
+    ],
+)
+def test_v2_rejects_service_networks_mapping_form(
+    tmp_path: Path, networks_fragment: str
+) -> None:
+    repo, task = _copy_candidate(tmp_path / "mapping-form")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        + networks_fragment
+        + "  mcp-server:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "networks:\n"
+        "  mcp-net:\n"
+        "    internal: true\n"
+    )
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert "compose_networks_unsupported" in _codes(inspection)
+    assert any(
+        "must be a single-item list containing 'mcp-net'" in item.message
+        for item in inspection.diagnostics
+    )
+
+
+def test_v2_docker_compose_config_merge_smoke(tmp_path: Path) -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("docker is not installed")
+    try:
+        subprocess.run(
+            ["docker", "compose", "version"],
+            capture_output=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pytest.skip("docker compose is not available")
+
+    base_dir = tmp_path / "merge-smoke"
+    base_dir.mkdir()
+    (base_dir / "Dockerfile").write_text("FROM scratch\n")
+    (base_dir / "base.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "networks:\n"
+        "  mcp-net:\n"
+    )
+    candidate = {
+        "compose_topology": {
+            "sidecar_service": "mcp-server",
+            "network": {"name": "mcp-net"},
+        }
+    }
+    (base_dir / "overlay.yaml").write_bytes(_candidate_network_overlay(candidate))
+
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(base_dir / "base.yaml"),
+            "-f",
+            str(base_dir / "overlay.yaml"),
+            "config",
+        ],
+        cwd=base_dir,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    merged = yaml.safe_load(result.stdout)
+    for service_name in ("main", "mcp-server"):
+        service = merged["services"][service_name]
+        context = service["build"]["context"]
+        assert context == "." or Path(context).is_absolute()
+        assert service["build"]["network"] == "none"
+        assert set(service["networks"]) == {"mcp-net"}
+    network = merged["networks"]["mcp-net"]
+    assert network["internal"] is True
 
 
 @pytest.mark.parametrize(
@@ -2800,6 +3261,116 @@ def test_v2_complete_safe_fixture_proving_accepted_path(tmp_path: Path) -> None:
     assert inspection.candidate.get("credentials") == ["SIMULATED_USER"]
 
     # Test full check and packet generation
+    report = check_candidate(inspection, _bundle(inspection, repo=repo, task=task), repo_root=repo)
+    assert report.disposition == "certified_for_review"
+    assert report.passed is True
+    candidate_path, cert_path = write_packet(repo_root=repo, report=report)
+    assert candidate_path.is_file()
+    assert cert_path.is_file()
+    cert = json.loads(cert_path.read_text())
+    assert cert["certified"] is True
+
+
+def test_v2_internal_bridge_network_complete_fixture(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "complete-v2-internal-network")
+
+    (task / "task.toml").write_text(
+        'schema_version = "1.4"\n'
+        'artifacts = ["/app/output/result.txt"]\n\n'
+        '[task]\n'
+        'name = "local-lab/v2-internal-network-fixture"\n'
+        'version = "1.0.0"\n'
+        'description = "Complete v2 internal bridge network fixture"\n'
+        'keywords = ["mcp", "compose", "network", "internal-bridge"]\n\n'
+        '[[task.authors]]\n'
+        'name = "Eval Lab"\n'
+        'email = "eval-lab@example.invalid"\n\n'
+        '[metadata]\n'
+        'difficulty = "easy"\n'
+        'category = "agentic"\n'
+        'tags = ["v2", "mcp", "offline-proof", "internal-network"]\n\n'
+        '[agent]\n'
+        'timeout_sec = 30.0\n\n'
+        '[verifier]\n'
+        'timeout_sec = 30.0\n'
+        'environment_mode = "separate"\n\n'
+        '[environment]\n'
+        'network_mode = "no-network"\n'
+        'build_timeout_sec = 120.0\n'
+        'cpus = 1\n'
+        'memory_mb = 256\n'
+        'storage_mb = 512\n\n'
+        '[[environment.mcp_servers]]\n'
+        'name = "local-tools"\n'
+        'transport = "streamable-http"\n'
+        'url = "http://mcp-server:8000/mcp"\n'
+    )
+
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "networks:\n"
+        "  mcp-net:\n"
+        "    internal: true\n"
+    )
+
+    tests_dockerfile = task / "tests/Dockerfile"
+    tests_dockerfile.write_text(
+        "FROM alpine@sha256:0839e23eb00137d57f59eaee49633e21147a468bfb36f734493393967399580a\n"
+        "RUN uv sync --frozen --offline\n"
+    )
+    lock_data = b"complete-v2-internal-network-lock-content\n"
+    (task / "tests/uv.lock").write_bytes(lock_data)
+    lock_digest = f"sha256:{hashlib.sha256(lock_data).hexdigest()}"
+    (task / "tests/build-proof.json").write_text(
+        json.dumps({
+            "schema_version": "1.0",
+            "kind": "offline_build_proof",
+            "ecosystem": "python",
+            "lockfile": "uv.lock",
+            "lockfile_digest": lock_digest,
+            "pinned_dependencies": {
+                "tau2-bench": "1.0.0@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+            },
+            "reviewed_by": "eval-lab-reviewer",
+        })
+    )
+
+    source = CandidateSource(
+        source_uri="https://example.invalid/eval-lab/v2-internal-network-fixture.git",
+        source_ref="v1.0.0",
+        license="MIT",
+        provenance_zone="03-synthetic",
+        credentials=(),
+    )
+
+    inspection = inspect_candidate(repo_root=repo, task_path=task, source=source)
+    assert inspection.static_passed, _codes(inspection)
+    assert inspection.diagnostics == ()
+    assert inspection.candidate["compose_topology"]["network"] == {
+        "name": "mcp-net",
+        "internal": True,
+    }
+    assert inspection.candidate["network_policy"]["agent_runtime_network"] == (
+        "isolated on mcp-net (internal: true)"
+    )
+    assert inspection.candidate["network_policy"]["control_enforcement"] == (
+        "docker-compose main + sidecar on mcp-net with build.network=none"
+    )
+
+    overlay = yaml.safe_load(_candidate_network_overlay(inspection.candidate))
+    assert overlay["networks"]["mcp-net"]["internal"] is True
+    assert set(overlay["services"]) == {"main", "mcp-server"}
+    assert overlay["services"]["main"]["networks"] == ["mcp-net"]
+    assert overlay["services"]["mcp-server"]["networks"] == ["mcp-net"]
+
     report = check_candidate(inspection, _bundle(inspection, repo=repo, task=task), repo_root=repo)
     assert report.disposition == "certified_for_review"
     assert report.passed is True

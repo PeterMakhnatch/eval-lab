@@ -115,6 +115,21 @@ jobs:
                   assert rew == 0.0, f"Control {cid} reward != 0.0"
           print("All workbench fixed controls verified with exact expected rewards.")
           PY
+      - name: Run Harbor oracle and NOP trials on exact baseline task
+        run: |
+          set -euo pipefail
+          harbor trial start -p "$task_dir" -a oracle --trials-dir /tmp/harbor-oracle-smoke
+          harbor trial start -p "$task_dir" -a nop --trials-dir /tmp/harbor-nop-smoke
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          oracle_res = json.loads(next(Path("/tmp/harbor-oracle-smoke").glob("**/result.json")).read_text())
+          assert oracle_res.get("reward") == 1.0 or oracle_res.get("rewards", {}).get("reward") == 1.0, f"Oracle reward != 1.0: {oracle_res}"
+          nop_res = json.loads(next(Path("/tmp/harbor-nop-smoke").glob("**/result.json")).read_text())
+          assert nop_res.get("reward") == 0.0 or nop_res.get("rewards", {}).get("reward") == 0.0, f"NOP reward != 0.0: {nop_res}"
+          print("Durable Harbor oracle (1.0) and NOP (0.0) smoke assertions passed.")
+          PY
       - name: Upload review packet and retained evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -124,4 +139,5 @@ jobs:
             artifacts/workbench/
             research/registration/candidates/ci/${{ github.run_id }}/
             runs/task-workbench/
+            /tmp/harbor-*-smoke/
           if-no-files-found: ignore

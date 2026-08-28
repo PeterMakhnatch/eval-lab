@@ -406,7 +406,7 @@ url = "http://mcp-server:8000/mcp"
 """
     (target_dir / "task.toml").write_text(task_toml_content, encoding="utf-8")
 
-    # 7. Solution solver: solve.sh and solve.py
+    # 7. Solution solver: solve.sh and solve.py (dynamic host resolution for mcp-server vs localhost)
     solve_sh_content = """#!/bin/bash
 set -euo pipefail
 if [ -f /solution/solve.py ]; then
@@ -421,6 +421,7 @@ fi
     solve_py_content = f"""#!/usr/bin/env python3
 import json
 import http.client
+import socket
 import time
 from pathlib import Path
 
@@ -430,10 +431,25 @@ nodes = {json.dumps([{"node_id": n.node_id, "tool_name": n.tool_name, "bindings"
 topological_order = {json.dumps(dag_spec.topological_order)}
 target_node_id = "{dag_spec.target_node_id}"
 
-# Wait for MCP server to accept requests
+# Discover reachable host for MCP server
+target_host = "mcp-server"
+for candidate_host in ("mcp-server", "127.0.0.1", "localhost"):
+    try:
+        conn = http.client.HTTPConnection(candidate_host, 8000, timeout=2)
+        conn.request("GET", "/health")
+        resp = conn.getresponse()
+        if resp.status == 200:
+            target_host = candidate_host
+            conn.close()
+            break
+        conn.close()
+    except Exception:
+        pass
+
+# Wait for server readiness
 for _ in range(30):
     try:
-        conn = http.client.HTTPConnection("mcp-server", 8000, timeout=2)
+        conn = http.client.HTTPConnection(target_host, 8000, timeout=2)
         conn.request("GET", "/health")
         resp = conn.getresponse()
         if resp.status == 200:
@@ -453,7 +469,7 @@ def call_tool(tool_name, args):
             "arguments": args
         }}
     }})
-    conn = http.client.HTTPConnection("mcp-server", 8000, timeout=10)
+    conn = http.client.HTTPConnection(target_host, 8000, timeout=10)
     conn.request("POST", "/mcp", body=payload, headers={{"Content-Type": "application/json"}})
     res = conn.getresponse()
     body = res.read().decode("utf-8")
@@ -497,6 +513,20 @@ nodes_spec = {json.dumps([{"node_id": n.node_id, "tool_name": n.tool_name, "bind
 topo_order = {json.dumps(dag_spec.topological_order)}
 target_id = "{dag_spec.target_node_id}"
 
+target_host = "mcp-server"
+for candidate_host in ("mcp-server", "127.0.0.1", "localhost"):
+    try:
+        conn = http.client.HTTPConnection(candidate_host, 8000, timeout=2)
+        conn.request("GET", "/health")
+        resp = conn.getresponse()
+        if resp.status == 200:
+            target_host = candidate_host
+            conn.close()
+            break
+        conn.close()
+    except Exception:
+        pass
+
 def execute_remote_tool(name, tool_args):
     payload = json.dumps({{
         "jsonrpc": "2.0",
@@ -504,7 +534,7 @@ def execute_remote_tool(name, tool_args):
         "method": "tools/call",
         "params": {{"name": name, "arguments": tool_args}}
     }})
-    conn = http.client.HTTPConnection("mcp-server", 8000, timeout=10)
+    conn = http.client.HTTPConnection(target_host, 8000, timeout=10)
     conn.request("POST", "/mcp", body=payload, headers={{"Content-Type": "application/json"}})
     res = conn.getresponse()
     body = res.read().decode("utf-8")
@@ -560,6 +590,20 @@ python3 - <<'PYEOF'
 import json, http.client
 from pathlib import Path
 
+target_host = "mcp-server"
+for candidate_host in ("mcp-server", "127.0.0.1", "localhost"):
+    try:
+        conn = http.client.HTTPConnection(candidate_host, 8000, timeout=2)
+        conn.request("GET", "/health")
+        resp = conn.getresponse()
+        if resp.status == 200:
+            target_host = candidate_host
+            conn.close()
+            break
+        conn.close()
+    except Exception:
+        pass
+
 payload = json.dumps({{
     "jsonrpc": "2.0",
     "id": "probe3",
@@ -567,7 +611,7 @@ payload = json.dumps({{
     "params": {{"name": "{first_distractor}", "arguments": {{"input_payload": "noise", "flag": True}}}}
 }})
 try:
-    conn = http.client.HTTPConnection("mcp-server", 8000, timeout=2)
+    conn = http.client.HTTPConnection(target_host, 8000, timeout=2)
     conn.request("POST", "/mcp", body=payload, headers={{"Content-Type": "application/json"}})
     conn.getresponse()
     conn.close()

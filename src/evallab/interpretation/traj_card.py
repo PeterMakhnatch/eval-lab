@@ -552,6 +552,40 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
     lines.append(
         f"| **Assisted Ratio (`assisted_step_ratio_screening`)** | {asst_val} | `screening_heuristic` (assisted / total) |"
     )
+    edit_eff_val = (
+        f"{b.edit_efficiency_screening:.4f}"
+        if b.edit_efficiency_screening is not None
+        else "NULL (0 edits)"
+    )
+    lines.append(
+        f"| **Edit Efficiency (`edit_efficiency_screening`)** | {edit_eff_val} | `screening_heuristic` (mutations / edit_calls) |"
+    )
+    path_val = (
+        f"{b.path_reference_validity_rate_screening * 100:.1f}% ({b.valid_path_reference_count}/{b.path_reference_count})"
+        if b.path_reference_validity_rate_screening is not None
+        else "NULL (0 path refs)"
+    )
+    lines.append(
+        f"| **Path Reference Validity (`path_reference_validity_screening`)** | {path_val} | `screening_heuristic` (valid_paths / total_paths) |"
+    )
+    cit_val = (
+        f"{b.citation_reference_validity_rate_screening * 100:.1f}% ({b.valid_citation_reference_count}/{b.citation_reference_count})"
+        if b.citation_reference_validity_rate_screening is not None
+        else "NULL (0 citations)"
+    )
+    lines.append(
+        f"| **Citation Validity (`citation_validity_screening`)** | {cit_val} | `screening_heuristic` (valid_cites / total_cites) |"
+    )
+    lines.append(
+        f"| **State Journal Status** | `{b.state_journal_status}` ({b.state_events_count} events) | `mechanical_fact` (canonical state journal observation) |"
+    )
+    diff_obs_str = "YES" if b.state_diff_observed else "NO"
+    lines.append(
+        f"| **State Diff Mutations** | {diff_obs_str} ({b.state_mutations_count} mutations: +{b.state_files_created_count}/~{b.state_files_modified_count}/-{b.state_files_deleted_count}, {b.state_diff_bytes_delta:+d}B) | `mechanical_fact` (observed state diff mutations) |"
+    )
+    lines.append(
+        f"| **Unobserved State Mutations** | {b.unobserved_state_mutations_count} unobserved | `mechanical_fact` (filesystem mutations without tool reference) |"
+    )
     lines.append("")
     # Section 4: Cited Error Observations & Stderr
     lines.append("## 4. Cited Error Observations & Stderr")

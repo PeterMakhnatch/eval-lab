@@ -384,6 +384,7 @@ def materialize_mcp_sidecar_package(
     plan_only: bool = False,
     internal_network_name: str = DEFAULT_INTERNAL_NETWORK_NAME,
     target: WheelhouseTarget | None = None,
+    resolver_provenance: ResolverProvenance | None = None,
 ) -> dict[str, Any]:
     """Boring task-authoring API emitting a complete, workbench-v2 compliant offline FastMCP sidecar package.
 
@@ -438,9 +439,15 @@ def materialize_mcp_sidecar_package(
 
         # Stage selected wheel bytes and derive the exact target lock from their METADATA and SHA-256.
         dest_wheelhouse = target_dir / "wheelhouse"
-        requirements_lock, wheel_inventory = stage_platform_wheelhouse(
+        if resolver_provenance is None:
+            raise SubstrateError("resolver_provenance is mandatory for production materialization")
+        if resolver_provenance.target != selected_target:
+            raise SubstrateError("resolver provenance target does not match requested target")
+        _, selected_inventory = stage_platform_wheelhouse(
             wheelhouse_source, dest_wheelhouse, selected_target
         )
+        wheel_inventory = verify_provenance_wheelhouse(dest_wheelhouse, resolver_provenance)
+        requirements_lock = render_provenance_lock(resolver_provenance)
         (target_dir / "requirements.txt").write_text(requirements_lock, encoding="utf-8")
 
         # 3. Dockerfile
@@ -692,9 +699,6 @@ class WheelhouseTarget:
     platform_tag: str
 
 
-FASTMCP_VERSION_CONSTRAINTS: tuple[str, ...] = ("fastmcp==3.4.7",)
-
-
 def _wheel_metadata(wheel: Path) -> tuple[str, str]:
     """Return normalized distribution name/version from a wheel's METADATA bytes."""
     import zipfile
@@ -777,3 +781,110 @@ def stage_platform_wheelhouse(
     for item in inventory:
         shutil.copy2(source / item["filename"], destination / item["filename"])
     return lock, inventory
+
+
+@dataclass(frozen=True)
+class ResolverProvenance:
+    """Trusted network-prepackaging result, serialized from pip --report/PyPI resolver output."""
+
+    target: WheelhouseTarget
+    wheels: tuple[dict[str, str], ...]
+
+    @classmethod
+    def from_json(cls, value: Mapping[str, Any]) -> ResolverProvenance:
+        target = value.get("target")
+        wheels = value.get("wheels")
+        if not isinstance(target, Mapping) or not isinstance(wheels, list):
+            raise SubstrateError("resolver provenance must contain target and wheels")
+        python_tag = target.get("python_tag")
+        platform_tag = target.get("platform_tag")
+        if not isinstance(python_tag, str) or not isinstance(platform_tag, str):
+            raise SubstrateError("resolver provenance target is invalid")
+        normalized: list[dict[str, str]] = []
+        for item in wheels:
+            if not isinstance(item, Mapping):
+                raise SubstrateError("resolver provenance wheel entry is invalid")
+            required = {"filename", "name", "version", "sha256"}
+            if set(item) != required or not all(isinstance(item[k], str) for k in required):
+                raise SubstrateError(
+                    "resolver provenance wheel entry must contain exact filename/name/version/sha256"
+                )
+            normalized.append(dict(item))
+        names = [item["name"].lower().replace("_", "-") for item in normalized]
+        if len(names) != len(set(names)):
+            raise SubstrateError("resolver provenance contains duplicate distributions")
+        return cls(WheelhouseTarget(python_tag, platform_tag), tuple(normalized))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "target": {
+                "python_tag": self.target.python_tag,
+                "platform_tag": self.target.platform_tag,
+            },
+            "wheels": list(self.wheels),
+        }
+
+
+def verify_provenance_wheelhouse(
+    wheelhouse: Path, provenance: ResolverProvenance
+) -> list[dict[str, Any]]:
+    """Verify selected staged bytes exactly match the trusted resolver provenance manifest."""
+    if not wheelhouse.is_dir():
+        raise SubstrateError("wheelhouse directory is missing")
+    expected = {item["filename"]: item for item in provenance.wheels}
+    found = {wheel.name: wheel for wheel in wheelhouse.glob("*.whl")}
+    if set(found) != set(expected):
+        raise SubstrateError(
+            f"wheelhouse files differ from resolver provenance: missing={sorted(set(expected) - set(found))}, extra={sorted(set(found) - set(expected))}"
+        )
+    inventory: list[dict[str, Any]] = []
+    for filename, record in sorted(expected.items()):
+        wheel = found[filename]
+        name, version = _wheel_metadata(wheel)
+        actual = hashlib.sha256(wheel.read_bytes()).hexdigest()
+        if (
+            name != record["name"].lower().replace("_", "-")
+            or version != record["version"]
+            or actual != record["sha256"]
+        ):
+            raise SubstrateError(f"wheel {filename!r} does not match trusted resolver provenance")
+        inventory.append(
+            {
+                "filename": filename,
+                "name": name,
+                "version": version,
+                "size_bytes": wheel.stat().st_size,
+                "sha256": actual,
+            }
+        )
+    return inventory
+
+
+def render_provenance_lock(provenance: ResolverProvenance) -> str:
+    lines = [
+        f"# target-python={provenance.target.python_tag} target-platform={provenance.target.platform_tag}"
+    ]
+    lines.extend(
+        f"{item['name']}=={item['version']} --hash=sha256:{item['sha256']}"
+        for item in sorted(provenance.wheels, key=lambda i: i["name"])
+    )
+    return "\n".join(lines) + "\n"
+
+
+def record_prepackaging_provenance(
+    wheelhouse: Path, target: WheelhouseTarget
+) -> ResolverProvenance:
+    """Record trusted selected wheel bytes immediately after approved network resolution/prepackaging."""
+    _, inventory = render_selected_wheel_lock(wheelhouse, target)
+    return ResolverProvenance(
+        target,
+        tuple(
+            {
+                "filename": item["filename"],
+                "name": item["name"],
+                "version": item["version"],
+                "sha256": item["sha256"],
+            }
+            for item in inventory
+        ),
+    )

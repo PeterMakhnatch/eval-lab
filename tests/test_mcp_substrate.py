@@ -23,6 +23,7 @@ from evallab.mcp_substrate import (
     compute_mcp_substrate_digest,
     generate_fastmcp_server_script,
     materialize_mcp_sidecar_package,
+    record_prepackaging_provenance,
     render_mcp_compose_document,
     render_selected_wheel_lock,
     validate_mcp_compose_document,
@@ -66,10 +67,15 @@ def test_mcp_substrate_workbench_v2_integration_acceptance(tmp_path: Path):
     wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
 
     if wheelhouse.is_dir():
+        provenance = record_prepackaging_provenance(
+            wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64")
+        )
         pkg = materialize_mcp_sidecar_package(
             target_dir=sidecar_dir,
             tools=[tool],
             wheelhouse_source=wheelhouse,
+            target=provenance.target,
+            resolver_provenance=provenance,
         )
     else:
         pkg = materialize_mcp_sidecar_package(
@@ -138,7 +144,7 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
     incomplete_wheelhouse.mkdir()
     first_wheel = next(wheelhouse.glob("*.whl"))
     shutil.copy2(first_wheel, incomplete_wheelhouse / first_wheel.name)
-    with pytest.raises(SubstrateError, match="missing required locked package"):
+    with pytest.raises(SubstrateError, match="resolver_provenance is mandatory"):
         materialize_mcp_sidecar_package(
             target_dir=tmp_path / "fail_incomplete",
             tools=[tool],
@@ -146,6 +152,9 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
         )
 
     # 4. Full valid production materialization succeeds
+    provenance = record_prepackaging_provenance(
+        wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64")
+    )
     prod_dir = tmp_path / "prod_pkg"
     prod_pkg = materialize_mcp_sidecar_package(
         target_dir=prod_dir,
@@ -153,6 +162,8 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
         server_name="math-sidecar",
         port=8080,
         wheelhouse_source=wheelhouse,
+        target=provenance.target,
+        resolver_provenance=provenance,
     )
     assert (prod_dir / "server.py").is_file()
     assert (prod_dir / "requirements.txt").is_file()

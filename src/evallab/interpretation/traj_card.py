@@ -697,6 +697,7 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
             lines.append(f"- **Verifier Ground Truth Digest:** `{bf['verifier_truth_digest']}`")
         lines.append("")
         lines.append("### Ground Truth & Derived Observables")
+        lines.append("| Metric | Value | Data Type | Category / Provenance |")
         lines.append("|---|---|---|---|")
         for k, v in bf.items():
             if k in (

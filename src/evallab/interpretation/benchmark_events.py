@@ -375,23 +375,19 @@ def parse_benchmark_events(
                 )
             expected_index = event_index
 
-        # Gap detection
-        if event_index > expected_index:
-            raise BenchmarkEventGapError(
-                f"Benchmark event index gap detected: expected index {expected_index}, got {event_index}"
-            )
-
-        # Duplicate detection
-        if event_index in seen_indices:
-            raise BenchmarkEventDuplicateError(
-                f"Duplicate benchmark event index detected: {event_index}"
-            )
-
-        # Out of order backwards detection
-        if event_index < expected_index:
-            raise BenchmarkEventDuplicateError(
-                f"Benchmark event index out of order: expected {expected_index}, got {event_index}"
-            )
+        if event_index != expected_index:
+            if event_index in seen_indices:
+                raise BenchmarkEventDuplicateError(
+                    f"Duplicate benchmark event index detected: {event_index}"
+                )
+            elif event_index > expected_index:
+                raise BenchmarkEventGapError(
+                    f"Benchmark event index gap detected: expected index {expected_index}, got {event_index}"
+                )
+            else:
+                raise BenchmarkEventDuplicateError(
+                    f"Benchmark event index out of order: expected {expected_index}, got {event_index}"
+                )
 
         seen_indices.add(event_index)
         expected_index += 1

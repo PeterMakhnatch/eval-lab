@@ -159,6 +159,7 @@ SELECT
     cycle_violations,
     satisfied_edge_opportunities,
     first_edge_step,
+    schema_conformance_rate,
     value_propagation_accuracy,
     dag_edge_conformance_rate,
     redundant_call_ratio,

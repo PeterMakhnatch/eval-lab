@@ -16,6 +16,14 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+from evallab.benchmark_program_contracts import (
+    CellFactorsA,
+    CellFactorsB,
+    CellFactorsC,
+    FaultInjectionRecord,
+    SyntheticFamilyType,
+)
+
 
 class BenchmarkIngestionError(Exception):
     """Base exception for benchmark evidence ingestion and validation."""
@@ -80,9 +88,18 @@ class FinalStateRecord:
     digest: str = ""
 
 
+type CanonicalCellFactors = CellFactorsA | CellFactorsB | CellFactorsC
+
+_LEGACY_FAMILY_TYPES = {
+    "action-memory-v1": SyntheticFamilyType.FAMILY_A_STATE_INVERSION,
+    "mcp-funcdag-v1": SyntheticFamilyType.FAMILY_B_FUNCDAG_V2,
+    "mcp-recovery-v1": SyntheticFamilyType.FAMILY_C_FAULT_RECOVERY,
+}
+
+
 @dataclass(frozen=True)
 class BenchmarkContractRecord:
-    """Normalized benchmark contract and opportunity counts."""
+    """Trajectory-local parse record with optional PR #268 canonical contract references."""
 
     family: str
     version: str
@@ -93,6 +110,9 @@ class BenchmarkContractRecord:
     opportunity_counts: dict[str, Any]
     verifier_truth_digest: str
     artifact_paths: dict[str, str]
+    canonical_family: SyntheticFamilyType | None = None
+    canonical_cell_factors: CanonicalCellFactors | None = None
+    canonical_fault_record: FaultInjectionRecord | None = None
     raw_content: str = ""
     digest: str = ""
 
@@ -145,6 +165,53 @@ class TrialBundle:
             call_digest = call.request_event.digest if call else "unknown"
             return f"cas:call:{self.trial_id}:{tool_call_id}:{call_digest[:16]}"
         return f"cas:trial:{self.trial_id}"
+
+
+def _canonical_family(family: str) -> SyntheticFamilyType | None:
+    """Map a vertical's external family identifier to the PR #268 family type."""
+    if family in _LEGACY_FAMILY_TYPES:
+        return _LEGACY_FAMILY_TYPES[family]
+    try:
+        return SyntheticFamilyType(family)
+    except ValueError:
+        return None
+
+
+def _canonical_cell_factors(
+    family: SyntheticFamilyType | None, cell_factors: dict[str, Any]
+) -> CanonicalCellFactors | None:
+    """Validate only losslessly supplied PR #268 cell factors; never infer missing units."""
+    if family is SyntheticFamilyType.FAMILY_A_STATE_INVERSION:
+        required = {"dilation_tokens", "seed"}
+        model_type = CellFactorsA
+    elif family is SyntheticFamilyType.FAMILY_B_FUNCDAG_V2:
+        required = {"critical_path_depth", "parallel_width", "distractor_count", "seed"}
+        model_type = CellFactorsB
+    elif family is SyntheticFamilyType.FAMILY_C_FAULT_RECOVERY:
+        required = {"fault_class", "fault_injection_count", "seed"}
+        model_type = CellFactorsC
+    else:
+        return None
+
+    if not required.issubset(cell_factors):
+        return None
+    try:
+        return model_type.model_validate(
+            {name: cell_factors[name] for name in model_type.model_fields}
+        )
+    except ValueError:
+        return None
+
+
+def _canonical_fault_record(data: dict[str, Any]) -> FaultInjectionRecord | None:
+    """Validate a supplied PR #268 fault ledger without synthesizing one from trace events."""
+    raw_record = data.get("fault_record") or data.get("fault_injection_record")
+    if not isinstance(raw_record, dict):
+        return None
+    try:
+        return FaultInjectionRecord.model_validate(raw_record)
+    except ValueError:
+        return None
 
 
 def parse_benchmark_contract(
@@ -211,6 +278,8 @@ def parse_benchmark_contract(
                 "opportunity_counts",
                 "verifier_truth_digest",
                 "artifact_paths",
+                "fault_record",
+                "fault_injection_record",
             )
             and k not in cell_factors
         ):
@@ -219,6 +288,9 @@ def parse_benchmark_contract(
     opportunity_counts = dict(data.get("opportunity_counts", {}))
     verifier_truth_digest = str(data.get("verifier_truth_digest", ""))
     artifact_paths = {str(k): str(v) for k, v in data.get("artifact_paths", {}).items()}
+    canonical_family = _canonical_family(family)
+    canonical_cell_factors = _canonical_cell_factors(canonical_family, cell_factors)
+    canonical_fault_record = _canonical_fault_record(data)
     content_digest = sha256(raw_text.encode("utf-8")).hexdigest()
 
     return BenchmarkContractRecord(
@@ -231,6 +303,9 @@ def parse_benchmark_contract(
         opportunity_counts=opportunity_counts,
         verifier_truth_digest=verifier_truth_digest,
         artifact_paths=artifact_paths,
+        canonical_family=canonical_family,
+        canonical_cell_factors=canonical_cell_factors,
+        canonical_fault_record=canonical_fault_record,
         raw_content=raw_text,
         digest=content_digest,
     )

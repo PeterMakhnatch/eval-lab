@@ -22,6 +22,7 @@ from evallab.interpretation.benchmark_events import (
     BenchmarkEventGapError,
     correlate_tool_calls,
     load_trial_bundle,
+    parse_benchmark_contract,
     parse_benchmark_events,
 )
 from evallab.interpretation.feature_registry import (
@@ -808,3 +809,30 @@ def test_fault_followed_by_standalone_execution_no_mutation():
     assert correlated[1].call_id == "exec_1"
     assert correlated[1].is_fault_injected is False
     assert correlated[1].execution_event is not None
+
+
+def test_canonical_contract_adapter_preserves_legacy_payload_without_unit_inference():
+    """The adapter exposes PR #268 types without coercing legacy byte factors into tokens."""
+    legacy = parse_benchmark_contract(
+        {
+            "family": "action-memory-v1",
+            "cell_factors": {"dose_bytes": 4096, "seed": 42},
+        }
+    )
+    assert legacy.canonical_family is not None
+    assert legacy.canonical_cell_factors is None
+
+    canonical = parse_benchmark_contract(
+        {
+            "family": "family_b_funcdag_v2",
+            "cell_factors": {
+                "critical_path_depth": 3,
+                "parallel_width": 2,
+                "distractor_count": 1,
+                "seed": 42,
+            },
+        }
+    )
+    assert canonical.canonical_family is not None
+    assert canonical.canonical_cell_factors is not None
+    assert canonical.canonical_cell_factors.critical_path_depth == 3

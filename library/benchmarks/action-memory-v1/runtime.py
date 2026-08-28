@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -46,6 +47,18 @@ class StreamableMCPHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    def do_GET(self) -> None:
+        if self.path in {"/health", "/ready", "/healthz"}:
+            body = b'{"status": "ready"}\n'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_response(404)
+        self.end_headers()
 
     def do_POST(self) -> None:
         content_length = int(self.headers.get("Content-Length", 0))
@@ -189,6 +202,22 @@ class MCPClient:
         self.port = parsed.port or 8080
         self.path = parsed.path or "/mcp"
         self._msg_id = 0
+
+    def wait_until_ready(self, timeout_sec: float = 10.0) -> bool:
+        start_time = time.time()
+        while time.time() - start_time < timeout_sec:
+            try:
+                conn = http.client.HTTPConnection(self.host, self.port, timeout=1)
+                conn.request("GET", "/health")
+                resp = conn.getresponse()
+                if resp.status == 200:
+                    conn.close()
+                    return True
+                conn.close()
+            except Exception:
+                pass
+            time.sleep(0.1)
+        return False
 
     def call_rpc(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         self._msg_id += 1

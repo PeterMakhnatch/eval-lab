@@ -42,7 +42,7 @@ class ScenarioSpec:
 
 def generate_scenario(
     seed: int = 42,
-    cell_id: str = "clean_baseline_4k",
+    cell_id: str = "clean-baseline-4k",
     arm: str = "clean",
     dose_bytes: int = 4096,
     inversion_count: int = 1,
@@ -75,7 +75,22 @@ def generate_scenario(
         "byte_count": len(c0_text.encode("utf-8")),
     })
 
-    # Generate distractors / padding if requested
+    # Inversion facts (updates to latest_value)
+    inversion_chunks: list[dict[str, Any]] = []
+    for step_i, step_val in enumerate(inversion_steps, start=1):
+        inv_text = (
+            f"[CRITICAL STATE INVERSION 09{step_i}]: Configuration OVERRIDE event for {target_entity}.\n"
+            f"Superceding prior assignments, attribute {target_attribute} is now mutated to '{step_val}'.\n"
+            f"Mandatory action execution REQUIREMENT: Final mutation must supply latest bound token '{step_val}'.\n"
+        )
+        inversion_chunks.append({
+            "chunk_id": f"chunk_inv_{step_i:03d}",
+            "content": inv_text,
+            "chunk_type": "inversion_fact",
+            "byte_count": len(inv_text.encode("utf-8")),
+        })
+
+    # Distractors
     distractor_chunks: list[dict[str, Any]] = []
     if arm == "semantic_distractor":
         for d in range(distractor_count):
@@ -93,45 +108,53 @@ def generate_scenario(
                 "byte_count": len(d_text.encode("utf-8")),
             })
 
-    padding_chunks: list[dict[str, Any]] = []
-    if arm == "neutral_padding" or dose_bytes > 4096:
-        needed_bytes = max(0, dose_bytes - sum(c["byte_count"] for c in chunks) - 2000)
-        p_idx = 0
-        while needed_bytes > 0:
-            p_len = min(needed_bytes, 1024)
-            noise = f"[DIAGNOSTIC NOISE {p_idx:04d}] " + ("." * max(10, p_len - 35)) + "\n"
-            b_len = len(noise.encode("utf-8"))
-            padding_chunks.append({
-                "chunk_id": f"chunk_pad_{p_idx:03d}",
-                "content": noise,
-                "chunk_type": "padding",
-                "byte_count": b_len,
-            })
-            needed_bytes -= b_len
-            p_idx += 1
+    # Padding to reach exact target dose_bytes
+    current_bytes = (
+        sum(c["byte_count"] for c in chunks)
+        + sum(c["byte_count"] for c in inversion_chunks)
+        + sum(c["byte_count"] for c in distractor_chunks)
+    )
+    needed_bytes = max(0, dose_bytes - current_bytes)
 
-    # Inversion facts (updates to latest_value)
-    inversion_chunks: list[dict[str, Any]] = []
-    for step_i, step_val in enumerate(inversion_steps, start=1):
-        inv_text = (
-            f"[CRITICAL STATE INVERSION 09{step_i}]: Configuration OVERRIDE event for {target_entity}.\n"
-            f"Superceding prior assignments, attribute {target_attribute} is now mutated to '{step_val}'.\n"
-            f"Mandatory action execution REQUIREMENT: Final mutation must supply latest bound token '{step_val}'.\n"
-        )
-        inversion_chunks.append({
-            "chunk_id": f"chunk_inv_{step_i:03d}",
-            "content": inv_text,
-            "chunk_type": "inversion_fact",
-            "byte_count": len(inv_text.encode("utf-8")),
+    padding_chunks: list[dict[str, Any]] = []
+    p_idx = 0
+    while needed_bytes > 0:
+        p_len = min(needed_bytes, 1024)
+        if p_len < 40:
+            noise = f"[PAD {p_idx:03d}] " + ("." * max(0, p_len - 12)) + "\n"
+        else:
+            noise = f"[DIAGNOSTIC NOISE {p_idx:04d}] " + ("." * (p_len - 30)) + "\n"
+        
+        # Adjust exactly
+        b_noise = noise.encode("utf-8")
+        if len(b_noise) > needed_bytes:
+            b_noise = b_noise[:needed_bytes]
+            noise = b_noise.decode("utf-8", errors="ignore")
+            b_noise = noise.encode("utf-8")
+
+        b_len = len(b_noise)
+        if b_len == 0:
+            break
+
+        padding_chunks.append({
+            "chunk_id": f"chunk_pad_{p_idx:03d}",
+            "content": noise,
+            "chunk_type": "padding",
+            "byte_count": b_len,
         })
+        needed_bytes -= b_len
+        p_idx += 1
 
     # Assemble chunks based on arm and padding_position
     if padding_position == "prefix":
         all_chunks = padding_chunks + chunks + distractor_chunks + inversion_chunks
     elif padding_position == "middle":
-        all_chunks = chunks + distractor_chunks[:len(distractor_chunks)//2] + padding_chunks + distractor_chunks[len(distractor_chunks)//2:] + inversion_chunks
+        half = len(distractor_chunks) // 2
+        all_chunks = chunks + distractor_chunks[:half] + padding_chunks + distractor_chunks[half:] + inversion_chunks
     else:
         all_chunks = chunks + distractor_chunks + inversion_chunks + padding_chunks
+
+    realized_dose = sum(c["byte_count"] for c in all_chunks)
 
     expected_mutation = {
         "action": "execute_mutation",
@@ -151,7 +174,7 @@ def generate_scenario(
         initial_value=initial_value,
         latest_value=latest_value,
         inversion_steps=inversion_steps,
-        dose_bytes=sum(c["byte_count"] for c in all_chunks),
+        dose_bytes=realized_dose,
         padding_position=padding_position,
         chunks=all_chunks,
         expected_mutation_call=expected_mutation,

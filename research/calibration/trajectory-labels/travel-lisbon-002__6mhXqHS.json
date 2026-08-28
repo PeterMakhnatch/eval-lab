@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "travel-lisbon-002__6mhXqHS",
+  "source": "research/evidence/runs/deepplanning-travel-lisbon-registry-nop/travel-lisbon-002__6mhXqHS",
+  "primary_category": "unknown",
+  "summary": "Durable DeepPlanning no-op control produced no answer and scored 0.0 as intended; no attempted agent behavior requires classification.",
+  "evidence": [
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "The separate verifier recorded the missing answer and reward 0.0."
+    }
+  ],
+  "agent": "nop",
+  "reward": 0.0
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "travel-lisbon-002__HGpE9HJ",
+  "source": "research/evidence/runs/deepplanning-travel-lisbon-registry-oracle/travel-lisbon-002__HGpE9HJ",
+  "primary_category": "unknown",
+  "summary": "Durable DeepPlanning registry oracle control derived the infeasible Lisbon outcome and scored 1.0; no failure class applies.",
+  "evidence": [
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "The separate verifier recorded the expected infeasible outcome and reward 1.0."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0
+}

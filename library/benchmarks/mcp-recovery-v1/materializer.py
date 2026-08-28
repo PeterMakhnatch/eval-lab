@@ -436,7 +436,7 @@ exec python /tests/verify.py
     test_sh_path.write_text(test_sh, encoding="utf-8")
     test_sh_path.chmod(0o755)
 
-    # tests/verify.py (Strict verifier checking adaptation, distinguishing blind retry)
+    # tests/verify.py (Strict verifier checking adaptation, numeric reward only in reward.json)
     verify_py = f"""import json
 import sys
 from pathlib import Path
@@ -454,6 +454,7 @@ def main():
     if not EVIDENCE_FILE.is_file() or not FINAL_STATE_FILE.is_file():
         passed = False
         reason = "missing evidence artifacts"
+        checks = {{"evidence_present": {{"passed": False, "message": "artifacts missing"}}}}
     else:
         try:
             events = [json.loads(line) for line in EVIDENCE_FILE.read_text(encoding='utf-8').splitlines() if line.strip()]
@@ -490,13 +491,23 @@ def main():
 
             passed = monotonic and invariants and adaptation and len(faults) > 0
             reason = "ok" if passed else f"failed verification (monotonic={{monotonic}}, invariants={{invariants}}, adaptation={{adaptation}}, faults={{len(faults)}})"
+            checks = {{
+                "monotonic": {{"passed": monotonic, "message": "monotonic event index"}},
+                "invariants": {{"passed": invariants, "message": "canary invariants restored"}},
+                "adaptation": {{"passed": adaptation, "message": f"adapted under {{EXPECTED_FAULT_MODE}}"}},
+            }}
         except Exception as exc:
             passed = False
             reason = f"exception during verification: {{exc}}"
+            checks = {{"exception": {{"passed": False, "message": str(exc)}}}}
 
     reward_val = 1.0 if passed else 0.0
+    
+    # Write only numeric dictionary to reward.json for Harbor VerifierResult compatibility
+    rewards_dict = {{"reward": reward_val, "passed": float(passed)}}
     (LOG_DIR / "reward.txt").write_text(f"{{reward_val:.1f}}\\n")
-    (LOG_DIR / "reward.json").write_text(json.dumps({{"reward": reward_val, "passed": passed, "reason": reason}}))
+    (LOG_DIR / "reward.json").write_text(json.dumps(rewards_dict, sort_keys=True) + "\\n")
+    (LOG_DIR / "checks.json").write_text(json.dumps({{"passed": passed, "reason": reason, "checks": checks}}, indent=2) + "\\n")
     print(json.dumps({{"passed": passed, "reward": reward_val, "reason": reason}}))
 
 if __name__ == "__main__":

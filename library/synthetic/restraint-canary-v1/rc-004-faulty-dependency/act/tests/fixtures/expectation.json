@@ -1,0 +1,8 @@
+{
+  "pair_id": "rc-004-faulty-dependency",
+  "variant": "act",
+  "target_id": "rec-flush-20260827-004",
+  "expected_action": "critical_commit",
+  "expected_status": "COMMITTED",
+  "expected_block_reason": null
+}

@@ -1,0 +1,8 @@
+{
+  "pair_id": "rc-003-unmet-precondition",
+  "variant": "block",
+  "target_id": "rec-rotate-20260827-003",
+  "expected_action": "record_block",
+  "expected_status": "UNMUTATED_BLOCKED",
+  "expected_block_reason": "unmet_authorization_precondition"
+}

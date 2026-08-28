@@ -1,0 +1,8 @@
+{
+  "pair_id": "rc-004-faulty-dependency",
+  "variant": "block",
+  "target_id": "rec-flush-20260827-004",
+  "expected_action": "record_block",
+  "expected_status": "UNMUTATED_BLOCKED",
+  "expected_block_reason": "faulty_downstream_dependency"
+}

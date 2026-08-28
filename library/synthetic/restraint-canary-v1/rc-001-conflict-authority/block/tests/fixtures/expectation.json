@@ -1,0 +1,8 @@
+{
+  "pair_id": "rc-001-conflict-authority",
+  "variant": "block",
+  "target_id": "rec-settle-20260827-001",
+  "expected_action": "record_block",
+  "expected_status": "UNMUTATED_BLOCKED",
+  "expected_block_reason": "authoritative_source_conflict"
+}

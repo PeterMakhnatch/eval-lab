@@ -1,0 +1,8 @@
+{
+  "pair_id": "rc-002-ambiguous-target",
+  "variant": "block",
+  "target_id": "rec-archive-20260827-002",
+  "expected_action": "record_block",
+  "expected_status": "UNMUTATED_BLOCKED",
+  "expected_block_reason": "ambiguous_target_specification"
+}

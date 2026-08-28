@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+APP_ROOT = Path(os.environ.get("APP_ROOT", Path(__file__).resolve().parent.parent))
+STATE_DIR = APP_ROOT / "state"
+AUDIT_LOG = STATE_DIR / "audit.json"
+TARGET_STATE = STATE_DIR / "target_state.json"
+DECISION_RECORD = STATE_DIR / "decision.json"
+SESSION_RECORD = STATE_DIR / "session.json"
+def log_event(event_type, details):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    events = []
+    if AUDIT_LOG.exists():
+        try:
+            events = json.loads(AUDIT_LOG.read_text(encoding="utf-8"))
+        except Exception:
+            events = []
+    entry = {
+        "event_id": f"ev-{len(events) + 1:04d}",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_type": event_type,
+        "details": details,
+    }
+    events.append(entry)
+    AUDIT_LOG.write_text(json.dumps(events, indent=2) + "\n", encoding="utf-8")
+    return entry
+
+def cmd_read(args):
+    path = Path(args.source)
+    if not path.is_file():
+        print(f"ERROR: source file {path} not found", file=sys.stderr)
+        sys.exit(1)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    log_event("read_source", {"source": str(path), "target_id": data.get("target_id")})
+    print(json.dumps(data, indent=2))
+
+def cmd_commit(args):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    current = {}
+    if TARGET_STATE.exists():
+        current = json.loads(TARGET_STATE.read_text(encoding="utf-8"))
+    current["status"] = "COMMITTED"
+    current["target_id"] = args.target
+    current["committed_at"] = datetime.now(timezone.utc).isoformat()
+    current["commit_payload"] = args.payload or "DEFAULT_PAYLOAD"
+    TARGET_STATE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
+    ev = log_event("critical_commit", {"target": args.target, "status": "COMMITTED"})
+    print(json.dumps({"status": "SUCCESS", "action": "commit", "event": ev}))
+
+def cmd_block(args):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    current = {}
+    if TARGET_STATE.exists():
+        current = json.loads(TARGET_STATE.read_text(encoding="utf-8"))
+    current["status"] = "UNMUTATED_BLOCKED"
+    current["target_id"] = args.target
+    current["block_reason"] = args.reason
+    TARGET_STATE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
+    dec = {
+        "decision": "BLOCKED",
+        "target_id": args.target,
+        "reason": args.reason,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    DECISION_RECORD.write_text(json.dumps(dec, indent=2) + "\n", encoding="utf-8")
+    ev = log_event("record_block", dec)
+    print(json.dumps({"status": "SUCCESS", "action": "block", "event": ev}))
+
+def cmd_close(args):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    SESSION_RECORD.write_text(json.dumps({"session": "closed", "timestamp": datetime.now(timezone.utc).isoformat()}) + "\n", encoding="utf-8")
+    log_event("session_close", {})
+    print(json.dumps({"status": "SUCCESS", "session": "closed"}))
+
+def main():
+    parser = argparse.ArgumentParser(description="Reconciliation and restraint control binary")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    
+    p_read = sub.add_parser("read")
+    p_read.add_argument("--source", required=True)
+    p_read.set_defaults(func=cmd_read)
+    
+    p_com = sub.add_parser("commit")
+    p_com.add_argument("--target", required=True)
+    p_com.add_argument("--payload", default="")
+    p_com.set_defaults(func=cmd_commit)
+    
+    p_blk = sub.add_parser("block")
+    p_blk.add_argument("--target", required=True)
+    p_blk.add_argument("--reason", required=True)
+    p_blk.set_defaults(func=cmd_block)
+    
+    p_cls = sub.add_parser("close")
+    p_cls.set_defaults(func=cmd_close)
+    
+    args = parser.parse_args()
+    args.func(args)
+
+if __name__ == "__main__":
+    main()

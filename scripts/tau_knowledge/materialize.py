@@ -18,8 +18,8 @@ from typing import Any
 DEFAULT_MANIFEST = Path("library/benchmarks/tau-knowledge/cohort.manifest.json")
 DEFAULT_OUTPUT = Path("derived/harbor-tasks/tau")
 PYTHON_BASE_IMAGE = (
-    "python:3.13-slim@sha256:"
-    "bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+    "python:3.12-slim@sha256:"
+    "09f7da3bc104798d0afb40bc08d23ab2da20a76130cec1f2ef170848f5d85217"
 )
 AGENT_DOCKERFILE = f"""FROM {PYTHON_BASE_IMAGE}
 
@@ -124,6 +124,180 @@ def harden_agent_environment(task_dir: Path) -> None:
     agent_dockerfile.write_text(AGENT_DOCKERFILE, encoding="utf-8")
 
 
+def harden_verifier_environment(task_dir: Path, manifest: Mapping[str, Any]) -> None:
+    """Move Tau evaluator dependencies into a verifier-only container."""
+    task_config = task_dir / "task.toml"
+    text = task_config.read_text(encoding="utf-8")
+    if "artifacts =" not in text:
+        text = text.replace(
+            'schema_version = "1.1"\n',
+            'schema_version = "1.1"\n'
+            'artifacts = ["/app/tau3_runtime_state.json"]\n',
+            1,
+        )
+    text = text.replace(
+        "[verifier]\n",
+        '[verifier]\nenvironment_mode = "separate"\n',
+        1,
+    )
+    text = text.replace(
+        "\n[agent]\n",
+        '\n[[verifier.collect]]\n'
+        'command = "if [ ! -f /app/tau3_runtime_state.json ] '
+        "&& [ -f /logs/agent/tau3_runtime_state.json ]; then "
+        "cp /logs/agent/tau3_runtime_state.json "
+        '/app/tau3_runtime_state.json; fi"\n'
+        'service = "main"\n\n'
+        '[verifier.environment]\nnetwork_mode = "no-network"\n\n[agent]\n',
+        1,
+    )
+    task_config.write_text(text, encoding="utf-8")
+
+    commit = manifest["required_upstream"]["commit"]
+    dockerfile = f"""FROM {PYTHON_BASE_IMAGE}
+
+ARG TAU2_BENCH_REPO="https://github.com/sierra-research/tau2-bench.git"
+ARG TAU2_BENCH_COMMIT="{commit}"
+ENV TAU2_BENCH_ROOT=/opt/tau2-bench
+ENV TAU2_DATA_DIR=/opt/tau2-bench/data
+RUN apt-get update \\
+    && apt-get install -y --no-install-recommends ca-certificates git \\
+    && git clone "${{TAU2_BENCH_REPO}}" "${{TAU2_BENCH_ROOT}}" \\
+    && git -C "${{TAU2_BENCH_ROOT}}" checkout "${{TAU2_BENCH_COMMIT}}" \\
+    && pip install --no-cache-dir "${{TAU2_BENCH_ROOT}}[knowledge]" \\
+    && rm -rf "${{TAU2_BENCH_ROOT}}/.git" /var/lib/apt/lists/*
+WORKDIR /tests
+COPY config.json /tests/config.json
+COPY evaluate.py /tests/evaluate.py
+COPY test.sh /tests/test.sh
+RUN chmod +x /tests/test.sh
+"""
+    (task_dir / "tests/Dockerfile").write_text(dockerfile, encoding="utf-8")
+
+    evaluate_path = task_dir / "tests/evaluate.py"
+    evaluate_text = evaluate_path.read_text(encoding="utf-8")
+    runtime_log_declaration = (
+        'DEFAULT_RUNTIME_LOG_PATH = Path("/logs/agent/tau3_runtime_state.json")'
+    )
+    runtime_log_resolution = (
+        'DEFAULT_RUNTIME_LOG_PATH = Path("/app/tau3_runtime_state.json")'
+    )
+    if runtime_log_declaration not in evaluate_text:
+        raise RuntimeError("blocked:tau_verifier_runtime_log_contract_drift")
+    evaluate_path.write_text(
+        evaluate_text.replace(
+            runtime_log_declaration,
+            runtime_log_resolution,
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    test_path = task_dir / "tests/test.sh"
+    test_text = test_path.read_text(encoding="utf-8")
+    runtime_log_argument = "--runtime-log /logs/agent/tau3_runtime_state.json"
+    if runtime_log_argument not in test_text:
+        raise RuntimeError("blocked:tau_verifier_test_entrypoint_contract_drift")
+    test_path.write_text(
+        test_text.replace(
+            runtime_log_argument,
+            "--runtime-log /app/tau3_runtime_state.json",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+
+def harden_oracle_solution(task_dir: Path) -> None:
+    """Build the oracle runtime log without installing Tau data in the agent image."""
+    config = json.loads((task_dir / "tests/config.json").read_text(encoding="utf-8"))
+    task = config["task"]
+    tool_results = {
+        "apply_for_credit_card": (
+            "Credit card application submitted:\n"
+            "Your application has been successfully submitted. "
+            "You will receive a decision within 5-7 business days via email."
+        )
+    }
+    unsupported_actions = sorted(
+        {
+            str(action["name"])
+            for action in config.get("expected_actions") or []
+            if action["name"] not in tool_results
+        }
+    )
+    if unsupported_actions:
+        raise RuntimeError(
+            "blocked:tau_oracle_result_contract_missing:"
+            + ",".join(unsupported_actions)
+        )
+    simulation = {
+        "actions": config.get("expected_actions") or [],
+        "communicate_info": config.get("expected_communicate_info") or [],
+        "initialization_data": task.get("initial_state"),
+        "initialization_actions": task.get("initialization_actions") or [],
+        "tool_results": tool_results,
+    }
+    script = f"""#!/bin/bash
+set -euo pipefail
+python3 - <<'PYEOF'
+import json
+from pathlib import Path
+
+simulation = json.loads({json.dumps(json.dumps(simulation, sort_keys=True))})
+messages = []
+for index, action in enumerate(simulation["actions"]):
+    requestor = action.get("requestor", "assistant")
+    call_id = f"oracle_{{index}}"
+    messages.append(
+        {{
+            "role": "user" if requestor == "user" else "assistant",
+            "content": None,
+            "tool_calls": [
+                {{
+                    "id": call_id,
+                    "name": action["name"],
+                    "arguments": action.get("arguments") or {{}},
+                    "requestor": requestor,
+                }}
+            ],
+        }}
+    )
+    messages.append(
+        {{
+            "id": call_id,
+            "role": "tool",
+            "content": simulation["tool_results"][action["name"]],
+            "requestor": requestor,
+            "error": False,
+        }}
+    )
+for content in simulation["communicate_info"]:
+    messages.append({{"role": "assistant", "content": content}})
+
+state_path = Path("/app/tau3_runtime_state.json")
+state_path.parent.mkdir(parents=True, exist_ok=True)
+state_path.write_text(
+    json.dumps(
+        {{
+            "domain": {json.dumps(config["domain"])},
+            "task_id": {json.dumps(config["source_task_id"])},
+            "termination_reason": "agent_stop",
+            "bootstrap_complete": True,
+            "start_tool_called": True,
+            "messages": messages,
+        }},
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+PYEOF
+"""
+    path = task_dir / "solution/solve.sh"
+    path.write_text(script, encoding="utf-8")
+    path.chmod(0o755)
+
+
 def validate_agent_boundary(
     task_dir: Path,
     manifest: Mapping[str, Any],
@@ -216,6 +390,8 @@ def materialize(
     ).is_file():
         raise RuntimeError(f"adapter did not produce complete task: {task_dir}")
     harden_agent_environment(task_dir)
+    harden_oracle_solution(task_dir)
+    harden_verifier_environment(task_dir, manifest)
     validate_agent_boundary(task_dir, manifest)
     metadata = {
         "schema_version": "tau-knowledge-materialization/v1",

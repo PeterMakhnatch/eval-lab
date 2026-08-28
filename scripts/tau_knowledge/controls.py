@@ -4,15 +4,32 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 COMMANDS = {
-    "oracle": ("uv", "run", "harbor", "trial", "start", "-p", "{task_path}", "-a", "oracle"),
-    "nop": ("uv", "run", "harbor", "trial", "start", "-p", "{task_path}", "-a", "nop"),
+    "oracle": (
+        "harbor",
+        "trial",
+        "start",
+        "-p",
+        "{task_path}",
+        "-a",
+        "oracle",
+        "--force-build",
+    ),
+    "nop": (
+        "harbor",
+        "trial",
+        "start",
+        "-p",
+        "{task_path}",
+        "-a",
+        "nop",
+        "--force-build",
+    ),
 }
 EXPECTED_REWARDS = {"oracle": 1.0, "nop": 0.0, "mutant": 0.0}
 
@@ -62,7 +79,7 @@ def run_control(
             trials_dir.mkdir(parents=True, exist_ok=True)
             command.extend(["--trials-dir", str(trials_dir)])
         if not dry_run:
-            subprocess.run(command, check=True, cwd=os.environ.get("HARBOR_ROOT") or None)
+            subprocess.run(command, check=True)
             if trials_dir is not None:
                 actual = _persisted_reward(trials_dir)
                 expected = EXPECTED_REWARDS[mode] if expected_reward is None else expected_reward

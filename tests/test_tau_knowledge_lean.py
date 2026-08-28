@@ -100,7 +100,10 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
     task_toml = task_dir / "task.toml"
     dockerfile = environment / "Dockerfile"
     task_toml.write_text(
+        'schema_version = "1.1"\n'
         '[task]\nname = "tau3-banking_knowledge-task-001"\n'
+        '[verifier]\ntimeout_sec = 300.0\n'
+        '[agent]\ntimeout_sec = 3600.0\n'
         '[environment]\nenv = { OPENAI_API_KEY = "${OPENAI_API_KEY}" }\n',
         encoding="utf-8",
     )
@@ -108,14 +111,62 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
         "FROM python:3.12-slim\nRUN git clone tau2-bench /opt/tau2-bench\n",
         encoding="utf-8",
     )
-    hidden_payload = '{"ground_truth":"hidden-database-state-for-task-001"}'
+    hidden_payload = json.dumps(
+        {
+            "domain": "banking_knowledge",
+            "source_task_id": "task_001",
+            "task": {"initial_state": None},
+            "expected_actions": [
+                {
+                    "name": "apply_for_credit_card",
+                    "arguments": {"card_type": "Gold Rewards Card"},
+                    "requestor": "user",
+                }
+            ],
+            "expected_communicate_info": [],
+            "ground_truth": "hidden-database-state-for-task-001",
+        },
+        separators=(",", ":"),
+    )
     (tests / "config.json").write_text(hidden_payload + "\n", encoding="utf-8")
+    (tests / "evaluate.py").write_text(
+        'from pathlib import Path\n'
+        'DEFAULT_RUNTIME_LOG_PATH = Path("/logs/agent/tau3_runtime_state.json")\n',
+        encoding="utf-8",
+    )
+    (tests / "test.sh").write_text(
+        "#!/bin/sh\npython3 /tests/evaluate.py "
+        "--runtime-log /logs/agent/tau3_runtime_state.json\n",
+        encoding="utf-8",
+    )
     (solution / "solve.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
 
     materializer.harden_agent_environment(task_dir)
+    materializer.harden_oracle_solution(task_dir)
+    materializer.harden_verifier_environment(task_dir, manifest)
     assert "env = {}" in task_toml.read_text(encoding="utf-8")
-    assert "OPENAI_API_KEY" not in task_toml.read_text(encoding="utf-8")
     assert "tau2-bench" not in dockerfile.read_text(encoding="utf-8")
+    assert "/opt/tau2-bench" not in (solution / "solve.sh").read_text(encoding="utf-8")
+    assert 'state_path = Path("/app/tau3_runtime_state.json")' in (
+        solution / "solve.sh"
+    ).read_text(encoding="utf-8")
+    verifier_config = task_toml.read_text(encoding="utf-8")
+    assert 'environment_mode = "separate"' in verifier_config
+    assert '[verifier.environment]\nnetwork_mode = "no-network"' in verifier_config
+    assert 'artifacts = ["/app/tau3_runtime_state.json"]' in verifier_config
+    assert "[[verifier.collect]]" in verifier_config
+    assert (
+        "cp /logs/agent/tau3_runtime_state.json /app/tau3_runtime_state.json"
+    ) in verifier_config
+    assert manifest["required_upstream"]["commit"] in (
+        tests / "Dockerfile"
+    ).read_text(encoding="utf-8")
+    assert 'Path("/app/tau3_runtime_state.json")' in (
+        tests / "evaluate.py"
+    ).read_text(encoding="utf-8")
+    assert "--runtime-log /app/tau3_runtime_state.json" in (
+        tests / "test.sh"
+    ).read_text(encoding="utf-8")
 
     materializer.validate_agent_boundary(task_dir, manifest)
 
@@ -199,8 +250,13 @@ def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) ->
     (task / "task.toml").write_text("[task]\n", encoding="utf-8")
     for mode in ("oracle", "nop", "mutant"):
         command = controls.run_control(task, mode, dry_run=True)
-        assert command[:6] == ["uv", "run", "harbor", "trial", "start", "-p"]
-        assert command[-1] == ("oracle" if mode in {"oracle", "mutant"} else "nop")
+        assert command[:4] == ["harbor", "trial", "start", "-p"]
+        assert Path(command[4]).name == task.name
+        assert command[5:] == [
+            "-a",
+            "oracle" if mode in {"oracle", "mutant"} else "nop",
+            "--force-build",
+        ]
 
 
 def test_generated_corpus_is_not_tracked() -> None:

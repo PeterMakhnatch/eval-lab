@@ -2808,3 +2808,93 @@ def test_v2_complete_safe_fixture_proving_accepted_path(tmp_path: Path) -> None:
     assert cert_path.is_file()
     cert = json.loads(cert_path.read_text())
     assert cert["certified"] is True
+
+
+def _set_task_name(repo: Path, task: Path, name: str) -> None:
+    toml = task / "task.toml"
+    toml.write_text(
+        re.sub(
+            r'^name = ".*"$',
+            f'name = "{name}"',
+            toml.read_text(),
+            flags=re.MULTILINE,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "mcp-funcdag-baseline-seed42",
+        "../evil",
+        "org/..name",
+        "org/name..",
+        ".org/name",
+        "org/.name",
+        "/name",
+        "org/",
+        "org/name/extra",
+        "org name/task",
+    ],
+)
+def test_invalid_package_name_is_rejected(tmp_path: Path, name: str) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    _set_task_name(repo, task, name)
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert "task_name_invalid" in _codes(inspection)
+    finding = next(item for item in inspection.diagnostics if item.code == "task_name_invalid")
+    assert finding.path == "task.toml"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "evallab/name",
+        "local-lab/v2-agentic-fixture",
+        "org.sub_name-1/task.name-2",
+    ],
+)
+def test_valid_package_name_is_accepted(tmp_path: Path, name: str) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    _set_task_name(repo, task, name)
+    inspection = _inspect(repo, task)
+    assert inspection.static_passed
+    assert "task_name_invalid" not in _codes(inspection)
+
+
+class _NoopBackend:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def run(
+        self,
+        *,
+        repo_root,
+        task_dir,
+        candidate,
+        plan,
+        run_root,
+    ) -> None:
+        self.calls.append(plan.control_id)
+        raise AssertionError("control should not run for a rejected candidate")
+
+
+def test_run_controls_fails_closed_on_invalid_package_name(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    _set_task_name(repo, task, "mcp-funcdag-baseline-seed42")
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert "task_name_invalid" in _codes(inspection)
+    backend = _NoopBackend()
+    with pytest.raises(
+        ControlsNotAdmittedError,
+        match="static checks failed; zero controls were called",
+    ):
+        run_controls(
+            inspection=inspection,
+            repo_root=repo,
+            task_path=task,
+            backend=backend,
+        )
+    assert backend.calls == []

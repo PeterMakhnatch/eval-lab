@@ -107,6 +107,18 @@ ISOLATION_DIAGNOSTIC_CODES = frozenset(
     }
 )
 
+# Harbor 0.21.0 package identity pattern (harbor.constants.ORG_NAME_PATTERN).
+# Reproduced here so the workbench can fail-closed on invalid package names
+# without importing harbor at runtime.
+HARBOR_PACKAGE_NAME_PATTERN = re.compile(
+    r"^[a-zA-Z0-9][a-zA-Z0-9._-]*/[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+)
+
+
+def _is_valid_harbor_package_name(name: str) -> bool:
+    return bool(HARBOR_PACKAGE_NAME_PATTERN.fullmatch(name)) and ".." not in name
+
+
 # --- The task.toml surface this workbench version claims to understand -------
 # The workbench proves network isolation by reproducing Harbor's configuration
 # resolution. Every table or key it fails to reproduce is a silent hole, and two
@@ -1164,6 +1176,16 @@ def _validate_task_metadata(
     name = raw_name if isinstance(raw_name, str) and raw_name.strip() else task_dir.name
     if not isinstance(raw_name, str) or not raw_name.strip():
         diagnostics.append(_diag("task_name_missing", "task.toml", "[task].name is required"))
+    elif not _is_valid_harbor_package_name(name):
+        diagnostics.append(
+            _diag(
+                "task_name_invalid",
+                "task.toml",
+                f"Package name must be in 'org/name' format with alphanumeric characters, "
+                f"hyphens, underscores, and dots. Cannot start with a dot or contain '..'. "
+                f"Got: {name}",
+            )
+        )
     raw_version = task_table.get("version")
     version = raw_version if isinstance(raw_version, str) and raw_version.strip() else None
     if version is None:
@@ -3284,10 +3306,10 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     fair_alternative, please_hack = _special_control_scripts(task_dir, diagnostics)
 
     task_id = task_name.rsplit("/", 1)[-1]
-    if not SAFE_SLUG.fullmatch(task_id):
-        diagnostics.append(
-            _diag("task_id_invalid", "task.toml", "task name suffix must be a safe slug")
-        )
+    if not _is_valid_harbor_package_name(task_name):
+        # The declared package name is not a valid Harbor identity. Keep a
+        # deterministic, safe local task_id so error records and commands still
+        # have a stable suffix.
         task_id = re.sub(r"[^a-z0-9-]+", "-", task_dir.name.lower()).strip("-") or "task"
     registration = _detect_forged_registration(repo_root, task_dir, task_id, config, diagnostics)
 

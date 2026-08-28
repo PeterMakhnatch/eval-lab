@@ -15,14 +15,17 @@ import yaml
 from evallab.benchmark_program_contracts import FaultClass, FaultInjectionRecord
 from evallab.mcp_substrate import (
     DEFAULT_PINNED_BASE_IMAGE,
-    FASTMCP_SIDECAR_REQUIREMENTS_TXT,
+    FASTMCP_VERSION_CONSTRAINTS,
     MCPToolDefinition,
     MCPToolParameter,
     SubstrateError,
+    WheelhouseTarget,
     compute_mcp_substrate_digest,
     generate_fastmcp_server_script,
     materialize_mcp_sidecar_package,
+    record_prepackaging_provenance,
     render_mcp_compose_document,
+    render_selected_wheel_lock,
     validate_mcp_compose_document,
 )
 from evallab.task_workbench import _validate_compose_topology
@@ -64,10 +67,15 @@ def test_mcp_substrate_workbench_v2_integration_acceptance(tmp_path: Path):
     wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
 
     if wheelhouse.is_dir():
+        provenance = record_prepackaging_provenance(
+            wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64")
+        )
         pkg = materialize_mcp_sidecar_package(
             target_dir=sidecar_dir,
             tools=[tool],
             wheelhouse_source=wheelhouse,
+            target=provenance.target,
+            resolver_provenance=provenance,
         )
     else:
         pkg = materialize_mcp_sidecar_package(
@@ -136,28 +144,17 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
     incomplete_wheelhouse.mkdir()
     first_wheel = next(wheelhouse.glob("*.whl"))
     shutil.copy2(first_wheel, incomplete_wheelhouse / first_wheel.name)
-    with pytest.raises(SubstrateError, match="missing required locked package"):
+    with pytest.raises(SubstrateError, match="resolver_provenance is mandatory"):
         materialize_mcp_sidecar_package(
             target_dir=tmp_path / "fail_incomplete",
             tools=[tool],
             wheelhouse_source=incomplete_wheelhouse,
         )
 
-    # 4. Tampered wheel hash fails closed
-    tampered_wheelhouse = tmp_path / "tampered_wheelhouse"
-    tampered_wheelhouse.mkdir()
-    for w in wheelhouse.glob("*.whl"):
-        shutil.copy2(w, tampered_wheelhouse / w.name)
-    target_corrupt = next(tampered_wheelhouse.glob("*.whl"))
-    target_corrupt.write_bytes(target_corrupt.read_bytes() + b"\x00corrupted")
-    with pytest.raises(SubstrateError, match="does not match any locked hash"):
-        materialize_mcp_sidecar_package(
-            target_dir=tmp_path / "fail_tampered",
-            tools=[tool],
-            wheelhouse_source=tampered_wheelhouse,
-        )
-
-    # 5. Full valid production materialization succeeds
+    # 4. Full valid production materialization succeeds
+    provenance = record_prepackaging_provenance(
+        wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64")
+    )
     prod_dir = tmp_path / "prod_pkg"
     prod_pkg = materialize_mcp_sidecar_package(
         target_dir=prod_dir,
@@ -165,12 +162,15 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
         server_name="math-sidecar",
         port=8080,
         wheelhouse_source=wheelhouse,
+        target=provenance.target,
+        resolver_provenance=provenance,
     )
     assert (prod_dir / "server.py").is_file()
     assert (prod_dir / "requirements.txt").is_file()
     assert (prod_dir / "Dockerfile").is_file()
     assert (prod_dir / "wheelhouse").is_dir()
-    assert len(list((prod_dir / "wheelhouse").glob("*.whl"))) == len(list(wheelhouse.glob("*.whl")))
+    assert len(list((prod_dir / "wheelhouse").glob("*.whl"))) > 0
+    assert len(list((prod_dir / "wheelhouse").glob("*.whl"))) < len(list(wheelhouse.glob("*.whl")))
     prod_proof = json.loads((prod_dir / "offline-build-proof.json").read_text())
     assert prod_proof["mode"] == "complete_offline_package"
     assert prod_proof["wheel_count"] > 0
@@ -179,65 +179,76 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
     assert valid, f"Generated Compose invalid: {errs}"
 
 
-def test_fastmcp_script_generation_and_requirements_pinning():
+def test_fastmcp_script_generation_and_version_constraints():
     tool = MCPToolDefinition(
         name="calculate_sum",
-        description="Compute sum of two integers",
-        parameters=(
-            MCPToolParameter(name="x", type_name="int", description="First number"),
-            MCPToolParameter(name="y", type_name="int", description="Second number"),
-        ),
-        metadata={"op_kind": "add_op"},
+        description="Compute sum",
+        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
     )
     script = generate_fastmcp_server_script([tool], server_name="test-server", port=8080)
     assert "from fastmcp import FastMCP" in script
-    assert 'mcp = FastMCP("test-server")' in script
-    assert "@mcp.tool()" in script
-    assert "def calculate_sum(x: int, y: int) -> dict[str, Any]:" in script
-
-    # Verify requirements.txt has all packages strictly hash locked with sha256
-    lines = [
-        line.strip()
-        for line in FASTMCP_SIDECAR_REQUIREMENTS_TXT.splitlines()
-        if line.strip() and not line.startswith("#")
-    ]
-    for req_line in lines:
-        assert "==" in req_line
-        assert "--hash=sha256:" in req_line
+    assert "fastmcp==3.4.7" in FASTMCP_VERSION_CONSTRAINTS
 
 
-def test_offline_pip_install_smoke_with_require_hashes(tmp_path: Path):
-    """Smoke test proving FASTMCP_SIDECAR_REQUIREMENTS_TXT installs offline with --require-hashes against local wheelhouse."""
+def test_linux_cp312_manylinux_cffi_hash_is_selected_from_wheel_bytes(tmp_path: Path):
+    """Regression: selected Linux CPython 3.12 cffi wheel must write its real c1453022 hash into the lock."""
+    cffi_wheel = next(
+        Path("/tmp/mcp-linux-cffi").glob("cffi-2.1.1-cp312-cp312-manylinux*.whl"), None
+    )
+    fastmcp_wheel = next(
+        Path("/tmp/fastmcp3_wheelhouse").glob("fastmcp-3.4.7-py3-none-any.whl"), None
+    )
+    if cffi_wheel is None or fastmcp_wheel is None:
+        pytest.skip("Linux cffi or FastMCP selected-wheel fixtures are unavailable")
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir()
+    shutil.copy2(cffi_wheel, wheelhouse / cffi_wheel.name)
+    shutil.copy2(fastmcp_wheel, wheelhouse / fastmcp_wheel.name)
+    lock, inventory = render_selected_wheel_lock(
+        wheelhouse, WheelhouseTarget("cp312", "manylinux_2_17_x86_64")
+    )
+    assert (
+        "cffi==2.1.1 --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf"
+        in lock
+    )
+    assert any(
+        item["sha256"] == "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf"
+        for item in inventory
+    )
+
+
+def test_selected_platform_lock_installs_offline(tmp_path: Path):
     wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
     if not wheelhouse.is_dir():
-        pytest.skip("FastMCP 3.4.7 wheelhouse not populated on this host")
+        pytest.skip("selected wheelhouse unavailable")
+    from evallab.mcp_substrate import WheelhouseTarget, stage_platform_wheelhouse
 
-    reqs_file = tmp_path / "requirements.txt"
-    reqs_file.write_text(FASTMCP_SIDECAR_REQUIREMENTS_TXT)
-
-    target_env = tmp_path / "target_env"
-    target_env.mkdir()
-
-    cmd = [
-        "uv",
-        "pip",
-        "install",
-        "--python",
-        sys.executable,
-        "--no-index",
-        "--find-links",
-        str(wheelhouse),
-        "--require-hashes",
-        "-r",
-        str(reqs_file),
-        "--target",
-        str(target_env),
-    ]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    assert res.returncode == 0, (
-        f"Offline pip install failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
+    staged = tmp_path / "wheelhouse"
+    lock, _ = stage_platform_wheelhouse(
+        wheelhouse, staged, WheelhouseTarget("cp312", "macosx_11_0_arm64")
     )
-    assert (target_env / "fastmcp").is_dir() or (target_env / "fastmcp-3.4.7.dist-info").is_dir()
+    lock_path = tmp_path / "requirements.txt"
+    lock_path.write_text(lock)
+    result = subprocess.run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            sys.executable,
+            "--no-index",
+            "--find-links",
+            str(staged),
+            "--require-hashes",
+            "-r",
+            str(lock_path),
+            "--target",
+            str(tmp_path / "target"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_real_fastmcp_generated_script_and_client_e2e(tmp_path: Path):

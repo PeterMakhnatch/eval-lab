@@ -170,11 +170,12 @@ def test_materializer_harbor_topology_and_controls(tmp_path):
         assert res_mutant["reward"] == 0.0, f"Mutant {mname} did not score 0.0"
 
 
-def test_non_oracle_mcp_client_call_and_events(tmp_path):
-    """Smoke test: non-oracle client performs HTTP MCP tool calls against runtime server; proves exact event ledger recorded."""
+def test_standard_mcp_client_compatibility_and_event_ledger(tmp_path):
+    """Standard client compatibility: initialize, tools/list, and tools/call JSON-RPC methods against /mcp endpoint."""
     dag_gen = load_module("dag_generator")
     runtime_mod = load_module("runtime")
-    spec = dag_gen.generate_dag_spec(seed=42, depth=2, width=2, distractor_count=1)
+    # Baseline cell with 5 DAG nodes (2 unique ops) + 2 distractors -> 7 tools total
+    spec = dag_gen.generate_dag_spec(seed=42, depth=3, width=2, distractor_count=2)
 
     spec_dict = {
         "tools": [
@@ -211,26 +212,50 @@ def test_non_oracle_mcp_client_call_and_events(tmp_path):
 
     try:
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-        conn.request("GET", "/mcp")
-        res = conn.getresponse()
-        assert res.status == 200
-        tools_data = json.loads(res.read().decode())
-        assert len(tools_data["tools"]) == len(spec.tools)
 
+        # 1. Standard MCP initialize handshake
+        init_payload = json.dumps({
+            "jsonrpc": "2.0",
+            "id": "init_1",
+            "method": "initialize",
+            "params": {"protocolVersion": "2024-11-05", "capabilities": {}}
+        })
+        conn.request("POST", "/mcp", body=init_payload, headers={"Content-Type": "application/json"})
+        init_res = conn.getresponse()
+        assert init_res.status == 200
+        init_data = json.loads(init_res.read().decode())
+        assert init_data["result"]["protocolVersion"] == "2024-11-05"
+        assert "capabilities" in init_data["result"]
+
+        # 2. Standard MCP tools/list
+        list_payload = json.dumps({
+            "jsonrpc": "2.0",
+            "id": "list_1",
+            "method": "tools/list",
+            "params": {}
+        })
+        conn.request("POST", "/mcp", body=list_payload, headers={"Content-Type": "application/json"})
+        list_res = conn.getresponse()
+        assert list_res.status == 200
+        list_data = json.loads(list_res.read().decode())
+        assert len(list_data["result"]["tools"]) == len(spec.tools) == 7
+
+        # 3. Standard MCP tools/call
         target_node = spec.nodes[0]
         args = {k: spec.initial_inputs[src] for k, src in target_node.input_bindings.items()}
-        payload = json.dumps({
+        call_payload = json.dumps({
             "jsonrpc": "2.0",
-            "id": "smoke_call_1",
+            "id": "call_1",
             "method": "tools/call",
             "params": {"name": target_node.tool_name, "arguments": args}
         })
-        conn.request("POST", "/mcp", body=payload, headers={"Content-Type": "application/json"})
+        conn.request("POST", "/mcp", body=call_payload, headers={"Content-Type": "application/json"})
         call_res = conn.getresponse()
         assert call_res.status == 200
         call_data = json.loads(call_res.read().decode())
         assert call_data["result"]["value"] == spec.reference_node_values[target_node.node_id]
 
+        # 4. Confirm event ledger captures call
         conn.request("GET", "/events")
         ev_res = conn.getresponse()
         assert ev_res.status == 200

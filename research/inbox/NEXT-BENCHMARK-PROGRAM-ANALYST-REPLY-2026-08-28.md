@@ -8,7 +8,7 @@ review_state: final-after-tutor
 epistemic: recommendation grounded in verified repository state; external asset facts marked by verification tier
 collection: trajectory-analysis
 reviewed: 2026-08-28
-revision: 2 (post-Tutor round 1 + three verified repository facts)
+revision: 3 (post-Tutor round 1; three verified repository facts; two P0 wording alignments — Vector B answer-key gate scope, cross-arm rho identity qualification)
 responds_to: research/inbox/NEXT-BENCHMARK-TRAJECTORY-PROGRAM-BRIEF-2026-08-28.md
 incorporates:
   - research/inbox/NEXT-BENCHMARK-PROGRAM-TUTOR-REVIEW-2026-08-28.md
@@ -283,6 +283,13 @@ never aliased.
 Note the two $\rho$'s are different quantities and were not interchangeable in
 rev 1: `pair_correlation` models correlation **between compared cohorts**;
 attempt correlation within a task is the **ICC**. Both now appear explicitly.
+**Cross-arm $\rho_{\text{arm}}$ is realizable only under identity preservation —
+the same task identity must appear in every arm.** It is therefore **measurable
+in Vertical A only; Verticals B and C are unpaired**, because B draws new
+curve-only identities per depth level and C pairs each fault with its clean twin
+rather than across fault classes. Where an identity is absent from any arm it
+must be dropped from all arms or the estimate reverts to unpaired. **No pairing
+gain may be assumed for B or C budgets.**
 
 **(b) Repeats do not multiply sample size (B4).** With $k$ repeats and
 intra-task $\text{ICC}=\rho_I$, the design effect is
@@ -301,8 +308,8 @@ guess rather than removing it.
 ### 4.3 Consequence: no budget is stated until Campaign 0 reports
 
 Illustrative sensitivity only — **not a plan**, and every row assumes
-$p_0 = 0.5$, $\rho = 0.5$, $y = 1.0$, all three of which Campaign 0 exists to
-replace:
+$p_0 = 0.5$, $\rho = 0.5$ (**Vertical A only; B/C unpaired**), $y = 1.0$, all
+three of which Campaign 0 exists to replace:
 
 | $M$ clusters | MDE | note |
 |---|---|---|
@@ -322,10 +329,15 @@ Every campaign requires the full control set before it is runnable: **oracle**
 (always-act / always-block / always-retry ≈ chance), and for injected-fault arms
 an **un-intervened twin** establishing $p_0$ on the same cohort.
 
-Two gates apply to every cell: an **in-container oracle-exclusion gate** verified
-per image build (B6), and **length-stratified or hazard-rate reporting** for any
-rate whose denominator grows with trajectory length (C6 — verified 21.67 vs 12.03
-mean actions for failures vs successes).
+Two gates apply to every cell: a **per-image preflight answer-key exclusion
+gate** that scans and purges **all oracle code, ground-truth tables, and
+intermediate dependency traces** from the agent build context — covering the
+`oracle/` and `solution/` directories **and the `verifier/` and `tests/`
+`golden.json` answer keys (Vector B)** — with the **verifier running out-of-band
+on host, completely isolated from agent inspection** (B6, D11); and
+**length-stratified or hazard-rate reporting** for any rate whose denominator
+grows with trajectory length (C6 — verified 21.67 vs 12.03 mean actions for
+failures vs successes).
 
 ### Campaign 0 — denominator yield and difficulty calibration (**runs first**)
 
@@ -470,7 +482,7 @@ Tutor §5 marks this section correct; extended with the new blockers.
 | **B3** pass@k independence vs $\rho$ | **Yes** | Independence transform withdrawn; $k$-scaling demoted to heuristic; `pass_any_first_k` / `pass_all_first_k` reported separately; the two $\rho$'s distinguished (§4.2a) |
 | **B4** repeats inflate nominal $n$ | **Yes** | $n_{\text{eff}} = nk/(1+(k-1)\rho_I)$ stated; $n$ in clusters only (§4.2b) |
 | **B5** guessed inputs, wrong denominator | **Yes** | **Campaign 0** inserted as first campaign; no budget stated until it reports (§4.3, §5) |
-| **B6** container ships the solution | **Yes** | Mandatory in-container oracle-exclusion gate per image build; verified layout discrepancy flagged as unsettled (§1) |
+| **B6** container ships the solution | **Yes** | Mandatory per-image preflight answer-key exclusion gate covering `oracle/`, `solution/`, and the `verifier/` and `tests/` `golden.json` files; verifier runs out-of-band on host; verified layout discrepancy remains unsettled (§1, §5) |
 | **B7** presupposes the ceiling | **Partially** — rev 1 required re-measuring the window and preregistered censoring | Difficulty calibration folded into Campaign 0; `CEILING_SATURATION` preregistered per ladder |
 | **D8** arm arithmetic | **No** — rev 1 had no multi-factor budget table | Single authoritative cell inventory deferred to Campaign 0 output |
 | **D9** cost inconsistency | **No** — rev 1 stated no costs | Cost to be derived as ceiling = cap × trials × cited price |

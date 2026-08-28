@@ -45,7 +45,4 @@ def extract_benchmark_features(
     elif family == "mcp-recovery-v1":
         return extract_mcp_recovery_features(bundle, step_tokens=step_tokens, cache_hits=cache_hits)
     else:
-        # Fallback or generic trial
-        return extract_action_memory_features(
-            bundle, step_tokens=step_tokens, cache_hits=cache_hits
-        )
+        raise ValueError(f"Unsupported benchmark family: '{family}'")

@@ -11,6 +11,7 @@ Computes:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -125,12 +126,18 @@ def extract_mcp_funcdag_features(
             valid_schema_calls += 1
 
         # Redundant call detection: repeating exact (tool_name, args_digest)
-        sig = f"{tool_name}:{sorted(args.items()) if isinstance(args, dict) else args}"
+        if isinstance(args, dict):
+            try:
+                args_str = json.dumps(args, sort_keys=True, default=str)
+            except Exception:
+                args_str = str(sorted(((str(k), str(v)) for k, v in args.items())))
+        else:
+            args_str = str(args)
+        sig = f"{tool_name}:{args_str}"
         if sig in seen_call_signatures:
             redundant_tool_calls += 1
         else:
             seen_call_signatures.add(sig)
-
         # Distractor calls count as redundant if not part of expected DAG
         if (
             "distractor" in tool_name

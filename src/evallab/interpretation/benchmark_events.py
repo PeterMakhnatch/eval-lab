@@ -430,13 +430,35 @@ def correlate_tool_calls(
                 call_id = ordered_call_ids[-1]
             if call_id and str(call_id) in calls_by_id:
                 entry = calls_by_id[str(call_id)]
-            entry["fault_class"] = (
-                payload.get("fault_class")
-                or payload.get("class")
-                or payload.get("fault_type")
-                or payload.get("type")
-            )
-
+                entry["is_fault_injected"] = True
+                entry["fault_event"] = event
+                entry["fault_class"] = (
+                    payload.get("fault_class")
+                    or payload.get("class")
+                    or payload.get("fault_type")
+                    or payload.get("type")
+                )
+            else:
+                synth_id = f"fault_gen_{event.event_index}"
+                calls_by_id[synth_id] = {
+                    "call_id": synth_id,
+                    "tool_name": payload.get("tool_name", "fault_tool"),
+                    "arguments": payload.get("arguments", {}),
+                    "request_event": event,
+                    "execution_event": None,
+                    "fault_event": event,
+                    "result_event": None,
+                    "is_fault_injected": True,
+                    "fault_class": (
+                        payload.get("fault_class")
+                        or payload.get("class")
+                        or payload.get("fault_type")
+                        or payload.get("type")
+                    ),
+                    "result_payload": payload.get("result_payload"),
+                    "is_error": True,
+                }
+                ordered_call_ids.append(synth_id)
         elif event_type in ("tool_executed", "execution", "tool_call_executed"):
             if call_id and str(call_id) in calls_by_id:
                 calls_by_id[str(call_id)]["execution_event"] = event

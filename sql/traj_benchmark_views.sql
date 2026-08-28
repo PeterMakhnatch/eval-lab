@@ -13,12 +13,11 @@ CREATE TABLE IF NOT EXISTS action_memory_features (
     family VARCHAR NOT NULL,
     task_id VARCHAR NOT NULL,
     seed BIGINT NOT NULL,
-    entity_id VARCHAR NOT NULL,
+    cell_id VARCHAR NOT NULL,
     arm VARCHAR NOT NULL,
     dose_bytes BIGINT NOT NULL,
-    mutation_opportunity_count BIGINT NOT NULL,
-    read_opportunity_count BIGINT NOT NULL,
-    inversion_count BIGINT NOT NULL,
+    construct VARCHAR NOT NULL,
+    causal_grade VARCHAR NOT NULL,
     task_success BOOLEAN NOT NULL,
     total_tool_calls BIGINT NOT NULL,
     model_call_count BIGINT NOT NULL,
@@ -108,12 +107,11 @@ SELECT
     family,
     task_id,
     seed,
-    entity_id,
+    cell_id,
     arm,
     dose_bytes,
-    mutation_opportunity_count,
-    read_opportunity_count,
-    inversion_count,
+    construct,
+    causal_grade,
     task_success,
     total_tool_calls,
     model_call_count,
@@ -205,7 +203,7 @@ CREATE OR REPLACE VIEW v_benchmark_contrasts AS
 WITH mem_pairs AS (
     SELECT
         c.seed,
-        c.entity_id,
+        c.cell_id AS entity_id,
         'action-memory-v1' AS family,
         'clean_vs_inversion' AS contrast_type,
         c.trial_id AS control_trial_id,
@@ -222,7 +220,7 @@ WITH mem_pairs AS (
     FROM action_memory_features c
     JOIN action_memory_features t
       ON c.seed = t.seed
-     AND c.entity_id = t.entity_id
+     AND c.cell_id = t.cell_id
      AND c.arm = 'clean'
      AND t.arm != 'clean'
 ),

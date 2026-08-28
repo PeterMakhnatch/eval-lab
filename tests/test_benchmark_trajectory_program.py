@@ -56,6 +56,8 @@ def action_memory_trial_dir(tmp_path: Path) -> Path:
         "verifier_truth_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
         "construct": "state_binding_survival",
         "causal_grade": "L2_derived",
+        "cell_factors": {"target_entity": "session_id"},
+        "opportunity_counts": {"mutation_opportunity_count": 1, "update_opportunity_count": 0},
         "invariants": ["monotonic_events", "valid_bindings"],
     }
     (trial_dir / "benchmark_contract.json").write_text(json.dumps(contract), encoding="utf-8")
@@ -554,3 +556,139 @@ def test_traj_card_with_benchmark_observables(action_memory_trial_dir: Path, tmp
         in rendered
     )
     assert "`binding_survival_rate`" in rendered
+
+
+def test_fault_injection_correlation_edge_cases():
+    """Unmatched or out-of-order fault injection events must be correlated safely."""
+    events = [
+        {
+            "event_index": 1,
+            "timestamp": "2026-08-28T10:00:00Z",
+            "event_type": "fault_injected",
+            "fault_class": "HTTP_500_INTERNAL_SERVER_ERROR",
+        },
+        {
+            "event_index": 2,
+            "timestamp": "2026-08-28T10:00:01Z",
+            "event_type": "mcp_call",
+            "call_id": "call_1",
+            "tool_name": "fetch_data",
+            "arguments": {"url": "https://api.example.com"},
+        },
+        {
+            "event_index": 3,
+            "timestamp": "2026-08-28T10:00:02Z",
+            "event_type": "fault_injected",
+            "call_id": "call_1",
+            "fault_class": "RATE_LIMITED",
+        },
+    ]
+    parsed = parse_benchmark_events(events)
+    correlated = correlate_tool_calls(parsed)
+    assert len(correlated) == 2
+    assert correlated[0].is_fault_injected is True
+    assert correlated[0].fault_class == "HTTP_500_INTERNAL_SERVER_ERROR"
+    assert correlated[1].call_id == "call_1"
+    assert correlated[1].is_fault_injected is True
+    assert correlated[1].fault_class == "RATE_LIMITED"
+
+
+def test_action_memory_zero_opportunity_null_preservation(tmp_path: Path):
+    """Action memory trials with 0 opportunities must return None for survival and override rates."""
+    trial_dir = tmp_path / "action_mem_zero"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "state_binding_survival",
+        "seed": 42,
+        "cell_factors": {"cell_id": "mem_zero_test", "arm": "clean", "dose_bytes": 0},
+        "task_id": "zero_opp_task",
+        "opportunity_counts": {"mutation_opportunity_count": 0, "update_opportunity_count": 0},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text("", encoding="utf-8")
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_action_memory_features(bundle)
+    assert features.raw_binding_opportunities == 0
+    assert features.raw_conflicting_opportunities == 0
+    assert features.binding_survival_rate is None
+    assert features.stale_value_override_rate is None
+
+
+def test_mcp_funcdag_mixed_type_tool_arguments(tmp_path: Path):
+    """MCP FuncDAG must gracefully serialize mixed or unorderable tool arguments."""
+    trial_dir = tmp_path / "funcdag_mixed"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "mcp-funcdag-v1",
+        "version": "1.0.0",
+        "construct": "tool_call_dag_conformance",
+        "seed": 7,
+        "cell_factors": {"depth": 1, "width": 1},
+        "task_id": "dag_mixed_task",
+        "opportunity_counts": {"required_dag_edges": 0, "required_node_count": 1},
+        "verifier_truth_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+    }
+    events = [
+        {
+            "event_index": 1,
+            "event_type": "mcp_call",
+            "call_id": "c1",
+            "tool_name": "mixed_tool",
+            "arguments": {1: "num_key", "str_key": "val"},
+        },
+        {
+            "event_index": 2,
+            "event_type": "tool_executed",
+            "call_id": "c1",
+            "result": {"output": "ok"},
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_mcp_funcdag_features(bundle)
+    assert features.total_tool_calls == 1
+    assert features.schema_conformance_rate == 1.0
+
+
+def test_extract_benchmark_features_unsupported_family(tmp_path: Path):
+    """extract_benchmark_features must raise ValueError on unknown family."""
+    trial_dir = tmp_path / "unknown_fam"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "nonexistent-benchmark-v99",
+        "version": "1.0.0",
+        "construct": "unknown",
+        "seed": 1,
+        "cell_factors": {},
+        "task_id": "unknown_task",
+        "opportunity_counts": {},
+        "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text("", encoding="utf-8")
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": True}), encoding="utf-8"
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    from evallab.interpretation.producers import extract_benchmark_features
+
+    with pytest.raises(ValueError, match="Unsupported benchmark family"):
+        extract_benchmark_features(bundle)

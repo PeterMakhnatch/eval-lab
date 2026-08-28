@@ -115,10 +115,27 @@ def extract_action_memory_features(
     latest_value = cell_factors.get("latest_value")
     initial_value = cell_factors.get("initial_value")
     inversion_steps = cell_factors.get("inversion_steps", [])
-    raw_binding_opps = int(opp_counts.get("mutation_opportunity_count", 1))
-    raw_conflicting_opps = int(
-        opp_counts.get("update_opportunity_count", len(inversion_steps) if inversion_steps else 0)
-    )
+    if "mutation_opportunity_count" in opp_counts:
+        raw_binding_opps = int(opp_counts["mutation_opportunity_count"])
+    elif "raw_binding_opportunities" in opp_counts:
+        raw_binding_opps = int(opp_counts["raw_binding_opportunities"])
+    elif "mutation_opportunity_count" in cell_factors:
+        raw_binding_opps = int(cell_factors["mutation_opportunity_count"])
+    elif "target_entity" in cell_factors or final_state.mutations:
+        raw_binding_opps = 1
+    else:
+        raw_binding_opps = 0
+
+    if "update_opportunity_count" in opp_counts:
+        raw_conflicting_opps = int(opp_counts["update_opportunity_count"])
+    elif "raw_conflicting_opportunities" in opp_counts:
+        raw_conflicting_opps = int(opp_counts["raw_conflicting_opportunities"])
+    elif "update_opportunity_count" in cell_factors:
+        raw_conflicting_opps = int(cell_factors["update_opportunity_count"])
+    elif inversion_steps:
+        raw_conflicting_opps = len(inversion_steps)
+    else:
+        raw_conflicting_opps = 0
 
     # Inspect tool calls for mutation calls
     bound_entity: str | None = str(target_entity) if target_entity is not None else None
@@ -207,8 +224,7 @@ def extract_action_memory_features(
     # 3. stale_value_override_rate: denom is raw_conflicting_opportunities
     stale_value_override_rate: float | None = None
     if raw_conflicting_opps > 0:
-        stale_value_override_rate = 1.0 if binding_matched else 0.0
-
+        stale_value_override_rate = 1.0 if (not stale_value_bound and binding_matched) else 0.0
     # 4. context_burn_velocity: prompt token slope
     context_burn_velocity: float | None = _compute_cbv_slope(step_tokens)
 

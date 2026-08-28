@@ -44,5 +44,6 @@ jobs:
           name: deepplanning-workbench-packet
           path: |
             research/registration/candidates/
+            runs/task-workbench/
             ${{ runner.temp }}/deepplanning-workbench.json
           if-no-files-found: error

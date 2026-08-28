@@ -1,0 +1,112 @@
+{
+    "id": "bb573ff5-d65b-49be-979a-ba183dfbcdda",
+    "task_name": "evallab/syn-funcdag-easy",
+    "trial_name": "syn-funcdag-easy__peGyXfC",
+    "trial_uri": "file:///home/runner/work/eval-lab/eval-lab/research/evidence/runs/syn-funcdag-easy-registry-nop-33133765977/syn-funcdag-easy__peGyXfC",
+    "task_id": {
+        "path": "library/tasks/experimental/syn-funcdag-easy"
+    },
+    "source": null,
+    "task_checksum": "076d5b186f6bdceaf151ec32833149c9b423037d3a05c2f212bacf092b2ba5cd",
+    "config": {
+        "task": {
+            "path": "library/tasks/experimental/syn-funcdag-easy",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "syn-funcdag-easy__peGyXfC",
+        "trials_dir": "research/evidence/runs/syn-funcdag-easy-registry-nop-33133765977",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "nop",
+            "import_path": null,
+            "model_name": null,
+            "n_concurrent": null,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "82dcd4db-f3d3-493a-bbb0-e3ab46f66262",
+        "source_trial": null
+    },
+    "agent_info": {
+        "name": "nop",
+        "version": "1.0.0",
+        "model_info": null
+    },
+    "agent_result": {
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "verifier_environment_mode": "separate",
+    "exception_info": null,
+    "started_at": "2026-08-28T01:50:27.675233Z",
+    "finished_at": "2026-08-28T01:50:55.365640Z",
+    "environment_setup": {
+        "started_at": "2026-08-28T01:50:27.697425Z",
+        "finished_at": "2026-08-28T01:50:29.119467Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-08-28T01:50:29.119516Z",
+        "finished_at": "2026-08-28T01:50:29.119579Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-08-28T01:50:29.119653Z",
+        "finished_at": "2026-08-28T01:50:29.119732Z"
+    },
+    "verifier": {
+        "started_at": "2026-08-28T01:50:40.183236Z",
+        "finished_at": "2026-08-28T01:50:55.365628Z"
+    },
+    "step_results": null
+}

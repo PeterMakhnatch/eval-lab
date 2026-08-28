@@ -1,0 +1,15 @@
+{
+    "job_name": "syn-funcdag-easy-registry-nop-33133765977",
+    "jobs_dir": "research/evidence/runs",
+    "n_concurrent_trials": 1,
+    "agents": [
+        {
+            "name": "nop"
+        }
+    ],
+    "tasks": [
+        {
+            "path": "library/tasks/experimental/syn-funcdag-easy"
+        }
+    ]
+}

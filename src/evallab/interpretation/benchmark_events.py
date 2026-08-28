@@ -435,7 +435,7 @@ def correlate_tool_calls(
             "call_tool",
         ):
             if not call_id:
-                call_id = f"call_gen_{event.event_index}"
+                call_id = f"call_{event.event_index}"
             call_id = str(call_id)
             if call_id not in calls_by_id:
                 tool_name = (
@@ -467,10 +467,17 @@ def correlate_tool_calls(
                 ordered_call_ids.append(call_id)
 
         elif event_type in ("fault_injected", "fault"):
-            if not call_id and ordered_call_ids:
-                call_id = ordered_call_ids[-1]
+            entry = None
             if call_id and str(call_id) in calls_by_id:
                 entry = calls_by_id[str(call_id)]
+            elif (
+                ordered_call_ids
+                and not ordered_call_ids[-1].startswith("fault_")
+                and calls_by_id[ordered_call_ids[-1]]["fault_event"] is None
+            ):
+                entry = calls_by_id[ordered_call_ids[-1]]
+
+            if entry is not None:
                 entry["is_fault_injected"] = True
                 entry["fault_event"] = event
                 entry["fault_class"] = (
@@ -480,7 +487,7 @@ def correlate_tool_calls(
                     or payload.get("type")
                 )
             else:
-                synth_id = f"fault_gen_{event.event_index}"
+                synth_id = f"fault_{event.event_index}"
                 calls_by_id[synth_id] = {
                     "call_id": synth_id,
                     "tool_name": payload.get("tool_name", payload.get("tool", "fault_tool")),
@@ -507,35 +514,97 @@ def correlate_tool_calls(
             "execution",
             "tool_call_executed",
         ):
-            if not call_id and ordered_call_ids:
-                call_id = ordered_call_ids[-1]
+            entry = None
             if call_id and str(call_id) in calls_by_id:
                 entry = calls_by_id[str(call_id)]
+            elif (
+                ordered_call_ids
+                and not ordered_call_ids[-1].startswith("fault_")
+                and calls_by_id[ordered_call_ids[-1]]["execution_event"] is None
+            ):
+                entry = calls_by_id[ordered_call_ids[-1]]
+
+            if entry is not None:
                 entry["execution_event"] = event
                 if event_type == "tool_call_success":
                     entry["result_event"] = event
                     entry["result_payload"] = payload.get("result")
                     entry["is_error"] = False
+            else:
+                # Standalone execution record
+                exec_id = f"exec_{event.event_index}"
+                tool_name = (
+                    event.get_tool_name()
+                    or payload.get("tool")
+                    or payload.get("tool_name")
+                    or "unknown_tool"
+                )
+                calls_by_id[exec_id] = {
+                    "call_id": exec_id,
+                    "tool_name": tool_name,
+                    "arguments": payload.get("arguments") or payload.get("parameters") or payload,
+                    "request_event": event,
+                    "execution_event": event,
+                    "fault_event": None,
+                    "result_event": event,
+                    "is_fault_injected": False,
+                    "fault_class": None,
+                    "result_payload": payload.get("result"),
+                    "is_error": False,
+                }
+                ordered_call_ids.append(exec_id)
 
         elif event_type in (
             "tool_call_rejected",
             "tool_call_schema_error",
             "tool_call_execution_error",
         ):
-            if not call_id and ordered_call_ids:
-                call_id = ordered_call_ids[-1]
+            entry = None
             if call_id and str(call_id) in calls_by_id:
                 entry = calls_by_id[str(call_id)]
+            elif (
+                ordered_call_ids
+                and not ordered_call_ids[-1].startswith("fault_")
+                and calls_by_id[ordered_call_ids[-1]]["execution_event"] is None
+            ):
+                entry = calls_by_id[ordered_call_ids[-1]]
+
+            if entry is not None:
                 entry["execution_event"] = event
                 entry["result_event"] = event
                 entry["result_payload"] = payload.get("error")
                 entry["is_error"] = True
+            else:
+                err_id = f"err_{event.event_index}"
+                tool_name = (
+                    event.get_tool_name()
+                    or payload.get("tool")
+                    or payload.get("tool_name")
+                    or "unknown_tool"
+                )
+                calls_by_id[err_id] = {
+                    "call_id": err_id,
+                    "tool_name": tool_name,
+                    "arguments": payload.get("arguments") or payload.get("parameters") or payload,
+                    "request_event": event,
+                    "execution_event": event,
+                    "fault_event": None,
+                    "result_event": event,
+                    "is_fault_injected": False,
+                    "fault_class": None,
+                    "result_payload": payload.get("error"),
+                    "is_error": True,
+                }
+                ordered_call_ids.append(err_id)
 
         elif event_type in ("tool_result", "mcp_response", "response"):
-            if not call_id and ordered_call_ids:
-                call_id = ordered_call_ids[-1]
+            entry = None
             if call_id and str(call_id) in calls_by_id:
                 entry = calls_by_id[str(call_id)]
+            elif ordered_call_ids and not ordered_call_ids[-1].startswith("fault_"):
+                entry = calls_by_id[ordered_call_ids[-1]]
+
+            if entry is not None:
                 entry["result_event"] = event
                 entry["result_payload"] = payload.get("result") or payload.get("output") or payload
                 entry["is_error"] = bool(
@@ -543,6 +612,29 @@ def correlate_tool_calls(
                     or payload.get("error")
                     or (isinstance(payload.get("result"), dict) and "error" in payload["result"])
                 )
+            else:
+                res_id = f"res_{event.event_index}"
+                calls_by_id[res_id] = {
+                    "call_id": res_id,
+                    "tool_name": "unknown_tool",
+                    "arguments": {},
+                    "request_event": event,
+                    "execution_event": event,
+                    "fault_event": None,
+                    "result_event": event,
+                    "is_fault_injected": False,
+                    "fault_class": None,
+                    "result_payload": payload.get("result") or payload.get("output") or payload,
+                    "is_error": bool(
+                        payload.get("is_error")
+                        or payload.get("error")
+                        or (
+                            isinstance(payload.get("result"), dict) and "error" in payload["result"]
+                        )
+                    ),
+                }
+                ordered_call_ids.append(res_id)
+
     correlated: list[CorrelatedToolCall] = []
     for call_id in ordered_call_ids:
         entry = calls_by_id[call_id]

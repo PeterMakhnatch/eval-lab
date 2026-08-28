@@ -743,3 +743,68 @@ def test_extract_benchmark_features_unsupported_family(tmp_path: Path):
 
     with pytest.raises(ValueError, match="Unsupported benchmark family"):
         extract_benchmark_features(bundle)
+
+
+def test_standalone_execution_and_rejection_events_correlation():
+    """Standalone execution, rejection, and schema error events must create distinct correlated records."""
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "tool_call_success",
+            "tool_name": "step_a",
+            "arguments": {"x": 1},
+            "result": 10,
+        },
+        {
+            "event_index": 1,
+            "event_type": "tool_call_rejected",
+            "tool_name": "step_b",
+            "arguments": {"y": 2},
+            "error": "unknown tool",
+        },
+        {
+            "event_index": 2,
+            "event_type": "tool_call_schema_error",
+            "tool_name": "step_c",
+            "arguments": {"z": 3},
+            "error": "missing field",
+        },
+    ]
+    parsed = parse_benchmark_events(events)
+    correlated = correlate_tool_calls(parsed)
+    assert len(correlated) == 3
+    assert correlated[0].call_id == "exec_0"
+    assert correlated[0].tool_name == "step_a"
+    assert correlated[0].is_error is False
+    assert correlated[0].result_payload == 10
+    assert correlated[1].call_id == "err_1"
+    assert correlated[1].tool_name == "step_b"
+    assert correlated[1].is_error is True
+    assert correlated[2].call_id == "err_2"
+    assert correlated[2].tool_name == "step_c"
+    assert correlated[2].is_error is True
+
+
+def test_fault_followed_by_standalone_execution_no_mutation():
+    """Standalone fault event followed by standalone execution event must not mutate fault into a tool call."""
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "fault_injected",
+            "payload": {"tool": "api_fetch", "fault_class": "TIMEOUT"},
+        },
+        {
+            "event_index": 1,
+            "event_type": "tool_executed",
+            "payload": {"tool": "api_fetch", "state_digest": "sha256:xyz"},
+        },
+    ]
+    parsed = parse_benchmark_events(events)
+    correlated = correlate_tool_calls(parsed)
+    assert len(correlated) == 2
+    assert correlated[0].call_id == "fault_0"
+    assert correlated[0].is_fault_injected is True
+    assert correlated[0].is_error is True
+    assert correlated[1].call_id == "exec_1"
+    assert correlated[1].is_fault_injected is False
+    assert correlated[1].execution_event is not None

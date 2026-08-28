@@ -22,7 +22,7 @@ SOURCE = CandidateSource(
     provenance_zone="01-external",
 )
 TASK_PATH = Path(
-    "library/external/deepplanning-v1/tasks/travel-lisbon-002"
+    "library/tasks/experimental/deepplanning-v1/travel-lisbon-002"
 )
 
 

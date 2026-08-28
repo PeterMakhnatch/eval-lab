@@ -350,7 +350,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("library/external/deepplanning-v1/tasks"),
+        default=Path("library/tasks/experimental/deepplanning-v1"),
     )
     parser.add_argument("--task-id", default="travel-lisbon-002")
     args = parser.parse_args()

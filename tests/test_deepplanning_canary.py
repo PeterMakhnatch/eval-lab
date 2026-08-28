@@ -11,7 +11,7 @@ from evallab.task_workbench import CandidateSource, inspect_candidate
 
 sys.dont_write_bytecode = True
 
-TASK_DIR = Path("library/external/deepplanning-v1/tasks/travel-lisbon-002")
+TASK_DIR = Path("library/tasks/experimental/deepplanning-v1/travel-lisbon-002")
 
 
 def test_canary_task_structure() -> None:

@@ -2,7 +2,7 @@
 # Linux workflow / workbench controls runner for DeepPlanning canary
 set -euo pipefail
 
-TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/tasks/travel-lisbon-002" && pwd)"
+TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../tasks/experimental/deepplanning-v1/travel-lisbon-002" && pwd)"
 echo "=== DeepPlanning Canary Control Runner ==="
 echo "Task: ${TASK_DIR}"
 

@@ -17,7 +17,7 @@ from evallab.deepplanning import (
 
 COHORT_PATH = Path("library/external/deepplanning-v1/cohort.json")
 PROVENANCE_PATH = Path("library/external/deepplanning-v1/PROVENANCE.json")
-CANARY_DIR = Path("library/external/deepplanning-v1/tasks/travel-lisbon-002")
+CANARY_DIR = Path("library/tasks/experimental/deepplanning-v1/travel-lisbon-002")
 
 
 def test_provenance_manifest_and_license_pinning() -> None:

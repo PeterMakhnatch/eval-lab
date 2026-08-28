@@ -24,11 +24,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install pytest pyyaml
       - name: Run CI Contract
         run: |
           python3 library/benchmarks/mcp-recovery-v1/ci_contract.py
       - name: Run Focused Tests
         run: |
-          pip install pytest
-          pytest tests/test_mcp_recovery_v1.py
+          PYTHONPATH=src pytest tests/test_mcp_recovery_v1.py
+      - name: Materialize and Plan Workbench Candidate
+        run: |
+          python3 library/benchmarks/mcp-recovery-v1/materialize.py --seed 42
+          PYTHONPATH=src python3 -m evallab.task_workbench plan \
+            --source-uri https://github.com/PeterMakhnatch/eval-lab \
+            --source-ref local/mcp-recovery@1.0 \
+            --license MIT \
+            derived/harbor-tasks/mcp-recovery/*/*

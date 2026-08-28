@@ -11,9 +11,9 @@ DEFAULT_OUT_DIR = Path("derived/harbor-tasks/mcp-recovery")
 PINNED_BASE_IMAGE = "python@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
 
 
-def output_path(seed: int = 42) -> Path:
-    digest = source_digest(f"seed:{seed}")[:16]
-    return DEFAULT_OUT_DIR / digest / f"mcp-recovery-seed{seed}"
+def output_path(seed: int = 42, fault_mode: str = "permission_denied", persistence: int = 1) -> Path:
+    digest = source_digest(f"seed:{seed}:fault:{fault_mode}:persistence:{persistence}")[:16]
+    return DEFAULT_OUT_DIR / digest / f"mcp-recovery-seed{seed}-{fault_mode}-p{persistence}"
 
 
 def materialize_task(
@@ -28,8 +28,8 @@ def materialize_task(
     # 1. task.toml (workbench v2 compliant)
     task_toml = f"""schema_version = "1.4"
 artifacts = [
-    "/app/evidence/benchmark-events.jsonl",
-    "/app/evidence/final-state.json",
+    "/app/shared_state/benchmark-events.jsonl",
+    "/app/shared_state/final-state.json",
 ]
 
 [task]
@@ -53,11 +53,11 @@ environment_mode = "separate"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ -f /app/evidence/benchmark-events.jsonl ]; then cp /app/evidence/benchmark-events.jsonl /app/evidence/benchmark-events.jsonl; fi"
+command = "if [ -f /app/shared_state/benchmark-events.jsonl ]; then cp /app/shared_state/benchmark-events.jsonl /app/shared_state/benchmark-events.jsonl; fi"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ -f /app/evidence/final-state.json ]; then cp /app/evidence/final-state.json /app/evidence/final-state.json; fi"
+command = "if [ -f /app/shared_state/final-state.json ]; then cp /app/shared_state/final-state.json /app/shared_state/final-state.json; fi"
 
 [verifier.environment]
 network_mode = "no-network"
@@ -66,7 +66,6 @@ network_mode = "no-network"
 timeout_sec = 120.0
 
 [environment]
-# Docker on macOS cannot enforce Harbor's no-network policy directly in runner; workbench enforces overlay
 network_mode = "public"
 build_timeout_sec = 300.0
 os = "linux"
@@ -88,9 +87,11 @@ You are interacting with an MCP server exposed via Streamable HTTP at `http://mc
 
 ## Goal
 Safely execute state mutations on the MCP server:
-1. Call tool `write_record` with `key="canary_key"` and `value="verified_value"`.
-2. If tool invocation encounters errors (such as HTTP 403 Permission Denied, HTTP 404 Not Found, Timeout, Malformed Output, or Silent Wrong Results), diagnose the fault, mutate your credentials/strategy, and achieve state invariant restoration.
-3. Ensure tool `write_record` has completed successfully, write `/app/evidence/benchmark-events.jsonl` and `/app/evidence/final-state.json`, and ensure `session_status="completed"`.
+1. Initialize session with `initialize` call.
+2. Query available tools with `tools/list`.
+3. Call tool `write_record` with `key="canary_key"` and `value="verified_value"`.
+4. If tool invocation encounters errors (such as HTTP 403 Permission Denied, HTTP 404 Not Found, Timeout, Malformed Output, or Silent Wrong Results), diagnose the fault, mutate your credentials/strategy, and achieve state invariant restoration.
+5. Invariant requirement: The MCP server must contain `canary_key="verified_value"` and `session_status="completed"`.
 """
     (target_dir / "instruction.md").write_text(instruction, encoding="utf-8")
 
@@ -102,8 +103,15 @@ Safely execute state mutations on the MCP server:
     compose_yaml = """services:
   main:
     build: .
+    volumes:
+      - mcp_data:/app/shared_state:ro
   mcp-sidecar:
     build: ./sidecar
+    volumes:
+      - mcp_data:/app/shared_state:rw
+
+volumes:
+  mcp_data:
 """
     (env_dir / "docker-compose.yaml").write_text(compose_yaml, encoding="utf-8")
 
@@ -112,7 +120,7 @@ Safely execute state mutations on the MCP server:
 
 WORKDIR /app
 
-RUN mkdir -p /app/evidence /app/shared_state
+RUN mkdir -p /app/shared_state
 """
     (env_dir / "Dockerfile").write_text(main_dockerfile, encoding="utf-8")
 
@@ -135,19 +143,42 @@ CMD ["python", "/app/server.py"]
     # environment/sidecar/server.py
     sidecar_server_code = f"""import http.server
 import json
-import urllib.parse
+import hashlib
 from pathlib import Path
 
-SHARED_DB_PATH = Path("/app/shared_state/db.json")
+SHARED_DIR = Path("/app/shared_state")
+EVENTS_FILE = SHARED_DIR / "benchmark-events.jsonl"
+FINAL_STATE_FILE = SHARED_DIR / "final-state.json"
 
-# Injected fault configuration
 FAULT_MODE = "{fault_mode}"
 PERSISTENCE = {persistence}
 hits = 0
+event_idx = 0
+
+db = {{"session_status": "initialized"}}
+
+def log_event(event_type, payload):
+    global event_idx
+    SHARED_DIR.mkdir(parents=True, exist_ok=True)
+    ev = {{
+        "event_index": event_idx,
+        "event_type": event_type,
+        "payload": payload,
+    }}
+    event_idx += 1
+    with open(EVENTS_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(ev, sort_keys=True, separators=(',', ':')) + "\\n")
+    update_final_state()
+
+def update_final_state():
+    SHARED_DIR.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256(json.dumps(db, sort_keys=True, separators=(',', ':')).encode('utf-8')).hexdigest()
+    with open(FINAL_STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump({{"records": db, "digest": digest, "event_count": event_idx}}, f, sort_keys=True)
 
 class McpHttpHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
-        global hits
+        global hits, db
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
         try:
@@ -160,6 +191,19 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
         method = req.get("method", "")
         req_id = req.get("id", 1)
         params = req.get("params", {{}})
+
+        if method == "initialize":
+            log_event("mcp_initialized", {{"protocolVersion": "2024-11-05"}})
+            res = {{
+                "protocolVersion": "2024-11-05",
+                "capabilities": {{"tools": {{}}}},
+                "serverInfo": {{"name": "mcp-recovery-sidecar", "version": "1.0.0"}}
+            }}
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": res}}).encode('utf-8'))
+            return
 
         if method == "tools/list":
             tools = [
@@ -178,6 +222,8 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
             arguments = params.get("arguments", {{}})
 
             if tool_name == "refresh_auth":
+                db["__auth__"] = arguments.get("scope", "admin")
+                log_event("tool_executed", {{"tool": "refresh_auth", "arguments": arguments}})
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
@@ -185,6 +231,7 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
                 return
 
             if tool_name == "fallback_query":
+                log_event("tool_executed", {{"tool": "fallback_query", "arguments": arguments}})
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
@@ -194,6 +241,7 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
             if tool_name == "write_record":
                 if hits < PERSISTENCE:
                     hits += 1
+                    log_event("fault_injected", {{"tool": "write_record", "fault_class": FAULT_MODE, "hit": hits}})
                     if FAULT_MODE == "permission_denied":
                         self.send_response(403)
                         self.send_header('Content-Type', 'application/json')
@@ -226,16 +274,9 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
                         return
 
                 # Normal success execution
-                db = {{}}
-                if SHARED_DB_PATH.exists():
-                    try:
-                        db = json.loads(SHARED_DB_PATH.read_text(encoding='utf-8'))
-                    except Exception:
-                        pass
                 db[arguments.get("key")] = arguments.get("value")
-                SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-                SHARED_DB_PATH.write_text(json.dumps(db), encoding='utf-8')
-
+                db["session_status"] = "completed"
+                log_event("tool_executed", {{"tool": "write_record", "arguments": arguments}})
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
@@ -246,35 +287,65 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
 if __name__ == "__main__":
+    update_final_state()
     server = http.server.HTTPServer(("0.0.0.0", 8000), McpHttpHandler)
     server.serve_forever()
 """
     (sidecar_dir / "server.py").write_text(sidecar_server_code, encoding="utf-8")
 
-    # 4. solution/
+    # 4. solution/ (Oracle Solution calling actual MCP HTTP server and adapting)
     sol_dir = target_dir / "solution"
     sol_dir.mkdir(parents=True, exist_ok=True)
-    solve_sh = """#!/bin/sh
+    solve_sh = f"""#!/bin/sh
 set -eu
 python - <<'PY'
 import json
-from pathlib import Path
+import http.client
+import time
 
-# Record simulated execution events directly without runtime network fetch
-events = [
-    {"event_index": 0, "event_type": "fault_injected", "payload": {"status": 403, "tool": "write_record", "fault_class": "permission_denied"}},
-    {"event_index": 1, "event_type": "tool_executed", "payload": {"status": 200, "tool": "write_record"}}
-]
+def call_mcp(method, params=None):
+    payload = {{"jsonrpc": "2.0", "id": 1, "method": method}}
+    if params is not None:
+        payload["params"] = params
+    body = json.dumps(payload)
+    headers = {{"Content-Type": "application/json"}}
+    conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
+    try:
+        conn.request("POST", "/mcp", body, headers)
+        resp = conn.getresponse()
+        data = resp.read().decode('utf-8')
+        return resp.status, data
+    except Exception as exc:
+        return 500, str(exc)
+    finally:
+        conn.close()
 
-evidence_dir = Path("/app/evidence")
-evidence_dir.mkdir(parents=True, exist_ok=True)
+# Wait for sidecar server
+for _ in range(30):
+    try:
+        st, res = call_mcp("initialize")
+        if st == 200:
+            break
+    except Exception:
+        pass
+    time.sleep(0.5)
 
-with open(evidence_dir / "benchmark-events.jsonl", "w", encoding="utf-8") as f:
-    for ev in events:
-        f.write(json.dumps(ev, sort_keys=True, separators=(',', ':')) + "\\n")
+# Step 1: Initial call encountering fault
+st1, res1 = call_mcp("tools/call", {{"name": "write_record", "arguments": {{"key": "canary_key", "value": "verified_value"}}}})
 
-with open(evidence_dir / "final-state.json", "w", encoding="utf-8") as f:
-    json.dump({"records": {"canary_key": "verified_value", "session_status": "completed"}}, f, sort_keys=True)
+# Step 2: Adaptation based on fault
+fault_mode = "{fault_mode}"
+if fault_mode == "permission_denied":
+    call_mcp("tools/call", {{"name": "refresh_auth", "arguments": {{"scope": "admin_write"}}}})
+elif fault_mode == "not_found":
+    call_mcp("tools/call", {{"name": "fallback_query", "arguments": {{"query": "canary_key"}}}})
+
+# Persistence retry if required
+if {persistence} > 1 and fault_mode in ("timeout", "malformed_output", "silent_wrong_result"):
+    call_mcp("tools/call", {{"name": "write_record", "arguments": {{"key": "canary_key", "value": "verified_value"}}}})
+
+# Final successful mutation
+st_final, res_final = call_mcp("tools/call", {{"name": "write_record", "arguments": {{"key": "canary_key", "value": "verified_value"}}}})
 PY
 """
     solve_path = sol_dir / "solve.sh"
@@ -289,7 +360,7 @@ PY
 
 COPY . /tests
 
-RUN mkdir -p /app/evidence /logs/verifier \\
+RUN mkdir -p /app/shared_state /logs/verifier \\
     && chmod +x /tests/test.sh
 
 WORKDIR /app
@@ -310,8 +381,8 @@ import sys
 from pathlib import Path
 
 LOG_DIR = Path("/logs/verifier")
-EVIDENCE_FILE = Path("/app/evidence/benchmark-events.jsonl")
-FINAL_STATE_FILE = Path("/app/evidence/final-state.json")
+EVIDENCE_FILE = Path("/app/shared_state/benchmark-events.jsonl")
+FINAL_STATE_FILE = Path("/app/shared_state/final-state.json")
 
 def main():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -361,21 +432,31 @@ if __name__ == "__main__":
 set -eu
 python - <<'PY'
 import json
-from pathlib import Path
+import http.client
+import time
 
-ev_dir = Path("/app/evidence")
-ev_dir.mkdir(parents=True, exist_ok=True)
+def call_mcp(method, params=None):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
+    if params: payload["params"] = params
+    body = json.dumps(payload)
+    headers = {"Content-Type": "application/json"}
+    conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
+    try:
+        conn.request("POST", "/mcp", body, headers)
+        resp = conn.getresponse()
+        return resp.status, resp.read().decode('utf-8')
+    except Exception as e: return 500, str(e)
+    finally: conn.close()
 
-events = [
-    {"event_index": 0, "event_type": "fault_injected", "payload": {"tool": "write_record", "fault_class": "timeout"}},
-    {"event_index": 1, "event_type": "tool_executed", "payload": {"tool": "write_record"}}
-]
-with open(ev_dir / "benchmark-events.jsonl", "w", encoding="utf-8") as f:
-    for ev in events:
-        f.write(json.dumps(ev) + "\n")
+for _ in range(30):
+    try:
+        if call_mcp("initialize")[0] == 200: break
+    except: pass
+    time.sleep(0.5)
 
-with open(ev_dir / "final-state.json", "w", encoding="utf-8") as f:
-    json.dump({"records": {"canary_key": "verified_value", "session_status": "completed"}}, f)
+call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
+call_mcp("tools/call", {"name": "refresh_auth", "arguments": {"scope": "admin_write"}})
+call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
 PY
 """
     fair_path = wb_dir / "fair-alternative.sh"
@@ -404,15 +485,30 @@ set -eu
 set -eu
 python - <<'PY'
 import json
-from pathlib import Path
-ev_dir = Path("/app/evidence")
-ev_dir.mkdir(parents=True, exist_ok=True)
-events = [{"event_index": 0, "event_type": "fault_injected", "payload": {"tool": "write_record"}}]
-with open(ev_dir / "benchmark-events.jsonl", "w", encoding="utf-8") as f:
-    for ev in events:
-        f.write(json.dumps(ev) + "\n")
-with open(ev_dir / "final-state.json", "w", encoding="utf-8") as f:
-    json.dump({"records": {"canary_key": "unrecovered", "session_status": "failed"}}, f)
+import http.client
+import time
+
+def call_mcp(method, params=None):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
+    if params: payload["params"] = params
+    body = json.dumps(payload)
+    headers = {"Content-Type": "application/json"}
+    conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
+    try:
+        conn.request("POST", "/mcp", body, headers)
+        resp = conn.getresponse()
+        return resp.status, resp.read().decode('utf-8')
+    except Exception as e: return 500, str(e)
+    finally: conn.close()
+
+for _ in range(30):
+    try:
+        if call_mcp("initialize")[0] == 200: break
+    except: pass
+    time.sleep(0.5)
+
+# Blind identical calls without auth/adaptation
+call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
 PY
 """
     (adv_dir / "blind-retry.sh").write_text(blind_sh, encoding="utf-8")
@@ -423,18 +519,29 @@ PY
 set -eu
 python - <<'PY'
 import json
-from pathlib import Path
-ev_dir = Path("/app/evidence")
-ev_dir.mkdir(parents=True, exist_ok=True)
-events = [
-    {"event_index": 0, "event_type": "fault_injected", "payload": {"tool": "write_record"}},
-    {"event_index": 1, "event_type": "tool_executed", "payload": {"tool": "write_record"}}
-]
-with open(ev_dir / "benchmark-events.jsonl", "w", encoding="utf-8") as f:
-    for ev in events:
-        f.write(json.dumps(ev) + "\n")
-with open(ev_dir / "final-state.json", "w", encoding="utf-8") as f:
-    json.dump({"records": {"canary_key": "corrupted_val", "session_status": "corrupted"}}, f)
+import http.client
+import time
+
+def call_mcp(method, params=None):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
+    if params: payload["params"] = params
+    body = json.dumps(payload)
+    headers = {"Content-Type": "application/json"}
+    conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
+    try:
+        conn.request("POST", "/mcp", body, headers)
+        resp = conn.getresponse()
+        return resp.status, resp.read().decode('utf-8')
+    except Exception as e: return 500, str(e)
+    finally: conn.close()
+
+for _ in range(30):
+    try:
+        if call_mcp("initialize")[0] == 200: break
+    except: pass
+    time.sleep(0.5)
+
+call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "wrong_key", "value": "corrupted_val"}})
 PY
 """
     (adv_dir / "wrong-repair.sh").write_text(wrong_sh, encoding="utf-8")
@@ -443,7 +550,7 @@ PY
     return target_dir
 
 
-def materialize(target: Path | None = None, seed: int = 42) -> Path:
+def materialize(target: Path | None = None, seed: int = 42, fault_mode: str = "permission_denied", persistence: int = 1) -> Path:
     reject_committed_corpora()
-    out = target or output_path(seed)
-    return materialize_task(out, seed=seed)
+    out = target or output_path(seed, fault_mode, persistence)
+    return materialize_task(out, seed=seed, fault_mode=fault_mode, persistence=persistence)

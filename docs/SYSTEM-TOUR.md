@@ -67,7 +67,7 @@ The code layout is strictly modularized across authoritative domain packages and
   - Execution runners & queues: `runner.py`, `queue.py`, `preflight.py`, `quota.py`
   - Task registries & authoring: `registry.py`, `ladder.py`, `screen.py`, `task_workbench.py`, `authoring.py`
   - Synthetic generation: `seqgen.py`, `synthetic_funcdag.py`, `synthetic_transform.py`, `synthetic_cert.py`
-  - CLI & reporting: `cli.py`, `status.py`, `repomap.py`, `docindex.py`, `verdicts.py`
+  - CLI & reporting: `cli.py` (the `src/evallab/cli/` directory is empty; do not add modules there), `status.py`, `repomap.py`, `docindex.py`, `verdicts.py`
 
 ---
 

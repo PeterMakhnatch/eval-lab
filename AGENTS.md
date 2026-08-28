@@ -7,7 +7,7 @@ Treat generated runs as immutable once promoted to `research/evidence/runs/`.
 
 ## Working rules
 
-- Read this file and `docs/architecture.md` before substantial changes.
+- Read this file, `docs/NOW.md`, and `docs/architecture.md` before substantial changes.
 - Treat this as a Python repository. New application code, adapters, verifiers,
   and benchmark tasks must be Python. Shell, SQL, Dockerfiles, and data/config
   formats are allowed as supporting files. Do not add Java/JVM code or build

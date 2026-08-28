@@ -439,6 +439,11 @@ def render_mission_brief_template(mission_type: str, task_ref: str | None = None
     lines: list[str] = []
     lines.append(f"## Mission Brief & Execution Guide: `{mission_type}`")
     lines.append("")
+    lines.append(
+        "Current lab state is `docs/NOW.md`. Do not crawl `docs/INDEX.md` or "
+        "`docs/repo-map.md`; those are generated inventories."
+    )
+    lines.append("")
 
     if mission_type == "builder":
         lines.append("### Objective: Authoring & Quality Certification")
@@ -572,6 +577,7 @@ def doc_priority_key(doc: DocMetadata, mission_type: str) -> tuple[int, int, int
     - Category 1: Broad multi-audience platform references (3 or 4 audiences).
     - Category 2: Dual-audience technical specifications (2 audiences).
     - Category 3: Single-audience primary mission workbenches/guides (1 audience).
+    - Category 4: Current-state map (`docs/NOW.md`); drop last.
     Tie-breakers:
     - Audience count ascending (fewer audiences = more specialized = higher priority).
     - Document length descending (larger docs shed more tokens earlier within the same category).
@@ -579,7 +585,9 @@ def doc_priority_key(doc: DocMetadata, mission_type: str) -> tuple[int, int, int
     """
     is_research = doc.path.startswith("docs/research/")
     is_index = doc.path in ("docs/INDEX.md", "docs/repo-map.md")
-    if is_research or is_index:
+    if doc.path == "docs/NOW.md":
+        cat = 4
+    elif is_research or is_index:
         cat = 0
     elif len(doc.audience) >= 3:
         cat = 1

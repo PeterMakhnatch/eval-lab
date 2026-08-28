@@ -24,8 +24,10 @@ from evallab.contextpack import (
     VALID_AUDIENCES,
     VALID_MISSION_TYPES,
     VALID_STATUSES,
+    DocMetadata,
     TaskFacetSummary,
     build_context_pack,
+    doc_priority_key,
     estimate_tokens,
     extract_title,
     main,
@@ -344,6 +346,33 @@ class TestCLI:
 
 class TestTokenBudgetAndTruncation:
     """Test token budget calculation, priority-based truncation, and determinism."""
+
+    def test_now_doc_is_last_dropped_category(self) -> None:
+        now = DocMetadata(
+            path="docs/NOW.md",
+            title="Where the lab is now",
+            status="living",
+            audience=("builder", "analyst", "runner", "operator"),
+            body="now-body",
+            raw_content="raw",
+            content_digest="sha256:0",
+        )
+        research = DocMetadata(
+            path="docs/research/example.md",
+            title="Research note",
+            status="living",
+            audience=("builder", "analyst"),
+            body="research-body",
+            raw_content="raw",
+            content_digest="sha256:0",
+        )
+        assert doc_priority_key(now, "builder")[0] == 4
+        assert doc_priority_key(research, "builder")[0] == 0
+        assert doc_priority_key(now, "builder") > doc_priority_key(research, "builder")
+
+    def test_truncated_builder_pack_retains_now_doc(self) -> None:
+        res = build_context_pack("builder", token_budget=12_000)
+        assert "docs/NOW.md" in [doc.path for doc in res.docs]
 
     def test_token_estimator(self) -> None:
         assert estimate_tokens("") == 0

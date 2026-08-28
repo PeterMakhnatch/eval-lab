@@ -26,7 +26,7 @@ What type of artifact are you creating or editing?
 │   ├── State Recovery / Bundle / Certification? ──► src/evallab/recovery/
 │   ├── Execution Runner / Queue / Quota? ─────────► src/evallab/ (runner.py, queue.py, etc.)
 │   ├── Task Registry / Ladder / Workbench? ──────► src/evallab/ (registry.py, ladder.py, etc.)
-│   └── CLI Subcommands & Dispatch? ───────────────► src/evallab/cli.py & src/evallab/cli/
+│   └── CLI Subcommands & Dispatch? ───────────────► src/evallab/cli.py
 │
 ├── Tasks & Benchmarks
 │   ├── Authoring New Task Packages? ──────────────► library/tasks/<name>/

@@ -11,8 +11,10 @@ Provides:
   - `docker-compose.yaml` fragment and collect hooks for workbench-v2.
 - Strict mechanical verification of wheelhouse bytes against locked requirements hashes (rejecting missing, extra unapproved, or tampered wheel artifacts).
 - Support for explicit `plan_only=True` mode when Dockerfile/wheelhouse is omitted.
-- Standard FastMCP sidecar topology generation & validation matching workbench-v2.
-- Zero-egress internal bridge (internal: true), task-local named volume (main-RO / sidecar-RW).
+- Standard FastMCP sidecar topology generation & validation matching workbench-v2:
+  - Task-local internal bridge network (`networks: {<name>: {internal: true}}`).
+  - Attached services (`main` and `sidecar` attaching to the exact same internal network).
+  - Task-local named volume (`main-RO` / `sidecar-RW`).
 - Standard MCP protocol compliant JSON-RPC 2.0 endpoint (/mcp) supporting initialize (2024-11-05), notifications/initialized, tools/list, and tools/call returning standard CallToolResult ({content: [{type: "text", text: ...}], isError: ...}).
 - In-process MCP streamable-HTTP sidecar runtime for test execution and offline sandboxing.
 - Deterministic Fault Interceptor middleware operating over FaultInjectionRecord contracts.
@@ -50,6 +52,7 @@ DEFAULT_PROTOCOL_VERSION = "2024-11-05"
 DEFAULT_SIDECAR_SERVICE = "mcp-service"
 DEFAULT_VOLUME_NAME = "evidence-volume"
 DEFAULT_VOLUME_MOUNT = "/app/output"
+DEFAULT_INTERNAL_NETWORK_NAME = "workbench-internal"
 DEFAULT_MCP_PORT = 8080
 DEFAULT_PINNED_BASE_IMAGE = (
     "python@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
@@ -706,6 +709,7 @@ def materialize_mcp_sidecar_package(
     wheelhouse_source: Path | None = None,
     op_registry_module: str | None = None,
     plan_only: bool = False,
+    internal_network_name: str = DEFAULT_INTERNAL_NETWORK_NAME,
 ) -> dict[str, Any]:
     """Boring task-authoring API emitting a complete, workbench-v2 compliant offline FastMCP sidecar package.
 
@@ -718,6 +722,7 @@ def materialize_mcp_sidecar_package(
         wheelhouse_source: Directory of pre-downloaded wheels matching FASTMCP_SIDECAR_REQUIREMENTS_TXT. Mandatory unless plan_only=True.
         op_registry_module: Optional module path for DAG/operation registry delegation.
         plan_only: When True, skips Dockerfile/wheelhouse copying and emits only plan specification.
+        internal_network_name: Name of the task-local internal Docker bridge.
     """
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -783,6 +788,7 @@ def materialize_mcp_sidecar_package(
     compose_doc = render_mcp_compose_document(
         sidecar_service=DEFAULT_SIDECAR_SERVICE,
         sidecar_build_context="./" + target_dir.name,
+        network_name=internal_network_name,
     )
 
     collect_fragment = {
@@ -946,8 +952,9 @@ def render_mcp_compose_document(
     volume_mount: str = DEFAULT_VOLUME_MOUNT,
     sidecar_build_context: str = "./mcp-server",
     main_image: str = "ghcr.io/eval-lab/eval-lab-agent-base@sha256:ba5e000000000000000000000000000000000000000000000000000000000000",
+    network_name: str | None = DEFAULT_INTERNAL_NETWORK_NAME,
 ) -> dict[str, Any]:
-    """Render a canonical Harbor workbench-v2 Compose document structure."""
+    """Render a canonical Harbor workbench-v2 Compose document structure with internal network and evidence volume."""
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", sidecar_service):
         raise SubstrateError(f"Invalid sidecar service name: {sidecar_service!r}")
 
@@ -959,6 +966,12 @@ def render_mcp_compose_document(
             "context": sidecar_build_context,
         },
     }
+
+    if network_name:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", network_name):
+            raise SubstrateError(f"Invalid network name: {network_name!r}")
+        main_service_cfg["networks"] = [network_name]
+        sidecar_service_cfg["networks"] = [network_name]
 
     volumes_section: dict[str, Any] | None = None
     if volume_name:
@@ -976,6 +989,12 @@ def render_mcp_compose_document(
     doc: dict[str, Any] = {
         "services": services,
     }
+    if network_name:
+        doc["networks"] = {
+            network_name: {
+                "internal": True,
+            }
+        }
     if volumes_section is not None:
         doc["volumes"] = volumes_section
 
@@ -991,7 +1010,7 @@ def validate_mcp_compose_document(
         return False, ["Compose document must be a mapping"]
 
     for top_key in data:
-        if top_key not in {"services", "volumes", "version"}:
+        if top_key not in {"services", "volumes", "networks", "version"}:
             errors.append(f"Unauthorized top-level Compose key: {top_key!r}")
 
     services = data.get("services")
@@ -1006,6 +1025,19 @@ def validate_mcp_compose_document(
         errors.append(
             f"Compose topology admits at most 2 services, got {len(service_names)}: {service_names}"
         )
+
+    # Validate top-level networks: at most 1 internal network
+    top_networks = data.get("networks")
+    network_name: str | None = None
+    if top_networks is not None:
+        if not isinstance(top_networks, Mapping):
+            errors.append("Compose 'networks' must be a mapping")
+        elif len(top_networks) > 1:
+            errors.append(f"At most 1 network allowed, got {len(top_networks)}")
+        elif top_networks:
+            network_name, net_def = next(iter(top_networks.items()))
+            if not isinstance(net_def, Mapping) or not net_def.get("internal"):
+                errors.append(f"Network {network_name!r} must be declared with 'internal: true'")
 
     top_volumes = data.get("volumes")
     volume_name: str | None = None
@@ -1024,8 +1056,22 @@ def validate_mcp_compose_document(
 
         if "network_mode" in s_cfg:
             errors.append(f"Service {name!r} may not declare custom network_mode")
-        if "networks" in s_cfg:
-            errors.append(f"Service {name!r} may not declare custom networks")
+
+        s_nets = s_cfg.get("networks")
+        if s_nets is not None:
+            if not isinstance(s_nets, Sequence) or isinstance(s_nets, (str, bytes)):
+                errors.append(f"Service {name!r} networks must be a sequence of names")
+            else:
+                for net in s_nets:
+                    if net != network_name:
+                        errors.append(
+                            f"Service {name!r} network {net!r} does not match top-level internal network {network_name!r}"
+                        )
+        elif network_name is not None:
+            errors.append(
+                f"Service {name!r} must attach to top-level internal network {network_name!r}"
+            )
+
         if "ports" in s_cfg or "expose" in s_cfg:
             errors.append(f"Service {name!r} may not publish or expose host ports")
         if "privileged" in s_cfg:

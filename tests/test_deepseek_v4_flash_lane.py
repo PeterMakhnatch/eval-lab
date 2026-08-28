@@ -24,6 +24,10 @@ def _fake_runtime(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
         '#!/bin/bash\nif [ "${1:-}" = info ]; then exit 0; fi\nexit 0\n',
     )
     _write_executable(
+        bin_dir / "uname",
+        '#!/bin/bash\nprintf "%s\\n" "${FAKE_UNAME:-Linux}"\n',
+    )
+    _write_executable(
         bin_dir / "harbor",
         "#!/bin/bash\n"
         'printf \'%s\\n\' "$@" > "$HARBOR_ARGS_FILE"\n'
@@ -172,4 +176,25 @@ def test_registered_funcdag_is_exactly_one_bounded_trial_and_keeps_key_out_of_ar
         "DEEPSEEK_API_KEY=set",
         "MSWEA_API_KEY=unset",
         "AGENT_NETWORK=allowlist",
+    ]
+
+
+def test_darwin_uses_recorded_public_baseline_instead_of_unsupported_allowlist(
+    tmp_path: Path,
+) -> None:
+    env, args_path, env_path = _fake_runtime(tmp_path)
+    env["FAKE_UNAME"] = "Darwin"
+    env["DEEPSEEK_API_KEY"] = SECRET_SENTINEL
+    env["EVALLAB_DEEPSEEK_FRESH_KEY_CONFIRMED"] = "present"
+
+    result = _run("registered-funcdag-easy", env)
+
+    assert result.returncode == 0
+    args = args_path.read_text().splitlines()
+    assert "--allow-agent-host" not in args
+    assert "api.deepseek.com" not in args
+    assert env_path.read_text().splitlines() == [
+        "DEEPSEEK_API_KEY=set",
+        "MSWEA_API_KEY=unset",
+        "AGENT_NETWORK=public",
     ]

@@ -135,7 +135,7 @@ prepare_task() {
     cp -R "$source_task/." "$staged_task/"
     PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" \
         uv run --project "$repo_root" python - \
-        "$staged_task/task.toml" "$staged_task/run_manifest.json" <<'PY'
+        "$staged_task/task.toml" "$staged_task/run_manifest.json" "$(uname -s)" <<'PY'
 from dataclasses import asdict
 import json
 from pathlib import Path
@@ -146,7 +146,8 @@ from evallab.harbor_network import adapt_task_toml_for_host, with_agent_network_
 path = Path(sys.argv[1])
 manifest_path = Path(sys.argv[2])
 text, adaptation = adapt_task_toml_for_host(path.read_text())
-text = with_agent_network_allowlist(text, ("api.deepseek.com",))
+if sys.argv[3] != "Darwin":
+    text = with_agent_network_allowlist(text, ("api.deepseek.com",))
 path.write_text(text)
 if adaptation is not None:
     manifest_path.write_text(
@@ -234,7 +235,7 @@ common_args() {
         --agent-kwarg max_tokens=8192 \
         --jobs-dir "$JOBS_DIR" \
         --yes
-    if [ "$guarded" = "true" ]; then
+    if [ "$guarded" = "true" ] && [ "$(uname -s)" != "Darwin" ]; then
         printf '%s\n' --allow-agent-host api.deepseek.com
     fi
 }

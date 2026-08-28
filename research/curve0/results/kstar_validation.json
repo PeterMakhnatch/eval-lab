@@ -1,0 +1,532 @@
+{
+  "artifact": "curve0-kstar-method-validation",
+  "corpora": [
+    {
+      "artifact_digests": {
+        "results.json": "26971f1a55d711fd7c5f585443ce6945ff612f7ced94b3bca70268d2d030f65a",
+        "trajs/astropy__astropy-12907.traj": "a5e793f1ae461352e2b85fcbf144fc8faecdc44a7be5c27e6ebc29a6b3237975",
+        "trajs/astropy__astropy-13033.traj": "24d7a220656509f64d18658ec659120144137ab13679e3a33766828544ff4abf",
+        "trajs/astropy__astropy-13236.traj": "269bc7f4c1b6e209b5ae7103b21107c95887fc2ad0d3791305d20f819665f41f",
+        "trajs/astropy__astropy-13398.traj": "f6dda70239aa73409c2a3229f038f5297bac036d57728dca44e48738d003a28a",
+        "trajs/astropy__astropy-13453.traj": "5f1117dc5f19cb447f947b428d7a544823eb603affa7760aea525de7228a182f",
+        "trajs/astropy__astropy-13579.traj": "1baf94e96ca35ca67e6f86ae2f59bd508d7891c1b18ae5a3267003240ad8a5fe",
+        "trajs/astropy__astropy-13977.traj": "58abb3d119e86f4a6759d8ec53dce7776a52861f121bdbf467a6c4f0aafb7cfb",
+        "trajs/astropy__astropy-14096.traj": "81b18d7218c97c9792d9987c40052db4f76f17daf468dde6ff6950dae8d50d76",
+        "trajs/astropy__astropy-14182.traj": "abad451493e83bf25e9c5c9faeacbce8e3d8682f7902257e68431128060aac4e",
+        "trajs/astropy__astropy-14309.traj": "2ff8e07c57fdf37aae2f79a24fa4ff4dbbcbbf1502d61bb7ad06647348f03eda",
+        "trajs/astropy__astropy-14365.traj": "423a1ff8704de67821827fa79da0e25c483a4c1b87bb9badeb46dfdf18dd0944",
+        "trajs/astropy__astropy-14369.traj": "c2fe79db7a14bd9708ad5216d5b8d5c1e3dfb953c8bd23e30531e6ff63e35967",
+        "trajs/astropy__astropy-14508.traj": "f7fb50f2ff7c2165f51ffb2e33b567ebffde13103c83d48c36f0c30229c4b690",
+        "trajs/astropy__astropy-14539.traj": "02aa265ae1e582a586c4e9affd7cfebb29c394e7eb5e51bb71790a11ee0e5aa5",
+        "trajs/astropy__astropy-14598.traj": "ae29c663aaafa41ce4ceb04ec72b99fb238a91d6da6fa1006d21107ee9922d9f",
+        "trajs/astropy__astropy-14995.traj": "2bb11a019c8dbc8499270489c9705bc532a6954427e3e0a86af741c7aed48285",
+        "trajs/astropy__astropy-7166.traj": "179cef746a148611f92e9ebf26efba61daef1eaaf3b7c64a399658c04d61f863",
+        "trajs/astropy__astropy-7336.traj": "598e06214b7e5ee3c32fbcf40c9850eced96f3ae94bb69c5a7b2ec83a923a9ac",
+        "trajs/astropy__astropy-7606.traj": "dd90dad882dacb10daf7c8ce68eaec80f85b1c530a0d40db6c3da73f5e6d7e02",
+        "trajs/astropy__astropy-7671.traj": "32d7b25f15326a95b298d7c82174a9797523976b1b345c0a3649ef1cec17ab7c",
+        "trajs/astropy__astropy-8707.traj": "93612efc6ab08013f6369d7449663aae03bc066f8885a4e6e17e1f323c0e4ada",
+        "trajs/astropy__astropy-8872.traj": "cd703d02e165f2b837742ca2be4afe896b98f7448cf6714e9e617518db338d9e",
+        "trajs/django__django-10554.traj": "508f4d428394367407c660f6241d58e9d5aea5d324e42f92ef0e84d71bdbc776",
+        "trajs/django__django-10880.traj": "c2da36bcee469e53bee72aa8583442ebb4cb9c3385eaa19d7797cc425a372827",
+        "trajs/django__django-10914.traj": "63fe2bb66de1cae87d02d5bd088a8d25e0787334f3c47d98ee0d6e22b9fcfb57",
+        "trajs/django__django-10999.traj": "42e87548aa62010fa4200b942fca299111df6acdea5d0e03576da7cbaabab708",
+        "trajs/django__django-11066.traj": "5f9d9109a5341236e014e9ab17b9e15ea43339d009c1c08a4ded944d2cd1062b",
+        "trajs/django__django-11087.traj": "63db55fac0f09c2b4a6baefa3be5feb52fbcde707b55f3b0039449524205fbca",
+        "trajs/django__django-11095.traj": "0e74283a04e7b126e5daf3bbbfe4d6400e81e3f5f67bc0eac5db118adc6de397",
+        "trajs/django__django-11099.traj": "fe2ac3f6073ddbb96870d3f481b13a51d97d08e7872215c26a89ad385fa2c40a",
+        "trajs/django__django-11119.traj": "4ca8b3e7c397cd8599f03886cebfd6a4cf2f21cc76c63e84e0014b6b900af649",
+        "trajs/django__django-11133.traj": "e74e5e2a7d181e3553adb65dc990c792744a4b8b4374256e8b78f435e10274aa",
+        "trajs/django__django-11138.traj": "326b5fa59bf6347c1f031d2195795ed5fb966f23f6f3638ab1c6ba00ee9dbff8",
+        "trajs/django__django-11141.traj": "957f3f08fadb4c7745bc9e5316213210e8e9f1c72ee3c313c56a667eaaf58981",
+        "trajs/django__django-11149.traj": "ae083cb48dbe797ea2870a0e0fef803eccc671994c56b0c3df6a89fe2f382836",
+        "trajs/django__django-11163.traj": "0fda2f9b77679cc042be9be688ae48e091769c0033aebaad60a2e494fb19f1da",
+        "trajs/django__django-11179.traj": "e501207e96510c86ee732f9cfc2cedb0e8e6726afcf0f7162a67aabf916a221c",
+        "trajs/django__django-11206.traj": "44e8514fab923cff2cdb08c0f5ef790d711e5adfd128d41d1ae778fcef46c871",
+        "trajs/django__django-11211.traj": "26f110e3d83e809e5350d31793eccb8f3dab52b8c5f60f532442916b07bedb89",
+        "trajs/django__django-11239.traj": "70cdb23bbc29ab45532ae53a25f06145d7554cd21c14ccfa66cc2a1dbdbcc4d7",
+        "trajs/django__django-11265.traj": "47ad1ad8266c2c6eabb55288023b2f40fc6be244f9a0577cd636e178c7b94962",
+        "trajs/django__django-11276.traj": "f687490f81ba132608cf1758eeeb9a92e27cf51a9d87cf120188e583abe900bf",
+        "trajs/django__django-11292.traj": "4ea7928731ac269046d29b41252721f72fd91a3273c4e41aea28f77982332e90",
+        "trajs/django__django-11451.traj": "c2fefb7380defbd8ba0ed737a31b6a8a0b5a3d9bfc7955cb75e838ad86c663b5",
+        "trajs/django__django-11551.traj": "165e4e70cf0c535ada4fdbb6e87fd5653028675953447a66db50710bdb415cac",
+        "trajs/django__django-11951.traj": "9623b0c6a228642c90976270d6eb4b01effe173c5ac04e558df3f94b731cf93f",
+        "trajs/django__django-12143.traj": "cfad054253f891fcda8dad8332eb66a80cd48fb3e6ad3ba0732b990dcbacc852",
+        "trajs/django__django-12155.traj": "835d81f0664e2bb965dd55fa29db44b6cecaa10675b3b45ee9f8eb2273240fdc",
+        "trajs/django__django-12193.traj": "9d3cb655c86ce76fc045e3bee81dd42d497d96bc71e35ac5594ca3373bd7ff8c",
+        "trajs/django__django-12419.traj": "3d45331ec2a0ead8a0d0beb9fce20d1405d4e20aea4a72ea1c52edbf28459146",
+        "trajs/django__django-12713.traj": "171be6ca29a9e0265873e8f95f272703b1df497b71d8b1625c5ff912807175e2",
+        "trajs/django__django-12858.traj": "95b40892f8e7101df5f6ef4ce02a8b5f7abcdbbcfa720bfff4bf08bc3042bf44",
+        "trajs/django__django-13089.traj": "97514dbc58734181774065da7bda64ad2b3100930b9111db96325c9e2d2d8ead",
+        "trajs/django__django-13109.traj": "57e2ec2ff12b4b65ff667d7be23186fc38152558987713bb8c6f62201b21d9c7",
+        "trajs/django__django-13363.traj": "123075b7be5ed2bb40162c034159c98cffe8d1677c5358fb346dd1158ed04fa6",
+        "trajs/django__django-13401.traj": "ebe3262806622a89001cbb3c1d8d53a3b7f731b8bc5b319cd6a7cd789a3be52b",
+        "trajs/django__django-13410.traj": "886baf4c273a4892fb83031ab819ac8d8a9ec1bcd3c68a31e342a415c8649a45",
+        "trajs/django__django-13658.traj": "74f6d56a72f49084baf38401865b9118aa4b84db7e786641bf51909869db09a7",
+        "trajs/django__django-13670.traj": "1a98064b44269802af8707489c79ac6e4d3d7028e28f734835adfef204509ddc",
+        "trajs/django__django-13741.traj": "1d6d54c6ba82b9ad923de9c0d011dcef93078f724279f127485283d4207bd268"
+      },
+      "corpus_id": "swebench-verified-sweagent-gpt4",
+      "disposition": "available",
+      "fields_absent": [
+        "structured exit_code",
+        "per-step token usage",
+        "per-step timestamp",
+        "full environment state snapshot"
+      ],
+      "fields_present": [
+        "action",
+        "observation",
+        "response",
+        "thought",
+        "state{open_file,working_dir}",
+        "info.exit_status"
+      ],
+      "harness": "SWE-agent ACI",
+      "is_public": true,
+      "license": "MIT",
+      "models": [
+        "gpt-4 (20240402 submission)"
+      ],
+      "n_duplicates_dropped": 0,
+      "n_trials": 60,
+      "notes": [
+        "Sampling is deterministic: sorted(resolved)[:30] + sorted(generated-resolved)[:30].",
+        "state is INTERFACE state (open_file, working_dir), NOT full environment state; aci_state_stall therefore measures navigation stall, not environment divergence."
+      ],
+      "pin": "SWE-bench/experiments@1faa91cade0562ba62b66c1c99e71f7b72d96f13; trajs from s3://swe-bench-submissions/verified/20240402_sweagent_gpt4/trajs",
+      "predicates_available": [
+        "no_progress_lock",
+        "blind_retry_lock",
+        "aci_state_stall"
+      ],
+      "predicates_unavailable": {
+        "error_cascade_to_end": "no structured exit codes; observations are terminal text"
+      },
+      "scaffold": "SWE-agent",
+      "source": "SWE-bench/experiments + swe-bench-submissions S3 (verified/20240402_sweagent_gpt4)",
+      "unavailable_reason": null
+    },
+    {
+      "artifact_digests": {
+        "gpt-4o-airline.json": "e9e6c0297660c537f83d4fd9c476ce7a9a86ecd2784874b7bfc13be598e37bfa"
+      },
+      "corpus_id": "taubench-airline-gpt4o",
+      "disposition": "available",
+      "fields_absent": [
+        "structured exit_code",
+        "per-step state snapshot",
+        "per-step token usage",
+        "per-step timestamp",
+        "logprobs",
+        "finish_reason"
+      ],
+      "fields_present": [
+        "role",
+        "content",
+        "tool_calls{function{name,arguments}}",
+        "tool_call_id",
+        "reward",
+        "info"
+      ],
+      "harness": "tau-bench",
+      "is_public": true,
+      "license": "MIT",
+      "models": [
+        "gpt-4o"
+      ],
+      "n_duplicates_dropped": 0,
+      "n_trials": 200,
+      "notes": [
+        "Upstream tau-bench drops usage/logprobs/finish_reason at the agent loop (tool_calling_agent.py keeps only choices[0].message), so per-step token telemetry is absent by construction, not by our parsing."
+      ],
+      "pin": "sierra-research/tau-bench@59a200c6d575d595120f1cb70fea53cef0632f6b",
+      "predicates_available": [
+        "no_progress_lock",
+        "blind_retry_lock"
+      ],
+      "predicates_unavailable": {
+        "aci_state_stall": "no per-step state field; DB mutations appear only inside tool output",
+        "error_cascade_to_end": "no structured exit codes; tool results are JSON/text strings"
+      },
+      "scaffold": "tau-bench tool-calling agent",
+      "source": "sierra-research/tau-bench historical_trajectories/gpt-4o-airline.json",
+      "unavailable_reason": null
+    },
+    {
+      "artifact_digests": {},
+      "corpus_id": "local-atif-harbor",
+      "disposition": "available",
+      "fields_absent": [
+        "structured exit_code",
+        "reasoning_content",
+        "logprobs",
+        "per-step environment state",
+        "finish_reason",
+        "sampling params"
+      ],
+      "fields_present": [
+        "step_id",
+        "source",
+        "timestamp",
+        "model_name",
+        "message",
+        "tool_calls{function_name,arguments}",
+        "observation.results{content,source_call_id}",
+        "metrics{prompt,completion,cached,cost}",
+        "metrics.extra.reasoning_output_tokens"
+      ],
+      "harness": "Harbor / ATIF-v1.7",
+      "is_public": false,
+      "license": "internal",
+      "models": [
+        "gpt-5.6-luna",
+        "gpt-5.6-terra"
+      ],
+      "n_duplicates_dropped": 3,
+      "n_trials": 26,
+      "notes": [
+        "Short-horizon only: cannot validate any long-horizon claim.",
+        "reasoning_output_tokens present under metrics.extra but dropped by the current ingest path (evidence/atif.py) - block J data loss confirmed."
+      ],
+      "pin": "local-working-tree (no upstream pin possible)",
+      "predicates_available": [
+        "no_progress_lock",
+        "blind_retry_lock"
+      ],
+      "predicates_unavailable": {
+        "aci_state_stall": "no per-step state field in ATIF steps",
+        "error_cascade_to_end": "no structured exit codes; ATIF observation results carry only {content, source_call_id}"
+      },
+      "scaffold": "codex / antigravity-cli (mixed)",
+      "source": "LOCAL working tree runs/ (NOT a public corpus)",
+      "unavailable_reason": null
+    },
+    {
+      "artifact_digests": {},
+      "corpus_id": "vending-bench-1-2",
+      "disposition": "unavailable",
+      "fields_absent": [],
+      "fields_present": [],
+      "harness": "n/a",
+      "is_public": true,
+      "license": null,
+      "models": [],
+      "n_duplicates_dropped": 0,
+      "n_trials": 0,
+      "notes": [
+        "No rows emitted. Absence recorded, never simulated."
+      ],
+      "pin": null,
+      "predicates_available": [],
+      "predicates_unavailable": {},
+      "scaffold": null,
+      "source": "Andon Labs (arXiv:2502.15840)",
+      "unavailable_reason": "CLOSED/UNRELEASED: no public per-step trace dump on GitHub or HuggingFace. This falsifies the Curve 0 spec's assumption that Vending-Bench was the ideal substrate; the spec is corrected by this artifact."
+    },
+    {
+      "artifact_digests": {},
+      "corpus_id": "agentlab-browsergym-tmlr",
+      "disposition": "unavailable",
+      "fields_absent": [],
+      "fields_present": [],
+      "harness": "n/a",
+      "is_public": true,
+      "license": null,
+      "models": [],
+      "n_duplicates_dropped": 0,
+      "n_trials": 0,
+      "notes": [
+        "No rows emitted. Absence recorded, never simulated."
+      ],
+      "pin": null,
+      "predicates_available": [],
+      "predicates_unavailable": {},
+      "scaffold": null,
+      "source": "HF agentlabtraces/agentlabtraces",
+      "unavailable_reason": "impractical size: multi-part splits ~42.9 GB each (~207 GB total), no single-file/granular fetch API. Deferred, not fabricated."
+    },
+    {
+      "artifact_digests": {},
+      "corpus_id": "osworld-2.0-trajectory",
+      "disposition": "unavailable",
+      "fields_absent": [],
+      "fields_present": [],
+      "harness": "n/a",
+      "is_public": true,
+      "license": null,
+      "models": [],
+      "n_duplicates_dropped": 0,
+      "n_trials": 0,
+      "notes": [
+        "No rows emitted. Absence recorded, never simulated."
+      ],
+      "pin": null,
+      "predicates_available": [],
+      "predicates_unavailable": {},
+      "scaffold": null,
+      "source": "HF xlangai/osworld2.0-trajectory",
+      "unavailable_reason": "GATED: HTTP 401 without an authenticated HF token."
+    },
+    {
+      "artifact_digests": {},
+      "corpus_id": "swe-rebench-openhands",
+      "disposition": "unavailable",
+      "fields_absent": [],
+      "fields_present": [],
+      "harness": "n/a",
+      "is_public": true,
+      "license": null,
+      "models": [],
+      "n_duplicates_dropped": 0,
+      "n_trials": 0,
+      "notes": [
+        "No rows emitted. Absence recorded, never simulated."
+      ],
+      "pin": null,
+      "predicates_available": [],
+      "predicates_unavailable": {},
+      "scaffold": null,
+      "source": "HF nebius/SWE-rebench-openhands-trajectories",
+      "unavailable_reason": "single parquet is ~2.08 GB; deferred to a later pass rather than fetched now."
+    }
+  ],
+  "generated_at": "2026-08-28T03:52:58.688478+00:00",
+  "preregistration": {
+    "digest": "5b762f9da633edc380b1768bc0e824335bfdb6ec4003eaffa0cacbdab3065d85",
+    "note": "transcribed from the Curve 0 spec; not third-party timestamped",
+    "text": "P1 no_progress_lock; P2 blind_retry_lock; P3 error_cascade_to_end; P4 aci_state_stall; TAIL_MIN=3; MIN_N=5; rates conditioned on ELIGIBLE trials (>=TAIL_MIN+1 actions and required fields present); primary metric=false_positive_on_later_success; no pooling of effects across corpora"
+  },
+  "results": [
+    {
+      "action_count_distribution": {
+        "11-30": 31,
+        "31-100": 9,
+        "4-10": 20
+      },
+      "corpus_id": "swebench-verified-sweagent-gpt4",
+      "is_public": true,
+      "length_confound": {
+        "mean_actions_fail": 21.67,
+        "mean_actions_success": 12.03,
+        "warning": "success and failure sets differ in mean action count; fire-rate differences are confounded with trajectory length in this corpus"
+      },
+      "n_fail": 30,
+      "n_success": 30,
+      "n_trials_total": 60,
+      "n_with_outcome": 60,
+      "observation_digest_stability": {
+        "differing_observations": 58,
+        "identical_observations": 42,
+        "instability_rate": 0.58,
+        "repeated_action_groups": 100,
+        "verdict": "PROXY_INVALID: repeated actions yield differing observation digests (nondeterministic content); P1/P2 nulls are INCONCLUSIVE, not negative"
+      },
+      "predicates": {
+        "aci_state_stall": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 19,
+          "false_positive_on_later_success": 0.6333,
+          "fire_count_fail": 24,
+          "fire_rate_on_failed_runs": 0.8,
+          "kstar_normalized_position_on_failures": {
+            "max": 0.882,
+            "median": 0.429,
+            "min": 0.033,
+            "n": 24
+          },
+          "n_eligible_fail": 30,
+          "n_eligible_success": 30,
+          "n_ineligible_excluded": 0,
+          "rate_null_reason": null
+        },
+        "blind_retry_lock": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 0,
+          "fire_rate_on_failed_runs": 0.0,
+          "kstar_normalized_position_on_failures": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
+          },
+          "n_eligible_fail": 30,
+          "n_eligible_success": 30,
+          "n_ineligible_excluded": 0,
+          "rate_null_reason": null
+        },
+        "error_cascade_to_end": {
+          "disposition": "PREDICATE_UNAVAILABLE",
+          "reason": "no structured exit codes; observations are terminal text"
+        },
+        "no_progress_lock": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 0,
+          "fire_rate_on_failed_runs": 0.0,
+          "kstar_normalized_position_on_failures": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
+          },
+          "n_eligible_fail": 30,
+          "n_eligible_success": 30,
+          "n_ineligible_excluded": 0,
+          "rate_null_reason": null
+        }
+      }
+    },
+    {
+      "action_count_distribution": {
+        "0": 18,
+        "1-3": 68,
+        "11-30": 34,
+        "4-10": 80
+      },
+      "corpus_id": "taubench-airline-gpt4o",
+      "is_public": true,
+      "length_confound": {
+        "mean_actions_fail": 7.04,
+        "mean_actions_success": 4.13,
+        "warning": "action counts comparable"
+      },
+      "n_fail": 116,
+      "n_success": 84,
+      "n_trials_total": 200,
+      "n_with_outcome": 200,
+      "observation_digest_stability": {
+        "differing_observations": 1,
+        "identical_observations": 21,
+        "instability_rate": 0.0455,
+        "repeated_action_groups": 22,
+        "verdict": "PROXY_USABLE: repeated actions mostly yield identical digests"
+      },
+      "predicates": {
+        "aci_state_stall": {
+          "disposition": "PREDICATE_UNAVAILABLE",
+          "reason": "no per-step state field; DB mutations appear only inside tool output"
+        },
+        "blind_retry_lock": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 1,
+          "fire_rate_on_failed_runs": 0.0128,
+          "kstar_normalized_position_on_failures": {
+            "max": 0.826,
+            "median": 0.826,
+            "min": 0.826,
+            "n": 1
+          },
+          "n_eligible_fail": 78,
+          "n_eligible_success": 36,
+          "n_ineligible_excluded": 86,
+          "rate_null_reason": null
+        },
+        "error_cascade_to_end": {
+          "disposition": "PREDICATE_UNAVAILABLE",
+          "reason": "no structured exit codes; tool results are JSON/text strings"
+        },
+        "no_progress_lock": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 2,
+          "fire_rate_on_failed_runs": 0.0256,
+          "kstar_normalized_position_on_failures": {
+            "max": 0.783,
+            "median": 0.783,
+            "min": 0.609,
+            "n": 2
+          },
+          "n_eligible_fail": 78,
+          "n_eligible_success": 36,
+          "n_ineligible_excluded": 86,
+          "rate_null_reason": null
+        }
+      }
+    },
+    {
+      "action_count_distribution": {
+        "0": 6,
+        "1-3": 6,
+        "11-30": 6,
+        "4-10": 8
+      },
+      "corpus_id": "local-atif-harbor",
+      "is_public": false,
+      "length_confound": {
+        "mean_actions_fail": 8.07,
+        "mean_actions_success": 3.73,
+        "warning": "success and failure sets differ in mean action count; fire-rate differences are confounded with trajectory length in this corpus"
+      },
+      "n_fail": 15,
+      "n_success": 11,
+      "n_trials_total": 26,
+      "n_with_outcome": 26,
+      "observation_digest_stability": {
+        "differing_observations": 3,
+        "identical_observations": 0,
+        "instability_rate": 1.0,
+        "repeated_action_groups": 3,
+        "verdict": "PROXY_INVALID: repeated actions yield differing observation digests (nondeterministic content); P1/P2 nulls are INCONCLUSIVE, not negative"
+      },
+      "predicates": {
+        "aci_state_stall": {
+          "disposition": "PREDICATE_UNAVAILABLE",
+          "reason": "no per-step state field in ATIF steps"
+        },
+        "blind_retry_lock": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 0,
+          "fire_rate_on_failed_runs": 0.0,
+          "kstar_normalized_position_on_failures": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
+          },
+          "n_eligible_fail": 9,
+          "n_eligible_success": 5,
+          "n_ineligible_excluded": 12,
+          "rate_null_reason": null
+        },
+        "error_cascade_to_end": {
+          "disposition": "PREDICATE_UNAVAILABLE",
+          "reason": "no structured exit codes; ATIF observation results carry only {content, source_call_id}"
+        },
+        "no_progress_lock": {
+          "disposition": "COMPUTED",
+          "false_positive_count": 0,
+          "false_positive_on_later_success": 0.0,
+          "fire_count_fail": 0,
+          "fire_rate_on_failed_runs": 0.0,
+          "kstar_normalized_position_on_failures": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
+          },
+          "n_eligible_fail": 9,
+          "n_eligible_success": 5,
+          "n_ineligible_excluded": 12,
+          "rate_null_reason": null
+        }
+      }
+    }
+  ],
+  "scope": {
+    "claim_type": "METHOD VALIDATION ONLY",
+    "prohibited": [
+      "capability claims about any model",
+      "pooling effects across corpora",
+      "LLM-judged labels",
+      "re-running or model calls"
+    ]
+  }
+}

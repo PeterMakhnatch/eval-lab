@@ -50,8 +50,8 @@ jobs:
           echo "TASK_ROOT=$task_root" >> "$GITHUB_ENV"
       - name: Workbench static inspection
         run: |
-          uv run python -m evallab.task_workbench check \
-            --task-path "$TASK_ROOT/tau3-banking_knowledge-task-001" \
+          uv run python -m evallab.task_workbench plan \
+            "$TASK_ROOT/tau3-banking_knowledge-task-001" \
             --source-uri "https://github.com/sierra-research/tau2-bench" \
             --source-ref "fc0055dc4e0a316c3f83133267fbd6faaa770992" \
             --license "MIT" \

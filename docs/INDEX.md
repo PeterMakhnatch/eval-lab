@@ -55,7 +55,7 @@ inputs:
   - path: docs/data-architecture.md
     digest: sha256:d90ec1143b9ffaa6f8db6402fb3b29ea9f48c80630bc795dbf2969b2f61dbd2c
   - path: docs/deepseek-v4-flash-lane.md
-    digest: sha256:7b2d72818a834a42dcb651b46aa285a2944e4098b5d58cf1ce0b232cf96efd7f
+    digest: sha256:e31ef372f624c59120da22d21ce45ae3ba75277e1981554e3b61720d8a301b8d
   - path: docs/design-additions.md
     digest: sha256:336458572a3d547e7a8bbf8fd50e97778ff0d7e9853b56bf2a99a3ab1432aedf
   - path: docs/engineering.md

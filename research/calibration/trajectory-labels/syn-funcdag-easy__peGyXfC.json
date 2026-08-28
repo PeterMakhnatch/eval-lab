@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "syn-funcdag-easy__peGyXfC",
+  "source": "evidence/runs/syn-funcdag-easy-registry-nop-33133765977/syn-funcdag-easy__peGyXfC",
+  "primary_category": "unknown",
+  "summary": "Durable registry no-op control omitted the required output and scored 0.0; intended starting-state result.",
+  "evidence": [
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "The verifier recorded passed=false because /app/output/result.json did not exist."
+    }
+  ],
+  "agent": "nop",
+  "reward": 0.0
+}

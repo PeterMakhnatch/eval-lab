@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "trial_name": "syn-funcdag-easy__KVthvbs",
+  "source": "evidence/runs/syn-funcdag-easy-registry-oracle-33133765977/syn-funcdag-easy__KVthvbs",
+  "primary_category": "unknown",
+  "summary": "Durable registry oracle control satisfied the exact dependency-trace contract and scored 1.0; no failure class applies.",
+  "evidence": [
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "The verifier recorded passed=true for target n_2_0, value 3, with the exact dependency trace."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0
+}

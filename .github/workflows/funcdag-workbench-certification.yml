@@ -81,6 +81,7 @@ jobs:
           source_uri="eval-lab/synthetic/funcdag/${DIFFICULTY}"
           source_ref="local/eval-lab/synthetic/funcdag/${DIFFICULTY}@1.0.0"
           controls="runs/task-workbench/${CANDIDATE_ID}/controls.json"
+          packet_root="research/registration/candidates/ci/${GITHUB_RUN_ID}/${DIFFICULTY}"
           test -s "$controls"
           uv run python -m evallab.task_workbench packet "$task" \
             --repo-root . \
@@ -89,6 +90,7 @@ jobs:
             --license Apache-2.0 \
             --zone 03-synthetic \
             --controls "$controls" \
+            --output-root "$packet_root" \
             | tee "artifacts/${DIFFICULTY}/packet.json"
           test "$(jq -r '.disposition' "artifacts/${DIFFICULTY}/packet.json")" = "certified_for_review"
       - name: Produce durable easy registry controls
@@ -132,6 +134,6 @@ jobs:
           path: |
             artifacts/${{ matrix.difficulty }}/
             runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/
-            research/registration/candidates/${{ steps.plan.outputs.candidate_id }}/
+            research/registration/candidates/ci/${{ github.run_id }}/${{ matrix.difficulty }}/
             research/evidence/runs/
           if-no-files-found: error

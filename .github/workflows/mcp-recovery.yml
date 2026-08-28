@@ -30,11 +30,11 @@ jobs:
       fail-fast: false
       matrix:
         fault_mode:
-          - permission_denied
-          - not_found
+          - permission-denied
+          - not-found
           - timeout
-          - malformed_output
-          - silent_wrong_result
+          - malformed-output
+          - silent-wrong-result
         persistence: [1, 2]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -55,11 +55,28 @@ jobs:
           PERSISTENCE: ${{ matrix.persistence }}
         run: |
           set -euo pipefail
-          uv run python -c "
-          from library.benchmarks.mcp_recovery_v1.materializer import materialize_task, output_path
-          path = materialize_task(output_path(seed=42, fault_mode='$FAULT_MODE', persistence=$PERSISTENCE), seed=42, fault_mode='$FAULT_MODE', persistence=$PERSISTENCE)
-          print(f'task_path={path}')
-          " >> "$GITHUB_OUTPUT"
+          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          import sys
+          from pathlib import Path
+          
+          # Add vertical directory to sys.path
+          ROOT = Path("library/benchmarks/mcp-recovery-v1").resolve()
+          sys.path.insert(0, str(ROOT))
+          
+          from materializer import materialize_task, output_path
+          
+          fault_mode = os.environ["FAULT_MODE"]
+          persistence = int(os.environ["PERSISTENCE"])
+          
+          path = materialize_task(
+              output_path(seed=42, fault_mode=fault_mode, persistence=persistence),
+              seed=42,
+              fault_mode=fault_mode,
+              persistence=persistence,
+          )
+          print(f"task_path={path}")
+          PY
       - name: Freeze candidate plan
         id: plan
         env:
@@ -121,9 +138,10 @@ jobs:
             --output-root "$packet_root" \
             | tee "artifacts/${FAULT_MODE}-p${PERSISTENCE}/packet.json"
           test "$(jq -r '.disposition' "artifacts/${FAULT_MODE}-p${PERSISTENCE}/packet.json")" = "certified_for_review"
-      - name: Produce durable canary registry controls
-        if: matrix.fault_mode == 'permission_denied' && matrix.persistence == 1
+      - name: Produce durable cell registry controls
         env:
+          FAULT_MODE: ${{ matrix.fault_mode }}
+          PERSISTENCE: ${{ matrix.persistence }}
           TASK_PATH: ${{ steps.materialize.outputs.task_path }}
         run: |
           set -euo pipefail
@@ -131,7 +149,7 @@ jobs:
           harbor run --path "$TASK_PATH" \
             --agent oracle \
             --env docker \
-            --job-name "mcp-recovery-canary-oracle-${GITHUB_RUN_ID}" \
+            --job-name "mcp-recovery-${FAULT_MODE}-p${PERSISTENCE}-oracle-${GITHUB_RUN_ID}" \
             --jobs-dir "$jobs" \
             --n-concurrent 1 \
             --n-attempts 1 \
@@ -139,7 +157,7 @@ jobs:
           harbor run --path "$TASK_PATH" \
             --agent nop \
             --env docker \
-            --job-name "mcp-recovery-canary-nop-${GITHUB_RUN_ID}" \
+            --job-name "mcp-recovery-${FAULT_MODE}-p${PERSISTENCE}-nop-${GITHUB_RUN_ID}" \
             --jobs-dir "$jobs" \
             --n-concurrent 1 \
             --n-attempts 1 \

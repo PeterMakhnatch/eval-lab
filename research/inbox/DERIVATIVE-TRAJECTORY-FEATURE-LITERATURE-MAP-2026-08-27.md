@@ -2,8 +2,8 @@
 type: literature-map
 topic: derivative-trajectory-features
 reviewed: 2026-08-27
-status: distilled
-authority: 131 Downloaded Primary Papers + Harbor ATIF v1.7 Spec + Eval Lab Telemetry
+status: citations-corrected-2026-08-28
+authority: local paper manifests (131 sources, arXiv-API re-resolved) + Harbor ATIF v1.7 Spec + Eval Lab Telemetry
 source_url: https://github.com/PeterMakhnatch/eval-lab
 source_type: repo
 retrieved: 2026-08-27
@@ -12,11 +12,30 @@ feeds:
   - parked
 ---
 
+> ## ⚠ CITATION ERRATA — applied 2026-08-28
+>
+> An Analyst citation audit found arXiv IDs in the original version of this
+> document bound to the wrong benchmark names. A full sweep of all 31 asserted
+> IDs confirmed a worse defect: **20 were fabricated placeholder IDs resolving to
+> unrelated papers**, 5 carried invented titles over correct IDs, and 6 were
+> sound.
+>
+> All IDs below are now drawn from the local paper manifests and re-resolved
+> against the arXiv API. Corrections, verbatim quotes for the two load-bearing
+> recovery claims, and the list of names with **no locatable arXiv ID** are in
+> [`CITATION-INTEGRITY-CORRECTION-2026-08-28.md`](CITATION-INTEGRITY-CORRECTION-2026-08-28.md),
+> with a re-runnable machine ledger at
+> [`CITATION-VERIFICATION-LEDGER-2026-08-28.json`](CITATION-VERIFICATION-LEDGER-2026-08-28.json).
+>
+> **Epistemic status of every citation in this map:** `BINDING-VERIFIED`
+> (ID↔title confirmed). Unless a verbatim body quote is given, the *method
+> association* is `METHOD-UNQUOTED` and must not be used as method evidence.
+
 # Source-Verified Literature Map: Derivative Trajectory Features & Synthetic Task Funnels
 
 ## Executive Summary
 
-This document establishes the formal, source-verified literature foundation for the **Derivative Trajectory-Feature Program** and its downstream **Synthetic Task Funnels**. Every claim, metric, operational definition, confound, and task transform is grounded strictly in primary papers, official specifications (ATIF v1.7, Harbor RFC 0001), or verified benchmark codebases (LOCA-Bench, FuncBenchGen, AgentAbstain, AgentCheck, ToolBench-X, GroundEval, CooperBench).
+This document establishes the formal literature foundation for the **Derivative Trajectory-Feature Program** and its downstream **Synthetic Task Funnels**. Claims, metrics, operational definitions, confounds, and task transforms are grounded in primary papers, official specifications (ATIF v1.7, Harbor RFC 0001), and verified benchmark codebases. Citation bindings were corrected on 2026-08-28; see the errata banner above for epistemic status.
 
 ### Core Methodological Principles:
 1. **The Epistemic Boundary ($C_0$ vs $C_1/C_2/C_3$)**:
@@ -91,11 +110,11 @@ This document establishes the formal, source-verified literature foundation for 
 ### 1. Context & Memory
 
 *   **Primary Sources**:
-    *   *LOCA-Bench: Evaluating Long-Context Reasoning in Agentic Workflows* (arXiv:2509.18844)
-    *   *MemoryAgentBench: Assessing Long-Term Memory and Cross-Session Recall in LLM Agents* (arXiv:2511.08325)
-    *   *BEAM: Benchmark for Episodic and Associative Memory in Multi-Turn Agents* (ICLR 2026, arXiv:2510.27246)
-    *   *ContextBench: Probing Token Compaction & Needle Retrieval in Autonomous Systems* (arXiv:2510.12345)
-    *   *MemGym: Structured Environments for Long-Horizon Agent Memory* (arXiv:2512.09876)
+    *   *LOCA-bench: Benchmarking Language Agents Under Controllable and Extreme Context* (arXiv:2602.07962)
+    *   *Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions* (MemoryAgentBench, arXiv:2507.05257)
+    *   *Beyond a Million Tokens: Benchmarking and Enhancing Long-Term Memory in LLMs* (BEAM, arXiv:2510.27246)
+    *   *ContextBench: A Benchmark for Context Retrieval in Coding Agents* (arXiv:2602.05892)
+    *   *MemGym: A Long-Horizon Memory Environment for LLM Agents* (arXiv:2605.20833)
 
 *   **Operational Definition**:
     The agent's capacity to maintain, accurately retrieve, update, resolve conflicts in, and adhere to constraints across extended token horizons ($8\text{k} \to 128\text{k}+$), across multi-turn sessions, and across lossy context-compaction / summarization boundaries.
@@ -135,11 +154,11 @@ This document establishes the formal, source-verified literature foundation for 
 ### 2. Tool Use & Tool-Graph Composition
 
 *   **Primary Sources**:
-    *   *FuncBenchGen: Generating Deterministic Tool-DAG Evaluation Environments* (Megagon Labs, BSD-3, arXiv:2604.12876)
-    *   *ToolBench-X: Benchmarking Tool-Using Agents under Realistic Environmental Hazards* (arXiv:2606.25819)
-    *   *tau2-bench / tau-bench: A Benchmark for Tool-Agent-User Interactions in Enterprise Domains* (Sierra Research, MIT, arXiv:2406.12045)
-    *   *Graphectory: Graph-Theoretic Analysis of Agent Execution Topologies* (arXiv:2512.18902)
-    *   *ToolPRMBench: Step-Level Process Reward Modeling for Tool Invocation* (arXiv:2511.08325)
+    *   *Towards Reliable Benchmarking: A Contamination Free, Controllable Evaluation* (FuncBenchGen, Megagon Labs, BSD-3, arXiv:2509.26553)
+    *   *Beyond Function Calling: Benchmarking Tool-Using Agents under Tool-Environment Unreliability* (ToolBench-X, arXiv:2606.25819)
+    *   *$\tau$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains* (Sierra Research, MIT, arXiv:2406.12045); *$\tau^2$-Bench: Evaluating Conversational Agents in a Dual-Control Environment* (arXiv:2506.07982)
+    *   *Process-Centric Analysis of Agentic Software Systems* (Graphectory, arXiv:2512.02393)
+    *   *ToolPRMBench: Evaluating and Advancing Process Reward Models for Tool-using Agents* (arXiv:2601.12294)
 
 *   **Operational Definition**:
     The agent's capacity to inspect tool signatures, construct valid JSON/schema arguments, respect data-dependency graphs (wiring output of tool $A$ into input of tool $B$), minimize redundant calls, and avoid infinite execution loops.
@@ -181,17 +200,20 @@ This document establishes the formal, source-verified literature foundation for 
 ### 3. Error Recovery
 
 *   **Primary Sources**:
-    *   *AgentCheck: Testing and Mitigating Single-Fault Robustness in Agentic Workflows* (MIT, arXiv:2512.08312)
-    *   *ToolBench-X: Adaptation & Anomaly Recovery under 5 Environmental Hazards* (arXiv:2606.25819)
-    *   *Recovery-Bench: Evaluating LLM Agent Recovery from Weak-Model Failure States* (arXiv:2602.14922)
-    *   *AgentRx: Runtime Invariant Verification and Fault Localization* (Microsoft, MIT, arXiv:2509.08765)
-    *   *TrajDebug: Step-Level Diagnostic and Failure Cascade Localization* (arXiv:2510.09876)
+    *   *AgentCheck: A Reproduce-Intervene-Mitigate Workbench for LLM Agents over MCP* (MIT, arXiv:2607.11098) — **METHOD-QUOTED**
+    *   *Beyond Function Calling: Benchmarking Tool-Using Agents under Tool-Environment Unreliability* (ToolBench-X, arXiv:2606.25819)
+    *   **Recovery-Bench** — repository only: `letta-ai/recovery-bench`. **No arXiv ID exists**; the previously cited `2602.14922` is an unrelated paper. Harness read confirms **no clean-twin control arm** (selection conditioned on `reward == 0`); recovery-causality claims from this source are **UNVERIFIED**
+    *   *AgentRx: Diagnosing AI Agent Failures from Execution Trajectories* (Microsoft, MIT, arXiv:2602.02475)
+    *   *TRAJDEBUG: Tracing Error Lifecycle to Identify Critical Failures in Long-Horizon Agents* (arXiv:2608.06346)
 
 *   **Operational Definition**:
     When an unexpected observation, non-zero exit code, exception traceback, or corrupted environment state occurs, the agent detects the anomaly, alters its subsequent action strategy, repairs the environment invariant, and successfully completes the original objective.
 
 *   **Actually Validated Trajectory Measures**:
-    1.  **Certified Recovery Rate**:
+    1.  **Fault-exposure-conditioned Recovery Rate** — **METHOD-QUOTED**, verified from ToolMaze body text (*When Tools Fail*, arXiv:2606.05806). Published form, Perturbation Recovery Rate:
+        $$\text{PRR}_m = P(\text{Recovered} \mid \text{Perturbation}) = \frac{\sum_{\tau \in T_m} I_{\text{recov}}(\tau)\cdot I_{\text{pert}}(\tau)}{\sum_{\tau \in T_m} I_{\text{pert}}(\tau)}$$
+        The denominator is the count of trajectories **actually exposed** to the injected fault, not all trajectories. Zero exposure ⇒ zero denominator ⇒ undefined, matching the null-on-zero rule. The paper states PRR "strictly evaluates error recovery independently of final task success."
+        Our stricter internal variant additionally requires state-invariant restoration, and is **not** the published metric:
         $$P(\text{Recovery} \mid \Omega_{\text{error}}) = \frac{\sum_{i \in \Omega_{\text{error}}} \mathbb{I}(\text{State Invariant Restored} \land \text{Goal Completed})}{\lvert\Omega_{\text{error}}\rvert}$$
     2.  **Blind Retry Rate (Thrashing)**:
         $$\text{Rate}_{\text{blind\_retry}} = \frac{\sum \mathbb{I}(\text{Tool}_{t+1} = \text{Tool}_t \land \text{Args}_{t+1} = \text{Args}_t \mid \text{ExitCode}_t \ne 0)}{\sum \mathbb{I}(\text{ExitCode}_t \ne 0)}$$
@@ -225,12 +247,12 @@ This document establishes the formal, source-verified literature foundation for 
 ### 4. Verification & Grounding
 
 *   **Primary Sources**:
-    *   *GroundEval: Benchmarking Agent Verification with Grounded Environment Contracts* (CC BY 4.0, arXiv:2605.12345)
-    *   *AgentRx: Invariant-Based Runtime Verification of Autonomous Agents* (Microsoft, MIT, arXiv:2509.08765)
-    *   *ALCE: Automatic LLM Citation and Grounding Evaluation* (arXiv:2305.14614)
-    *   *MiniCheck: Fast and Accurate Fact-Checking and Citation Verification* (arXiv:2404.10774)
-    *   *Meta-Task Appendix D & F.3: Implementation Review & Process Judge Rubrics* (arXiv:2607.27929)
-    *   *VPR: Verifiable Process Rewards for Multi-Step Planning* (arXiv:2605.10325)
+    *   *GroundEval: A Deterministic Replacement for LLM-as-Judge in Stateful Agent Evaluation* (CC BY 4.0, arXiv:2606.22737)
+    *   *AgentRx: Diagnosing AI Agent Failures from Execution Trajectories* (Microsoft, MIT, arXiv:2602.02475)
+    *   *Enabling Large Language Models to Generate Text with Citations* (ALCE, arXiv:2305.14627)
+    *   *MiniCheck: Efficient Fact-Checking of LLMs on Grounding Documents* (arXiv:2404.10774)
+    *   *Meta-Task: Turning Terminal Task Synthesis into a Terminal Task for Scalable Agents* (Appendices D & F.3, arXiv:2607.27929)
+    *   *Verifiable Process Rewards for Agentic Reasoning* (VPR, arXiv:2605.10325)
 
 *   **Operational Definition**:
     The agent explicitly validating its intermediate progress (running tests, reading modified files, checking exit codes) before proceeding, and ensuring all terminal claims of task completion are strictly grounded in authoritative observation evidence.
@@ -270,10 +292,10 @@ This document establishes the formal, source-verified literature foundation for 
 ### 5. Restraint & Abstention
 
 *   **Primary Sources**:
-    *   *AgentAbstain: Benchmarking Operational Restraint in Agentic LLMs* (MIT code, CC BY 4.0 data, arXiv:2607.10059)
-    *   *Trust-or-Escalate: When Should Autonomous Agents Request Human Clarification?* (arXiv:2407.12345)
-    *   *ToolMisuseBench: Evaluating Safety Restraint against Harmful Tool Arguments* (arXiv:2510.04567)
-    *   *Clarification Timing: Optimizing Dialogue Timing in Task-Oriented Agents* (arXiv:2511.09876)
+    *   *AgentAbstain: Do LLM Agents Know When Not to Act?* (MIT code, CC BY 4.0 data, arXiv:2607.10059)
+    *   *Trust or Escalate: LLM Judges with Provable Guarantees for Human Agreement* (arXiv:2407.18370)
+    *   *ToolMisuseBench: An Offline Deterministic Benchmark for Tool Misuse and Recovery* (arXiv:2604.01508)
+    *   *Ask Early, Ask Late, Ask Right: When Does Clarification Timing Matter* (arXiv:2605.07937)
 
 *   **Operational Definition**:
     The agent acting decisively when all required conditions and authorizations hold, while explicitly refraining from state-mutating actions, asking targeted clarification, or safely aborting when preconditions, safety policies, or specifications are violated or ambiguous.
@@ -315,8 +337,8 @@ This document establishes the formal, source-verified literature foundation for 
 *   **Primary Sources**:
     *   *ATIF Specification v1.7: Section II StepObject & Terminal Conventions* (Harbor, 2026)
     *   *Meta-Task Appendix D: Package Review Invariants* (arXiv:2607.27929)
-    *   *SWE-pruner: Detecting Zombie Processes and Resource Leaks in Agent Sandboxes* (arXiv:2504.09876)
-    *   *AgentProcessBench: Process Quality in Multi-Turn Trajectories* (arXiv:2502.12345)
+    *   *SWE-Pruner: Self-Adaptive Context Pruning for Coding Agents* (arXiv:2601.16746)
+    *   *AgentProcessBench: Diagnosing Step-Level Process Quality in Tool-Using Agents* (arXiv:2603.14465)
 
 *   **Operational Definition**:
     Clean, intentional, and timely termination upon goal completion, signaling explicit completion through designated terminal interfaces, with zero leaked actions or background daemon persistence.
@@ -357,7 +379,7 @@ This document establishes the formal, source-verified literature foundation for 
 *   **Primary Sources**:
     *   *StateJournalPlugin Architecture & Inotify Specifications* (Eval Lab, 2026)
     *   *SWE-bench: Can Language Models Resolve Real-World GitHub Issues?* (ICLR 2024, arXiv:2310.06770)
-    *   *SWE-pruner: Trimming Search Trajectories in Software Engineering* (arXiv:2504.09876)
+    *   *SWE-Pruner: Self-Adaptive Context Pruning for Coding Agents* (arXiv:2601.16746)
     *   *Daydream: Deterministic Trajectory Metric Extraction* (2025)
 
 *   **Operational Definition**:
@@ -398,9 +420,9 @@ This document establishes the formal, source-verified literature foundation for 
 
 *   **Primary Sources**:
     *   *ATIF Specification v1.7: Section II subagent_trajectories & SubagentTrajectoryRef* (Harbor RFC 0001, 2026)
-    *   *CooperBench: Benchmarking Multi-Agent Collaboration and Code Integration* (arXiv:2511.12345)
-    *   *TraceJudgeBench: Evaluating Trace Quality in Multi-Agent Systems* (arXiv:2604.09876)
-    *   *MetaAgent-X: Multi-Agent Coordination and Task Handoffs* (arXiv:2605.04321)
+    *   **CooperBench** — **UNVERIFIED**: no arXiv ID located in manifest or API; previously cited `2511.12345` is an unrelated paper. Do not cite with an ID
+    *   **TraceJudgeBench** — Hugging Face dataset `samp0rt/TraceJudgeBench`, **not an arXiv paper**; previously cited `2604.09876` is unrelated
+    *   *MetaAgent-X : Breaking the Ceiling of Automatic Multi-Agent Systems* (arXiv:2605.14212)
 
 *   **Operational Definition**:
     A parent agent decomposing an objective, spawning subordinate agents with scoped instructions and toolsets, passing parameters, receiving subagent results, resolving subagent failures, and integrating contributions into a unified solution.

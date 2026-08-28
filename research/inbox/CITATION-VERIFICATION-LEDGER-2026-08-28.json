@@ -1,0 +1,559 @@
+{
+  "artifact": "citation-verification-ledger",
+  "version": 1,
+  "generated_at": "2026-08-28T22:22:51.335141Z",
+  "requested_by": "Analyst (wK:p5)",
+  "method": "every id resolved via export.arxiv.org Atom API; bindings cross-checked against local paper manifests",
+  "manifest_sources_checked": 125,
+  "manifest_ids_resolved": 125,
+  "asserted_ids_audited": 31,
+  "defect_counts": {
+    "FABRICATED_ID": 20,
+    "BINDING_OK": 6,
+    "TITLE_INVENTED": 5
+  },
+  "defects": [
+    {
+      "asserted_arxiv_id": "2305.14614",
+      "asserted_name": "ALCE",
+      "actually_resolves_to": "Invited Paper: Initial Steps Toward a Compiler for Distributed Programs",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2305.14627",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2310.06770",
+      "asserted_name": "SWE-bench",
+      "actually_resolves_to": "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?",
+      "defect_class": "BINDING_OK",
+      "corrected_arxiv_id": "2310.06770",
+      "note": "exact title match"
+    },
+    {
+      "asserted_arxiv_id": "2404.10774",
+      "asserted_name": "MiniCheck",
+      "actually_resolves_to": "MiniCheck: Efficient Fact-Checking of LLMs on Grounding Documents",
+      "defect_class": "BINDING_OK",
+      "corrected_arxiv_id": "2404.10774",
+      "note": "exact title match"
+    },
+    {
+      "asserted_arxiv_id": "2406.12045",
+      "asserted_name": "tau2-bench / tau-bench",
+      "actually_resolves_to": "$\u03c4$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains",
+      "defect_class": "TITLE_INVENTED",
+      "corrected_arxiv_id": "2406.12045",
+      "note": "ID is correct for \"tau-bench\"; prose title was invented"
+    },
+    {
+      "asserted_arxiv_id": "2407.12345",
+      "asserted_name": "Trust-or-Escalate",
+      "actually_resolves_to": "VisionTrap: Vision-Augmented Trajectory Prediction Guided by Textual Descripti",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2407.18370",
+      "note": "asserted ID resolves to an unrelated paper; corrected binding located"
+    },
+    {
+      "asserted_arxiv_id": "2411.00640",
+      "asserted_name": null,
+      "actually_resolves_to": "Adding Error Bars to Evals: A Statistical Approach to Language Model Evaluatio",
+      "defect_class": "BINDING_OK",
+      "corrected_arxiv_id": "2411.00640",
+      "note": "manifest-backed, cited without an invented label"
+    },
+    {
+      "asserted_arxiv_id": "2502.12345",
+      "asserted_name": "AgentProcessBench",
+      "actually_resolves_to": "Uncertainty quantification for stationary and time-dependent PDEs subject to G",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2603.14465",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2504.09876",
+      "asserted_name": "SWE-pruner",
+      "actually_resolves_to": "HDC: Hierarchical Distillation for Multi-level Noisy Consistency in Semi-Super",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2601.16746",
+      "note": "asserted ID resolves to an unrelated paper; corrected binding located"
+    },
+    {
+      "asserted_arxiv_id": "2509.08765",
+      "asserted_name": "AgentRx",
+      "actually_resolves_to": "One-shot acceleration of transient PDE solvers via online-learned precondition",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2602.02475",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2509.18844",
+      "asserted_name": "LOCA-Bench",
+      "actually_resolves_to": "Quantum-to-classical transition and H-theorem in surface diffusion",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2602.07962",
+      "note": "asserted ID resolves to an unrelated paper; corrected binding located"
+    },
+    {
+      "asserted_arxiv_id": "2510.04567",
+      "asserted_name": "ToolMisuseBench",
+      "actually_resolves_to": "GILT: An LLM-Free, Tuning-Free Graph Foundational Model for In-Context Learnin",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2604.01508",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2510.09876",
+      "asserted_name": "TrajDebug",
+      "actually_resolves_to": "A Systematic Literature Review of Machine Learning Techniques for Observationa",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2608.06346",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2510.12345",
+      "asserted_name": "ContextBench",
+      "actually_resolves_to": "Carleman Estimates for Backward Anisotropic Stochastic Parabolic Equations wit",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2602.05892",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2510.27246",
+      "asserted_name": "BEAM",
+      "actually_resolves_to": "Beyond a Million Tokens: Benchmarking and Enhancing Long-Term Memory in LLMs",
+      "defect_class": "TITLE_INVENTED",
+      "corrected_arxiv_id": "2510.27246",
+      "note": "ID is correct for \"BEAM\"; prose title was invented"
+    },
+    {
+      "asserted_arxiv_id": "2511.08325",
+      "asserted_name": "MemoryAgentBench",
+      "actually_resolves_to": "AgentPRM: Process Reward Models for LLM Agents via Step-Wise Promise and Progr",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2507.05257",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2511.09876",
+      "asserted_name": "Clarification Timing",
+      "actually_resolves_to": "DP-GENG : Differentially Private Dataset Distillation Guided by DP-Generated D",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2605.07937",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2511.12345",
+      "asserted_name": "CooperBench",
+      "actually_resolves_to": "Finiteness of measures of maximal entropy for smooth saddle surface endomorphi",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": null,
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2512.08312",
+      "asserted_name": "AgentCheck",
+      "actually_resolves_to": "Parabolic Category O in Complex Rank via Fock Space Tensor Product Categorific",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2607.11098",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2512.09876",
+      "asserted_name": "MemGym",
+      "actually_resolves_to": "Homological Milnor-Witt modules and Chow-Witt groups over general bases",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2605.20833",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2512.18902",
+      "asserted_name": "Graphectory",
+      "actually_resolves_to": "Speaker Recognition -- Wavelet Packet Based Multiresolution Feature Extraction",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2512.02393",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2602.12852",
+      "asserted_name": null,
+      "actually_resolves_to": "WebClipper: Efficient Evolution of Web Agents with Graph-based Trajectory Prun",
+      "defect_class": "BINDING_OK",
+      "corrected_arxiv_id": "2602.12852",
+      "note": "manifest-backed, cited without an invented label"
+    },
+    {
+      "asserted_arxiv_id": "2602.14922",
+      "asserted_name": "Recovery-Bench",
+      "actually_resolves_to": "ReusStdFlow: A Standardized Reusability Framework for Dynamic Workflow Constru",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": null,
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2604.09876",
+      "asserted_name": "TraceJudgeBench",
+      "actually_resolves_to": "Efficient Personalization of Generative User Interfaces",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": null,
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2604.12876",
+      "asserted_name": "FuncBenchGen",
+      "actually_resolves_to": "Fueter trees for Dunkl-regular functions over alternative *-algebras",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2509.26553",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2605.04321",
+      "asserted_name": "MetaAgent-X",
+      "actually_resolves_to": "AI and Suicide Prevention: A Cross-Sector Primer",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2605.14212",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2605.10325",
+      "asserted_name": "VPR",
+      "actually_resolves_to": "Verifiable Process Rewards for Agentic Reasoning",
+      "defect_class": "TITLE_INVENTED",
+      "corrected_arxiv_id": "2605.10325",
+      "note": "ID is correct for \"VPR\"; prose title was invented"
+    },
+    {
+      "asserted_arxiv_id": "2605.12345",
+      "asserted_name": "GroundEval",
+      "actually_resolves_to": "Output Composability of QLoRA PEFT Modules for Plug-and-Play Attribute-Control",
+      "defect_class": "FABRICATED_ID",
+      "corrected_arxiv_id": "2606.22737",
+      "note": "asserted ID resolves to an unrelated paper"
+    },
+    {
+      "asserted_arxiv_id": "2605.28556",
+      "asserted_name": null,
+      "actually_resolves_to": "A Matter of TASTE: Improving Coverage and Difficulty of Agent Benchmarks",
+      "defect_class": "BINDING_OK",
+      "corrected_arxiv_id": "2605.28556",
+      "note": "manifest-backed, cited without an invented label"
+    },
+    {
+      "asserted_arxiv_id": "2606.25819",
+      "asserted_name": "ToolBench-X",
+      "actually_resolves_to": "Beyond Function Calling: Benchmarking Tool-Using Agents under Tool-Environment",
+      "defect_class": "TITLE_INVENTED",
+      "corrected_arxiv_id": "2606.25819",
+      "note": "ID is correct for \"ToolBench-X\"; prose title was invented"
+    },
+    {
+      "asserted_arxiv_id": "2607.10059",
+      "asserted_name": "AgentAbstain",
+      "actually_resolves_to": "AgentAbstain: Do LLM Agents Know When Not to Act?",
+      "defect_class": "BINDING_OK",
+      "corrected_arxiv_id": "2607.10059",
+      "note": "exact title match"
+    },
+    {
+      "asserted_arxiv_id": "2607.27929",
+      "asserted_name": "Meta-Task Appendix D & F.3",
+      "actually_resolves_to": "Meta-Task: Turning Terminal Task Synthesis into a Terminal Task for Scalable A",
+      "defect_class": "TITLE_INVENTED",
+      "corrected_arxiv_id": "2607.27929",
+      "note": "ID is correct for \"Meta-Task\"; prose title was invented"
+    }
+  ],
+  "verified_bindings": [
+    {
+      "benchmark_name": "ALCE",
+      "verified_arxiv_id": "2305.14627",
+      "resolved_title": "Enabling Large Language Models to Generate Text with Citations",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "AgentAbstain",
+      "verified_arxiv_id": "2607.10059",
+      "resolved_title": "AgentAbstain: Do LLM Agents Know When Not to Act?",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "AgentAtlas",
+      "verified_arxiv_id": "2605.20530",
+      "resolved_title": "AgentAtlas: Beyond Outcome Leaderboards for LLM Agents",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "AgentCheck",
+      "verified_arxiv_id": "2607.11098",
+      "resolved_title": "AgentCheck: A Reproduce-Intervene-Mitigate Workbench for LLM Agents over MCP",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "AgentDiagnose",
+      "verified_arxiv_id": null,
+      "resolved_title": null,
+      "binding_status": "UNVERIFIED",
+      "provenance": "manifest entry carries NO arXiv id"
+    },
+    {
+      "benchmark_name": "AgentProcessBench",
+      "verified_arxiv_id": "2603.14465",
+      "resolved_title": "AgentProcessBench: Diagnosing Step-Level Process Quality in Tool-Using Agents",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "AgentRx",
+      "verified_arxiv_id": "2602.02475",
+      "resolved_title": "AgentRx: Diagnosing AI Agent Failures from Execution Trajectories",
+      "binding_status": "VERIFIED",
+      "provenance": "API (Analyst-supplied, confirmed)"
+    },
+    {
+      "benchmark_name": "BEAM",
+      "verified_arxiv_id": "2510.27246",
+      "resolved_title": "Beyond a Million Tokens: Benchmarking and Enhancing Long-Term Memory in LLMs",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "Clarification Timing",
+      "verified_arxiv_id": "2605.07937",
+      "resolved_title": "Ask Early, Ask Late, Ask Right: When Does Clarification Timing Matter for Long-Horizon Agents?",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "CodeTracer",
+      "verified_arxiv_id": "2604.11641",
+      "resolved_title": "CodeTracer: Towards Traceable Agent States",
+      "binding_status": "VERIFIED",
+      "provenance": "API (Analyst-supplied, confirmed)"
+    },
+    {
+      "benchmark_name": "ContextBench",
+      "verified_arxiv_id": "2602.05892",
+      "resolved_title": "ContextBench: A Benchmark for Context Retrieval in Coding Agents",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "CooperBench",
+      "verified_arxiv_id": null,
+      "resolved_title": null,
+      "binding_status": "UNVERIFIED",
+      "provenance": "UNVERIFIED - no arXiv ID located in manifest or API"
+    },
+    {
+      "benchmark_name": "Failure as a Process",
+      "verified_arxiv_id": "2607.09510",
+      "resolved_title": "Failure as a Process: An Anatomy of CLI Coding Agent Trajectories",
+      "binding_status": "VERIFIED",
+      "provenance": "API (Analyst-supplied, confirmed)"
+    },
+    {
+      "benchmark_name": "FuncBenchGen",
+      "verified_arxiv_id": "2509.26553",
+      "resolved_title": "Towards Reliable Benchmarking: A Contamination Free, Controllable Evaluation Framework for Multi-step LLM Function Calling",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "Graphectory",
+      "verified_arxiv_id": "2512.02393",
+      "resolved_title": "Process-Centric Analysis of Agentic Software Systems",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "GroundEval",
+      "verified_arxiv_id": "2606.22737",
+      "resolved_title": "GroundEval: A Deterministic Replacement for LLM-as-Judge in Stateful Agent Evaluation",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "LOCA-bench",
+      "verified_arxiv_id": "2602.07962",
+      "resolved_title": "LOCA-bench: Benchmarking Language Agents Under Controllable and Extreme Context Growth",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "MemGym",
+      "verified_arxiv_id": "2605.20833",
+      "resolved_title": "MemGym: a Long-Horizon Memory Environment for LLM Agents",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "MemoryAgentBench",
+      "verified_arxiv_id": "2507.05257",
+      "resolved_title": "Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "MemoryArena",
+      "verified_arxiv_id": "2602.16313",
+      "resolved_title": "MemoryArena: Benchmarking Agent Memory in Interdependent Multi-Session Agentic Tasks",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "Meta-Task",
+      "verified_arxiv_id": "2607.27929",
+      "resolved_title": "Meta-Task: Turning Terminal Task Synthesis into a Terminal Task for Scalable Agent Training",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "MetaAgent-X",
+      "verified_arxiv_id": "2605.14212",
+      "resolved_title": "MetaAgent-X : Breaking the Ceiling of Automatic Multi-Agent Systems via End-to-End Reinforcement Learning",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "MiniCheck",
+      "verified_arxiv_id": "2404.10774",
+      "resolved_title": "MiniCheck: Efficient Fact-Checking of LLMs on Grounding Documents",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "Proxy State Evaluation",
+      "verified_arxiv_id": null,
+      "resolved_title": null,
+      "binding_status": "UNVERIFIED",
+      "provenance": "manifest entry carries NO arXiv id"
+    },
+    {
+      "benchmark_name": "Recovery-Bench",
+      "verified_arxiv_id": null,
+      "resolved_title": null,
+      "binding_status": "UNVERIFIED",
+      "provenance": "REPOSITORY ONLY - letta-ai/recovery-bench; no arXiv ID located"
+    },
+    {
+      "benchmark_name": "SAFARI",
+      "verified_arxiv_id": "2606.24626",
+      "resolved_title": "SAFARI: Scaling Long Horizon Agentic Fault Attribution via Active Investigation",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "SWE-Pruner",
+      "verified_arxiv_id": "2601.16746",
+      "resolved_title": "SWE-Pruner: Self-Adaptive Context Pruning for Coding Agents",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "SWE-bench",
+      "verified_arxiv_id": "2310.06770",
+      "resolved_title": "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?",
+      "binding_status": "VERIFIED",
+      "provenance": "API"
+    },
+    {
+      "benchmark_name": "Span-Level Error Localization (TELBench/DRIFT)",
+      "verified_arxiv_id": "2606.02060",
+      "resolved_title": "Where Do Deep-Research Agents Go Wrong? Span-Level Error Localization in Agent Trajectories",
+      "binding_status": "VERIFIED",
+      "provenance": "API (Analyst-supplied, confirmed)"
+    },
+    {
+      "benchmark_name": "TASTE",
+      "verified_arxiv_id": "2605.28556",
+      "resolved_title": "A Matter of TASTE: Improving Coverage and Difficulty of Agent Benchmarks",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "ToolBench-X",
+      "verified_arxiv_id": "2606.25819",
+      "resolved_title": "Beyond Function Calling: Benchmarking Tool-Using Agents under Tool-Environment Unreliability",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "ToolMaze / When Tools Fail",
+      "verified_arxiv_id": "2606.05806",
+      "resolved_title": "When Tools Fail: Benchmarking Dynamic Replanning and Anomaly Recovery in LLM Agents",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "ToolMisuseBench",
+      "verified_arxiv_id": "2604.01508",
+      "resolved_title": "ToolMisuseBench: An Offline Deterministic Benchmark for Tool Misuse and Recovery in Agentic Systems",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "ToolPRMBench",
+      "verified_arxiv_id": "2601.12294",
+      "resolved_title": "ToolPRMBench: Evaluating and Advancing Process Reward Models for Tool-using Agents",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "TraceJudgeBench",
+      "verified_arxiv_id": null,
+      "resolved_title": null,
+      "binding_status": "UNVERIFIED",
+      "provenance": "UNVERIFIED - HF dataset samp0rt/TraceJudgeBench; not an arXiv paper"
+    },
+    {
+      "benchmark_name": "TrajDebug",
+      "verified_arxiv_id": "2608.06346",
+      "resolved_title": "TRAJDEBUG: Tracing Error Lifecycle to Identify Critical Failures in Long-Horizon Agent Trajectories",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "Trust or Escalate",
+      "verified_arxiv_id": "2407.18370",
+      "resolved_title": "Trust or Escalate: LLM Judges with Provable Guarantees for Human Agreement",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "VPR",
+      "verified_arxiv_id": "2605.10325",
+      "resolved_title": "Verifiable Process Rewards for Agentic Reasoning",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "WebClipper",
+      "verified_arxiv_id": "2602.12852",
+      "resolved_title": "WebClipper: Efficient Evolution of Web Agents with Graph-based Trajectory Pruning",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "tau-bench",
+      "verified_arxiv_id": "2406.12045",
+      "resolved_title": "$\u03c4$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    },
+    {
+      "benchmark_name": "tau2-bench",
+      "verified_arxiv_id": "2506.07982",
+      "resolved_title": "$\u03c4^2$-Bench: Evaluating Conversational Agents in a Dual-Control Environment",
+      "binding_status": "VERIFIED",
+      "provenance": "manifest+API"
+    }
+  ],
+  "names_with_no_locatable_arxiv_id": [
+    "CooperBench",
+    "Recovery-Bench",
+    "TraceJudgeBench"
+  ]
+}

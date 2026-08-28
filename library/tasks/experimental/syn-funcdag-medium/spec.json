@@ -1,6 +1,6 @@
 {
   "spec_version": "synthetic/v1",
-  "spec_id": "sha256:7903b44eac0481cef052f83498e6d94e100ec9046d86363436984b5ee634692d",
+  "spec_id": "sha256:2586c511b4b9faf5cfdc7d9fd12afb6eac705cd594d167b7cd247768cbb6bc2b",
   "construct_name": "function_dag_dependency_resolution",
   "family": "function_dag",
   "perturbation_type": "dependency_graph_medium",
@@ -12,8 +12,8 @@
   ],
   "base_task_digest": "sha256:ced8b9435045c312cff98a2096522c800e30d69c61dca21ad3c15ad34f31f995",
   "generated_task_digest": "sha256:ced8b9435045c312cff98a2096522c800e30d69c61dca21ad3c15ad34f31f995",
-  "expected_behavior": "Correctly resolve the dependency chain for target node n_4_0 across 4 layers while ignoring 2 distractor nodes.",
-  "capability_opportunity": "Evaluates model capability to trace topological dependency paths in code, filter irrelevant dead-end computations, and execute composite arithmetic accurately.",
+  "expected_behavior": "Correctly resolve the dependency chain for target node n_4_0 across 4 layers while ignoring 2 distractor nodes, and report the exact target-ancestry dependency trace.",
+  "capability_opportunity": "Evaluates model capability to trace topological dependency paths in code, filter irrelevant dead-end computations, execute composite arithmetic accurately, and expose the resolved chain as structured evidence.",
   "required_evidence": [
     "/app/output/result.json"
   ],
@@ -32,6 +32,7 @@
     "seed": 101,
     "network_mode": "public",
     "network_isolation_enforced": false,
-    "network_isolation_reason": "darwin-docker-cannot-enforce-no-network"
+    "network_isolation_reason": "darwin-docker-cannot-enforce-no-network",
+    "output_contract": "dependency-trace/v1"
   }
 }

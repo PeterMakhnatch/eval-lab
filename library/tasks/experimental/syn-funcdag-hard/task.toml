@@ -36,6 +36,9 @@ timeout_sec = 60.0
 timeout_sec = 60.0
 environment_mode = "separate"
 
+[verifier.environment]
+network_mode = "no-network"
+
 [environment]
 # Docker Desktop on macOS cannot enforce Harbor's no-network policy. This local
 # control has no network dependency, but uses the supported public baseline.

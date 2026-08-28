@@ -20,12 +20,15 @@ from pydantic import ValidationError
 from evallab.execution_contracts import (
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
     CONTROL_AGENTS,
+    DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
+    DEEPSEEK_MODEL_SELECTOR,
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     DEFAULT_TRIAL_TIMEOUT_SECONDS,
     HARBOR_AGENT_IMPORT_PATHS,
     HARBOR_STATE_JOURNAL_PLUGIN,
     LOCAL_TO_HARBOR_MODEL,
     MAX_TRIAL_TIMEOUT_SECONDS,
+    REDACTED_SECRET_VALUE,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     WATCHDOG_POLL_SECONDS,
     ExecutionFailure,
@@ -34,6 +37,7 @@ from evallab.execution_contracts import (
     TransientHarnessFailure,
     TrialTimeoutFailure,
     build_command,
+    redact_environment,
     resolve_harbor_agent,
     resolve_harbor_model,
     subscription_command,
@@ -42,19 +46,26 @@ from evallab.execution_contracts import (
     transient_provider_reason,
     validate_request,
 )
-from evallab.harbor_network import NetworkAdaptation, adapt_task_toml_for_host
+from evallab.harbor_network import (
+    NetworkAdaptation,
+    adapt_task_toml_for_host,
+    with_agent_network_allowlist,
+)
 from evallab.results import load_job
 from evallab.schemas import ExperimentMatrix, MatrixRun
 
 __all__ = [
     "_SUBSCRIPTION_ENVIRONMENT_KEYS",
     "CONTROL_AGENTS",
+    "DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS",
+    "DEEPSEEK_MODEL_SELECTOR",
     "DEFAULT_HEARTBEAT_INTERVAL_SECONDS",
     "DEFAULT_TRIAL_TIMEOUT_SECONDS",
     "HARBOR_AGENT_IMPORT_PATHS",
     "HARBOR_STATE_JOURNAL_PLUGIN",
     "LOCAL_TO_HARBOR_MODEL",
     "MAX_TRIAL_TIMEOUT_SECONDS",
+    "REDACTED_SECRET_VALUE",
     "SUPPORT_COMMAND_TIMEOUT_SECONDS",
     "WATCHDOG_POLL_SECONDS",
     "HarborProcessResult",
@@ -71,6 +82,7 @@ __all__ = [
     "load_matrix",
     "preflight_request",
     "profile_for_request",
+    "redact_environment",
     "request_from_matrix",
     "resolve_harbor_agent",
     "resolve_harbor_model",
@@ -93,6 +105,8 @@ def _run_text_command(
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, **kwargs)
+
+
 def _is_under(path: Path, root: Path) -> bool:
     try:
         path.resolve().relative_to(root.resolve())
@@ -263,7 +277,6 @@ def git_state(root: Path) -> dict[str, Any]:
     }
 
 
-
 def _terminate_process_group(process: subprocess.Popen[Any]) -> None:
     try:
         os.killpg(process.pid, signal.SIGTERM)
@@ -312,9 +325,11 @@ def run_harbor_process(
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
 ) -> HarborProcessResult:
     """Run Harbor under an aggregate fail-safe and a per-trial watchdog."""
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    runtime_environment = subscription_environment()
     repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
+    deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
+    runtime_environment = subscription_environment(
+        include_deepseek_credentials=deepseek_adapter in command
+    )
     if any(import_path in command for import_path in repo_imports):
         source_root = cwd / "src"
         if source_root.is_dir():
@@ -574,43 +589,53 @@ def _cleanup_stage(staging_dir: Path | None) -> None:
     if staging_dir is not None and staging_dir.is_dir():
         shutil.rmtree(staging_dir)
 
+
 def _stage_task_for_host(
     source: Path,
     staging_dir: Path,
+    *,
+    agent_allowed_hosts: tuple[str, ...] = (),
 ) -> tuple[Path | None, NetworkAdaptation | None]:
-    """Create a host-compatible execution copy of the task package.
+    """Create a host-compatible, agent-policy execution copy of a task package.
 
-    The source package is never modified. Only ``task.toml`` is rewritten, and
-    a ``run_manifest.json`` is added to the copy when a network adaptation is
-    required. Returns ``(None, None)`` when the host can execute the canonical
-    policy directly.
+    The source package is never modified. ``task.toml`` is rewritten only for
+    host network compatibility and an explicit agent allowlist. Returns
+    ``(None, None)`` when no execution-only rewrite is required.
     """
     task_toml_path = source / "task.toml"
     if not task_toml_path.is_file():
         raise ValueError(f"task.toml missing in {source}")
     original_text = task_toml_path.read_text(encoding="utf-8")
     adapted_text, adaptation = adapt_task_toml_for_host(original_text)
-    if adaptation is None:
+    staged_text = with_agent_network_allowlist(adapted_text, agent_allowed_hosts)
+    if staged_text == original_text:
         return None, None
 
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
     staging_dir.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, staging_dir)
-    (staging_dir / "task.toml").write_text(adapted_text, encoding="utf-8")
+    (staging_dir / "task.toml").write_text(staged_text, encoding="utf-8")
 
-    manifest = {
+    manifest: dict[str, Any] = {
         "schema_version": "1.0",
-        "network_adaptation": asdict(adaptation),
+        "agent_allowed_hosts": list(agent_allowed_hosts),
     }
+    if adaptation is not None:
+        manifest["network_adaptation"] = asdict(adaptation)
     (staging_dir / "run_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
     return staging_dir, adaptation
 
+
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
+    if request.agent == "mini-swe-agent":
+        decision = preflight_request(request)
+        if not decision.proceed:
+            raise RuntimeError(f"DeepSeek credential preflight stopped: {decision.reason}")
     if not shutil.which("harbor"):
         raise RuntimeError("harbor is not installed or not on PATH")
 
@@ -625,7 +650,13 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     executor_log = _executor_log_path(request)
     started = datetime.now(UTC)
     try:
-        staged_task, adaptation = _stage_task_for_host(request.task, staging_dir)
+        staged_task, adaptation = _stage_task_for_host(
+            request.task,
+            staging_dir,
+            agent_allowed_hosts=(
+                ("api.deepseek.com",) if request.agent == "mini-swe-agent" else ()
+            ),
+        )
         if staged_task is not None:
             staged_request: RunRequest = replace(request, task=staged_task)
         else:

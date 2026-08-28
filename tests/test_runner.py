@@ -125,6 +125,32 @@ def test_codex_routes_through_repo_owned_pinned_adapter(tmp_path: Path) -> None:
     assert command[command.index("--model") + 1] == "gpt-5.6-luna"
 
 
+def test_deepseek_routes_through_pinned_bounded_mini_swe_adapter(
+    tmp_path: Path,
+) -> None:
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="mini-swe-agent",
+        model="deepseek/deepseek-v4-flash",
+        name="deepseek-pinned-test",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
+
+    command = build_command(request)
+
+    assert resolve_harbor_agent("mini-swe-agent") == (
+        "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent"
+    )
+    assert command[command.index("--agent") + 1] == resolve_harbor_agent("mini-swe-agent")
+    assert command[command.index("--model") + 1] == "deepseek/deepseek-v4-flash"
+    assert command[command.index("--n-concurrent-agents") + 1] == "1"
+    assert command[command.index("--n-tasks") + 1] == "1"
+    assert command[command.index("--max-retries") + 1] == "0"
+    assert "cost_limit=2.5" in command
+    assert "max_tokens=8192" in command
+
+
 def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> None:
     source_root = tmp_path / "src"
     source_root.mkdir()
@@ -145,6 +171,45 @@ def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> 
     assert result.returncode == 0
     pythonpath = log_path.read_text().strip().split(os.pathsep)
     assert str(source_root) in pythonpath
+
+
+def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "must-never-enter-log"
+    monkeypatch.setenv("MSWEA_API_KEY", secret)
+    script = (
+        "import os; "
+        "print('deepseek=' + ('set' if os.getenv('DEEPSEEK_API_KEY') else 'unset')); "
+        "print('mswea=' + ('set' if os.getenv('MSWEA_API_KEY') else 'unset'))"
+    )
+
+    deepseek_log = tmp_path / "deepseek.log"
+    deepseek = run_harbor_process(
+        [
+            sys.executable,
+            "-c",
+            script,
+            resolve_harbor_agent("mini-swe-agent"),
+        ],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=deepseek_log,
+    )
+    control_log = tmp_path / "control.log"
+    control = run_harbor_process(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=control_log,
+    )
+
+    assert deepseek.returncode == 0
+    assert deepseek_log.read_text().splitlines() == ["deepseek=set", "mswea=set"]
+    assert secret not in deepseek_log.read_text()
+    assert control.returncode == 0
+    assert control_log.read_text().splitlines() == ["deepseek=unset", "mswea=unset"]
 
 
 def test_non_control_agent_requires_billable_acknowledgement(tmp_path: Path) -> None:
@@ -270,13 +335,14 @@ def test_subscription_environment_does_not_forward_ambient_oauth_token() -> None
     }
 
 
-def test_subscription_command_routes_only_claude_through_keychain_wrapper(
-    tmp_path: Path,
-) -> None:
+def test_subscription_command_routes_credential_transports(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     wrapper = repo / "scripts/with-claude-auth"
     wrapper.parent.mkdir(parents=True)
     wrapper.write_text("#!/bin/sh\n")
+    overlay = repo / "containers/deepseek-v4-flash-secret.compose.yaml"
+    overlay.parent.mkdir(parents=True)
+    overlay.write_text("services: {}\n")
     harbor_command = ["harbor", "run"]
     claude = RunRequest(
         task=task(tmp_path),
@@ -294,12 +360,25 @@ def test_subscription_command_routes_only_claude_through_keychain_wrapper(
         jobs_dir=tmp_path / "runs",
         allow_billable=True,
     )
+    deepseek = RunRequest(
+        task=claude.task,
+        agent="mini-swe-agent",
+        model="deepseek/deepseek-v4-flash",
+        name="deepseek-api",
+        jobs_dir=tmp_path / "runs",
+        allow_billable=True,
+    )
 
     assert subscription_command(claude, harbor_command, repo_root=repo) == [
         str(wrapper.resolve()),
         *harbor_command,
     ]
     assert subscription_command(codex, harbor_command, repo_root=repo) == harbor_command
+    assert subscription_command(deepseek, harbor_command, repo_root=repo) == [
+        *harbor_command,
+        "--extra-docker-compose",
+        str(overlay.resolve()),
+    ]
 
 
 def test_local_env_loader_ignores_model_api_keys(

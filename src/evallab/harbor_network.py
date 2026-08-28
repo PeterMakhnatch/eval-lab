@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import platform
 import re
 import tomllib
@@ -103,9 +104,7 @@ def _canonical_networks(
     """
     environment = config.get("environment")
     agent: str = (
-        environment.get("network_mode", "public")
-        if isinstance(environment, dict)
-        else "public"
+        environment.get("network_mode", "public") if isinstance(environment, dict) else "public"
     )
 
     verifier = config.get("verifier")
@@ -137,6 +136,49 @@ def _section_range(text: str, header: str) -> tuple[int, int] | None:
     next_match = re.compile(r"^\[", re.MULTILINE).search(text, match.end())
     end = next_match.start() if next_match is not None else len(text)
     return start, end
+
+
+def with_agent_network_allowlist(
+    task_toml_text: str,
+    allowed_hosts: tuple[str, ...],
+) -> str:
+    """Add an explicit agent-phase allowlist without changing the source package."""
+    if not allowed_hosts:
+        return task_toml_text
+    if any(not re.fullmatch(r"[A-Za-z0-9.-]+", host) for host in allowed_hosts):
+        raise ValueError("agent allowed_hosts contains an invalid hostname")
+    config = tomllib.loads(task_toml_text)
+    agent = config.get("agent")
+    if not isinstance(agent, dict):
+        raise ValueError("[agent] not found in task.toml")
+    existing_mode = agent.get("network_mode")
+    existing_hosts = agent.get("allowed_hosts")
+    if existing_mode is not None or existing_hosts is not None:
+        if existing_mode == "allowlist" and existing_hosts == list(allowed_hosts):
+            return task_toml_text
+        raise ValueError("task already declares a different agent network policy")
+    found = _section_range(task_toml_text, "agent")
+    if found is None:
+        raise ValueError("[agent] not found in task.toml")
+    start, end = found
+    header_end = task_toml_text.find("\n", start, end)
+    if header_end < 0:
+        header_end = end
+        separator = "\n"
+    else:
+        header_end += 1
+        separator = ""
+    hosts = ", ".join(json.dumps(host) for host in allowed_hosts)
+    insertion = separator + 'network_mode = "allowlist"\n' + f"allowed_hosts = [{hosts}]\n"
+    updated = task_toml_text[:header_end] + insertion + task_toml_text[header_end:]
+    updated_agent = tomllib.loads(updated).get("agent")
+    if not isinstance(updated_agent, dict):
+        raise ValueError("agent network policy did not parse")
+    if updated_agent.get("network_mode") != "allowlist":
+        raise ValueError("agent network_mode was not set")
+    if updated_agent.get("allowed_hosts") != list(allowed_hosts):
+        raise ValueError("agent allowed_hosts was not set")
+    return updated
 
 
 def _replace_in_section(
@@ -171,7 +213,7 @@ def _replace_in_section(
     line_start = start + match.start()
     line_end = start + match.end()
     quote = match.group(2)
-    new_line = f'{match.group(1)}{quote}{new_value}{quote}{match.group(4)}'
+    new_line = f"{match.group(1)}{quote}{new_value}{quote}{match.group(4)}"
     return text[:line_start] + new_line + text[line_end:]
 
 
@@ -239,15 +281,11 @@ def adapt_task_toml_for_host(
 
     # [verifier].network_mode phase override if present
     if requested_phase is not None and effective_phase is not None:
-        new_text = _replace_in_section(
-            new_text, "verifier", "network_mode", effective_phase
-        )
+        new_text = _replace_in_section(new_text, "verifier", "network_mode", effective_phase)
     new_config = tomllib.loads(new_text)
 
     # Prove only network_mode values changed.
-    if _set_network_sentinel(config, "<adapted>") != _set_network_sentinel(
-        new_config, "<adapted>"
-    ):
+    if _set_network_sentinel(config, "<adapted>") != _set_network_sentinel(new_config, "<adapted>"):
         raise ValueError("adaptation changed non-network parsed fields")
 
     # Prove the effective values landed where expected.

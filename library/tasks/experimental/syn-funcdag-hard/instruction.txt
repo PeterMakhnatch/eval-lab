@@ -15,12 +15,25 @@ Evaluate the dependency chain starting from the root inputs in `/app/src/inputs.
 Note: The graph contains 6 computational layers and 4 distractor nodes (including dead-end branches and disconnected components) that must be filtered out or handled correctly.
 
 ## Output Specification
-Write a JSON file to `/app/output/result.json` with the following schema:
+Write a JSON file to `/app/output/result.json` with this exact top-level schema:
 ```json
 {
   "target": "n_6_0",
-  "value": <computed_integer_value>
+  "value": <computed_integer_value>,
+  "dependency_trace": [
+    {
+      "node": "<required_node_id>",
+      "inputs": [
+        {"id": "<input_or_node_id>", "value": <exact_integer_value>}
+      ],
+      "value": <exact_integer_value>
+    }
+  ]
 }
 ```
 
-The output file `/app/output/result.json` must be valid JSON containing exact integer results.
+`dependency_trace` must contain every node in the target's transitive dependency
+chain exactly once, in topological order, and no distractor nodes. Each `inputs`
+array must preserve the node's declared input order and report the exact resolved
+integer value for every root input or upstream node. No extra top-level or trace
+entry fields are allowed.

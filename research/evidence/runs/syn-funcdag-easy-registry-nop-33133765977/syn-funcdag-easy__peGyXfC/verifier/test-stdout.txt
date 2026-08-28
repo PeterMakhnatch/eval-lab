@@ -1,0 +1,1 @@
+[FAIL] Result file does not exist: /app/output/result.json

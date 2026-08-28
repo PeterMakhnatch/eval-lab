@@ -4,7 +4,7 @@
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
-  "registered_tasks": 1,
+  "registered_tasks": 2,
   "candidate_tasks": 3,
   "items": [
     {
@@ -5085,7 +5085,7 @@
       "has_environment": true,
       "has_verifier": true,
       "is_canary": false,
-      "registration_state": null
+      "registration_state": "registered"
     },
     {
       "task_id": "syn-funcdag-hard",

@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "campaign": "deepseek-v4-flash-agentic-capability-screen",
+  "status": "blocked_pending_linux_certification_and_fresh_credential",
+  "authorizing_actor": "Peter Makhnatch",
+  "purpose": "discovery",
+  "claim_boundary": "This k=1 canary establishes execution-lane and trajectory-data viability only. It does not support comparative capability or benchmark-level performance claims.",
+  "model_lane": {
+    "agent": "mini-swe-agent",
+    "model": "deepseek/deepseek-v4-flash",
+    "reasoning_effort": "high",
+    "max_output_tokens": 32768,
+    "credential_env": "DEEPSEEK_API_KEY",
+    "credential_rule": "Use a fresh locally exported key. Never use or persist a credential disclosed in chat."
+  },
+  "execution": {
+    "environment": "docker",
+    "attempts_per_task": 1,
+    "concurrency": 1,
+    "planned_model_trials": 3,
+    "max_total_cost_usd": 3.0,
+    "jobs_dir": "runs",
+    "evidence_store": "derived/evidence-cas",
+    "auto_accept_semantic_findings": false
+  },
+  "launch_gates": [
+    "A fresh DEEPSEEK_API_KEY is present in the local operator environment and the disclosed key has been revoked.",
+    "The mini-swe-agent host and Harbor-container credential probes pass without logging secret values.",
+    "Each task has a successful Linux task-workbench certification packet and a human-created registered library/registry record.",
+    "The queue records explicit billable-run approval for each submitted ExperimentSpec.",
+    "One install-only adapter smoke and one lowest-cost task canary produce valid ATIF before the remaining tasks dispatch."
+  ],
+  "task_screen": [
+    {
+      "role": "planning_easy",
+      "capability": [
+        "dependency planning",
+        "tool-mediated artifact production"
+      ],
+      "task_name": "evallab/syn-funcdag-easy",
+      "task_path": "library/tasks/experimental/syn-funcdag-easy",
+      "candidate_id": "candidate-1d6fd814da82dcbb1525b4cd",
+      "package_digest": "sha256:5c76903e674fe1a9de9e5203bb1c7da3c82f25090a17ade2f3a2e9c74d081772",
+      "candidate_record_digest": "sha256:b0fddb4a62aebe34a4ff78113b6e2a946cdbf52d0d25c86f719b2ab18b5ac8c5",
+      "workbench_static": "pass",
+      "registration": "hold_pending_linux_controls"
+    },
+    {
+      "role": "planning_medium",
+      "capability": [
+        "multi-step dependency planning",
+        "distractor filtering",
+        "tool-mediated artifact production"
+      ],
+      "task_name": "evallab/syn-funcdag-medium",
+      "task_path": "library/tasks/experimental/syn-funcdag-medium",
+      "candidate_id": "candidate-8f82065cf0009fc73e21d110",
+      "package_digest": "sha256:619ecd419319601332c4d02d5a0d216bf9f395762031ea5d3ff2690d163bcb68",
+      "candidate_record_digest": "sha256:63531c84365d9236411f3dfa0d82f84fced1c3a35e44f066bc1dad69abc555e4",
+      "workbench_static": "pass",
+      "registration": "hold_pending_linux_controls"
+    },
+    {
+      "role": "planning_hard",
+      "capability": [
+        "long-horizon dependency planning",
+        "connected and disconnected distractor filtering",
+        "tool-mediated artifact production"
+      ],
+      "task_name": "evallab/syn-funcdag-hard",
+      "task_path": "library/tasks/experimental/syn-funcdag-hard",
+      "candidate_id": "candidate-255bacabcfdb93d529256244",
+      "package_digest": "sha256:bbfe0e96f5f96ea8573dffa24c0890d9e27668bec258283bab7cde4685eefdeb",
+      "candidate_record_digest": "sha256:cb165d73016fc97a63de0bf36432072f2ffa7fcd676c53cf9b5196d0229fa88e",
+      "workbench_static": "pass",
+      "registration": "hold_pending_linux_controls"
+    }
+  ],
+  "coverage": {
+    "planning": "represented by the three FuncDAG candidates",
+    "stateful_tool_use": "gap: tau-knowledge is on HOLD",
+    "context_management": "gap: LOCA is on HOLD",
+    "restraint_abstention": "gap: AgentAbstain is on HOLD",
+    "realistic_domain_planning": "gap: DeepPlanning is on HOLD"
+  },
+  "held_benchmarks": [
+    {
+      "benchmark": "tau-knowledge",
+      "preferred_candidate": "tau3-banking_knowledge-task-001",
+      "license": "MIT for the pinned tau2-bench and Harbor adapter sources; TASTE tau-c synthetic generation remains excluded because its notice is all-rights-reserved.",
+      "hold_reasons": [
+        "Execution depends on an external LLM user simulator credential.",
+        "The task is dynamically materialized from pinned external checkouts rather than a self-contained registered package.",
+        "No task-workbench certification or registry record exists."
+      ],
+      "evidence": [
+        "library/benchmarks/tau-knowledge/cohort.manifest.json",
+        "library/benchmarks/tau-knowledge/config/run.yaml",
+        "library/benchmarks/tau-knowledge/evidence/manifest.json",
+        "scripts/tau_knowledge/preflight.py",
+        ".github/workflows/tau-knowledge.yml"
+      ]
+    },
+    {
+      "benchmark": "LOCA",
+      "preferred_candidate": "loca-bench/ab-testing-seed-42-8k",
+      "license": "MIT at pinned upstream commit 8b6fac49d9edd92922593e703b74ea255357c3ec",
+      "hold_reasons": [
+        "The prior live task ended in RewardFileNotFoundError.",
+        "No durable ATIF/CAS trajectory supports the context-management claim.",
+        "Current context metrics are static file-size projections rather than measured multi-turn compaction behavior.",
+        "No task-workbench certification or registry record exists."
+      ],
+      "evidence": [
+        "library/benchmarks/loca-lean-v1/README.md",
+        "library/benchmarks/loca-lean-v1/evidence.json",
+        "library/benchmarks/loca-lean-v1/context_curve.py",
+        ".github/workflows/loca-lean.yml"
+      ]
+    },
+    {
+      "benchmark": "DeepPlanning",
+      "preferred_candidate": "travel-lisbon-002",
+      "license": "unknown and unverified",
+      "hold_reasons": [
+        "The last audited package exposed oracle payload in the agent-visible task JSON.",
+        "No current materialized task package or durable ATIF/CAS trial exists.",
+        "Upstream provenance and license are not pinned."
+      ],
+      "evidence": [
+        "docs/automated-trajectory-interpretation-architecture-v1.md",
+        "research/analysis/automated-trajectory-overnight-ledger.md",
+        "docs/STATUS.md"
+      ]
+    },
+    {
+      "benchmark": "AgentAbstain",
+      "preferred_candidate": null,
+      "license": "CC BY 4.0 data attribution; repository code license unspecified; upstream generator withheld",
+      "hold_reasons": [
+        "Zero of 131 operational candidate pairs satisfies the single-delta minimal-pair invariant.",
+        "Prompt, state, and tool-schema drift confound the act-versus-abstain contrast.",
+        "Repairing upstream bytes would violate provenance, and the generator is unavailable."
+      ],
+      "evidence": [
+        "research/experiments/manifests/agentabstain-audit/operational_audit_130.json",
+        "src/evallab/agentabstain_gate.py",
+        "library/adapters/agentabstain/evidence.json"
+      ]
+    },
+    {
+      "benchmark": "FuncDAG registration",
+      "preferred_candidate": "evallab/syn-funcdag-easy",
+      "license": "Apache-2.0 cleanroom synthetic implementation",
+      "hold_reasons": [
+        "Static task-workbench inspection passes for easy, medium, and hard.",
+        "Harbor 0.21 on Darwin rejects verifier network_mode=no-network, so all local control trials fail closed before verification.",
+        "A successful Linux control packet is required before Peter can create registered task records."
+      ],
+      "evidence": [
+        "src/evallab/synthetic_funcdag.py",
+        "tests/test_synthetic_funcdag.py",
+        "library/tasks/experimental/syn-funcdag-easy/task.toml"
+      ]
+    }
+  ]
+}

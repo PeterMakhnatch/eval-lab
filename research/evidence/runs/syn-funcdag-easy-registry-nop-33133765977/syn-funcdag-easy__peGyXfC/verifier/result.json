@@ -1,0 +1,5 @@
+{
+  "expected_contract": "dependency-trace/v1",
+  "passed": false,
+  "reason": "Result file does not exist: /app/output/result.json"
+}

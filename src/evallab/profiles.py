@@ -1,28 +1,28 @@
-"""Provider-neutral agent profiles for a subscriptions-only lab (M003).
+"""Provider-neutral agent profiles and credential preflight seams (M003).
 
 An AgentProfile is the immutable identity of one runnable agent
-configuration: Harbor adapter + exact model pin + subscription auth mode +
-secret-source *identifier* (never the secret) + requirements, capabilities,
-resources, and limits, with a stable content digest.
+configuration: Harbor adapter + exact model pin + auth mode + secret-source
+*identifier* (never the secret) + requirements, capabilities, resources, and
+limits, with a stable content digest.
 
 Hard rules encoded here rather than remembered:
 
-- Subscriptions only. No profile may name an API-key environment variable;
-  validators reject them, and probes never read, log, or forward key values.
+- Subscription credentials remain the default. The DeepSeek mini-swe-agent
+  lane is the sole API-key exception and may name only its two admitted
+  environment variables.
 - Probes return availability, expiry, and reason only — no secret material —
   and run through the same injected seams execution uses.
 - Qualification is a ladder of separate states (declared → installed →
   credential-ready → smoke-passed → canary-qualified); nothing is assumed.
 - Auth failure is a *preflight stop*, never a trial that scores reward zero.
-- Only independently observed facts are recorded as verified. Codex and
-  Claude carry their observed evidence; Gemini and Grok remain declared
-  and unavailable until proven in this lab.
+- Only independently observed facts are recorded as verified.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
@@ -34,12 +34,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-# Substrings that identify API-key style environment variables. A profile or
-# environment mentioning one of these is a policy violation, not a feature.
+# Substrings that identify API-key style environment variables. They remain
+# forbidden everywhere except the exact DeepSeek environment source below.
 _FORBIDDEN_KEY_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY")
+DEEPSEEK_CREDENTIAL_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
 
 AuthMode = Literal[
     "none",
+    "api-key-environment",
     "subscription-auth-file",
     "subscription-keychain",
     "subscription-cli-session",
@@ -110,11 +112,20 @@ class AgentProfile(BaseModel):
     def secret_source_is_identifier(cls, value: str | None) -> str | None:
         if value is None:
             return value
+        if value.startswith("env:"):
+            names = tuple(name.strip() for name in value.removeprefix("env:").split(","))
+            if not names or any(not name for name in names):
+                raise ValueError("environment secret_source must name at least one variable")
+            if frozenset(names) != DEEPSEEK_CREDENTIAL_NAMES:
+                raise ValueError(
+                    "environment secret_source may name only the admitted DeepSeek variables"
+                )
+            return value
         _rejects_api_key_names((value,))
         if not value.startswith(("keychain:", "file:", "cli:")):
             raise ValueError(
-                "secret_source must be 'keychain:<service>', 'file:<pattern>' "
-                "or 'cli:<command>'"
+                "secret_source must be 'keychain:<service>', 'file:<pattern>', "
+                "'cli:<command>', or the admitted DeepSeek 'env:<names>' source"
             )
         return value
 
@@ -125,12 +136,14 @@ class AgentProfile(BaseModel):
                 raise ValueError("control adapters take no credential and no model")
         else:
             if self.auth_mode == "none":
-                raise ValueError(f"adapter {self.adapter!r} invokes a model; auth_mode "
-                                 "'none' is reserved for controls")
+                raise ValueError(
+                    f"adapter {self.adapter!r} invokes a model; auth_mode "
+                    "'none' is reserved for controls"
+                )
             if not self.model:
                 raise ValueError("billable profiles require an exact model pin")
             if self.secret_source is None:
-                raise ValueError("subscription profiles must identify their secret source")
+                raise ValueError("billable profiles must identify their secret source")
         if (
             self.auth_mode == "subscription-keychain"
             and self.secret_source is not None
@@ -149,6 +162,12 @@ class AgentProfile(BaseModel):
             and not self.secret_source.startswith("cli:")
         ):
             raise ValueError("cli-session auth requires a 'cli:<command>' secret source")
+        if (
+            self.auth_mode == "api-key-environment"
+            and self.secret_source is not None
+            and not self.secret_source.startswith("env:")
+        ):
+            raise ValueError("environment API-key auth requires an env: secret source")
         return self
 
     def canonical_json(self) -> str:
@@ -263,6 +282,23 @@ class AuthFileProbe:
         return None
 
 
+@dataclass(frozen=True)
+class EnvironmentPresenceProbe:
+    """Check admitted credential names for non-empty values without returning them."""
+
+    environment: Mapping[str, str]
+    names: tuple[str, ...]
+
+    def __call__(self, profile: AgentProfile) -> ProbeResult:
+        del profile
+        if any(bool(self.environment.get(name)) for name in self.names):
+            return ProbeResult(ok=True)
+        return ProbeResult(
+            ok=False,
+            reason="credential environment missing: " + " or ".join(self.names),
+        )
+
+
 def _parse_expiry(value: object) -> datetime | None:
     if isinstance(value, (int, float)) and value > 0:
         return datetime.fromtimestamp(float(value), tz=UTC)
@@ -373,9 +409,7 @@ def preflight(profile: AgentProfile, probe: ProbeFn | None) -> PreflightDecision
     )
 
 
-def scrub_environment(
-    environment: Mapping[str, str], allowlist: frozenset[str]
-) -> dict[str, str]:
+def scrub_environment(environment: Mapping[str, str], allowlist: frozenset[str]) -> dict[str, str]:
     """Allowlist filter that additionally refuses key-shaped names outright.
 
     Even a key-shaped variable added to the allowlist by mistake is dropped:
@@ -414,6 +448,7 @@ def validate_model_pin(profile: AgentProfile, model: str | None) -> None:
 # Built-in profiles: only observed facts are marked verified.
 # ---------------------------------------------------------------------------
 
+
 def builtin_profiles() -> dict[str, AgentProfile]:
     return {
         p.profile_id: p
@@ -422,9 +457,7 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 profile_id="oracle",
                 adapter="oracle",
                 auth_mode="none",
-                verified_facts=(
-                    "2026-08: oracle controls pass locally across the canary suite",
-                ),
+                verified_facts=("2026-08: oracle controls pass locally across the canary suite",),
             ),
             AgentProfile(
                 profile_id="nop",
@@ -467,6 +500,22 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 auth_mode="subscription-auth-file",
                 secret_source="file:.grok/auth.json",
                 verified_facts=(),  # declared only; no observed run in this lab
+            ),
+            AgentProfile(
+                profile_id="mini-swe-agent-deepseek-v4-flash",
+                adapter="mini-swe-agent",
+                model="deepseek/deepseek-v4-flash",
+                auth_mode="api-key-environment",
+                secret_source="env:DEEPSEEK_API_KEY,MSWEA_API_KEY",
+                limits=ProfileLimits(
+                    max_timeout_seconds=600,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-08: credential-free Harbor install smoke completed "
+                    "with zero model trials",
+                ),
             ),
             # Cursor lane. Verified in this lab on 2026-08-19: `cursor-agent status`
             # reported a live session and `cursor-agent -f -p …` returned the exact
@@ -591,9 +640,7 @@ def builtin_profiles() -> dict[str, AgentProfile]:
 #: claude-code is NOT here: its keychain probe is real (observed integration);
 #: what is unproven is its model string, which the qualification ladder
 #: expresses as "credential-ready but never smoke-passed".
-DECLARED_UNAVAILABLE: frozenset[str] = frozenset(
-    {"gemini-cli-declared", "grok-cli-declared"}
-)
+DECLARED_UNAVAILABLE: frozenset[str] = frozenset({"gemini-cli-declared", "grok-cli-declared"})
 
 
 def default_probe_for(
@@ -603,6 +650,7 @@ def default_probe_for(
     security_runner: SecurityRunner,
     keychain_account: str,
     clock: Clock = _utc_now,
+    environment: Mapping[str, str] | None = None,
 ) -> ProbeFn | None:
     """Wire the standard probe for a profile through injected seams only."""
     if profile.auth_mode == "none":
@@ -611,8 +659,15 @@ def default_probe_for(
         return DeclaredUnavailableProbe(
             reason=f"{profile.profile_id} is declared but not independently proven in this lab"
         )
+    if profile.auth_mode == "api-key-environment":
+        source = (profile.secret_source or "env:").removeprefix("env:")
+        names = tuple(name for name in source.split(",") if name)
+        return EnvironmentPresenceProbe(
+            environment=os.environ if environment is None else environment,
+            names=names,
+        )
     if profile.auth_mode == "subscription-keychain":
-        service = (profile.secret_source or "keychain:")[len("keychain:"):]
+        service = (profile.secret_source or "keychain:")[len("keychain:") :]
         return KeychainProbe(
             security_runner=security_runner, service=service, account=keychain_account
         )
@@ -624,5 +679,5 @@ def default_probe_for(
             )
         expect = "gemini" if command[0] == "agy" else "logged in"
         return CliSessionProbe(argv=tuple(command), expect=expect)
-    relative = (profile.secret_source or "file:")[len("file:"):]
+    relative = (profile.secret_source or "file:")[len("file:") :]
     return AuthFileProbe(home=home, relative_path=relative, clock=clock)

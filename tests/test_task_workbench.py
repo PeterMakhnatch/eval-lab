@@ -1833,6 +1833,30 @@ def test_packet_rebuild_is_byte_identical_and_never_overwrites(tmp_path: Path) -
         write_packet(repo_root=repo, report=report)
 
 
+def test_packet_can_write_isolated_root_under_candidate_boundary(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path)
+    inspection = _inspect(repo, task)
+    report = check_candidate(
+        inspection,
+        _bundle(inspection, repo=repo, task=task),
+        repo_root=repo,
+    )
+    _, canonical_certification = write_packet(repo_root=repo, report=report)
+    canonical_certification.write_text("occupied by a different packet\n")
+
+    isolated_root = repo / "research/registration/candidates/ci/run-123/easy"
+    candidate_path, certification_path = write_packet(
+        repo_root=repo,
+        report=report,
+        output_root=isolated_root,
+    )
+
+    packet_dir = isolated_root / inspection.candidate["candidate_id"]
+    assert candidate_path == packet_dir / "candidate.json"
+    assert certification_path == packet_dir / "certification.json"
+    assert json.loads(certification_path.read_text())["certified"] is True
+
+
 def test_certificate_binds_registry_reload_and_rejects_tamper_replay_and_circularity(
     tmp_path: Path,
 ) -> None:

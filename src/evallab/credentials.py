@@ -1,26 +1,25 @@
-"""Credential availability probes shared by the doctor and the executor.
+"""Credential availability probes shared by the doctor and executor.
 
-M003: this module is now a thin compatibility layer over
-:mod:`evallab.profiles`, which owns agent identity, auth modes, and probe
-seams. The public names here (``available_credentials``,
-``missing_credential_for``, ``DEFAULT_AGENT_MODELS``, ``CLAUDE_OAUTH``,
-``CODEX_AUTH``) keep their exact signatures because queue/automation/doctor
-depend on them; new code should consume profiles directly.
+M003: this module is a compatibility layer over :mod:`evallab.profiles`,
+which owns agent identity, auth modes, and probe seams. Public compatibility
+names remain because queue/automation/doctor depend on them.
 
-Subscriptions only: nothing in this module reads, logs, or forwards an
-API-key environment variable. Probes return availability and reason, never
-secret material.
+Subscription credentials remain the default. The DeepSeek mini-swe-agent lane
+is the only API-key exception: probes report presence only, runner transport is
+agent-scoped, and values never enter logs or configuration.
 """
 
 from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 from evallab.profiles import (
     AuthFileProbe,
     CliSessionProbe,
+    EnvironmentPresenceProbe,
     KeychainProbe,
     ProbeResult,
     builtin_profiles,
@@ -33,6 +32,7 @@ CLAUDE_OAUTH = "claude_oauth"
 CODEX_AUTH = "codex_auth"
 CURSOR_SESSION = "cursor_session"
 ANTIGRAVITY_SESSION = "antigravity_session"
+DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
 
 # Agents whose runs require a credential. Control agents (oracle, nop) are
 # deliberately absent: they must run with no credential at all.
@@ -41,6 +41,7 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str, str] = {
     "codex": CODEX_AUTH,
     "cursor-cli": CURSOR_SESSION,
     "antigravity-cli": ANTIGRAVITY_SESSION,
+    "mini-swe-agent": DEEPSEEK_API_CREDENTIAL,
 }
 
 _PROFILES = builtin_profiles()
@@ -48,6 +49,7 @@ _CLAUDE_PROFILE = _PROFILES["claude-code-fable-5"]
 _CODEX_PROFILE = _PROFILES["codex-gpt-5.6-terra"]
 _CURSOR_PROFILE = _PROFILES["cursor-grok-4.6-high"]
 _ANTIGRAVITY_PROFILE = _PROFILES["antigravity-gemini-3.7-flash-high"]
+_DEEPSEEK_PROFILE = _PROFILES["mini-swe-agent-deepseek-v4-flash"]
 
 
 def _security_exit_status(args: list[str]) -> int:
@@ -73,9 +75,7 @@ def probe_claude_keychain() -> bool:
 def probe_claude_keychain_result() -> ProbeResult:
     service = os.environ.get("HARBOR_CLAUDE_KEYCHAIN_SERVICE", KEYCHAIN_SERVICE)
     account = os.environ.get("HARBOR_CLAUDE_KEYCHAIN_ACCOUNT", os.environ.get("USER", ""))
-    probe = KeychainProbe(
-        security_runner=_security_exit_status, service=service, account=account
-    )
+    probe = KeychainProbe(security_runner=_security_exit_status, service=service, account=account)
     try:
         return probe(_CLAUDE_PROFILE)
     except subprocess.TimeoutExpired:
@@ -127,6 +127,21 @@ def probe_antigravity_session_result() -> ProbeResult:
     except subprocess.TimeoutExpired:
         return ProbeResult(ok=False, reason="antigravity session probe timed out")
 
+
+def probe_deepseek_api() -> bool:
+    return probe_deepseek_api_result().ok
+
+
+def probe_deepseek_api_result(
+    environment: Mapping[str, str] | None = None,
+) -> ProbeResult:
+    probe = EnvironmentPresenceProbe(
+        environment=os.environ if environment is None else environment,
+        names=("DEEPSEEK_API_KEY", "MSWEA_API_KEY"),
+    )
+    return probe(_DEEPSEEK_PROFILE)
+
+
 def available_credentials(home: Path | None = None) -> frozenset[str]:
     found: set[str] = set()
     if probe_claude_keychain():
@@ -137,6 +152,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(CURSOR_SESSION)
     if probe_antigravity_session():
         found.add(ANTIGRAVITY_SESSION)
+    if probe_deepseek_api():
+        found.add(DEEPSEEK_API_CREDENTIAL)
     return frozenset(found)
 
 
@@ -161,6 +178,7 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str, str] = {
     "claude-code": "claude-code-fable-5",
     "cursor-cli": "cursor-grok-4.6-high",
     "antigravity-cli": "antigravity-gemini-3.7-flash-high",
+    "mini-swe-agent": "mini-swe-agent-deepseek-v4-flash",
 }
 
 DEFAULT_AGENT_MODELS: dict[str, str] = {

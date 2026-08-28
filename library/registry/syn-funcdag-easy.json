@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "task_id": "syn-funcdag-easy",
+  "version": "1.0.0",
+  "task_path": "library/tasks/experimental/syn-funcdag-easy",
+  "digests": {
+    "task_toml": "sha256:8def2caa0dd08eca9ec3f4a506211917ceb8b3215d252d43d55b48bb08567bdc",
+    "instruction": "sha256:264c98f3508cef3bf894bab59445aaab95b6c541f27dc39d8e95034930c0acbb",
+    "environment": "sha256:85a7e370b2ee52c66d8844900931e57112c220b1de4e95bae820bf1769e64893",
+    "verifier": "sha256:c706665f958f15b45f4e29deef871410622627849c6333d7a9e66972a0f2413e",
+    "package": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5"
+  },
+  "source_uri": "eval-lab/synthetic/funcdag/easy",
+  "source_ref": "local/eval-lab/synthetic/funcdag/easy@1.0.0",
+  "license": "Apache-2.0",
+  "provenance_zone": "03-synthetic",
+  "is_synthetic": true,
+  "limits": {
+    "timeout_seconds": 60,
+    "max_memory_mb": 512,
+    "max_cpus": 1.0
+  },
+  "control_evidence": {
+    "oracle": {
+      "job_name": "syn-funcdag-easy-registry-oracle-33133765977",
+      "trial_name": "syn-funcdag-easy__KVthvbs",
+      "reward": 1.0,
+      "evidence_path": "research/evidence/runs/syn-funcdag-easy-registry-oracle-33133765977/syn-funcdag-easy__KVthvbs/result.json",
+      "evidence_digest": "sha256:3cd5889794c977b2076aa3bf8371ccdd33a91e2db49a0cb81719397f1bc7f0bd",
+      "lock_digest": "sha256:990a02506b839867f5f5ed1d66737d91d89752e0d75e7ba5fb5f07a977a5d4e7",
+      "observed_at": "2026-08-28T01:50:23.914237Z",
+      "task_id": "syn-funcdag-easy",
+      "task_version": "1.0.0",
+      "task_digests": {
+        "task_toml": "sha256:8def2caa0dd08eca9ec3f4a506211917ceb8b3215d252d43d55b48bb08567bdc",
+        "instruction": "sha256:264c98f3508cef3bf894bab59445aaab95b6c541f27dc39d8e95034930c0acbb",
+        "environment": "sha256:85a7e370b2ee52c66d8844900931e57112c220b1de4e95bae820bf1769e64893",
+        "verifier": "sha256:c706665f958f15b45f4e29deef871410622627849c6333d7a9e66972a0f2413e",
+        "package": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5"
+      },
+      "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc"
+    },
+    "nop": {
+      "job_name": "syn-funcdag-easy-registry-nop-33133765977",
+      "trial_name": "syn-funcdag-easy__peGyXfC",
+      "reward": 0.0,
+      "evidence_path": "research/evidence/runs/syn-funcdag-easy-registry-nop-33133765977/syn-funcdag-easy__peGyXfC/result.json",
+      "evidence_digest": "sha256:20aa049c4e8b6ba51d99d1167ca5b1d99677233e2258c34420078289f2b11c88",
+      "lock_digest": "sha256:c1f7085ce36a5c76b6166a41fd2804dbf90f8657bc2c87d6f6672bd3e6b4b188",
+      "observed_at": "2026-08-28T01:50:55.365640Z",
+      "task_id": "syn-funcdag-easy",
+      "task_version": "1.0.0",
+      "task_digests": {
+        "task_toml": "sha256:8def2caa0dd08eca9ec3f4a506211917ceb8b3215d252d43d55b48bb08567bdc",
+        "instruction": "sha256:264c98f3508cef3bf894bab59445aaab95b6c541f27dc39d8e95034930c0acbb",
+        "environment": "sha256:85a7e370b2ee52c66d8844900931e57112c220b1de4e95bae820bf1769e64893",
+        "verifier": "sha256:c706665f958f15b45f4e29deef871410622627849c6333d7a9e66972a0f2413e",
+        "package": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5"
+      },
+      "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc"
+    }
+  },
+  "certification": {
+    "state": "bound",
+    "reason": "bound_workbench_certificate_packet",
+    "certification_id": "cert-62842060a8471b81543944e4",
+    "packet_path": "research/registration/candidates/candidate-88d247befc94b072be2fcc33/certification.json",
+    "packet_sha256": "sha256:e817b0aeb7cdbe8c3f5cfba27b968153f2d28a57c679f193c46edf5d84709f9b",
+    "candidate_id": "candidate-88d247befc94b072be2fcc33",
+    "candidate_record_digest": "sha256:747ab0549baca80f675d12ca07ab9bd9781ddb0495a2e84d03ff2d6d6b10f578",
+    "candidate_package_digest": "sha256:7172d91fdfc92ae90aeb17e53a679269316f24fe4001025a459412efb913db1b",
+    "package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5",
+    "workbench_version": "m049-v1",
+    "check_vector": {
+      "all_controls_completed": true,
+      "static": true,
+      "oracle_exact_1_x3": true,
+      "oracle_stable_output": true,
+      "nop_exact_0_x2": true,
+      "invalid_outputs_rejected": true,
+      "fair_alternative_exact_1": true,
+      "please_hack_executed": true,
+      "hack_detected": false,
+      "leakage_scan_clean": true,
+      "isolation": true
+    },
+    "control_summary": {
+      "oracle_runs": 3,
+      "nop_runs": 2,
+      "invalid_probe_runs": 3,
+      "fair_alternative_runs": 1,
+      "please_hack_runs": 1,
+      "result_digests": [
+        "sha256:3b7ba3f84b4ba10b4960f2f602b4e1652743c8cf05e751fa4d34dbbfa87f577c",
+        "sha256:4b8112a1c75c72f71dfa967088b6054c80700efa71f91f4eeed2020351bc4c94",
+        "sha256:d03fc474d1544210663c5ac6d3e772831be150bb92bf5a54ab2961f40f2cc578",
+        "sha256:264ad55b39bc441d9cd715fb9dc37013e3f8f4046ab22ad5b1d5c812e221d0f0",
+        "sha256:08eb85ae3f05c9f04c85d05b8e5bdfa5f3e4146834b72a550c6eba79873b76ae",
+        "sha256:da84e3c578cc5919dc8de2966d834e3ff80c6c6b1a720b4ef2c3c763b08e83a8",
+        "sha256:0ca9d1896725c17f86eeecf4c8252943292a3cdb7d92b6fd42c29a3e6d7120f8",
+        "sha256:f4dbfdfa9099538416da9fc64f26d12aefba92bc34d44da35dbd02dd5cf0e2e9",
+        "sha256:0151ae9869655fd4beeac8582413d7f31759000649cdf052fa0129dbce1d1d64",
+        "sha256:994249c5fb3ca63bf4379dfc2f8701e52ca82057cff0f1ffe0dbab52195c466f"
+      ]
+    },
+    "axes": {
+      "task_correctness": {
+        "status": "passed",
+        "reason": "all control jobs completed after backend environment setup; this is not an independent image-build attestation",
+        "evidence": [
+          "oracle-1",
+          "oracle-2",
+          "oracle-3"
+        ]
+      },
+      "verifier_soundness": {
+        "status": "passed",
+        "reason": "executed nop, invalid, and please-hack probes were rejected; this bounded probe set does not prove security",
+        "evidence": [
+          "nop-1",
+          "nop-2",
+          "adversarial-empty-output",
+          "adversarial-wrong-target",
+          "adversarial-wrong-value",
+          "please-hack"
+        ]
+      },
+      "verifier_completeness": {
+        "status": "passed",
+        "reason": "byte-distinct fair alternative scored 1",
+        "evidence": [
+          "fair-alternative"
+        ]
+      },
+      "solvability": {
+        "status": "passed",
+        "reason": "oracle and independent fair alternative both succeeded",
+        "evidence": [
+          "oracle-1",
+          "oracle-2",
+          "oracle-3",
+          "fair-alternative"
+        ]
+      },
+      "difficulty_calibration": {
+        "status": "not_applicable",
+        "reason": "local certificate controls do not measure task difficulty",
+        "evidence": []
+      },
+      "realism_review": {
+        "status": "not_assessed",
+        "reason": "realism requires separate human or domain review",
+        "evidence": []
+      }
+    },
+    "generator_identity": {
+      "code_digest": "sha256:08d78b70bb1dc727a9c7866898289e07a81dffe9f7881d0e2a8610123b770980",
+      "execution": "local",
+      "model": null,
+      "prompt_digest": null
+    },
+    "validator_identity": {
+      "code_digest": "sha256:ce349970692c157005d911e3633fb4d6a3757e6365498caba52c0797a53e6b54",
+      "execution": "local",
+      "model": null,
+      "prompt_digest": null
+    }
+  },
+  "state": "registered",
+  "allowed_uses": [
+    "measurement"
+  ],
+  "contamination": null,
+  "human_minutes": null,
+  "approved_by": "Peter Makhnatch",
+  "approved_at": "2026-08-28T01:51:59.370992Z",
+  "state_reason": null
+}

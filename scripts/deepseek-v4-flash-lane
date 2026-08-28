@@ -1,0 +1,346 @@
+#!/bin/bash
+# Guarded Harbor lane for DeepSeek V4 Flash through mini-swe-agent + LiteLLM.
+# Credential values stay in the process environment and are never printed or
+# placed in argv. The install and plan paths explicitly remove model keys.
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+
+readonly MODEL_SELECTOR="deepseek/deepseek-v4-flash"
+readonly AGENT_IMPORT_PATH="evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent"
+readonly SECRET_COMPOSE="$repo_root/containers/deepseek-v4-flash-secret.compose.yaml"
+readonly INSTALL_TASK="$repo_root/library/tasks/experimental/syn-funcdag-easy"
+readonly REGISTERED_TASK_ID="syn-funcdag-easy"
+readonly JOBS_DIR="$repo_root/runs/deepseek-v4-flash"
+readonly FRESH_KEY_CONFIRMATION="EVALLAB_DEEPSEEK_FRESH_KEY_CONFIRMED"
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/deepseek-v4-flash-lane COMMAND
+
+Commands:
+  probe                    Report credential-name and container readiness only
+  install-smoke            Install mini-swe-agent + LiteLLM; no model call
+  plan-funcdag-easy        Print the registered k=1 Harbor config; no model call
+  registered-funcdag-easy  Run one registered FuncDAG easy trial
+  operator-run             Probe, install-smoke, then registered-funcdag-easy
+EOF
+}
+
+present() {
+    local name="$1"
+    if [ -n "${!name:-}" ]; then
+        printf 'set'
+    else
+        printf 'unset'
+    fi
+}
+
+require_command() {
+    local name="$1"
+    if ! command -v "$name" >/dev/null 2>&1; then
+        printf 'required command missing: %s\n' "$name" >&2
+        return 1
+    fi
+}
+
+container_ready() {
+    command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
+}
+
+compose_ready() {
+    docker compose version >/dev/null 2>&1
+}
+
+probe() {
+    local status=0
+    local harbor_state="missing"
+    local docker_cli_state="missing"
+    local docker_daemon_state="unreachable"
+    local compose_state="unavailable"
+
+    if command -v harbor >/dev/null 2>&1; then
+        harbor_state="available"
+    else
+        status=1
+    fi
+    if command -v docker >/dev/null 2>&1; then
+        docker_cli_state="available"
+        if container_ready; then
+            docker_daemon_state="reachable"
+        else
+            status=1
+        fi
+    else
+        status=1
+    fi
+    if compose_ready; then
+        compose_state="available"
+    else
+        status=1
+    fi
+    if { [ -z "${DEEPSEEK_API_KEY:-}" ] && [ -z "${MSWEA_API_KEY:-}" ]; } \
+        || [ -z "${!FRESH_KEY_CONFIRMATION:-}" ]; then
+        status=1
+    fi
+
+    printf 'Harbor CLI: %s\n' "$harbor_state"
+    printf 'Docker CLI: %s\n' "$docker_cli_state"
+    printf 'Docker daemon: %s\n' "$docker_daemon_state"
+    printf 'Docker Compose: %s\n' "$compose_state"
+    printf 'DEEPSEEK_API_KEY: %s\n' "$(present DEEPSEEK_API_KEY)"
+    printf 'MSWEA_API_KEY: %s\n' "$(present MSWEA_API_KEY)"
+    printf '%s: %s\n' "$FRESH_KEY_CONFIRMATION" "$(present "$FRESH_KEY_CONFIRMATION")"
+    return "$status"
+}
+
+require_container() {
+    require_command harbor
+    require_command docker
+    if ! container_ready; then
+        printf 'Docker daemon is not reachable\n' >&2
+        return 1
+    fi
+    if ! compose_ready; then
+        printf 'Docker Compose v2 is not available\n' >&2
+        return 1
+    fi
+}
+
+without_model_credentials() {
+    (
+        unset DEEPSEEK_API_KEY MSWEA_API_KEY
+        unset DEEPSEEK_BASE_URL DEEPSEEK_API_BASE OPENAI_BASE_URL OPENAI_API_BASE
+        "$@"
+    )
+}
+
+with_canonical_deepseek_credential() {
+    (
+        if [ -z "${DEEPSEEK_API_KEY:-}" ] && [ -n "${MSWEA_API_KEY:-}" ]; then
+            export DEEPSEEK_API_KEY="$MSWEA_API_KEY"
+        fi
+        unset MSWEA_API_KEY
+        unset DEEPSEEK_BASE_URL DEEPSEEK_API_BASE OPENAI_BASE_URL OPENAI_API_BASE
+        "$@"
+    )
+}
+
+prepare_task() {
+    require_command python3
+    local source_task="$1"
+    local staged_task
+    staged_task="$(mktemp -d "${TMPDIR:-/tmp}/evallab-deepseek-v4-flash.XXXXXX")"
+    cp -R "$source_task/." "$staged_task/"
+    PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" \
+        python3 - "$staged_task/task.toml" "$staged_task/run_manifest.json" <<'PY'
+from dataclasses import asdict
+import json
+from pathlib import Path
+import sys
+
+from evallab.harbor_network import adapt_task_toml_for_host, with_agent_network_allowlist
+
+path = Path(sys.argv[1])
+manifest_path = Path(sys.argv[2])
+text, adaptation = adapt_task_toml_for_host(path.read_text())
+text = with_agent_network_allowlist(text, ("api.deepseek.com",))
+path.write_text(text)
+if adaptation is not None:
+    manifest_path.write_text(
+        json.dumps(
+            {"schema_version": "1.0", "network_adaptation": asdict(adaptation)},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+PY
+    printf '%s\n' "$staged_task"
+}
+
+resolve_registered_task() {
+    PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" \
+        python3 - "$repo_root" "$REGISTERED_TASK_ID" <<'PY'
+from pathlib import Path
+import sys
+
+from evallab.registry import TaskRegistry
+
+root = Path(sys.argv[1]).resolve()
+task_id = sys.argv[2]
+record = TaskRegistry.from_repo(root).get(task_id)
+if record is None or record.state != "registered":
+    raise SystemExit(f"registered task unavailable: {task_id}")
+if record.certification.state != "bound":
+    raise SystemExit(f"registered task lacks bound certification: {task_id}")
+task = (root / record.task_path).resolve()
+if not task.is_dir() or root not in task.parents:
+    raise SystemExit(f"registered task path is missing or unsafe: {task_id}")
+print(task)
+PY
+}
+
+assert_no_credential_leak() {
+    local job_name="$1"
+    python3 - "$JOBS_DIR/$job_name" <<'PY'
+from pathlib import Path
+import os
+import sys
+
+root = Path(sys.argv[1])
+secrets = tuple(
+    value.encode()
+    for name in ("DEEPSEEK_API_KEY", "MSWEA_API_KEY")
+    if (value := os.environ.get(name))
+)
+leaks = []
+if root.is_dir() and secrets:
+    for path in root.rglob("*"):
+        if not path.is_file() or path.is_symlink():
+            continue
+        try:
+            content = path.read_bytes()
+        except OSError:
+            continue
+        if any(secret in content for secret in secrets):
+            leaks.append(path.relative_to(root))
+if leaks:
+    for path in leaks:
+        print(f"credential value detected in run artifact: {path}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+
+common_args() {
+    local task_path="$1"
+    local guarded="$2"
+    printf '%s\n' \
+        run \
+        --path "$task_path" \
+        --agent "$AGENT_IMPORT_PATH" \
+        --model "$MODEL_SELECTOR" \
+        --env docker \
+        --n-attempts 1 \
+        --n-concurrent 1 \
+        --n-concurrent-agents 1 \
+        --n-tasks 1 \
+        --max-retries 0 \
+        --agent-kwarg cost_limit=2.5 \
+        --agent-kwarg max_tokens=8192 \
+        --jobs-dir "$JOBS_DIR" \
+        --yes
+    if [ "$guarded" = "true" ]; then
+        printf '%s\n' --allow-agent-host api.deepseek.com
+    fi
+}
+
+run_harbor() {
+    local job_name="$1"
+    local guarded="$2"
+    local source_task="$3"
+    shift 3
+    local staged_task=""
+    local task_path="$source_task"
+    if [ "$guarded" = "true" ]; then
+        staged_task="$(prepare_task "$source_task")"
+        task_path="$staged_task"
+    fi
+    local args=()
+    while IFS= read -r arg; do
+        args+=("$arg")
+    done < <(common_args "$task_path" "$guarded")
+    local status
+    if PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" \
+        harbor "${args[@]}" --job-name "$job_name" "$@"; then
+        status=0
+    else
+        status=$?
+    fi
+    if [ -n "$staged_task" ]; then
+        rm -rf "$staged_task"
+    fi
+    return "$status"
+}
+
+install_smoke() {
+    require_container
+    mkdir -p "$JOBS_DIR"
+    local job_name="deepseek-v4-flash-install-smoke-$(date -u +%Y%m%dT%H%M%SZ)"
+    local status=0
+    without_model_credentials \
+        run_harbor "$job_name" false "$INSTALL_TASK" --install-only || status=$?
+    assert_no_credential_leak "$job_name" || status=1
+    return "$status"
+}
+
+plan_funcdag_easy() {
+    require_command harbor
+    local registered_task
+    registered_task="$(resolve_registered_task)"
+    without_model_credentials run_harbor \
+        deepseek-v4-flash-funcdag-easy-plan \
+        true \
+        "$registered_task" \
+        --extra-docker-compose "$SECRET_COMPOSE" \
+        --print-config
+}
+
+require_fresh_key() {
+    if [ -z "${DEEPSEEK_API_KEY:-}" ] && [ -z "${MSWEA_API_KEY:-}" ]; then
+        printf 'refusing model execution: DEEPSEEK_API_KEY and MSWEA_API_KEY are unset\n' >&2
+        return 1
+    fi
+    if [ -z "${!FRESH_KEY_CONFIRMATION:-}" ]; then
+        printf 'refusing model execution: %s is unset\n' "$FRESH_KEY_CONFIRMATION" >&2
+        return 1
+    fi
+}
+
+registered_funcdag_easy() {
+    require_container
+    require_fresh_key
+    local registered_task
+    registered_task="$(resolve_registered_task)"
+    mkdir -p "$JOBS_DIR"
+    local job_name="deepseek-v4-flash-funcdag-easy-k1-$(date -u +%Y%m%dT%H%M%SZ)"
+    local status=0
+    with_canonical_deepseek_credential \
+        run_harbor "$job_name" true "$registered_task" \
+        --extra-docker-compose "$SECRET_COMPOSE" || status=$?
+    assert_no_credential_leak "$job_name" || status=1
+    return "$status"
+}
+
+operator_run() {
+    probe
+    install_smoke
+    registered_funcdag_easy
+}
+
+case "${1:-}" in
+    probe)
+        probe
+        ;;
+    install-smoke)
+        install_smoke
+        ;;
+    plan-funcdag-easy)
+        plan_funcdag_easy
+        ;;
+    registered-funcdag-easy)
+        registered_funcdag_easy
+        ;;
+    operator-run)
+        operator_run
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac

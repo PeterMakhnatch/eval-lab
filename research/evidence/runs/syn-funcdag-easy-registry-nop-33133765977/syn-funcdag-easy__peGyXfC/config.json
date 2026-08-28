@@ -1,0 +1,11 @@
+{
+    "task": {
+        "path": "library/tasks/experimental/syn-funcdag-easy"
+    },
+    "trial_name": "syn-funcdag-easy__peGyXfC",
+    "trials_dir": "research/evidence/runs/syn-funcdag-easy-registry-nop-33133765977",
+    "agent": {
+        "name": "nop"
+    },
+    "job_id": "82dcd4db-f3d3-493a-bbb0-e3ab46f66262"
+}

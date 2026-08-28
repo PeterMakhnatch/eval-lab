@@ -30,8 +30,7 @@ HARBOR_NETWORK_MODE = "public"
 HARBOR_NETWORK_ISOLATION_ENFORCED = False
 HARBOR_NETWORK_ISOLATION_REASON = "darwin-docker-cannot-enforce-no-network"
 PYTHON_BASE_IMAGE = (
-    "python:3.13-slim@sha256:"
-    "bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+    "python:3.13-slim@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
 )
 
 
@@ -621,6 +620,29 @@ def execute_dag(
     return target_val, scope
 
 
+def build_dependency_trace(
+    dag: FuncDAG,
+    scope: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Build the exact target-ancestry trace required by the output contract."""
+    required_nodes = dag.get_ancestor_nodes(dag.target_node_id)
+    trace: list[dict[str, Any]] = []
+    for node_id in dag.topological_order():
+        if node_id not in required_nodes:
+            continue
+        node = dag.nodes[node_id]
+        trace.append(
+            {
+                "node": node_id,
+                "inputs": [
+                    {"id": input_id, "value": int(scope[input_id])} for input_id in node.inputs
+                ],
+                "value": int(scope[node_id]),
+            }
+        )
+    return trace
+
+
 def render_dag_python_module(dag: FuncDAG) -> str:
     """Render the entire FuncDAG into a clean standalone Python module."""
     lines = [
@@ -669,6 +691,7 @@ def build_funcdag_spec(
         "network_mode": HARBOR_NETWORK_MODE,
         "network_isolation_enforced": HARBOR_NETWORK_ISOLATION_ENFORCED,
         "network_isolation_reason": HARBOR_NETWORK_ISOLATION_REASON,
+        "output_contract": "dependency-trace/v1",
     }
 
     spec = create_synthetic_eval_spec(
@@ -685,12 +708,14 @@ def build_funcdag_spec(
         generated_task_digest=dag_digest,
         expected_behavior=(
             f"Correctly resolve the dependency chain for target node {dag.target_node_id} "
-            f"across {dag.depth} layers while ignoring {dag.connected_distractors + dag.disconnected_distractors} "
-            "distractor nodes."
+            f"across {dag.depth} layers while ignoring "
+            f"{dag.connected_distractors + dag.disconnected_distractors} distractor "
+            "nodes, and report the exact target-ancestry dependency trace."
         ),
         capability_opportunity=(
             "Evaluates model capability to trace topological dependency paths in code, "
-            "filter irrelevant dead-end computations, and execute composite arithmetic accurately."
+            "filter irrelevant dead-end computations, execute composite arithmetic "
+            "accurately, and expose the resolved chain as structured evidence."
         ),
         required_evidence=["/app/output/result.json"],
         license_provenance="Apache-2.0 (Cleanroom Synthetic Generation)",
@@ -727,9 +752,9 @@ def build_funcdag_certificate(
         dag_rerun.to_dict()
     )
 
-    # Mutants tested: empty, wrong value, wrong target
-    mutants_tested = 3
-    mutants_failed = 3
+    # Mutants tested: answer-only, empty, wrong value, wrong target
+    mutants_tested = 4
+    mutants_failed = 4
 
     diff_label = spec.parameters.get("difficulty", "unspecified")
     notes = (
@@ -852,15 +877,28 @@ Evaluate the dependency chain starting from the root inputs in `/app/src/inputs.
 Note: The graph contains {dag.depth} computational layers and {total_dist} distractor nodes (including dead-end branches and disconnected components) that must be filtered out or handled correctly.
 
 ## Output Specification
-Write a JSON file to `/app/output/result.json` with the following schema:
+Write a JSON file to `/app/output/result.json` with this exact top-level schema:
 ```json
 {{
   "target": "{dag.target_node_id}",
-  "value": <computed_integer_value>
+  "value": <computed_integer_value>,
+  "dependency_trace": [
+    {{
+      "node": "<required_node_id>",
+      "inputs": [
+        {{"id": "<input_or_node_id>", "value": <exact_integer_value>}}
+      ],
+      "value": <exact_integer_value>
+    }}
+  ]
 }}
 ```
 
-The output file `/app/output/result.json` must be valid JSON containing exact integer results.
+`dependency_trace` must contain every node in the target's transitive dependency
+chain exactly once, in topological order, and no distractor nodes. Each `inputs`
+array must preserve the node's declared input order and report the exact resolved
+integer value for every root input or upstream node. No extra top-level or trace
+entry fields are allowed.
 """
     (output_dir / "instruction.txt").write_text(instruction_content, encoding="utf-8")
     (output_dir / "instruction.md").write_text(instruction_content, encoding="utf-8")
@@ -884,15 +922,20 @@ COPY dag_code.py /app/src/dag_code.py
     (env_dir / "dag_code.py").write_text(render_dag_python_module(dag), encoding="utf-8")
 
     # 4. verifier/ and tests/
-    golden_data = {"target": dag.target_node_id, "value": expected_target_val}
-    verify_py_content = f"""#!/usr/bin/env python3
-\"\"\"Deterministic execution verifier for Function-DAG task.\"\"\"
+    dependency_trace = build_dependency_trace(dag, full_trace)
+    golden_data = {
+        "target": dag.target_node_id,
+        "value": expected_target_val,
+        "dependency_trace": dependency_trace,
+    }
+    verify_py_content = """#!/usr/bin/env python3
+\"\"\"Exact dependency-trace verifier for Function-DAG task.\"\"\"
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
-GOLDEN = {json.dumps(golden_data)}
+GOLDEN = __GOLDEN__
 RESULT_PATH = Path("/app/output/result.json")
 LOG_DIR = Path("/logs/verifier")
 
@@ -900,29 +943,44 @@ LOG_DIR = Path("/logs/verifier")
 def _record(passed: bool, reason: str, **extra: Any) -> int:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     (LOG_DIR / "reward.txt").write_text("1\\n" if passed else "0\\n", encoding="utf-8")
-    payload: dict[str, Any] = {{
+    payload: dict[str, Any] = {
         "passed": passed,
         "reason": reason,
         **extra,
-    }}
+    }
     (LOG_DIR / "result.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\\n",
         encoding="utf-8",
     )
     if passed:
-        print(f"[PASS] {{reason}}")
+        print(f"[PASS] {reason}")
         return 0
-    print(f"[FAIL] {{reason}}", file=sys.stderr)
+    print(f"[FAIL] {reason}", file=sys.stderr)
     return 1
+
+
+def _exact_json_equal(observed: Any, expected: Any) -> bool:
+    if type(observed) is not type(expected):
+        return False
+    if isinstance(expected, dict):
+        return observed.keys() == expected.keys() and all(
+            _exact_json_equal(observed[key], value)
+            for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return len(observed) == len(expected) and all(
+            _exact_json_equal(observed_item, expected_item)
+            for observed_item, expected_item in zip(observed, expected, strict=True)
+        )
+    return observed == expected
 
 
 def verify() -> int:
     if not RESULT_PATH.exists():
         return _record(
             False,
-            f"Result file does not exist: {{RESULT_PATH}}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
+            f"Result file does not exist: {RESULT_PATH}",
+            expected_contract="dependency-trace/v1",
         )
 
     try:
@@ -931,81 +989,55 @@ def verify() -> int:
             return _record(
                 False,
                 "Result file is empty",
-                expected_target=GOLDEN["target"],
-                expected_value=GOLDEN["value"],
+                expected_contract="dependency-trace/v1",
             )
         data = json.loads(content)
     except Exception as exc:
         return _record(
             False,
-            f"Invalid JSON format: {{exc}}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
+            f"Invalid JSON format: {exc}",
+            expected_contract="dependency-trace/v1",
         )
 
     if not isinstance(data, dict):
         return _record(
             False,
-            f"Expected JSON object, got {{type(data).__name__}}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
+            f"Expected JSON object, got {type(data).__name__}",
+            expected_contract="dependency-trace/v1",
         )
 
-    if "target" not in data or "value" not in data:
+    if data.keys() != GOLDEN.keys():
         return _record(
             False,
-            f"Missing required keys 'target' or 'value' in result: {{data}}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
+            "Result must contain exactly target, value, and dependency_trace",
+            expected_keys=list(GOLDEN),
+            observed_keys=list(data),
+        )
+
+    if not _exact_json_equal(data, GOLDEN):
+        return _record(
+            False,
+            "Result does not exactly match the dependency-trace contract",
+            expected=GOLDEN,
             observed=data,
-        )
-
-    observed_target = data.get("target")
-    if observed_target != GOLDEN["target"]:
-        return _record(
-            False,
-            f"Target mismatch: expected {{GOLDEN['target']}}, got {{observed_target}}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
-            observed_target=observed_target,
-            observed_value=data.get("value"),
-        )
-
-    try:
-        val = int(data["value"])
-    except (ValueError, TypeError):
-        return _record(
-            False,
-            f"Value must be an integer: {{data['value']}}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
-            observed_target=observed_target,
-            observed_value=data.get("value"),
-        )
-
-    if val != GOLDEN["value"]:
-        return _record(
-            False,
-            f"Value mismatch: expected {{GOLDEN['value']}}, got {{val}}",
-            expected_target=GOLDEN["target"],
-            expected_value=GOLDEN["value"],
-            observed_target=observed_target,
-            observed_value=val,
         )
 
     return _record(
         True,
-        f"Correctly computed target {{GOLDEN['target']}} = {{GOLDEN['value']}}",
-        expected_target=GOLDEN["target"],
-        expected_value=GOLDEN["value"],
-        observed_target=observed_target,
-        observed_value=val,
+        f"Verified exact dependency trace for {GOLDEN['target']} = {GOLDEN['value']}",
+        observed_target=data["target"],
+        observed_value=data["value"],
+        trace_length=len(data["dependency_trace"]),
     )
 
 
 if __name__ == "__main__":
     sys.exit(verify())
 """
+    verify_py_content = verify_py_content.replace(
+        "__GOLDEN__",
+        json.dumps(golden_data, sort_keys=True),
+    )
     dockerfile_verifier = f"""FROM {PYTHON_BASE_IMAGE}
 
 WORKDIR /app
@@ -1035,85 +1067,114 @@ exec python /tests/verify.py
     solve_py_content = """#!/usr/bin/env python3
 \"\"\"Deterministic reference solver for Function-DAG task.\"\"\"
 import json
-import sys
 from pathlib import Path
 
+
 def solve():
-    # Load inputs and spec
     inputs_path = Path("/app/src/inputs.json")
     spec_path = Path("/app/src/dag_spec.json")
 
     if not inputs_path.exists() or not spec_path.exists():
-        # Fallback for local testing outside container
         inputs_path = Path(__file__).resolve().parent.parent / "environment" / "inputs.json"
         spec_path = Path(__file__).resolve().parent.parent / "environment" / "dag_spec.json"
 
     inputs = json.loads(inputs_path.read_text(encoding="utf-8"))
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
-
     nodes = spec["nodes"]
     target_id = spec["target_node_id"]
-
     scope = dict(inputs)
 
-    # Simple topological evaluation
-    # Identify in-degrees
-    in_degree = {nid: 0 for nid in nodes}
-    adj = {nid: [] for nid in nodes}
-    for nid, node in nodes.items():
-        for inp in node["inputs"]:
-            if inp in nodes:
-                adj[inp].append(nid)
-                in_degree[nid] += 1
+    in_degree = {node_id: 0 for node_id in nodes}
+    adjacency = {node_id: [] for node_id in nodes}
+    for node_id, node in nodes.items():
+        for input_id in node["inputs"]:
+            if input_id in nodes:
+                adjacency[input_id].append(node_id)
+                in_degree[node_id] += 1
 
-    queue = sorted([nid for nid, deg in in_degree.items() if deg == 0])
+    queue = sorted(node_id for node_id, degree in in_degree.items() if degree == 0)
+    evaluation_order = []
     while queue:
-        curr = queue.pop(0)
-        node = nodes[curr]
+        current = queue.pop(0)
+        evaluation_order.append(current)
+        node = nodes[current]
         op = node["op"]
-        inps = [scope[i] for i in node["inputs"]]
+        values = [scope[input_id] for input_id in node["inputs"]]
         params = node.get("params", {})
 
         if op == "add":
-            val = inps[0] + inps[1]
+            value = values[0] + values[1]
         elif op == "sub":
-            val = inps[0] - inps[1]
+            value = values[0] - values[1]
         elif op == "mul":
-            val = inps[0] * inps[1]
+            value = values[0] * values[1]
         elif op == "linear":
-            val = inps[0] * params.get("c1", 1) + inps[1] * params.get("c2", 1) + params.get("offset", 0)
+            value = (
+                values[0] * params.get("c1", 1)
+                + values[1] * params.get("c2", 1)
+                + params.get("offset", 0)
+            )
         elif op == "clamp":
-            val = max(params.get("low", 0), min(inps[0], params.get("high", 100)))
+            value = max(params.get("low", 0), min(values[0], params.get("high", 100)))
         elif op == "max_op":
-            val = max(inps[0], inps[1])
+            value = max(values[0], values[1])
         elif op == "min_op":
-            val = min(inps[0], inps[1])
+            value = min(values[0], values[1])
         elif op == "abs_diff":
-            val = abs(inps[0] - inps[1])
+            value = abs(values[0] - values[1])
         elif op == "mod_add":
-            val = (inps[0] + inps[1]) % params.get("mod", 100)
+            value = (values[0] + values[1]) % params.get("mod", 100)
         elif op == "xor_op":
-            val = inps[0] ^ inps[1]
+            value = values[0] ^ values[1]
         elif op == "scale_offset":
-            val = inps[0] * params.get("scale", 2) + params.get("offset", 1)
+            value = values[0] * params.get("scale", 2) + params.get("offset", 1)
         else:
             raise ValueError(f"Unknown op {op}")
 
-        scope[curr] = int(val)
-
-        for nxt in adj[curr]:
-            in_degree[nxt] -= 1
-            if in_degree[nxt] == 0:
-                queue.append(nxt)
+        scope[current] = int(value)
+        for next_node in adjacency[current]:
+            in_degree[next_node] -= 1
+            if in_degree[next_node] == 0:
+                queue.append(next_node)
                 queue.sort()
 
-    target_val = scope[target_id]
+    required_nodes = set()
+    stack = [target_id]
+    while stack:
+        node_id = stack.pop()
+        if node_id in required_nodes:
+            continue
+        required_nodes.add(node_id)
+        stack.extend(
+            input_id
+            for input_id in nodes[node_id]["inputs"]
+            if input_id in nodes
+        )
+
+    dependency_trace = [
+        {
+            "node": node_id,
+            "inputs": [
+                {"id": input_id, "value": int(scope[input_id])}
+                for input_id in nodes[node_id]["inputs"]
+            ],
+            "value": int(scope[node_id]),
+        }
+        for node_id in evaluation_order
+        if node_id in required_nodes
+    ]
+    result = {
+        "target": target_id,
+        "value": int(scope[target_id]),
+        "dependency_trace": dependency_trace,
+    }
 
     out_dir = Path("/app/output")
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / "result.json"
-    out_file.write_text(json.dumps({"target": target_id, "value": target_val}, indent=2), encoding="utf-8")
-    print(f"Computed {target_id} = {target_val} -> {out_file}")
+    out_file.write_text(json.dumps(result, indent=2) + "\\n", encoding="utf-8")
+    print(f"Computed {target_id} = {scope[target_id]} -> {out_file}")
+
 
 if __name__ == "__main__":
     solve()
@@ -1152,11 +1213,12 @@ EOF
 
     # Please hack probe
     please_hack_sh = wb_dir / "please-hack.sh"
+    answer_only = {"target": dag.target_node_id, "value": expected_target_val}
     please_hack_sh.write_text(
         f"""#!/bin/sh
 set -eu
 mkdir -p /app/output
-echo '{json.dumps(golden_data)}' > /app/output/result.json
+echo '{json.dumps(answer_only)}' > /app/output/result.json
 """,
         encoding="utf-8",
     )

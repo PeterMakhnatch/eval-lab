@@ -14,6 +14,7 @@ from evallab.execution_contracts import (
     PaidRunAuthorization,
     RunRequest,
     new_ulid,
+    redact_environment,
     subscription_environment,
     transient_provider_exception,
     transient_provider_reason,
@@ -22,6 +23,7 @@ from evallab.execution_contracts import (
 from evallab.harbor_network import (
     HarborNetworkPolicy,
     adapt_task_toml_for_host,
+    with_agent_network_allowlist,
 )
 
 
@@ -52,17 +54,102 @@ def test_run_request_immutability_and_job_timeout(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("mutate", "match"),
     [
-        (lambda r, p: RunRequest(task=p / "nonexistent", agent="oracle", name="valid-name", jobs_dir=p / "jobs"), "Task directory does not exist"),
-        (lambda r, p: RunRequest(task=p / "notaskdir", agent="oracle", name="valid-name", jobs_dir=p / "jobs"), "Task directory does not exist"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="oracle", name="Bad_Name", jobs_dir=p / "jobs"), "Job names must be 3-80 lowercase"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="oracle", name="sh", jobs_dir=p / "jobs"), "Job names must be 3-80 lowercase"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="oracle", name="valid-name", jobs_dir=p / "jobs", concurrency=0), "Concurrency and attempts must be positive"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="oracle", name="valid-name", jobs_dir=p / "jobs", attempts=0), "Concurrency and attempts must be positive"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="oracle", name="valid-name", jobs_dir=p / "jobs", timeout_seconds=0), "timeout must be 1-21600"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="oracle", name="valid-name", jobs_dir=p / "jobs", timeout_seconds=MAX_TRIAL_TIMEOUT_SECONDS + 1), "timeout must be 1-21600"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="codex", name="valid-name", jobs_dir=p / "jobs", allow_billable=False), "Pass --allow-billable"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="oracle", name="valid-name", jobs_dir=p / "jobs", model="some-model", allow_billable=True), "control does not accept a model"),
-        (lambda r, p: RunRequest(task=_task_dir(p), agent="codex", name="valid-name", jobs_dir=p / "jobs", model="some-model", allow_billable=False), "Pass --allow-billable"),
+        (
+            lambda r, p: RunRequest(
+                task=p / "nonexistent", agent="oracle", name="valid-name", jobs_dir=p / "jobs"
+            ),
+            "Task directory does not exist",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=p / "notaskdir", agent="oracle", name="valid-name", jobs_dir=p / "jobs"
+            ),
+            "Task directory does not exist",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p), agent="oracle", name="Bad_Name", jobs_dir=p / "jobs"
+            ),
+            "Job names must be 3-80 lowercase",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p), agent="oracle", name="sh", jobs_dir=p / "jobs"
+            ),
+            "Job names must be 3-80 lowercase",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p),
+                agent="oracle",
+                name="valid-name",
+                jobs_dir=p / "jobs",
+                concurrency=0,
+            ),
+            "Concurrency and attempts must be positive",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p),
+                agent="oracle",
+                name="valid-name",
+                jobs_dir=p / "jobs",
+                attempts=0,
+            ),
+            "Concurrency and attempts must be positive",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p),
+                agent="oracle",
+                name="valid-name",
+                jobs_dir=p / "jobs",
+                timeout_seconds=0,
+            ),
+            "timeout must be 1-21600",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p),
+                agent="oracle",
+                name="valid-name",
+                jobs_dir=p / "jobs",
+                timeout_seconds=MAX_TRIAL_TIMEOUT_SECONDS + 1,
+            ),
+            "timeout must be 1-21600",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p),
+                agent="codex",
+                name="valid-name",
+                jobs_dir=p / "jobs",
+                allow_billable=False,
+            ),
+            "Pass --allow-billable",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p),
+                agent="oracle",
+                name="valid-name",
+                jobs_dir=p / "jobs",
+                model="some-model",
+                allow_billable=True,
+            ),
+            "control does not accept a model",
+        ),
+        (
+            lambda r, p: RunRequest(
+                task=_task_dir(p),
+                agent="codex",
+                name="valid-name",
+                jobs_dir=p / "jobs",
+                model="some-model",
+                allow_billable=False,
+            ),
+            "Pass --allow-billable",
+        ),
     ],
 )
 def test_validate_request_invariants(tmp_path: Path, mutate: Any, match: str) -> None:
@@ -70,6 +157,8 @@ def test_validate_request_invariants(tmp_path: Path, mutate: Any, match: str) ->
     req = mutate(None, tmp_path)
     with pytest.raises(ValueError, match=match):
         validate_request(req)
+
+
 def test_paid_run_authorization_dataclass() -> None:
     """PaidRunAuthorization is a frozen dataclass holding human grant metadata."""
     now = datetime.now(UTC)
@@ -125,6 +214,26 @@ def test_subscription_environment_forwarding_and_forcing() -> None:
     assert sanitized["REWARDKIT_FORCE_OAUTH"] == "1"
 
 
+def test_deepseek_credentials_are_opt_in_and_log_redacted() -> None:
+    secret = "fresh-secret-never-log"
+    source = {
+        "HOME": "/home/user",
+        "MSWEA_API_KEY": secret,
+        "OPENAI_API_KEY": "never-forward",
+    }
+
+    assert "MSWEA_API_KEY" not in subscription_environment(source)
+    admitted = subscription_environment(source, include_deepseek_credentials=True)
+    assert admitted["DEEPSEEK_API_KEY"] == secret
+    assert admitted["MSWEA_API_KEY"] == secret
+    assert "OPENAI_API_KEY" not in admitted
+
+    redacted = redact_environment(admitted)
+    assert redacted["DEEPSEEK_API_KEY"] == "<redacted>"
+    assert redacted["MSWEA_API_KEY"] == "<redacted>"
+    assert secret not in repr(redacted)
+
+
 def test_new_ulid_format_and_monotonicity() -> None:
     """new_ulid generates 26-character sortable Crockford Base32 identifiers."""
     u1 = new_ulid(timestamp_ms=1000, randomness=1)
@@ -136,14 +245,24 @@ def test_new_ulid_format_and_monotonicity() -> None:
 
 def test_transient_provider_classification() -> None:
     """transient_provider_reason and transient_provider_exception classify 429 and 5xx errors."""
-    assert transient_provider_reason("HTTP 429: Too Many Requests") == "transient_harness:provider_http_429"
-    assert transient_provider_reason("HTTP 502 Bad Gateway from upstream provider") == "transient_harness:provider_http_5xx"
+    assert (
+        transient_provider_reason("HTTP 429: Too Many Requests")
+        == "transient_harness:provider_http_429"
+    )
+    assert (
+        transient_provider_reason("HTTP 502 Bad Gateway from upstream provider")
+        == "transient_harness:provider_http_5xx"
+    )
     assert transient_provider_reason("syntax error in python file") is None
 
-    res_429 = {"exception_info": {"exception_type": "ApiRateLimitError", "message": "rate limit reached"}}
+    res_429 = {
+        "exception_info": {"exception_type": "ApiRateLimitError", "message": "rate limit reached"}
+    }
     assert transient_provider_exception(res_429) == "transient_harness:provider_http_429"
 
-    res_500 = {"exception_info": {"exception_type": "ApiInternalServerError", "message": "server error"}}
+    res_500 = {
+        "exception_info": {"exception_type": "ApiInternalServerError", "message": "server error"}
+    }
     assert transient_provider_exception(res_500) == "transient_harness:provider_http_5xx"
 
 
@@ -179,3 +298,13 @@ def test_harbor_network_adaptation_typed_policy_input() -> None:
     assert adapt_darwin.network_isolation_enforced is False
     assert adapt_darwin.network_isolation_reason == "darwin-docker-cannot-enforce-no-network"
     assert "network_mode = 'public'" in text_darwin
+
+
+def test_agent_allowlist_is_execution_only_and_exact() -> None:
+    task_toml = '[agent]\ntimeout_sec = 60.0\n\n[environment]\nnetwork_mode = "public"\n'
+
+    updated = with_agent_network_allowlist(task_toml, ("api.deepseek.com",))
+
+    assert task_toml == ('[agent]\ntimeout_sec = 60.0\n\n[environment]\nnetwork_mode = "public"\n')
+    assert 'network_mode = "allowlist"' in updated
+    assert 'allowed_hosts = ["api.deepseek.com"]' in updated

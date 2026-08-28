@@ -14,9 +14,15 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_existing_oracle_and_nop_controls_extract_deterministic_facts() -> None:
-    jobs = load_jobs([ROOT / "evidence/runs", ROOT / "research/evidence/runs"])
-
-    trials = [fact for job in jobs for fact in extract_job_facts(job).trials]
+    jobs = {
+        job.path.name: job
+        for job in load_jobs([ROOT / "evidence/runs", ROOT / "research/evidence/runs"])
+    }
+    control_jobs = (
+        jobs["event-summary-oracle-evidence"],
+        jobs["event-summary-nop-evidence"],
+    )
+    trials = [fact for job in control_jobs for fact in extract_job_facts(job).trials]
     facts = {fact.agent_name: fact for fact in trials}
 
     # The promoted evidence corpus grows: real agent bundles are the intended

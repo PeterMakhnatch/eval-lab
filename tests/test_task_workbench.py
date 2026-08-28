@@ -442,6 +442,11 @@ def test_valid_candidate_inspection_freezes_every_digest_and_safe_command(
         for item in inspection.control_plan
     )
     assert all("--extra-docker-compose" in item.command for item in inspection.control_plan)
+    assert all("--include-task-name" in item.command for item in inspection.control_plan)
+    assert all(
+        item.command[item.command.index("--include-task-name") + 1] == item.control_id
+        for item in inspection.control_plan
+    )
     assert all(
         item.command[item.command.index("--extra-docker-compose") + 1].endswith(
             NETWORK_OVERLAY_RELATIVE
@@ -2109,8 +2114,12 @@ def test_cli_run_controls_composes_fixed_harbor_subprocess_commands(
 
     def runner(command, **kwargs):
         captured.append(command)
-        stage = Path(command[command.index("--path") + 1])
+        dataset = Path(command[command.index("--path") + 1])
+        included_task = command[command.index("--include-task-name") + 1]
+        stage = dataset / included_task
         overlay = Path(command[command.index("--extra-docker-compose") + 1])
+        assert dataset.is_dir()
+        assert included_task in {path.name for path in dataset.iterdir()}
         assert stage.is_dir()
         assert overlay == stage / NETWORK_OVERLAY_RELATIVE
         assert overlay.read_bytes() == NETWORK_OVERLAY_CONTENT

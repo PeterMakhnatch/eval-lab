@@ -3158,14 +3158,17 @@ def _control_command(candidate_id: str, task_id: str, entry_id: str, agent: str)
     safe_task = re.sub(r"[^a-z0-9-]+", "-", task_id.lower()).strip("-") or "task"
     safe_task = safe_task[-24:]
     job_name = f"m007-{safe_task}-{candidate_id[-8:]}-{entry_id}"
-    staging = f"$REPO/runs/task-workbench/{candidate_id}/staging/{entry_id}"
+    staging_root = f"$REPO/runs/task-workbench/{candidate_id}/staging"
+    staged_task = f"{staging_root}/{entry_id}"
     jobs = f"$REPO/runs/task-workbench/{candidate_id}/jobs"
-    network_overlay = f"{staging}/{NETWORK_OVERLAY_RELATIVE}"
+    network_overlay = f"{staged_task}/{NETWORK_OVERLAY_RELATIVE}"
     return (
         "harbor",
         "run",
         "--path",
-        staging,
+        staging_root,
+        "--include-task-name",
+        entry_id,
         "--agent",
         agent,
         "--env",
@@ -3711,8 +3714,10 @@ class HarborControlBackend:
             raise WorkbenchError("isolated staged task bytes do not match the frozen control plan")
         canonical_command = tuple(plan.command)
         materialized = _materialize_command(canonical_command, repo_root)
-        if Path(materialized[materialized.index("--path") + 1]).resolve() != stage.resolve():
-            raise WorkbenchError("materialized control command does not name its isolated stage")
+        dataset_path = Path(materialized[materialized.index("--path") + 1]).resolve()
+        included_task = materialized[materialized.index("--include-task-name") + 1]
+        if dataset_path != stage.parent.resolve() or included_task != plan.control_id:
+            raise WorkbenchError("materialized control command does not select its isolated stage")
         jobs.mkdir(parents=True, exist_ok=True)
         if job_dir.exists():
             return self._observation_from_existing(

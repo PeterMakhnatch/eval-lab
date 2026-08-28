@@ -108,6 +108,10 @@ def test_materialized_agent_package_boundary_rejects_credentials_and_oracle(
         '[environment]\nenv = { OPENAI_API_KEY = "${OPENAI_API_KEY}" }\n',
         encoding="utf-8",
     )
+    materializer._normalize_task_metadata(task_dir)
+    assert 'name = "evallab/tau3-banking-knowledge-task-001"' in task_toml.read_text(
+        encoding="utf-8"
+    )
     dockerfile.write_text(
         "FROM python:3.12-slim\nRUN git clone tau2-bench /opt/tau2-bench\n",
         encoding="utf-8",

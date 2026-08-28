@@ -317,10 +317,10 @@ def _add_after_section(text: str, section: str, insert: str) -> str:
 
 
 def _normalize_task_metadata(task_dir: Path) -> None:
-    """Ensure task.toml carries the required v2 metadata and a safe slug name."""
+    """Ensure task.toml carries the required v2 metadata and Harbor package name."""
     task_toml = task_dir / "task.toml"
     text = task_toml.read_text(encoding="utf-8")
-    safe_name = "tau3-banking-knowledge-task-001"
+    safe_name = "evallab/tau3-banking-knowledge-task-001"
     description = "Rho-Bank customer-service task requiring KB retrieval and a credit-card application."
     text = re.sub(
         r'^name\s*=\s*"[^"]*"',

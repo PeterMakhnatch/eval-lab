@@ -12,6 +12,7 @@ from evallab.interpretation.trajectory_compliance import (
     provenance_catalog,
 )
 from evallab.interpretation.trajectory_compliance_ops import (
+    HOOK_VERSION,
     ArtifactRefs,
     ComplianceEngineError,
     ComplianceIngestReport,
@@ -19,7 +20,7 @@ from evallab.interpretation.trajectory_compliance_ops import (
     SettlementIdentity,
     agent_readable_catalog,
     canonical_report_bytes,
-    idempotency_key,
+    compliance_input_digest,
     ingest_after_settlement,
     report_sanitized_trial,
 )
@@ -100,12 +101,13 @@ def _refs(**overrides: object) -> ArtifactRefs:
 
 
 def test_hook_raises_before_catalog_settlement() -> None:
-    with pytest.raises(ComplianceSettlementError, match="catalog_or_cas_not_settled"):
-        ingest_after_settlement(
-            _identity(cataloged=False, cas_settled=False),
-            _refs(),
-            FINISHED_AT,
-        )
+    identity = _identity(cataloged=False, cas_settled=False)
+    refs = _refs()
+    expected = compliance_input_digest(identity, refs, FINISHED_AT)
+    with pytest.raises(ComplianceSettlementError, match="catalog_or_cas_not_settled") as raised:
+        ingest_after_settlement(identity, refs, FINISHED_AT)
+    assert raised.value.input_digest == expected
+
 
 
 def test_hook_lag_ms_from_settlement_timestamps() -> None:
@@ -222,6 +224,7 @@ def test_report_roundtrip() -> None:
     first = ingest_after_settlement(_identity(), _refs(), FINISHED_AT)
     restored = ComplianceIngestReport.model_validate(first.model_dump(mode="json"))
     assert restored.report_digest == first.report_digest
+    assert restored.input_digest == first.input_digest
     assert restored.disposition == first.disposition
     assert restored.reasons == first.reasons
     assert restored.lag_ms == first.lag_ms
@@ -231,20 +234,60 @@ def test_report_roundtrip() -> None:
 def test_identical_inputs_are_byte_identical() -> None:
     first = ingest_after_settlement(_identity(), _refs(), FINISHED_AT)
     second = ingest_after_settlement(_identity(), _refs(), FINISHED_AT)
+    expected = compliance_input_digest(_identity(), _refs(), FINISHED_AT)
+    assert first.input_digest == second.input_digest == expected
     assert first.report_digest == second.report_digest
     assert canonical_report_bytes(first) == canonical_report_bytes(second)
-    assert idempotency_key(_identity(), _refs()) == idempotency_key(_identity(), _refs())
 
 
-def test_changed_artifact_digest_is_new_evaluation_key() -> None:
-    first_refs = _refs()
-    second_refs = _refs(result_digest="sha256:other-result")
-    first_key = idempotency_key(_identity(), first_refs)
-    second_key = idempotency_key(_identity(), second_refs)
-    assert first_key != second_key
-    first = ingest_after_settlement(_identity(), first_refs, FINISHED_AT)
-    second = ingest_after_settlement(_identity(), second_refs, FINISHED_AT)
+def test_normalized_finished_at_does_not_change_input_digest() -> None:
+    zulu = compliance_input_digest(_identity(), _refs(), "2026-08-28T00:00:00Z")
+    offset = compliance_input_digest(_identity(), _refs(), FINISHED_AT)
+    assert zulu == offset
+    first = ingest_after_settlement(_identity(), _refs(), "2026-08-28T00:00:00Z")
+    second = ingest_after_settlement(_identity(), _refs(), FINISHED_AT)
+    assert first.input_digest == second.input_digest == zulu
     assert first.report_digest == second.report_digest
+
+
+def test_input_digest_changes_with_evaluation_registry_paths_and_finished_at() -> None:
+    identity = _identity()
+    base = _refs()
+    base_digest = compliance_input_digest(identity, base, FINISHED_AT)
+    evaluation = compliance_input_digest(identity, _refs(evaluation={"step_count": 9}), FINISHED_AT)
+    registry = compliance_input_digest(
+        identity,
+        _refs(registry_rows=({"column_name": "tool_call_count", "formula_or_rule": "len(tool_calls)"},)),
+        FINISHED_AT,
+    )
+    paths = compliance_input_digest(identity, _refs(tracked_paths=("research/experiments/manifests/ok.json",)), FINISHED_AT)
+    finished = compliance_input_digest(identity, base, "2026-08-28T00:00:01+00:00")
+    artifact = compliance_input_digest(identity, _refs(result_digest="sha256:other-result"), FINISHED_AT)
+    assert len({base_digest, evaluation, registry, paths, finished, artifact}) == 6
+    reports = [
+        ingest_after_settlement(identity, base, FINISHED_AT),
+        ingest_after_settlement(identity, _refs(evaluation={"step_count": 9}), FINISHED_AT),
+        ingest_after_settlement(
+            identity,
+            _refs(registry_rows=({"column_name": "tool_call_count", "formula_or_rule": "len(tool_calls)"},)),
+            FINISHED_AT,
+        ),
+        ingest_after_settlement(identity, _refs(tracked_paths=("research/experiments/manifests/ok.json",)), FINISHED_AT),
+        ingest_after_settlement(identity, base, "2026-08-28T00:00:01+00:00"),
+        ingest_after_settlement(identity, _refs(result_digest="sha256:other-result"), FINISHED_AT),
+    ]
+    assert len({row.input_digest for row in reports}) == 6
+    assert reports[0].input_digest == base_digest
+
+
+def test_hook_version_change_is_a_new_input_digest(monkeypatch: pytest.MonkeyPatch) -> None:
+    import evallab.interpretation.trajectory_compliance_ops as ops
+
+    first = compliance_input_digest(_identity(), _refs(), FINISHED_AT)
+    monkeypatch.setattr(ops, "HOOK_VERSION", "ingest-after-settlement/v2")
+    second = ops.compliance_input_digest(_identity(), _refs(), FINISHED_AT)
+    assert first != second
+    assert HOOK_VERSION == "ingest-after-settlement/v1"
 
 
 def test_evaluated_at_excluded_from_report_digest() -> None:
@@ -260,6 +303,7 @@ def test_evaluated_at_excluded_from_report_digest() -> None:
 
     resealed = _seal_report(sealed_mutated)
     assert resealed.report_digest == report.report_digest
+    assert resealed.input_digest == report.input_digest
 
 
 def test_compliance_engine_failure_raises_typed_exception(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -269,5 +313,7 @@ def test_compliance_engine_failure_raises_typed_exception(monkeypatch: pytest.Mo
         raise RuntimeError("boom")
 
     monkeypatch.setattr(ops, "evaluate_trial_compliance", boom)
-    with pytest.raises(ComplianceEngineError, match="RuntimeError"):
+    expected = compliance_input_digest(_identity(), _refs(), FINISHED_AT)
+    with pytest.raises(ComplianceEngineError, match="RuntimeError") as raised:
         ingest_after_settlement(_identity(), _refs(), FINISHED_AT)
+    assert raised.value.input_digest == expected

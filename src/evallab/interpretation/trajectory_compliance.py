@@ -378,34 +378,6 @@ def evaluate_trial_compliance(bundle: TrialEvidenceBundle) -> TrialComplianceRec
     ))
 
 
-def ingest_settled_trial(bundle: TrialEvidenceBundle) -> TrialComplianceRecord:
-    return evaluate_trial_compliance(bundle)
-
-
-def ingest_settled_trial_idempotent(
-    bundle: TrialEvidenceBundle,
-    prior: TrialComplianceRecord | None = None,
-) -> TrialComplianceRecord:
-    current = evaluate_trial_compliance(bundle)
-    if prior is None:
-        return current
-    if (
-        prior.job_id,
-        prior.trial_id,
-        prior.cas_uri,
-        prior.trial_source_digest,
-        tuple(prior.hold_reasons),
-    ) == (
-        current.job_id,
-        current.trial_id,
-        current.cas_uri,
-        current.trial_source_digest,
-        tuple(current.hold_reasons),
-    ):
-        return prior
-    return current
-
-
 MALFORMED_REGISTRY = "malformed_registry_mapping"
 
 

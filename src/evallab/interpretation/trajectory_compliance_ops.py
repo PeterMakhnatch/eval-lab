@@ -7,11 +7,13 @@ Data evaluates purely from those frozen inputs and raises typed exceptions.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import Field
 
 from evallab.interpretation.trajectory_compliance import (
+    SCHEMA_VERSION,
     ComplianceDisposition,
     FeatureProvenanceEntry,
     PlatformSettlement,
@@ -26,11 +28,17 @@ from evallab.interpretation.trajectory_compliance import (
 from evallab.schemas import ContractModel
 
 GOLD_RATER_MIN = 3
+HOOK_VERSION = "ingest-after-settlement/v1"
+EVALUATOR_VERSION = "evaluate_trial_compliance/v1"
 _CLOCK_KEYS = frozenset({"evaluated_at"})
 
 
 class ComplianceError(Exception):
     """Typed compliance exception. Platform must not fabricate a Data report."""
+
+    def __init__(self, message: str, *, input_digest: str) -> None:
+        super().__init__(message)
+        self.input_digest = input_digest
 
 
 class ComplianceSettlementError(ComplianceError):
@@ -39,6 +47,7 @@ class ComplianceSettlementError(ComplianceError):
 
 class ComplianceEngineError(ComplianceError):
     """Unexpected evaluation failure. Platform must not fabricate a Data report."""
+
 
 
 class SettlementIdentity(ContractModel):
@@ -94,6 +103,7 @@ class ReadinessGates(ContractModel):
 
 class ComplianceIngestReport(ContractModel):
     report_digest: str = ""
+    input_digest: str = ""
     disposition: ComplianceDisposition
     reasons: list[str] = Field(default_factory=list)
     lag_ms: int | None
@@ -103,25 +113,38 @@ class ComplianceIngestReport(ContractModel):
     bloat_clean: bool
 
 
-def artifact_digests(refs: ArtifactRefs) -> dict[str, str]:
-    items: dict[str, str] = {}
-    for name in ("result_digest", "atif_digest", "ir_digest", "pack_digest", "loss_manifest_digest"):
-        value = getattr(refs, name)
-        if isinstance(value, str) and value:
-            items[name] = value
-    items.update(refs.extra_digests)
-    return items
+def normalize_finished_at(finished_at: str) -> str:
+    parsed = datetime.fromisoformat(finished_at.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).isoformat()
 
 
-def idempotency_key(identity: SettlementIdentity, refs: ArtifactRefs) -> str:
+def _finished_at_for_digest(finished_at: str) -> str:
+    try:
+        return normalize_finished_at(finished_at)
+    except ValueError:
+        return finished_at
+
+
+def compliance_input_digest(
+    settlement_identity: SettlementIdentity,
+    artifact_refs: ArtifactRefs,
+    finished_at: str,
+) -> str:
+    """Data-owned pre-call digest. Platform must not re-derive this formula."""
     return canonical_digest(
         {
-            "job_id": identity.job_id,
-            "trial_id": identity.trial_id,
-            "cas_uri": identity.cas_uri,
-            "artifact_digests": artifact_digests(refs),
+            "schema_version": SCHEMA_VERSION,
+            "hook_version": HOOK_VERSION,
+            "evaluator_version": EVALUATOR_VERSION,
+            "settlement_identity": settlement_identity.model_dump(mode="json"),
+            "artifact_refs": artifact_refs.model_dump(mode="json"),
+            "finished_at": _finished_at_for_digest(finished_at),
         }
     )
+
+
 
 
 def _strip_clocks(value: Any) -> Any:
@@ -224,8 +247,10 @@ def ingest_after_settlement(
     finished_at: str,
 ) -> ComplianceIngestReport:
     """Pure evaluation after terminal execution, sanitization, CAS, and catalog settlement."""
+    finished_at = _finished_at_for_digest(finished_at)
+    pre_digest = compliance_input_digest(settlement_identity, artifact_refs, finished_at)
     if not settlement_identity.cataloged or not settlement_identity.cas_settled:
-        raise ComplianceSettlementError("catalog_or_cas_not_settled")
+        raise ComplianceSettlementError("catalog_or_cas_not_settled", input_digest=pre_digest)
     try:
         bundle = _evaluation_view(settlement_identity, artifact_refs, finished_at)
         record = evaluate_trial_compliance(bundle)
@@ -235,6 +260,7 @@ def ingest_after_settlement(
             tracked_output_is_manifest_only(artifact_refs.tracked_paths) if artifact_refs.tracked_paths else True
         )
         report = ComplianceIngestReport(
+            input_digest=pre_digest,
             disposition=record.disposition,
             reasons=list(record.hold_reasons),
             lag_ms=record.lag_ms,
@@ -243,11 +269,14 @@ def ingest_after_settlement(
             catalog_entries=catalog,
             bloat_clean=bloat_clean,
         )
-        return _seal_report(report)
+        sealed = _seal_report(report)
+        if sealed.input_digest != pre_digest:
+            raise ComplianceEngineError("input_digest_mismatch", input_digest=pre_digest)
+        return sealed
     except ComplianceError:
         raise
     except Exception as exc:
-        raise ComplianceEngineError(type(exc).__name__) from exc
+        raise ComplianceEngineError(type(exc).__name__, input_digest=pre_digest) from exc
 
 
 def agent_readable_catalog(entries: Sequence[FeatureProvenanceEntry]) -> list[dict[str, Any]]:

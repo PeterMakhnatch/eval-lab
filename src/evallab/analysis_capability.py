@@ -49,6 +49,7 @@ class Verdict(StrEnum):
     EMPIRICAL_SUSPECT = "EMPIRICAL_SUSPECT"
     CLEAR = "CLEAR"
     UNDERPOWERED = "UNDERPOWERED"
+    SINGLE_OUTCOME_CLASS = "SINGLE_OUTCOME_CLASS"
 
 
 class Basis(StrEnum):
@@ -160,7 +161,9 @@ class RecoveryOpportunity(ContractModel):
     fault_opportunity_id: str = Field(min_length=1)
     trial_id: str = Field(min_length=1)
     repeat_group_id: str | None = None
-    repeat_eligible: bool = True
+    repeat_eligible: bool | None = None
+    task_name: str | None = None
+    model_name: str | None = None
     eligible: bool
     recovered: bool | None = None
     source_digest: Digest
@@ -233,6 +236,19 @@ _STRUCTURAL_PRECEDENCE = (
     Verdict.MISSING_NULL_ON_ZERO_DECLARATION,
     Verdict.INVALID_DENOMINATOR_DECLARATION,
 )
+
+
+def _in_step_range(step: int, step_count: int) -> bool:
+    return 1 <= step <= step_count
+
+
+def _repeat_cell_underfilled(rows: Sequence[RecoveryOpportunity]) -> bool:
+    cells: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for row in rows:
+        if not row.task_name or not row.model_name:
+            return True
+        cells[(row.task_name, row.model_name)].add(row.trial_id)
+    return any(len(trial_ids) < 2 for trial_ids in cells.values())
 
 
 def _canonical_digest(value: object) -> str:
@@ -350,8 +366,6 @@ def _empirical_diagnostics(
         refusal_code = RefusalCode.UNDERPOWERED
     elif not both_classes:
         refusal_code = RefusalCode.SINGLE_OUTCOME_CLASS
-    elif zero_variance:
-        refusal_code = RefusalCode.ZERO_VARIANCE
 
     return EmpiricalDiagnostics(
         n_nonnull=len(populated),
@@ -404,12 +418,17 @@ def evaluate_process_outcome_gate(
             basis = Basis.REGISTRY_CONFIRMED
             disposition = CIDisposition.BLOCK if contract.is_new_feature else CIDisposition.ADVISORY
             requires_allowlist = not contract.is_new_feature
-        elif empirical.refusal_code is not None:
+        elif empirical.refusal_code is RefusalCode.UNDERPOWERED:
             verdict = Verdict.UNDERPOWERED
             basis = Basis.NONE
             disposition = CIDisposition.ADVISORY
             requires_allowlist = False
-        elif empirical.sample_degenerate:
+        elif empirical.refusal_code is RefusalCode.SINGLE_OUTCOME_CLASS:
+            verdict = Verdict.SINGLE_OUTCOME_CLASS
+            basis = Basis.NONE
+            disposition = CIDisposition.ADVISORY
+            requires_allowlist = False
+        elif empirical.sample_degenerate or empirical.zero_variance:
             verdict = Verdict.EMPIRICAL_SUSPECT
             basis = Basis.EMPIRICAL_DIAGNOSTIC
             disposition = CIDisposition.ADVISORY
@@ -505,15 +524,15 @@ def analyze_conditional_recovery(
     cohort_key: str,
     confidence_level: float = 0.95,
     resamples: int = BOOTSTRAP_RESAMPLES,
-    minimum_effective_n: int = 1,
+    minimum_effective_n: int = 2,
 ) -> RecoveryAnalysisResult:
     """Estimate per-fault recovery with deterministic cluster bootstrap."""
     if not 0 < confidence_level < 1:
         raise ValueError("confidence_level must be between zero and one")
     if resamples < 1:
         raise ValueError("resamples must be positive")
-    if minimum_effective_n < 1:
-        raise ValueError("minimum_effective_n must be positive")
+    if minimum_effective_n < 2:
+        raise ValueError("minimum_effective_n must be at least 2")
 
     rows = sorted(
         opportunities,
@@ -547,14 +566,16 @@ def analyze_conditional_recovery(
             status=AnalysisStatus.REFUSAL,
             refusal_code=RefusalCode.ZERO_OPPORTUNITY,
         )
-    if any(not row.repeat_eligible for row in eligible):
+    if any(row.repeat_eligible is not True for row in eligible) or _repeat_cell_underfilled(
+        eligible
+    ):
         return _recovery_result(
             source_analysis_snapshot_digest=source_analysis_snapshot_digest,
             cohort_key=cohort_key,
             input_digest=input_digest,
             n_total=len(eligible),
             n_effective=len({row.cluster_id for row in eligible}),
-            recovered_count=0,
+            recovered_count=sum(row.recovered is True for row in eligible),
             confidence_level=confidence_level,
             resamples=0,
             seed_digest=seed_digest,
@@ -637,7 +658,7 @@ def _cascade_refusal(row: CascadeTrialInput, code: RefusalCode) -> CascadeTrialR
 def _evaluate_cascade(row: CascadeTrialInput) -> CascadeTrialResult:
     if row.step_count < 5:
         return _cascade_refusal(row, RefusalCode.SHORT_TRAJECTORY)
-    if row.first_error_step is None or not 0 <= row.first_error_step < row.step_count:
+    if row.first_error_step is None or not _in_step_range(row.first_error_step, row.step_count):
         return _cascade_refusal(row, RefusalCode.T_ERR_UNAVAILABLE)
     if row.lock_event_observed and row.right_censored:
         return _cascade_refusal(row, RefusalCode.CENSORING_UNAVAILABLE)
@@ -650,7 +671,7 @@ def _evaluate_cascade(row: CascadeTrialInput) -> CascadeTrialResult:
             or not row.lock_evidence_ref
         ):
             return _cascade_refusal(row, RefusalCode.T_LOCK_UNAVAILABLE)
-        if not row.first_error_step <= row.lock_step < row.step_count:
+        if not row.first_error_step <= row.lock_step <= row.step_count:
             return _cascade_refusal(row, RefusalCode.INVALID_CASCADE_ORDER)
         return CascadeTrialResult(
             trial_id=row.trial_id,
@@ -665,7 +686,7 @@ def _evaluate_cascade(row: CascadeTrialInput) -> CascadeTrialResult:
         return _cascade_refusal(row, RefusalCode.CENSORING_UNAVAILABLE)
     if row.lock_step is not None or row.lock_evidence_ref is not None:
         return _cascade_refusal(row, RefusalCode.CENSORING_UNAVAILABLE)
-    if not row.first_error_step <= row.censor_step < row.step_count:
+    if not row.first_error_step <= row.censor_step <= row.step_count:
         return _cascade_refusal(row, RefusalCode.CENSORING_UNAVAILABLE)
     return CascadeTrialResult(
         trial_id=row.trial_id,

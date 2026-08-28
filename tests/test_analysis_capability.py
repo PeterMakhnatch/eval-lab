@@ -251,6 +251,73 @@ def test_t11_empirical_underpowered_below_clearance_slo() -> None:
     assert res.empirical.n_nonnull == 10
 
 
+def test_t11_constant_feature_both_outcomes_is_empirical_suspect() -> None:
+    """A constant feature at n>=20 with both outcome classes is advisory, not underpowered."""
+    contract = FeatureContractRow(
+        feature_name="constant_feature",
+        is_new_feature=False,
+        declared_inputs=("clean_steps",),
+        available_before_verdict=True,
+        denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
+    )
+    observations = [
+        FeatureObservation(
+            feature_name="constant_feature",
+            trial_id=f"t_{i}",
+            task_success=i < 10,
+            value=0,
+        )
+        for i in range(20)
+    ]
+
+    report = evaluate_process_outcome_gate(
+        contracts=[contract],
+        observations=observations,
+        source_analysis_snapshot_digest=DIGEST_A,
+        clearance_n=20,
+    )
+
+    res = report.results[0]
+    assert res.verdict == Verdict.EMPIRICAL_SUSPECT
+    assert res.basis == Basis.EMPIRICAL_DIAGNOSTIC
+    assert res.empirical.zero_variance is True
+    assert res.empirical.sample_degenerate is True
+    assert res.empirical.refusal_code is None
+    assert res.empirical.n_nonnull == 20
+
+
+def test_t11_single_outcome_class_distinct_from_underpowered() -> None:
+    contract = FeatureContractRow(
+        feature_name="one_class_feature",
+        is_new_feature=False,
+        declared_inputs=("clean_steps",),
+        available_before_verdict=True,
+        denominator_policy=DenominatorPolicy.NOT_APPLICABLE,
+    )
+    observations = [
+        FeatureObservation(
+            feature_name="one_class_feature",
+            trial_id=f"t_{i}",
+            task_success=True,
+            value=float(i),
+        )
+        for i in range(20)
+    ]
+
+    report = evaluate_process_outcome_gate(
+        contracts=[contract],
+        observations=observations,
+        source_analysis_snapshot_digest=DIGEST_A,
+        clearance_n=20,
+    )
+
+    res = report.results[0]
+    assert res.verdict == Verdict.SINGLE_OUTCOME_CLASS
+    assert res.basis == Basis.NONE
+    assert res.empirical.refusal_code == RefusalCode.SINGLE_OUTCOME_CLASS
+    assert res.empirical.n_nonnull == 20
+
+
 # =============================================================================
 # T1.2 Conditional Recovery Analysis Tests
 # =============================================================================
@@ -284,12 +351,17 @@ def test_t12_zero_opportunity_returns_null_and_refusal() -> None:
 def test_t12_missing_recovery_outcome_refuses() -> None:
     opps = [
         RecoveryOpportunity(
-            fault_opportunity_id="fault_1",
-            trial_id="trial_1",
+            fault_opportunity_id=f"fault_{trial}",
+            trial_id=trial,
+            repeat_group_id="cell_a",
+            repeat_eligible=True,
+            task_name="task_a",
+            model_name="model_a",
             eligible=True,
             recovered=None,
             source_digest=DIGEST_A,
         )
+        for trial in ("trial_1", "trial_2")
     ]
 
     result = analyze_conditional_recovery(
@@ -303,12 +375,67 @@ def test_t12_missing_recovery_outcome_refuses() -> None:
     assert result.estimate is None
 
 
+def test_t12_omitted_repeat_eligible_refuses() -> None:
+    opps = [
+        RecoveryOpportunity(
+            fault_opportunity_id=f"fault_{trial}",
+            trial_id=trial,
+            repeat_group_id="cell_a",
+            task_name="task_a",
+            model_name="model_a",
+            eligible=True,
+            recovered=True,
+            source_digest=DIGEST_A,
+        )
+        for trial in ("trial_1", "trial_2")
+    ]
+
+    result = analyze_conditional_recovery(
+        opportunities=opps,
+        source_analysis_snapshot_digest=DIGEST_A,
+        cohort_key="recovery_test_v1",
+    )
+
+    assert result.status == AnalysisStatus.REFUSAL
+    assert result.refusal_code == RefusalCode.REPEAT_INELIGIBLE
+    assert result.estimate is None
+
+
+def test_t12_single_trial_per_task_model_refuses() -> None:
+    opps = [
+        RecoveryOpportunity(
+            fault_opportunity_id="fault_1",
+            trial_id="trial_1",
+            repeat_group_id="cell_a",
+            repeat_eligible=True,
+            task_name="task_a",
+            model_name="model_a",
+            eligible=True,
+            recovered=True,
+            source_digest=DIGEST_A,
+        )
+    ]
+
+    result = analyze_conditional_recovery(
+        opportunities=opps,
+        source_analysis_snapshot_digest=DIGEST_A,
+        cohort_key="recovery_test_v1",
+    )
+
+    assert result.status == AnalysisStatus.REFUSAL
+    assert result.refusal_code == RefusalCode.REPEAT_INELIGIBLE
+    assert result.estimate is None
+
+
 def test_t12_deterministic_byte_identical_cluster_bootstrap() -> None:
     opps = [
         RecoveryOpportunity(
             fault_opportunity_id=f"fault_{i}_{j}",
             trial_id=f"trial_{i}",
             repeat_group_id=f"task_group_{i // 2}",
+            repeat_eligible=True,
+            task_name=f"task_{i // 2}",
+            model_name="model_a",
             eligible=True,
             recovered=(i + j) % 2 == 0,
             source_digest=DIGEST_A,
@@ -404,6 +531,95 @@ def test_t13_observed_cascade_distance_calculation() -> None:
     assert res.lock_step == 7
     assert res.cascade_distance == 5
     assert res.refusal_code is None
+
+
+def test_t13_terminal_step_error_lock_and_censor_are_valid() -> None:
+    observed = analyze_cascade_distance(
+        trials=[
+            CascadeTrialInput(
+                trial_id="t_terminal_lock",
+                step_count=12,
+                first_error_step=3,
+                lock_step=12,
+                lock_event_observed=True,
+                right_censored=False,
+                lock_predicate_id="pred_1",
+                lock_predicate_version="v1",
+                lock_evidence_ref="cit:1",
+                source_digest=DIGEST_A,
+            )
+        ],
+        source_analysis_snapshot_digest=DIGEST_A,
+    ).results[0]
+    censored = analyze_cascade_distance(
+        trials=[
+            CascadeTrialInput(
+                trial_id="t_terminal_censor",
+                step_count=12,
+                first_error_step=3,
+                lock_step=None,
+                lock_event_observed=False,
+                right_censored=True,
+                censor_step=12,
+                lock_predicate_id=None,
+                lock_predicate_version=None,
+                lock_evidence_ref=None,
+                source_digest=DIGEST_A,
+            )
+        ],
+        source_analysis_snapshot_digest=DIGEST_A,
+    ).results[0]
+    terminal_error = analyze_cascade_distance(
+        trials=[
+            CascadeTrialInput(
+                trial_id="t_terminal_error",
+                step_count=12,
+                first_error_step=12,
+                lock_step=12,
+                lock_event_observed=True,
+                right_censored=False,
+                lock_predicate_id="pred_1",
+                lock_predicate_version="v1",
+                lock_evidence_ref="cit:1",
+                source_digest=DIGEST_A,
+            )
+        ],
+        source_analysis_snapshot_digest=DIGEST_A,
+    ).results[0]
+
+    assert observed.status == CascadeStatus.OBSERVED
+    assert observed.lock_step == 12
+    assert observed.cascade_distance == 9
+    assert observed.refusal_code is None
+    assert censored.status == CascadeStatus.CENSORED
+    assert censored.censor_step == 12
+    assert censored.refusal_code is None
+    assert terminal_error.status == CascadeStatus.OBSERVED
+    assert terminal_error.cascade_distance == 0
+    assert terminal_error.refusal_code is None
+
+
+def test_t13_zero_based_step_is_unavailable() -> None:
+    report = analyze_cascade_distance(
+        trials=[
+            CascadeTrialInput(
+                trial_id="t_zero_based",
+                step_count=12,
+                first_error_step=0,
+                lock_step=11,
+                lock_event_observed=True,
+                right_censored=False,
+                lock_predicate_id="pred_1",
+                lock_predicate_version="v1",
+                lock_evidence_ref="cit:1",
+                source_digest=DIGEST_A,
+            )
+        ],
+        source_analysis_snapshot_digest=DIGEST_A,
+    )
+    res = report.results[0]
+    assert res.status == CascadeStatus.REFUSED
+    assert res.refusal_code == RefusalCode.T_ERR_UNAVAILABLE
 
 
 def test_t13_censored_trajectory_handling() -> None:

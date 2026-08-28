@@ -2,8 +2,14 @@
 type: literature-map
 topic: derivative-trajectory-features
 reviewed: 2026-08-27
-status: primary-source-verified
+status: distilled
 authority: 131 Downloaded Primary Papers + Harbor ATIF v1.7 Spec + Eval Lab Telemetry
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-27
+license_note: Internal primary-source synthesis; source-specific licenses remain authoritative.
+feeds:
+  - parked
 ---
 
 # Source-Verified Literature Map: Derivative Trajectory Features & Synthetic Task Funnels

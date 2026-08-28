@@ -1,3 +1,13 @@
+---
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-27
+license_note: Internal research synthesis; Eval Lab repository license applies.
+status: distilled
+feeds:
+  - parked
+---
+
 # Formal Contract: Feature-to-Research-to-Synthetic Pipeline
 
 - **Document Version:** 1.0.0 (2026-08-26)

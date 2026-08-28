@@ -3,7 +3,7 @@ type: engine-spec
 topic: capability-curve-engine
 author: analyst
 date: 2026-08-27
-status: proposal
+status: distilled
 epistemic: design + evidence-grounded substrate audit
 collection: trajectory-analysis
 reviewed: 2026-08-27
@@ -12,6 +12,12 @@ depends_on:
   - research/inbox/DERIVATIVE-TRAJECTORY-FEATURE-RESEARCH-PROGRAM-2026-08-27.md
   - research/inbox/DERIVATIVE-TRAJECTORY-FEATURE-LITERATURE-MAP-2026-08-27.md
 constraints: no code in this artifact; no LLM-judged labels; no implementation overlap with in-flight PR repairs
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-27
+license_note: Internal research synthesis; Eval Lab repository license applies.
+feeds:
+  - parked
 ---
 
 # Capability-Curve Engine — Specification

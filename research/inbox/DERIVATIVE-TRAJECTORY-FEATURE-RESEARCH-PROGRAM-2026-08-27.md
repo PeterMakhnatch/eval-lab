@@ -3,13 +3,19 @@ type: research-program
 topic: derivative-trajectory-features
 author: analyst
 date: 2026-08-27
-status: proposal
+status: distilled
 epistemic: recommendation
 collection: trajectory-analysis
 reviewed: 2026-08-27
 depends_on: research/inbox/DERIVATIVE-TRAJECTORY-FEATURE-LITERATURE-MAP-2026-08-27.md
 grounded_by: coverage audit 2026-08-27 (traj_features 99 rows x 39 cols; 9 zero-row fact schemas)
 constraints: no code in this artifact; no LLM-judged labels anywhere in the program
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-27
+license_note: Internal research synthesis; Eval Lab repository license applies.
+feeds:
+  - parked
 ---
 
 # Derivative Trajectory-Feature Research Program

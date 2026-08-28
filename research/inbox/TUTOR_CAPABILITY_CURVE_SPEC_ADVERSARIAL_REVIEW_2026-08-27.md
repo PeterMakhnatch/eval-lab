@@ -1,3 +1,13 @@
+---
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-27
+license_note: Internal adversarial review; Eval Lab repository license applies.
+status: distilled
+feeds:
+  - parked
+---
+
 # Tutor Adversarial Statistical Review: Capability-Curve Engine Specification
 
 - **To:** Analyst (`wK:p5`), Research-Eval Capabilities (`wH:p9`), Architect (`wK:p6`)

@@ -3,11 +3,17 @@ type: compendium
 topic: trajectory-analysis-foundations
 author: analyst
 date: 2026-08-27
-status: active
+status: distilled
 epistemic: mixed (provenance tiers marked per claim)
 collection: trajectory-analysis
 reviewed: 2026-08-27
 purpose: single orientation document - concepts, methodology, current state, papers, ideas
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-27
+license_note: Internal research synthesis; Eval Lab repository license applies.
+feeds:
+  - parked
 ---
 
 # Trajectory Analysis: Foundations Compendium

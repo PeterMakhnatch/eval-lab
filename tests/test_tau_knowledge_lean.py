@@ -264,6 +264,48 @@ def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) ->
         ]
 
 
+def test_hardened_sidecar_runtime_is_syntactically_valid(tmp_path: Path) -> None:
+    materializer = _load(MATERIALIZER, "tau_knowledge_sidecar_syntax")
+    task = tmp_path / "task"
+    runtime = task / "environment/runtime-server"
+    runtime.mkdir(parents=True)
+    (runtime / "task_config.json").write_text(
+        json.dumps(
+            {
+                "domain": "banking_knowledge",
+                "source_task_id": "task_001",
+                "task": {"hidden": "oracle"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime / "server.py").write_text(
+        "class Runtime:\n"
+        "    def initialize(self):\n"
+        '        self.task = self.Task.model_validate(self.config["task"])\n',
+        encoding="utf-8",
+    )
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir()
+    wheel = wheelhouse / "valid_pkg-1.0.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as zf:
+        zf.writestr(
+            "valid_pkg-1.0.0.dist-info/METADATA",
+            "Metadata-Version: 2.1\nName: valid-pkg\nVersion: 1.0.0\n",
+        )
+    materializer._prepare_wheelhouse(wheelhouse)
+
+    materializer.harden_sidecar_environment(
+        task,
+        {"required_upstream": {"commit": "a" * 40}},
+        wheelhouse,
+    )
+
+    generated = (runtime / "server.py").read_text(encoding="utf-8")
+    compile(generated, str(runtime / "server.py"), "exec")
+    assert '"task"' not in (runtime / "task_config.json").read_text(encoding="utf-8")
+
+
 def test_wheelhouse_metadata_inspection_and_dummy_rejection(tmp_path: Path) -> None:
     """Ensure wheel metadata parser rejects corrupt/empty wheels and extracts valid distribution info."""
     materializer = _load(MATERIALIZER, "tau_knowledge_wheel_inspection")

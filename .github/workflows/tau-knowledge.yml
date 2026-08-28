@@ -121,7 +121,9 @@ jobs:
           name: tau-task-001-workbench
           path: |
             artifacts/tau/
-            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/controls.json
+            runs/task-workbench/${{ steps.plan.outputs.candidate_id }}/jobs/
             research/registration/candidates/ci/${{ github.run_id }}/tau-task-001/
-            research/evidence/runs/
+            research/evidence/runs/tau-task-001-registry-oracle-${{ github.run_id }}/
+            research/evidence/runs/tau-task-001-registry-nop-${{ github.run_id }}/
           if-no-files-found: error

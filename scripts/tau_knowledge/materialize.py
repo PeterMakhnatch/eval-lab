@@ -761,7 +761,7 @@ def harden_sidecar_environment(
     if old_prepare in server_text:
         server_text = server_text.replace(old_prepare, new_prepare, 1)
     old_task = 'self.task = self.Task.model_validate(self.config["task"])'
-    new_task = '''        task_payload = self.config.get("task")
+    new_task = '''task_payload = self.config.get("task")
         if task_payload is None:
             import tau2_bench_data
             task_path = (
@@ -776,6 +776,7 @@ def harden_sidecar_environment(
         self.task = self.Task.model_validate(task_payload)'''
     if old_task in server_text:
         server_text = server_text.replace(old_task, new_task, 1)
+    compile(server_text, str(server_path), "exec")
     server_path.write_text(server_text, encoding="utf-8")
 
     sidecar_dest = runtime_dir / "wheelhouse"

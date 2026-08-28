@@ -193,64 +193,9 @@ if __name__ == "__main__":
     )
     (solution / "solve.sh").chmod(0o755)
 
-    # Verifier Python script
-    verifier_py_content = '''#!/usr/bin/env python3
-import json
-import sys
-from pathlib import Path
-
-def run_verification(suite_dir: Path, out_dir: Path, target_log_dir: Path) -> dict:
-    target_log_dir.mkdir(parents=True, exist_ok=True)
-    spec_path = suite_dir / "fixtures" / "target_spec.json"
-    if not spec_path.exists():
-        res = {"reward": 0.0, "reason": "missing_target_spec_file"}
-        _record(target_log_dir, res)
-        return res
-
-    spec_data = json.loads(spec_path.read_text(encoding="utf-8"))
-    final_state_path = out_dir / "final-state.json"
-    if not final_state_path.exists():
-        res = {"reward": 0.0, "reason": "missing_final_state_evidence"}
-        _record(target_log_dir, res)
-        return res
-
-    try:
-        final_state = json.loads(final_state_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        res = {"reward": 0.0, "reason": f"corrupt_final_state: {exc}"}
-        _record(target_log_dir, res)
-        return res
-
-    obs_entity = final_state.get("target_entity")
-    obs_attr = final_state.get("target_attribute")
-    obs_val = final_state.get("bound_value")
-
-    exp_entity = spec_data.get("target_entity")
-    exp_attr = spec_data.get("target_attribute")
-    exp_val = spec_data.get("expected_bound_value")
-
-    if obs_entity == exp_entity and obs_attr == exp_attr and obs_val == exp_val:
-        res = {"reward": 1.0, "reason": "exact_latest_value_bound", "target_entity": obs_entity, "bound_value": obs_val}
-    else:
-        res = {"reward": 0.0, "reason": "mismatch", "expected": spec_data, "observed": final_state}
-
-    _record(target_log_dir, res)
-    return res
-
-def _record(target_log_dir: Path, res: dict) -> None:
-    reward_str = "1.0\\n" if res["reward"] == 1.0 else "0.0\\n"
-    (target_log_dir / "reward.txt").write_text(reward_str, encoding="utf-8")
-    (target_log_dir / "result.json").write_text(json.dumps(res, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
-
-if __name__ == "__main__":
-    suite_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tests")
-    out_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("/app/output")
-    target_log_dir = Path(sys.argv[3]) if len(sys.argv) > 3 else Path("/logs/verifier")
-    res = run_verification(suite_dir, out_dir, target_log_dir)
-    sys.exit(0 if res["reward"] == 1.0 else 1)
-'''
-    (tests / "verify.py").write_text(verifier_py_content, encoding="utf-8")
-    (verifier_dir / "verify.py").write_text(verifier_py_content, encoding="utf-8")
+    # Copy the canonical verifier.py directly into tests and verifier
+    shutil.copy2(ROOT / "verifier.py", tests / "verify.py")
+    shutil.copy2(ROOT / "verifier.py", verifier_dir / "verify.py")
 
     # Tests / Verifier Dockerfile and test.sh
     (tests / "Dockerfile").write_text(
@@ -258,7 +203,7 @@ if __name__ == "__main__":
         encoding="utf-8",
     )
     (tests / "test.sh").write_text(
-        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /tests/verify.py /tests /app/output /logs/verifier\n",
+        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /tests/verify.py --task-dir /tests --evidence-dir /app/output --reward-dir /logs/verifier\n",
         encoding="utf-8",
     )
     (tests / "test.sh").chmod(0o755)
@@ -268,7 +213,7 @@ if __name__ == "__main__":
         encoding="utf-8",
     )
     (verifier_dir / "test.sh").write_text(
-        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /verifier/verify.py /verifier /app/output /logs/verifier\n",
+        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /verifier/verify.py --task-dir /verifier --evidence-dir /app/output --reward-dir /logs/verifier\n",
         encoding="utf-8",
     )
     (verifier_dir / "test.sh").chmod(0o755)

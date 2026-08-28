@@ -1,6 +1,4 @@
-"""Deterministic verifier for action-memory-v1."""
-from __future__ import annotations
-
+#!/usr/bin/env python3
 import argparse
 import hashlib
 import json
@@ -121,11 +119,11 @@ def _record(reward_dir: Path, result: dict[str, Any]) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--task-dir", type=Path, default=Path("/tests"))
-    parser.add_argument("--evidence-dir", type=Path, default=Path("/app/output"))
-    parser.add_argument("--reward-dir", type=Path, default=Path("/logs/verifier"))
-    args = parser.parse_args()
+    cli_parser = argparse.ArgumentParser(description="Action-memory verifier entrypoint")
+    cli_parser.add_argument("--task-dir", type=Path, default=Path("/tests"))
+    cli_parser.add_argument("--evidence-dir", type=Path, default=Path("/app/output"))
+    cli_parser.add_argument("--reward-dir", type=Path, default=Path("/logs/verifier"))
+    cli_args = cli_parser.parse_args()
 
-    res = verify(args.task_dir, args.evidence_dir, args.reward_dir)
-    sys.exit(0 if res["reward"] == 1.0 else 1)
+    v_res = verify(cli_args.task_dir, cli_args.evidence_dir, cli_args.reward_dir)
+    sys.exit(0 if v_res["reward"] == 1.0 else 1)

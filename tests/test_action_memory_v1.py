@@ -40,7 +40,9 @@ def test_state_generation_deterministic_and_dosed():
     assert spec1 == spec2
     assert spec1.target_entity.startswith("entity_")
     assert spec1.latest_value != spec1.initial_value
-    assert spec1.dose_bytes > 0
+    assert spec1.dose_bytes == 4096
+    assert spec1.update_opportunity_count >= 1
+    assert spec1.mutation_opportunity_count == 1
 
 
 def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
@@ -52,6 +54,7 @@ def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
     assert (target / "environment" / "docker-compose.yaml").exists()
     assert (target / "environment" / "mcp-server" / "Dockerfile").exists()
     assert (target / "verifier" / "verify.py").exists()
+    assert (target / "tests" / "verify.py").exists()
     assert (target / "solution" / "solve.sh").exists()
     assert (target / "workbench" / "fair-alternative.sh").exists()
     assert (target / "workbench" / "please-hack.sh").exists()
@@ -131,3 +134,38 @@ def test_verifier_discriminates_oracle_nop_and_mutants(tmp_path):
         mutant(task_dir, evidence_dir)
         res_mutant = ver_mod.verify(task_dir, evidence_dir, reward_dir=rewards / name)
         assert res_mutant["reward"] == 0.0, f"Mutant {name} must yield reward 0.0"
+
+
+def test_verifier_rejects_corrupted_event_order_or_invalid_truth(tmp_path):
+    mat_mod = load("mat_corrupt", "materializer")
+    ver_mod = load("ver_corrupt", "verifier")
+
+    target = tmp_path / "task_for_corrupt"
+    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
+    evidence_dir = target / "evidence"
+    rewards = target / "tests" / "rewards"
+
+    # Setup valid final state
+    scenario = json.loads((target / "task_state" / "scenario.json").read_text(encoding="utf-8"))
+    valid_final_state = {
+        "status": "executed",
+        "target_entity": scenario["target_entity"],
+        "target_attribute": scenario["target_attribute"],
+        "bound_value": scenario["latest_value"],
+    }
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    (evidence_dir / "final-state.json").write_text(json.dumps(valid_final_state), encoding="utf-8")
+
+    # Corrupt event log with non-monotone descending event indices: [2, 1]
+    corrupt_events = [
+        {"event_index": 2, "event_type": "read_chunk", "payload": {}},
+        {"event_index": 1, "event_type": "execute_mutation", "payload": {}},
+    ]
+    with (evidence_dir / "benchmark-events.jsonl").open("w", encoding="utf-8") as f:
+        for ev in corrupt_events:
+            f.write(json.dumps(ev) + "\n")
+
+    # Materialized verifier must reject and award 0.0
+    res_corrupt = ver_mod.verify(target / "tests", evidence_dir, reward_dir=rewards / "corrupt_events")
+    assert res_corrupt["reward"] == 0.0
+    assert res_corrupt["reason"] == "non_monotone_event_indices"

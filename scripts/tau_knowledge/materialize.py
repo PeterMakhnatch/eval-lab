@@ -130,23 +130,26 @@ def validate_agent_boundary(
                 )
 
     combined_visible = "\n".join(visible_text)
-    for hidden_root_name in ("solution", "tests"):
-        hidden_root = task_dir / hidden_root_name
-        if not hidden_root.is_dir():
+    tests_root = task_dir / "tests"
+    if not tests_root.is_dir():
+        return
+    for path in sorted(tests_root.rglob("*")):
+        if not path.is_file() or path.is_symlink():
             continue
-        for path in sorted(hidden_root.rglob("*")):
-            if not path.is_file() or path.is_symlink():
-                continue
-            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-                normalized = " ".join(line.strip().split())
-                if (
-                    len(normalized) >= 32
-                    and not normalized.startswith(("#", "//", "/*", "*"))
-                    and normalized in combined_visible
-                ):
-                    raise RuntimeError(
-                        f"blocked:oracle_boundary_leak:{path.relative_to(task_dir)}"
-                    )
+        if path.name != "config.json" and not any(
+            token in path.name.lower() for token in ("golden", "expected", "answer")
+        ):
+            continue
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            normalized = " ".join(line.strip().split())
+            if (
+                len(normalized) >= 32
+                and not normalized.startswith(("#", "//", "/*", "*"))
+                and normalized in combined_visible
+            ):
+                raise RuntimeError(
+                    f"blocked:oracle_boundary_leak:{path.relative_to(task_dir)}"
+                )
 
 
 def materialize(

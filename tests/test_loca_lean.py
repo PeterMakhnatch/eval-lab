@@ -129,3 +129,53 @@ def test_context_curve_contract_rejects_drift(tmp_path):
         pass
     else:
         raise AssertionError("drifted context contract was accepted")
+
+def test_verifier_robustness_and_reward_file_generation(tmp_path):
+    materializer = load("materializer_robust", "materializer")
+    templates = load("templates_robust", "templates")
+    verifier = load("verifier_robust", "verifier")
+    verifier.oracle_bytes = templates.oracle_bytes
+    materializer.DERIVED = tmp_path / "derived"
+    target = materializer.output_path()
+    materializer.materialize(target, verify_sources=False)
+
+    # 1. Oracle execution with reward directory
+    reward_dir = tmp_path / "logs" / "verifier"
+    templates.oracle(target)
+    result = verifier.verify(target, reward_dir=reward_dir)
+    assert result["reward"] == 1.0
+    assert (reward_dir / "reward.txt").read_text(encoding="utf-8").strip() == "1.0"
+    assert (reward_dir / "verify.json").is_file()
+
+    # 2. CRLF line endings compatibility
+    workspace = target / "agent_workspace"
+    crlf_record = (workspace / "record.csv").read_bytes().replace(b"\n", b"\r\n")
+    (workspace / "record.csv").write_bytes(crlf_record)
+    result_crlf = verifier.verify(target, reward_dir=reward_dir)
+    assert result_crlf["reward"] == 1.0
+    assert (reward_dir / "reward.txt").read_text(encoding="utf-8").strip() == "1.0"
+
+    # 3. Corrupted / garbage record
+    (workspace / "record.csv").write_bytes(b"\xff\xfe\x00\x00corrupt binary data")
+    result_corrupt = verifier.verify(target, reward_dir=reward_dir)
+    assert result_corrupt["reward"] == 0.0
+    assert (reward_dir / "reward.txt").read_text(encoding="utf-8").strip() == "0.0"
+
+    # 4. Missing workspace / NOP
+    templates.nop(target, workspace)
+    result_nop = verifier.verify(target, reward_dir=reward_dir)
+    assert result_nop["reward"] == 0.0
+    assert (reward_dir / "reward.txt").read_text(encoding="utf-8").strip() == "0.0"
+
+    # 5. Missing / non-existent task dir handles gracefully without crash
+    non_existent = tmp_path / "does_not_exist"
+    result_missing = verifier.verify(non_existent, reward_dir=reward_dir)
+    assert result_missing["reward"] == 0.0
+    assert (reward_dir / "reward.txt").read_text(encoding="utf-8").strip() == "0.0"
+
+    # 6. Task toml schema 1.4 validation
+    task_toml = tomllib.loads((target / "task.toml").read_text(encoding="utf-8"))
+    assert task_toml["schema_version"] == "1.4"
+    assert "/app/task_state/agent_workspace/record.csv" in task_toml["artifacts"]
+    assert task_toml["verifier"]["environment_mode"] == "separate"
+    assert task_toml["task"]["authors"][0]["name"] == "LOCA-bench Contributors"

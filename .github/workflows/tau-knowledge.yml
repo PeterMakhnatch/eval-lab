@@ -7,6 +7,8 @@ on:
       - "library/benchmarks/tau-knowledge/**"
       - "scripts/tau_knowledge/**"
       - "tests/test_tau_knowledge_lean.py"
+      - "tests/test_task_workbench.py"
+      - "src/evallab/task_workbench.py"
       - ".github/workflows/tau-knowledge.yml"
   workflow_dispatch:
 
@@ -46,9 +48,17 @@ jobs:
           diff -ru "$RUNNER_TEMP/tau-first" "$task_root"
           test -f "$task_root/tau3-banking_knowledge-task-001/task.toml"
           echo "TASK_ROOT=$task_root" >> "$GITHUB_ENV"
+      - name: Workbench static inspection
+        run: |
+          uv run python -m evallab.task_workbench check \
+            --task-path "$TASK_ROOT/tau3-banking_knowledge-task-001" \
+            --source-uri "https://github.com/sierra-research/tau2-bench" \
+            --source-ref "fc0055dc4e0a316c3f83133267fbd6faaa770992" \
+            --license "MIT" \
+            --zone "01-external" \
+            --credential OPENAI_API_KEY
       - name: Run oracle, nop, and mutant controls
         env:
-          # Required only for task.toml interpolation; endpoint is unreachable and unused by controls.
           OPENAI_API_KEY: ci-unused-marker
           OPENAI_BASE_URL: http://127.0.0.1:9/v1
           TAU_TRIALS_ROOT: ${{ runner.temp }}/tau-trials

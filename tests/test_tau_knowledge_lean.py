@@ -4,6 +4,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -257,6 +258,63 @@ def test_controls_have_observable_oracle_nop_and_mutant_plans(tmp_path: Path) ->
             "oracle" if mode in {"oracle", "mutant"} else "nop",
             "--force-build",
         ]
+
+
+def test_wheelhouse_metadata_inspection_and_dummy_rejection(tmp_path: Path) -> None:
+    """Ensure wheel metadata parser rejects corrupt/empty wheels and extracts valid distribution info."""
+    materializer = _load(MATERIALIZER, "tau_knowledge_wheel_inspection")
+    empty_whl = tmp_path / "dummy-0.0.1-py3-none-any.whl"
+    with zipfile.ZipFile(empty_whl, "w") as zf:
+        zf.writestr("dummy.py", "# empty\n")
+    with pytest.raises(RuntimeError, match="wheel_metadata_missing"):
+        materializer._wheel_metadata(empty_whl)
+
+    corrupt_whl = tmp_path / "corrupt-0.0.1-py3-none-any.whl"
+    with zipfile.ZipFile(corrupt_whl, "w") as zf:
+        zf.writestr("dummy-0.0.1.dist-info/METADATA", "InvalidMetadataHeaderWithoutName\n")
+    with pytest.raises(RuntimeError, match="wheel_metadata_missing"):
+        materializer._wheel_metadata(corrupt_whl)
+
+    valid_whl = tmp_path / "valid_pkg-1.0.0-py3-none-any.whl"
+    with zipfile.ZipFile(valid_whl, "w") as zf:
+        zf.writestr(
+            "valid_pkg-1.0.0.dist-info/METADATA",
+            "Metadata-Version: 2.1\nName: valid-pkg\nVersion: 1.0.0\n",
+        )
+    name, version = materializer._wheel_metadata(valid_whl)
+    assert name == "valid-pkg"
+    assert version == "1.0.0"
+
+
+def test_wheelhouse_requirements_hash_locking(tmp_path: Path) -> None:
+    """Ensure _prepare_wheelhouse generates a hash-locked requirements file."""
+    materializer = _load(MATERIALIZER, "tau_knowledge_req_locking")
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir()
+    whl1 = wheelhouse / "alpha-1.0.0-py3-none-any.whl"
+    with zipfile.ZipFile(whl1, "w") as zf:
+        zf.writestr("alpha-1.0.0.dist-info/METADATA", "Metadata-Version: 2.1\nName: alpha\nVersion: 1.0.0\n")
+    whl2 = wheelhouse / "beta-2.0.0-py3-none-any.whl"
+    with zipfile.ZipFile(whl2, "w") as zf:
+        zf.writestr("beta-2.0.0.dist-info/METADATA", "Metadata-Version: 2.1\nName: beta\nVersion: 2.0.0\n")
+
+    materializer._prepare_wheelhouse(wheelhouse)
+    reqs_path = wheelhouse / "requirements.txt"
+    assert reqs_path.is_file()
+    lines = reqs_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert lines[0].startswith("alpha==1.0.0 --hash=sha256:")
+    assert lines[1].startswith("beta==2.0.0 --hash=sha256:")
+
+
+def test_docker_compose_structure_preserves_task_local_named_volume() -> None:
+    """Ensure generated docker-compose.yaml satisfies single named volume topology."""
+    materializer = _load(MATERIALIZER, "tau_knowledge_compose_gen")
+    compose_yaml = materializer._generate_docker_compose()
+    assert "volumes:\n  tau3-logs:\n" in compose_yaml
+    assert "tau3-logs:/logs/agent:ro" in compose_yaml
+    assert "tau3-logs:/logs/agent:rw" in compose_yaml
+    assert "tau3-runtime" in compose_yaml
 
 
 def test_generated_corpus_is_not_tracked() -> None:

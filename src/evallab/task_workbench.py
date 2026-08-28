@@ -64,11 +64,19 @@ ISOLATION_DIAGNOSTIC_CODES = frozenset(
         "compose_image_unpinned",
         "compose_main_service_missing",
         "compose_network_mode_unsupported",
+        "compose_main_env_credential_unauthorized",
+        "compose_main_env_literal_secret",
         "compose_networks_unsupported",
         "compose_privileged_unsupported",
+        "compose_sidecar_env_invalid",
+        "compose_sidecar_env_unauthorized",
         "compose_structure_invalid",
         "compose_syntax_error",
         "compose_topology_invalid",
+        "compose_volume_escape",
+        "compose_volume_invalid",
+        "compose_volume_mount_invalid",
+        "compose_volume_unauthorized",
         "custom_compose_unsupported",
         "mcp_server_host_invalid",
         "mcp_server_unbound",
@@ -359,33 +367,61 @@ NETWORK_OVERLAY_CONTENT = (
     b"    network_mode: none\n"
 )
 
-def _network_overlay_content(sidecar_name: str | None = None) -> bytes:
+def _network_overlay_content(
+    sidecar_name: str | None = None,
+    volume: Mapping[str, Any] | None = None,
+) -> bytes:
     if sidecar_name is None:
+        if volume is not None:
+            raise WorkbenchError("volume declared without sidecar service")
         return NETWORK_OVERLAY_CONTENT
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", sidecar_name):
         raise WorkbenchError(f"unsafe sidecar service name in frozen candidate: {sidecar_name!r}")
-    return (
-        "services:\n"
-        "  main:\n"
-        "    build:\n"
-        "      network: none\n"
-        "    networks:\n"
-        "      - workbench-internal\n"
-        f"  {sidecar_name}:\n"
-        "    build:\n"
-        "      network: none\n"
-        "    networks:\n"
-        "      - workbench-internal\n"
-        "networks:\n"
-        "  workbench-internal:\n"
-        "    internal: true\n"
-    ).encode()
+    volume_name = str(volume.get("name")) if isinstance(volume, Mapping) else None
+    mount_path = str(volume.get("mount_path")) if isinstance(volume, Mapping) else None
+    has_volume = bool(volume_name and mount_path)
+    lines = [
+        "services:",
+        "  main:",
+        "    build:",
+        "      network: none",
+        "    networks:",
+        "      - workbench-internal",
+    ]
+    if has_volume:
+        lines.append("    volumes:")
+        lines.append(f"      - {volume_name}:{mount_path}:ro")
+    lines.extend([
+        f"  {sidecar_name}:",
+        "    build:",
+        "      network: none",
+        "    networks:",
+        "      - workbench-internal",
+    ])
+    if has_volume:
+        lines.append("    volumes:")
+        lines.append(f"      - {volume_name}:{mount_path}:rw")
+    if has_volume:
+        lines.extend([
+            "volumes:",
+            f"  {volume_name}:",
+        ])
+    lines.extend([
+        "networks:",
+        "  workbench-internal:",
+        "    internal: true",
+    ])
+    return "\n".join(lines).encode()
 
 
 def _candidate_network_overlay(candidate: Mapping[str, Any]) -> bytes:
     topology = candidate.get("compose_topology")
     sidecar = topology.get("sidecar_service") if isinstance(topology, Mapping) else None
-    return _network_overlay_content(str(sidecar) if sidecar is not None else None)
+    volume = topology.get("volume") if isinstance(topology, Mapping) else None
+    return _network_overlay_content(
+        str(sidecar) if sidecar is not None else None,
+        volume=volume,
+    )
 
 Severity = Literal["error", "warning", "info"]
 Classification = Literal["task_defect", "harness_defect", "agent_failure", "expected"]
@@ -1040,7 +1076,7 @@ def _is_pinned_image_ref(value: str) -> bool:
     normalized = value.strip()
     return bool(
         re.fullmatch(
-            r"[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}",
+            r"[A-Za-z0-9._/:-]+@sha256:[0-9a-f]{64}",
             normalized,
             re.IGNORECASE,
         )
@@ -1515,14 +1551,223 @@ def _validate_offline_build_proofs(
                 "lockfile_digest": actual_lock_digest,
                 "ecosystem": ecosystem,
                 "reviewed_by": reviewed_by,
+                "pinned_dependencies": pinned_deps,
                 "pinned_dependencies_count": len(pinned_deps),
                 "proof_digest": _sha256_file(proof_path),
             }
     return proofs
 
 
+def _validate_sidecar_environment(
+    service_name: str,
+    service_env: Any,
+    rel_path: str,
+    credentials: tuple[str, ...],
+    diagnostics: list[Diagnostic],
+) -> None:
+    """Validate sidecar environment values are simple, declared credential placeholders."""
+    entries: list[tuple[str, str]]
+    if isinstance(service_env, Mapping):
+        entries = [(str(k), str(v)) for k, v in service_env.items()]
+    elif isinstance(service_env, Sequence) and not isinstance(service_env, (str, bytes)):
+        entries = []
+        for item in service_env:
+            if not isinstance(item, str):
+                diagnostics.append(
+                    _diag(
+                        "compose_sidecar_env_invalid",
+                        rel_path,
+                        f"sidecar {service_name!r} environment entry {item!r} is not a string",
+                    )
+                )
+                continue
+            if "=" in item:
+                key, value = item.split("=", 1)
+                entries.append((key, value))
+            else:
+                entries.append((item, ""))
+    else:
+        diagnostics.append(
+            _diag(
+                "compose_sidecar_env_invalid",
+                rel_path,
+                f"sidecar {service_name!r} environment must be a mapping or list",
+            )
+        )
+        return
+
+    for key, value in entries:
+        if not value:
+            diagnostics.append(
+                _diag(
+                    "compose_sidecar_env_invalid",
+                    rel_path,
+                    f"sidecar {service_name!r} environment entry {key!r} has no value",
+                )
+            )
+            continue
+        match = re.fullmatch(r"^\$\{([A-Z_][A-Z0-9_]*)\}$|^\$([A-Z_][A-Z0-9_]*)$", value)
+        if not match:
+            diagnostics.append(
+                _diag(
+                    "compose_sidecar_env_invalid",
+                    rel_path,
+                    f"sidecar {service_name!r} environment value {key}={value!r} is not a simple ${{VAR}} or $VAR placeholder",
+                )
+            )
+            continue
+        var = match.group(1) or match.group(2)
+        if var not in credentials:
+            diagnostics.append(
+                _diag(
+                    "compose_sidecar_env_unauthorized",
+                    rel_path,
+                    f"sidecar {service_name!r} environment references undeclared credential {var!r}",
+                )
+            )
+
+
+def _validate_service_volume_mounts(
+    service_name: str,
+    service_mounts: Any,
+    volume_name: str | None,
+    rel_path: str,
+    diagnostics: list[Diagnostic],
+) -> list[dict[str, Any]]:
+    """Validate a service volume list uses only the task-local named volume."""
+    valid_mounts: list[dict[str, Any]] = []
+    if not isinstance(service_mounts, Sequence) or isinstance(service_mounts, (str, bytes)):
+        diagnostics.append(
+            _diag(
+                "compose_volume_mount_invalid",
+                rel_path,
+                f"service {service_name!r} volumes must be a list",
+            )
+        )
+        return valid_mounts
+    if volume_name is None and service_mounts:
+        diagnostics.append(
+            _diag(
+                "compose_volume_mount_invalid",
+                rel_path,
+                f"service {service_name!r} mounts a volume but no top-level 'volumes' is declared",
+            )
+        )
+        return valid_mounts
+    for mount in service_mounts:
+        source, target, mode = _parse_compose_volume_mount(mount)
+        if source is None:
+            diagnostics.append(
+                _diag(
+                    "compose_volume_mount_invalid",
+                    rel_path,
+                    f"service {service_name!r} volume mount {mount!r} is malformed",
+                )
+            )
+            continue
+        if source == volume_name and target is None:
+            diagnostics.append(
+                _diag(
+                    "compose_volume_mount_invalid",
+                    rel_path,
+                    f"service {service_name!r} named volume mount {mount!r} is missing a target path",
+                )
+            )
+            continue
+        if source.startswith("/") or re.match(r"^[A-Za-z]:/", source) or ":" in source or "\\" in source:
+            diagnostics.append(
+                _diag(
+                    "compose_volume_escape",
+                    rel_path,
+                    f"service {service_name!r} volume mount {mount!r} is a host bind or external path",
+                )
+            )
+            continue
+        if source != volume_name:
+            diagnostics.append(
+                _diag(
+                    "compose_volume_unauthorized",
+                    rel_path,
+                    f"service {service_name!r} may only mount task-local volume {volume_name!r}, got {source!r}",
+                )
+            )
+            continue
+        if not _is_under_path_only(Path(target), Path("/")):
+            diagnostics.append(
+                _diag(
+                    "compose_volume_escape",
+                    rel_path,
+                    f"service {service_name!r} volume target {target!r} escapes the container root",
+                )
+            )
+            continue
+        expected_mode = "ro" if service_name == "main" else "rw"
+        if mode != expected_mode:
+            diagnostics.append(
+                _diag(
+                    "compose_volume_mount_invalid",
+                    rel_path,
+                    f"service {service_name!r} must mount {volume_name!r} as {expected_mode}, got {mode!r}",
+                )
+            )
+            continue
+        valid_mounts.append({"source": source, "target": target, "mode": mode})
+    return valid_mounts
+
+
+def _parse_compose_volume_mount(mount: Any) -> tuple[str | None, str | None, str]:
+    """Parse a Compose volume mount string or mapping.
+
+    Returns (source, target, mode).  Mode defaults to 'rw'.  For malformed
+    entries, returns (None, None, '') and the caller emits a diagnostic.
+    """
+    if isinstance(mount, str):
+        parts = mount.split(":")
+        if len(parts) == 1:
+            # short form: target path creates anonymous volume (rejected later)
+            return parts[0], parts[0], "rw"
+        source = parts[0]
+        target = parts[1]
+        mode = parts[2] if len(parts) > 2 else "rw"
+        return source, target, mode
+    if isinstance(mount, Mapping):
+        source = mount.get("source")
+        target = mount.get("target")
+        if not isinstance(source, str) or not isinstance(target, str):
+            return None, None, ""
+        read_only = mount.get("read_only", False)
+        if not isinstance(read_only, bool):
+            read_only = str(read_only).lower() in {"true", "1", "yes", "ro"}
+        return source, target, "ro" if read_only else "rw"
+    return None, None, ""
+
+
+def _is_under_path_only(path: Path, root: Path) -> bool:
+    """Check that a path is absolute and stays under root (used for volume targets)."""
+    try:
+        return path.is_absolute() and _is_under(path, root)
+    except (ValueError, OSError):
+        return False
+
+
+def _extract_sidecar_env(service_env: Any) -> dict[str, str]:
+    """Return the sidecar environment as a {key: value} mapping."""
+    result: dict[str, str] = {}
+    if isinstance(service_env, Mapping):
+        for k, v in service_env.items():
+            result[str(k)] = str(v)
+    elif isinstance(service_env, Sequence) and not isinstance(service_env, (str, bytes)):
+        for item in service_env:
+            if isinstance(item, str) and "=" in item:
+                key, value = item.split("=", 1)
+                result[key] = value
+    return result
+
+
 def _validate_compose_topology(
-    task_dir: Path, diagnostics: list[Diagnostic]
+    task_dir: Path,
+    diagnostics: list[Diagnostic],
+    credentials: tuple[str, ...] = (),
 ) -> tuple[dict[str, Any] | None, str | None]:
     compose_path = task_dir / "environment/docker-compose.yaml"
     if not compose_path.is_file():
@@ -1543,13 +1788,14 @@ def _validate_compose_topology(
             _diag("compose_structure_invalid", rel_path, "docker-compose.yaml must be a mapping")
         )
         return None, None
+    volume_definition: dict[str, Any] | None = None
     for top_key in data:
-        if top_key not in {"services", "version"}:
+        if top_key not in {"services", "version", "volumes"}:
             diagnostics.append(
                 _diag(
                     "custom_compose_unsupported",
                     rel_path,
-                    f"top-level Compose key {top_key!r} is unsupported; only 'services' is modelled",
+                    f"top-level Compose key {top_key!r} is unsupported; only 'services' and 'volumes' are modelled",
                 )
             )
     services = data.get("services")
@@ -1563,6 +1809,42 @@ def _validate_compose_topology(
             _diag("compose_main_service_missing", rel_path, "Compose topology must declare a 'main' service")
         )
         return None, None
+    top_volumes = data.get("volumes")
+    volume_name: str | None = None
+    if top_volumes is not None:
+        if not isinstance(top_volumes, Mapping):
+            diagnostics.append(
+                _diag("compose_volume_invalid", rel_path, "top-level 'volumes' must be a mapping")
+            )
+            top_volumes = None
+        elif top_volumes:
+            if len(top_volumes) > 1:
+                diagnostics.append(
+                    _diag(
+                        "compose_volume_invalid",
+                        rel_path,
+                        f"top-level 'volumes' may contain at most 1 volume, got {len(top_volumes)}: {list(top_volumes)}",
+                    )
+                )
+            volume_name, volume_def = next(iter(top_volumes.items()))
+            if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", volume_name):
+                diagnostics.append(
+                    _diag(
+                        "compose_volume_invalid",
+                        rel_path,
+                        f"volume name {volume_name!r} is not a safe task-local name",
+                    )
+                )
+            if volume_def is not None and volume_def != {}:
+                diagnostics.append(
+                    _diag(
+                        "compose_volume_unauthorized",
+                        rel_path,
+                        f"volume {volume_name!r} may only be declared with an empty or null definition",
+                    )
+                )
+            if volume_name:
+                volume_definition = {volume_name: None}
     service_names = list(services.keys())
     if len(service_names) > 2:
         diagnostics.append(
@@ -1589,12 +1871,17 @@ def _validate_compose_topology(
             continue
         allowed_service_keys = {"build", "image"}
         dedicated_service_keys = {
+            "depends_on",
+            "environment",
+            "expose",
+            "healthcheck",
+            "ipc",
             "network_mode",
             "networks",
+            "pid",
             "ports",
             "privileged",
-            "pid",
-            "ipc",
+            "volumes",
         }
         unsupported_service_keys = sorted(
             set(s_config) - allowed_service_keys - dedicated_service_keys
@@ -1625,6 +1912,30 @@ def _validate_compose_topology(
                     f"service {name!r} declares custom networks",
                 )
             )
+        if s_config.get("depends_on"):
+            diagnostics.append(
+                _diag(
+                    "compose_topology_invalid",
+                    rel_path,
+                    f"service {name!r} may not declare depends_on",
+                )
+            )
+        if s_config.get("expose"):
+            diagnostics.append(
+                _diag(
+                    "compose_host_ports_unsupported",
+                    rel_path,
+                    f"service {name!r} may not expose ports",
+                )
+            )
+        if s_config.get("healthcheck"):
+            diagnostics.append(
+                _diag(
+                    "compose_service_key_unsupported",
+                    rel_path,
+                    f"service {name!r} may not declare a healthcheck",
+                )
+            )
         if "ports" in s_config and s_config["ports"]:
             diagnostics.append(
                 _diag(
@@ -1649,6 +1960,35 @@ def _validate_compose_topology(
                     f"service {name!r} may not share host PID/IPC namespace",
                 )
             )
+
+        service_env = s_config.get("environment")
+        sidecar_env: dict[str, str] | None = None
+        if service_env:
+            if name == "main":
+                diagnostics.append(
+                    _diag(
+                        "compose_main_env_unauthorized",
+                        rel_path,
+                        "main service may not declare an environment",
+                    )
+                )
+            else:
+                _validate_sidecar_environment(
+                    name, service_env, rel_path, credentials, diagnostics
+                )
+                sidecar_env = _extract_sidecar_env(service_env)
+
+        service_mounts = s_config.get("volumes")
+        valid_mounts: list[dict[str, Any]] = []
+        if service_mounts is not None:
+            valid_mounts = _validate_service_volume_mounts(
+                name,
+                service_mounts,
+                volume_name,
+                rel_path,
+                diagnostics,
+            )
+
         build_cfg = s_config.get("build")
         image_cfg = s_config.get("image")
         build_context_rel: str | None = None
@@ -1691,7 +2031,13 @@ def _validate_compose_topology(
                 else:
                     nested_relative = nested_dockerfile.relative_to(task_dir).as_posix()
                     nested_text = _read_text(nested_dockerfile)
-                    _validate_build_network(nested_text, nested_relative, diagnostics)
+                    sidecar_proof = any(
+                        (resolved_ctx / pn).is_file()
+                        for pn in ("build-proof.json", "offline-build-proof.json")
+                    )
+                    _validate_build_network(
+                        nested_text, nested_relative, diagnostics, has_proof=sidecar_proof
+                    )
                     from_lines = [
                         line
                         for line in _docker_logical_lines(nested_text)
@@ -1736,11 +2082,44 @@ def _validate_compose_topology(
             "name": name,
             "build_context": build_context_rel,
             "image": image_cfg if isinstance(image_cfg, str) else None,
+            "environment": sidecar_env if name != "main" else None,
+            "volumes": valid_mounts,
+        }
+    volume_record: dict[str, Any] | None = None
+    if volume_name:
+        main_targets = [
+            m["target"]
+            for m in service_summaries.get("main", {}).get("volumes", [])
+        ]
+        sidecar_targets = [
+            m["target"]
+            for m in service_summaries.get(sidecar_name or "", {}).get("volumes", [])
+            if sidecar_name
+        ]
+        mount_path: str | None = None
+        if main_targets:
+            mount_path = main_targets[0]
+        elif sidecar_targets:
+            mount_path = sidecar_targets[0]
+        if main_targets and sidecar_targets and main_targets[0] != sidecar_targets[0]:
+            diagnostics.append(
+                _diag(
+                    "compose_volume_mount_invalid",
+                    rel_path,
+                    f"main and sidecar must mount {volume_name!r} to the same target, "
+                    f"got {main_targets[0]!r} and {sidecar_targets[0]!r}",
+                )
+            )
+        volume_record = {
+            "name": volume_name,
+            "mount_path": mount_path,
+            "definition": volume_definition,
         }
     topology_record = {
         "compose_file": rel_path,
         "services": service_summaries,
         "sidecar_service": sidecar_name,
+        "volume": volume_record,
         "digest": _sha256_bytes(_canonical_bytes(data)),
     }
     return topology_record, sidecar_name
@@ -2105,6 +2484,18 @@ def _validate_build_context_contents(
                 continue
             if path.name in {"build-proof.json", "offline-build-proof.json"}:
                 continue
+            if path.suffix == ".whl":
+                if build_proofs and context in build_proofs:
+                    _verify_wheel_in_build_proof(path, root, build_proofs[context], diagnostics)
+                    continue
+                diagnostics.append(
+                    _diag(
+                        "build_context_unreadable",
+                        relative,
+                        f"binary wheel {path.name!r} is only permitted with a reviewed build proof",
+                    )
+                )
+                continue
             unmodelled = _unmodelled_build_config(path.name, context)
             if unmodelled is not None:
                 code, detail = unmodelled
@@ -2145,6 +2536,73 @@ def _validate_build_context_contents(
                             "frozen installs",
                         )
                     )
+
+
+def _verify_wheel_in_build_proof(
+    path: Path,
+    root: Path,
+    proof: Mapping[str, Any],
+    diagnostics: list[Diagnostic],
+) -> None:
+    """Verify a .whl file is covered by the build proof and has a matching hash."""
+    rel = path.relative_to(root.parent).as_posix()
+    pinned = proof.get("pinned_dependencies")
+    wheel_hash = _sha256_file(path)
+    if not isinstance(pinned, (Mapping, Sequence)):
+        diagnostics.append(
+            _diag("build_proof_invalid", rel, "build proof has no pinned dependencies for wheel verification")
+        )
+        return
+    matched: dict[str, Any] | None = None
+    if isinstance(pinned, Mapping):
+        for name, value in pinned.items():
+            if isinstance(value, Mapping):
+                item = value
+            else:
+                item = {"name": name, "version": value, "hash": None, "wheel": None}
+            if _wheel_matches_entry(path.name, item):
+                matched = item
+                break
+    elif isinstance(pinned, Sequence):
+        for item in pinned:
+            if _wheel_matches_entry(path.name, item):
+                matched = item
+                break
+    if matched is None:
+        diagnostics.append(
+            _diag(
+                "build_proof_unpinned_dependency",
+                rel,
+                f"wheel {path.name!r} is not listed in the build proof",
+            )
+        )
+        return
+    declared_hash = matched.get("hash") or matched.get("sha256")
+    if declared_hash and str(declared_hash).lower().replace("sha256:", "") != wheel_hash:
+        diagnostics.append(
+            _diag(
+                "build_proof_invalid",
+                rel,
+                f"wheel {path.name!r} digest {wheel_hash} does not match proof {declared_hash}",
+            )
+        )
+
+
+def _wheel_matches_entry(wheel_name: str, item: Mapping[str, Any]) -> bool:
+    """Check whether a wheel filename matches a pinned dependency entry."""
+    if not isinstance(item, Mapping):
+        return False
+    declared_wheel = item.get("wheel")
+    if isinstance(declared_wheel, str):
+        return wheel_name == declared_wheel or wheel_name == declared_wheel.rsplit("/", 1)[-1]
+    name = str(item.get("name", "")).replace("-", "_")
+    version = str(item.get("version", ""))
+    if not name or not version:
+        return False
+    normalized = name.replace("-", "_").lower()
+    wheel_stem = wheel_name.lower().rsplit(".whl", 1)[0]
+    # wheel naming: name-version[-build?]-python-abi-platform.whl
+    return wheel_stem.startswith(f"{normalized}-{version}")
 
 
 def _is_remote_docker_source(source: str) -> bool:
@@ -2438,7 +2896,11 @@ def _validate_network_and_isolation(
                 continue
             text = _read_text(path)
             relative = path.relative_to(task_dir).as_posix()
-            if NETWORK_SCRIPT_PATTERN.search(text):
+            if any(
+                NETWORK_SCRIPT_PATTERN.search(line)
+                and not _is_proven_offline_install(line)
+                for line in _docker_logical_lines(text)
+            ):
                 diagnostics.append(
                     _diag(
                         "runtime_network_use",
@@ -2466,9 +2928,10 @@ def _sensitive_lines(task_dir: Path) -> list[tuple[str, str]]:
         for path in sorted(root.rglob("*")):
             if not path.is_file() or path.is_symlink():
                 continue
-            if path.name in {"Dockerfile", "test.sh"}:
-                # Verifier-image plumbing commonly mirrors the agent image pin
-                # and absolute paths. Those are not golden task content.
+            if path.name in {"Dockerfile", "test.sh", "evaluate.py", "build-proof.json", "offline-build-proof.json", "requirements.txt"}:
+                # Verifier-image plumbing and build proofs are not golden task content.
+                continue
+            if path.suffix in {".whl", ".tar.gz", ".zip"}:
                 continue
             relative = path.relative_to(task_dir).as_posix()
             text = _read_text(path)
@@ -2796,7 +3259,9 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     _validate_supported_configuration(config, diagnostics)
     task_name, task_version, keywords = _validate_task_metadata(config, task_dir, diagnostics)
     artifacts = _validate_timeouts_and_artifacts(config, diagnostics)
-    compose_topology, sidecar_name = _validate_compose_topology(task_dir, diagnostics)
+    compose_topology, sidecar_name = _validate_compose_topology(
+        task_dir, diagnostics, credentials=source.credentials
+    )
     build_proofs = _validate_offline_build_proofs(task_dir, diagnostics)
     mcp_servers = _validate_mcp_servers(config, sidecar_name, diagnostics)
     collect_hooks = _validate_verifier_collect(config, artifacts, diagnostics)
@@ -2870,7 +3335,10 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
         fair_alternative,
         please_hack,
     )
-    control_overlay = _network_overlay_content(sidecar_name)
+    control_overlay = _network_overlay_content(
+        sidecar_name,
+        volume=compose_topology.get("volume") if isinstance(compose_topology, Mapping) else None,
+    )
     candidate: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "task_workbench_candidate",
@@ -2896,11 +3364,17 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
             "verifier_effective_baseline": verifier_baseline,
             "verifier_effective_phase": verifier_phase,
             "agent_build_network": "denied by overlay build.network=none",
-            "agent_runtime_network": "denied by overlay network_mode=none",
+            "agent_runtime_network": (
+                "isolated on workbench-internal (internal: true)"
+                if sidecar_name is not None
+                else "denied by overlay network_mode=none"
+            ),
             "verifier_build_network": "static scan of tests/ only; overlay not applied",
             "verifier_runtime_network": "declared in task.toml; overlay not applied",
             "control_enforcement": (
-                "docker-compose main build.network=none and network_mode=none"
+                "docker-compose main + sidecar on workbench-internal with build.network=none"
+                if sidecar_name is not None
+                else "docker-compose main build.network=none and network_mode=none"
             ),
             "control_overlay_digest": _sha256_bytes(control_overlay),
         },

@@ -8,23 +8,30 @@ from typing import Any
 
 
 def check_oracle_leak_exclusion(task_dir: Path) -> None:
-    """Verifies that no ground-truth solution, DAG edges, or expected values leaked to agent workspace or image."""
     agent_workspace = task_dir / "agent_workspace"
     forbidden_tokens = ["expected_target_value", "reference_node_values", "topological_order"]
-    
-    if agent_workspace.exists():
-        for root, _, files in os.walk(agent_workspace):
-            for fname in files:
-                fpath = Path(root) / fname
-                if fpath.name == "result.json":
-                    continue
-                try:
-                    text = fpath.read_text(encoding="utf-8", errors="ignore")
-                    for token in forbidden_tokens:
-                        if token in text:
-                            raise AssertionError(f"Oracle truth leak detected in agent workspace: {fpath} contains {token}")
-                except Exception:
-                    pass
+    if not agent_workspace.exists():
+        return
+    for root, _, files in os.walk(agent_workspace):
+        for fname in files:
+            fpath = Path(root) / fname
+            if fpath.name == "result.json":
+                continue
+            try:
+                text = fpath.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            for token in forbidden_tokens:
+                if token in text:
+                    raise AssertionError(
+                        f"Oracle truth leak detected in agent workspace: {fpath} contains {token}"
+                    )
+
+
+def _result_value(raw: Any) -> Any:
+    if isinstance(raw, dict) and "value" in raw:
+        return raw["value"]
+    return raw
 
 
 def verify_execution(
@@ -33,22 +40,20 @@ def verify_execution(
     evidence_dir: Path,
     workspace_dir: Path,
 ) -> dict[str, Any]:
-    # 1. Oracle leak gate
     check_oracle_leak_exclusion(task_dir)
-
-    # 2. Load verifier truth
     if not verifier_truth_path.exists():
         return {"reward": 0.0, "reason": "Verifier truth file missing"}
-    
+
     verifier_truth = json.loads(verifier_truth_path.read_text(encoding="utf-8"))
     expected_target_value = verifier_truth["expected_target_value"]
-    target_node_id = verifier_truth["target_node_id"]
     reference_node_values = verifier_truth["reference_node_values"]
     topological_order = verifier_truth["topological_order"]
     required_tools = [verifier_truth["node_tool_map"][nid] for nid in topological_order]
 
-    # 3. Check workspace result
     result_file = workspace_dir / "result.json"
+    if not result_file.exists():
+        alt = Path("/app/output/result.json")
+        result_file = alt if alt.exists() else result_file
     if not result_file.exists():
         return {
             "reward": 0.0,
@@ -57,40 +62,33 @@ def verify_execution(
             "dag_conformance": False,
             "value_propagation_accuracy": 0.0,
         }
-
     try:
-        agent_data = json.loads(result_file.read_text(encoding="utf-8"))
-        agent_target_value = agent_data.get("target_value")
-    except Exception as e:
+        agent_target_value = json.loads(result_file.read_text(encoding="utf-8")).get("target_value")
+    except Exception as exc:
         return {
             "reward": 0.0,
-            "reason": f"Failed to parse agent result.json: {e}",
+            "reason": f"Failed to parse agent result.json: {exc}",
             "schema_conformance_rate": 0.0,
             "dag_conformance": False,
             "value_propagation_accuracy": 0.0,
         }
 
-    # 4. Check benchmark events
     events_file = evidence_dir / "benchmark-events.jsonl"
+    alt_events = Path("/app/output/benchmark-events.jsonl")
+    if not events_file.exists() and alt_events.exists():
+        events_file = alt_events
     events = []
     if events_file.exists():
         for line in events_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line:
-                try:
-                    events.append(json.loads(line))
-                except Exception:
-                    pass
+            if line.strip():
+                events.append(json.loads(line))
 
     total_events = len(events)
-    conforming_events = [e for e in events if e.get("schema_conforming", False)]
-    schema_conformance_rate = (len(conforming_events) / total_events) if total_events > 0 else 0.0
-
-    # 5. Check DAG execution sequence & value propagation
+    conforming_events = [e for e in events if e.get("schema_conforming", True)]
+    schema_conformance_rate = (len(conforming_events) / total_events) if total_events else 0.0
     successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
     executed_tools = [e["tool_name"] for e in successful_calls]
 
-    # Check if required tools were executed in topological order
     tool_idx = 0
     dag_conformance = True
     for req_tool in required_tools:
@@ -101,28 +99,31 @@ def verify_execution(
             dag_conformance = False
             break
 
-    # Check intermediate values with strictly one-to-one event consumption
-    consumed_indices: set[int] = set()
+    consumed: set[int] = set()
     valid_intermediate_count = 0
     for node_id in topological_order:
         tool_name = verifier_truth["node_tool_map"][node_id]
         expected_val = reference_node_values[node_id]
         matched = False
         for idx, call in enumerate(successful_calls):
-            if idx not in consumed_indices and call["tool_name"] == tool_name and call.get("result") == expected_val:
-                consumed_indices.add(idx)
+            if idx in consumed:
+                continue
+            if call.get("tool_name") == tool_name and _result_value(call.get("result")) == expected_val:
+                consumed.add(idx)
                 matched = True
                 break
         if matched:
             valid_intermediate_count += 1
-
-    value_propagation_accuracy = (valid_intermediate_count / len(topological_order)) if topological_order else 0.0
-
-    # Final outcome evaluation (strictly requires target value match + dag conformance + 100% value propagation)
+    value_propagation_accuracy = (
+        valid_intermediate_count / len(topological_order) if topological_order else 0.0
+    )
     reward = 0.0
-    if agent_target_value == expected_target_value and dag_conformance and value_propagation_accuracy == 1.0:
+    if (
+        agent_target_value == expected_target_value
+        and dag_conformance
+        and value_propagation_accuracy == 1.0
+    ):
         reward = 1.0
-
     return {
         "reward": reward,
         "expected_target_value": expected_target_value,

@@ -39,6 +39,8 @@ jobs:
           echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
       - name: Install Harbor 0.21.0
         run: uv tool install "harbor==0.21.0"
+      - name: Populate FastMCP sidecar wheelhouse
+        run: uv run python scripts/mcp_funcdag/ensure_wheelhouse.py
       - name: Run CI contract (regeneration, oracle, NOP, mutants)
         run: uv run python library/benchmarks/mcp-funcdag-v1/ci_contract.py
       - name: Run focused pytest suite

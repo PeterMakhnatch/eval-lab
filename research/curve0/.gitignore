@@ -1,0 +1,3 @@
+# Third-party trace corpora are fetched, never committed.
+# Reproduce with fetch_corpora.sh; integrity via digests in results/kstar_validation.json.
+.cache/

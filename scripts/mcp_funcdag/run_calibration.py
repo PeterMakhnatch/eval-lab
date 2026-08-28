@@ -2,43 +2,53 @@
 """CLI helper to run calibration controls across Campaign 0 cells."""
 from __future__ import annotations
 
+import importlib.util
 import json
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BENCH_ROOT = ROOT / "library" / "benchmarks" / "mcp-funcdag-v1"
-sys.path.insert(0, str(BENCH_ROOT))
 
-from contract import CAMPAIGN_0_CELLS
-from materializer import materialize_task
-from runtime import MCPRuntime
-from templates import get_mutants, run_nop_solve, run_oracle_solve
-from verifier import verify_execution
+
+def _load_module(name: str, filename: str):
+    spec = importlib.util.spec_from_file_location(name, BENCH_ROOT / f"{filename}.py")
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {name} from {filename}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+contract_mod = _load_module("mcp_funcdag_contract", "contract")
+materializer_mod = _load_module("mcp_funcdag_materializer", "materializer")
+runtime_mod = _load_module("mcp_funcdag_runtime", "runtime")
+templates_mod = _load_module("mcp_funcdag_templates", "templates")
+verifier_mod = _load_module("mcp_funcdag_verifier", "verifier")
 
 
 def main():
-    print(f"Running MCP FuncDAG Campaign 0 calibration across {len(CAMPAIGN_0_CELLS)} cells...")
+    cells = contract_mod.CAMPAIGN_0_CELLS
+    print(f"Running MCP FuncDAG Campaign 0 calibration across {len(cells)} cells...")
     results = []
 
-    for cell in CAMPAIGN_0_CELLS:
-        name = cell["name"]
-        task_dir = materialize_task(cell)
+    for cell in cells:
+        name = f"{cell['name']}_s{cell['seed']}"
+        task_dir = materializer_mod.materialize_task(cell)
         spec_data = json.loads((task_dir / "environment" / "runtime_tools.json").read_text())
         truth_path = task_dir / "tests" / "verifier_truth.json"
         evidence_dir = task_dir / "evidence"
         workspace_dir = task_dir / "agent_workspace"
 
         # Oracle run
-        runtime = MCPRuntime(spec_data, evidence_dir)
-        run_oracle_solve(runtime, spec_data, workspace_dir)
-        oracle_res = verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
+        runtime = runtime_mod.MCPRuntime(spec_data, evidence_dir)
+        templates_mod.run_oracle_solve(runtime, spec_data, workspace_dir)
+        oracle_res = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
 
         # NOP run
-        materialize_task(cell)
-        runtime = MCPRuntime(spec_data, evidence_dir)
-        run_nop_solve(runtime, spec_data, workspace_dir)
-        nop_res = verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
+        materializer_mod.materialize_task(cell)
+        runtime = runtime_mod.MCPRuntime(spec_data, evidence_dir)
+        templates_mod.run_nop_solve(runtime, spec_data, workspace_dir)
+        nop_res = verifier_mod.verify_execution(task_dir, truth_path, evidence_dir, workspace_dir)
 
         cell_summary = {
             "cell": name,

@@ -426,6 +426,7 @@ def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):
     assert features.executed_dag_edges == 1
     assert features.dag_edge_conformance_rate == 1.0
     assert features.redundant_tool_calls == 0
+    assert features.cycle_violations == 0
     assert features.construct == "tool_call_dag_conformance"
 
 
@@ -661,6 +662,59 @@ def test_mcp_funcdag_mixed_type_tool_arguments(tmp_path: Path):
     features = extract_mcp_funcdag_features(bundle)
     assert features.total_tool_calls == 1
     assert features.schema_conformance_rate == 1.0
+
+
+def test_mcp_funcdag_cycle_detection(tmp_path: Path):
+    """MCP FuncDAG must detect cyclic tool dependencies as cycle violations."""
+    trial_dir = tmp_path / "funcdag_cycle"
+    trial_dir.mkdir(parents=True)
+
+    contract = {
+        "family": "mcp-funcdag-v1",
+        "version": "1.0.0",
+        "construct": "tool_call_dag_conformance",
+        "seed": 42,
+        "cell_factors": {"depth": 2, "width": 2},
+        "task_id": "dag_cycle_task",
+        "opportunity_counts": {"required_dag_edges": 2, "required_node_count": 2},
+        "verifier_truth_digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+    }
+    # Node A produces 10 -> Node B takes 10 and produces 20 -> Node A takes 20 (cycle)
+    events = [
+        {
+            "event_index": 0,
+            "event_type": "tool_call_success",
+            "tool_name": "node_a",
+            "arguments": {"x": 1},
+            "result": 10,
+        },
+        {
+            "event_index": 1,
+            "event_type": "tool_call_success",
+            "tool_name": "node_b",
+            "arguments": {"input": 10},
+            "result": 20,
+        },
+        {
+            "event_index": 2,
+            "event_type": "tool_call_success",
+            "tool_name": "node_a",
+            "arguments": {"input": 20},
+            "result": 30,
+        },
+    ]
+    (trial_dir / "benchmark-contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    (trial_dir / "benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    (trial_dir / "final-state.json").write_text(
+        json.dumps({"invariants_passed": False, "details": {"cycle_violations": 1}}),
+        encoding="utf-8",
+    )
+
+    bundle = load_trial_bundle(trial_dir)
+    features = extract_mcp_funcdag_features(bundle)
+    assert features.cycle_violations >= 1
 
 
 def test_extract_benchmark_features_unsupported_family(tmp_path: Path):

@@ -165,13 +165,18 @@ def extract_mcp_recovery_features(
     # 1. Injected fault occurred
     # 2. Zero human intervention
     # 3. Final state invariants passed
-    # 4. Recovery step occurred after fault
+    # 4. Recovery step occurred strictly after fault step (step_to_recovery > step_to_first_fault)
     human_interventions = int(final_state.details.get("human_interventions_count", 0))
+    has_valid_step_recovery = (
+        step_to_recovery is not None
+        and step_to_first_fault is not None
+        and step_to_recovery > step_to_first_fault
+    )
     is_c3_certified = (
         injected_fault_count > 0
         and task_success
         and human_interventions == 0
-        and (step_to_recovery is not None or certified_recovered_faults > 0)
+        and (has_valid_step_recovery or certified_recovered_faults > 0)
     )
     if is_c3_certified:
         certified_recovered_faults = max(certified_recovered_faults, 1)
@@ -214,9 +219,9 @@ def extract_mcp_recovery_features(
         certified_recovered_faults > 0
         and step_to_recovery is not None
         and step_to_first_fault is not None
+        and step_to_recovery > step_to_first_fault
     ):
-        fault_recovery_latency = float(max(step_to_recovery - step_to_first_fault, 0))
-
+        fault_recovery_latency = float(step_to_recovery - step_to_first_fault)
     citation = bundle.build_citation()
 
     return McpRecoveryFeatures(

@@ -48,9 +48,9 @@ class McpFuncDagFeatures:
     executed_dag_edges: int
     correct_value_bindings: int
     redundant_tool_calls: int
+    cycle_violations: int
     satisfied_edge_opportunities: int
     first_edge_step: int | None
-
     # L2 Derived Metrics (C0, C1) - NULL-preserving on zero denominator
     schema_conformance_rate: float | None
     value_propagation_accuracy: float | None
@@ -111,9 +111,10 @@ def extract_mcp_funcdag_features(
     executed_dag_edges = 0
     correct_value_bindings = 0
     redundant_tool_calls = 0
+    cycle_violations = 0
     valid_schema_calls = 0
     first_edge_step: int | None = None
-
+    dep_graph: dict[str, set[str]] = {}
     # Track intermediate outputs from results
     node_outputs: dict[str, Any] = {}
 
@@ -153,6 +154,18 @@ def extract_mcp_funcdag_features(
                 for out_node, out_val in node_outputs.items():
                     if v == out_val or (out_val is not None and str(v) == str(out_val)):
                         has_edge_ref = True
+                        dep_graph.setdefault(out_node, set()).add(tool_name)
+                        # BFS cycle check
+                        visited = set()
+                        q = [tool_name]
+                        while q:
+                            curr = q.pop(0)
+                            if curr == out_node:
+                                cycle_violations += 1
+                                break
+                            if curr not in visited:
+                                visited.add(curr)
+                                q.extend(dep_graph.get(curr, set()))
                         break
                     if isinstance(v, str) and (
                         out_node in v or "node_" in v or "step_" in v or "res_" in v
@@ -165,23 +178,25 @@ def extract_mcp_funcdag_features(
                 executed_dag_edges += 1
                 if first_edge_step is None:
                     first_edge_step = idx
-
         # Record output if call succeeded
         if call.result_payload and not call.is_error:
             node_outputs[tool_name] = call.result_payload
             executed_nodes.add(tool_name)
-
     # Invariants and state verification
     if final_state.invariants_passed:
         correct_value_bindings = required_value_bindings
         if executed_dag_edges < required_dag_edges:
             executed_dag_edges = required_dag_edges
     else:
-        # Check details from final state
         correct_value_bindings = min(len(executed_nodes), required_value_bindings)
 
-    satisfied_edge_opps = min(executed_dag_edges, required_dag_edges)
+    if "cycle_violations" in final_state.details:
+        cv_val = final_state.details["cycle_violations"]
+        cycle_violations = max(
+            cycle_violations, len(cv_val) if isinstance(cv_val, list) else int(cv_val)
+        )
 
+    satisfied_edge_opps = min(executed_dag_edges, required_dag_edges)
     # Prompt token metrics
     prompt_tokens_per_step: float | None = None
     if step_tokens:
@@ -244,6 +259,7 @@ def extract_mcp_funcdag_features(
         executed_dag_edges=executed_dag_edges,
         correct_value_bindings=correct_value_bindings,
         redundant_tool_calls=redundant_tool_calls,
+        cycle_violations=cycle_violations,
         satisfied_edge_opportunities=satisfied_edge_opps,
         first_edge_step=first_edge_step,
         schema_conformance_rate=schema_conformance_rate,

@@ -1201,6 +1201,22 @@ register_trajectory_feature(
     family="mcp-funcdag-v1",
 )
 register_trajectory_feature(
+    "cycle_violations",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of cyclic dependency edges detected during DAG execution",
+    null_condition="0 by default",
+    description="Count of cyclic tool call dependencies violating DAG acyclicity constraint.",
+    producer_module="evallab.interpretation.producers.mcp_funcdag",
+    construct="Tool Selection, Composition & Value Propagation",
+    causal_grade="C1",
+    evidence_grade="Grade A",
+    metric_order=1,
+    family="mcp-funcdag-v1",
+)
+register_trajectory_feature(
     "satisfied_edge_opportunities",
     data_type="BIGINT",
     category="benchmark_l1_fact",

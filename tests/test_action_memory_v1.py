@@ -3,7 +3,10 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "action-memory-v1"
@@ -42,16 +45,63 @@ def test_state_generation_deterministic_and_dosed():
     assert spec1.dose_bytes > 0
 
 
-def test_materializer_generates_valid_harbor_structure(tmp_path):
+def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
     mat_mod = load("mat_test", "materializer")
     target = tmp_path / "action_mem_task"
     manifest = mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
     assert (target / "task.toml").exists()
     assert (target / "instruction.md").exists()
-    assert (target / "environment" / "Dockerfile").exists()
+    assert (target / "environment" / "docker-compose.yaml").exists()
+    assert (target / "environment" / "mcp-server" / "Dockerfile").exists()
     assert (target / "verifier" / "verify.py").exists()
     assert (target / "solution" / "solve.sh").exists()
+    assert (target / "workbench" / "fair-alternative.sh").exists()
+    assert (target / "workbench" / "please-hack.sh").exists()
     assert (target / "workbench" / "adversarial" / "stale-value.sh").exists()
+    assert (target / "workbench" / "adversarial" / "wrong-entity.sh").exists()
+    assert (target / "workbench" / "adversarial" / "empty-output.sh").exists()
+
+
+def test_mcp_server_client_protocol_interaction(tmp_path):
+    mat_mod = load("mat_mcp_test", "materializer")
+    runtime_mod = load("runtime_mcp_test", "runtime")
+    oracle_mod = load("oracle_mcp_test", "oracle")
+
+    task_dir = tmp_path / "mcp_task"
+    mat_mod.materialize(output_dir=task_dir, cell_id="clean_baseline_4k", seed=42)
+
+    # Start live runtime server on local free port
+    port = 18090
+    server_thread = threading.Thread(
+        target=runtime_mod.start_server,
+        args=(task_dir / "task_state", task_dir / "evidence", port),
+        daemon=True,
+    )
+    server_thread.start()
+    time.sleep(0.2)
+
+    # Exercise client session: initialize, list_tools, call_tools
+    client = runtime_mod.MCPClient(f"http://127.0.0.1:{port}/mcp")
+    init_res = client.initialize()
+    assert init_res["serverInfo"]["name"] == "action-memory-mcp"
+
+    tools = client.list_tools()
+    tool_names = {t["name"] for t in tools}
+    assert "list_context_chunks" in tool_names
+    assert "get_context_chunk" in tool_names
+    assert "execute_mutation" in tool_names
+
+    # Run oracle solver over the live MCP protocol
+    oracle_mod.solve_via_mcp(mcp_url=f"http://127.0.0.1:{port}/mcp")
+
+    # Verify produced evidence
+    evidence_dir = task_dir / "evidence"
+    assert (evidence_dir / "benchmark-events.jsonl").exists()
+    assert (evidence_dir / "final-state.json").exists()
+
+    final_state = json.loads((evidence_dir / "final-state.json").read_text(encoding="utf-8"))
+    assert final_state["status"] == "executed"
+    assert final_state["bound_value"] != ""
 
 
 def test_verifier_discriminates_oracle_nop_and_mutants(tmp_path):

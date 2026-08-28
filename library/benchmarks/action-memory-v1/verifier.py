@@ -18,6 +18,9 @@ def verify(
     reward_dir.mkdir(parents=True, exist_ok=True)
 
     scenario_file = task_dir / "scenario.json"
+    if not scenario_file.exists() and (task_dir / "task_state" / "scenario.json").exists():
+        scenario_file = task_dir / "task_state" / "scenario.json"
+
     if not scenario_file.exists():
         res = {"reward": 0.0, "reason": "missing_scenario_file"}
         _record(reward_dir, res)
@@ -76,7 +79,7 @@ def _record(reward_dir: Path, result: dict[str, Any]) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task-dir", type=Path, default=Path("/app/task_state"))
+    parser.add_argument("--task-dir", type=Path, default=Path("/tests"))
     parser.add_argument("--evidence-dir", type=Path, default=Path("/app/evidence"))
     parser.add_argument("--reward-dir", type=Path, default=Path("/logs/verifier"))
     args = parser.parse_args()

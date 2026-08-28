@@ -5,34 +5,34 @@
   "seeds": [42, 1337, 2026],
   "cells": [
     {
-      "cell_id": "clean_baseline_4k",
+      "cell_id": "clean-baseline-4k",
       "dose_bytes": 4096,
       "arm": "clean",
       "inversion_count": 1
     },
     {
-      "cell_id": "neutral_padding_16k_prefix",
+      "cell_id": "neutral-padding-16k-prefix",
       "dose_bytes": 16384,
       "arm": "neutral_padding",
       "padding_position": "prefix",
       "inversion_count": 1
     },
     {
-      "cell_id": "neutral_padding_16k_middle",
+      "cell_id": "neutral-padding-16k-middle",
       "dose_bytes": 16384,
       "arm": "neutral_padding",
       "padding_position": "middle",
       "inversion_count": 1
     },
     {
-      "cell_id": "semantic_distractor_16k",
+      "cell_id": "semantic-distractor-16k",
       "dose_bytes": 16384,
       "arm": "semantic_distractor",
       "distractor_count": 12,
       "inversion_count": 1
     },
     {
-      "cell_id": "multi_inversion_semantic_distractor_64k",
+      "cell_id": "multi-inversion-semantic-distractor-64k",
       "dose_bytes": 65536,
       "arm": "semantic_distractor",
       "distractor_count": 48,

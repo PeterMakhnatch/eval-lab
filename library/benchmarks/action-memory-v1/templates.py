@@ -5,23 +5,23 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
-from oracle import solve as oracle_solve
+from oracle import solve_direct
 
 
 def oracle(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
-    return oracle_solve(task_dir, evidence_dir)
+    return solve_direct(task_dir, evidence_dir)
 
 
 def nop(task_dir: Path, evidence_dir: Path) -> None:
-    # NOP writes nothing or empty state
     pass
 
 
 def stale_value_mutant(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
     scenario_file = task_dir / "scenario.json"
+    if not scenario_file.exists() and (task_dir / "task_state" / "scenario.json").exists():
+        scenario_file = task_dir / "task_state" / "scenario.json"
     scenario = json.loads(scenario_file.read_text(encoding="utf-8"))
     
-    # Intentionally binds the stale initial_value instead of latest_value
     target_entity = scenario["target_entity"]
     target_attribute = scenario["target_attribute"]
     stale_val = scenario["initial_value"]
@@ -40,9 +40,10 @@ def stale_value_mutant(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
 
 def wrong_entity_mutant(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
     scenario_file = task_dir / "scenario.json"
+    if not scenario_file.exists() and (task_dir / "task_state" / "scenario.json").exists():
+        scenario_file = task_dir / "task_state" / "scenario.json"
     scenario = json.loads(scenario_file.read_text(encoding="utf-8"))
     
-    # Binds correct value but against wrong entity id
     wrong_entity = "entity_99999"
     target_attribute = scenario["target_attribute"]
     latest_val = scenario["latest_value"]
@@ -60,8 +61,9 @@ def wrong_entity_mutant(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
 
 
 def recall_only_mutant(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
-    # Mutant reads facts and creates an evidence log but never executes mutation
     scenario_file = task_dir / "scenario.json"
+    if not scenario_file.exists() and (task_dir / "task_state" / "scenario.json").exists():
+        scenario_file = task_dir / "task_state" / "scenario.json"
     scenario = json.loads(scenario_file.read_text(encoding="utf-8"))
 
     evidence_dir.mkdir(parents=True, exist_ok=True)

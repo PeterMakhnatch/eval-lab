@@ -312,6 +312,7 @@ registered_funcdag_easy() {
     local status=0
     with_canonical_deepseek_credential \
         run_harbor "$job_name" true "$registered_task" \
+        --agent-timeout 300 \
         --extra-docker-compose "$SECRET_COMPOSE" || status=$?
     assert_no_credential_leak "$job_name" || status=1
     return "$status"

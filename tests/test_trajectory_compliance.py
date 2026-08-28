@@ -11,7 +11,6 @@ from evallab.interpretation.trajectory_compliance import (
     TrialEvidenceBundle,
     current_corpus_method_readiness,
     evaluate_trial_compliance,
-    ingest_settled_trial_idempotent,
     lineage_depends_on_outcome,
     missing_denominator_declaration,
     provenance_catalog,
@@ -142,11 +141,16 @@ def test_dimension_cross_contamination_hold() -> None:
     assert "MISSING_DIMENSION" in record.hold_reasons
 
 
-def test_idempotent_ingest_zero_churn() -> None:
-    bundle = _bundle()
-    first = ingest_settled_trial_idempotent(bundle)
-    second = ingest_settled_trial_idempotent(bundle, prior=first)
-    assert second is first
+def test_evaluate_trial_compliance_is_deterministic_with_timestamps() -> None:
+    bundle = _bundle(
+        finished_at="2026-08-28T00:00:00+00:00",
+        ingested_at="2026-08-28T00:00:02+00:00",
+    )
+    first = evaluate_trial_compliance(bundle)
+    second = evaluate_trial_compliance(bundle)
+    assert first.record_digest == second.record_digest
+    assert first.hold_reasons == second.hold_reasons
+    assert first.evaluated_at == second.evaluated_at == "2026-08-28T00:00:00+00:00"
 
 
 def test_tracked_output_rejects_runs_and_parquet() -> None:

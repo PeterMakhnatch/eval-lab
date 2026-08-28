@@ -104,13 +104,15 @@ jobs:
         run: |
           set -euo pipefail
           jobs="research/evidence/runs"
+          task_dataset="$(dirname "$TASK_PATH")"
+          task_name="$(basename "$TASK_PATH")"
           oracle_job="tau-task-001-registry-oracle-${GITHUB_RUN_ID}"
           nop_job="tau-task-001-registry-nop-${GITHUB_RUN_ID}"
-          harbor run --path "$TASK_PATH" --agent oracle --env docker \
-            --job-name "$oracle_job" --jobs-dir "$jobs" \
+          harbor run --path "$task_dataset" --include-task-name "$task_name" \
+            --agent oracle --env docker --job-name "$oracle_job" --jobs-dir "$jobs" \
             --n-concurrent 1 --n-attempts 1 --yes
-          harbor run --path "$TASK_PATH" --agent nop --env docker \
-            --job-name "$nop_job" --jobs-dir "$jobs" \
+          harbor run --path "$task_dataset" --include-task-name "$task_name" \
+            --agent nop --env docker --job-name "$nop_job" --jobs-dir "$jobs" \
             --n-concurrent 1 --n-attempts 1 --yes
           python3 scripts/agentabstain/assert_reward.py "$jobs/$oracle_job" 1
           python3 scripts/agentabstain/assert_reward.py "$jobs/$nop_job" 0

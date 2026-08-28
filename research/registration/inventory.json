@@ -1,10 +1,10 @@
 {
-  "total_packages": 522,
-  "runnable_packages": 502,
+  "total_packages": 523,
+  "runnable_packages": 503,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
-  "registered_tasks": 2,
+  "registered_tasks": 3,
   "candidate_tasks": 3,
   "items": [
     {
@@ -5155,6 +5155,16 @@
       "has_environment": true,
       "has_verifier": true,
       "is_canary": true,
+      "registration_state": "registered"
+    },
+    {
+      "task_id": "travel-lisbon-002",
+      "path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
       "registration_state": "registered"
     },
     {

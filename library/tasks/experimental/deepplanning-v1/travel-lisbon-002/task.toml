@@ -1,0 +1,42 @@
+schema_version = "1.4"
+artifacts = ["/app/answer.json"]
+
+[task]
+name = "deepplanning-v1/travel-lisbon-002"
+version = "1.0.0"
+description = "Offline deterministic DeepPlanning case travel-lisbon-002"
+keywords = ["deepplanning", "travel", "constraints", "planning", "offline"]
+
+[[task.authors]]
+name = "Qwen Team"
+email = "unknown"
+
+[metadata]
+author_name = "Qwen Team"
+category = "Planning"
+difficulty = "hard"
+subcategory = "DeepPlanning"
+tags = ["deepplanning", "travel", "constraints", "offline"]
+license = "Apache-2.0"
+source_url = "https://github.com/QwenLM/Qwen-Agent"
+source_ref = "31a4d36d123688581a9e9744427272b33ce940e0"
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+collect = []
+
+[verifier.environment]
+network_mode = "no-network"
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 120.0
+os = "linux"
+cpus = 1
+memory_mb = 512
+storage_mb = 1024
+mcp_servers = []

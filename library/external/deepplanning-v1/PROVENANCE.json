@@ -1,0 +1,26 @@
+{
+  "schema_version": "deepplanning-provenance/v1",
+  "provenance_zone": "01-external",
+  "license": "Apache-2.0",
+  "license_notes": "Upstream code licensed under Apache-2.0 in QwenLM/Qwen-Agent repository; dataset card explicitly declares Apache-2.0.",
+  "upstream": {
+    "repository_url": "https://github.com/QwenLM/Qwen-Agent",
+    "commit": "31a4d36d123688581a9e9744427272b33ce940e0",
+    "dataset_url": "https://huggingface.co/datasets/Qwen/DeepPlanning",
+    "dataset_revision": "213876cce679f993a476d01042e13d111c0e3648"
+  },
+  "raw_archives": {
+    "database_en.zip": {
+      "sha256": "030c4914166d067632d92b2bba7b4dc6b065c33e3c98dbd33cd0c617f12a141d",
+      "size_bytes": 51063208
+    },
+    "database_level1.tar.gz": {
+      "sha256": "632a3b5d0db1fa0717474b9361b2d7102aeb7e1f00c32cb842f012ff7adf8000",
+      "size_bytes": 882139
+    }
+  },
+  "oracle_isolation": {
+    "status": "enforced",
+    "notes": "Agent-visible task.json stripped of all expected_status, oracle, and refusal_reason payload. Golden checks isolated in verifier context."
+  }
+}

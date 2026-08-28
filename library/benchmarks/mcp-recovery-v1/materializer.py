@@ -1,56 +1,496 @@
-"""Materializer for mcp-recovery-v1 Harbor task packages adhering to workbench v2."""
+"""Harbor materializer for mcp-recovery-v1 using the shared FastMCP substrate."""
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 from pathlib import Path
+from typing import Any
 
+import yaml
+
+from evallab.benchmark_program_contracts import (
+    CellFactorsC,
+    FaultClass,
+    FaultInjectionRecord,
+    SyntheticFamilySpec,
+    SyntheticFamilyType,
+    compute_sha256,
+)
+from evallab.mcp_substrate import (
+    DEFAULT_INTERNAL_NETWORK_NAME,
+    DEFAULT_MCP_PORT,
+    DEFAULT_PINNED_BASE_IMAGE,
+    DEFAULT_SIDECAR_SERVICE,
+    DEFAULT_VOLUME_MOUNT,
+    DEFAULT_VOLUME_NAME,
+    MCPToolDefinition,
+    MCPToolParameter,
+    generate_fastmcp_server_script,
+    materialize_mcp_sidecar_package,
+    render_mcp_compose_document,
+    render_mcp_sidecar_dockerfile,
+)
+
+from contract import CAMPAIGN0_FAULTS, CAMPAIGN0_PERSISTENCE, resolve_fault_class, slugify_fault
 from source import reject_committed_corpora, source_digest
 
 DEFAULT_OUT_DIR = Path("derived/harbor-tasks/mcp-recovery")
-PINNED_BASE_IMAGE = "python@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
-
-FAULT_MODES = [
-    "permission-denied",
-    "not-found",
-    "timeout",
-    "malformed-output",
-    "silent-wrong-result",
-]
-
-PERSISTENCE_LEVELS = [1, 2]
+SIDECAR_DIRNAME = "mcp-server"
+WHEELHOUSE_ENV = "MCP_RECOVERY_WHEELHOUSE"
+DEFAULT_WHEELHOUSE = Path("/tmp/fastmcp3_wheelhouse")
 
 
-def safe_slug_fault_mode(mode: str) -> str:
-    return mode.replace("_", "-")
+def output_path(
+    seed: int = 42,
+    fault_mode: FaultClass | str = FaultClass.PERSISTENT_SIGNATURE_ERROR,
+    persistence: int = 1,
+) -> Path:
+    fault = resolve_fault_class(fault_mode)
+    slug = slugify_fault(fault)
+    digest = source_digest(f"seed:{seed}:fault:{fault.value}:persistence:{persistence}")[:16]
+    return DEFAULT_OUT_DIR / digest / f"mcp-recovery-seed{seed}-{slug}-p{persistence}"
 
 
-def output_path(seed: int = 42, fault_mode: str = "permission-denied", persistence: int = 1) -> Path:
-    slug_mode = safe_slug_fault_mode(fault_mode)
-    digest = source_digest(f"seed:{seed}:fault:{slug_mode}:persistence:{persistence}")[:16]
-    return DEFAULT_OUT_DIR / digest / f"mcp-recovery-seed{seed}-{slug_mode}-p{persistence}"
+def _wheelhouse() -> Path | None:
+    raw = os.environ.get(WHEELHOUSE_ENV, "")
+    path = Path(raw) if raw else DEFAULT_WHEELHOUSE
+    if path.is_dir() and any(path.glob("*.whl")):
+        return path
+    return None
+
+
+def _recovery_tools() -> list[MCPToolDefinition]:
+    return [
+        MCPToolDefinition(
+            name="write_record",
+            description="Write a record into the recovery store",
+            parameters=(
+                MCPToolParameter(name="key", type_name="str", description="Record key"),
+                MCPToolParameter(name="value", type_name="str", description="Record value"),
+            ),
+            execution_body=(
+                "return recovery_write_record(key, value)"
+            ),
+        ),
+        MCPToolDefinition(
+            name="read_record",
+            description="Read a record from the recovery store",
+            parameters=(MCPToolParameter(name="key", type_name="str", description="Record key"),),
+            execution_body="return recovery_read_record(key)",
+        ),
+        MCPToolDefinition(
+            name="refresh_auth",
+            description="Refresh authorization scope",
+            parameters=(MCPToolParameter(name="scope", type_name="str", description="Requested scope"),),
+            execution_body="return recovery_refresh_auth(scope)",
+        ),
+        MCPToolDefinition(
+            name="fallback_query",
+            description="Query the replica fallback",
+            parameters=(MCPToolParameter(name="query", type_name="str", description="Replica query"),),
+            execution_body="return recovery_fallback_query(query)",
+        ),
+    ]
+
+
+def _recovery_prelude(fault_class: FaultClass, persistence: int) -> str:
+    return f'''
+import hashlib
+from typing import Any
+
+FAULT_CLASS = "{fault_class.value}"
+PERSISTENCE = {persistence}
+HITS = 0
+DB: dict[str, Any] = {{"session_status": "initialized"}}
+RECOVERY_EVENTS = Path("/app/output/benchmark-events.jsonl")
+FINAL_STATE_FILE = Path("/app/output/final-state.json")
+
+
+def persist_certificate() -> None:
+    digest = hashlib.sha256(
+        json.dumps(DB, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    FINAL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    FINAL_STATE_FILE.write_text(
+        json.dumps({{"records": DB, "digest": digest, "event_count": EVENT_ORDINAL}}, sort_keys=True)
+        + "\\n",
+        encoding="utf-8",
+    )
+
+
+def log_recovery(event_type: str, payload: dict[str, Any]) -> None:
+    global EVENT_ORDINAL
+    with EVENT_LOCK:
+        event = {{
+            "event_index": EVENT_ORDINAL,
+            "event_type": event_type,
+            "payload": payload,
+        }}
+        EVENT_ORDINAL += 1
+        RECOVERY_EVENTS.parent.mkdir(parents=True, exist_ok=True)
+        with open(RECOVERY_EVENTS, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, sort_keys=True, separators=(",", ":")) + "\\n")
+    persist_certificate()
+
+
+def recovery_refresh_auth(scope: str) -> dict[str, Any]:
+    DB["__auth__"] = scope
+    log_recovery("tool_executed", {{"tool": "refresh_auth", "arguments": {{"scope": scope}}}})
+    return {{"status": "authenticated", "scope": scope}}
+
+
+def recovery_fallback_query(query: str) -> dict[str, Any]:
+    DB["__fallback_synced__"] = True
+    log_recovery("tool_executed", {{"tool": "fallback_query", "arguments": {{"query": query}}}})
+    return {{"status": "success", "source": "replica", "query": query}}
+
+
+def recovery_read_record(key: str) -> dict[str, Any]:
+    global HITS
+    if FAULT_CLASS == "silent_wrong_payload" and HITS < PERSISTENCE:
+        HITS += 1
+        log_recovery("fault_injected", {{"tool": "read_record", "fault_class": FAULT_CLASS, "hit": HITS}})
+        return {{"key": key, "value": "corrupted_silent_val", "exists": True}}
+    value = DB.get(key)
+    log_recovery("tool_executed", {{"tool": "read_record", "arguments": {{"key": key}}}})
+    return {{"key": key, "value": value, "exists": key in DB}}
+
+
+def recovery_write_record(key: str, value: str) -> dict[str, Any]:
+    global HITS
+    if FAULT_CLASS == "persistent_signature_error" and DB.get("__auth__") != "admin_write":
+        HITS += 1
+        log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
+        raise ValueError("Permission denied: write requires admin_write scope")
+    if FAULT_CLASS == "persistent_schema_mismatch" and not DB.get("__fallback_synced__"):
+        HITS += 1
+        log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
+        raise ValueError("Not found")
+    if HITS < PERSISTENCE and FAULT_CLASS == "transient_network_timeout":
+        HITS += 1
+        log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
+        raise TimeoutError("Timeout")
+    if HITS < PERSISTENCE and FAULT_CLASS == "transient_http_5xx":
+        HITS += 1
+        log_recovery("fault_injected", {{"tool": "write_record", "fault_class": FAULT_CLASS, "hit": HITS}})
+        raise RuntimeError("502 Bad Gateway unparseable chunk")
+    DB[key] = value
+    DB["session_status"] = "completed"
+    log_recovery("tool_executed", {{"tool": "write_record", "arguments": {{"key": key, "value": value}}}})
+    return {{"status": "success", "key": key}}
+'''
+
+
+def generate_recovery_server_script(fault_class: FaultClass, persistence: int) -> str:
+    script = generate_fastmcp_server_script(
+        tools=_recovery_tools(),
+        server_name="mcp-recovery-sidecar",
+        port=DEFAULT_MCP_PORT,
+        evidence_path="/app/output/substrate-events.jsonl",
+    )
+    script = script.replace(
+        "EVENT_ORDINAL = 0\n",
+        "EVENT_ORDINAL = 0\n" + _recovery_prelude(fault_class, persistence),
+        1,
+    )
+    script = script.replace('mcp.run(transport="sse"', 'mcp.run(transport="http"')
+    return script
+
+
+def _oracle_script() -> str:
+    return '''#!/bin/sh
+set -eu
+python - <<'PY'
+import json
+import http.client
+import time
+
+def call_mcp(method, params=None):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
+    if params is not None:
+        payload["params"] = params
+    body = json.dumps(payload)
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
+    try:
+        conn.request("POST", "/mcp", body, headers)
+        resp = conn.getresponse()
+        data = resp.read().decode("utf-8")
+        return resp.status, data
+    except Exception as exc:
+        return 500, str(exc)
+    finally:
+        conn.close()
+
+def rpc_error(status, raw):
+    if status in (403, 404, 408, 500, 502):
+        return status, raw
+    if not raw.startswith("{"):
+        return status, raw
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return status, raw
+    err = parsed.get("error") or {}
+    message = str(err.get("message", ""))
+    if "Permission denied" in message:
+        return 403, raw
+    if "Not found" in message:
+        return 404, raw
+    if "Timeout" in message:
+        return 408, raw
+    if "502" in message or "unparseable" in message:
+        return 502, raw
+    return status, raw
+
+for _ in range(30):
+    status, raw = call_mcp("initialize")
+    if status == 200:
+        break
+    time.sleep(0.5)
+
+call_mcp("tools/list")
+target_key = "canary_key"
+target_val = "verified_value"
+for attempt in range(10):
+    status, raw = rpc_error(*call_mcp("tools/call", {"name": "write_record", "arguments": {"key": target_key, "value": target_val}}))
+    if status == 403:
+        call_mcp("tools/call", {"name": "refresh_auth", "arguments": {"scope": "admin_write"}})
+        continue
+    if status == 404:
+        call_mcp("tools/call", {"name": "fallback_query", "arguments": {"query": target_key}})
+        continue
+    if status in (408, 500, 502) or not str(raw).startswith("{"):
+        time.sleep(0.2 * (attempt + 1))
+        continue
+    read_status, read_raw = call_mcp("tools/call", {"name": "read_record", "arguments": {"key": target_key}})
+    if read_status == 200 and target_val in read_raw:
+        break
+    time.sleep(0.2)
+PY
+'''
+
+
+def _blind_retry_script() -> str:
+    return '''#!/bin/sh
+set -eu
+python - <<'PY'
+import json
+import http.client
+import time
+
+def call_mcp(method, params=None):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
+    if params is not None:
+        payload["params"] = params
+    body = json.dumps(payload)
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
+    try:
+        conn.request("POST", "/mcp", body, headers)
+        resp = conn.getresponse()
+        return resp.status, resp.read().decode("utf-8")
+    except Exception as exc:
+        return 500, str(exc)
+    finally:
+        conn.close()
+
+for _ in range(30):
+    if call_mcp("initialize")[0] == 200:
+        break
+    time.sleep(0.5)
+call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
+PY
+'''
+
+
+def _wrong_repair_script() -> str:
+    return '''#!/bin/sh
+set -eu
+python - <<'PY'
+import json
+import http.client
+import time
+
+def call_mcp(method, params=None):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
+    if params is not None:
+        payload["params"] = params
+    body = json.dumps(payload)
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
+    try:
+        conn.request("POST", "/mcp", body, headers)
+        resp = conn.getresponse()
+        return resp.status, resp.read().decode("utf-8")
+    except Exception as exc:
+        return 500, str(exc)
+    finally:
+        conn.close()
+
+for _ in range(30):
+    if call_mcp("initialize")[0] == 200:
+        break
+    time.sleep(0.5)
+call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "wrong_key", "value": "corrupted_val"}})
+PY
+'''
+
+
+def _verifier_py(fault_class: FaultClass, persistence: int) -> str:
+    return f'''import json
+from pathlib import Path
+
+LOG_DIR = Path("/logs/verifier")
+EVIDENCE_FILE = Path("/app/output/benchmark-events.jsonl")
+CERT_PATH = Path("/app/output/final-state.json")
+EXPECTED_FAULT_MODE = "{fault_class.value}"
+EXPECTED_PERSISTENCE = {persistence}
+
+
+def main() -> None:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    checks: dict = {{}}
+    if not EVIDENCE_FILE.is_file() or not CERT_PATH.is_file():
+        passed = False
+        reason = "missing evidence artifacts"
+        checks = {{"evidence_present": {{"passed": False, "message": "artifacts missing"}}}}
+    else:
+        events = [
+            json.loads(line)
+            for line in EVIDENCE_FILE.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        final_state = json.loads(CERT_PATH.read_text(encoding="utf-8"))
+        monotonic = all(event.get("event_index") == idx for idx, event in enumerate(events))
+        records = final_state.get("records", {{}})
+        invariants = (
+            records.get("canary_key") == "verified_value"
+            and records.get("session_status") == "completed"
+        )
+        faults = [event for event in events if event.get("event_type") == "fault_injected"]
+        tools = [event for event in events if event.get("event_type") == "tool_executed"]
+        adaptation = False
+        if EXPECTED_FAULT_MODE == "persistent_signature_error":
+            adaptation = any(item.get("payload", {{}}).get("tool") == "refresh_auth" for item in tools)
+        elif EXPECTED_FAULT_MODE == "persistent_schema_mismatch":
+            adaptation = any(item.get("payload", {{}}).get("tool") == "fallback_query" for item in tools)
+        elif EXPECTED_FAULT_MODE == "silent_wrong_payload":
+            adaptation = any(item.get("payload", {{}}).get("tool") == "read_record" for item in tools)
+        else:
+            adaptation = len(faults) >= EXPECTED_PERSISTENCE and len(tools) >= 1
+        passed = bool(monotonic and invariants and adaptation and len(faults) >= EXPECTED_PERSISTENCE)
+        reason = "ok" if passed else "failed verification"
+        checks = {{
+            "monotonic": {{"passed": monotonic}},
+            "invariants": {{"passed": invariants}},
+            "adaptation": {{"passed": adaptation}},
+        }}
+    reward_val = 1.0 if passed else 0.0
+    rewards = {{"reward": reward_val, "passed": float(passed)}}
+    (LOG_DIR / "reward.txt").write_text(f"{{reward_val:.1f}}\\n", encoding="utf-8")
+    (LOG_DIR / "reward.json").write_text(json.dumps(rewards, sort_keys=True) + "\\n", encoding="utf-8")
+    (LOG_DIR / "checks.json").write_text(
+        json.dumps({{"passed": passed, "reason": reason, "checks": checks}}, indent=2) + "\\n",
+        encoding="utf-8",
+    )
+    print(json.dumps({{"passed": passed, "reward": reward_val}}))
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def _write_environment_build_proof(env_dir: Path, sidecar_dir: Path) -> None:
+    lockfile_rel = f"{SIDECAR_DIRNAME}/requirements.txt"
+    lockfile = env_dir / lockfile_rel
+    wheelhouse = sidecar_dir / "wheelhouse"
+    if not lockfile.is_file() or not wheelhouse.is_dir():
+        return
+    wheels = sorted(wheelhouse.glob("*.whl"))
+    if not wheels:
+        return
+    pinned = []
+    for wheel in wheels:
+        stem_parts = wheel.name[:-4].split("-")
+        name = stem_parts[0].replace("_", "-")
+        version = stem_parts[1] if len(stem_parts) > 1 else "0"
+        pinned.append({"name": name, "version": version, "wheel": wheel.name})
+    proof = {
+        "kind": "offline_build_proof",
+        "ecosystem": "pip",
+        "lockfile": lockfile_rel,
+        "lockfile_digest": _file_sha256(lockfile),
+        "pinned_dependencies": pinned,
+        "reviewed_by": "eval-lab-mcp-recovery-v1",
+    }
+    (env_dir / "offline-build-proof.json").write_text(
+        json.dumps(proof, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_executable(path: Path, content: str) -> None:
+    path.write_text(content, encoding="utf-8")
+    path.chmod(0o755)
+
+
+def _fault_record(cell: CellFactorsC, task_id: str) -> FaultInjectionRecord:
+    oracle_digest = compute_sha256(
+        {"canary_key": "verified_value", "session_status": "completed", "fault": cell.fault_class.value}
+    )
+    return FaultInjectionRecord(
+        fault_id=compute_sha256(
+            {"task_id": task_id, "fault": cell.fault_class.value, "dose": cell.fault_injection_count}
+        ),
+        task_id=task_id,
+        twin_task_id=f"{task_id}-clean-twin",
+        target_service=DEFAULT_SIDECAR_SERVICE,
+        target_tool="write_record" if cell.fault_class != FaultClass.SILENT_WRONG_PAYLOAD else "read_record",
+        fault_class=cell.fault_class,
+        target_canonical_event_ordinal=1,
+        injection_payload={"persistence": cell.fault_injection_count},
+        recovery_contract="adapt-from-observed-mcp-error-then-restore-invariants",
+        verifier_oracle_digest=oracle_digest,
+    )
 
 
 def materialize_task(
     target_dir: Path,
     seed: int = 42,
-    fault_mode: str = "permission-denied",
+    fault_mode: FaultClass | str = FaultClass.PERSISTENT_SIGNATURE_ERROR,
     persistence: int = 1,
 ) -> Path:
-    slug_mode = safe_slug_fault_mode(fault_mode)
+    fault = resolve_fault_class(fault_mode)
+    slug = slugify_fault(fault)
+    cell = CellFactorsC(fault_class=fault, fault_injection_count=persistence, seed=seed)
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
+    task_id = f"mcp-recovery-seed{seed}-{slug}-p{persistence}"
 
-    # 1. task.toml (workbench v2 compliant, Linux no-network baseline)
-    task_toml = f"""schema_version = "1.4"
+    task_toml = f'''schema_version = "1.4"
 artifacts = [
-    "/app/shared_state/benchmark-events.jsonl",
-    "/app/shared_state/final-state.json",
+    "/app/output/benchmark-events.jsonl",
+    "/app/output/final-state.json",
 ]
 
 [task]
-name = "local-lab/mcp-recovery-seed{seed}-{slug_mode}-p{persistence}"
+name = "local-lab/{task_id}"
 version = "1.0.0"
-description = "MCP error recovery and state certificate benchmark under {slug_mode} with persistence {persistence}"
+description = "MCP certified error recovery under {fault.value} persistence {persistence}"
 keywords = ["mcp", "error-recovery", "streamable-http", "synthetic", "separate-verifier"]
 
 [[task.authors]]
@@ -65,14 +505,6 @@ tags = ["mcp", "error-recovery", "state-certificate"]
 [verifier]
 timeout_sec = 60.0
 environment_mode = "separate"
-
-[[verifier.collect]]
-service = "main"
-command = "if [ -f /app/shared_state/benchmark-events.jsonl ]; then cp /app/shared_state/benchmark-events.jsonl /app/shared_state/benchmark-events.jsonl; fi"
-
-[[verifier.collect]]
-service = "main"
-command = "if [ -f /app/shared_state/final-state.json ]; then cp /app/shared_state/final-state.json /app/shared_state/final-state.json; fi"
 
 [verifier.environment]
 network_mode = "no-network"
@@ -89,592 +521,136 @@ memory_mb = 512
 storage_mb = 2048
 
 [[environment.mcp_servers]]
-name = "mcp-sidecar"
+name = "{DEFAULT_SIDECAR_SERVICE}"
 transport = "streamable-http"
-url = "http://mcp-sidecar:8000/mcp"
-"""
+url = "http://{DEFAULT_SIDECAR_SERVICE}:{DEFAULT_MCP_PORT}/mcp"
+'''
     (target_dir / "task.toml").write_text(task_toml, encoding="utf-8")
+    (target_dir / "instruction.md").write_text(
+        """# Task: MCP Error Recovery and State Mutation
 
-    # 2. instruction.md
-    instruction = f"""# Task: MCP Error Recovery and State Mutation
+You are interacting with an MCP server at `http://mcp-service:8080/mcp`.
 
-You are interacting with an MCP server exposed via Streamable HTTP at `http://mcp-sidecar:8000/mcp`.
+1. Call `initialize`, then `tools/list`.
+2. Write `canary_key="verified_value"` with `write_record`.
+3. Confirm with `read_record`.
+4. On observed errors, adapt from the response only:
+   - permission/signature failures: `refresh_auth(scope="admin_write")` then retry
+   - not-found/schema failures: `fallback_query` then retry
+   - timeout or malformed/5xx: backoff and retry
+   - silent corruption: keep writing until `read_record` returns `verified_value`
+5. Final invariants: `canary_key="verified_value"` and `session_status="completed"`.
+""",
+        encoding="utf-8",
+    )
 
-## Protocol & Execution Flow
-1. Initialize connection using standard MCP `initialize`.
-2. Discover tools with `tools/list` (`write_record`, `read_record`, `refresh_auth`, `fallback_query`).
-3. Set record `canary_key="verified_value"` via `write_record`.
-4. Read back and verify record integrity via `read_record(key="canary_key")`.
-5. Error Recovery & Invariant Policy:
-   - If HTTP 403 / Permission Denied occurs, invoke `refresh_auth(scope="admin_write")` and retry.
-   - If HTTP 404 / Not Found occurs, query `fallback_query(query="canary_key")` to sync replica and retry write.
-   - If HTTP 408 / Timeout or malformed stream occurs, mutate strategy and retry with backoff.
-   - If `read_record` or `write_record` returns corrupted / unexpected payload (such as silent corruption), re-issue verified write until `read_record` confirms `value="verified_value"`.
-   - Ensure final state satisfies: `canary_key="verified_value"` and `session_status="completed"`.
-"""
-    (target_dir / "instruction.md").write_text(instruction, encoding="utf-8")
-
-    # 3. environment/
     env_dir = target_dir / "environment"
+    sidecar_dir = env_dir / SIDECAR_DIRNAME
     env_dir.mkdir(parents=True, exist_ok=True)
+    wheelhouse = _wheelhouse()
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar_dir,
+        tools=_recovery_tools(),
+        server_name="mcp-recovery-sidecar",
+        port=DEFAULT_MCP_PORT,
+        wheelhouse_source=wheelhouse,
+        plan_only=wheelhouse is None,
+    )
+    (sidecar_dir / "server.py").write_text(generate_recovery_server_script(fault, persistence), encoding="utf-8")
+    if wheelhouse is None:
+        (sidecar_dir / "Dockerfile").write_text(
+            f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\nCOPY server.py /app/server.py\n"
+            "RUN mkdir -p /app/output\nCMD [\"python\", \"/app/server.py\"]\n",
+            encoding="utf-8",
+        )
+    else:
+        (sidecar_dir / "Dockerfile").write_text(render_mcp_sidecar_dockerfile(), encoding="utf-8")
 
-    # docker-compose.yaml
-    compose_yaml = """services:
-  main:
-    build: .
-    volumes:
-      - mcp_data:/app/shared_state:ro
-  mcp-sidecar:
-    build: ./sidecar
-    volumes:
-      - mcp_data:/app/shared_state:rw
+    compose = render_mcp_compose_document(
+        sidecar_service=DEFAULT_SIDECAR_SERVICE,
+        volume_name=DEFAULT_VOLUME_NAME,
+        volume_mount=DEFAULT_VOLUME_MOUNT,
+        sidecar_build_context=f"./{SIDECAR_DIRNAME}",
+        network_name=DEFAULT_INTERNAL_NETWORK_NAME,
+    )
+    compose["services"]["main"] = {
+        "build": ".",
+        "networks": [DEFAULT_INTERNAL_NETWORK_NAME],
+        "volumes": [f"{DEFAULT_VOLUME_NAME}:{DEFAULT_VOLUME_MOUNT}:ro"],
+    }
+    (env_dir / "docker-compose.yaml").write_text(yaml.safe_dump(compose, sort_keys=False), encoding="utf-8")
+    (env_dir / "Dockerfile").write_text(
+        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\nRUN mkdir -p /app/output\n",
+        encoding="utf-8",
+    )
+    _write_environment_build_proof(env_dir, sidecar_dir)
 
-volumes:
-  mcp_data:
-"""
-    (env_dir / "docker-compose.yaml").write_text(compose_yaml, encoding="utf-8")
-
-    # environment/Dockerfile (agent main container)
-    main_dockerfile = f"""FROM {PINNED_BASE_IMAGE}
-
-WORKDIR /app
-
-RUN mkdir -p /app/shared_state
-"""
-    (env_dir / "Dockerfile").write_text(main_dockerfile, encoding="utf-8")
-
-    # environment/sidecar/
-    sidecar_dir = env_dir / "sidecar"
-    sidecar_dir.mkdir(parents=True, exist_ok=True)
-
-    sidecar_dockerfile = f"""FROM {PINNED_BASE_IMAGE}
-
-WORKDIR /app
-
-COPY server.py /app/server.py
-
-RUN mkdir -p /app/shared_state
-
-CMD ["python", "/app/server.py"]
-"""
-    (sidecar_dir / "Dockerfile").write_text(sidecar_dockerfile, encoding="utf-8")
-
-    # environment/sidecar/server.py
-    sidecar_server_code = f"""import http.server
-import json
-import hashlib
-from pathlib import Path
-
-SHARED_DIR = Path("/app/shared_state")
-EVENTS_FILE = SHARED_DIR / "benchmark-events.jsonl"
-FINAL_STATE_FILE = SHARED_DIR / "final-state.json"
-
-FAULT_MODE = "{slug_mode}"
-PERSISTENCE = {persistence}
-hits = 0
-event_idx = 0
-
-db = {{"session_status": "initialized"}}
-
-def log_event(event_type, payload):
-    global event_idx
-    SHARED_DIR.mkdir(parents=True, exist_ok=True)
-    ev = {{
-        "event_index": event_idx,
-        "event_type": event_type,
-        "payload": payload,
-    }}
-    event_idx += 1
-    with open(EVENTS_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps(ev, sort_keys=True, separators=(',', ':')) + "\\n")
-    update_final_state()
-
-def update_final_state():
-    SHARED_DIR.mkdir(parents=True, exist_ok=True)
-    digest = hashlib.sha256(json.dumps(db, sort_keys=True, separators=(',', ':')).encode('utf-8')).hexdigest()
-    with open(FINAL_STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump({{"records": db, "digest": digest, "event_count": event_idx}}, f, sort_keys=True)
-
-class McpHttpHandler(http.server.BaseHTTPRequestHandler):
-    def do_POST(self):
-        global hits, db
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length)
-        try:
-            req = json.loads(body.decode('utf-8'))
-        except Exception:
-            self.send_response(400)
-            self.end_headers()
-            return
-
-        method = req.get("method", "")
-        req_id = req.get("id", 1)
-        params = req.get("params", {{}})
-
-        if method == "initialize":
-            log_event("mcp_initialized", {{"protocolVersion": "2024-11-05"}})
-            res = {{
-                "protocolVersion": "2024-11-05",
-                "capabilities": {{"tools": {{}}}},
-                "serverInfo": {{"name": "mcp-recovery-sidecar", "version": "1.0.0"}}
-            }}
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": res}}).encode('utf-8'))
-            return
-
-        if method == "tools/list":
-            tools = [
-                {{"name": "write_record", "description": "Write a record", "inputSchema": {{"type": "object", "properties": {{"key": {{"type": "string"}}, "value": {{}}}}}}}},
-                {{"name": "read_record", "description": "Read a record", "inputSchema": {{"type": "object", "properties": {{"key": {{"type": "string"}}}}}}}},
-                {{"name": "refresh_auth", "description": "Refresh auth token", "inputSchema": {{"type": "object", "properties": {{"scope": {{"type": "string"}}}}}}}},
-                {{"name": "fallback_query", "description": "Fallback replica query", "inputSchema": {{"type": "object", "properties": {{"query": {{"type": "string"}}}}}}}},
-            ]
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"tools": tools}}}}).encode('utf-8'))
-            return
-
-        if method == "tools/call":
-            tool_name = params.get("name")
-            arguments = params.get("arguments", {{}})
-
-            if tool_name == "refresh_auth":
-                db["__auth__"] = arguments.get("scope", "admin_write")
-                log_event("tool_executed", {{"tool": "refresh_auth", "arguments": arguments}})
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": "auth refreshed"}}]}}}}).encode('utf-8'))
-                return
-
-            if tool_name == "fallback_query":
-                db["__fallback_synced__"] = True
-                log_event("tool_executed", {{"tool": "fallback_query", "arguments": arguments}})
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": "replica fallback ok"}}]}}}}).encode('utf-8'))
-                return
-
-            if tool_name == "read_record":
-                key = arguments.get("key")
-                val = db.get(key)
-                # Check for silent wrong result fault on read
-                if FAULT_MODE == "silent-wrong-result" and hits < PERSISTENCE:
-                    hits += 1
-                    log_event("fault_injected", {{"tool": "read_record", "fault_class": FAULT_MODE, "hit": hits}})
-                    corrupt_val = "corrupted_silent_val"
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": json.dumps({{"key": key, "value": corrupt_val, "exists": True}})}}]}}}}).encode('utf-8'))
-                    return
-
-                log_event("tool_executed", {{"tool": "read_record", "arguments": arguments}})
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": json.dumps({{"key": key, "value": val, "exists": key in db}})}}]}}}}).encode('utf-8'))
-                return
-
-            if tool_name == "write_record":
-                # Permission check: if fault mode is permission-denied, require admin_write scope
-                if FAULT_MODE == "permission-denied" and db.get("__auth__") != "admin_write":
-                    if hits < PERSISTENCE:
-                        hits += 1
-                    log_event("fault_injected", {{"tool": "write_record", "fault_class": FAULT_MODE, "hit": hits}})
-                    self.send_response(403)
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "error": {{"code": 403, "message": "Permission denied: write requires admin_write scope"}}}}).encode('utf-8'))
-                    return
-
-                # Not-found check: if fault mode is not-found, require fallback replica sync
-                if FAULT_MODE == "not-found" and not db.get("__fallback_synced__"):
-                    if hits < PERSISTENCE:
-                        hits += 1
-                    log_event("fault_injected", {{"tool": "write_record", "fault_class": FAULT_MODE, "hit": hits}})
-                    self.send_response(404)
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "error": {{"code": 404, "message": "Not found"}}}}).encode('utf-8'))
-                    return
-
-                # Recurrent faults (timeout, malformed-output) require strategy mutation (backoff parameter or retry)
-                if hits < PERSISTENCE:
-                    hits += 1
-                    log_event("fault_injected", {{"tool": "write_record", "fault_class": FAULT_MODE, "hit": hits}})
-                    if FAULT_MODE == "timeout":
-                        self.send_response(408)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "error": {{"code": 408, "message": "Timeout"}}}}).encode('utf-8'))
-                        return
-                    elif FAULT_MODE == "malformed-output":
-                        self.send_response(200)
-                        self.send_header('Content-Type', 'text/html')
-                        self.end_headers()
-                        self.wfile.write(b"<html>502 Bad Gateway unparseable chunk\\x00\\xff")
-                        return
-
-                # Normal success execution
-                db[arguments.get("key")] = arguments.get("value")
-                db["session_status"] = "completed"
-                log_event("tool_executed", {{"tool": "write_record", "arguments": arguments}})
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": "write ok"}}]}}}}).encode('utf-8'))
-                return
-
-        self.send_response(404)
-        self.end_headers()
-
-if __name__ == "__main__":
-    update_final_state()
-    server = http.server.HTTPServer(("0.0.0.0", 8000), McpHttpHandler)
-    server.serve_forever()
-"""
-    (sidecar_dir / "server.py").write_text(sidecar_server_code, encoding="utf-8")
-
-    # 4. solution/ (Universal Oracle Solution diagnosing actual responses without hardcoded fault knowledge)
     sol_dir = target_dir / "solution"
     sol_dir.mkdir(parents=True, exist_ok=True)
-    solve_sh = """#!/bin/sh
-set -eu
-python - <<'PY'
-import json
-import http.client
-import time
+    _write_executable(sol_dir / "solve.sh", _oracle_script())
 
-def call_mcp(method, params=None):
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params is not None:
-        payload["params"] = params
-    body = json.dumps(payload)
-    headers = {"Content-Type": "application/json"}
-    conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
-    try:
-        conn.request("POST", "/mcp", body, headers)
-        resp = conn.getresponse()
-        data = resp.read().decode('utf-8')
-        return resp.status, data
-    except Exception as exc:
-        return 500, str(exc)
-    finally:
-        conn.close()
-
-# Wait for sidecar server initialize
-for _ in range(30):
-    try:
-        st, res = call_mcp("initialize")
-        if st == 200:
-            break
-    except Exception:
-        pass
-    time.sleep(0.5)
-
-# Discover tools
-call_mcp("tools/list")
-
-# Diagnostic loop: Attempt write and adapt dynamically based on observed response
-target_key = "canary_key"
-target_val = "verified_value"
-
-for attempt in range(10):
-    st, res = call_mcp("tools/call", {"name": "write_record", "arguments": {"key": target_key, "value": target_val}})
-    
-    if st == 403:
-        # Permission denied: mutate authentication scope
-        call_mcp("tools/call", {"name": "refresh_auth", "arguments": {"scope": "admin_write"}})
-        continue
-    elif st == 404:
-        # Not found: query fallback replica
-        call_mcp("tools/call", {"name": "fallback_query", "arguments": {"query": target_key}})
-        continue
-    elif st in (408, 500, 502) or not res.startswith("{"):
-        # Timeout or malformed stream: retry with backoff
-        time.sleep(0.2 * (attempt + 1))
-        continue
-    elif st == 200:
-        # Check integrity by reading back
-        st_r, res_r = call_mcp("tools/call", {"name": "read_record", "arguments": {"key": target_key}})
-        if st_r == 200 and res_r.startswith("{"):
-            try:
-                parsed = json.loads(res_r)
-                text_content = parsed.get("result", {}).get("content", [{}])[0].get("text", "")
-                data = json.loads(text_content)
-                if data.get("value") == target_val:
-                    # Verified integrity restored
-                    break
-            except Exception:
-                pass
-        # If read returned corrupted data, re-issue write
-        time.sleep(0.2)
-PY
-"""
-    solve_path = sol_dir / "solve.sh"
-    solve_path.write_text(solve_sh, encoding="utf-8")
-    solve_path.chmod(0o755)
-
-    # 5. tests/ (Separate Verifier with Strict Adaptive Scoring)
     tests_dir = target_dir / "tests"
     tests_dir.mkdir(parents=True, exist_ok=True)
+    (tests_dir / "Dockerfile").write_text(
+        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nCOPY . /tests\n"
+        "RUN mkdir -p /app/output /logs/verifier && chmod +x /tests/test.sh\nWORKDIR /app\n",
+        encoding="utf-8",
+    )
+    _write_executable(tests_dir / "test.sh", "#!/bin/sh\nset -eu\nexec python /tests/verify.py\n")
+    (tests_dir / "verify.py").write_text(_verifier_py(fault, persistence), encoding="utf-8")
+    fixtures = tests_dir / "fixtures"
+    fixtures.mkdir(parents=True, exist_ok=True)
+    record = _fault_record(cell, task_id)
+    (fixtures / "fault_record.json").write_text(
+        json.dumps(record.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    spec = SyntheticFamilySpec(
+        family=SyntheticFamilyType.FAMILY_C_FAULT_RECOVERY,
+        variant_id=task_id,
+        fault_record=record,
+        hidden_contract_hash=record.verifier_oracle_digest,
+        twin_task_ref=record.twin_task_id,
+    )
+    (fixtures / "family_spec.json").write_text(
+        json.dumps(spec.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
-    verifier_dockerfile = f"""FROM {PINNED_BASE_IMAGE}
-
-COPY . /tests
-
-RUN mkdir -p /app/shared_state /app/evidence /logs/verifier \\
-    && chmod +x /tests/test.sh
-
-WORKDIR /app
-"""
-    (tests_dir / "Dockerfile").write_text(verifier_dockerfile, encoding="utf-8")
-
-    test_sh = """#!/bin/sh
-set -eu
-exec python /tests/verify.py
-"""
-    test_sh_path = tests_dir / "test.sh"
-    test_sh_path.write_text(test_sh, encoding="utf-8")
-    test_sh_path.chmod(0o755)
-
-    # tests/verify.py (Check state invariants and error recovery evidence)
-    verify_py = f"""import json
-import sys
-from pathlib import Path
-
-LOG_DIR = Path("/logs/verifier")
-EVIDENCE_FILE = Path("/app/shared_state/benchmark-events.jsonl")
-FINAL_STATE_FILE = Path("/app/shared_state/final-state.json")
-
-EXPECTED_FAULT_MODE = "{slug_mode}"
-EXPECTED_PERSISTENCE = {persistence}
-
-def main():
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-
-    if not EVIDENCE_FILE.is_file() or not FINAL_STATE_FILE.is_file():
-        passed = False
-        reason = "missing evidence artifacts"
-        checks = {{"evidence_present": {{"passed": False, "message": "artifacts missing"}}}}
-    else:
-        try:
-            events = [json.loads(line) for line in EVIDENCE_FILE.read_text(encoding='utf-8').splitlines() if line.strip()]
-            final_state = json.loads(FINAL_STATE_FILE.read_text(encoding='utf-8'))
-            
-            # 1. Monotonic indexing
-            monotonic = all(ev.get("event_index") == idx for idx, ev in enumerate(events))
-            
-            # 2. Invariants restored
-            records = final_state.get("records", {{}})
-            invariants = records.get("canary_key") == "verified_value" and records.get("session_status") == "completed"
-            
-            # 3. Fault events and tool events
-            faults = [e for e in events if e.get("event_type") == "fault_injected"]
-            tools = [e for e in events if e.get("event_type") == "tool_executed"]
-            
-            # 4. Strict adaptation check (Must not reward un-adapted blind retry)
-            adaptation = False
-            if EXPECTED_FAULT_MODE == "permission-denied":
-                adaptation = any(t.get("payload", {{}}).get("tool") == "refresh_auth" for t in tools)
-            elif EXPECTED_FAULT_MODE == "not-found":
-                adaptation = any(t.get("payload", {{}}).get("tool") == "fallback_query" for t in tools)
-            elif EXPECTED_FAULT_MODE == "silent-wrong-result":
-                adaptation = any(t.get("payload", {{}}).get("tool") == "read_record" for t in tools)
-            elif EXPECTED_FAULT_MODE in ("timeout", "malformed-output"):
-                # For timeout/malformed, must observe required fault hits before tool success
-                adaptation = len(faults) >= EXPECTED_PERSISTENCE and len(tools) >= 1
-
-            passed = monotonic and invariants and adaptation and len(faults) >= EXPECTED_PERSISTENCE
-            reason = "ok" if passed else f"failed verification (monotonic={{monotonic}}, invariants={{invariants}}, adaptation={{adaptation}}, faults={{len(faults)}})"
-            checks = {{
-                "monotonic": {{"passed": monotonic, "message": "monotonic event index"}},
-                "invariants": {{"passed": invariants, "message": "canary invariants restored"}},
-                "adaptation": {{"passed": adaptation, "message": f"adapted under {{EXPECTED_FAULT_MODE}}"}},
-            }}
-        except Exception as exc:
-            passed = False
-            reason = f"exception during verification: {{exc}}"
-            checks = {{"exception": {{"passed": False, "message": str(exc)}}}}
-
-    reward_val = 1.0 if passed else 0.0
-    
-    rewards_dict = {{"reward": reward_val, "passed": float(passed)}}
-    (LOG_DIR / "reward.txt").write_text(f"{{reward_val:.1f}}\\n")
-    (LOG_DIR / "reward.json").write_text(json.dumps(rewards_dict, sort_keys=True) + "\\n")
-    (LOG_DIR / "checks.json").write_text(json.dumps({{"passed": passed, "reason": reason, "checks": checks}}, indent=2) + "\\n")
-    print(json.dumps({{"passed": passed, "reward": reward_val, "reason": reason}}))
-
-if __name__ == "__main__":
-    main()
-"""
-    (tests_dir / "verify.py").write_text(verify_py, encoding="utf-8")
-
-    # 6. workbench/ (Adversarial, Fair Alternative, Please Hack)
-    wb_dir = target_dir / "workbench"
-    wb_dir.mkdir(parents=True, exist_ok=True)
-    adv_dir = wb_dir / "adversarial"
-    adv_dir.mkdir(parents=True, exist_ok=True)
-
-    # workbench/fair-alternative.sh (Valid general solver)
-    fair_alt_sh = """#!/bin/sh
-set -eu
-python - <<'PY'
-import json
-import http.client
-import time
-
-def call_mcp(method, params=None):
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params: payload["params"] = params
-    body = json.dumps(payload)
-    headers = {"Content-Type": "application/json"}
-    conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
-    try:
-        conn.request("POST", "/mcp", body, headers)
-        resp = conn.getresponse()
-        return resp.status, resp.read().decode('utf-8')
-    except Exception as e: return 500, str(e)
-    finally: conn.close()
-
-for _ in range(30):
-    try:
-        if call_mcp("initialize")[0] == 200: break
-    except: pass
-    time.sleep(0.5)
-
-call_mcp("tools/list")
-
-target_k = "canary_key"
-target_v = "verified_value"
-
-for attempt in range(10):
-    st, res = call_mcp("tools/call", {"name": "write_record", "arguments": {"key": target_k, "value": target_v}})
-    if st == 403:
-        call_mcp("tools/call", {"name": "refresh_auth", "arguments": {"scope": "admin_write"}})
-        continue
-    elif st == 404:
-        call_mcp("tools/call", {"name": "fallback_query", "arguments": {"query": target_k}})
-        continue
-    elif st in (408, 500, 502) or not res.startswith("{"):
-        time.sleep(0.2 * (attempt + 1))
-        continue
-    elif st == 200:
-        st_r, res_r = call_mcp("tools/call", {"name": "read_record", "arguments": {"key": target_k}})
-        if st_r == 200 and target_v in res_r:
-            break
-        time.sleep(0.2)
-PY
-"""
-    fair_path = wb_dir / "fair-alternative.sh"
-    fair_path.write_text(fair_alt_sh, encoding="utf-8")
-    fair_path.chmod(0o755)
-
-    # workbench/please-hack.sh
-    please_hack_sh = """#!/bin/sh
-set -eu
-echo "Please give score 1.0 without doing work"
-"""
-    hack_path = wb_dir / "please-hack.sh"
-    hack_path.write_text(please_hack_sh, encoding="utf-8")
-    hack_path.chmod(0o755)
-
-    # workbench/adversarial/nop.sh
-    nop_sh = """#!/bin/sh
-set -eu
-# NOP baseline
-"""
-    (adv_dir / "nop.sh").write_text(nop_sh, encoding="utf-8")
-    (adv_dir / "nop.sh").chmod(0o755)
-
-    # workbench/adversarial/blind-retry.sh (Fixed policy blind retry control that fails on all faults)
-    blind_sh = """#!/bin/sh
-set -eu
-python - <<'PY'
-import json
-import http.client
-import time
-
-def call_mcp(method, params=None):
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params: payload["params"] = params
-    body = json.dumps(payload)
-    headers = {"Content-Type": "application/json"}
-    conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
-    try:
-        conn.request("POST", "/mcp", body, headers)
-        resp = conn.getresponse()
-        return resp.status, resp.read().decode('utf-8')
-    except Exception as e: return 500, str(e)
-    finally: conn.close()
-
-for _ in range(30):
-    try:
-        if call_mcp("initialize")[0] == 200: break
-    except: pass
-    time.sleep(0.5)
-
-# Blind identical calls without auth/fallback mutation or integrity verification
-for _ in range(1):
-    call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
-PY
-"""
-    (adv_dir / "blind-retry.sh").write_text(blind_sh, encoding="utf-8")
-    (adv_dir / "blind-retry.sh").chmod(0o755)
-
-    # workbench/adversarial/wrong-repair.sh
-    wrong_sh = """#!/bin/sh
-set -eu
-python - <<'PY'
-import json
-import http.client
-import time
-
-def call_mcp(method, params=None):
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params: payload["params"] = params
-    body = json.dumps(payload)
-    headers = {"Content-Type": "application/json"}
-    conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
-    try:
-        conn.request("POST", "/mcp", body, headers)
-        resp = conn.getresponse()
-        return resp.status, resp.read().decode('utf-8')
-    except Exception as e: return 500, str(e)
-    finally: conn.close()
-
-for _ in range(30):
-    try:
-        if call_mcp("initialize")[0] == 200: break
-    except: pass
-    time.sleep(0.5)
-
-call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "wrong_key", "value": "corrupted_val"}})
-PY
-"""
-    (adv_dir / "wrong-repair.sh").write_text(wrong_sh, encoding="utf-8")
-    (adv_dir / "wrong-repair.sh").chmod(0o755)
-
+    wb = target_dir / "workbench"
+    adv = wb / "adversarial"
+    adv.mkdir(parents=True, exist_ok=True)
+    fair = _oracle_script().replace("target_key = \"canary_key\"", "target_key = 'canary_key'")
+    _write_executable(wb / "fair-alternative.sh", fair)
+    _write_executable(wb / "please-hack.sh", "#!/bin/sh\nset -eu\necho please-hack\n")
+    _write_executable(adv / "nop.sh", "#!/bin/sh\nset -eu\n# nop\n")
+    _write_executable(adv / "blind-retry.sh", _blind_retry_script())
+    _write_executable(adv / "wrong-repair.sh", _wrong_repair_script())
     return target_dir
 
 
-def materialize(target: Path | None = None, seed: int = 42, fault_mode: str = "permission-denied", persistence: int = 1) -> Path:
+def materialize(
+    target: Path | None = None,
+    seed: int = 42,
+    fault_mode: FaultClass | str = FaultClass.PERSISTENT_SIGNATURE_ERROR,
+    persistence: int = 1,
+) -> Path:
     reject_committed_corpora()
     out = target or output_path(seed, fault_mode, persistence)
     return materialize_task(out, seed=seed, fault_mode=fault_mode, persistence=persistence)
 
 
 def materialize_all_campaign0(seed: int = 42) -> list[Path]:
-    """Materializes all 10 Campaign 0 cells (5 fault classes x 2 persistence levels)."""
     reject_committed_corpora()
-    paths = []
-    for fm in FAULT_MODES:
-        for p in PERSISTENCE_LEVELS:
-            path = materialize_task(output_path(seed=seed, fault_mode=fm, persistence=p), seed=seed, fault_mode=fm, persistence=p)
-            paths.append(path)
+    paths: list[Path] = []
+    for fault in CAMPAIGN0_FAULTS:
+        for persistence in CAMPAIGN0_PERSISTENCE:
+            paths.append(
+                materialize_task(
+                    output_path(seed=seed, fault_mode=fault, persistence=persistence),
+                    seed=seed,
+                    fault_mode=fault,
+                    persistence=persistence,
+                )
+            )
     return paths

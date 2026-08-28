@@ -4,35 +4,30 @@
   "license": {
     "spdx": "MIT",
     "name": "MIT License",
-    "reference_repo": "https://github.com/mcp-bench/recovery-bench",
-    "notes": "Source-only certified twin architecture. Inspired by MIT Recovery-Bench concepts but re-engineered without vendored code or replay-drift limitations."
+    "reference_repo": "https://github.com/laude-institute/harbor",
+    "notes": "Source-only certified FastMCP recovery family. MIT Recovery-Bench is cited as ecological replay fallback only; replay-drift is an explicit limitation and the repository is not vendored."
   },
   "benchmark": {
     "family": "mcp-recovery-v1",
     "construct": "Deterministic MCP error recovery across clean/fault twins, state certificates, and discrete persistence levels",
     "campaign": "Campaign 0 calibration",
+    "synthetic_family": "family_c_fault_recovery",
     "fault_classes": [
-      "permission_denied",
-      "not_found",
-      "timeout",
-      "malformed_output",
-      "silent_wrong_result"
+      "transient_http_5xx",
+      "transient_network_timeout",
+      "persistent_schema_mismatch",
+      "persistent_signature_error",
+      "silent_wrong_payload"
     ],
-    "persistence_levels": [
-      1,
-      2
-    ],
-    "calibration_seeds": [
-      42,
-      101,
-      2024
-    ]
+    "persistence_levels": [1, 2],
+    "calibration_seeds": [42, 101, 2024]
   },
   "runtime": {
     "protocol": "streamable-http",
     "mcp_spec_version": "2024-11-05",
-    "twin_modes": ["clean", "fault"],
-    "evidence_path": "/app/evidence/benchmark-events.jsonl",
-    "final_state_path": "/app/evidence/final-state.json"
+    "substrate": "evallab.mcp_substrate",
+    "sidecar_service": "mcp-service",
+    "evidence_path": "/app/output/benchmark-events.jsonl",
+    "final_state_path": "/app/output/final-state.json"
   }
 }

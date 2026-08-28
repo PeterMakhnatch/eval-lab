@@ -1,134 +1,150 @@
-"""Oracle solutions, NOP baselines, blind retry, and mutant scripts."""
+"""In-process oracle, NOP, and mutant controls for the recovery CI contract."""
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from faults import FaultClass, FaultSpec
 from runtime import McpServerRuntime
-from state import DatabaseState
 
 
-def run_oracle_repair(
-    task_dir: Path,
-    agent_workspace: Path,
-    fault_spec: FaultSpec | None = None,
-) -> None:
-    """Oracle agent that detects errors and takes correct adaptive actions."""
-    evidence_dir = task_dir / "evidence"
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    evidence_file = evidence_dir / "benchmark-events.jsonl"
-    final_state_file = evidence_dir / "final-state.json"
+def _export(task_dir: Path, server: McpServerRuntime, completed: bool = True) -> None:
+    out = task_dir / "output"
+    out.mkdir(parents=True, exist_ok=True)
+    if completed:
+        server.state.set("canary_key", "verified_value")
+        server.state.set("session_status", "completed")
+    (out / "benchmark-events.jsonl").write_text(
+        "".join(
+            json.dumps(
+                {
+                    "event_index": event["event_index"],
+                    "event_type": event["event_type"],
+                    "payload": event["payload"],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+            for event in server.recorded_events
+        ),
+        encoding="utf-8",
+    )
+    (out / "final-state.json").write_text(
+        json.dumps({"records": dict(server.state.records), "digest": server.state.digest()}, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+    )
 
-    if evidence_file.exists():
-        evidence_file.unlink()
 
-    # Initial server runtime with fault spec
-    specs = [fault_spec] if fault_spec else [FaultSpec("write_record", FaultClass.PERMISSION_DENIED, persistence=1)]
-    server = McpServerRuntime(mode="fault", initial_state={"session_status": "initial"}, fault_specs=specs, evidence_file=evidence_file)
-
-    # 1. First attempt: write_record (will trigger fault)
-    req1 = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}}}
-    res1 = server.handle_request(req1)
-
-    # 2. Adaptation logic based on fault
-    fault_cls = specs[0].fault_class
-    if fault_cls == FaultClass.PERMISSION_DENIED:
-        # Step 2a: Call refresh_auth
-        req_auth = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "refresh_auth", "arguments": {"scope": "admin_write"}}}
-        server.handle_request(req_auth)
-        # Step 2b: Retry write_record
-        req_retry = {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}}}
-        server.handle_request(req_retry)
-    elif fault_cls == FaultClass.NOT_FOUND:
-        # Step 2: Fallback query
-        req_fb = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "fallback_query", "arguments": {"query": "canary_key"}}}
-        server.handle_request(req_fb)
-        # Finalize write
-        req_final = {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}}}
-        server.handle_request(req_final)
-    elif fault_cls in (FaultClass.TIMEOUT, FaultClass.MALFORMED_OUTPUT, FaultClass.SILENT_WRONG_RESULT):
-        # Retry write_record (transient fault will now clear if persistence=1)
-        req_retry = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}}}
-        server.handle_request(req_retry)
-
-    # Set final session status invariant
-    server.state.set("session_status", "completed")
-
-    # Export final state
-    with open(final_state_file, "w", encoding="utf-8") as f:
-        json.dump({"records": server.state.records, "digest": server.state.digest()}, f, indent=2)
+def run_oracle_repair(task_dir: Path, agent_workspace: Path, fault_spec: FaultSpec | None = None) -> None:
+    specs = [
+        fault_spec
+        if fault_spec
+        else FaultSpec("write_record", FaultClass.PERSISTENT_SIGNATURE_ERROR, persistence=1)
+    ]
+    evidence = Path(task_dir) / "output" / "benchmark-events.jsonl"
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    if evidence.exists():
+        evidence.unlink()
+    server = McpServerRuntime(
+        mode="fault",
+        initial_state={"session_status": "initial"},
+        fault_specs=specs,
+        evidence_file=evidence,
+    )
+    write = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}},
+    }
+    server.handle_request(write)
+    server.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "refresh_auth", "arguments": {"scope": "admin_write"}},
+        }
+    )
+    server.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "fallback_query", "arguments": {"query": "canary_key"}},
+        }
+    )
+    server.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {"name": "read_record", "arguments": {"key": "canary_key"}},
+        }
+    )
+    server.handle_request(write)
+    _export(Path(task_dir), server, completed=True)
 
 
 def run_nop_baseline(task_dir: Path, agent_workspace: Path) -> None:
-    """NOP agent that does nothing."""
-    evidence_dir = task_dir / "evidence"
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    with open(evidence_dir / "benchmark-events.jsonl", "w", encoding="utf-8") as f:
-        pass
-    with open(evidence_dir / "final-state.json", "w", encoding="utf-8") as f:
-        json.dump({"records": {}, "digest": ""}, f)
+    out = Path(task_dir) / "output"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "benchmark-events.jsonl").write_text("", encoding="utf-8")
+    (out / "final-state.json").write_text(json.dumps({"records": {}, "digest": ""}), encoding="utf-8")
 
 
-def run_blind_retry_control(
-    task_dir: Path,
-    agent_workspace: Path,
-    fault_spec: FaultSpec | None = None,
-) -> None:
-    """Blind retry agent that repeatedly attempts identical failed calls without adapting."""
-    evidence_dir = task_dir / "evidence"
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    evidence_file = evidence_dir / "benchmark-events.jsonl"
-    final_state_file = evidence_dir / "final-state.json"
-
-    if evidence_file.exists():
-        evidence_file.unlink()
-
-    # Fault with persistence=2 (blind retry 1 time won't clear, or permission denied which requires auth)
-    specs = [fault_spec] if fault_spec else [FaultSpec("write_record", FaultClass.PERMISSION_DENIED, persistence=2)]
-    server = McpServerRuntime(mode="fault", initial_state={"session_status": "initial"}, fault_specs=specs, evidence_file=evidence_file)
-
-    # Repeated identical calls without auth/mutation
-    req = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}}}
-    server.handle_request(req)
-    req["id"] = 2
-    server.handle_request(req)
-
-    # Export final state (invariants NOT restored)
-    with open(final_state_file, "w", encoding="utf-8") as f:
-        json.dump({"records": server.state.records, "digest": server.state.digest()}, f, indent=2)
+def run_blind_retry_control(task_dir: Path, agent_workspace: Path, fault_spec: FaultSpec | None = None) -> None:
+    specs = [
+        fault_spec
+        if fault_spec
+        else FaultSpec("write_record", FaultClass.PERSISTENT_SIGNATURE_ERROR, persistence=2)
+    ]
+    evidence = Path(task_dir) / "output" / "benchmark-events.jsonl"
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    if evidence.exists():
+        evidence.unlink()
+    server = McpServerRuntime(
+        mode="fault",
+        initial_state={"session_status": "initial"},
+        fault_specs=specs,
+        evidence_file=evidence,
+    )
+    server.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}},
+        }
+    )
+    _export(Path(task_dir), server, completed=False)
 
 
-def run_wrong_repair_mutant(
-    task_dir: Path,
-    agent_workspace: Path,
-) -> None:
-    """Mutant agent that performs incorrect mutation and leaves corrupted invariant state."""
-    evidence_dir = task_dir / "evidence"
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    evidence_file = evidence_dir / "benchmark-events.jsonl"
-    final_state_file = evidence_dir / "final-state.json"
-
-    if evidence_file.exists():
-        evidence_file.unlink()
-
-    specs = [FaultSpec("write_record", FaultClass.PERMISSION_DENIED, persistence=1)]
-    server = McpServerRuntime(mode="fault", initial_state={"session_status": "initial"}, fault_specs=specs, evidence_file=evidence_file)
-
-    req1 = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "write_record", "arguments": {"key": "canary_key", "value": "wrong_value"}}}
-    server.handle_request(req1)
-    req2 = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "refresh_auth", "arguments": {"scope": "wrong_scope"}}}
-    server.handle_request(req2)
-    # Fails to write canary key with verified_value, sets corrupt session status
+def run_wrong_repair_mutant(task_dir: Path, agent_workspace: Path) -> None:
+    evidence = Path(task_dir) / "output" / "benchmark-events.jsonl"
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    if evidence.exists():
+        evidence.unlink()
+    server = McpServerRuntime(
+        mode="fault",
+        initial_state={"session_status": "initial"},
+        fault_specs=[FaultSpec("write_record", FaultClass.PERSISTENT_SIGNATURE_ERROR, persistence=1)],
+        evidence_file=evidence,
+    )
+    server.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "write_record", "arguments": {"key": "wrong_key", "value": "corrupted_val"}},
+        }
+    )
     server.state.set("session_status", "corrupted")
-
-    with open(final_state_file, "w", encoding="utf-8") as f:
-        json.dump({"records": server.state.records, "digest": server.state.digest()}, f, indent=2)
+    _export(Path(task_dir), server, completed=False)
 
 
 def mutants() -> dict[str, Callable[[Path, Path], None]]:
-    return {
-        "blind_retry": run_blind_retry_control,
-        "wrong_repair": run_wrong_repair_mutant,
-    }
+    return {"blind_retry": run_blind_retry_control, "wrong_repair": run_wrong_repair_mutant}

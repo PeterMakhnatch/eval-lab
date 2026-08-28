@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[2]
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(HERE))
 
 from materializer import materialize, output_path

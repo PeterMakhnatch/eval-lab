@@ -1,24 +1,49 @@
 # MCP Error Recovery Benchmark Family (v1)
 
-Source-only certified error recovery benchmark for Model Context Protocol (MCP) agents under streamable-HTTP transport, fault injection, and StateCertificate invariant proofs.
+Source-only certified error-recovery family for Campaign 0 calibration. Tasks are
+Harbor packages with a real FastMCP 3.4.7 streamable-HTTP sidecar, paired
+clean/fault twins, and verifier-only oracle truth.
 
-## Architectural Principles
-1. **Source-Only & Zero-Vendoring**: No vendored copies of third-party benchmark repos or bulky task corpora in Git. Tasks are materialized on-demand into gitignored, digest-addressed paths (`derived/harbor-tasks/mcp-recovery/<digest>/...`).
-2. **Deterministic Primary Truth & Verifier Twins**: Uses un-intervened clean twins and fault twins to verify state recovery without relying on probabilistic LLM judges.
-3. **StateCertificate Guarantees**: Mutations, pre/post database states, and cryptographic digests are recorded canonically in `/app/evidence/benchmark-events.jsonl` with monotonic indexes and no wall-clock timestamps.
-4. **Adaptive Recovery vs. Blind Retries**: Distinguishes between transient auto-clearing faults (where blind retry passes) and adaptive recoveries (where agent mutates authorization scopes, routes around errors, or performs fallback queries).
+## Principles
 
-## Campaign 0 Calibration Matrix
-- **Fault Modes**:
-  - `permission_denied` (HTTP 403 / token scope expiry)
-  - `not_found` (HTTP 404 / entity not found)
-  - `timeout` (HTTP 408 / gateway timeout)
-  - `malformed_output` (Transport corruption / malformed stream)
-  - `silent_wrong_result` (Corrupted semantic payload requiring secondary verification)
-- **Persistence Levels**:
-  - `1`: Transient (clears after single failure)
-  - `2`: Recurrent / Persistent (requires strategy mutation or multi-step mitigation)
-- **Seeds**: `42`, `101`, `2024`
+- Source-only. No generated Harbor corpus, no Recovery-Bench vendoring.
+- Deterministic verifier truth. No LLM judges. Oracle/NOP/blind-retry/wrong-repair
+  controls are first-class.
+- Evidence is canonical JSONL at `/app/output/benchmark-events.jsonl` plus
+  `/app/output/final-state.json`. Event indexes are monotone. No timestamps.
+- Silent-wrong and malformed reference truth lives in `tests/fixtures/` only.
+  The main agent image does not COPY tests or solution trees.
+- A transient auto-clear never earns autonomous recovery from blind retry.
+  Paired fixed-policy/NOP-retry controls at the same persistence emit
+  adaptation-required versus auto-clear outcomes separately.
 
-## Ecological Replay & Provenance
-Inspired by the concepts in MIT Recovery-Bench (https://github.com/mcp-bench/recovery-bench), but rebuilt ground-up to eliminate live-API replay drift and provide closed-loop Harbor test containers.
+## Campaign 0 cells
+
+Program `FaultClass` values, with ecological Recovery-Bench aliases:
+
+| Alias | FaultClass | Persistence |
+| --- | --- | --- |
+| permission-denied | persistent_signature_error | 1, 2 |
+| not-found | persistent_schema_mismatch | 1, 2 |
+| timeout | transient_network_timeout | 1, 2 |
+| malformed-output | transient_http_5xx | 1, 2 |
+| silent-wrong-result | silent_wrong_payload | 1, 2 |
+
+Seed 42 is the calibration canary. Campaign 0 is calibration only.
+
+## Ecological replay fallback
+
+Cite MIT Recovery-Bench (`https://github.com/mcp-bench/recovery-bench`) as an
+ecological replay fallback. Live-API replay drift is an explicit limitation; this
+family does not vendor or replay that corpus.
+
+## Materialization
+
+```bash
+PYTHONPATH=src python3 library/benchmarks/mcp-recovery-v1/materialize.py
+PYTHONPATH=src python3 library/benchmarks/mcp-recovery-v1/ci_contract.py
+```
+
+Outputs land under gitignored `derived/harbor-tasks/mcp-recovery/<digest>/`.
+Set `MCP_RECOVERY_WHEELHOUSE` to a hash-locked FastMCP wheel directory for
+offline sidecar builds. Absent wheels, materialize is plan-only.

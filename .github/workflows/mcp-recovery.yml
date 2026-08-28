@@ -1,11 +1,12 @@
 name: mcp-recovery-workbench-certification
 
-# Harbor's no-network verifier and fixed workbench controls require Linux.
 on:
   pull_request:
     paths:
       - "library/benchmarks/mcp-recovery-v1/**"
       - "scripts/mcp_recovery/**"
+      - "src/evallab/mcp_substrate.py"
+      - "src/evallab/benchmark_program_contracts.py"
       - "tests/test_mcp_recovery_v1.py"
       - ".github/workflows/mcp-recovery.yml"
   push:
@@ -30,11 +31,11 @@ jobs:
       fail-fast: false
       matrix:
         fault_mode:
-          - permission-denied
-          - not-found
-          - timeout
-          - malformed-output
-          - silent-wrong-result
+          - transient-http-5xx
+          - transient-network-timeout
+          - persistent-schema-mismatch
+          - persistent-signature-error
+          - silent-wrong-payload
         persistence: [1, 2]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -48,6 +49,17 @@ jobs:
           echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
       - name: Install Harbor 0.21.0
         run: uv tool install "harbor==0.21.0"
+      - name: Populate FastMCP wheelhouse
+        run: |
+          set -euo pipefail
+          uv run python - <<'PY'
+          from pathlib import Path
+          from evallab.mcp_substrate import FASTMCP_SIDECAR_REQUIREMENTS_TXT
+          Path("/tmp/fastmcp3_reqs.txt").write_text(FASTMCP_SIDECAR_REQUIREMENTS_TXT)
+          PY
+          mkdir -p /tmp/fastmcp3_wheelhouse
+          python3 -m pip download --require-hashes -r /tmp/fastmcp3_reqs.txt -d /tmp/fastmcp3_wheelhouse
+          echo "MCP_RECOVERY_WHEELHOUSE=/tmp/fastmcp3_wheelhouse" >> "$GITHUB_ENV"
       - name: Materialize task cell
         id: materialize
         env:
@@ -59,15 +71,10 @@ jobs:
           import os
           import sys
           from pathlib import Path
-          
-          ROOT = Path("library/benchmarks/mcp-recovery-v1").resolve()
-          sys.path.insert(0, str(ROOT))
-          
+          sys.path.insert(0, str(Path("library/benchmarks/mcp-recovery-v1").resolve()))
           from materializer import materialize_task, output_path
-          
           fault_mode = os.environ["FAULT_MODE"]
           persistence = int(os.environ["PERSISTENCE"])
-          
           path = materialize_task(
               output_path(seed=42, fault_mode=fault_mode, persistence=persistence),
               seed=42,
@@ -165,11 +172,7 @@ jobs:
           from pathlib import Path
           import os
           from evallab.registry import discover_control_evidence
-
-          evidence = discover_control_evidence(
-              Path(os.environ["TASK_PATH"]),
-              Path.cwd(),
-          )
+          evidence = discover_control_evidence(Path(os.environ["TASK_PATH"]), Path.cwd())
           assert evidence.oracle.reward == 1.0
           assert evidence.nop.reward == 0.0
           PY

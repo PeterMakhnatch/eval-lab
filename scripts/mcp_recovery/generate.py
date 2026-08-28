@@ -3,7 +3,9 @@
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2] / "library" / "benchmarks" / "mcp-recovery-v1"
+REPO = Path(__file__).resolve().parents[2]
+ROOT = REPO / "library" / "benchmarks" / "mcp-recovery-v1"
+sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(ROOT))
 
 from materialize import main  # noqa: E402

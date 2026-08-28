@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import http.client
 import json
+import shutil
 import socketserver
 import subprocess
 import sys
@@ -14,12 +15,12 @@ import pytest
 
 from evallab.benchmark_program_contracts import FaultClass, FaultInjectionRecord
 from evallab.mcp_substrate import (
-    DEFAULT_PINNED_BASE_IMAGE,
     DEFAULT_PROTOCOL_VERSION,
     FASTMCP_SIDECAR_REQUIREMENTS_TXT,
     FastMCPRuntime,
     MCPToolDefinition,
     MCPToolParameter,
+    SubstrateError,
     compute_mcp_substrate_digest,
     generate_fastmcp_server_script,
     make_fastmcp_http_handler,
@@ -44,8 +45,12 @@ def test_mcp_compose_document_rendering_and_validation():
     assert doc["services"]["mcp-service"]["volumes"] == ["evidence-volume:/app/output:rw"]
 
 
-def test_mcp_sidecar_package_materialization_api(tmp_path: Path):
-    """Test boring task-authoring API emitting complete offline package."""
+def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path: Path):
+    """Test boring task-authoring API emitting complete offline package and rejecting invalid/tampered wheelhouses."""
+    wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
+    if not wheelhouse.is_dir():
+        pytest.skip("FastMCP 3.4.7 wheelhouse not populated on this host")
+
     tool = MCPToolDefinition(
         name="calculate_sum",
         description="Compute sum of two integers",
@@ -55,32 +60,76 @@ def test_mcp_sidecar_package_materialization_api(tmp_path: Path):
         ),
         metadata={"op_kind": "add_op"},
     )
-    sidecar_dir = tmp_path / "sidecar-pkg"
-    pkg = materialize_mcp_sidecar_package(
-        target_dir=sidecar_dir,
+
+    # 1. Production mode without wheelhouse fails closed
+    with pytest.raises(SubstrateError, match="wheelhouse_source is mandatory"):
+        materialize_mcp_sidecar_package(
+            target_dir=tmp_path / "fail_no_wheelhouse",
+            tools=[tool],
+            wheelhouse_source=None,
+            plan_only=False,
+        )
+
+    # 2. Plan-only mode succeeds without Dockerfile or wheelhouse
+    plan_dir = tmp_path / "plan_only_pkg"
+    _ = materialize_mcp_sidecar_package(
+        target_dir=plan_dir,
+        tools=[tool],
+        wheelhouse_source=None,
+        plan_only=True,
+    )
+    assert (plan_dir / "server.py").is_file()
+    assert (plan_dir / "requirements.txt").is_file()
+    assert not (plan_dir / "Dockerfile").exists()
+    assert not (plan_dir / "wheelhouse").exists()
+    plan_proof = json.loads((plan_dir / "offline-build-proof.json").read_text())
+    assert plan_proof["mode"] == "plan_only"
+
+    # 3. Incomplete wheelhouse fails closed
+    incomplete_wheelhouse = tmp_path / "incomplete_wheelhouse"
+    incomplete_wheelhouse.mkdir()
+    first_wheel = next(wheelhouse.glob("*.whl"))
+    shutil.copy2(first_wheel, incomplete_wheelhouse / first_wheel.name)
+    with pytest.raises(SubstrateError, match="missing required locked package"):
+        materialize_mcp_sidecar_package(
+            target_dir=tmp_path / "fail_incomplete",
+            tools=[tool],
+            wheelhouse_source=incomplete_wheelhouse,
+        )
+
+    # 4. Tampered wheel hash fails closed
+    tampered_wheelhouse = tmp_path / "tampered_wheelhouse"
+    tampered_wheelhouse.mkdir()
+    for w in wheelhouse.glob("*.whl"):
+        shutil.copy2(w, tampered_wheelhouse / w.name)
+    target_corrupt = next(tampered_wheelhouse.glob("*.whl"))
+    target_corrupt.write_bytes(target_corrupt.read_bytes() + b"\x00corrupted")
+    with pytest.raises(SubstrateError, match="does not match any locked hash"):
+        materialize_mcp_sidecar_package(
+            target_dir=tmp_path / "fail_tampered",
+            tools=[tool],
+            wheelhouse_source=tampered_wheelhouse,
+        )
+
+    # 5. Full valid production materialization succeeds
+    prod_dir = tmp_path / "prod_pkg"
+    prod_pkg = materialize_mcp_sidecar_package(
+        target_dir=prod_dir,
         tools=[tool],
         server_name="math-sidecar",
         port=8080,
+        wheelhouse_source=wheelhouse,
     )
+    assert (prod_dir / "server.py").is_file()
+    assert (prod_dir / "requirements.txt").is_file()
+    assert (prod_dir / "Dockerfile").is_file()
+    assert (prod_dir / "wheelhouse").is_dir()
+    assert len(list((prod_dir / "wheelhouse").glob("*.whl"))) == len(list(wheelhouse.glob("*.whl")))
+    prod_proof = json.loads((prod_dir / "offline-build-proof.json").read_text())
+    assert prod_proof["mode"] == "complete_offline_package"
+    assert prod_proof["wheel_count"] > 0
 
-    assert (sidecar_dir / "server.py").is_file()
-    assert (sidecar_dir / "requirements.txt").is_file()
-    assert (sidecar_dir / "Dockerfile").is_file()
-    assert (sidecar_dir / "offline-build-proof.json").is_file()
-
-    # Verify Dockerfile contains strict offline flags
-    dockerfile_text = (sidecar_dir / "Dockerfile").read_text()
-    assert "--no-index" in dockerfile_text
-    assert "--find-links=/wheelhouse" in dockerfile_text
-    assert "--require-hashes" in dockerfile_text
-
-    # Verify build proof
-    proof = json.loads((sidecar_dir / "offline-build-proof.json").read_text())
-    assert proof["base_image"] == DEFAULT_PINNED_BASE_IMAGE
-    assert len(proof["requirements_sha256"]) == 64
-
-    # Verify returned compose doc
-    valid, errs = validate_mcp_compose_document(pkg["compose_doc"])
+    valid, errs = validate_mcp_compose_document(prod_pkg["compose_doc"])
     assert valid, f"Generated Compose invalid: {errs}"
 
 

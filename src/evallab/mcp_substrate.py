@@ -9,6 +9,8 @@ Provides:
   - `Dockerfile` using offline `pip install --no-index --find-links=/wheelhouse --require-hashes`.
   - `offline-build-proof.json` recording exact wheel inventory and content digests.
   - `docker-compose.yaml` fragment and collect hooks for workbench-v2.
+- Strict mechanical verification of wheelhouse bytes against locked requirements hashes (rejecting missing, extra unapproved, or tampered wheel artifacts).
+- Support for explicit `plan_only=True` mode when Dockerfile/wheelhouse is omitted.
 - Standard FastMCP sidecar topology generation & validation matching workbench-v2.
 - Zero-egress internal bridge (internal: true), task-local named volume (main-RO / sidecar-RW).
 - Standard MCP protocol compliant JSON-RPC 2.0 endpoint (/mcp) supporting initialize (2024-11-05), notifications/initialized, tools/list, and tools/call returning standard CallToolResult ({content: [{type: "text", text: ...}], isError: ...}).
@@ -20,6 +22,7 @@ Provides:
 
 from __future__ import annotations
 
+import hashlib
 import http.server
 import json
 import logging
@@ -129,6 +132,83 @@ websockets==17.1 --hash=sha256:0014eaff8ad5b3b43feda2279f9d34bf2eaae040720b9fbbb
 
 class SubstrateError(Exception):
     """Raised when substrate configuration, validation, or runtime fails."""
+
+
+def parse_requirements_hashes(requirements_text: str) -> dict[str, set[str]]:
+    """Parse a hash-locked requirements.txt into a mapping of normalized package_name -> set of sha256 hex strings."""
+    req_hashes: dict[str, set[str]] = {}
+    for line in requirements_text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        pkg_part = parts[0]
+        pkg_name = pkg_part.split("==")[0].lower().replace("_", "-")
+        hashes = set()
+        for p in parts[1:]:
+            if p.startswith("--hash=sha256:"):
+                hashes.add(p.removeprefix("--hash=sha256:"))
+        if not hashes:
+            raise SubstrateError(f"Requirement {pkg_name!r} has no --hash=sha256: declarations")
+        req_hashes[pkg_name] = hashes
+    return req_hashes
+
+
+def verify_wheelhouse_inventory(
+    wheelhouse_dir: Path, requirements_text: str
+) -> list[dict[str, Any]]:
+    """Mechanically verify that wheelhouse contains an exact matching wheel for every locked requirement.
+
+    Rejects:
+    - Non-directory or empty wheelhouse
+    - Missing required package wheel
+    - Tampered wheel bytes whose sha256 is not in the declared requirement lock
+    - Extra unapproved wheels not in the lockfile
+    """
+    if not wheelhouse_dir.is_dir():
+        raise SubstrateError(f"Wheelhouse directory does not exist: {wheelhouse_dir.as_posix()!r}")
+
+    locked = parse_requirements_hashes(requirements_text)
+    wheels = list(wheelhouse_dir.glob("*.whl"))
+    if not wheels:
+        raise SubstrateError(
+            f"Wheelhouse {wheelhouse_dir.as_posix()!r} is empty (contains 0 wheels)"
+        )
+
+    matched_packages: set[str] = set()
+    inventory: list[dict[str, Any]] = []
+
+    for w_file in sorted(wheels, key=lambda p: p.name):
+        w_bytes = w_file.read_bytes()
+        w_hash = hashlib.sha256(w_bytes).hexdigest()
+        pkg_name = w_file.name.split("-")[0].lower().replace("_", "-")
+
+        if pkg_name not in locked:
+            raise SubstrateError(
+                f"Wheelhouse contains extra unapproved package {w_file.name!r} not in lockfile"
+            )
+
+        if w_hash not in locked[pkg_name]:
+            raise SubstrateError(
+                f"Wheel {w_file.name!r} SHA-256 hash {w_hash} does not match any locked hash for {pkg_name}"
+            )
+
+        matched_packages.add(pkg_name)
+        inventory.append(
+            {
+                "filename": w_file.name,
+                "size_bytes": len(w_bytes),
+                "sha256": w_hash,
+            }
+        )
+
+    missing_packages = set(locked.keys()) - matched_packages
+    if missing_packages:
+        raise SubstrateError(
+            f"Wheelhouse is missing required locked package(s): {sorted(missing_packages)}"
+        )
+
+    return inventory
 
 
 @dataclass(frozen=True)
@@ -625,8 +705,20 @@ def materialize_mcp_sidecar_package(
     base_image: str = DEFAULT_PINNED_BASE_IMAGE,
     wheelhouse_source: Path | None = None,
     op_registry_module: str | None = None,
+    plan_only: bool = False,
 ) -> dict[str, Any]:
-    """Boring task-authoring API emitting a complete, workbench-v2 compliant offline FastMCP sidecar package."""
+    """Boring task-authoring API emitting a complete, workbench-v2 compliant offline FastMCP sidecar package.
+
+    Parameters:
+        target_dir: Target directory where sidecar files will be emitted.
+        tools: Sequence of discrete MCP tool definitions.
+        server_name: FastMCP server identifier.
+        port: Service port.
+        base_image: Immutable pinned base image reference.
+        wheelhouse_source: Directory of pre-downloaded wheels matching FASTMCP_SIDECAR_REQUIREMENTS_TXT. Mandatory unless plan_only=True.
+        op_registry_module: Optional module path for DAG/operation registry delegation.
+        plan_only: When True, skips Dockerfile/wheelhouse copying and emits only plan specification.
+    """
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -642,38 +734,52 @@ def materialize_mcp_sidecar_package(
     # 2. requirements.txt
     (target_dir / "requirements.txt").write_text(FASTMCP_SIDECAR_REQUIREMENTS_TXT, encoding="utf-8")
 
-    # 3. Dockerfile
-    dockerfile_content = render_mcp_sidecar_dockerfile(base_image=base_image)
-    (target_dir / "Dockerfile").write_text(dockerfile_content, encoding="utf-8")
-
-    # 4. wheelhouse copying & offline-build-proof.json
     wheel_inventory: list[dict[str, Any]] = []
-    if wheelhouse_source is not None and wheelhouse_source.is_dir():
+
+    if plan_only:
+        # Plan-only mode: Dockerfile and wheelhouse omitted
+        proof_data = {
+            "mode": "plan_only",
+            "substrate_version": MCP_SUBSTRATE_VERSION,
+            "base_image": base_image,
+            "requirements_sha256": compute_sha256(FASTMCP_SIDECAR_REQUIREMENTS_TXT),
+        }
+        (target_dir / "offline-build-proof.json").write_text(
+            canonical_json(proof_data) + "\n", encoding="utf-8"
+        )
+    else:
+        if wheelhouse_source is None:
+            raise SubstrateError(
+                "wheelhouse_source is mandatory for production sidecar materialization; pass plan_only=True to emit plan without container build artifacts"
+            )
+
+        # Strictly verify wheelhouse against locked requirements before admitting any files
+        wheel_inventory = verify_wheelhouse_inventory(
+            wheelhouse_source, FASTMCP_SIDECAR_REQUIREMENTS_TXT
+        )
+
         dest_wheelhouse = target_dir / "wheelhouse"
         dest_wheelhouse.mkdir(parents=True, exist_ok=True)
         for w_file in sorted(wheelhouse_source.glob("*.whl")):
             shutil.copy2(w_file, dest_wheelhouse / w_file.name)
-            w_bytes = w_file.read_bytes()
-            wheel_inventory.append(
-                {
-                    "filename": w_file.name,
-                    "size_bytes": len(w_bytes),
-                    "sha256": compute_sha256(w_bytes),
-                }
-            )
 
-    proof_data = {
-        "substrate_version": MCP_SUBSTRATE_VERSION,
-        "base_image": base_image,
-        "requirements_sha256": compute_sha256(FASTMCP_SIDECAR_REQUIREMENTS_TXT),
-        "wheel_count": len(wheel_inventory),
-        "wheels": wheel_inventory,
-    }
-    (target_dir / "offline-build-proof.json").write_text(
-        canonical_json(proof_data) + "\n", encoding="utf-8"
-    )
+        # 3. Dockerfile
+        dockerfile_content = render_mcp_sidecar_dockerfile(base_image=base_image)
+        (target_dir / "Dockerfile").write_text(dockerfile_content, encoding="utf-8")
 
-    # 5. Compose and Collect fragments
+        proof_data = {
+            "mode": "complete_offline_package",
+            "substrate_version": MCP_SUBSTRATE_VERSION,
+            "base_image": base_image,
+            "requirements_sha256": compute_sha256(FASTMCP_SIDECAR_REQUIREMENTS_TXT),
+            "wheel_count": len(wheel_inventory),
+            "wheels": wheel_inventory,
+        }
+        (target_dir / "offline-build-proof.json").write_text(
+            canonical_json(proof_data) + "\n", encoding="utf-8"
+        )
+
+    # Compose and Collect fragments
     compose_doc = render_mcp_compose_document(
         sidecar_service=DEFAULT_SIDECAR_SERVICE,
         sidecar_build_context="./" + target_dir.name,

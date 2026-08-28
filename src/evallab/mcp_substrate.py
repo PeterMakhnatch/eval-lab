@@ -7,7 +7,7 @@ Provides:
 - Zero-egress internal bridge (internal: true), task-local named volume (main-RO / sidecar-RW).
 - JSON-RPC 2.0 endpoint (/mcp) supporting initialize (2024-11-05), tools/list, and tools/call.
 - Offline hash-locked wheel dependency packaging manifest for sidecars (`fastmcp>=0.4.0` / pinned wheels).
-- Code generation for `fastmcp.FastMCP` application sidecars.
+- Code generation for `fastmcp.FastMCP` application sidecars with customizable tool execution bodies, distractor handling, and dynamic operation registries.
 - In-process HTTP JSON-RPC sidecar runtime for test execution and offline sandboxing.
 - Deterministic Fault Interceptor middleware operating over FaultInjectionRecord contracts.
 - Deterministic state journal / event ledger logging to /app/output or specified evidence path.
@@ -80,6 +80,7 @@ class MCPToolDefinition:
     output_type: str = "object"
     is_distractor: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    execution_body: str | None = None
 
     def to_mcp_tool_schema(self) -> dict[str, Any]:
         """Convert to standard MCP tools/list tool schema (JSON Schema inputSchema)."""
@@ -400,23 +401,56 @@ def generate_fastmcp_server_script(
     tools: Sequence[MCPToolDefinition],
     server_name: str = "eval-lab-fastmcp-sidecar",
     port: int = DEFAULT_MCP_PORT,
+    evidence_path: str = "/app/output/benchmark-events.jsonl",
+    op_registry_module: str | None = None,
 ) -> str:
-    """Generate production-ready Python script using real FastMCP (`from fastmcp import FastMCP`)."""
+    """Generate production-ready FastMCP sidecar server script with full event recording and tool execution."""
     lines = [
-        '"""Generated FastMCP Streamable-HTTP sidecar server."""',
+        '"""Generated FastMCP Streamable-HTTP sidecar server with state journal recording."""',
         "from __future__ import annotations",
         "",
         "import json",
         "from pathlib import Path",
+        "import threading",
         "from typing import Any",
         "from fastmcp import FastMCP",
-        "",
-        f'mcp = FastMCP("{server_name}")',
-        "",
     ]
+
+    if op_registry_module:
+        lines.append(f"from {op_registry_module} import OP_REGISTRY")
+    else:
+        lines.append("OP_REGISTRY: dict[str, Any] = {}")
+
+    lines.extend(
+        [
+            "",
+            f'mcp = FastMCP("{server_name}")',
+            f'EVIDENCE_FILE = Path("{evidence_path}")',
+            "EVENT_LOCK = threading.Lock()",
+            "EVENT_ORDINAL = 0",
+            "",
+            "def log_tool_event(tool_name: str, arguments: dict[str, Any], result: Any, is_distractor: bool = False) -> None:",
+            "    global EVENT_ORDINAL",
+            "    with EVENT_LOCK:",
+            "        EVENT_ORDINAL += 1",
+            "        EVIDENCE_FILE.parent.mkdir(parents=True, exist_ok=True)",
+            "        event = {",
+            '            "event_ordinal": EVENT_ORDINAL,',
+            '            "event_type": "tool_call_success",',
+            '            "tool_name": tool_name,',
+            '            "arguments": arguments,',
+            '            "result": result,',
+            '            "is_distractor": is_distractor,',
+            "        }",
+            '        with open(EVIDENCE_FILE, "a", encoding="utf-8") as f:',
+            '            f.write(json.dumps(event, sort_keys=True, separators=(",", ":")) + "\\n")',
+            "",
+        ]
+    )
 
     for tool in tools:
         param_sigs = []
+        arg_dict_entries = []
         for p in tool.parameters:
             py_type = (
                 p.type_name
@@ -427,18 +461,46 @@ def generate_fastmcp_server_script(
                 param_sigs.append(f"{p.name}: {py_type} | None = None")
             else:
                 param_sigs.append(f"{p.name}: {py_type}")
+            arg_dict_entries.append(f'"{p.name}": {p.name}')
         sig_str = ", ".join(param_sigs)
+        arg_dict_str = "{" + ", ".join(arg_dict_entries) + "}"
 
         lines.extend(
             [
                 "@mcp.tool()",
                 f"def {tool.name}({sig_str}) -> dict[str, Any]:",
                 f'    """{tool.description}"""',
-                "    # Tool execution handler",
-                f'    return {{"status": "ok", "tool": "{tool.name}"}}',
-                "",
+                f"    args = {arg_dict_str}",
             ]
         )
+
+        if tool.execution_body:
+            # Custom authored execution body
+            for b_line in tool.execution_body.strip().splitlines():
+                lines.append(f"    {b_line}")
+        elif tool.is_distractor:
+            lines.extend(
+                [
+                    '    res = {"status": "noop_distractor", "value": None}',
+                    f'    log_tool_event("{tool.name}", args, res, is_distractor=True)',
+                    "    return res",
+                ]
+            )
+        else:
+            op_kind = tool.metadata.get("op_kind", tool.name)
+            lines.extend(
+                [
+                    f'    op_fn = OP_REGISTRY.get("{op_kind}")',
+                    "    if op_fn is not None:",
+                    "        val = op_fn(**args)",
+                    '        res = {"status": "ok", "value": val}',
+                    "    else:",
+                    '        res = {"status": "ok", "tool": "' + tool.name + '", "value": args}',
+                    f'    log_tool_event("{tool.name}", args, res, is_distractor=False)',
+                    "    return res",
+                ]
+            )
+        lines.append("")
 
     lines.extend(
         [

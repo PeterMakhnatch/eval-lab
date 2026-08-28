@@ -211,26 +211,25 @@ if __name__ == "__main__":
     shutil.copy2(ROOT / "verifier.py", tests / "verify.py")
     shutil.copy2(ROOT / "verifier.py", verifier_dir / "verify.py")
 
-    # Tests / Verifier Dockerfile and test.sh
-    (tests / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /tests\nRUN mkdir -p /logs/verifier /app/output\nCOPY verify.py /tests/verify.py\nCOPY fixtures /tests/fixtures\nCMD [\"sleep\", \"infinity\"]\n",
-        encoding="utf-8",
-    )
-    (tests / "test.sh").write_text(
-        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /tests/verify.py --task-dir /tests --evidence-dir /app/output --reward-dir /logs/verifier\n",
-        encoding="utf-8",
-    )
+    # Tests / Verifier test.sh
+    test_sh_content = "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /tests/verify.py --task-dir /tests --evidence-dir /app/output --reward-dir /logs/verifier\n"
+    (tests / "test.sh").write_text(test_sh_content, encoding="utf-8")
     (tests / "test.sh").chmod(0o755)
 
-    (verifier_dir / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /verifier\nRUN mkdir -p /logs/verifier /app/output\nCOPY verify.py /verifier/verify.py\nCOPY fixtures /verifier/fixtures\nCMD [\"sleep\", \"infinity\"]\n",
-        encoding="utf-8",
-    )
-    (verifier_dir / "test.sh").write_text(
-        "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /verifier/verify.py --task-dir /verifier --evidence-dir /app/output --reward-dir /logs/verifier\n",
-        encoding="utf-8",
-    )
+    verifier_test_sh = "#!/bin/sh\nset -eu\nmkdir -p /logs/verifier\npython3 /verifier/verify.py --task-dir /verifier --evidence-dir /app/output --reward-dir /logs/verifier\n"
+    (verifier_dir / "test.sh").write_text(verifier_test_sh, encoding="utf-8")
     (verifier_dir / "test.sh").chmod(0o755)
+
+    # Tests / Verifier Dockerfile copying test.sh and verify.py
+    (tests / "Dockerfile").write_text(
+        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /logs/verifier /app/output /tests\nCOPY verify.py /tests/verify.py\nCOPY test.sh /tests/test.sh\nCOPY fixtures /tests/fixtures\nRUN chmod +x /tests/test.sh /tests/verify.py\nCMD [\"sleep\", \"infinity\"]\n",
+        encoding="utf-8",
+    )
+
+    (verifier_dir / "Dockerfile").write_text(
+        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /logs/verifier /app/output /verifier\nCOPY verify.py /verifier/verify.py\nCOPY test.sh /verifier/test.sh\nCOPY fixtures /verifier/fixtures\nRUN chmod +x /verifier/test.sh /verifier/verify.py\nCMD [\"sleep\", \"infinity\"]\n",
+        encoding="utf-8",
+    )
 
     # Workbench fair-alternative.sh
     (workbench / "fair-alternative.sh").write_text(

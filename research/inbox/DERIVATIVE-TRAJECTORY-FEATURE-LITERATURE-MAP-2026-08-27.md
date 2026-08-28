@@ -2,7 +2,8 @@
 type: literature-map
 topic: derivative-trajectory-features
 reviewed: 2026-08-27
-status: citations-corrected-2026-08-28
+status: distilled
+citation_status: corrected-2026-08-28
 authority: local paper manifests (131 sources, arXiv-API re-resolved) + Harbor ATIF v1.7 Spec + Eval Lab Telemetry
 source_url: https://github.com/PeterMakhnatch/eval-lab
 source_type: repo

@@ -3,7 +3,14 @@ type: correction-errata
 topic: citation-integrity-audit
 requested_by: Analyst (wK:p5)
 reviewed: 2026-08-28
-status: verified-corrections-applied
+status: distilled
+citation_status: verified-corrections-applied-2026-08-28
+source_url: https://export.arxiv.org/api/query
+source_type: paper
+retrieved: 2026-08-28
+license_note: arXiv metadata (titles, abstracts) retrieved via the public arXiv API for citation verification only; per-paper licenses remain authoritative. Quoted body sentences are short excerpts for verification purposes.
+feeds:
+  - parked
 method: every arXiv ID resolved via export.arxiv.org Atom API; bindings cross-checked against local paper manifests; method claims quoted from paper body text
 machine_ledger: research/inbox/CITATION-VERIFICATION-LEDGER-2026-08-28.json
 ---

@@ -247,7 +247,7 @@ def _build_wheelhouse(
         str(wheelhouse),
         "--no-cache-dir",
     ]
-    subprocess.run(cmd, check=True, env=env)
+    subprocess.run(cmd, check=True, env=env, stdout=sys.stderr, stderr=sys.stderr)
     _prepare_wheelhouse(wheelhouse)
     return wheelhouse
 

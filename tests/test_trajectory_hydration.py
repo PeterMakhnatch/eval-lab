@@ -34,6 +34,7 @@ def test_apply_redaction_masks_secrets() -> None:
     assert "<<evallab-redacted:" in redacted
     assert "sha256:" in redacted
 
+
 def test_apply_redaction_truncation() -> None:
     """Truncation beyond max_display_bytes includes omitted bytes and full content digest."""
     long_text = "A" * 500
@@ -127,7 +128,6 @@ def test_hydrate_citation_rejects_absolute_path_and_traversal() -> None:
             hydrate_citation(traversal_citation, trial_dir=trial_dir)
 
 
-
 def test_hydrate_citation_cas_member_path_jailing() -> None:
     """Citation source_path inside CAS archive is strictly jailed; ../ escapes raise CitationPathJailError."""
     from evallab.evidence_store import archive_evidence
@@ -140,7 +140,9 @@ def test_hydrate_citation_cas_member_path_jailing() -> None:
         cas_store.mkdir(parents=True)
 
         (source_dir / "agent").mkdir()
-        (source_dir / "agent" / "trajectory.json").write_text(json.dumps({"schema_version": "ATIF-v1.4", "steps": []}))
+        (source_dir / "agent" / "trajectory.json").write_text(
+            json.dumps({"schema_version": "ATIF-v1.4", "steps": []})
+        )
         (source_dir / "result.json").write_text(json.dumps({"trial_name": "t1"}))
 
         archive = archive_evidence(source_dir, cas_store, record_id="t1", kind="trial")
@@ -160,6 +162,7 @@ def test_hydrate_citation_cas_member_path_jailing() -> None:
         )
         with pytest.raises(CitationPathJailError, match="escapes CAS archive root"):
             hydrate_citation(traversal_cit, repo_root=cas_store)
+
 
 def test_hydrate_citation_surfaces_typed_cas_limitations() -> None:
     """Missing or corrupted CAS archives surface typed evidence limitations with reason codes."""
@@ -197,7 +200,10 @@ def test_hydrate_error_observations_from_outline() -> None:
                     "observations": [
                         {
                             "content": "cat: missing.txt: No such file or directory",
-                            "extra": {"exit_code": 1, "stderr": "cat: missing.txt: No such file or directory"},
+                            "extra": {
+                                "exit_code": 1,
+                                "stderr": "cat: missing.txt: No such file or directory",
+                            },
                         }
                     ],
                 }

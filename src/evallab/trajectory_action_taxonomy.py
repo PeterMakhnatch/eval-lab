@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import re
 import shlex
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any
 
 
-class ActionDomain(str, Enum):
+class ActionDomain(StrEnum):
     """High-level functional domain of an agent action."""
 
     FILE_SYSTEM = "file_system"
@@ -28,7 +29,7 @@ class ActionDomain(str, Enum):
     OTHER = "other"
 
 
-class ActionSubtype(str, Enum):
+class ActionSubtype(StrEnum):
     """Fine-grained operational subtype of an agent action."""
 
     READ_FILE = "read_file"
@@ -73,7 +74,9 @@ class ActionClassification:
 _REDIRECT_OUT_PATTERN = re.compile(r"(?:>>?|>\|)\s*([^\s;&|]+)")
 _SED_INPLACE_PATTERN = re.compile(r"\bsed\s+.*-(?:i|e\s+.*-i)")
 
-_EDIT_TOOL_NAMES = frozenset({"edit", "write", "patch", "str_replace_editor", "replace", "create_file", "save_file"})
+_EDIT_TOOL_NAMES = frozenset(
+    {"edit", "write", "patch", "str_replace_editor", "replace", "create_file", "save_file"}
+)
 _READ_TOOL_NAMES = frozenset({"read", "view", "cat", "read_file", "view_file", "open_file", "show"})
 _SEARCH_TOOL_NAMES = frozenset({"grep", "rg", "search", "find", "glob", "file_search"})
 
@@ -133,14 +136,13 @@ def classify_bash_command(command_str: str) -> ActionClassification:
 
     # 2. File Editing and In-Place Modifications
     if (
-        base_cmd in {"sed", "awk", "perl"}
-        and any(arg.startswith("-i") or arg == "--in-place" for arg in tokens)
-    ) or (
-        base_cmd in {"tee", "sponge", "patch"}
-    ) or (
-        base_cmd in {"nano", "vim", "vi", "emacs", "ed"}
-    ) or (
-        redirect_matches and base_cmd in {"echo", "printf", "cat", "python", "python3"}
+        (
+            base_cmd in {"sed", "awk", "perl"}
+            and any(arg.startswith("-i") or arg == "--in-place" for arg in tokens)
+        )
+        or (base_cmd in {"tee", "sponge", "patch"})
+        or (base_cmd in {"nano", "vim", "vi", "emacs", "ed"})
+        or (redirect_matches and base_cmd in {"echo", "printf", "cat", "python", "python3"})
     ):
         return ActionClassification(
             domain=ActionDomain.FILE_SYSTEM,
@@ -151,7 +153,8 @@ def classify_bash_command(command_str: str) -> ActionClassification:
             is_test_execution=False,
             is_edit=True,
             primary_command=base_cmd,
-            target_paths=target_paths or tuple(t for t in tokens[1:] if not t.startswith("-") and "." in t),
+            target_paths=target_paths
+            or tuple(t for t in tokens[1:] if not t.startswith("-") and "." in t),
         )
 
     # 3. File Creation / Deletion
@@ -182,7 +185,19 @@ def classify_bash_command(command_str: str) -> ActionClassification:
         )
 
     # 4. Read File
-    if base_cmd in {"cat", "head", "tail", "less", "more", "nl", "od", "hexdump", "xxd", "bat", "tac"}:
+    if base_cmd in {
+        "cat",
+        "head",
+        "tail",
+        "less",
+        "more",
+        "nl",
+        "od",
+        "hexdump",
+        "xxd",
+        "bat",
+        "tac",
+    }:
         return ActionClassification(
             domain=ActionDomain.FILE_SYSTEM,
             subtype=ActionSubtype.READ_FILE,
@@ -234,7 +249,19 @@ def classify_bash_command(command_str: str) -> ActionClassification:
         )
 
     # 7. Environment Inspection
-    if base_cmd in {"env", "printenv", "export", "set", "whoami", "id", "uname", "hostname", "pwd", "date", "uptime"}:
+    if base_cmd in {
+        "env",
+        "printenv",
+        "export",
+        "set",
+        "whoami",
+        "id",
+        "uname",
+        "hostname",
+        "pwd",
+        "date",
+        "uptime",
+    }:
         return ActionClassification(
             domain=ActionDomain.ENVIRONMENT_INSPECTION,
             subtype=ActionSubtype.INSPECT_ENV,
@@ -275,7 +302,11 @@ def classify_bash_command(command_str: str) -> ActionClassification:
     if (
         base_cmd in {"pytest", "pytest-3", "nosetests", "tox"}
         or (base_cmd in {"python", "python3"} and any("test" in tok for tok in tokens[1:]))
-        or (base_cmd in {"cargo", "go", "npm", "yarn", "pnpm"} and len(tokens) > 1 and tokens[1] == "test")
+        or (
+            base_cmd in {"cargo", "go", "npm", "yarn", "pnpm"}
+            and len(tokens) > 1
+            and tokens[1] == "test"
+        )
     ):
         return ActionClassification(
             domain=ActionDomain.CODE_EXECUTION,
@@ -289,9 +320,9 @@ def classify_bash_command(command_str: str) -> ActionClassification:
         )
 
     # 10. Package Management
-    if (
-        base_cmd in {"pip", "pip3", "conda", "poetry", "uv"}
-        or (base_cmd in {"npm", "yarn", "pnpm", "cargo", "apt", "apt-get", "dpkg", "yum", "brew"} and any(act in tokens[1:3] for act in {"install", "add", "remove", "update"}))
+    if base_cmd in {"pip", "pip3", "conda", "poetry", "uv"} or (
+        base_cmd in {"npm", "yarn", "pnpm", "cargo", "apt", "apt-get", "dpkg", "yum", "brew"}
+        and any(act in tokens[1:3] for act in {"install", "add", "remove", "update"})
     ):
         return ActionClassification(
             domain=ActionDomain.PACKAGE_MANAGEMENT,
@@ -318,7 +349,19 @@ def classify_bash_command(command_str: str) -> ActionClassification:
         )
 
     # 12. Build / Compilation
-    if base_cmd in {"make", "cmake", "ninja", "gcc", "g++", "clang", "clang++", "rustc", "tsc", "mvn", "gradle"}:
+    if base_cmd in {
+        "make",
+        "cmake",
+        "ninja",
+        "gcc",
+        "g++",
+        "clang",
+        "clang++",
+        "rustc",
+        "tsc",
+        "mvn",
+        "gradle",
+    }:
         return ActionClassification(
             domain=ActionDomain.CODE_EXECUTION,
             subtype=ActionSubtype.BUILD_COMPILE,
@@ -331,10 +374,24 @@ def classify_bash_command(command_str: str) -> ActionClassification:
         )
 
     # 13. Process Control
-    if base_cmd in {"ps", "top", "htop", "pgrep", "pkill", "kill", "sleep", "wait", "jobs", "bg", "fg"}:
+    if base_cmd in {
+        "ps",
+        "top",
+        "htop",
+        "pgrep",
+        "pkill",
+        "kill",
+        "sleep",
+        "wait",
+        "jobs",
+        "bg",
+        "fg",
+    }:
         return ActionClassification(
             domain=ActionDomain.PROCESS_CONTROL,
-            subtype=ActionSubtype.PROCESS_MANAGEMENT if hasattr(ActionSubtype, "PROCESS_MANAGEMENT") else ActionSubtype.PROCESS_MANAGE,
+            subtype=ActionSubtype.PROCESS_MANAGEMENT
+            if hasattr(ActionSubtype, "PROCESS_MANAGEMENT")
+            else ActionSubtype.PROCESS_MANAGE,
             is_read_only=base_cmd in {"ps", "top", "htop", "pgrep", "jobs"},
             is_state_modifying=base_cmd in {"pkill", "kill", "sleep"},
             is_diagnostic=base_cmd in {"ps", "top", "htop", "pgrep"},
@@ -344,7 +401,16 @@ def classify_bash_command(command_str: str) -> ActionClassification:
         )
 
     # 14. General script execution
-    if base_cmd in {"python", "python3", "node", "ruby", "perl", "bash", "sh", "zsh"} or base_cmd.startswith("./"):
+    if base_cmd in {
+        "python",
+        "python3",
+        "node",
+        "ruby",
+        "perl",
+        "bash",
+        "sh",
+        "zsh",
+    } or base_cmd.startswith("./"):
         return ActionClassification(
             domain=ActionDomain.CODE_EXECUTION,
             subtype=ActionSubtype.RUN_SCRIPT,
@@ -377,10 +443,21 @@ def classify_action(
     fn_lower = function_name.strip().lower()
 
     # If it's a bash/shell/exec/terminal tool, dispatch to bash classifier
-    if fn_lower in {"bash", "shell", "exec", "terminal", "execute", "command", "cmd", "run_command"}:
+    if fn_lower in {
+        "bash",
+        "shell",
+        "exec",
+        "terminal",
+        "execute",
+        "command",
+        "cmd",
+        "run_command",
+    }:
         cmd_str = ""
         if isinstance(arguments, dict):
-            cmd_str = str(arguments.get("command") or arguments.get("cmd") or arguments.get("script") or "")
+            cmd_str = str(
+                arguments.get("command") or arguments.get("cmd") or arguments.get("script") or ""
+            )
         elif isinstance(arguments, str):
             cmd_str = arguments
         elif tool_command:
@@ -404,7 +481,9 @@ def classify_action(
     if fn_lower in _EDIT_TOOL_NAMES:
         target_path: str | None = None
         if isinstance(arguments, dict):
-            target_path = str(arguments.get("path") or arguments.get("file_path") or arguments.get("target") or "")
+            target_path = str(
+                arguments.get("path") or arguments.get("file_path") or arguments.get("target") or ""
+            )
 
         return ActionClassification(
             domain=ActionDomain.FILE_SYSTEM,
@@ -422,7 +501,9 @@ def classify_action(
     if fn_lower in _READ_TOOL_NAMES:
         target_path = None
         if isinstance(arguments, dict):
-            target_path = str(arguments.get("path") or arguments.get("file_path") or arguments.get("target") or "")
+            target_path = str(
+                arguments.get("path") or arguments.get("file_path") or arguments.get("target") or ""
+            )
 
         return ActionClassification(
             domain=ActionDomain.FILE_SYSTEM,
@@ -440,7 +521,9 @@ def classify_action(
     if fn_lower in _SEARCH_TOOL_NAMES:
         return ActionClassification(
             domain=ActionDomain.FILE_SYSTEM,
-            subtype=ActionSubtype.SEARCH_CONTENT if "grep" in fn_lower or "search" in fn_lower else ActionSubtype.FIND_FILE,
+            subtype=ActionSubtype.SEARCH_CONTENT
+            if "grep" in fn_lower or "search" in fn_lower
+            else ActionSubtype.FIND_FILE,
             is_read_only=True,
             is_state_modifying=False,
             is_diagnostic=True,

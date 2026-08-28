@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from evallab.trajectory_action_taxonomy import (
     ActionDomain,
     ActionSubtype,

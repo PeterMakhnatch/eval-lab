@@ -12,6 +12,7 @@ Contract for downstream UI (GYM-UI) and AGY capture:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -127,6 +128,7 @@ class StepOutline:
     sample_index: int | None = None
     sampling_params: dict[str, Any] | None = None
 
+
 @dataclass(frozen=True)
 class PhaseOutline:
     """Ordered semantic execution phase within a trajectory."""
@@ -236,6 +238,8 @@ class TrajectoryFeatures:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
 @dataclass(frozen=True)
 class TrajectoryProjectResult:
     """Result of projecting mechanical features to Parquet."""
@@ -246,10 +250,6 @@ class TrajectoryProjectResult:
     output_path: Path
     table_rows: int
     sha256: str
-
-
-
-
 
 
 TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
@@ -295,7 +295,6 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
         pa.field("max_exit_code_cascade_screening", pa.int64(), nullable=False),
     ]
 )
-
 
 
 def _check_path_jail(path: Path, roots: Sequence[Path]) -> Path:
@@ -446,6 +445,7 @@ def _analyze_loop_suspicion(steps: Sequence[StepOutline]) -> LoopSuspicion:
         cyclic_patterns_count=cyclic_patterns,
     )
 
+
 def _compute_cbv_slope(steps: Sequence[StepOutline]) -> float | None:
     """Compute regression slope of prompt_tokens over step_ordinal.
 
@@ -552,8 +552,6 @@ def _build_phases(steps: Sequence[StepOutline]) -> tuple[PhaseOutline, ...]:
         elif src == "verifier":
             step_type = "verifier"
         else:
-
-
             step_type = "unknown"
 
         if current_phase_type is None:
@@ -570,6 +568,8 @@ def _build_phases(steps: Sequence[StepOutline]) -> tuple[PhaseOutline, ...]:
 
     flush_phase()
     return tuple(phases)
+
+
 def _unavailable_outline(
     *,
     trial_id: str,
@@ -1085,11 +1085,7 @@ def outline_trajectory(
                 "failed",
             }:
                 is_error = True
-                error_msg = (
-                    error_msg
-                    or content[:120].strip()
-                    or "tool result reported an error"
-                )
+                error_msg = error_msg or content[:120].strip() or "tool result reported an error"
         if is_error:
             total_errors += 1
             last_was_error = True
@@ -1120,6 +1116,7 @@ def outline_trajectory(
         if reasoning_content:
             if store_root is not None:
                 from evallab.evidence_store import store_blob
+
                 reasoning_content_ref = store_blob(store_root, reasoning_content)
             else:
                 d_hex = hashlib.sha256(reasoning_content.encode("utf-8")).hexdigest()
@@ -1127,12 +1124,15 @@ def outline_trajectory(
 
         # Reasoning tokens
         from evallab.trajectory_ir import _extract_reasoning_tokens, _extract_sampling_params
+
         reasoning_tokens = _extract_reasoning_tokens(raw_step, metrics)
 
         # Sampling params & sample index
         sampling_params_obj = _extract_sampling_params(raw_step, agent_cfg)
         sampling_params_dict = asdict(sampling_params_obj) if sampling_params_obj else None
-        sample_index = raw_step.get("sample_index") if isinstance(raw_step.get("sample_index"), int) else None
+        sample_index = (
+            raw_step.get("sample_index") if isinstance(raw_step.get("sample_index"), int) else None
+        )
 
         # CAS refs for token arrays if present
         p_ids_ref = None
@@ -1140,12 +1140,19 @@ def outline_trajectory(
         logprobs_ref = None
         if store_root is not None:
             from evallab.evidence_store import store_blob
+
             if isinstance(metrics.get("prompt_token_ids"), list):
-                p_ids_ref = store_blob(store_root, json.dumps(metrics["prompt_token_ids"]).encode("utf-8"))
+                p_ids_ref = store_blob(
+                    store_root, json.dumps(metrics["prompt_token_ids"]).encode("utf-8")
+                )
             if isinstance(metrics.get("completion_token_ids"), list):
-                c_ids_ref = store_blob(store_root, json.dumps(metrics["completion_token_ids"]).encode("utf-8"))
+                c_ids_ref = store_blob(
+                    store_root, json.dumps(metrics["completion_token_ids"]).encode("utf-8")
+                )
             if isinstance(metrics.get("logprobs"), list):
-                logprobs_ref = store_blob(store_root, json.dumps(metrics["logprobs"]).encode("utf-8"))
+                logprobs_ref = store_blob(
+                    store_root, json.dumps(metrics["logprobs"]).encode("utf-8")
+                )
 
         thought_snippet = None
         if reasoning_content:
@@ -1474,5 +1481,3 @@ def project_trajectory_features(
         table_rows=len(rows),
         sha256=out_sha,
     )
-
-

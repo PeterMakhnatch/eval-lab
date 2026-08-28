@@ -19,9 +19,21 @@ def repo_root() -> Path:
 
 @pytest.fixture
 def canary_trial_dir(repo_root: Path) -> Path:
-    canary = repo_root / "research" / "evidence" / "runs" / "canary-transaction-reconciliation-codex-20260815" / "transaction-reconciliation__ba8ovxZ"
+    canary = (
+        repo_root
+        / "research"
+        / "evidence"
+        / "runs"
+        / "canary-transaction-reconciliation-codex-20260815"
+        / "transaction-reconciliation__ba8ovxZ"
+    )
     if not canary.exists():
-        canary = repo_root / "runs" / "canary-transaction-reconciliation-codex-20260815" / "transaction-reconciliation__ba8ovxZ"
+        canary = (
+            repo_root
+            / "runs"
+            / "canary-transaction-reconciliation-codex-20260815"
+            / "transaction-reconciliation__ba8ovxZ"
+        )
     return canary
 
 
@@ -64,14 +76,19 @@ def test_quality_status_known_when_ledger_present(repo_root: Path) -> None:
             json.dumps({"schema_version": "ATIF-v1.4", "steps": []})
         )
         (trial_dir / "quality.json").write_text(
-            json.dumps({"status": "warn", "reasons": ["excessive_tool_retries", "unverified_final_state"]})
+            json.dumps(
+                {"status": "warn", "reasons": ["excessive_tool_retries", "unverified_final_state"]}
+            )
         )
 
         rendered, card = generate_traj_card(trial_dir, repo_root=repo_root)
 
         assert card.quality.status == "warn"
         assert "excessive_tool_retries" in card.quality.reasons
-        assert "- **Quality Status:** `warn` (excessive_tool_retries, unverified_final_state)" in rendered
+        assert (
+            "- **Quality Status:** `warn` (excessive_tool_retries, unverified_final_state)"
+            in rendered
+        )
 
 
 def test_semantic_coverage_inspection_with_facts(repo_root: Path) -> None:
@@ -94,7 +111,9 @@ def test_semantic_coverage_inspection_with_facts(repo_root: Path) -> None:
         assert "`process_step_facts.parquet`" in rendered
 
 
-def test_cli_traj_card_command(canary_trial_dir: Path, repo_root: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_traj_card_command(
+    canary_trial_dir: Path, repo_root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """CLI evallab traj card renders card markdown and JSON accurately."""
     # Test Markdown rendering via CLI
     code = run_cli(["traj", "card", str(canary_trial_dir)], workspace=repo_root)
@@ -147,7 +166,13 @@ def test_verifier_missing_reward_shape_contract(repo_root: Path) -> None:
         trial_dir = Path(tmpdir)
         (trial_dir / "agent").mkdir(parents=True)
         (trial_dir / "agent" / "trajectory.json").write_text(
-            json.dumps({"schema_version": "ATIF-v1.4", "session_id": "sess-1", "steps": [{"step_id": 1, "actor": "agent", "tool_calls": [{"name": "bash"}]}]})
+            json.dumps(
+                {
+                    "schema_version": "ATIF-v1.4",
+                    "session_id": "sess-1",
+                    "steps": [{"step_id": 1, "actor": "agent", "tool_calls": [{"name": "bash"}]}],
+                }
+            )
         )
         result_payload = {
             "task_name": "loca-bench/ab-testing-seed-42-8k",

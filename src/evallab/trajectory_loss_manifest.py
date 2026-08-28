@@ -632,7 +632,11 @@ def audit_trajectory_loss(
     trajectory_id = (
         raw_atif_data.get("trajectory_id")
         or raw_atif_data.get("session_id")
-        or (raw_atif_data.get("agent", {}).get("name") if isinstance(raw_atif_data.get("agent"), dict) else None)
+        or (
+            raw_atif_data.get("agent", {}).get("name")
+            if isinstance(raw_atif_data.get("agent"), dict)
+            else None
+        )
     )
 
     # 1. Audit root fields
@@ -709,7 +713,13 @@ def audit_trajectory_loss(
             if not isinstance(step, dict):
                 continue
             for sk, sv in step.items():
-                if sk in ("tool_calls", "observation_results", "observation", "metrics", "sampling_params"):
+                if sk in (
+                    "tool_calls",
+                    "observation_results",
+                    "observation",
+                    "metrics",
+                    "sampling_params",
+                ):
                     continue
                 step_path = f"step.{sk}"
                 if step_path not in seen_step_fields:
@@ -721,7 +731,9 @@ def audit_trajectory_loss(
                                 field_path=step_path,
                                 present_in_raw=sv is not None,
                                 raw_type=type(sv).__name__ if sv is not None else None,
-                                raw_size_bytes=len(str(sv).encode("utf-8")) if sv is not None else None,
+                                raw_size_bytes=len(str(sv).encode("utf-8"))
+                                if sv is not None
+                                else None,
                                 status=entry.status,
                                 storage_tier=entry.storage_tier,
                                 is_lossless=entry.is_lossless,
@@ -745,7 +757,9 @@ def audit_trajectory_loss(
                                     field_path=m_path,
                                     present_in_raw=mv is not None,
                                     raw_type=type(mv).__name__ if mv is not None else None,
-                                    raw_size_bytes=len(str(mv).encode("utf-8")) if mv is not None else None,
+                                    raw_size_bytes=len(str(mv).encode("utf-8"))
+                                    if mv is not None
+                                    else None,
                                     status=entry.status,
                                     storage_tier=entry.storage_tier,
                                     is_lossless=entry.is_lossless,
@@ -770,8 +784,12 @@ def audit_trajectory_loss(
                                         TrajectoryFieldAudit(
                                             field_path=tc_path,
                                             present_in_raw=tcv is not None,
-                                            raw_type=type(tcv).__name__ if tcv is not None else None,
-                                            raw_size_bytes=len(str(tcv).encode("utf-8")) if tcv is not None else None,
+                                            raw_type=type(tcv).__name__
+                                            if tcv is not None
+                                            else None,
+                                            raw_size_bytes=len(str(tcv).encode("utf-8"))
+                                            if tcv is not None
+                                            else None,
                                             status=entry.status,
                                             storage_tier=entry.storage_tier,
                                             is_lossless=entry.is_lossless,
@@ -798,8 +816,12 @@ def audit_trajectory_loss(
                                         TrajectoryFieldAudit(
                                             field_path=obs_path,
                                             present_in_raw=obsv is not None,
-                                            raw_type=type(obsv).__name__ if obsv is not None else None,
-                                            raw_size_bytes=len(str(obsv).encode("utf-8")) if obsv is not None else None,
+                                            raw_type=type(obsv).__name__
+                                            if obsv is not None
+                                            else None,
+                                            raw_size_bytes=len(str(obsv).encode("utf-8"))
+                                            if obsv is not None
+                                            else None,
                                             status=entry.status,
                                             storage_tier=entry.storage_tier,
                                             is_lossless=entry.is_lossless,

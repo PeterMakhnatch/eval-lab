@@ -7,23 +7,15 @@ token ID persistence, sampling parameter extraction, and zero undeclared field l
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
-import pytest
-
-from evallab.evidence_store import load_blob, store_blob
+from evallab.evidence_store import load_blob
 from evallab.traj import outline_trajectory
 from evallab.trajectory_ir import (
-    TrajectoryIR,
     build_trajectory_ir,
     trajectory_ir_to_dict,
 )
 from evallab.trajectory_loss_manifest import (
-    FieldLossEntry,
-    LossManifest,
-    TrajectoryFieldAudit,
-    TrajectoryLossReport,
     audit_trajectory_loss,
     get_declared_loss_manifest,
 )
@@ -58,7 +50,9 @@ def test_declared_loss_manifest_completeness() -> None:
     # Every digested or dropped entry must have non-empty reason
     for field_path, entry in fields.items():
         if entry.status in {"digested", "dropped"}:
-            assert entry.reason is not None and entry.reason != "", f"Missing reason for non-preserved field {field_path}"
+            assert entry.reason is not None and entry.reason != "", (
+                f"Missing reason for non-preserved field {field_path}"
+            )
 
 
 def test_audit_trajectory_fidelity_detects_undeclared_fields() -> None:

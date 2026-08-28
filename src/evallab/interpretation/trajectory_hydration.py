@@ -27,7 +27,10 @@ _DEFAULT_SECRET_PATTERNS = (
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"),
     re.compile(r"ghp_[A-Za-z0-9]{20,}"),
     re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]{20,}", re.IGNORECASE),
-    re.compile(r"(?:api_key|token|password|secret|authorization)\s*[:=]\s*[\"']?([A-Za-z0-9_\-\.]{12,})[\"']?", re.IGNORECASE),
+    re.compile(
+        r"(?:api_key|token|password|secret|authorization)\s*[:=]\s*[\"']?([A-Za-z0-9_\-\.]{12,})[\"']?",
+        re.IGNORECASE,
+    ),
     re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+ PRIVATE KEY-----"),
 )
 
@@ -38,6 +41,7 @@ class CitationPathJailError(ValueError):
 
 def _sha256_text(text: str) -> str:
     return f"sha256:{hashlib.sha256(text.encode('utf-8', errors='replace')).hexdigest()}"
+
 
 @dataclass(frozen=True)
 class CitationHandle:
@@ -57,7 +61,9 @@ class CitationHandle:
     call_index: int | None = None
     source_call_id: str | None = None
     observation_index: int | None = None
-    target_type: str = "step"  # "step" | "tool_call" | "observation" | "stderr" | "stdout" | "arguments" | "file"
+    target_type: str = (
+        "step"  # "step" | "tool_call" | "observation" | "stderr" | "stdout" | "arguments" | "file"
+    )
     content_sha256: str | None = None
     redaction_profile_digest: str | None = None
     availability: str = "available"
@@ -281,7 +287,7 @@ def apply_redaction(
     policy: RedactionPolicy | None = None,
 ) -> tuple[str, bool, dict[str, Any]]:
     """Apply on-read redaction without mutating any source files.
-    
+
     Returns (redacted_text, is_redacted, metadata).
     """
     if policy is None:
@@ -308,7 +314,10 @@ def apply_redaction(
                 redacted = pattern.sub(_mask_match, redacted)
 
     # 2. Display truncation if max_display_bytes is exceeded
-    if policy.max_display_bytes is not None and len(redacted.encode("utf-8")) > policy.max_display_bytes:
+    if (
+        policy.max_display_bytes is not None
+        and len(redacted.encode("utf-8")) > policy.max_display_bytes
+    ):
         raw_bytes = redacted.encode("utf-8")
         kept = raw_bytes[: policy.max_display_bytes].decode("utf-8", errors="ignore")
         truncated_len = len(raw_bytes) - policy.max_display_bytes
@@ -351,8 +360,7 @@ def _extract_content_from_payload(
     if step_id_target is not None:
         for s in steps:
             if isinstance(s, dict) and (
-                s.get("step_id") == step_id_target
-                or str(s.get("step_id")) == str(step_id_target)
+                s.get("step_id") == step_id_target or str(s.get("step_id")) == str(step_id_target)
             ):
                 target_step = s
                 break
@@ -368,9 +376,8 @@ def _extract_content_from_payload(
     observations = target_step.get("observations")
     raw_observation = target_step.get("observation")
     raw_results = raw_observation.get("results") if isinstance(raw_observation, dict) else None
-    if (
-        not isinstance(observations, list)
-        or (not observations and isinstance(raw_results, list) and raw_results)
+    if not isinstance(observations, list) or (
+        not observations and isinstance(raw_results, list) and raw_results
     ):
         observations = raw_results
     if not isinstance(observations, list):
@@ -379,15 +386,26 @@ def _extract_content_from_payload(
         target_tc: dict[str, Any] | None = None
         if citation.tool_call_id:
             for tc in tool_calls:
-                if isinstance(tc, dict) and (tc.get("tool_call_id") == citation.tool_call_id or tc.get("id") == citation.tool_call_id):
+                if isinstance(tc, dict) and (
+                    tc.get("tool_call_id") == citation.tool_call_id
+                    or tc.get("id") == citation.tool_call_id
+                ):
                     target_tc = tc
                     break
-        elif citation.call_index is not None and 0 <= citation.call_index < len(tool_calls) and isinstance(tool_calls[citation.call_index], dict):
+        elif (
+            citation.call_index is not None
+            and 0 <= citation.call_index < len(tool_calls)
+            and isinstance(tool_calls[citation.call_index], dict)
+        ):
             target_tc = tool_calls[citation.call_index]
 
         if target_tc:
             if target_type == "arguments":
-                args = target_tc.get("arguments") or target_tc.get("parameters") or target_tc.get("input")
+                args = (
+                    target_tc.get("arguments")
+                    or target_tc.get("parameters")
+                    or target_tc.get("input")
+                )
                 return json.dumps(args, indent=2) if not isinstance(args, str) else args
 
             # Match sibling observation without fake positional fallback
@@ -395,7 +413,9 @@ def _extract_content_from_payload(
             matching_obs: dict[str, Any] | None = None
             if tc_id is not None:
                 for obs in observations:
-                    if isinstance(obs, dict) and (obs.get("source_call_id") == tc_id or obs.get("tool_call_id") == tc_id):
+                    if isinstance(obs, dict) and (
+                        obs.get("source_call_id") == tc_id or obs.get("tool_call_id") == tc_id
+                    ):
                         matching_obs = obs
                         break
 
@@ -413,11 +433,17 @@ def _extract_content_from_payload(
                 if isinstance(obs, dict) and obs.get("source_call_id") == citation.source_call_id:
                     target_obs = obs
                     break
-        elif citation.observation_index is not None and 0 <= citation.observation_index < len(observations) and isinstance(observations[citation.observation_index], dict):
+        elif (
+            citation.observation_index is not None
+            and 0 <= citation.observation_index < len(observations)
+            and isinstance(observations[citation.observation_index], dict)
+        ):
             target_obs = observations[citation.observation_index]
 
         if target_obs:
-            content = target_obs.get("content") or target_obs.get("output") or target_obs.get("result")
+            content = (
+                target_obs.get("content") or target_obs.get("output") or target_obs.get("result")
+            )
             if target_type == "stderr":
                 extra = target_obs.get("extra")
                 if isinstance(extra, dict) and extra.get("stderr"):
@@ -461,7 +487,9 @@ def hydrate_citation(
         if trial_dir is not None:
             trial_resolved = trial_dir.resolve()
             candidate_file = (trial_dir / raw_src).resolve()
-            if not (candidate_file == trial_resolved or candidate_file.is_relative_to(trial_resolved)):
+            if not (
+                candidate_file == trial_resolved or candidate_file.is_relative_to(trial_resolved)
+            ):
                 raise CitationPathJailError(
                     f"Citation source_path {citation.source_path!r} escapes trial directory {trial_dir}"
                 )
@@ -476,7 +504,11 @@ def hydrate_citation(
         if repo_root is not None and (repo_root / "blobs").exists():
             store_root = repo_root
         else:
-            store_root = (repo_root / "derived" / "evidence-cas") if repo_root else Path("derived/evidence-cas")
+            store_root = (
+                (repo_root / "derived" / "evidence-cas")
+                if repo_root
+                else Path("derived/evidence-cas")
+            )
             if not store_root.exists() and repo_root:
                 alt_cas = repo_root / "evidence" / "cas"
                 if alt_cas.exists():
@@ -488,7 +520,11 @@ def hydrate_citation(
             cand_member: Path | None = None
             if citation.source_path:
                 raw_src = citation.source_path.strip()
-                if Path(raw_src).is_absolute() or raw_src.startswith("/") or raw_src.startswith("\\"):
+                if (
+                    Path(raw_src).is_absolute()
+                    or raw_src.startswith("/")
+                    or raw_src.startswith("\\")
+                ):
                     raise CitationPathJailError(
                         f"Citation source_path must be relative, got absolute path: {citation.source_path!r}"
                     )
@@ -551,13 +587,12 @@ def hydrate_citation(
         else:
             limitation_metadata["limitation_reason"] = "file_not_found"
             limitation_metadata["source_path"] = citation.source_path
-            raw_text = (
-                f"[EvidenceLimitation: file_not_found "
-                f"path={citation.source_path}]"
-            )
+            raw_text = f"[EvidenceLimitation: file_not_found path={citation.source_path}]"
 
     if raw_text is None:
-        raw_text = f"[EvidenceLimitation: evidence_unavailable citation={citation.format_citation()}]"
+        raw_text = (
+            f"[EvidenceLimitation: evidence_unavailable citation={citation.format_citation()}]"
+        )
 
     content_bytes = len(raw_text.encode("utf-8"))
     content_sha256 = _sha256_text(raw_text)
@@ -618,7 +653,9 @@ def hydrate_error_observations(
         raw_obs_text = ""
         matched_raw_step: dict[str, Any] | None = None
         for s in steps_payload:
-            if isinstance(s, dict) and (s.get("step_id") == step.step_id or str(s.get("step_id")) == str(step.step_id)):
+            if isinstance(s, dict) and (
+                s.get("step_id") == step.step_id or str(s.get("step_id")) == str(step.step_id)
+            ):
                 matched_raw_step = s
                 break
 
@@ -627,7 +664,11 @@ def hydrate_error_observations(
             if observations:
                 first_obs = observations[0]
                 if isinstance(first_obs, dict):
-                    content = first_obs.get("content") or first_obs.get("output") or first_obs.get("result")
+                    content = (
+                        first_obs.get("content")
+                        or first_obs.get("output")
+                        or first_obs.get("result")
+                    )
                     extra = first_obs.get("extra")
                     if isinstance(extra, dict) and extra.get("stderr"):
                         raw_obs_text = str(extra["stderr"])
@@ -661,3 +702,22 @@ def hydrate_error_observations(
         )
 
     return error_evidences
+
+
+def hydrate_step_details(
+    outline: TrajectoryOutline,
+    step_id: int,
+    *,
+    redaction_policy: RedactionPolicy | None = None,
+    repo_root: Path | None = None,
+) -> HydratedEvidence | None:
+    """Hydrate detailed content for a specific step ID."""
+    citation = create_citation_handle(
+        source_path=outline.source_path,
+        step_id=step_id,
+        target_type="step",
+    )
+    try:
+        return hydrate_citation(citation, policy=redaction_policy, repo_root=repo_root)
+    except Exception:
+        return None

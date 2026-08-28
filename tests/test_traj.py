@@ -1,6 +1,7 @@
 """Tests for M030 LOOP-TRAJ:
 Trajectory analysis, mechanical features, loop detection, and review queue.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,10 +38,7 @@ from evallab.traj import (
 
 def _persist_after_barrier(label, repo_root: Path, derived_root: Path, barrier) -> None:
     barrier.wait()
-    persist_behavior_label(
-        label, repo_root=repo_root, derived_root=derived_root
-    )
-
+    persist_behavior_label(label, repo_root=repo_root, derived_root=derived_root)
 
 
 @pytest.fixture
@@ -362,9 +360,7 @@ def test_human_label_idempotence(repo_root: Path) -> None:
         assert l1.rationale == "Initial observation"
         assert l1.provenance == "human"
 
-        labels = load_behavior_labels(
-            repo_root=repo_root, derived_root=derived / "behavior_labels"
-        )
+        labels = load_behavior_labels(repo_root=repo_root, derived_root=derived / "behavior_labels")
         assert len(labels) == 1
         assert labels[0].trial_id == l1.trial_id
 
@@ -385,6 +381,7 @@ def test_human_label_idempotence(repo_root: Path) -> None:
         assert labels_after[0].label == "clean_success"
         assert labels_after[0].rationale == "Updated verdict after review"
 
+
 def test_label_persistence_preserves_noop_bytes_and_concurrent_writers(
     repo_root: Path,
 ) -> None:
@@ -396,11 +393,17 @@ def test_label_persistence_preserves_noop_bytes_and_concurrent_writers(
         )
         staging = root / "staging"
         first = label_trajectory(
-            source, "clean_success", author="alice", repo_root=repo_root,
+            source,
+            "clean_success",
+            author="alice",
+            repo_root=repo_root,
             derived_root=staging,
         )
         second = label_trajectory(
-            source, "tool_use", author="bob", repo_root=repo_root,
+            source,
+            "tool_use",
+            author="bob",
+            repo_root=repo_root,
             derived_root=staging,
         )
         destination = root / "concurrent"
@@ -426,8 +429,6 @@ def test_label_persistence_preserves_noop_bytes_and_concurrent_writers(
         before = parquet.read_bytes()
         persist_behavior_label(first, repo_root=repo_root, derived_root=destination)
         assert parquet.read_bytes() == before
-
-
 
 
 def test_heuristic_precision_evaluation(repo_root: Path) -> None:
@@ -457,6 +458,7 @@ def test_heuristic_precision_evaluation(repo_root: Path) -> None:
         assert report.exact_taxonomy_matches == 1
         assert report.precision == 1.0
 
+
 def test_heuristic_precision_counts_every_human_author(repo_root: Path) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         derived = Path(tmpdir) / "behavior_labels"
@@ -465,11 +467,17 @@ def test_heuristic_precision_counts_every_human_author(repo_root: Path) -> None:
             / "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__h2D9f6f"
         )
         label_trajectory(
-            trial, "clean_success", author="alice", repo_root=repo_root,
+            trial,
+            "clean_success",
+            author="alice",
+            repo_root=repo_root,
             derived_root=derived,
         )
         label_trajectory(
-            trial, "tool_use", author="bob", repo_root=repo_root,
+            trial,
+            "tool_use",
+            author="bob",
+            repo_root=repo_root,
             derived_root=derived,
         )
 
@@ -516,24 +524,40 @@ def test_model_labeler_uses_guarded_adapter_and_validates_evidence() -> None:
         total_cost_usd=0.001,
         loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
         phases=(),
-        steps=(StepOutline(
-            step_id=1, source="agent", timestamp=None, model_name="model-x",
-            tool_name=None, tool_command=None, exit_code=None, is_error=False,
-            error_message=None, prompt_tokens=10, completion_tokens=10,
-            cached_tokens=0, cost_usd=0.001, thought_snippet="inspected evidence",
-        ),),
+        steps=(
+            StepOutline(
+                step_id=1,
+                source="agent",
+                timestamp=None,
+                model_name="model-x",
+                tool_name=None,
+                tool_command=None,
+                exit_code=None,
+                is_error=False,
+                error_message=None,
+                prompt_tokens=10,
+                completion_tokens=10,
+                cached_tokens=0,
+                cost_usd=0.001,
+                thought_snippet="inspected evidence",
+            ),
+        ),
         citations=(),
     )
 
     def adapter(prompt: str, schema: dict[str, object]) -> AnalyzerCallResult:
         assert "do not infer unobserved filesystem effects" in prompt
         assert schema["type"] == "object"
-        return AnalyzerCallResult(raw_output=json.dumps({
-            "label": "evidence_driven",
-            "rationale": "The recorded step cites the inspected evidence.",
-            "confidence": "high",
-            "evidence": [{"step_id": 1, "supports": "Inspected evidence"}],
-        }))
+        return AnalyzerCallResult(
+            raw_output=json.dumps(
+                {
+                    "label": "evidence_driven",
+                    "rationale": "The recorded step cites the inspected evidence.",
+                    "confidence": "high",
+                    "evidence": [{"step_id": 1, "supports": "Inspected evidence"}],
+                }
+            )
+        )
 
     label = label_trajectory_with_model(
         outline,
@@ -610,9 +634,7 @@ def test_sql_traj_views_with_data() -> None:
             """
         ).fetchall()
         assert labels == [("tool_use", "judge-model", "gpt-5.6")]
-        queue = con.execute(
-            "SELECT trial_id FROM v_traj_queue ORDER BY trial_id"
-        ).fetchall()
+        queue = con.execute("SELECT trial_id FROM v_traj_queue ORDER BY trial_id").fetchall()
         assert queue == [("t-001",)]
 
         summary = con.execute("SELECT * FROM v_traj_summary").fetchone()

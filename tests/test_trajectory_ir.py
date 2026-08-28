@@ -6,12 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
+
 from evallab.evidence_store import load_blob
 from evallab.trajectory_ir import (
-    ObservationResultRecord,
-    StepRecord,
-    ToolCallRecord,
-    TrajectoryIR,
     build_trajectory_ir,
     trajectory_ir_from_file,
     trajectory_ir_to_dict,

@@ -151,6 +151,26 @@ def test_deepseek_routes_through_pinned_bounded_mini_swe_adapter(
     assert "max_tokens=8192" in command
 
 
+def test_deepseek_campaign_overrides_agent_cost_and_output_ceilings(
+    tmp_path: Path,
+) -> None:
+    command = build_command(
+        RunRequest(
+            task=task(tmp_path),
+            agent="mini-swe-agent",
+            model="deepseek/deepseek-v4-flash",
+            name="deepseek-campaign-bounds",
+            jobs_dir=tmp_path / "runs",
+            allow_billable=True,
+            max_output_tokens=1234,
+            cost_limit_usd=0.75,
+        )
+    )
+
+    assert "cost_limit=0.75" in command
+    assert "max_tokens=1234" in command
+
+
 def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> None:
     source_root = tmp_path / "src"
     source_root.mkdir()

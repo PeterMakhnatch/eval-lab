@@ -49,6 +49,14 @@ def _content_digest(root: Path, files: list[Path]) -> str:
     return f"sha256:{digest.hexdigest()}"
 
 
+def evidence_tree_digest(source: Path) -> str:
+    """Return the canonical content digest used by evidence archives."""
+    source = source.resolve()
+    if not source.is_dir():
+        raise FileNotFoundError(f"evidence source directory does not exist: {source}")
+    return _content_digest(source, _inventory(source))
+
+
 def _deterministic_archive(root: Path, files: list[Path], output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with tempfile.NamedTemporaryFile(dir=output.parent, suffix=".tar", delete=False) as raw:

@@ -186,6 +186,8 @@ class RunRequest:
     provenance: RunProvenance | None = None
     lease_path: Path | None = None
     extra_instruction_path: Path | None = None
+    max_output_tokens: int | None = None
+    cost_limit_usd: float | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -516,6 +518,14 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError(
             "Concurrency and attempts must be positive; timeout must be 1-21600 seconds"
         )
+    if request.max_output_tokens is not None and request.max_output_tokens < 1:
+        raise ValueError("max_output_tokens must be positive")
+    if request.cost_limit_usd is not None and request.cost_limit_usd <= 0:
+        raise ValueError("cost_limit_usd must be positive")
+    if request.agent != "mini-swe-agent" and (
+        request.max_output_tokens is not None or request.cost_limit_usd is not None
+    ):
+        raise ValueError("this agent cannot enforce campaign cost/output-token ceilings")
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "
@@ -567,6 +577,8 @@ def build_command(request: RunRequest) -> list[str]:
     if request.agent == "mini-swe-agent":
         if harbor_model != DEEPSEEK_MODEL_SELECTOR:
             raise ValueError(f"mini-swe-agent requires the exact model {DEEPSEEK_MODEL_SELECTOR}")
+        cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
+        max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
         command.extend(
             [
                 "--n-concurrent-agents",
@@ -576,9 +588,9 @@ def build_command(request: RunRequest) -> list[str]:
                 "--max-retries",
                 "0",
                 "--agent-kwarg",
-                "cost_limit=2.5",
+                f"cost_limit={cost_limit}",
                 "--agent-kwarg",
-                "max_tokens=8192",
+                f"max_tokens={max_tokens}",
             ]
         )
     if request.extra_instruction_path is not None:

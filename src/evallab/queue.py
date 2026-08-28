@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import threading
 import time
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime, timedelta
@@ -673,6 +673,7 @@ class DirectoryQueue:
         *,
         events_max_bytes: int = DEFAULT_EVENTS_MAX_BYTES,
         event_backups: int = DEFAULT_EVENT_BACKUPS,
+        create: bool = True,
     ) -> None:
         if events_max_bytes < 1:
             raise ValueError("events_max_bytes must be positive")
@@ -682,8 +683,12 @@ class DirectoryQueue:
         self.events_max_bytes = events_max_bytes
         self.event_backups = event_backups
         self.reasons_dir = root / "reasons"
+        if create:
+            self.ensure_directories()
+
+    def ensure_directories(self) -> None:
         for state in QUEUE_STATES:
-            (root / state).mkdir(parents=True, exist_ok=True)
+            (self.root / state).mkdir(parents=True, exist_ok=True)
         self.reasons_dir.mkdir(parents=True, exist_ok=True)
 
     @property
@@ -1193,14 +1198,17 @@ class Executor:
         parallel: int = 1,
         progress: ProgressCallable | None = None,
         capacity: DispatchCapacity | None = None,
+        max_transient_retries: int = MAX_TRANSIENT_RETRIES,
+        create_queue: bool = True,
     ) -> Executor:
         return cls(
             repo_root=root,
-            queue=DirectoryQueue(root / "queue"),
+            queue=DirectoryQueue(root / "queue", create=create_queue),
             policy=load_policy(root / "policy/standing-approvals.yaml"),
             parallel=parallel,
             capacity=capacity,
             progress=progress,
+            max_transient_retries=max_transient_retries,
         )
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
         return self.queue.submit(
@@ -1210,7 +1218,12 @@ class Executor:
             consecutive_harness_failures=self._consecutive_harness_failures(),
         )
 
-    def tick(self, parallel: int | None = None) -> int:
+    def tick(
+        self,
+        parallel: int | None = None,
+        *,
+        spec_ids: Sequence[str] | None = None,
+    ) -> int:
         effective_parallel = parallel if parallel is not None else self.parallel
         if effective_parallel < 1:
             raise ValueError("parallel must be at least 1")
@@ -1219,7 +1232,7 @@ class Executor:
                 self.last_tick_reason = "executor_busy"
                 return 0
             self.last_tick_reason = None
-            return self._tick_locked(parallel=effective_parallel)
+            return self._tick_locked(parallel=effective_parallel, spec_ids=spec_ids)
 
     def _report_progress(self, message: str) -> None:
         if self._progress is not None:
@@ -1390,7 +1403,11 @@ class Executor:
         return selected
 
 
-    def _tick_locked(self, parallel: int = 1) -> int:
+    def _tick_locked(
+        self,
+        parallel: int = 1,
+        spec_ids: Sequence[str] | None = None,
+    ) -> int:
         self.reconcile_running()
         if self.queue.stop_path.exists():
             return 0
@@ -1411,6 +1428,11 @@ class Executor:
             return 0
         credentials = self._credential_probe()
         approved_specs = self.queue.list_specs("approved")
+        if spec_ids is not None:
+            allowed = frozenset(spec_ids)
+            approved_specs = [
+                (path, spec) for path, spec in approved_specs if spec.spec_id in allowed
+            ]
         approved_specs = self._capacity_batch(approved_specs)
         if not approved_specs:
             return 0
@@ -1595,6 +1617,8 @@ class Executor:
             attempts=spec.attempts,
             timeout_seconds=timeout_seconds,
             allow_billable=spec.billable,
+            max_output_tokens=spec.max_output_tokens,
+            cost_limit_usd=spec.cost_limit_usd,
             lease_path=self.queue.lease_path(spec),
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
@@ -1621,6 +1645,12 @@ class Executor:
                 task_id=task_id,
                 task_instance_id=spec.task_instance_id,
                 generator_seed=spec.generator_seed,
+                campaign_ledger=spec.campaign_ledger,
+                campaign_cell_id=spec.campaign_cell_id,
+                campaign_attempt_id=spec.campaign_attempt_id,
+                campaign_attempt_index=spec.campaign_attempt_index,
+                campaign_manifest_digest=spec.campaign_manifest_digest,
+                campaign_spec_digest=spec.campaign_spec_digest,
             ),
         )
         return self._run_with_transient_retries(spec, request)

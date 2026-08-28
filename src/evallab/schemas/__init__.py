@@ -10,6 +10,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from evallab.benchmark_program_contracts import (
+    CampaignCalibrationLedger,
+    CampaignMeasurementLedger,
+)
+
 
 class ContractModel(BaseModel):
     """Strict base for durable lab contracts."""
@@ -276,6 +281,34 @@ class ExperimentSpec(ContractModel):
         default=None,
         description=("task-generator seed only; model-sampling seed is uncontrolled and absent"),
     )
+    max_output_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="enforced per-trial model output-token ceiling",
+    )
+    cost_limit_usd: float | None = Field(
+        default=None,
+        gt=0,
+        description="enforced per-trial agent cost ceiling",
+    )
+    campaign_ledger: CampaignCalibrationLedger | CampaignMeasurementLedger | None = None
+    campaign_cell_id: str | None = Field(
+        default=None,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
+    campaign_attempt_id: str | None = Field(
+        default=None,
+        pattern=r"^attempt-[0-9a-f]{24}$",
+    )
+    campaign_attempt_index: int | None = Field(default=None, ge=1)
+    campaign_manifest_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    campaign_spec_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
 
     @field_validator("task", "task_path", "jobs_dir", "extra_instruction_path")
     @classmethod
@@ -292,11 +325,26 @@ class ExperimentSpec(ContractModel):
         return validated_jobs_dir(value)
 
     @model_validator(mode="after")
-    def controls_do_not_name_models(self) -> ExperimentSpec:
+    def controls_and_campaigns_are_bounded(self) -> ExperimentSpec:
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"the {self.agent} control does not accept a model")
         if self.extra_instruction_sha256 and not self.extra_instruction_path:
             raise ValueError("extra_instruction_sha256 requires extra_instruction_path")
+        campaign_fields = (
+            self.campaign_ledger,
+            self.campaign_cell_id,
+            self.campaign_attempt_id,
+            self.campaign_attempt_index,
+            self.campaign_manifest_digest,
+            self.campaign_spec_digest,
+        )
+        if any(value is not None for value in campaign_fields):
+            if any(value is None for value in campaign_fields):
+                raise ValueError("campaign provenance fields must be declared together")
+            if self.attempts != 1 or self.concurrency != 1:
+                raise ValueError("campaign specs represent exactly one attempt")
+            if self.billable and (self.cost_limit_usd is None or self.max_output_tokens is None):
+                raise ValueError("billable campaign specs require cost and output-token ceilings")
         return self
 
     @property
@@ -516,6 +564,18 @@ class RunProvenance(ContractModel):
     generator_seed: int | str | None = Field(
         default=None,
         description=("task-generator seed only; model-sampling seed is uncontrolled and absent"),
+    )
+    campaign_ledger: CampaignCalibrationLedger | CampaignMeasurementLedger | None = None
+    campaign_cell_id: str | None = None
+    campaign_attempt_id: str | None = None
+    campaign_attempt_index: int | None = Field(default=None, ge=1)
+    campaign_manifest_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    campaign_spec_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
     )
 
 

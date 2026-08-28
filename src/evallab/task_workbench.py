@@ -1837,7 +1837,9 @@ def _validate_compose_networks(
         )
         return None, None, False
     net_name, net_def = next(iter(top_networks.items()))
-    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", net_name):
+    if not isinstance(net_name, str) or not re.fullmatch(
+        r"[a-z0-9][a-z0-9_-]*", net_name
+    ):
         diagnostics.append(
             _diag(
                 "compose_networks_unsupported",
@@ -1855,8 +1857,8 @@ def _validate_compose_networks(
             )
         )
         return None, None, False
-    for key in sorted(net_def):
-        if key != "internal":
+    for key in sorted(net_def, key=str):
+        if not isinstance(key, str) or key != "internal":
             diagnostics.append(
                 _diag(
                     "compose_networks_unsupported",
@@ -1886,7 +1888,11 @@ def _validate_service_networks(
 ) -> None:
     """Validate a service attaches only to the one declared internal network."""
     if isinstance(networks, list):
-        if len(networks) != 1 or not isinstance(networks[0], str) or networks[0] != network_name:
+        if (
+            len(networks) != 1
+            or not isinstance(networks[0], str)
+            or networks[0] != network_name
+        ):
             diagnostics.append(
                 _diag(
                     "compose_networks_unsupported",
@@ -1895,31 +1901,11 @@ def _validate_service_networks(
                 )
             )
         return
-    if isinstance(networks, Mapping):
-        if set(networks) != {network_name}:
-            diagnostics.append(
-                _diag(
-                    "compose_networks_unsupported",
-                    rel_path,
-                    f"service {service_name!r} may only attach to the declared network {network_name!r}",
-                )
-            )
-            return
-        value = networks[network_name]
-        if value is not None and value != {}:
-            diagnostics.append(
-                _diag(
-                    "compose_networks_unsupported",
-                    rel_path,
-                    f"service {service_name!r} may not declare network options for {network_name!r}",
-                )
-            )
-        return
     diagnostics.append(
         _diag(
             "compose_networks_unsupported",
             rel_path,
-            f"service {service_name!r} 'networks' must be a list or mapping",
+            f"service {service_name!r} 'networks' must be a single-item list containing {network_name!r}",
         )
     )
 
@@ -1987,7 +1973,9 @@ def _validate_compose_topology(
                     )
                 )
             volume_name, volume_def = next(iter(top_volumes.items()))
-            if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", volume_name):
+            if not isinstance(volume_name, str) or not re.fullmatch(
+                r"[a-z0-9][a-z0-9_-]*", volume_name
+            ):
                 diagnostics.append(
                     _diag(
                         "compose_volume_invalid",
@@ -1995,16 +1983,18 @@ def _validate_compose_topology(
                         f"volume name {volume_name!r} is not a safe task-local name",
                     )
                 )
-            if volume_def is not None and volume_def != {}:
-                diagnostics.append(
-                    _diag(
-                        "compose_volume_unauthorized",
-                        rel_path,
-                        f"volume {volume_name!r} may only be declared with an empty or null definition",
+                volume_name = None
+            else:
+                if volume_def is not None and volume_def != {}:
+                    diagnostics.append(
+                        _diag(
+                            "compose_volume_unauthorized",
+                            rel_path,
+                            f"volume {volume_name!r} may only be declared with an empty or null definition",
+                        )
                     )
-                )
-            if volume_name:
-                volume_definition = {volume_name: None}
+                if volume_name:
+                    volume_definition = {volume_name: None}
     network_record, network_name, networks_valid = _validate_compose_networks(
         data, rel_path, diagnostics
     )
@@ -2019,6 +2009,15 @@ def _validate_compose_topology(
         )
     sidecar_name: str | None = None
     for name in service_names:
+        if not isinstance(name, str):
+            diagnostics.append(
+                _diag(
+                    "compose_topology_invalid",
+                    rel_path,
+                    f"service name {name!r} must be a string",
+                )
+            )
+            continue
         if name != "main":
             sidecar_name = name
             if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name, re.IGNORECASE):
@@ -2027,6 +2026,15 @@ def _validate_compose_topology(
                 )
     service_summaries: dict[str, Any] = {}
     for name, s_config in services.items():
+        if not isinstance(name, str):
+            diagnostics.append(
+                _diag(
+                    "compose_structure_invalid",
+                    rel_path,
+                    f"service name {name!r} must be a string",
+                )
+            )
+            continue
         if not isinstance(s_config, Mapping):
             diagnostics.append(
                 _diag("compose_structure_invalid", rel_path, f"service {name!r} configuration must be a mapping")
@@ -2047,7 +2055,8 @@ def _validate_compose_topology(
             "volumes",
         }
         unsupported_service_keys = sorted(
-            set(s_config) - allowed_service_keys - dedicated_service_keys
+            set(s_config) - allowed_service_keys - dedicated_service_keys,
+            key=str,
         )
         if unsupported_service_keys:
             diagnostics.append(
@@ -2174,7 +2183,7 @@ def _validate_compose_topology(
             if isinstance(build_cfg, str):
                 ctx_str = build_cfg
             elif isinstance(build_cfg, Mapping):
-                unsupported_build_keys = sorted(set(build_cfg) - {"context"})
+                unsupported_build_keys = sorted(set(build_cfg) - {"context"}, key=str)
                 if unsupported_build_keys:
                     diagnostics.append(
                         _diag(

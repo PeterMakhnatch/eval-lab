@@ -2736,6 +2736,152 @@ def test_v2_compose_networks_topology_rejected_cases(
 
 
 @pytest.mark.parametrize(
+    "net_key",
+    ["123", "true", "null"],
+)
+def test_v2_rejects_non_string_network_key(tmp_path: Path, net_key: str) -> None:
+    repo, task = _copy_candidate(tmp_path / f"non-string-net-key-{net_key}")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        "networks:\n"
+        f"  {net_key}:\n"
+        "    internal: true\n"
+    )
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert "compose_networks_unsupported" in _codes(inspection)
+    assert any(
+        "is not a safe task-local name" in item.message
+        for item in inspection.diagnostics
+    )
+
+
+def test_v2_rejects_non_string_volume_key(tmp_path: Path) -> None:
+    repo, task = _copy_candidate(tmp_path / "non-string-vol-key")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        "volumes:\n"
+        "  123:\n"
+    )
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert "compose_volume_invalid" in _codes(inspection)
+    assert any(
+        "is not a safe task-local name" in item.message
+        for item in inspection.diagnostics
+    )
+
+
+@pytest.mark.parametrize(
+    "networks_fragment",
+    [
+        "    networks:\n"
+        "      mcp-net:\n",
+        "    networks:\n"
+        "      mcp-net:\n"
+        "        aliases:\n"
+        "          - alias1\n",
+        "    networks:\n"
+        "      mcp-net: {}\n",
+    ],
+)
+def test_v2_rejects_service_networks_mapping_form(
+    tmp_path: Path, networks_fragment: str
+) -> None:
+    repo, task = _copy_candidate(tmp_path / "mapping-form")
+    (task / "environment/docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        + networks_fragment
+        + "  mcp-server:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "networks:\n"
+        "  mcp-net:\n"
+        "    internal: true\n"
+    )
+    inspection = _inspect(repo, task)
+    assert not inspection.static_passed
+    assert "compose_networks_unsupported" in _codes(inspection)
+    assert any(
+        "must be a single-item list containing 'mcp-net'" in item.message
+        for item in inspection.diagnostics
+    )
+
+
+def test_v2_docker_compose_config_merge_smoke(tmp_path: Path) -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("docker is not installed")
+    try:
+        subprocess.run(
+            ["docker", "compose", "version"],
+            capture_output=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pytest.skip("docker compose is not available")
+
+    base_dir = tmp_path / "merge-smoke"
+    base_dir.mkdir()
+    (base_dir / "Dockerfile").write_text("FROM scratch\n")
+    (base_dir / "base.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "  mcp-server:\n"
+        "    build: .\n"
+        "    networks:\n"
+        "      - mcp-net\n"
+        "networks:\n"
+        "  mcp-net:\n"
+    )
+    candidate = {
+        "compose_topology": {
+            "sidecar_service": "mcp-server",
+            "network": {"name": "mcp-net"},
+        }
+    }
+    (base_dir / "overlay.yaml").write_bytes(_candidate_network_overlay(candidate))
+
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(base_dir / "base.yaml"),
+            "-f",
+            str(base_dir / "overlay.yaml"),
+            "config",
+        ],
+        cwd=base_dir,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    merged = yaml.safe_load(result.stdout)
+    for service_name in ("main", "mcp-server"):
+        service = merged["services"][service_name]
+        context = service["build"]["context"]
+        assert context == "." or Path(context).is_absolute()
+        assert service["build"]["network"] == "none"
+        assert set(service["networks"]) == {"mcp-net"}
+    network = merged["networks"]["mcp-net"]
+    assert network["internal"] is True
+
+
+@pytest.mark.parametrize(
     ("fragment", "expected_code"),
     [
         ("    volumes:\n      - /:/host\n", "compose_volume_escape"),

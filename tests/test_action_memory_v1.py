@@ -96,7 +96,7 @@ def test_mcp_server_client_protocol_interaction(tmp_path):
     mat_mod.materialize(output_dir=task_dir, cell_id="clean_baseline_4k", seed=42)
 
     # Start live runtime server on local free port
-    port = 18090
+    port = 18080
     server_thread = threading.Thread(
         target=runtime_mod.start_server,
         args=(task_dir / "task_state", task_dir / "evidence", port),
@@ -105,7 +105,7 @@ def test_mcp_server_client_protocol_interaction(tmp_path):
     server_thread.start()
     time.sleep(0.2)
 
-    # Exercise client session: initialize, list_tools, call_tools
+    # Exercise standard client session: initialize, list_tools, call_tools
     client = runtime_mod.MCPClient(f"http://127.0.0.1:{port}/mcp")
     assert client.wait_until_ready(timeout_sec=5.0)
     init_res = client.initialize()
@@ -113,9 +113,23 @@ def test_mcp_server_client_protocol_interaction(tmp_path):
 
     tools = client.list_tools()
     tool_names = {t["name"] for t in tools}
-    assert "list_context_chunks" in tool_names
-    assert "get_context_chunk" in tool_names
-    assert "execute_mutation" in tool_names
+    assert tool_names == {"list_context_chunks", "get_context_chunk", "execute_mutation"}
+
+    # Test fastmcp.Client integration when package is installed in environment
+    try:
+        import asyncio
+
+        import fastmcp
+
+        async def _test_fastmcp():
+            async with fastmcp.Client(f"http://127.0.0.1:{port}/mcp") as fm_client:
+                fm_tools = await fm_client.list_tools()
+                fm_tool_names = {t.name for t in fm_tools}
+                assert fm_tool_names == {"list_context_chunks", "get_context_chunk", "execute_mutation"}
+
+        asyncio.run(_test_fastmcp())
+    except ImportError:
+        pass
 
     # Run oracle solver over the live MCP protocol
     oracle_mod.solve_via_mcp(mcp_url=f"http://127.0.0.1:{port}/mcp")

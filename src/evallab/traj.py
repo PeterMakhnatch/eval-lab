@@ -28,6 +28,10 @@ import pyarrow.parquet as pq
 
 from evallab.results import sha256_file
 from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
+from evallab.trajectory_error_taxonomy import (
+    classify_intervention_provenance,
+    classify_step_error,
+)
 
 PhaseType = Literal["setup", "prompt", "work", "verifier", "unknown"]
 AvailabilityStatus = Literal["featured", "accounted_unavailable"]
@@ -127,6 +131,8 @@ class StepOutline:
     logprobs_ref: str | None = None
     sample_index: int | None = None
     sampling_params: dict[str, Any] | None = None
+    is_expected_probe: bool = False
+    error_category: str = "none"
 
 
 @dataclass(frozen=True)
@@ -187,6 +193,18 @@ class TrajectoryOutline:
     steps: tuple[StepOutline, ...]
     citations: tuple[SourceCitation, ...]
     tool_mix: dict[str, int] = field(default_factory=dict)
+    is_expected_negative: bool = False
+    expected_probe_count: int = 0
+    step_to_first_error: int | None = None
+    time_to_first_error_seconds: float | None = None
+    recovery_latency_steps: int | None = None
+    recovery_latency_seconds: float | None = None
+    unrecovered_at_terminal: bool = False
+    intervention_category: str = "autonomous"
+    intervention_provenance_notes: str = ""
+    autonomous_step_count: int = 0
+    assisted_step_count: int = 0
+    intervention_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -235,6 +253,17 @@ class TrajectoryFeatures:
     created_at: str
     context_burn_velocity_screening: float | None = None
     max_exit_code_cascade_screening: int = 0
+    is_expected_negative: bool = False
+    expected_probe_count: int = 0
+    step_to_first_error: int | None = None
+    time_to_first_error_seconds: float | None = None
+    recovery_latency_steps: int | None = None
+    recovery_latency_seconds: float | None = None
+    unrecovered_at_terminal: bool = False
+    intervention_category: str = "autonomous"
+    autonomous_step_count: int = 0
+    assisted_step_count: int = 0
+    intervention_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -293,6 +322,17 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
         pa.field("created_at", pa.string(), nullable=False),
         pa.field("context_burn_velocity_screening", pa.float64(), nullable=True),
         pa.field("max_exit_code_cascade_screening", pa.int64(), nullable=False),
+        pa.field("is_expected_negative", pa.bool_(), nullable=False),
+        pa.field("expected_probe_count", pa.int64(), nullable=False),
+        pa.field("step_to_first_error", pa.int64(), nullable=True),
+        pa.field("time_to_first_error_seconds", pa.float64(), nullable=True),
+        pa.field("recovery_latency_steps", pa.int64(), nullable=True),
+        pa.field("recovery_latency_seconds", pa.float64(), nullable=True),
+        pa.field("unrecovered_at_terminal", pa.bool_(), nullable=False),
+        pa.field("intervention_category", pa.string(), nullable=False),
+        pa.field("autonomous_step_count", pa.int64(), nullable=False),
+        pa.field("assisted_step_count", pa.int64(), nullable=False),
+        pa.field("intervention_count", pa.int64(), nullable=False),
     ]
 )
 
@@ -624,6 +664,18 @@ def _unavailable_outline(
         steps=(),
         citations=tuple(citations),
         tool_mix={},
+        is_expected_negative=False,
+        expected_probe_count=0,
+        step_to_first_error=None,
+        time_to_first_error_seconds=None,
+        recovery_latency_steps=None,
+        recovery_latency_seconds=None,
+        unrecovered_at_terminal=False,
+        intervention_category="autonomous",
+        intervention_provenance_notes="",
+        autonomous_step_count=0,
+        assisted_step_count=0,
+        intervention_count=0,
     )
 
 
@@ -1008,14 +1060,18 @@ def outline_trajectory(
 
     step_to_first_tool: int | None = None
     step_to_first_edit: int | None = None
+    step_to_first_error: int | None = None
     first_step_timestamp: str | None = None
     first_tool_timestamp: str | None = None
     first_edit_timestamp: str | None = None
+    first_error_timestamp: str | None = None
+    first_recovery_timestamp: str | None = None
+    first_recovery_step: int | None = None
 
     last_was_error = False
     recovery_count = 0
     total_errors = 0
-
+    expected_probe_count = 0
     for idx, raw_step in enumerate(raw_steps, start=1):
         step_id = int(raw_step.get("step_id") or idx)
         source = _safe_str(raw_step.get("source") or "agent")
@@ -1086,12 +1142,33 @@ def outline_trajectory(
             }:
                 is_error = True
                 error_msg = error_msg or content[:120].strip() or "tool result reported an error"
+        # Deterministic error taxonomy and expected negative probe classification
+        primary_content = results[0].get("content") if results else error_msg
+        error_classification = classify_step_error(
+            tool_name=primary_tool_name,
+            tool_command=primary_tool_cmd,
+            exit_code=exit_code,
+            output_content=str(primary_content or error_msg or ""),
+            result_type=result_type if results else None,
+            result_status=result_status if results else None,
+        )
+        is_probe = error_classification.is_expected_probe
+        if is_probe:
+            expected_probe_count += 1
+        is_error = error_classification.is_error
+
         if is_error:
             total_errors += 1
+            if step_to_first_error is None:
+                step_to_first_error = step_id
+                first_error_timestamp = timestamp
             last_was_error = True
         else:
             if last_was_error and (primary_tool_name or source == "agent"):
                 recovery_count += 1
+                if first_recovery_step is None:
+                    first_recovery_step = step_id
+                    first_recovery_timestamp = timestamp
                 last_was_error = False
         metrics_value = raw_step.get("metrics")
         metrics = metrics_value if isinstance(metrics_value, dict) else {}
@@ -1186,20 +1263,52 @@ def outline_trajectory(
                 logprobs_ref=logprobs_ref,
                 sample_index=sample_index,
                 sampling_params=sampling_params_dict,
+                is_expected_probe=is_probe,
+                error_category=error_classification.category.value,
             )
         )
 
-    # Time calculations
+    # Time & error latency calculations
     time_to_first_tool_sec = _parse_iso_seconds(first_step_timestamp, first_tool_timestamp)
     time_to_first_edit_sec = _parse_iso_seconds(first_step_timestamp, first_edit_timestamp)
+    time_to_first_error_sec = _parse_iso_seconds(first_step_timestamp, first_error_timestamp)
+    recovery_latency_steps: int | None = None
+    recovery_latency_sec: float | None = None
+    if first_recovery_step is not None and step_to_first_error is not None:
+        recovery_latency_steps = first_recovery_step - step_to_first_error
+    if first_recovery_timestamp and first_error_timestamp:
+        recovery_latency_sec = _parse_iso_seconds(first_error_timestamp, first_recovery_timestamp)
 
+    unrecovered_at_terminal = bool(last_was_error)
+
+    # Expected negative trial detection (e.g. AgentAbstain control or probe-heavy trials)
+    is_expected_neg = "abstain" in task_name.lower() or (
+        expected_probe_count > 0 and total_errors == expected_probe_count
+    )
+
+    user_step_indices = [
+        sidx for sidx, s in enumerate(steps_out, 1) if s.source.lower() in {"user", "human"}
+    ]
+    user_steps = len(user_step_indices)
+    agent_steps = sum(1 for s in steps_out if s.source.lower() in {"agent", "assistant"})
+    system_steps = sum(1 for s in steps_out if s.source.lower() == "system")
+
+    intervention_cat, intervention_notes = classify_intervention_provenance(
+        user_steps=user_steps,
+        agent_steps=agent_steps,
+        system_steps=system_steps,
+        user_step_indices=user_step_indices,
+        first_error_step=step_to_first_error,
+    )
+    autonomous_steps = agent_steps
+    assisted_steps = user_steps
+    intervention_cnt = sum(
+        1
+        for sidx in user_step_indices
+        if step_to_first_error is None or sidx >= step_to_first_error
+    )
     loop_suspicion = _analyze_loop_suspicion(steps_out)
     phases = _build_phases(steps_out)
-
-    agent_steps = sum(1 for s in steps_out if s.source.lower() == "agent")
-    system_steps = sum(1 for s in steps_out if s.source.lower() == "system")
-    user_steps = sum(1 for s in steps_out if s.source.lower() == "user")
-
     return TrajectoryOutline(
         trial_id=trial_id,
         job_id=job_id,
@@ -1236,6 +1345,18 @@ def outline_trajectory(
         steps=tuple(steps_out),
         citations=tuple(citations),
         tool_mix=dict(sorted(tool_mix_counter.items())),
+        is_expected_negative=is_expected_neg,
+        expected_probe_count=expected_probe_count,
+        step_to_first_error=step_to_first_error,
+        time_to_first_error_seconds=time_to_first_error_sec,
+        recovery_latency_steps=recovery_latency_steps,
+        recovery_latency_seconds=recovery_latency_sec,
+        unrecovered_at_terminal=unrecovered_at_terminal,
+        intervention_category=intervention_cat.value,
+        intervention_provenance_notes=intervention_notes,
+        autonomous_step_count=autonomous_steps,
+        assisted_step_count=assisted_steps,
+        intervention_count=intervention_cnt,
     )
 
 
@@ -1281,6 +1402,17 @@ def extract_features(outline: TrajectoryOutline) -> TrajectoryFeatures:
         created_at=(outline.steps[0].timestamp or "") if outline.steps else "",
         context_burn_velocity_screening=_compute_cbv_slope(outline.steps),
         max_exit_code_cascade_screening=_compute_exit_code_cascade(outline.steps),
+        is_expected_negative=outline.is_expected_negative,
+        expected_probe_count=outline.expected_probe_count,
+        step_to_first_error=outline.step_to_first_error,
+        time_to_first_error_seconds=outline.time_to_first_error_seconds,
+        recovery_latency_steps=outline.recovery_latency_steps,
+        recovery_latency_seconds=outline.recovery_latency_seconds,
+        unrecovered_at_terminal=outline.unrecovered_at_terminal,
+        intervention_category=outline.intervention_category,
+        autonomous_step_count=outline.autonomous_step_count,
+        assisted_step_count=outline.assisted_step_count,
+        intervention_count=outline.intervention_count,
     )
 
 
@@ -1457,6 +1589,17 @@ def project_trajectory_features(
                 exception_class=None,
                 duration_seconds=None,
                 created_at="",
+                is_expected_negative=False,
+                expected_probe_count=0,
+                step_to_first_error=None,
+                time_to_first_error_seconds=None,
+                recovery_latency_steps=None,
+                recovery_latency_seconds=None,
+                unrecovered_at_terminal=False,
+                intervention_category="autonomous",
+                autonomous_step_count=0,
+                assisted_step_count=0,
+                intervention_count=0,
             )
             features_list.append(feat)
             unavailable_count += 1

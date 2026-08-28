@@ -2631,7 +2631,7 @@ def _traj_card_command(
             policy=policy,
         )
         print(rendered)
-        return 0 if card.status == "featured" else 1
+        return 0
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

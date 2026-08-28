@@ -416,6 +416,146 @@ TRACE_BASELINE_PROVENANCE: dict[str, BaselineProvenance] = {
         null_condition="0 when no repeated commands",
         description="Number of repeated commands detected.",
     ),
+    "is_expected_negative": BaselineProvenance(
+        column_name="is_expected_negative",
+        data_type="BOOLEAN",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Task name contains 'abstain' or all errors match expected probe count",
+        null_condition="Never NULL (False by default)",
+        description="Whether this trial is an expected-negative evaluation control.",
+    ),
+    "expected_probe_count": BaselineProvenance(
+        column_name="expected_probe_count",
+        data_type="BIGINT",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Count of non-zero exits from intentional probe/reconnaissance commands",
+        null_condition="0 by default",
+        description="Count of intentional negative probes executed during the trial.",
+    ),
+    "step_to_first_error": BaselineProvenance(
+        column_name="step_to_first_error",
+        data_type="BIGINT",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Step index of the first tool or observation error",
+        null_condition="NULL when error_count == 0",
+        description="Step number of the first encountered error.",
+    ),
+    "time_to_first_error_seconds": BaselineProvenance(
+        column_name="time_to_first_error_seconds",
+        data_type="DOUBLE",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Elapsed seconds from start to first error timestamp",
+        null_condition="NULL when no error or timestamps missing",
+        description="Elapsed time in seconds before the first error was encountered.",
+    ),
+    "recovery_latency_steps": BaselineProvenance(
+        column_name="recovery_latency_steps",
+        data_type="BIGINT",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="first_recovery_step - step_to_first_error",
+        null_condition="NULL when no error or no subsequent recovery step occurred",
+        description="Number of steps taken to recover from the initial error.",
+    ),
+    "recovery_latency_seconds": BaselineProvenance(
+        column_name="recovery_latency_seconds",
+        data_type="DOUBLE",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Elapsed seconds between first error and first successful recovery step",
+        null_condition="NULL when no error or no recovery timestamps",
+        description="Elapsed time in seconds from first error to first successful recovery.",
+    ),
+    "unrecovered_at_terminal": BaselineProvenance(
+        column_name="unrecovered_at_terminal",
+        data_type="BOOLEAN",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="True if the final trajectory step ended in an unrecovered error",
+        null_condition="Never NULL (False by default)",
+        description="Flag indicating whether the trial ended with an active, unrecovered error.",
+    ),
+    "intervention_category": BaselineProvenance(
+        column_name="intervention_category",
+        data_type="VARCHAR",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Classified intervention type ('autonomous', 'user_directed', 'human_assisted', 'human_intervened')",
+        null_condition="Never NULL ('autonomous' default)",
+        description="Classification of human assistance or intervention level in the trajectory.",
+    ),
+    "autonomous_step_count": BaselineProvenance(
+        column_name="autonomous_step_count",
+        data_type="BIGINT",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Count of steps executed by the agent/assistant",
+        null_condition="0 by default",
+        description="Number of autonomous agent steps.",
+    ),
+    "assisted_step_count": BaselineProvenance(
+        column_name="assisted_step_count",
+        data_type="BIGINT",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Count of steps originating from human or user input",
+        null_condition="0 by default",
+        description="Number of human/user assisted steps.",
+    ),
+    "intervention_count": BaselineProvenance(
+        column_name="intervention_count",
+        data_type="BIGINT",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule="Count of human intervention steps occurring at or after initial error",
+        null_condition="0 by default",
+        description="Count of interventions following error onset.",
+    ),
+    "autonomous_step_ratio_screening": BaselineProvenance(
+        column_name="autonomous_step_ratio_screening",
+        data_type="DOUBLE",
+        category="screening_heuristic",
+        is_screening=True,
+        source_table="traj_features",
+        formula_or_rule="autonomous_step_count / step_count",
+        null_condition="NULL when step_count == 0",
+        description="Ratio of autonomous steps to total steps.",
+    ),
+    "assisted_step_ratio_screening": BaselineProvenance(
+        column_name="assisted_step_ratio_screening",
+        data_type="DOUBLE",
+        category="screening_heuristic",
+        is_screening=True,
+        source_table="traj_features",
+        formula_or_rule="assisted_step_count / step_count",
+        null_condition="NULL when step_count == 0",
+        description="Ratio of human-assisted steps to total steps.",
+    ),
+    "recovery_rate_screening": BaselineProvenance(
+        column_name="recovery_rate_screening",
+        data_type="DOUBLE",
+        category="screening_heuristic",
+        is_screening=True,
+        source_table="traj_features",
+        formula_or_rule="recovery_count / error_count",
+        null_condition="NULL when error_count == 0",
+        description="Ratio of successful error recoveries to total errors.",
+    ),
     "created_at": BaselineProvenance(
         column_name="created_at",
         data_type="VARCHAR",
@@ -458,10 +598,24 @@ class TraceBaselineRecord:
     recovery_count: int
     linear_innocence_screening: float | None
     tool_error_rate_screening: float | None
+    recovery_rate_screening: float | None
     context_burn_velocity_screening: float | None
     max_exit_code_cascade_screening: int
     cache_hit_rate_screening: float | None
     subagent_overhead_ratio_screening: float | None
+    autonomous_step_ratio_screening: float | None
+    assisted_step_ratio_screening: float | None
+    is_expected_negative: bool
+    expected_probe_count: int
+    step_to_first_error: int | None
+    time_to_first_error_seconds: float | None
+    recovery_latency_steps: int | None
+    recovery_latency_seconds: float | None
+    unrecovered_at_terminal: bool
+    intervention_category: str
+    autonomous_step_count: int
+    assisted_step_count: int
+    intervention_count: int
     prompt_tokens: int | None
     completion_tokens: int | None
     cached_tokens: int | None
@@ -553,6 +707,18 @@ def compute_trace_baseline(outline: TrajectoryOutline) -> TraceBaselineRecord:
     if feat.tool_call_count > 0:
         ter_screening = round(feat.error_count / feat.tool_call_count, 4)
 
+    # 2b. Recovery Rate screening (NULL when 0 errors)
+    recovery_rate: float | None = None
+    if feat.error_count > 0:
+        recovery_rate = round(feat.recovery_count / feat.error_count, 4)
+
+    # 2c. Autonomous and Assisted Step Ratio screenings (NULL when 0 steps)
+    autonomous_ratio: float | None = None
+    assisted_ratio: float | None = None
+    if feat.step_count > 0:
+        autonomous_ratio = round(feat.autonomous_step_count / feat.step_count, 4)
+        assisted_ratio = round(feat.assisted_step_count / feat.step_count, 4)
+
     # 3. Context Burn Velocity (CBV) screening: regr_slope(prompt_tokens, step_id)
     cbv_screening = _compute_cbv_slope(outline.steps)
 
@@ -600,10 +766,24 @@ def compute_trace_baseline(outline: TrajectoryOutline) -> TraceBaselineRecord:
         recovery_count=feat.recovery_count,
         linear_innocence_screening=li_screening,
         tool_error_rate_screening=ter_screening,
+        recovery_rate_screening=recovery_rate,
         context_burn_velocity_screening=cbv_screening,
         max_exit_code_cascade_screening=max_cascade,
         cache_hit_rate_screening=cache_hit_rate,
         subagent_overhead_ratio_screening=subagent_overhead,
+        autonomous_step_ratio_screening=autonomous_ratio,
+        assisted_step_ratio_screening=assisted_ratio,
+        is_expected_negative=feat.is_expected_negative,
+        expected_probe_count=feat.expected_probe_count,
+        step_to_first_error=feat.step_to_first_error,
+        time_to_first_error_seconds=feat.time_to_first_error_seconds,
+        recovery_latency_steps=feat.recovery_latency_steps,
+        recovery_latency_seconds=feat.recovery_latency_seconds,
+        unrecovered_at_terminal=feat.unrecovered_at_terminal,
+        intervention_category=feat.intervention_category,
+        autonomous_step_count=feat.autonomous_step_count,
+        assisted_step_count=feat.assisted_step_count,
+        intervention_count=feat.intervention_count,
         prompt_tokens=p_tokens,
         completion_tokens=comp_tokens,
         cached_tokens=c_tokens,
@@ -644,10 +824,24 @@ TRACE_BASELINE_PARQUET_SCHEMA = pa.schema(
         pa.field("recovery_count", pa.int64(), nullable=False),
         pa.field("linear_innocence_screening", pa.float64(), nullable=True),
         pa.field("tool_error_rate_screening", pa.float64(), nullable=True),
+        pa.field("recovery_rate_screening", pa.float64(), nullable=True),
         pa.field("context_burn_velocity_screening", pa.float64(), nullable=True),
         pa.field("max_exit_code_cascade_screening", pa.int64(), nullable=False),
         pa.field("cache_hit_rate_screening", pa.float64(), nullable=True),
         pa.field("subagent_overhead_ratio_screening", pa.float64(), nullable=True),
+        pa.field("autonomous_step_ratio_screening", pa.float64(), nullable=True),
+        pa.field("assisted_step_ratio_screening", pa.float64(), nullable=True),
+        pa.field("is_expected_negative", pa.bool_(), nullable=False),
+        pa.field("expected_probe_count", pa.int64(), nullable=False),
+        pa.field("step_to_first_error", pa.int64(), nullable=True),
+        pa.field("time_to_first_error_seconds", pa.float64(), nullable=True),
+        pa.field("recovery_latency_steps", pa.int64(), nullable=True),
+        pa.field("recovery_latency_seconds", pa.float64(), nullable=True),
+        pa.field("unrecovered_at_terminal", pa.bool_(), nullable=False),
+        pa.field("intervention_category", pa.string(), nullable=False),
+        pa.field("autonomous_step_count", pa.int64(), nullable=False),
+        pa.field("assisted_step_count", pa.int64(), nullable=False),
+        pa.field("intervention_count", pa.int64(), nullable=False),
         pa.field("prompt_tokens", pa.int64(), nullable=True),
         pa.field("completion_tokens", pa.int64(), nullable=True),
         pa.field("cached_tokens", pa.int64(), nullable=True),

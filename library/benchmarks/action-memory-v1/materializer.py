@@ -16,6 +16,19 @@ DERIVED = REPO / "derived" / "harbor-tasks" / "action-memory"
 
 PINNED_PYTHON_IMAGE = "python:3.13-slim@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
 
+from evallab.benchmark_program_contracts import CellFactorsA, SyntheticFamilySpec, SyntheticFamilyType, compute_sha256
+from evallab.mcp_substrate import (
+    DEFAULT_INTERNAL_NETWORK_NAME,
+    DEFAULT_SIDECAR_SERVICE,
+    DEFAULT_VOLUME_MOUNT,
+    DEFAULT_VOLUME_NAME,
+    MCPToolDefinition,
+    MCPToolParameter,
+    materialize_mcp_sidecar_package,
+    render_mcp_compose_document,
+)
+import yaml
+
 
 def _get_state_module():
     mod_name = "action_memory_state_module"
@@ -96,6 +109,20 @@ def materialize(
     (task_state / "scenario.json").write_text(scenario_json_str, encoding="utf-8")
     (mcp_sidecar_dir / "scenario.json").write_text(scenario_json_str, encoding="utf-8")
 
+    family_spec = SyntheticFamilySpec(
+        family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION,
+        variant_id=safe_cell,
+        dilation_tokens=max(0, dose_bytes // 4),
+        forced_compaction=False,
+        hidden_contract_hash=compute_sha256({"cell": safe_cell, "seed": seed, "arm": arm}),
+    )
+    cell_factors = CellFactorsA(
+        dilation_tokens=family_spec.dilation_tokens,
+        forced_compaction=False,
+        semantic_distractors=arm == "semantic_distractor",
+        seed=seed,
+    )
+
     # Target specification strictly for verifier under tests/fixtures to avoid golden leak scan
     (tests / "fixtures").mkdir(parents=True, exist_ok=True)
     (verifier_dir / "fixtures").mkdir(parents=True, exist_ok=True)
@@ -125,28 +152,73 @@ def materialize(
         encoding="utf-8",
     )
 
-    # MCP Sidecar Container
+    tools = (
+        MCPToolDefinition(
+            name="list_context_chunks",
+            description="List all available context log chunk IDs.",
+            parameters=(),
+            execution_body=(
+                "scenario = json.loads(Path('/app/scenario.json').read_text())\n"
+                "res = {'chunk_ids': [c['chunk_id'] for c in scenario.get('chunks', [])]}\n"
+                "log_tool_event('list_context_chunks', args, res)\n"
+                "return res"
+            ),
+        ),
+        MCPToolDefinition(
+            name="get_context_chunk",
+            description="Retrieve content and metadata for a specific chunk ID.",
+            parameters=(MCPToolParameter(name="chunk_id", type_name="str", description="The ID of the chunk to read"),),
+            execution_body=(
+                "scenario = json.loads(Path('/app/scenario.json').read_text())\n"
+                "chunk = next((c for c in scenario.get('chunks', []) if c['chunk_id'] == chunk_id), None)\n"
+                "res = chunk or {'error': 'not_found'}\n"
+                "log_tool_event('get_context_chunk', args, res)\n"
+                "return res"
+            ),
+        ),
+        MCPToolDefinition(
+            name="execute_mutation",
+            description="Execute final state-bound mutation action on target entity.",
+            parameters=(
+                MCPToolParameter(name="entity_id", type_name="str", description="Target entity ID"),
+                MCPToolParameter(name="attribute", type_name="str", description="Target attribute key"),
+                MCPToolParameter(name="bound_value", type_name="str", description="Latest state value to bind"),
+            ),
+            execution_body=(
+                "out = Path('/app/output')\n"
+                "out.mkdir(parents=True, exist_ok=True)\n"
+                "final_state = {'status': 'executed', 'target_entity': entity_id, 'target_attribute': attribute, 'bound_value': bound_value}\n"
+                "(out / 'final-state.json').write_text(json.dumps(final_state, indent=2, sort_keys=True))\n"
+                "log_tool_event('execute_mutation', args, final_state)\n"
+                "return final_state"
+            ),
+        ),
+    )
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=mcp_sidecar_dir,
+        tools=tools,
+        server_name="action-memory-mcp",
+        plan_only=True,
+        internal_network_name=DEFAULT_INTERNAL_NETWORK_NAME,
+    )
+    server_py = mcp_sidecar_dir / "server.py"
+    if server_py.exists():
+        server_py.write_text(
+            server_py.read_text(encoding="utf-8").replace('transport="sse"', 'transport="streamable-http"'),
+            encoding="utf-8",
+        )
     shutil.copy2(ROOT / "runtime.py", mcp_sidecar_dir / "runtime.py")
     (mcp_sidecar_dir / "Dockerfile").write_text(
-        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /srv\nRUN mkdir -p /app/evidence\nCOPY runtime.py /srv/runtime.py\nCOPY scenario.json /srv/scenario.json\nENTRYPOINT [\"python3\", \"/srv/runtime.py\", \"--task-dir\", \"/srv\", \"--evidence-dir\", \"/app/evidence\", \"--port\", \"8080\"]\n",
+        f"FROM {PINNED_PYTHON_IMAGE}\nWORKDIR /app\nRUN mkdir -p /app/output\nCOPY runtime.py /app/runtime.py\nCOPY scenario.json /app/scenario.json\nENTRYPOINT [\"python3\", \"/app/runtime.py\", \"--task-dir\", \"/app\", \"--evidence-dir\", \"/app/output\", \"--port\", \"8080\"]\n",
         encoding="utf-8",
     )
-
-    # Compose topology (main mounts evidence-data as ro, mcp-server as rw)
-    compose_yaml = """services:
-  main:
-    build: .
-    volumes:
-      - evidence-data:/app/evidence:ro
-  mcp-server:
-    build: ./mcp-server
-    volumes:
-      - evidence-data:/app/evidence:rw
-
-volumes:
-  evidence-data:
-"""
-    (environment / "docker-compose.yaml").write_text(compose_yaml, encoding="utf-8")
+    compose_doc = pkg["compose_doc"]
+    compose_doc["services"]["main"].pop("image", None)
+    compose_doc["services"]["main"]["build"] = "."
+    (environment / "docker-compose.yaml").write_text(
+        yaml.safe_dump(compose_doc, sort_keys=False),
+        encoding="utf-8",
+    )
 
     # Solution script using http.client with readiness check
     solution_solve_py = f'''#!/usr/bin/env python3
@@ -159,7 +231,7 @@ import time
 def wait_ready():
     for _ in range(50):
         try:
-            conn = http.client.HTTPConnection("mcp-server", 8080, timeout=1)
+            conn = http.client.HTTPConnection("mcp-service", 8080, timeout=1)
             conn.request("GET", "/health")
             if conn.getresponse().status == 200:
                 conn.close()
@@ -170,7 +242,7 @@ def wait_ready():
         time.sleep(0.1)
 
 def rpc_call(method, params):
-    conn = http.client.HTTPConnection("mcp-server", 8080, timeout=10)
+    conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
     body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": method, "params": params}})
     conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
     res = json.loads(conn.getresponse().read().decode("utf-8"))
@@ -237,7 +309,7 @@ if __name__ == "__main__":
 set -eu
 python3 -c '
 import http.client, json
-conn = http.client.HTTPConnection("mcp-server", 8080, timeout=10)
+conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
 body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {{"name": "execute_mutation", "arguments": {{"entity_id": "{spec.target_entity}", "attribute": "{spec.target_attribute}", "bound_value": "{spec.latest_value}"}}}}}})
 conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
 conn.close()
@@ -265,7 +337,7 @@ printf '{"reward": 1.0, "hacked": true}\n' > /logs/verifier/result.json
 set -eu
 python3 -c '
 import http.client, json
-conn = http.client.HTTPConnection("mcp-server", 8080, timeout=10)
+conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
 body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {{"name": "execute_mutation", "arguments": {{"entity_id": "{spec.target_entity}", "attribute": "{spec.target_attribute}", "bound_value": "{spec.initial_value}"}}}}}})
 conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
 conn.close()
@@ -280,7 +352,7 @@ conn.close()
 set -eu
 python3 -c '
 import http.client, json
-conn = http.client.HTTPConnection("mcp-server", 8080, timeout=10)
+conn = http.client.HTTPConnection("mcp-service", 8080, timeout=10)
 body = json.dumps({{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {{"name": "execute_mutation", "arguments": {{"entity_id": "entity-invalid-000", "attribute": "{spec.target_attribute}", "bound_value": "{spec.latest_value}"}}}}}})
 conn.request("POST", "/mcp", body, {{"Content-Type": "application/json"}})
 conn.close()
@@ -334,11 +406,11 @@ network_mode = "no-network"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ -f /app/evidence/benchmark-events.jsonl ]; then cp -f /app/evidence/benchmark-events.jsonl /app/output/benchmark-events.jsonl; fi"
+command = "if [ -f /app/output/benchmark-events.jsonl ]; then cp -f /app/output/benchmark-events.jsonl /app/output/benchmark-events.jsonl; fi"
 
 [[verifier.collect]]
 service = "main"
-command = "if [ -f /app/evidence/final-state.json ]; then cp -f /app/evidence/final-state.json /app/output/final-state.json; fi"
+command = "if [ -f /app/output/final-state.json ]; then cp -f /app/output/final-state.json /app/output/final-state.json; fi"
 
 [environment]
 network_mode = "no-network"
@@ -351,20 +423,20 @@ storage_mb = 1024
 [[environment.mcp_servers]]
 name = "memory_mcp"
 transport = "streamable-http"
-url = "http://mcp-server:8080/mcp"
+url = "http://mcp-service:8080/mcp"
 '''
     (output_dir / "task.toml").write_text(task_toml_content, encoding="utf-8")
 
     instruction_md_content = f"""# Action Memory Task: Configuration State Mutation
 
-You are operating an agent workflow against a stateful streamable HTTP MCP server running at `http://mcp-server:8080/mcp`.
+You are operating an agent workflow against a stateful streamable HTTP MCP server running at `http://mcp-service:8080/mcp`.
 
 ## Objective
 1. Inspect the system context logs and state updates using the MCP server tools (`list_context_chunks`, `get_context_chunk`).
 2. Identify target entity `{spec.target_entity}` and observe its configuration history across logs.
 3. Determine the latest bound value for attribute `{spec.target_attribute}` after all state inversions.
 4. Execute the final mutation by calling the `execute_mutation` MCP tool with `{spec.target_entity}`, `{spec.target_attribute}`, and the latest value.
-5. The MCP server will automatically record events into `/app/evidence/benchmark-events.jsonl` and `/app/evidence/final-state.json`.
+5. The MCP server will automatically record events into `/app/output/benchmark-events.jsonl` and `/app/output/final-state.json`.
 """
     (output_dir / "instruction.md").write_text(instruction_md_content, encoding="utf-8")
 
@@ -375,6 +447,12 @@ You are operating an agent workflow against a stateful streamable HTTP MCP serve
         "initial_value": spec.initial_value,
         "dose_bytes": spec.dose_bytes,
         "arm": arm,
+        "family_digest": family_spec.identity_digest(),
+        "cell_factors": cell_factors.model_dump(),
+        "sidecar_service": DEFAULT_SIDECAR_SERVICE,
+        "volume_name": DEFAULT_VOLUME_NAME,
+        "volume_mount": DEFAULT_VOLUME_MOUNT,
+        "internal_network": DEFAULT_INTERNAL_NETWORK_NAME,
     }
 
 

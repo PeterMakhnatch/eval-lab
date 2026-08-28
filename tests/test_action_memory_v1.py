@@ -76,6 +76,10 @@ def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
     assert (target / "instruction.md").exists()
     assert (target / "environment" / "docker-compose.yaml").exists()
     assert (target / "environment" / "mcp-server" / "Dockerfile").exists()
+    compose = (target / "environment" / "docker-compose.yaml").read_text(encoding="utf-8")
+    assert "workbench-internal" in compose
+    assert "mcp-service:" in compose
+    assert "internal: true" in compose
     assert (target / "verifier" / "verify.py").exists()
     assert (target / "tests" / "verify.py").exists()
     assert (target / "solution" / "solve.sh").exists()

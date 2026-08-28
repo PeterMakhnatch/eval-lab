@@ -89,21 +89,15 @@ jobs:
             | tee artifacts/action-memory/packet.json
           test "$(jq -r '.disposition' artifacts/action-memory/packet.json)" = "certified_for_review"
       - name: Produce durable exact-task controls
-        env:
-          CANDIDATE_ID: ${{ steps.plan.outputs.candidate_id }}
         run: |
           set -euo pipefail
           jobs="research/evidence/runs"
           oracle_job="action-memory-registry-oracle-${GITHUB_RUN_ID}"
           nop_job="action-memory-registry-nop-${GITHUB_RUN_ID}"
-          overlay="$GITHUB_WORKSPACE/runs/task-workbench/${CANDIDATE_ID}/staging/oracle-1/environment/.workbench-network-none.yaml"
-          test -f "$overlay"
           harbor run --path "$TASK_PATH" \
-            --extra-docker-compose "$overlay" \
             --agent oracle --env docker --job-name "$oracle_job" --jobs-dir "$jobs" \
             --n-concurrent 1 --n-attempts 1 --yes
           harbor run --path "$TASK_PATH" \
-            --extra-docker-compose "$overlay" \
             --agent nop --env docker --job-name "$nop_job" --jobs-dir "$jobs" \
             --n-concurrent 1 --n-attempts 1 --yes
           uv run python library/benchmarks/action-memory-v1/ci_contract.py --assert-harbor-reward "$jobs/$oracle_job" 1.0

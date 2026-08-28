@@ -24,6 +24,7 @@ jobs:
         run: |
           python3 -m pip install --user uv==0.9.24
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          uv tool install "harbor==0.21.0"
           uv python install 3.12
           uv sync --locked
       - name: Verify deterministic materialization

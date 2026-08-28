@@ -16,7 +16,7 @@ from collections.abc import Iterable, Sequence
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from evallab.cohort import BOOTSTRAP_RESAMPLES
 from evallab.schemas import ContractModel
@@ -252,10 +252,11 @@ def _repeat_cell_underfilled(rows: Sequence[RecoveryOpportunity]) -> bool:
 
 
 def _canonical_digest(value: object) -> str:
-    if hasattr(value, "model_dump"):
-        value = value.model_dump(mode="json", exclude_none=False)  # type: ignore[union-attr]
+    payload_value: object = (
+        value.model_dump(mode="json", exclude_none=False) if isinstance(value, BaseModel) else value
+    )
     payload = json.dumps(
-        value,
+        payload_value,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
@@ -264,7 +265,7 @@ def _canonical_digest(value: object) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
 
-def _report_digest(body: dict[str, object]) -> str:
+def _report_digest(body: object) -> str:
     return _canonical_digest(body)
 
 

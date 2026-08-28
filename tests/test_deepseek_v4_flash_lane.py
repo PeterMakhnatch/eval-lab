@@ -163,7 +163,7 @@ def test_registered_funcdag_is_exactly_one_bounded_trial_and_keeps_key_out_of_ar
     assert _value_after(args, "--n-concurrent-agents") == "1"
     assert _value_after(args, "--n-tasks") == "1"
     assert _value_after(args, "--max-retries") == "0"
-    assert _value_after(args, "--agent-timeout") == "300"
+    assert _value_after(args, "--agent-timeout-multiplier") == "5"
     assert "cost_limit=2.5" in args
     assert "max_tokens=8192" in args
     assert "api.deepseek.com" in args

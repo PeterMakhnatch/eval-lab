@@ -168,24 +168,46 @@ def parse_benchmark_contract(
     if not isinstance(data, dict):
         raise BenchmarkEventSchemaError("Benchmark contract must be a JSON object")
 
-    family = str(data.get("family", ""))
+    family = str(data.get("benchmark_family") or data.get("family") or "")
     if not family:
-        raise BenchmarkEventSchemaError("Benchmark contract missing required 'family' field")
+        raise BenchmarkEventSchemaError(
+            "Benchmark contract missing required 'family' or 'benchmark_family' field"
+        )
 
     version = str(data.get("version", "1.0.0"))
     construct = str(data.get("construct", ""))
-    seed = int(data.get("seed", data.get("cell_factors", {}).get("seed", 0)))
+
+    # Seeds handling: list or scalar
+    seeds = data.get("seeds")
+    if isinstance(seeds, list) and seeds:
+        seed = int(data.get("seed", seeds[0]))
+    else:
+        seed = int(data.get("seed", data.get("cell_factors", {}).get("seed", 0)))
+
     cell_factors = dict(data.get("cell_factors", {}))
+    if "cells" in data and isinstance(data["cells"], list):
+        cell_factors["cells"] = data["cells"]
+        if data["cells"] and isinstance(data["cells"][0], dict):
+            for ck, cv in data["cells"][0].items():
+                if ck not in cell_factors:
+                    cell_factors[ck] = cv
+    if isinstance(seeds, list):
+        cell_factors["seeds"] = seeds
+
     for k, v in data.items():
         if (
             k
             not in (
                 "family",
+                "benchmark_family",
                 "version",
                 "construct",
                 "seed",
+                "seeds",
+                "cells",
                 "cell_factors",
                 "task_id",
+                "task_name",
                 "opportunity_counts",
                 "verifier_truth_digest",
                 "artifact_paths",
@@ -193,7 +215,7 @@ def parse_benchmark_contract(
             and k not in cell_factors
         ):
             cell_factors[k] = v
-    task_id = str(data.get("task_id", data.get("task_name", "")))
+    task_id = str(data.get("task_id") or data.get("task_name") or family)
     opportunity_counts = dict(data.get("opportunity_counts", {}))
     verifier_truth_digest = str(data.get("verifier_truth_digest", ""))
     artifact_paths = {str(k): str(v) for k, v in data.get("artifact_paths", {}).items()}
@@ -323,7 +345,7 @@ def parse_benchmark_events(
 
     events: list[BenchmarkEventRecord] = []
     seen_indices: set[int] = set()
-    expected_index = 1
+    expected_index: int | None = None
 
     for idx, (rec, raw_line) in enumerate(zip(raw_records, raw_lines, strict=True), start=1):
         if not isinstance(rec, dict):
@@ -346,6 +368,13 @@ def parse_benchmark_events(
         if not isinstance(event_index, int):
             raise BenchmarkEventSchemaError(f"Event index must be an integer, got {event_index!r}")
 
+        if expected_index is None:
+            if event_index not in (0, 1):
+                raise BenchmarkEventGapError(
+                    f"Benchmark event initial index must start at 0 or 1, got {event_index}"
+                )
+            expected_index = event_index
+
         # Gap detection
         if event_index > expected_index:
             raise BenchmarkEventGapError(
@@ -366,7 +395,6 @@ def parse_benchmark_events(
 
         seen_indices.add(event_index)
         expected_index += 1
-
         digest = sha256(raw_line.encode("utf-8")).hexdigest()
         events.append(
             BenchmarkEventRecord(
@@ -405,15 +433,32 @@ def correlate_tool_calls(
             "request",
             "tool_invoked",
             "tool_call_requested",
+            "read_chunk",
+            "execute_mutation",
+            "tools/call",
+            "call_tool",
         ):
             if not call_id:
                 call_id = f"call_gen_{event.event_index}"
             call_id = str(call_id)
             if call_id not in calls_by_id:
+                tool_name = (
+                    event.get_tool_name()
+                    or payload.get("tool")
+                    or (
+                        "read_chunk"
+                        if event_type == "read_chunk"
+                        else (
+                            "execute_mutation"
+                            if event_type == "execute_mutation"
+                            else "unknown_tool"
+                        )
+                    )
+                )
                 calls_by_id[call_id] = {
                     "call_id": call_id,
-                    "tool_name": event.get_tool_name() or "unknown_tool",
-                    "arguments": payload.get("arguments") or payload.get("parameters") or {},
+                    "tool_name": tool_name,
+                    "arguments": payload.get("arguments") or payload.get("parameters") or payload,
                     "request_event": event,
                     "execution_event": None,
                     "fault_event": None,
@@ -442,7 +487,7 @@ def correlate_tool_calls(
                 synth_id = f"fault_gen_{event.event_index}"
                 calls_by_id[synth_id] = {
                     "call_id": synth_id,
-                    "tool_name": payload.get("tool_name", "fault_tool"),
+                    "tool_name": payload.get("tool_name", payload.get("tool", "fault_tool")),
                     "arguments": payload.get("arguments", {}),
                     "request_event": event,
                     "execution_event": None,
@@ -459,9 +504,36 @@ def correlate_tool_calls(
                     "is_error": True,
                 }
                 ordered_call_ids.append(synth_id)
-        elif event_type in ("tool_executed", "execution", "tool_call_executed"):
+
+        elif event_type in (
+            "tool_call_success",
+            "tool_executed",
+            "execution",
+            "tool_call_executed",
+        ):
+            if not call_id and ordered_call_ids:
+                call_id = ordered_call_ids[-1]
             if call_id and str(call_id) in calls_by_id:
-                calls_by_id[str(call_id)]["execution_event"] = event
+                entry = calls_by_id[str(call_id)]
+                entry["execution_event"] = event
+                if event_type == "tool_call_success":
+                    entry["result_event"] = event
+                    entry["result_payload"] = payload.get("result")
+                    entry["is_error"] = False
+
+        elif event_type in (
+            "tool_call_rejected",
+            "tool_call_schema_error",
+            "tool_call_execution_error",
+        ):
+            if not call_id and ordered_call_ids:
+                call_id = ordered_call_ids[-1]
+            if call_id and str(call_id) in calls_by_id:
+                entry = calls_by_id[str(call_id)]
+                entry["execution_event"] = event
+                entry["result_event"] = event
+                entry["result_payload"] = payload.get("error")
+                entry["is_error"] = True
 
         elif event_type in ("tool_result", "mcp_response", "response"):
             if not call_id and ordered_call_ids:
@@ -475,7 +547,6 @@ def correlate_tool_calls(
                     or payload.get("error")
                     or (isinstance(payload.get("result"), dict) and "error" in payload["result"])
                 )
-
     correlated: list[CorrelatedToolCall] = []
     for call_id in ordered_call_ids:
         entry = calls_by_id[call_id]

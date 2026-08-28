@@ -686,7 +686,7 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
     lines.append("")
     # Section 9: Benchmark Capability Observables (when present)
     if card.benchmark_family and card.benchmark_features:
-        lines.append(f"## 9. Benchmark Capability Observables (`{card.benchmark_family}`)")
+        lines.append(f"## 9. Benchmark Observables (`{card.benchmark_family}`)")
         bf = card.benchmark_features
         lines.append(f"- **Benchmark Family:** `{card.benchmark_family}`")
         if "construct" in bf and bf["construct"]:
@@ -696,8 +696,7 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
         if "verifier_truth_digest" in bf and bf["verifier_truth_digest"]:
             lines.append(f"- **Verifier Ground Truth Digest:** `{bf['verifier_truth_digest']}`")
         lines.append("")
-        lines.append("### Ground Truth & Derived Capability Metrics")
-        lines.append("| Metric | Value | Data Type | Category / Provenance |")
+        lines.append("### Ground Truth & Derived Observables")
         lines.append("|---|---|---|---|")
         for k, v in bf.items():
             if k in (

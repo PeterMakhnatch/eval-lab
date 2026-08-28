@@ -916,6 +916,21 @@ def verify_feature_registry() -> list[str]:
 # 1. Action Memory (action-memory-v1 / Context & Actionable Memory)
 # -----------------------------------------------------------------------------
 register_trajectory_feature(
+    "total_tool_calls",
+    data_type="BIGINT",
+    category="benchmark_l1_fact",
+    is_screening=False,
+    source_table="benchmark_events",
+    formula_or_rule="Count of tool call requests initiated during trial",
+    null_condition="0 by default",
+    description="Total count of tool requests initiated in benchmark trial.",
+    producer_module="evallab.interpretation.producers",
+    construct="Benchmark Observables",
+    causal_grade="C0",
+    evidence_grade="Grade A",
+    metric_order=1,
+)
+register_trajectory_feature(
     "raw_binding_opportunities",
     data_type="BIGINT",
     category="benchmark_l1_fact",

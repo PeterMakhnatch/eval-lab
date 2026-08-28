@@ -150,10 +150,16 @@ def extract_mcp_funcdag_features(
         if isinstance(args, dict):
             has_edge_ref = False
             for v in args.values():
-                if isinstance(v, str) and (
-                    v in node_outputs or "node_" in v or "step_" in v or "res_" in v
-                ):
-                    has_edge_ref = True
+                for out_node, out_val in node_outputs.items():
+                    if v == out_val or (out_val is not None and str(v) == str(out_val)):
+                        has_edge_ref = True
+                        break
+                    if isinstance(v, str) and (
+                        out_node in v or "node_" in v or "step_" in v or "res_" in v
+                    ):
+                        has_edge_ref = True
+                        break
+                if has_edge_ref:
                     break
             if has_edge_ref:
                 executed_dag_edges += 1

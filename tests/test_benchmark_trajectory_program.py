@@ -50,43 +50,47 @@ def action_memory_trial_dir(tmp_path: Path) -> Path:
     trial_dir.mkdir(parents=True)
 
     contract = {
-        "family": "action-memory-v1",
-        "task_name": "state_retention_test",
-        "agent_name": "test_agent",
+        "benchmark_family": "action-memory-v1",
+        "version": "1.0.0",
+        "construct": "actionable_entity_memory_and_value_binding",
+        "seeds": [42, 1337],
+        "cells": [
+            {
+                "cell_id": "clean-baseline-4k",
+                "dose_bytes": 4096,
+                "arm": "clean",
+                "inversion_count": 1,
+                "update_opportunity_count": 1,
+                "read_opportunity_count": 7,
+                "mutation_opportunity_count": 1,
+            }
+        ],
         "verifier_truth_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "construct": "state_binding_survival",
-        "causal_grade": "L2_derived",
-        "cell_factors": {"target_entity": "session_id"},
-        "opportunity_counts": {"mutation_opportunity_count": 1, "update_opportunity_count": 0},
-        "invariants": ["monotonic_events", "valid_bindings"],
     }
     (trial_dir / "benchmark_contract.json").write_text(json.dumps(contract), encoding="utf-8")
 
     events = [
         {
-            "event_index": 1,
+            "event_index": 0,
             "timestamp": "2026-08-28T10:00:00Z",
-            "event_type": "tool_call_requested",
-            "call_id": "call_1",
-            "tool_name": "memory_read",
-            "arguments": {"key": "session_id"},
+            "event_type": "read_chunk",
+            "payload": {"chunk_id": "chunk_1", "byte_count": 512},
+        },
+        {
+            "event_index": 1,
+            "timestamp": "2026-08-28T10:00:01Z",
+            "event_type": "read_chunk",
+            "payload": {"chunk_id": "chunk_2", "byte_count": 512},
         },
         {
             "event_index": 2,
-            "timestamp": "2026-08-28T10:00:01Z",
-            "event_type": "tool_call_executed",
-            "call_id": "call_1",
-            "tool_name": "memory_read",
-            "result": {"value": "abc-123"},
-        },
-        {
-            "event_index": 3,
             "timestamp": "2026-08-28T10:00:02Z",
-            "event_type": "state_binding_matched",
-            "call_id": "call_1",
-            "binding_key": "session_id",
-            "binding_value": "abc-123",
-            "is_matched": True,
+            "event_type": "execute_mutation",
+            "payload": {
+                "entity_id": "entity_42",
+                "attribute": "routing_key",
+                "bound_value": "abc-123",
+            },
         },
     ]
     (trial_dir / "benchmark-events.jsonl").write_text(
@@ -95,11 +99,11 @@ def action_memory_trial_dir(tmp_path: Path) -> Path:
 
     final_state = {
         "trial_id": "action_memory_pass",
-        "task_success": True,
-        "primary_reward": 1.0,
-        "state_bindings": {"session_id": "abc-123"},
-        "unmatched_bindings": [],
-        "stale_bindings": [],
+        "status": "executed",
+        "target_entity": "entity_42",
+        "target_attribute": "routing_key",
+        "bound_value": "abc-123",
+        "invariants_passed": True,
     }
     (trial_dir / "final-state.json").write_text(json.dumps(final_state), encoding="utf-8")
 
@@ -144,45 +148,34 @@ def mcp_funcdag_trial_dir(tmp_path: Path) -> Path:
 
     contract = {
         "family": "mcp-funcdag-v1",
-        "task_name": "pipeline_dag_test",
-        "agent_name": "test_agent",
-        "verifier_truth_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "version": "1.0.0",
         "construct": "tool_call_dag_conformance",
-        "causal_grade": "L2_derived",
-        "declared_dag_edges": [["step_a", "step_b"]],
+        "seed": 42,
+        "cell_factors": {"depth": 2, "width": 1, "declared_dag_edges": [["step_a", "step_b"]]},
+        "task_id": "pipeline_dag_test",
+        "opportunity_counts": {"required_dag_edges": 1, "required_node_count": 2},
+        "verifier_truth_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     }
     (trial_dir / "benchmark_contract.json").write_text(json.dumps(contract), encoding="utf-8")
 
     events = [
         {
-            "event_index": 1,
+            "event_index": 0,
             "timestamp": "2026-08-28T10:00:00Z",
-            "event_type": "tool_call_requested",
-            "call_id": "call_1",
+            "event_type": "tool_call_success",
             "tool_name": "step_a",
+            "arguments": {"input_val": 10},
+            "result": 20,
+            "schema_conforming": True,
         },
         {
-            "event_index": 2,
+            "event_index": 1,
             "timestamp": "2026-08-28T10:00:01Z",
-            "event_type": "tool_call_executed",
-            "call_id": "call_1",
-            "tool_name": "step_a",
-            "result": {"status": "done"},
-        },
-        {
-            "event_index": 3,
-            "timestamp": "2026-08-28T10:00:02Z",
-            "event_type": "tool_call_requested",
-            "call_id": "call_2",
+            "event_type": "tool_call_success",
             "tool_name": "step_b",
-        },
-        {
-            "event_index": 4,
-            "timestamp": "2026-08-28T10:00:03Z",
-            "event_type": "tool_call_executed",
-            "call_id": "call_2",
-            "tool_name": "step_b",
-            "result": {"status": "completed"},
+            "arguments": {"input_val": 20},
+            "result": 40,
+            "schema_conforming": True,
         },
     ]
     (trial_dir / "benchmark-events.jsonl").write_text(
@@ -191,14 +184,13 @@ def mcp_funcdag_trial_dir(tmp_path: Path) -> Path:
 
     final_state = {
         "trial_id": "mcp_funcdag_pass",
-        "task_success": True,
-        "primary_reward": 1.0,
-        "conformed_edges": [["step_a", "step_b"]],
-        "cycle_violations": [],
-        "undeclared_calls": [],
+        "invariants_passed": True,
+        "total_calls": 2,
+        "executed_tools": ["step_a", "step_b"],
+        "redundant_calls": 0,
+        "last_result": 40,
     }
     (trial_dir / "final-state.json").write_text(json.dumps(final_state), encoding="utf-8")
-
     atif_traj = {
         "schema_version": "ATIF-v1.0",
         "session_id": "mcp_funcdag_pass",
@@ -239,53 +231,59 @@ def mcp_recovery_trial_dir(tmp_path: Path) -> Path:
 
     contract = {
         "family": "mcp-recovery-v1",
-        "task_name": "resilience_recovery_test",
-        "agent_name": "test_agent",
+        "version": "1.0.0",
+        "construct": "fault_recovery_survival",
+        "seed": 42,
+        "cell_factors": {
+            "fault_classes": ["HTTP_503_SERVICE_UNAVAILABLE"],
+            "persistence_levels": [1],
+            "mode": "fault",
+        },
+        "task_id": "resilience_recovery_test",
         "verifier_truth_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-        "construct": "fault_recovery_rate",
-        "causal_grade": "L2_derived",
     }
     (trial_dir / "benchmark_contract.json").write_text(json.dumps(contract), encoding="utf-8")
 
     events = [
         {
-            "event_index": 1,
+            "event_index": 0,
             "timestamp": "2026-08-28T10:00:00Z",
-            "event_type": "tool_call_requested",
-            "call_id": "call_1",
+            "event_type": "mcp_call",
+            "call_id": "c1",
             "tool_name": "api_fetch",
+            "arguments": {"endpoint": "/data"},
+        },
+        {
+            "event_index": 1,
+            "timestamp": "2026-08-28T10:00:01Z",
+            "event_type": "fault_injected",
+            "call_id": "c1",
+            "payload": {
+                "tool": "api_fetch",
+                "fault_class": "HTTP_503_SERVICE_UNAVAILABLE",
+            },
         },
         {
             "event_index": 2,
-            "timestamp": "2026-08-28T10:00:01Z",
-            "event_type": "fault_injected",
-            "call_id": "call_1",
+            "timestamp": "2026-08-28T10:00:02Z",
+            "event_type": "mcp_call",
+            "call_id": "c2",
             "tool_name": "api_fetch",
-            "fault_type": "HTTP_503_SERVICE_UNAVAILABLE",
+            "arguments": {"endpoint": "/data", "retry": True},
         },
         {
             "event_index": 3,
-            "timestamp": "2026-08-28T10:00:02Z",
-            "event_type": "tool_call_requested",
-            "call_id": "call_2",
-            "tool_name": "api_fetch",
-            "arguments": {"retry": True},
+            "timestamp": "2026-08-28T10:00:03Z",
+            "event_type": "tool_executed",
+            "call_id": "c2",
+            "payload": {"tool": "api_fetch", "state_digest": "sha256:abc"},
         },
         {
             "event_index": 4,
-            "timestamp": "2026-08-28T10:00:03Z",
-            "event_type": "tool_call_executed",
-            "call_id": "call_2",
-            "tool_name": "api_fetch",
-            "result": {"status": 200, "data": "recovered"},
-        },
-        {
-            "event_index": 5,
             "timestamp": "2026-08-28T10:00:04Z",
-            "event_type": "autonomous_recovery_observed",
-            "fault_event_index": 2,
-            "recovery_call_id": "call_2",
-            "steps_to_recovery": 1,
+            "event_type": "tool_result",
+            "call_id": "c2",
+            "payload": {"result": {"status": "recovered"}},
         },
     ]
     (trial_dir / "benchmark-events.jsonl").write_text(
@@ -294,13 +292,12 @@ def mcp_recovery_trial_dir(tmp_path: Path) -> Path:
 
     final_state = {
         "trial_id": "mcp_recovery_pass",
-        "task_success": True,
-        "primary_reward": 1.0,
-        "faults_injected_count": 1,
-        "autonomous_recoveries_count": 1,
-        "unrecovered_faults_count": 0,
-        "total_recovery_steps": 1,
-        "post_recovery_regressions_count": 0,
+        "invariants_passed": True,
+        "details": {
+            "faults_injected_count": 1,
+            "autonomous_recoveries_count": 1,
+            "human_interventions_count": 0,
+        },
     }
     (trial_dir / "final-state.json").write_text(json.dumps(final_state), encoding="utf-8")
 
@@ -416,8 +413,7 @@ def test_action_memory_feature_extraction(action_memory_trial_dir: Path):
     assert features.binding_matched is True
     assert features.stale_value_bound is False
     assert features.binding_survival_rate == 1.0
-    assert features.causal_grade == "L2_derived"
-    assert features.construct == "state_binding_survival"
+    assert features.construct == "actionable_entity_memory_and_value_binding"
 
 
 def test_mcp_funcdag_feature_extraction(mcp_funcdag_trial_dir: Path):
@@ -444,6 +440,7 @@ def test_mcp_recovery_feature_extraction(mcp_recovery_trial_dir: Path):
     assert features.autonomous_recovery_rate == 1.0
     assert features.fault_detection_rate == 1.0
     assert features.blind_retries == 0
+    assert features.causal_grade == "C3"
 
 
 def test_null_preservation_on_zero_denominators(tmp_path: Path):
@@ -549,8 +546,8 @@ def test_traj_card_with_benchmark_observables(action_memory_trial_dir: Path, tmp
     assert card_data.benchmark_features is not None
     assert card_data.benchmark_features["binding_survival_rate"] == 1.0
 
-    assert "## 9. Benchmark Capability Observables (`action-memory-v1`)" in rendered
-    assert "**Construct:** `state_binding_survival`" in rendered
+    assert "## 9. Benchmark Observables (`action-memory-v1`)" in rendered
+    assert "**Construct:** `actionable_entity_memory_and_value_binding`" in rendered
     assert (
         "**Verifier Ground Truth Digest:** `sha256:1111111111111111111111111111111111111111111111111111111111111111`"
         in rendered

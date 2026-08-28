@@ -234,16 +234,13 @@ rec_pairs AS (
         t.trial_id AS treatment_trial_id,
         c.task_success AS control_success,
         t.task_success AS treatment_success,
-        c.schema_conformance_rate AS control_metric,
-        t.autonomous_recovery_rate AS treatment_metric,
-        CASE
-            WHEN t.autonomous_recovery_rate IS NOT NULL
-            THEN round(t.autonomous_recovery_rate, 4)
-            ELSE NULL
-        END AS delta_metric
+        (CASE WHEN c.task_success THEN 1.0 ELSE 0.0 END) AS control_metric,
+        (CASE WHEN t.task_success THEN 1.0 ELSE 0.0 END) AS treatment_metric,
+        round((CASE WHEN t.task_success THEN 1.0 ELSE 0.0 END) - (CASE WHEN c.task_success THEN 1.0 ELSE 0.0 END), 4) AS delta_metric
     FROM mcp_recovery_features c
     JOIN mcp_recovery_features t
       ON c.seed = t.seed
+     AND c.task_id = t.task_id
      AND c.mode = 'clean'
      AND t.mode = 'fault'
 )
@@ -260,8 +257,12 @@ SELECT
     'action-memory-v1' AS benchmark_vertical,
     raw_binding_opportunities > 0 AS has_binding_eligibility,
     raw_conflicting_opportunities > 0 AS has_conflict_eligibility,
-    FALSE AS is_refused_underpowered,
-    NULL::VARCHAR AS refusal_reason
+    (raw_binding_opportunities = 0 OR total_tool_calls = 0) AS is_refused_underpowered,
+    CASE
+        WHEN total_tool_calls = 0 THEN 'NO_TOOL_CALLS_INITIATED'
+        WHEN raw_binding_opportunities = 0 THEN 'ZERO_OPPORTUNITY_UNDERPOWERED'
+        ELSE NULL
+    END AS refusal_reason
 FROM action_memory_features
 UNION ALL
 SELECT
@@ -271,8 +272,12 @@ SELECT
     'mcp-funcdag-v1' AS benchmark_vertical,
     required_dag_edges > 0 AS has_binding_eligibility,
     required_value_bindings > 0 AS has_conflict_eligibility,
-    FALSE AS is_refused_underpowered,
-    NULL::VARCHAR AS refusal_reason
+    (required_dag_edges = 0 OR total_tool_calls = 0) AS is_refused_underpowered,
+    CASE
+        WHEN total_tool_calls = 0 THEN 'NO_TOOL_CALLS_INITIATED'
+        WHEN required_dag_edges = 0 THEN 'ZERO_REQUIRED_EDGES_UNDERPOWERED'
+        ELSE NULL
+    END AS refusal_reason
 FROM mcp_funcdag_features
 UNION ALL
 SELECT
@@ -282,10 +287,13 @@ SELECT
     'mcp-recovery-v1' AS benchmark_vertical,
     injected_fault_count > 0 AS has_binding_eligibility,
     post_fault_retries > 0 AS has_conflict_eligibility,
-    FALSE AS is_refused_underpowered,
-    NULL::VARCHAR AS refusal_reason
+    ((injected_fault_count = 0 AND mode = 'fault') OR total_tool_calls = 0) AS is_refused_underpowered,
+    CASE
+        WHEN total_tool_calls = 0 THEN 'NO_TOOL_CALLS_INITIATED'
+        WHEN injected_fault_count = 0 AND mode = 'fault' THEN 'FAULT_ARM_MISSING_INJECTION'
+        ELSE NULL
+    END AS refusal_reason
 FROM mcp_recovery_features;
-
 -- 6. Benchmark Summary View
 CREATE OR REPLACE VIEW v_benchmark_summary AS
 SELECT

@@ -161,13 +161,21 @@ def extract_mcp_recovery_features(
 
     injected_fault_record = json.dumps(injected_faults) if injected_faults else None
 
-    # Certified autonomous recovery requires invariant passed in final state + passed after fault
-    if (
+    # Certified autonomous recovery requires:
+    # 1. Injected fault occurred
+    # 2. Zero human intervention
+    # 3. Final state invariants passed
+    # 4. Recovery step occurred after fault
+    human_interventions = int(final_state.details.get("human_interventions_count", 0))
+    is_c3_certified = (
         injected_fault_count > 0
         and task_success
+        and human_interventions == 0
         and (step_to_recovery is not None or certified_recovered_faults > 0)
-    ):
+    )
+    if is_c3_certified:
         certified_recovered_faults = max(certified_recovered_faults, 1)
+    causal_grade = "C3" if is_c3_certified else ("C0" if injected_fault_count == 0 else "C1")
     # Prompt token metrics
     prompt_tokens_per_step: float | None = None
     if step_tokens:
@@ -221,7 +229,7 @@ def extract_mcp_recovery_features(
         mode=mode,
         construct=contract.construct
         or str(contract.cell_factors.get("construct", "fault_recovery_survival")),
-        causal_grade=str(contract.cell_factors.get("causal_grade", "L2_derived")),
+        causal_grade=causal_grade,
         task_success=task_success,
         total_tool_calls=total_tool_calls,
         model_call_count=model_call_count,

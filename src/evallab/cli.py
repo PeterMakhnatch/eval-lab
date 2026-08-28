@@ -2823,8 +2823,10 @@ def _traj_benchmark_command(
         else:
             print(f"BENCHMARK OBSERVABLES ({bundle.contract.family}):")
             print(f"  Trial ID:       {data.get('trial_id')}")
-            print(f"  Task:           {data.get('task_name')}")
-            print(f"  Agent:          {data.get('agent_name')}")
+            print(f"  Task ID:        {data.get('task_id') or data.get('task_name')}")
+            print(
+                f"  Agent:          {data.get('agent') or data.get('agent_name') or outline.agent_name}"
+            )
             print(f"  Construct:      {data.get('construct')}")
             print(f"  Causal Grade:   {data.get('causal_grade')}")
             print(f"  Truth Digest:   {data.get('verifier_truth_digest')}")
@@ -4206,7 +4208,7 @@ def parser() -> argparse.ArgumentParser:
     traj_align.add_argument("--output", "-o", type=Path, help="Write alignment JSON to file")
     traj_align.set_defaults(func=_traj_align_command)
     traj_bm = traj_commands.add_parser(
-        "benchmark", help="Extract and inspect benchmark capability observables for a trial"
+        "benchmark", help="Extract and inspect benchmark trajectory observables for a trial"
     )
     traj_bm.add_argument("trial", help="Trial identifier, directory, or result.json")
     traj_bm.add_argument("--runs-dir", type=Path, help="Override candidate runs root")

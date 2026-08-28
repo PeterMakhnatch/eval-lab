@@ -143,7 +143,13 @@ def test_provenance_registry_completeness() -> None:
         assert prov.category in ("identity", "mechanical_fact", "screening_heuristic")
         if prov.is_screening:
             assert prov.category == "screening_heuristic"
-            assert col_name.endswith("_screening") or "screening" in col_name or "score" in col_name or "detected" in col_name or "reasons" in col_name
+            assert (
+                col_name.endswith("_screening")
+                or "screening" in col_name
+                or "score" in col_name
+                or "detected" in col_name
+                or "reasons" in col_name
+            )
 
 
 def test_cbv_slope_calculation(sample_steps: list[StepOutline]) -> None:
@@ -277,6 +283,7 @@ def test_compute_trace_baseline_null_preservation() -> None:
     assert baseline.cache_hit_rate_screening is None
     assert baseline.total_tokens == 0
 
+
 def test_compute_trace_baseline_populated(sample_steps: list[StepOutline]) -> None:
     """Populated outline computes accurate baseline facts and screening metrics."""
     outline = TrajectoryOutline(
@@ -385,7 +392,9 @@ def test_duckdb_v_trace_baseline_view(repo_root: Path) -> None:
     assert row["subagent_overhead_ratio_screening"] == pytest.approx((10 - 8 - 1) / 10, rel=1e-3)
 
 
-def test_python_sql_null_and_cardinality_parity(repo_root: Path, sample_steps: list[StepOutline]) -> None:
+def test_python_sql_null_and_cardinality_parity(
+    repo_root: Path, sample_steps: list[StepOutline]
+) -> None:
     """Verify exact formula parity and null semantics between Python and DuckDB SQL."""
     outline = TrajectoryOutline(
         trial_id="parity-trial",
@@ -458,17 +467,45 @@ def test_python_sql_null_and_cardinality_parity(repo_root: Path, sample_steps: l
         )
         """,
         [
-            feat.trial_id, feat.job_id, feat.trial_name, feat.job_name,
-            feat.task_name, feat.agent_name, feat.agent_version, feat.model_name,
-            feat.status, feat.unavailable_reason, feat.source_path, feat.source_sha256,
-            feat.step_count, feat.agent_step_count, feat.system_step_count, feat.user_step_count,
-            feat.tool_call_count, feat.unique_tools_count, feat.tool_mix_json, feat.error_count,
-            feat.recovery_count, feat.loop_suspicion_score, feat.loop_suspicion_detected,
-            feat.loop_reasons_json, feat.repeated_command_count, feat.step_to_first_tool,
-            feat.step_to_first_edit, feat.time_to_first_tool_seconds, feat.time_to_first_edit_seconds,
-            feat.prompt_tokens, feat.completion_tokens, feat.cached_tokens, feat.cost_usd,
-            feat.primary_reward, feat.exception_class, feat.duration_seconds, feat.created_at,
-            feat.context_burn_velocity_screening, feat.max_exit_code_cascade_screening,
+            feat.trial_id,
+            feat.job_id,
+            feat.trial_name,
+            feat.job_name,
+            feat.task_name,
+            feat.agent_name,
+            feat.agent_version,
+            feat.model_name,
+            feat.status,
+            feat.unavailable_reason,
+            feat.source_path,
+            feat.source_sha256,
+            feat.step_count,
+            feat.agent_step_count,
+            feat.system_step_count,
+            feat.user_step_count,
+            feat.tool_call_count,
+            feat.unique_tools_count,
+            feat.tool_mix_json,
+            feat.error_count,
+            feat.recovery_count,
+            feat.loop_suspicion_score,
+            feat.loop_suspicion_detected,
+            feat.loop_reasons_json,
+            feat.repeated_command_count,
+            feat.step_to_first_tool,
+            feat.step_to_first_edit,
+            feat.time_to_first_tool_seconds,
+            feat.time_to_first_edit_seconds,
+            feat.prompt_tokens,
+            feat.completion_tokens,
+            feat.cached_tokens,
+            feat.cost_usd,
+            feat.primary_reward,
+            feat.exception_class,
+            feat.duration_seconds,
+            feat.created_at,
+            feat.context_burn_velocity_screening,
+            feat.max_exit_code_cascade_screening,
         ],
     )
     rows = conn.execute("SELECT * FROM v_trace_baseline WHERE trial_id = 'parity-trial'").fetchall()
@@ -476,14 +513,26 @@ def test_python_sql_null_and_cardinality_parity(repo_root: Path, sample_steps: l
     cols = [desc[0] for desc in conn.description]
     sql_row = dict(zip(cols, rows[0], strict=True))
 
-    assert sql_row["linear_innocence_screening"] == pytest.approx(py_baseline.linear_innocence_screening, rel=1e-4)
-    assert sql_row["tool_error_rate_screening"] == pytest.approx(py_baseline.tool_error_rate_screening, rel=1e-4)
-    assert sql_row["context_burn_velocity_screening"] == pytest.approx(py_baseline.context_burn_velocity_screening, rel=1e-4)
+    assert sql_row["linear_innocence_screening"] == pytest.approx(
+        py_baseline.linear_innocence_screening, rel=1e-4
+    )
+    assert sql_row["tool_error_rate_screening"] == pytest.approx(
+        py_baseline.tool_error_rate_screening, rel=1e-4
+    )
+    assert sql_row["context_burn_velocity_screening"] == pytest.approx(
+        py_baseline.context_burn_velocity_screening, rel=1e-4
+    )
     assert sql_row["max_exit_code_cascade_screening"] == py_baseline.max_exit_code_cascade_screening
-    assert sql_row["cache_hit_rate_screening"] == pytest.approx(py_baseline.cache_hit_rate_screening, rel=1e-4)
+    assert sql_row["cache_hit_rate_screening"] == pytest.approx(
+        py_baseline.cache_hit_rate_screening, rel=1e-4
+    )
     assert sql_row["total_tokens"] == py_baseline.total_tokens
 
     # Test partial missing inputs in SQL: missing completion_tokens must yield NULL total_tokens
-    conn.execute("UPDATE traj_features SET completion_tokens = NULL WHERE trial_id = 'parity-trial'")
-    null_res = conn.execute("SELECT total_tokens FROM v_trace_baseline WHERE trial_id = 'parity-trial'").fetchone()
+    conn.execute(
+        "UPDATE traj_features SET completion_tokens = NULL WHERE trial_id = 'parity-trial'"
+    )
+    null_res = conn.execute(
+        "SELECT total_tokens FROM v_trace_baseline WHERE trial_id = 'parity-trial'"
+    ).fetchone()
     assert null_res[0] is None

@@ -175,3 +175,41 @@ def restore_evidence(store_root: Path, uri: str, destination: Path) -> Path:
             f"restored evidence digest mismatch: expected {expected_digest}, got {actual_digest}"
         )
     return destination
+
+
+def store_blob(store_root: Path, content: bytes | str) -> str:
+    """Store raw payload bytes/text in content-addressed storage and return cas://sha256/<hash>."""
+    raw_bytes = content.encode("utf-8") if isinstance(content, str) else content
+    digest_hex = hashlib.sha256(raw_bytes).hexdigest()
+    uri = f"cas://sha256/{digest_hex}"
+    blob = store_root.resolve() / "blobs/sha256" / digest_hex[:2] / f"{digest_hex}.bin"
+    if not blob.is_file():
+        blob.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = blob.with_suffix(".bin.tmp")
+        temporary.write_bytes(raw_bytes)
+        temporary.chmod(0o600)
+        try:
+            temporary.replace(blob)
+        except FileExistsError:
+            temporary.unlink(missing_ok=True)
+    return uri
+
+
+def load_blob(store_root: Path, uri: str) -> bytes:
+    """Load raw payload bytes from content-addressed storage."""
+    prefix = "cas://sha256/"
+    if not uri.startswith(prefix):
+        raise ValueError(f"unsupported evidence URI: {uri}")
+    digest = uri.removeprefix(prefix)
+    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+        raise ValueError("invalid content-addressed evidence URI")
+    path = store_root.resolve() / "blobs/sha256" / digest[:2] / f"{digest}.bin"
+    if not path.is_file():
+        if (store_root.resolve() / "blobs/sha256" / digest[:2] / f"{digest}.tar.gz").is_file():
+            raise ValueError(f"URI {uri} points to a directory archive, use load_archive instead")
+        raise FileNotFoundError(f"evidence blob is missing: {uri}")
+    content = path.read_bytes()
+    actual_digest = hashlib.sha256(content).hexdigest()
+    if actual_digest != digest:
+        raise ValueError(f"evidence blob digest mismatch: expected {digest}, got {actual_digest}")
+    return content

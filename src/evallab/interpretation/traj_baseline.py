@@ -479,7 +479,7 @@ class TraceBaselineRecord:
 
 def _compute_cbv_slope(steps: Sequence[StepOutline]) -> float | None:
     """Compute regression slope of prompt_tokens over step_ordinal.
-    
+
     Returns None if fewer than 2 steps have prompt_tokens or if step indices have 0 variance.
     """
     points: list[tuple[int, int]] = []
@@ -523,7 +523,7 @@ def _compute_exit_code_cascade(steps: Sequence[StepOutline]) -> int:
 
 def _compute_subagent_overhead(outline: TrajectoryOutline) -> float | None:
     """Compute ratio of subagent steps to total steps.
-    
+
     Returns None when step_count is 0, 0.0 when no subagents exist.
     """
     if outline.total_steps == 0:
@@ -660,3 +660,21 @@ TRACE_BASELINE_PARQUET_SCHEMA = pa.schema(
         pa.field("created_at", pa.string(), nullable=False),
     ]
 )
+
+# Public function aliases
+compute_cbv_slope = _compute_cbv_slope
+compute_exit_code_cascade = _compute_exit_code_cascade
+compute_subagent_overhead = _compute_subagent_overhead
+
+
+def get_column_provenance(column_name: str) -> BaselineProvenance | None:
+    """Get column-level provenance record for a trace baseline column."""
+    return TRACE_BASELINE_PROVENANCE.get(column_name)
+
+
+def create_trace_baseline_table(records: Sequence[TraceBaselineRecord]) -> pa.Table:
+    """Create a PyArrow table from a sequence of TraceBaselineRecord objects."""
+    dicts = [asdict(r) for r in records]
+    if not dicts:
+        return pa.Table.from_batches([], schema=TRACE_BASELINE_PARQUET_SCHEMA)
+    return pa.Table.from_pylist(dicts, schema=TRACE_BASELINE_PARQUET_SCHEMA)

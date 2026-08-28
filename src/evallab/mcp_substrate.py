@@ -4,7 +4,7 @@ Grounding: Architecture PR #265 (research/inbox/NEXT-BENCHMARK-PROGRAM-ARCHITECT
 
 Provides:
 - Task authoring substrate API (`materialize_mcp_sidecar_package`) emitting:
-  - `server.py` using genuine `fastmcp.FastMCP` (v3.4.7) with execution delegation and state journal event recording.
+  - `server.py` using genuine `fastmcp.FastMCP` (v3.4.7) with execution delegation, deterministic fault interceptor middleware, and state journal event recording.
   - `requirements.txt` strictly hash-locked with verified SHA-256 digests.
   - `Dockerfile` using offline `pip install --no-index --find-links=/wheelhouse --require-hashes`.
   - `offline-build-proof.json` recording exact wheel inventory and content digests.
@@ -15,8 +15,6 @@ Provides:
   - Task-local internal bridge network (`networks: {<name>: {internal: true}}`).
   - Attached services (`main` and `sidecar` attaching to the exact same internal network).
   - Task-local named volume (`main-RO` / `sidecar-RW`).
-- Standard MCP protocol compliant JSON-RPC 2.0 endpoint (/mcp) supporting initialize (2024-11-05), notifications/initialized, tools/list, and tools/call returning standard CallToolResult ({content: [{type: "text", text: ...}], isError: ...}).
-- In-process MCP streamable-HTTP sidecar runtime for test execution and offline sandboxing.
 - Deterministic Fault Interceptor middleware operating over FaultInjectionRecord contracts.
 - Invariant ground-truth separation (purges solutions/oracles from agent containers).
 - Substrate version & comprehensive digest computation (including execution_body and metadata).
@@ -25,21 +23,17 @@ Provides:
 from __future__ import annotations
 
 import hashlib
-import http.server
 import json
 import logging
 import re
 import shutil
-import urllib.parse
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from evallab.benchmark_program_contracts import (
-    FaultClass,
     FaultInjectionRecord,
-    canonical_bytes,
     canonical_json,
     compute_sha256,
     safe_resolve_subpath,
@@ -278,299 +272,15 @@ class MCPToolDefinition:
         }
 
 
-@dataclass
-class ToolExecutionContext:
-    tool_name: str
-    arguments: dict[str, Any]
-    call_ordinal: int
-    raw_event_ordinal: int
-
-
-ToolHandler = Callable[[dict[str, Any]], dict[str, Any]]
-
-
-class FaultInterceptorMiddleware:
-    """Deterministic fault interceptor operating on FaultInjectionRecord ledgers."""
-
-    def __init__(self, fault_record: FaultInjectionRecord | None = None) -> None:
-        self.fault_record = fault_record
-        self.injected_calls: list[dict[str, Any]] = []
-
-    def should_intercept(self, tool_name: str, call_ordinal: int) -> bool:
-        if self.fault_record is None:
-            return False
-        if self.fault_record.target_tool != tool_name:
-            return False
-        return call_ordinal == self.fault_record.target_canonical_event_ordinal
-
-    def apply_fault(
-        self, tool_name: str, arguments: dict[str, Any], call_ordinal: int
-    ) -> dict[str, Any]:
-        assert self.fault_record is not None
-        record = self.fault_record
-        fault_class = record.fault_class
-        payload = record.injection_payload
-
-        self.injected_calls.append(
-            {
-                "fault_id": record.fault_id,
-                "fault_class": fault_class.value,
-                "tool_name": tool_name,
-                "call_ordinal": call_ordinal,
-                "arguments": arguments,
-            }
-        )
-
-        if fault_class == FaultClass.TRANSIENT_HTTP_5XX:
-            return {
-                "is_error": True,
-                "http_status": 500,
-                "error": {
-                    "code": -32000,
-                    "message": payload.get(
-                        "message", "Internal Server Error: transient sidecar 500"
-                    ),
-                },
-            }
-        elif fault_class == FaultClass.TRANSIENT_NETWORK_TIMEOUT:
-            return {
-                "is_error": True,
-                "http_status": 504,
-                "error": {
-                    "code": -32001,
-                    "message": payload.get(
-                        "message", "Gateway Timeout: upstream tool response timed out"
-                    ),
-                },
-            }
-        elif fault_class == FaultClass.PERSISTENT_SCHEMA_MISMATCH:
-            return {
-                "is_error": True,
-                "http_status": 200,
-                "error": {
-                    "code": -32602,
-                    "message": payload.get(
-                        "message",
-                        f"Schema mismatch for tool {tool_name}: unexpected schema mutation",
-                    ),
-                    "data": payload.get(
-                        "data",
-                        {"expected_schema": payload.get("expected_schema", "v2_signature")},
-                    ),
-                },
-            }
-        elif fault_class == FaultClass.PERSISTENT_SIGNATURE_ERROR:
-            return {
-                "is_error": True,
-                "http_status": 200,
-                "error": {
-                    "code": -32602,
-                    "message": payload.get(
-                        "message",
-                        f"Signature error in tool {tool_name}: invalid positional argument binding",
-                    ),
-                },
-            }
-        elif fault_class == FaultClass.SILENT_WRONG_PAYLOAD:
-            corrupted_result = payload.get(
-                "corrupted_result",
-                {"value": payload.get("corrupted_value", "CORRUPTED_VALUE")},
-            )
-            return {
-                "is_error": False,
-                "http_status": 200,
-                "result": {
-                    "content": [{"type": "text", "text": json.dumps(corrupted_result)}],
-                    "isError": False,
-                    "value": corrupted_result.get("value", corrupted_result),
-                },
-                "_silent_fault_injected": True,
-            }
-        else:
-            raise SubstrateError(f"Unhandled fault class: {fault_class}")
-
-
-class FastMCPRuntime:
-    """In-memory FastMCP engine managing tools, execution, event ledgers, and fault middleware."""
-
-    def __init__(
-        self,
-        tools: Sequence[MCPToolDefinition],
-        handlers: Mapping[str, ToolHandler] | None = None,
-        fault_record: FaultInjectionRecord | None = None,
-        evidence_dir: Path | None = None,
-        state_log_name: str = "state-journal.jsonl",
-    ) -> None:
-        self.tools = {t.name: t for t in tools}
-        self.handlers = dict(handlers or {})
-        self.fault_interceptor = FaultInterceptorMiddleware(fault_record)
-        self.evidence_dir = evidence_dir
-        self.state_log_name = state_log_name
-        self.call_count = 0
-        self.events: list[dict[str, Any]] = []
-        self._prior_tool_calls: set[str] = set()
-
-        if self.evidence_dir is not None:
-            self.evidence_dir.mkdir(parents=True, exist_ok=True)
-
-    def register_tool(self, tool_def: MCPToolDefinition, handler: ToolHandler) -> None:
-        self.tools[tool_def.name] = tool_def
-        self.handlers[tool_def.name] = handler
-
-    def list_tools(self) -> list[dict[str, Any]]:
-        return [t.to_mcp_tool_schema() for t in self.tools.values()]
-
-    def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> tuple[dict[str, Any], int]:
-        self.call_count += 1
-        ordinal = self.call_count
-        call_sig = f"{tool_name}:{canonical_json(arguments)}"
-        is_redundant = call_sig in self._prior_tool_calls
-        self._prior_tool_calls.add(call_sig)
-
-        if tool_name not in self.tools:
-            err_resp = {
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -32601,
-                    "message": f"Method not found: unknown tool {tool_name!r}",
-                },
-            }
-            self._log_event(
-                {
-                    "event_ordinal": ordinal,
-                    "event_type": "tool_call_rejected",
-                    "tool_name": tool_name,
-                    "arguments": arguments,
-                    "is_redundant": is_redundant,
-                    "error": err_resp["error"],
-                }
-            )
-            return err_resp, 200
-
-        tool_def = self.tools[tool_name]
-        missing_params = [
-            p.name for p in tool_def.parameters if p.required and p.name not in arguments
-        ]
-        if missing_params:
-            err_resp = {
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -32602,
-                    "message": f"Invalid params: missing required argument(s): {missing_params}",
-                },
-            }
-            self._log_event(
-                {
-                    "event_ordinal": ordinal,
-                    "event_type": "tool_call_rejected",
-                    "tool_name": tool_name,
-                    "arguments": arguments,
-                    "is_redundant": is_redundant,
-                    "schema_conforming": False,
-                    "error": err_resp["error"],
-                }
-            )
-            return err_resp, 200
-
-        if self.fault_interceptor.should_intercept(tool_name, ordinal):
-            fault_res = self.fault_interceptor.apply_fault(tool_name, arguments, ordinal)
-            status_code = fault_res.get("http_status", 200)
-            if fault_res.get("is_error"):
-                response = {"jsonrpc": "2.0", "error": fault_res["error"]}
-                self._log_event(
-                    {
-                        "event_ordinal": ordinal,
-                        "event_type": "tool_call_fault_injected",
-                        "tool_name": tool_name,
-                        "arguments": arguments,
-                        "fault_class": self.fault_interceptor.fault_record.fault_class.value,  # type: ignore
-                        "fault_id": self.fault_interceptor.fault_record.fault_id,  # type: ignore
-                        "error": fault_res["error"],
-                    }
-                )
-                return response, status_code
-            else:
-                response = {"jsonrpc": "2.0", "result": fault_res["result"]}
-                self._log_event(
-                    {
-                        "event_ordinal": ordinal,
-                        "event_type": "tool_call_silent_fault_injected",
-                        "tool_name": tool_name,
-                        "arguments": arguments,
-                        "fault_class": self.fault_interceptor.fault_record.fault_class.value,  # type: ignore
-                        "fault_id": self.fault_interceptor.fault_record.fault_id,  # type: ignore
-                        "result": fault_res["result"],
-                    }
-                )
-                return response, status_code
-
-        handler = self.handlers.get(tool_name)
-        if handler is None:
-            raw_res = {"status": "ok", "tool": tool_name, "arguments": arguments}
-        else:
-            try:
-                raw_res = handler(arguments)
-            except Exception as exc:
-                err_resp = {
-                    "jsonrpc": "2.0",
-                    "error": {"code": -32000, "message": f"Tool execution failed: {exc}"},
-                }
-                self._log_event(
-                    {
-                        "event_ordinal": ordinal,
-                        "event_type": "tool_call_exception",
-                        "tool_name": tool_name,
-                        "arguments": arguments,
-                        "is_redundant": is_redundant,
-                        "error": str(exc),
-                    }
-                )
-                return err_resp, 200
-
-        val = raw_res.get("value", raw_res) if isinstance(raw_res, dict) else raw_res
-        res_data = {
-            "content": [
-                {
-                    "type": "text",
-                    "text": (
-                        json.dumps(raw_res) if isinstance(raw_res, (dict, list)) else str(raw_res)
-                    ),
-                }
-            ],
-            "isError": False,
-            "value": val,
-        }
-
-        response = {"jsonrpc": "2.0", "result": res_data}
-        self._log_event(
-            {
-                "event_ordinal": ordinal,
-                "event_type": "tool_call_success",
-                "tool_name": tool_name,
-                "arguments": arguments,
-                "is_redundant": is_redundant,
-                "schema_conforming": True,
-                "result": res_data,
-            }
-        )
-        return response, 200
-
-    def _log_event(self, event: dict[str, Any]) -> None:
-        self.events.append(event)
-        if self.evidence_dir is not None:
-            log_file = self.evidence_dir / self.state_log_name
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(canonical_json(event) + "\n")
-
-
 def generate_fastmcp_server_script(
     tools: Sequence[MCPToolDefinition],
     server_name: str = "eval-lab-fastmcp-sidecar",
     port: int = DEFAULT_MCP_PORT,
     evidence_path: str = "/app/output/benchmark-events.jsonl",
     op_registry_module: str | None = None,
+    fault_record: FaultInjectionRecord | None = None,
 ) -> str:
-    """Generate production-ready FastMCP sidecar server script with full event recording and tool execution."""
+    """Generate production-ready FastMCP sidecar server script with full event recording, fault injection, and tool execution."""
     lines = [
         '"""Generated FastMCP Streamable-HTTP sidecar server with state journal recording."""',
         "from __future__ import annotations",
@@ -614,6 +324,30 @@ def generate_fastmcp_server_script(
         ]
     )
 
+    if fault_record:
+        fault_json = json.dumps(canonical_json(fault_record.model_dump(mode="json")))
+        lines.extend(
+            [
+                f"FAULT_RECORD = json.loads({fault_json})",
+                "def check_fault(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any] | None:",
+                "    global EVENT_ORDINAL",
+                "    if FAULT_RECORD and FAULT_RECORD.get('target_tool') == tool_name:",
+                "        if (EVENT_ORDINAL + 1) == FAULT_RECORD.get('target_canonical_event_ordinal'):",
+                "            fc = FAULT_RECORD.get('fault_class')",
+                "            payload = FAULT_RECORD.get('injection_payload', {})",
+                "            if fc == 'silent_wrong_payload':",
+                "                corrupt = payload.get('corrupted_result', {'value': payload.get('corrupted_value', 'CORRUPTED_VALUE')})",
+                "                log_tool_event(tool_name, arguments, corrupt, is_distractor=False)",
+                "                return corrupt",
+                "            elif fc in ('persistent_schema_mismatch', 'persistent_signature_error'):",
+                "                raise ValueError(payload.get('message', 'Persistent error injected'))",
+                "            elif fc in ('transient_http_5xx', 'transient_network_timeout'):",
+                "                raise RuntimeError(payload.get('message', 'Transient error injected'))",
+                "    return None",
+                "",
+            ]
+        )
+
     for tool in tools:
         param_sigs = []
         arg_dict_entries = []
@@ -639,6 +373,15 @@ def generate_fastmcp_server_script(
                 f"    args = {arg_dict_str}",
             ]
         )
+
+        if fault_record:
+            lines.extend(
+                [
+                    f'    fault_res = check_fault("{tool.name}", args)',
+                    "    if fault_res is not None:",
+                    "        return fault_res",
+                ]
+            )
 
         if tool.execution_body:
             for b_line in tool.execution_body.strip().splitlines():
@@ -708,6 +451,7 @@ def materialize_mcp_sidecar_package(
     base_image: str = DEFAULT_PINNED_BASE_IMAGE,
     wheelhouse_source: Path | None = None,
     op_registry_module: str | None = None,
+    fault_record: FaultInjectionRecord | None = None,
     plan_only: bool = False,
     internal_network_name: str = DEFAULT_INTERNAL_NETWORK_NAME,
 ) -> dict[str, Any]:
@@ -721,6 +465,7 @@ def materialize_mcp_sidecar_package(
         base_image: Immutable pinned base image reference.
         wheelhouse_source: Directory of pre-downloaded wheels matching FASTMCP_SIDECAR_REQUIREMENTS_TXT. Mandatory unless plan_only=True.
         op_registry_module: Optional module path for DAG/operation registry delegation.
+        fault_record: Optional FaultInjectionRecord for deterministic fault injection.
         plan_only: When True, skips Dockerfile/wheelhouse copying and emits only plan specification.
         internal_network_name: Name of the task-local internal Docker bridge.
     """
@@ -733,6 +478,7 @@ def materialize_mcp_sidecar_package(
         server_name=server_name,
         port=port,
         op_registry_module=op_registry_module,
+        fault_record=fault_record,
     )
     (target_dir / "server.py").write_text(server_code, encoding="utf-8")
 
@@ -803,121 +549,6 @@ def materialize_mcp_sidecar_package(
         "collect_fragment": collect_fragment,
         "proof_sha256": compute_sha256(proof_data),
     }
-
-
-def make_fastmcp_http_handler(
-    runtime: FastMCPRuntime,
-) -> type[http.server.BaseHTTPRequestHandler]:
-    """Create a standard HTTP request handler serving the FastMCP JSON-RPC streamable interface."""
-
-    class FastMCPHandler(http.server.BaseHTTPRequestHandler):
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
-            pass
-
-        def _send_json(self, status: int, data: Any) -> None:
-            body = canonical_bytes(data)
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def do_GET(self) -> None:
-            parsed = urllib.parse.urlparse(self.path)
-            if parsed.path == "/health" or parsed.path == "/":
-                self._send_json(200, {"status": "ok", "version": MCP_SUBSTRATE_VERSION})
-            elif parsed.path == "/events":
-                body = "\n".join(canonical_json(e) for e in runtime.events).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "application/x-ndjson")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-            else:
-                self._send_json(404, {"error": f"Path not found: {parsed.path}"})
-
-        def do_POST(self) -> None:
-            parsed = urllib.parse.urlparse(self.path)
-            if parsed.path != "/mcp" and parsed.path != "/":
-                self._send_json(404, {"error": f"Invalid endpoint: {parsed.path}, use /mcp"})
-                return
-
-            length = int(self.headers.get("Content-Length", 0))
-            raw_body = self.rfile.read(length)
-            try:
-                payload = json.loads(raw_body.decode("utf-8"))
-            except Exception as exc:
-                self._send_json(
-                    400,
-                    {
-                        "jsonrpc": "2.0",
-                        "error": {"code": -32700, "message": f"Parse error: {exc}"},
-                    },
-                )
-                return
-
-            req_id = payload.get("id")
-            method = payload.get("method")
-            params = payload.get("params", {})
-
-            if method == "initialize":
-                protocol_version = params.get("protocolVersion", DEFAULT_PROTOCOL_VERSION)
-                res = {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "result": {
-                        "protocolVersion": protocol_version,
-                        "capabilities": {
-                            "tools": {"listChanged": False},
-                            "logging": {},
-                        },
-                        "serverInfo": {
-                            "name": "eval-lab-fastmcp-sidecar",
-                            "version": MCP_SUBSTRATE_VERSION,
-                        },
-                    },
-                }
-                self._send_json(200, res)
-            elif method == "notifications/initialized":
-                if req_id is not None:
-                    self._send_json(200, {"jsonrpc": "2.0", "id": req_id, "result": {}})
-                else:
-                    self.send_response(204)
-                    self.end_headers()
-            elif method == "tools/list":
-                tools = runtime.list_tools()
-                res = {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "result": {
-                        "tools": tools,
-                    },
-                }
-                self._send_json(200, res)
-            elif method == "tools/call":
-                tool_name = params.get("name")
-                arguments = params.get("arguments", {})
-                call_resp, status_code = runtime.call_tool(tool_name, arguments)
-                call_resp["id"] = req_id
-                self._send_json(status_code, call_resp)
-            else:
-                if req_id is not None:
-                    self._send_json(
-                        200,
-                        {
-                            "jsonrpc": "2.0",
-                            "id": req_id,
-                            "error": {
-                                "code": -32601,
-                                "message": f"Method not implemented: {method!r}",
-                            },
-                        },
-                    )
-                else:
-                    self.send_response(204)
-                    self.end_headers()
-
-    return FastMCPHandler
 
 
 def compute_mcp_substrate_digest(

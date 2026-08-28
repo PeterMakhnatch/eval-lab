@@ -60,7 +60,6 @@ jobs:
           import sys
           from pathlib import Path
           
-          # Add vertical directory to sys.path
           ROOT = Path("library/benchmarks/mcp-recovery-v1").resolve()
           sys.path.insert(0, str(ROOT))
           

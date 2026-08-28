@@ -100,13 +100,17 @@ url = "http://mcp-sidecar:8000/mcp"
 
 You are interacting with an MCP server exposed via Streamable HTTP at `http://mcp-sidecar:8000/mcp`.
 
-## Goal
-Safely execute state mutations on the MCP server:
-1. Initialize session with `initialize` call.
-2. Query available tools with `tools/list`.
-3. Call tool `write_record` with `key="canary_key"` and `value="verified_value"`.
-4. If tool invocation encounters errors (such as HTTP 403 Permission Denied, HTTP 404 Not Found, Timeout, Malformed Output, or Silent Wrong Results), diagnose the fault, mutate your credentials/strategy, and achieve state invariant restoration.
-5. Invariant requirement: The MCP server must contain `canary_key="verified_value"` and `session_status="completed"`.
+## Protocol & Execution Flow
+1. Initialize connection using standard MCP `initialize`.
+2. Discover tools with `tools/list` (`write_record`, `read_record`, `refresh_auth`, `fallback_query`).
+3. Set record `canary_key="verified_value"` via `write_record`.
+4. Read back and verify record integrity via `read_record(key="canary_key")`.
+5. Error Recovery & Invariant Policy:
+   - If HTTP 403 / Permission Denied occurs, invoke `refresh_auth(scope="admin_write")` and retry.
+   - If HTTP 404 / Not Found occurs, query `fallback_query(query="canary_key")` to sync replica and retry write.
+   - If HTTP 408 / Timeout or malformed stream occurs, retry the operation.
+   - If `read_record` or `write_record` returns corrupted / unexpected payload (such as silent corruption), re-issue verified write until `read_record` confirms `value="verified_value"`.
+   - Ensure final state satisfies: `canary_key="verified_value"` and `session_status="completed"`.
 """
     (target_dir / "instruction.md").write_text(instruction, encoding="utf-8")
 
@@ -223,6 +227,7 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
         if method == "tools/list":
             tools = [
                 {{"name": "write_record", "description": "Write a record", "inputSchema": {{"type": "object", "properties": {{"key": {{"type": "string"}}, "value": {{}}}}}}}},
+                {{"name": "read_record", "description": "Read a record", "inputSchema": {{"type": "object", "properties": {{"key": {{"type": "string"}}}}}}}},
                 {{"name": "refresh_auth", "description": "Refresh auth token", "inputSchema": {{"type": "object", "properties": {{"scope": {{"type": "string"}}}}}}}},
                 {{"name": "fallback_query", "description": "Fallback replica query", "inputSchema": {{"type": "object", "properties": {{"query": {{"type": "string"}}}}}}}},
             ]
@@ -237,7 +242,7 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
             arguments = params.get("arguments", {{}})
 
             if tool_name == "refresh_auth":
-                db["__auth__"] = arguments.get("scope", "admin")
+                db["__auth__"] = arguments.get("scope", "admin_write")
                 log_event("tool_executed", {{"tool": "refresh_auth", "arguments": arguments}})
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -253,17 +258,43 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": "replica fallback ok"}}]}}}}).encode('utf-8'))
                 return
 
+            if tool_name == "read_record":
+                key = arguments.get("key")
+                val = db.get(key)
+                # Check for silent wrong result fault on read
+                if FAULT_MODE == "silent-wrong-result" and hits < PERSISTENCE:
+                    hits += 1
+                    log_event("fault_injected", {{"tool": "read_record", "fault_class": FAULT_MODE, "hit": hits}})
+                    corrupt_val = "corrupted_silent_val"
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": json.dumps({{"key": key, "value": corrupt_val, "exists": True}})}}]}}}}).encode('utf-8'))
+                    return
+
+                log_event("tool_executed", {{"tool": "read_record", "arguments": arguments}})
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": json.dumps({{"key": key, "value": val, "exists": key in db}})}}]}}}}).encode('utf-8'))
+                return
+
             if tool_name == "write_record":
+                # Permission check: if fault mode is permission-denied, require admin_write scope
+                if FAULT_MODE == "permission-denied" and db.get("__auth__") != "admin_write":
+                    if hits < PERSISTENCE:
+                        hits += 1
+                    log_event("fault_injected", {{"tool": "write_record", "fault_class": FAULT_MODE, "hit": hits}})
+                    self.send_response(403)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "error": {{"code": 403, "message": "Permission denied: write requires admin_write scope"}}}}).encode('utf-8'))
+                    return
+
                 if hits < PERSISTENCE:
                     hits += 1
                     log_event("fault_injected", {{"tool": "write_record", "fault_class": FAULT_MODE, "hit": hits}})
-                    if FAULT_MODE == "permission-denied":
-                        self.send_response(403)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "error": {{"code": 403, "message": "Permission denied"}}}}).encode('utf-8'))
-                        return
-                    elif FAULT_MODE == "not-found":
+                    if FAULT_MODE == "not-found":
                         self.send_response(404)
                         self.send_header('Content-Type', 'application/json')
                         self.end_headers()
@@ -280,12 +311,6 @@ class McpHttpHandler(http.server.BaseHTTPRequestHandler):
                         self.send_header('Content-Type', 'text/html')
                         self.end_headers()
                         self.wfile.write(b"<html>502 Bad Gateway unparseable chunk\\x00\\xff")
-                        return
-                    elif FAULT_MODE == "silent-wrong-result":
-                        self.send_response(200)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({{"jsonrpc": "2.0", "id": req_id, "result": {{"content": [{{"type": "text", "text": "silent_corrupted_value"}}]}}}}).encode('utf-8'))
                         return
 
                 # Normal success execution
@@ -308,10 +333,10 @@ if __name__ == "__main__":
 """
     (sidecar_dir / "server.py").write_text(sidecar_server_code, encoding="utf-8")
 
-    # 4. solution/ (Oracle Solution calling actual MCP HTTP server and adapting)
+    # 4. solution/ (Universal Oracle Solution diagnosing actual responses without hardcoded fault knowledge)
     sol_dir = target_dir / "solution"
     sol_dir.mkdir(parents=True, exist_ok=True)
-    solve_sh = f"""#!/bin/sh
+    solve_sh = """#!/bin/sh
 set -eu
 python - <<'PY'
 import json
@@ -319,11 +344,11 @@ import http.client
 import time
 
 def call_mcp(method, params=None):
-    payload = {{"jsonrpc": "2.0", "id": 1, "method": method}}
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
     if params is not None:
         payload["params"] = params
     body = json.dumps(payload)
-    headers = {{"Content-Type": "application/json"}}
+    headers = {"Content-Type": "application/json"}
     conn = http.client.HTTPConnection("mcp-sidecar", 8000, timeout=10)
     try:
         conn.request("POST", "/mcp", body, headers)
@@ -335,7 +360,7 @@ def call_mcp(method, params=None):
     finally:
         conn.close()
 
-# Wait for sidecar server
+# Wait for sidecar server initialize
 for _ in range(30):
     try:
         st, res = call_mcp("initialize")
@@ -345,29 +370,50 @@ for _ in range(30):
         pass
     time.sleep(0.5)
 
-# Step 1: Initial call encountering fault
-st1, res1 = call_mcp("tools/call", {{"name": "write_record", "arguments": {{"key": "canary_key", "value": "verified_value"}}}})
+# Discover tools
+call_mcp("tools/list")
 
-# Step 2: Adaptation based on fault
-fault_mode = "{slug_mode}"
-if fault_mode == "permission-denied":
-    call_mcp("tools/call", {{"name": "refresh_auth", "arguments": {{"scope": "admin_write"}}}})
-elif fault_mode == "not-found":
-    call_mcp("tools/call", {{"name": "fallback_query", "arguments": {{"query": "canary_key"}}}})
+# Diagnostic loop: Attempt write and adapt dynamically based on observed response
+target_key = "canary_key"
+target_val = "verified_value"
 
-# Persistence retry if required
-if {persistence} > 1 and fault_mode in ("timeout", "malformed-output", "silent-wrong-result"):
-    call_mcp("tools/call", {{"name": "write_record", "arguments": {{"key": "canary_key", "value": "verified_value"}}}})
-
-# Final successful mutation
-st_final, res_final = call_mcp("tools/call", {{"name": "write_record", "arguments": {{"key": "canary_key", "value": "verified_value"}}}})
+for attempt in range(10):
+    st, res = call_mcp("tools/call", {"name": "write_record", "arguments": {"key": target_key, "value": target_val}})
+    
+    if st == 403:
+        # Permission denied: mutate authentication scope
+        call_mcp("tools/call", {"name": "refresh_auth", "arguments": {"scope": "admin_write"}})
+        continue
+    elif st == 404:
+        # Not found: query fallback replica
+        call_mcp("tools/call", {"name": "fallback_query", "arguments": {"query": target_key}})
+        continue
+    elif st in (408, 500, 502) or not res.startswith("{"):
+        # Timeout or malformed stream: retry after backoff
+        time.sleep(0.2)
+        continue
+    elif st == 200:
+        # Check integrity by reading back
+        st_r, res_r = call_mcp("tools/call", {"name": "read_record", "arguments": {"key": target_key}})
+        if st_r == 200 and res_r.startswith("{"):
+            try:
+                parsed = json.loads(res_r)
+                text_content = parsed.get("result", {}).get("content", [{}])[0].get("text", "")
+                data = json.loads(text_content)
+                if data.get("value") == target_val:
+                    # Verified integrity restored
+                    break
+            except Exception:
+                pass
+        # If read returned corrupted data, re-issue write
+        time.sleep(0.2)
 PY
 """
     solve_path = sol_dir / "solve.sh"
     solve_path.write_text(solve_sh, encoding="utf-8")
     solve_path.chmod(0o755)
 
-    # 5. tests/ (Separate Verifier)
+    # 5. tests/ (Separate Verifier with Strict Adaptive Scoring)
     tests_dir = target_dir / "tests"
     tests_dir.mkdir(parents=True, exist_ok=True)
 
@@ -390,14 +436,17 @@ exec python /tests/verify.py
     test_sh_path.write_text(test_sh, encoding="utf-8")
     test_sh_path.chmod(0o755)
 
-    # tests/verify.py
-    verify_py = """import json
+    # tests/verify.py (Strict verifier checking adaptation, distinguishing blind retry)
+    verify_py = f"""import json
 import sys
 from pathlib import Path
 
 LOG_DIR = Path("/logs/verifier")
 EVIDENCE_FILE = Path("/app/shared_state/benchmark-events.jsonl")
 FINAL_STATE_FILE = Path("/app/shared_state/final-state.json")
+
+EXPECTED_FAULT_MODE = "{slug_mode}"
+EXPECTED_PERSISTENCE = {persistence}
 
 def main():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -410,26 +459,45 @@ def main():
             events = [json.loads(line) for line in EVIDENCE_FILE.read_text(encoding='utf-8').splitlines() if line.strip()]
             final_state = json.loads(FINAL_STATE_FILE.read_text(encoding='utf-8'))
             
-            # Verify monotonic indexing
+            # 1. Monotonic indexing
             monotonic = all(ev.get("event_index") == idx for idx, ev in enumerate(events))
             
-            records = final_state.get("records", {})
+            # 2. Invariants restored
+            records = final_state.get("records", {{}})
             invariants = records.get("canary_key") == "verified_value" and records.get("session_status") == "completed"
             
+            # 3. Fault events and tool events
             faults = [e for e in events if e.get("event_type") == "fault_injected"]
             tools = [e for e in events if e.get("event_type") == "tool_executed"]
             
-            adaptation = len(faults) > 0 and len(tools) > 0
-            passed = monotonic and invariants and adaptation
-            reason = "ok" if passed else "failed verification checks"
+            # 4. Strict adaptation check (Must not reward un-adapted blind retry)
+            adaptation = False
+            if EXPECTED_FAULT_MODE == "permission-denied":
+                # Must have explicitly called refresh_auth
+                adaptation = any(t.get("payload", {{}}).get("tool") == "refresh_auth" for t in tools)
+            elif EXPECTED_FAULT_MODE == "not-found":
+                # Must have explicitly called fallback_query
+                adaptation = any(t.get("payload", {{}}).get("tool") == "fallback_query" for t in tools)
+            elif EXPECTED_FAULT_MODE == "silent-wrong-result":
+                # Must have called read_record to detect corruption
+                adaptation = any(t.get("payload", {{}}).get("tool") == "read_record" for t in tools)
+            elif EXPECTED_FAULT_MODE in ("timeout", "malformed-output"):
+                # If persistence > 1, must have performed multi-step retries
+                if EXPECTED_PERSISTENCE > 1:
+                    adaptation = len(faults) >= 2 and len(tools) >= 1
+                else:
+                    adaptation = len(faults) >= 1 and len(tools) >= 1
+
+            passed = monotonic and invariants and adaptation and len(faults) > 0
+            reason = "ok" if passed else f"failed verification (monotonic={{monotonic}}, invariants={{invariants}}, adaptation={{adaptation}}, faults={{len(faults)}})"
         except Exception as exc:
             passed = False
-            reason = f"exception during verification: {exc}"
+            reason = f"exception during verification: {{exc}}"
 
     reward_val = 1.0 if passed else 0.0
-    (LOG_DIR / "reward.txt").write_text(f"{reward_val:.1f}\\n")
-    (LOG_DIR / "reward.json").write_text(json.dumps({"reward": reward_val, "passed": passed, "reason": reason}))
-    print(json.dumps({"passed": passed, "reward": reward_val, "reason": reason}))
+    (LOG_DIR / "reward.txt").write_text(f"{{reward_val:.1f}}\\n")
+    (LOG_DIR / "reward.json").write_text(json.dumps({{"reward": reward_val, "passed": passed, "reason": reason}}))
+    print(json.dumps({{"passed": passed, "reward": reward_val, "reason": reason}}))
 
 if __name__ == "__main__":
     main()
@@ -442,7 +510,7 @@ if __name__ == "__main__":
     adv_dir = wb_dir / "adversarial"
     adv_dir.mkdir(parents=True, exist_ok=True)
 
-    # workbench/fair-alternative.sh
+    # workbench/fair-alternative.sh (Valid general solver)
     fair_alt_sh = """#!/bin/sh
 set -eu
 python - <<'PY'
@@ -469,9 +537,27 @@ for _ in range(30):
     except: pass
     time.sleep(0.5)
 
-call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
-call_mcp("tools/call", {"name": "refresh_auth", "arguments": {"scope": "admin_write"}})
-call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
+call_mcp("tools/list")
+
+target_k = "canary_key"
+target_v = "verified_value"
+
+for _ in range(10):
+    st, res = call_mcp("tools/call", {"name": "write_record", "arguments": {"key": target_k, "value": target_v}})
+    if st == 403:
+        call_mcp("tools/call", {"name": "refresh_auth", "arguments": {"scope": "admin_write"}})
+        continue
+    elif st == 404:
+        call_mcp("tools/call", {"name": "fallback_query", "arguments": {"query": target_k}})
+        continue
+    elif st in (408, 500, 502) or not res.startswith("{"):
+        time.sleep(0.2)
+        continue
+    elif st == 200:
+        st_r, res_r = call_mcp("tools/call", {"name": "read_record", "arguments": {"key": target_k}})
+        if st_r == 200 and target_v in res_r:
+            break
+        time.sleep(0.2)
 PY
 """
     fair_path = wb_dir / "fair-alternative.sh"
@@ -495,7 +581,7 @@ set -eu
     (adv_dir / "nop.sh").write_text(nop_sh, encoding="utf-8")
     (adv_dir / "nop.sh").chmod(0o755)
 
-    # workbench/adversarial/blind-retry.sh
+    # workbench/adversarial/blind-retry.sh (Fixed policy blind retry control)
     blind_sh = """#!/bin/sh
 set -eu
 python - <<'PY'
@@ -522,8 +608,10 @@ for _ in range(30):
     except: pass
     time.sleep(0.5)
 
-# Blind identical calls without auth/adaptation
-call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
+# Blind identical calls without auth/fallback mutation
+for _ in range(3):
+    call_mcp("tools/call", {"name": "write_record", "arguments": {"key": "canary_key", "value": "verified_value"}})
+    time.sleep(0.1)
 PY
 """
     (adv_dir / "blind-retry.sh").write_text(blind_sh, encoding="utf-8")

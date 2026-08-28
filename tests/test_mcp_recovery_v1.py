@@ -8,7 +8,13 @@ sys.path.insert(0, str(ROOT))
 
 from contract import get_benchmark_contract  # noqa: E402
 from faults import FaultClass, FaultController, FaultSpec  # noqa: E402
-from materializer import materialize, output_path  # noqa: E402
+from materializer import (  # noqa: E402
+    FAULT_MODES,
+    PERSISTENCE_LEVELS,
+    materialize,
+    materialize_all_campaign0,
+    output_path,
+)
 from runtime import McpServerRuntime  # noqa: E402
 from state import DatabaseState, StateCertificate  # noqa: E402
 from templates import (  # noqa: E402
@@ -107,8 +113,8 @@ def test_verifier_oracle_nop_and_mutants(tmp_path):
 
 def test_task_workbench_static_inspection():
     repo_root = Path(__file__).resolve().parents[1]
-    task_dir = output_path(seed=42, fault_mode="permission_denied", persistence=1)
-    materialize(task_dir, seed=42, fault_mode="permission_denied", persistence=1)
+    task_dir = output_path(seed=42, fault_mode="permission-denied", persistence=1)
+    materialize(task_dir, seed=42, fault_mode="permission-denied", persistence=1)
     
     source = CandidateSource(
         source_uri="https://github.com/PeterMakhnatch/eval-lab",
@@ -120,3 +126,19 @@ def test_task_workbench_static_inspection():
     inspection = inspect_candidate(repo_root=repo_root, task_path=task_dir, source=source)
     assert inspection.static_passed is True, f"Inspection failed: {inspection.diagnostics}"
     assert inspection.candidate["candidate_id"] is not None
+
+
+def test_all_campaign0_cells_materialize_and_pass_static():
+    repo_root = Path(__file__).resolve().parents[1]
+    paths = materialize_all_campaign0(seed=42)
+    assert len(paths) == len(FAULT_MODES) * len(PERSISTENCE_LEVELS) == 10
+    
+    source = CandidateSource(
+        source_uri="https://github.com/PeterMakhnatch/eval-lab",
+        source_ref="local/mcp-recovery@1.0",
+        license="MIT",
+        provenance_zone="03-synthetic",
+    )
+    for p in paths:
+        inspection = inspect_candidate(repo_root=repo_root, task_path=p, source=source)
+        assert inspection.static_passed is True, f"Static check failed for {p.name}: {inspection.diagnostics}"

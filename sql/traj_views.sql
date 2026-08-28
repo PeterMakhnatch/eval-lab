@@ -56,7 +56,18 @@ CREATE TABLE IF NOT EXISTS traj_features (
     duration_seconds DOUBLE,
     created_at VARCHAR,
     context_burn_velocity_screening DOUBLE,
-    max_exit_code_cascade_screening BIGINT
+    max_exit_code_cascade_screening BIGINT,
+    is_expected_negative BOOLEAN,
+    expected_probe_count BIGINT,
+    step_to_first_error BIGINT,
+    time_to_first_error_seconds DOUBLE,
+    recovery_latency_steps BIGINT,
+    recovery_latency_seconds DOUBLE,
+    unrecovered_at_terminal BOOLEAN,
+    intervention_category VARCHAR,
+    autonomous_step_count BIGINT,
+    assisted_step_count BIGINT,
+    intervention_count BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS behavior_labels (
@@ -398,6 +409,10 @@ SELECT
         WHEN tool_call_count > 0 THEN round(error_count * 1.0 / tool_call_count, 4)
         ELSE NULL
     END AS tool_error_rate_screening,
+    CASE
+        WHEN error_count > 0 THEN round(recovery_count * 1.0 / error_count, 4)
+        ELSE NULL
+    END AS recovery_rate_screening,
     context_burn_velocity_screening,
     max_exit_code_cascade_screening,
     CASE
@@ -409,6 +424,25 @@ SELECT
         WHEN step_count > 0 THEN round((step_count - agent_step_count - user_step_count) * 1.0 / step_count, 4)
         ELSE NULL
     END AS subagent_overhead_ratio_screening,
+    CASE
+        WHEN step_count > 0 THEN round(autonomous_step_count * 1.0 / step_count, 4)
+        ELSE NULL
+    END AS autonomous_step_ratio_screening,
+    CASE
+        WHEN step_count > 0 THEN round(assisted_step_count * 1.0 / step_count, 4)
+        ELSE NULL
+    END AS assisted_step_ratio_screening,
+    is_expected_negative,
+    expected_probe_count,
+    step_to_first_error,
+    time_to_first_error_seconds,
+    recovery_latency_steps,
+    recovery_latency_seconds,
+    unrecovered_at_terminal,
+    intervention_category,
+    autonomous_step_count,
+    assisted_step_count,
+    intervention_count,
     prompt_tokens,
     completion_tokens,
     cached_tokens,

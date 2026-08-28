@@ -581,7 +581,16 @@ def test_sql_traj_views_with_data() -> None:
         # Insert fixture feature
         con.execute(
             """
-                INSERT INTO traj_features VALUES (
+                INSERT INTO traj_features (
+                    trial_id, job_id, trial_name, job_name, task_name,
+                    agent_name, agent_version, model_name, status, unavailable_reason,
+                    source_path, source_sha256, step_count, agent_step_count, system_step_count, user_step_count,
+                    tool_call_count, unique_tools_count, tool_mix_json, error_count, recovery_count,
+                    loop_suspicion_score, loop_suspicion_detected, loop_reasons_json, repeated_command_count,
+                    step_to_first_tool, step_to_first_edit, time_to_first_tool_seconds, time_to_first_edit_seconds,
+                    prompt_tokens, completion_tokens, cached_tokens, cost_usd, primary_reward, exception_class,
+                    duration_seconds, created_at, context_burn_velocity_screening, max_exit_code_cascade_screening
+                ) VALUES (
                     't-001', 'j-001', 'trial-001', 'job-001', 'task-a',
                     'codex', '0.1.0', 'gpt-5.6', 'featured', NULL,
                     'path/to/traj', 'sha256:abc', 10, 8, 1, 1,

@@ -144,6 +144,7 @@ class TrajectoryCardData:
             "result_sha256": self.result_sha256,
         }
 
+
 def _inspect_quality_status(trial_dir: Path) -> QualityInspection:
     """Inspect quality ledger output when available, otherwise returning unknown."""
     # Check for direct quality files in trial directory
@@ -159,7 +160,12 @@ def _inspect_quality_status(trial_dir: Path) -> QualityInspection:
                 data = json.loads(cand.read_text(encoding="utf-8", errors="replace"))
                 if isinstance(data, dict):
                     status_val = data.get("quality_status") or data.get("status")
-                    if status_val and str(status_val).lower() in ("pass", "warn", "fail", "quarantined"):
+                    if status_val and str(status_val).lower() in (
+                        "pass",
+                        "warn",
+                        "fail",
+                        "quarantined",
+                    ):
                         reasons = tuple(data.get("reasons") or data.get("findings") or [])
                         return QualityInspection(
                             status=str(status_val).lower(),
@@ -225,10 +231,14 @@ def _analyze_intervention_provenance(outline: TrajectoryOutline) -> Intervention
             agent_steps += 1
     if intermediate_user_turns:
         category = "user_assisted"
-        summary = f"User-assisted execution ({user_steps} user turns; intermediate steering detected)"
+        summary = (
+            f"User-assisted execution ({user_steps} user turns; intermediate steering detected)"
+        )
     elif user_steps > 0:
         category = "autonomous"
-        summary = "Autonomous execution (initial task instruction only; no intermediate user steering)"
+        summary = (
+            "Autonomous execution (initial task instruction only; no intermediate user steering)"
+        )
     elif agent_steps > 0:
         category = "autonomous"
         summary = "Autonomous execution (zero human turns in trajectory)"
@@ -263,7 +273,9 @@ def build_traj_card_data(
             target_resolved = target_path.resolve()
             repo_resolved = repo_root.resolve()
             if target_resolved != repo_resolved and repo_resolved not in target_resolved.parents:
-                explicit_root = target_resolved.parent if target_resolved.is_file() else target_resolved
+                explicit_root = (
+                    target_resolved.parent if target_resolved.is_file() else target_resolved
+                )
         except Exception:
             pass
 
@@ -272,9 +284,7 @@ def build_traj_card_data(
     )
 
     # Outline trajectory
-    outline = outline_trajectory(
-        target, repo_root=repo_root, explicit_runs_root=explicit_root
-    )
+    outline = outline_trajectory(target, repo_root=repo_root, explicit_runs_root=explicit_root)
 
     # Compute baseline metrics
     baseline = compute_trace_baseline(outline)
@@ -312,7 +322,11 @@ def build_traj_card_data(
             final_verdict = f"EXCEPTION ({exception_class})"
             evidence_limitation = f"Harness or runtime exception occurred ({exception_class})."
     elif primary_reward is not None:
-        final_verdict = "PASS" if primary_reward >= 1.0 else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
+        final_verdict = (
+            "PASS"
+            if primary_reward >= 1.0
+            else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
+        )
     else:
         final_verdict = "UNKNOWN"
         evidence_limitation = "No verifier reward or runtime exception was emitted."
@@ -386,10 +400,14 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
     lines.append(f"- **Trial Name:** `{card.trial_name}`")
     lines.append(f"- **Task Name:** `{card.task_name}`")
     lines.append(f"- **Job ID / Name:** `{card.job_id}` ({card.job_name})")
-    lines.append(f"- **Agent / Model:** `{card.agent_name}` (v: {card.agent_version}) | `{card.model_name}`")
-    
+    lines.append(
+        f"- **Agent / Model:** `{card.agent_name}` (v: {card.agent_version}) | `{card.model_name}`"
+    )
+
     reward_str = f"{card.primary_reward:.2f}" if card.primary_reward is not None else "none"
-    lines.append(f"- **Final Verdict:** **{card.final_verdict}** (Primary Reward: `{reward_str}` | Trajectory Status: `{card.status}`)")
+    lines.append(
+        f"- **Final Verdict:** **{card.final_verdict}** (Primary Reward: `{reward_str}` | Trajectory Status: `{card.status}`)"
+    )
     if card.evidence_limitation:
         lines.append(f"- **Evidence Limitation:** *{card.evidence_limitation}*")
     if card.exception_class:
@@ -399,13 +417,17 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
         lines.append("- **Exception Details:** none")
     # Quality status
     q_reasons_str = f" ({', '.join(card.quality.reasons)})" if card.quality.reasons else ""
-    lines.append(f"- **Quality Status:** `{card.quality.status}`{q_reasons_str} — *{card.quality.detail}*")
+    lines.append(
+        f"- **Quality Status:** `{card.quality.status}`{q_reasons_str} — *{card.quality.detail}*"
+    )
 
     # Duration & Tokens & Cost
     dur_str = f"{card.duration_seconds:.1f}s" if card.duration_seconds is not None else "n/a"
     cost_str = f"${card.cost_usd:.4f}" if card.cost_usd is not None else "n/a"
     tok_str = f"{card.total_tokens:,}" if card.total_tokens is not None else "n/a"
-    lines.append(f"- **Execution Telemetry:** Duration: `{dur_str}` | Cost: `{cost_str}` | Tokens: `{tok_str}`")
+    lines.append(
+        f"- **Execution Telemetry:** Duration: `{dur_str}` | Cost: `{cost_str}` | Tokens: `{tok_str}`"
+    )
     lines.append("")
 
     # Section 2: Execution Phases Outline
@@ -414,8 +436,14 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
         lines.append("| Phase | Steps (Span) | Tool Calls | Errors | Summary |")
         lines.append("|---|---|---|---|---|")
         for p in card.phases:
-            step_span = f"{p.step_start}..{p.step_end} ({p.step_count})" if p.step_start != p.step_end else f"{p.step_start} (1)"
-            lines.append(f"| `{p.phase_type}` | {step_span} | {p.tool_calls} | {p.errors} | {p.summary} |")
+            step_span = (
+                f"{p.step_start}..{p.step_end} ({p.step_count})"
+                if p.step_start != p.step_end
+                else f"{p.step_start} (1)"
+            )
+            lines.append(
+                f"| `{p.phase_type}` | {step_span} | {p.tool_calls} | {p.errors} | {p.summary} |"
+            )
     else:
         lines.append("*No ordered semantic phases identified.*")
     lines.append("")
@@ -425,25 +453,106 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
     lines.append("## 3. Mechanical Baseline Metrics")
     lines.append("| Metric | Value | Provenance Category / Screening Semantics |")
     lines.append("|---|---|---|")
-    lines.append(f"| **Steps (total / agent / sys / user)** | {b.step_count} ({b.agent_step_count} / {b.system_step_count} / {b.user_step_count}) | `mechanical_fact` (exact step counts) |")
-    lines.append(f"| **Tool Calls (total / unique)** | {b.tool_call_count} ({b.unique_tools_count}) | `mechanical_fact` (exact tool call counts) |")
-    
-    li_val = f"{b.linear_innocence_screening:.4f}" if b.linear_innocence_screening is not None else "NULL (0 tool calls)"
-    lines.append(f"| **Linearity Index (`LI_screening`)** | {li_val} | `screening_heuristic` (unique_tools / tool_calls) |")
-    
-    ter_val = f"{b.tool_error_rate_screening:.4f}" if b.tool_error_rate_screening is not None else "NULL (0 tool calls)"
-    lines.append(f"| **Tool Error Rate (`TER_screening`)** | {ter_val} | `screening_heuristic` (errors / tool_calls) |")
-    
-    cbv_val = f"{b.context_burn_velocity_screening:+.2f} tok/step" if b.context_burn_velocity_screening is not None else "NULL (<2 observations)"
-    lines.append(f"| **Context Burn Velocity (`CBV_screening`)** | {cbv_val} | `screening_heuristic` (regr_slope prompt_tokens over steps) |")
-    
-    cache_val = f"{b.cache_hit_rate_screening * 100:.1f}%" if b.cache_hit_rate_screening is not None else "NULL (no cached tokens)"
-    lines.append(f"| **Cache Hit Rate (`cache_hit_rate_screening`)** | {cache_val} | `screening_heuristic` (cached / prompt) |")
-    
-    sub_val = f"{b.subagent_overhead_ratio_screening * 100:.1f}%" if b.subagent_overhead_ratio_screening is not None else "NULL (0 steps)"
-    lines.append(f"| **Subagent Overhead (`subagent_overhead_screening`)** | {sub_val} | `screening_heuristic` (subagent_steps / total_steps) |")
+    lines.append(
+        f"| **Steps (total / agent / sys / user)** | {b.step_count} ({b.agent_step_count} / {b.system_step_count} / {b.user_step_count}) | `mechanical_fact` (exact step counts) |"
+    )
+    lines.append(
+        f"| **Tool Calls (total / unique)** | {b.tool_call_count} ({b.unique_tools_count}) | `mechanical_fact` (exact tool call counts) |"
+    )
+    lines.append(
+        f"| **Errors / Recoveries** | {b.error_count} / {b.recovery_count} | `mechanical_fact` (exact execution error counts) |"
+    )
+    neg_label = "YES (Control)" if b.is_expected_negative else "NO"
+    lines.append(
+        f"| **Expected Negative / Probes** | {neg_label} ({b.expected_probe_count} probes) | `mechanical_fact` (intentional negative control screening) |"
+    )
+    first_err_s = f"Step {b.step_to_first_error}" if b.step_to_first_error is not None else "none"
+    first_err_t = (
+        f"{b.time_to_first_error_seconds:.1f}s"
+        if b.time_to_first_error_seconds is not None
+        else "none"
+    )
+    lines.append(
+        f"| **Step / Time to First Error** | {first_err_s} ({first_err_t}) | `mechanical_fact` (first error latency) |"
+    )
+    rec_lat_s = (
+        f"{b.recovery_latency_steps} steps" if b.recovery_latency_steps is not None else "none"
+    )
+    rec_lat_t = (
+        f"{b.recovery_latency_seconds:.1f}s" if b.recovery_latency_seconds is not None else "none"
+    )
+    lines.append(
+        f"| **Recovery Latency** | {rec_lat_s} ({rec_lat_t}) | `mechanical_fact` (step/time delay to recovery) |"
+    )
+    term_err_lbl = "UNRECOVERED ERROR" if b.unrecovered_at_terminal else "Recovered / Clean"
+    lines.append(
+        f"| **Terminal Error State** | {term_err_lbl} | `mechanical_fact` (active error at final step) |"
+    )
+    li_val = (
+        f"{b.linear_innocence_screening:.4f}"
+        if b.linear_innocence_screening is not None
+        else "NULL (0 tool calls)"
+    )
+    lines.append(
+        f"| **Linearity Index (`LI_screening`)** | {li_val} | `screening_heuristic` (unique_tools / tool_calls) |"
+    )
+    ter_val = (
+        f"{b.tool_error_rate_screening:.4f}"
+        if b.tool_error_rate_screening is not None
+        else "NULL (0 tool calls)"
+    )
+    lines.append(
+        f"| **Tool Error Rate (`TER_screening`)** | {ter_val} | `screening_heuristic` (errors / tool_calls) |"
+    )
+    rec_rate_val = (
+        f"{b.recovery_rate_screening:.4f}"
+        if b.recovery_rate_screening is not None
+        else "NULL (0 errors)"
+    )
+    lines.append(
+        f"| **Recovery Rate (`recovery_rate_screening`)** | {rec_rate_val} | `screening_heuristic` (recoveries / errors) |"
+    )
+    cbv_val = (
+        f"{b.context_burn_velocity_screening:+.2f} tok/step"
+        if b.context_burn_velocity_screening is not None
+        else "NULL (<2 observations)"
+    )
+    lines.append(
+        f"| **Context Burn Velocity (`CBV_screening`)** | {cbv_val} | `screening_heuristic` (regr_slope prompt_tokens over steps) |"
+    )
+    cache_val = (
+        f"{b.cache_hit_rate_screening * 100:.1f}%"
+        if b.cache_hit_rate_screening is not None
+        else "NULL (no cached tokens)"
+    )
+    lines.append(
+        f"| **Cache Hit Rate (`cache_hit_rate_screening`)** | {cache_val} | `screening_heuristic` (cached / prompt) |"
+    )
+    sub_val = (
+        f"{b.subagent_overhead_ratio_screening * 100:.1f}%"
+        if b.subagent_overhead_ratio_screening is not None
+        else "NULL (0 steps)"
+    )
+    lines.append(
+        f"| **Subagent Overhead (`subagent_overhead_screening`)** | {sub_val} | `screening_heuristic` (subagent_steps / total_steps) |"
+    )
+    auto_val = (
+        f"{b.autonomous_step_ratio_screening * 100:.1f}%"
+        if b.autonomous_step_ratio_screening is not None
+        else "NULL (0 steps)"
+    )
+    lines.append(
+        f"| **Autonomous Ratio (`autonomous_step_ratio_screening`)** | {auto_val} | `screening_heuristic` (autonomous / total) |"
+    )
+    asst_val = (
+        f"{b.assisted_step_ratio_screening * 100:.1f}%"
+        if b.assisted_step_ratio_screening is not None
+        else "NULL (0 steps)"
+    )
+    lines.append(
+        f"| **Assisted Ratio (`assisted_step_ratio_screening`)** | {asst_val} | `screening_heuristic` (assisted / total) |"
+    )
     lines.append("")
-
     # Section 4: Cited Error Observations & Stderr
     lines.append("## 4. Cited Error Observations & Stderr")
     if card.error_evidences:
@@ -472,30 +581,39 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
             lines.append(f"  - `{r}`")
     else:
         lines.append("- **Triggered Reason Codes:** none")
-    lines.append(f"- **Max Exit-Code Cascade:** `{b.max_exit_code_cascade_screening}` consecutive error steps")
+    lines.append(
+        f"- **Max Exit-Code Cascade:** `{b.max_exit_code_cascade_screening}` consecutive error steps"
+    )
     lines.append("")
 
     # Section 6: Intervention Provenance
     lines.append("## 6. Intervention Provenance")
     lines.append(f"- **Intervention Category:** `{card.intervention.category}`")
     lines.append(f"- **Summary:** {card.intervention.summary}")
-    lines.append(f"- **Turn Breakdown:** User steps: `{card.intervention.user_steps_count}` | Agent steps: `{card.intervention.agent_steps_count}` | System steps: `{card.intervention.system_steps_count}`")
-    lines.append("")
-
+    lines.append(
+        f"- **Turn Breakdown:** Autonomous agent steps: `{b.autonomous_step_count}` | Assisted steps: `{b.assisted_step_count}` | Post-error interventions: `{b.intervention_count}`"
+    )
     # Section 7: Semantic Coverage
     lines.append("## 7. Semantic Coverage")
     lines.append(f"- **Coverage Status:** `{card.semantic_coverage.status}`")
     lines.append(f"- **Details:** {card.semantic_coverage.detail}")
     if card.semantic_coverage.fact_tables:
-        lines.append("- **Projected Fact Tables:** " + ", ".join(f"`{t}`" for t in card.semantic_coverage.fact_tables))
+        lines.append(
+            "- **Projected Fact Tables:** "
+            + ", ".join(f"`{t}`" for t in card.semantic_coverage.fact_tables)
+        )
     lines.append("")
 
     # Section 8: Source Citations & Provenance
     lines.append("## 8. Source Citations & Exact Provenance")
     lines.append(f"- **Trial Directory:** `{card.trial_dir}`")
-    lines.append(f"- **Trajectory File:** `{card.trajectory_path}` (SHA-256: `{card.trajectory_sha256}`)")
+    lines.append(
+        f"- **Trajectory File:** `{card.trajectory_path}` (SHA-256: `{card.trajectory_sha256}`)"
+    )
     if card.result_path:
-        lines.append(f"- **Result File:** `{card.result_path}` (SHA-256: `{card.result_sha256 or 'n/a'}`)")
+        lines.append(
+            f"- **Result File:** `{card.result_path}` (SHA-256: `{card.result_sha256 or 'n/a'}`)"
+        )
     lines.append("")
 
     return "\n".join(lines)

@@ -1137,12 +1137,17 @@ def _materialize_snapshot_views(state_dir: Path, snapshot: Mapping[str, Any]) ->
         _atomic_write_json(state_dir / "drain.json", snapshot["drain"])
 
 
-def commit_operator_snapshot(state_dir: Path, snapshot: Mapping[str, Any]) -> None:
-    """Commit snapshot atomically with unique temp file and fsync."""
+def commit_operator_snapshot(state_dir: Path, snapshot: Mapping[str, Any]) -> dict[str, Any]:
+    """Commit snapshot atomically with unique temp file, fsync, and generation increment."""
     journal = state_dir / JOURNAL_DIRNAME
     journal.mkdir(parents=True, exist_ok=True)
     os.chmod(journal, STATE_DIR_MODE)
-    payload = json.dumps(dict(snapshot), indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    current_snap = load_operator_snapshot(state_dir) or {}
+    prev_gen = current_snap.get("generation", 0)
+    snap_dict = dict(snapshot)
+    if "generation" not in snap_dict or snap_dict["generation"] <= prev_gen:
+        snap_dict["generation"] = prev_gen + 1
+    payload = json.dumps(snap_dict, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     import time
     txn_name = f"txn_{os.getpid()}_{time.time_ns()}.tmp"
     txn_path = journal / txn_name
@@ -1154,7 +1159,8 @@ def commit_operator_snapshot(state_dir: Path, snapshot: Mapping[str, Any]) -> No
         os.fsync(dirfd)
     finally:
         os.close(dirfd)
-    _materialize_snapshot_views(state_dir, snapshot)
+    _materialize_snapshot_views(state_dir, snap_dict)
+    return snap_dict
 
 
 def recover_journal_views(state_dir: Path) -> None:
@@ -1605,10 +1611,18 @@ def observation_is_terminal(obs: Mapping[str, Any] | None) -> bool:
 def observe_fenced_leases(
     owner: WorkloadOwner,
     lease_ids: list[str],
+    *,
+    timeout_seconds: float | None = None,
 ) -> tuple[list[dict[str, Any]] | None, str | None, list[str]]:
     observed: list[dict[str, Any]] = []
     blockers: list[str] = []
+    import time
+    start_time = time.monotonic()
+    limit = timeout_seconds if timeout_seconds is not None else 30.0
     for lease_id in lease_ids:
+        if time.monotonic() - start_time > limit:
+            blockers.append(f"timeout:{lease_id}")
+            break
         obs = owner.observe_lease(lease_id)
         if obs is None:
             blockers.append(f"missing:{lease_id}")
@@ -1885,6 +1899,8 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
+    """Optimistic Two-Phase CAS: Never hold state_lock across external observer IO."""
+    # Phase 1: Snapshot generation & parameters under lock, then release lock
     with state_lock(ctx.state_dir):
         current = read_mode(ctx.state_dir)
         inflight, inflight_error = _load_inflight(ctx.state_dir)
@@ -1906,17 +1922,57 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
             }
             if inflight is not None:
                 pending["inflight"] = inflight
-            commit_operator_snapshot(ctx.state_dir, pending)
+            snapshot = commit_operator_snapshot(ctx.state_dir, pending)
+        base_generation = snapshot.get("generation", 0)
+        base_mode = read_mode(ctx.state_dir)
         started_raw = _read_text(ctx.state_dir / "drain_started")
         if not started_raw:
             _write_text(ctx.state_dir / "drain_started", ctx.now.isoformat())
         if inflight_error is not None or inflight is None:
             drain = {"inflight": inflight if inflight is not None else [], "complete": False, "malformed": inflight_error}
             return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="in-flight leases remain until observed settlement", extra=drain)
-        observed, blocker, blockers = observe_fenced_leases(ctx.owner, fenced)
+
+    # Phase 2: External IO completely OUTSIDE state lock with hard timeout
+    timeout = ctx.drain_timeout_seconds if ctx.drain_timeout_seconds is not None else 30.0
+    observed, blocker, blockers = observe_fenced_leases(ctx.owner, fenced, timeout_seconds=timeout)
+
+    # Phase 3: Reacquire lock and CAS validate generation & state invariants
+    with state_lock(ctx.state_dir):
+        current_snap = load_operator_snapshot(ctx.state_dir) or {}
+        curr_gen = current_snap.get("generation", 0)
+        curr_mode = read_mode(ctx.state_dir)
+        curr_kill = _load_json_mapping(ctx.state_dir / "kill.json")
+        if curr_kill is None and isinstance(current_snap.get("kill"), dict):
+            curr_kill = current_snap["kill"]
+        curr_inflight, curr_inflight_err = _load_inflight(ctx.state_dir)
+
+        # Recompute fenced under lock
+        curr_fenced: list[str] = []
+        if isinstance(curr_kill, dict) and isinstance(curr_kill.get("fenced"), list):
+            curr_fenced = [item for item in curr_kill["fenced"] if isinstance(item, str) and item.strip()]
+        elif curr_inflight:
+            curr_fenced = list(curr_inflight)
+
+        # If state mutated while observing (e.g. concurrent emergency kill), abort CAS without stale overwrite
+        if curr_gen != base_generation or curr_mode != base_mode or curr_fenced != fenced:
+            drain = {
+                "inflight": curr_inflight if curr_inflight is not None else [],
+                "complete": False,
+                "observed": False,
+                "cas_conflict": True,
+                "blocker": "state_mutated_during_observation",
+            }
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_DRAIN_INCOMPLETE,
+                detail="drain CAS aborted: state changed during external observation",
+                extra=drain,
+            )
+
         if observed is None:
             drain = {
-                "inflight": inflight,
+                "inflight": curr_inflight if curr_inflight is not None else [],
                 "complete": False,
                 "observed": False,
                 "blocker": blocker,
@@ -1929,14 +1985,15 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
                 detail="drain polls trusted queue/worker/catalog evidence; live/unknown/missing leases refuse",
                 extra=drain,
             )
+
         next_kill = None
-        if kill_record is not None:
-            next_kill = dict(kill_record)
+        if curr_kill is not None:
+            next_kill = dict(curr_kill)
             next_kill["executed"] = True
             next_kill["inflight"] = []
             next_kill["observed"] = True
-        next_mode = "KILLED" if current == "KILLED" or next_kill is not None else DEFAULT_MODE
-        if current == "KILLED":
+        next_mode = "KILLED" if curr_mode == "KILLED" or next_kill is not None else DEFAULT_MODE
+        if curr_mode == "KILLED":
             next_mode = "KILLED"
         original_leases, _lease_error = _load_leases(ctx.state_dir)
         drain = {

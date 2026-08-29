@@ -138,6 +138,11 @@ policy fields also keep the operator DISABLED.
 
 - `kill` issues cancellation through the campaign/queue owner and records
   `cancellation_requested` with `executed: false`. It does not wipe inflight.
+- `drain` uses optimistic two-phase CAS so state lock is never held across
+  unbounded external IO. Under a brief lock, generation and fenced IDs are
+  snapshotted; observer is called outside the lock with hard timeout; the lock
+  is reacquired to verify unchanged generation before committing. A concurrent
+  emergency kill completes promptly and aborts stale drain commits.
 - `drain` never synthesizes terminal lease status. It polls trusted
   queue/worker/catalog evidence for each exact fenced lease (PID/container
   not alive, queue terminal state, settlement digest). Live, unknown, or

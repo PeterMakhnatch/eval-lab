@@ -1586,3 +1586,56 @@ def test_concurrent_restart_and_drain_cannot_lose_killed_latch(tmp_path: Path) -
     # After drain+restart on a killed node, mode must remain KILLED
     assert (state / "mode").read_text().strip() == "KILLED"
 
+def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(tmp_path: Path) -> None:
+    import threading
+    import time
+
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-slow"]))
+    _write_auths(state)
+
+    observe_started = threading.Event()
+    kill_done = threading.Event()
+
+    class StalledOwner:
+        def request_cancel(self, lease_ids: list[str]) -> dict:
+            return {"requested": True, "executed": False, "owner": "campaign-queue", "lease_ids": list(lease_ids)}
+
+        def observe_lease(self, lease_id: str):
+            observe_started.set()
+            # Stalled waiting on external IO
+            kill_done.wait(timeout=2.0)
+            return _terminal_obs(lease_id)
+
+    stalled_owner = StalledOwner()
+    drain_verdict = []
+
+    def run_drain():
+        res = _run(tmp_path, "drain", now=NOW, owner=stalled_owner)
+        drain_verdict.append(res)
+
+    t_drain = threading.Thread(target=run_drain)
+    t_drain.start()
+
+    # Wait until drain is inside observe_lease (outside state lock)
+    assert observe_started.wait(timeout=2.0)
+
+    # Emergency kill must complete promptly without being blocked by observe_lease!
+    t0 = time.monotonic()
+    kill_res = _run(tmp_path, "kill", now=NOW, owner=ClosedWorkloadOwner())
+    t1 = time.monotonic()
+    assert kill_res.returncode == 0
+    assert (t1 - t0) < 1.0, f"kill blocked on drain IO for {t1 - t0}s"
+    assert (state / "mode").read_text().strip() == "KILLED"
+
+    # Unblock stalled observer
+    kill_done.set()
+    t_drain.join(timeout=3.0)
+
+    # Drain must detect CAS conflict (state mutated during external observation) and abort without corrupting KILLED state
+    assert len(drain_verdict) == 1
+    assert drain_verdict[0].returncode == 2
+    assert _payload(drain_verdict[0])["reason"] == REASON_DRAIN_INCOMPLETE
+    assert (state / "mode").read_text().strip() == "KILLED"
+

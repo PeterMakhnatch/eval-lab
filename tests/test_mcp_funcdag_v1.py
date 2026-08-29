@@ -129,6 +129,7 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     instruction = (task_dir / "instruction.md").read_text(encoding="utf-8")
     assert "Dependency Graph Nodes:" in instruction
     assert "uses tool" in instruction
+    assert "/logs/agent/result.json" in instruction
 
 
 def test_materializer_oracle_nop_mutants_and_answer_only(tmp_path):

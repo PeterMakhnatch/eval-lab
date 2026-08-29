@@ -267,7 +267,7 @@ Evaluate the root target node `{dag_spec.target_node_id}` by discovering and cal
 The local FastMCP streamable-HTTP server is available at: `http://{DEFAULT_SIDECAR_SERVICE}:{DEFAULT_MCP_PORT}/mcp`.
 
 ## Deliverable:
-Save the final calculated integer result to `/app/output/result.json` in format:
+Save the final calculated integer result to `/logs/agent/result.json` in format:
 ```json
 {{
   "target_value": <INTEGER_VALUE>

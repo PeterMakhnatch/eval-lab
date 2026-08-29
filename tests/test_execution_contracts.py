@@ -226,8 +226,9 @@ def test_deepseek_credentials_are_opt_in_and_log_redacted() -> None:
 
     assert "MSWEA_API_KEY" not in subscription_environment(source)
     admitted = subscription_environment(source, include_deepseek_credentials=True)
-    assert "DEEPSEEK_API_KEY" not in admitted
-    assert "MSWEA_API_KEY" not in admitted
+    assert admitted["DEEPSEEK_API_KEY"] == "evallab-proxy-placeholder"
+    assert admitted["MSWEA_API_KEY"] == "evallab-proxy-placeholder"
+    assert admitted["OPENAI_BASE_URL"] == "http://deepseek-secret-proxy:8080"
     assert admitted["EVALLAB_DEEPSEEK_SECRET_FILE"] == "/tmp/evallab-deepseek.key"
     assert admitted["EVALLAB_DEEPSEEK_PROXY_SCRIPT"].endswith("deepseek_secret_proxy.py")
     assert "OPENAI_API_KEY" not in admitted

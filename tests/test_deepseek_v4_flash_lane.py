@@ -174,8 +174,8 @@ def test_registered_funcdag_is_exactly_one_bounded_trial_and_keeps_key_out_of_ar
     assert "--print-config" not in args
     assert SECRET_SENTINEL not in args_path.read_text()
     assert env_path.read_text().splitlines() == [
-        "DEEPSEEK_API_KEY=unset",
-        "MSWEA_API_KEY=unset",
+        "DEEPSEEK_API_KEY=set",
+        "MSWEA_API_KEY=set",
         "AGENT_NETWORK=allowlist",
     ]
 
@@ -195,7 +195,7 @@ def test_darwin_uses_recorded_public_baseline_instead_of_unsupported_allowlist(
     assert "--allow-agent-host" not in args
     assert "deepseek-secret-proxy" not in args
     assert env_path.read_text().splitlines() == [
-        "DEEPSEEK_API_KEY=unset",
-        "MSWEA_API_KEY=unset",
+        "DEEPSEEK_API_KEY=set",
+        "MSWEA_API_KEY=set",
         "AGENT_NETWORK=public",
     ]

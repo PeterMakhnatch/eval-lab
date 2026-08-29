@@ -132,7 +132,11 @@ with_canonical_deepseek_credential() {
         export EVALLAB_DEEPSEEK_SECRET_FILE="$secret_file"
         export EVALLAB_DEEPSEEK_PROXY_SCRIPT="$repo_root/containers/deepseek_secret_proxy.py"
         unset DEEPSEEK_API_KEY MSWEA_API_KEY
-        unset DEEPSEEK_BASE_URL DEEPSEEK_API_BASE OPENAI_BASE_URL OPENAI_API_BASE
+        export DEEPSEEK_API_KEY="evallab-proxy-placeholder"
+        export MSWEA_API_KEY="evallab-proxy-placeholder"
+        export DEEPSEEK_BASE_URL="http://deepseek-secret-proxy:8080"
+        export OPENAI_BASE_URL="http://deepseek-secret-proxy:8080"
+        export OPENAI_API_BASE="http://deepseek-secret-proxy:8080"
         "$@"
         status=$?
         rm -f "$secret_file"

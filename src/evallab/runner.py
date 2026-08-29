@@ -8,6 +8,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from contextlib import suppress
@@ -339,12 +340,24 @@ def run_harbor_process(
     deepseek_lane = deepseek_adapter in command
     runtime_environment = subscription_environment(include_deepseek_credentials=deepseek_lane)
     secret_values = collected_secret_values()
+    owned_secret_path: Path | None = None
     if deepseek_lane:
-        secret_path = log_path.parent / f"{log_path.stem}.deepseek.key"
-        materialize_deepseek_secret_file(secret_path)
-        runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(secret_path)
+        existing_secret = runtime_environment.get(DEEPSEEK_SECRET_FILE_ENV) or os.environ.get(
+            DEEPSEEK_SECRET_FILE_ENV
+        )
+        if existing_secret and Path(existing_secret).is_file():
+            runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = existing_secret
+        else:
+            handle, name = tempfile.mkstemp(
+                prefix="evallab-deepseek-secret.",
+                dir=os.environ.get("TMPDIR") or None,
+            )
+            os.close(handle)
+            owned_secret_path = Path(name)
+            materialize_deepseek_secret_file(owned_secret_path)
+            runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
         runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str((cwd / DEEPSEEK_PROXY_SCRIPT).resolve())
-        secret_values = collected_secret_values(runtime_environment)
+        secret_values = collected_secret_values({**os.environ, **runtime_environment})
     if any(import_path in command for import_path in repo_imports):
         source_root = cwd / "src"
         if source_root.is_dir():
@@ -382,6 +395,9 @@ def run_harbor_process(
         os.close(write_fd)
         os.close(read_fd)
         writer.close()
+        if owned_secret_path is not None:
+            with suppress(OSError):
+                owned_secret_path.unlink()
         raise
     os.close(write_fd)
     pump.start()
@@ -420,6 +436,9 @@ def run_harbor_process(
         if timed_out_trial is not None or now - started >= timeout_seconds:
             _terminate_process_group(process)
             pump.join(timeout=5)
+            if owned_secret_path is not None:
+                with suppress(OSError):
+                    owned_secret_path.unlink()
             return HarborProcessResult(
                 returncode=(process.returncode if process.returncode is not None else -1),
                 timed_out=True,
@@ -431,10 +450,13 @@ def run_harbor_process(
         except subprocess.TimeoutExpired:
             continue
     pump.join(timeout=5)
+    if owned_secret_path is not None:
+        with suppress(OSError):
+            owned_secret_path.unlink()
     return HarborProcessResult(
-    returncode=returncode,
-    timed_out=False,
-    log_path=log_path,
+        returncode=returncode,
+        timed_out=False,
+        log_path=log_path,
     )
 
 

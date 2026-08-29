@@ -330,7 +330,14 @@ def materialize_deepseek_secret_file(
     """Write the provider key to a 0600 file for Compose secret mounting."""
     source = os.environ if environment is None else environment
     value = source.get("DEEPSEEK_API_KEY") or source.get("MSWEA_API_KEY")
+    if value == DEEPSEEK_PROXY_TOKEN:
+        value = None
     if not value:
+        existing = source.get(DEEPSEEK_SECRET_FILE_ENV)
+        if existing:
+            path = Path(existing)
+            if path.is_file() and not path.is_symlink():
+                return path
         raise RuntimeError("DeepSeek provider credential is missing")
     persist_private_bytes(destination, f"{value}\n".encode(), secrets=())
     return destination
@@ -352,6 +359,11 @@ def subscription_environment(
         for key in (DEEPSEEK_SECRET_FILE_ENV, DEEPSEEK_PROXY_SCRIPT_ENV, DEEPSEEK_UPSTREAM_ENV):
             if source.get(key):
                 sanitized[key] = source[key]
+        sanitized["DEEPSEEK_API_KEY"] = DEEPSEEK_PROXY_TOKEN
+        sanitized["MSWEA_API_KEY"] = DEEPSEEK_PROXY_TOKEN
+        sanitized["DEEPSEEK_BASE_URL"] = DEEPSEEK_PROXY_URL
+        sanitized["OPENAI_BASE_URL"] = DEEPSEEK_PROXY_URL
+        sanitized["OPENAI_API_BASE"] = DEEPSEEK_PROXY_URL
     sanitized["AGY_FORCE_AUTH_JSON"] = "1"
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
@@ -364,7 +376,7 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
     secrets = collected_secret_values(environment)
     redacted: dict[str, str] = {}
     for key, value in environment.items():
-        if key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS and value or value in secrets:
+        if (key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS and value) or value in secrets:
             redacted[key] = REDACTED_SECRET_VALUE
         else:
             redacted[key] = value

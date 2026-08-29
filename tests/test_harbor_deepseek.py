@@ -394,3 +394,78 @@ def test_proxy_joins_workbench_internal_and_default_networks() -> None:
     # Overlay must not pull main onto default and undo an internal-only task network.
     main_block = overlay.split("deepseek-secret-proxy:", 1)[0]
     assert "networks:" not in main_block
+
+
+def test_harbor_run_path_rewrites_none_api_key_and_exec_env(
+    wrapper_module: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Harbor 0.21 MiniSweAgent.run() copies model_connection.env into exec_as_agent."""
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("MSWEA_API_KEY", raising=False)
+    agent = wrapper_module.SecretSafeDeepSeekMiniSweAgent(
+        _Connection(provider="deepseek", api_key=None, env={})
+    )
+    access = agent.model_connection
+    if access.api_key is None:
+        raise AssertionError("Harbor MiniSweAgent.run would raise No API key found")
+    env = {**dict(access.env), "MSWEA_CONFIGURED": "true", "MSWEA_COST_TRACKING": "ignore_errors"}
+    # Simulate docker compose exec -e serialization of the Harbor exec env.
+    compose_argv = [f"-e {name}={value}" for name, value in env.items()]
+    assert SECRET_SENTINEL not in " ".join(compose_argv)
+    assert all(SECRET_SENTINEL not in value for value in env.values())
+    asyncio.run(agent.exec_as_agent(object(), "env", env=env))
+    _command, exec_env = agent.exec_calls[0]
+    assert exec_env is not None
+    assert exec_env["DEEPSEEK_API_KEY"] == DEEPSEEK_PROXY_TOKEN
+    completed = __import__("subprocess").run(
+        [sys.executable, "-c", "import os,json,sys; json.dump(dict(os.environ), sys.stdout)"],
+        env=exec_env | {"PATH": __import__("os").environ["PATH"]},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    child_env = json.loads(completed.stdout)
+    assert SECRET_SENTINEL not in child_env.values()
+    assert child_env["DEEPSEEK_API_KEY"] == DEEPSEEK_PROXY_TOKEN
+    proc_like = "\n".join(f"{k}={v}" for k, v in child_env.items())
+    assert SECRET_SENTINEL not in proc_like
+
+
+def test_run_harbor_process_does_not_leave_provider_key_under_executor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.runner import run_harbor_process
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
+    (tmp_path / "tmp").mkdir()
+    log_path = tmp_path / ".executor" / "job.log"
+    log_path.parent.mkdir()
+    script = tmp_path / "print-env.py"
+    script.write_text(
+        "import os, json, sys\n"
+        "json.dump({k: os.environ.get(k) for k in "
+        "('DEEPSEEK_API_KEY','MSWEA_API_KEY','OPENAI_BASE_URL')}, sys.stdout)\n"
+        "sys.stdout.write('\\n')\n"
+        "sys.stdout.flush()\n"
+    )
+    result = run_harbor_process(
+        [
+            sys.executable,
+            str(script),
+            "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        timeout_seconds=10,
+        log_path=log_path,
+    )
+    assert result.returncode == 0
+    data = log_path.read_text()
+    assert SECRET_SENTINEL not in data
+    assert "evallab-proxy-placeholder" in data
+    leftover = list((tmp_path / "tmp").glob("evallab-deepseek-secret.*"))
+    assert leftover == []
+    assert not (log_path.parent / f"{log_path.stem}.deepseek.key").exists()
+    for path in log_path.parent.rglob("*"):
+        if path.is_file():
+            assert SECRET_SENTINEL not in path.read_text(errors="ignore")

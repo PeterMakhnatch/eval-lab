@@ -104,8 +104,6 @@ class SecretSafeDeepSeekMiniSweAgent(MiniSweAgent):
         connection = super().model_connection
         if connection.provider != "deepseek":
             raise ValueError("SecretSafeDeepSeekMiniSweAgent requires a deepseek/* model")
-        if connection.api_key is None:
-            return connection
         return replace(
             connection,
             api_key=DEEPSEEK_PROXY_TOKEN,

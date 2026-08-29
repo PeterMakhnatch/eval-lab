@@ -6,13 +6,11 @@
   "author": "analyst",
   "date": "2026-08-29",
   "status": "designed",
-
   "ledger": {
     "kind": "CampaignCalibrationLedger",
     "reportable_rates": false,
     "reason": "Dose-response shape only. Rates are not reportable from a calibration ledger; see benchmark_program_contracts.py:216."
   },
-
   "preconditions": [
     {
       "id": "host-isolation",
@@ -34,7 +32,6 @@
       "rationale": "harness_version participates in task_block_id pairing; an unpinned upgrade breaks contrast validity."
     }
   ],
-
   "lane": {
     "model": "zai-coding-plan/glm-5.3-flash",
     "agent": "harbor native OpenCode adapter",
@@ -46,16 +43,31 @@
       "max_cost_usd": null,
       "max_prompt_tokens_budget": 5000000,
       "budget_basis": "Pilot measured 880748 prompt tokens over 18 trials (~48931/trial). 72 trials at the 16k-and-above doses will exceed that per-trial mean; the token budget bounds the run because the subscription lane reports cost_usd null and max_cost_usd cannot bind it."
-    }
+    },
+    "access_note": "USER-REPORTED 2026-08-29: zai-coding-plan/glm-5.3 and glm-5.3-flash are both accessible on the current subscription. glm-5.3-highspeed is NOT in the subscription and returns HTTP 429 with no model outcome; it is an access-gated lane recorded at n=0 with a stated reason, never as a scored trial or a refusal rate."
   },
-
   "design": {
     "vertical": "action-memory-v1",
-    "certified_by": ["#262", "#275"],
+    "certified_by": [
+      "#262",
+      "#275"
+    ],
     "factors": {
-      "dose_bytes": [4096, 16384, 65536, 131072],
-      "arm": ["neutral_padding", "semantic_distractor"],
-      "seed": [42, 1337, 2026]
+      "dose_bytes": [
+        4096,
+        16384,
+        65536,
+        131072
+      ],
+      "arm": [
+        "neutral_padding",
+        "semantic_distractor"
+      ],
+      "seed": [
+        42,
+        1337,
+        2026
+      ]
     },
     "cells": 24,
     "n_attempts": 3,
@@ -65,13 +77,16 @@
     "declared_single_delta": "arm, at matched dose_bytes and seed",
     "dose_zero_anchor": "action-memory clean baseline 4k, seed 42"
   },
-
   "estimands": {
     "primary": {
       "name": "semantic_interference_at_matched_dose",
       "definition": "P(success | semantic_distractor, dose d, seed s) - P(success | neutral_padding, dose d, seed s), reported per dose level",
       "unit": "cell",
-      "pairing_key": ["task_block_id", "dose_bytes", "seed"]
+      "pairing_key": [
+        "task_block_id",
+        "dose_bytes",
+        "seed"
+      ]
     },
     "secondary": {
       "name": "dose_response_shape",
@@ -82,14 +97,12 @@
       "retrieval_duplication": "unique_tools_count vs tool_call_count and repeated_command_count, already registered features. The pilot's only semantic failure was a duplicate chunk read (66 observed vs 65 expected)."
     }
   },
-
   "denominator_declaration": {
     "note": "Four of the 19 RefusalCode values are declaration contracts (MISSING_DENOMINATOR_DECLARATION, MISSING_DENOMINATOR_APPLICABILITY_DECLARATION, MISSING_NULL_ON_ZERO_DECLARATION, INVALID_DENOMINATOR_DECLARATION). Declared here so downstream analysis is not refused on contract grounds.",
     "denominator": "trials with a scored verifier outcome in the cell",
     "applicability": "per (dose_bytes, arm, seed) cell",
     "null_on_zero": true
   },
-
   "controls": [
     {
       "id": "within-dose-neutral",
@@ -107,7 +120,6 @@
       "purpose": "One cell run against a deliberately unreachable provider endpoint MUST fail. If it succeeds, egress is open by another path and the isolation flag is not measuring what it claims."
     }
   ],
-
   "refusal_criteria": [
     {
       "code": "SINGLE_OUTCOME_CLASS",
@@ -126,14 +138,12 @@
       "reporting_rule": "v_benchmark_refusal_diagnostics is reported beside every result table. A campaign that reports only admitted rows silently changes its denominator."
     }
   ],
-
   "stop_go": {
     "go_condition": "Any dose level shows a neutral-vs-semantic separation, or the ladder shows within-arm spread away from ceiling.",
     "stop_condition": "Neutral and semantic indistinguishable across all four doses.",
     "stop_action": "Redesign the semantic_distractor arm before further spend. It would not be measuring interference.",
     "escalation": "If the whole ladder sits at ceiling, Action Memory is too easy to rank models on and feeds claim C5 in the roadmap."
   },
-
   "sizing_note": {
     "clearance_n": 20,
     "pilot_n": 18,
@@ -147,11 +157,38 @@
     },
     "design_effect_caveat": "power.py has no ICC/design-effect term and _paired_variance SUBTRACTS covariance, so pair_correlation can only shrink required n. It must not be used as an ICC proxy; doing so undersizes any clustered campaign."
   },
-
   "explicit_non_goals": [
     "No capability, reliability or ranking claim about GLM-5.3-Flash.",
     "No cost or throughput forecast; the lane reports cost_usd null.",
     "No claim requiring enforced no-network unless the host-isolation precondition passed.",
     "No reportable rate. This is a calibration ledger by construction."
-  ]
+  ],
+  "paired_extension": {
+    "id": "E5-full-vs-flash",
+    "note": "Optional follow-on, not part of Campaign 0. Run only on cells this campaign shows to discriminate.",
+    "lanes": [
+      "zai-coding-plan/glm-5.3",
+      "zai-coding-plan/glm-5.3-flash"
+    ],
+    "excluded_lanes": [
+      {
+        "model": "zai-coding-plan/glm-5.3-highspeed",
+        "reason": "not_in_subscription_http_429",
+        "n": 0
+      }
+    ],
+    "excluded_cells": [
+      {
+        "cell": "funcdag depth-5 seed-42 canary",
+        "reason": "both tiers already cleared it; a cell both arms pass cannot separate them"
+      }
+    ],
+    "why_within_provider": "Holds provider, adapter, credential path, OpenCode pin and Harbor version constant so the only declared delta is model tier. A cross-provider pairing is confounded by adapter and auth path, which are tracked as consequential fields.",
+    "secondary_estimand": "token and step cost at equal outcome; the pilot measured ~48931 prompt tokens/trial with cost_usd null, so equal success at unequal token volume is a reportable finding even when rates tie.",
+    "pairing_key": [
+      "task_block_id",
+      "dose_bytes",
+      "seed"
+    ]
+  }
 }

@@ -39,6 +39,10 @@ next by decision value and state honestly which analyses will refuse; sections
 6–9 cover the infrastructure that gates admissibility, what not to build, and
 five claims this program could actually settle.
 
+One structural point precedes all of it: **model access and model capability are
+separate axes** (§1.5). A lane that returns HTTP 429 produced no trial, and must
+never appear as a zero.
+
 The single most consequential number in this document is **`clearance_n = 20`**
 (`src/evallab/analysis_capability.py:387`) against **18 pilot trials**. T1.1
 refuses the entire pilot as `UNDERPOWERED` by two trials. Everything in section 2
@@ -128,12 +132,52 @@ solved this from the provided context alone" is admissible from this lane.
 It is not evidence about GLM-5.3-Flash, and treating it as a baseline would be
 the first serious error available to this program.
 
-### 1.5 Forecast, stated as such
+### 1.5 Model access is a separate axis from model capability
 
-`[FORECAST]` A second model on these same six cells will land between 10/18 and
+`[USER-REPORTED 2026-08-29]` Not yet in the repository, so tagged distinctly from
+`[OBSERVED]`. This memo acts on it as ground truth; it is separated only because
+no promoted artifact carries it and a reader cannot re-derive it here.
+
+| Lane | Access | Model outcome |
+|---|---|---|
+| `zai-coding-plan/glm-5.3` (full) | accessible | passed the depth-5 seed-42 FuncDAG canary |
+| `zai-coding-plan/glm-5.3-flash` | accessible | passed the same depth-5 seed-42 FuncDAG canary |
+| `zai-coding-plan/glm-5.3-highspeed` | **not in the subscription — HTTP 429** | **none. No trial ran.** |
+
+**The Highspeed 429 is an access-control fact and carries no capability
+information.** It must never enter a results table, a denominator, or a refusal
+rate. `[INFERENCE]` The failure mode to guard against is exactly the one the
+repository already guards for verifiers: a missing outcome silently becoming a
+zero. A 429 means the trial did not happen, so the correct record is an excluded
+lane with a stated reason, not a scored trial. This mirrors how the pilot handled
+its own pre-scoring setup failures — those earlier jobs were excluded from model
+outcome counts because they failed before a valid scored trial
+(`research/evidence/zai-opencode-mcp-pilot-2026-08-29.md:159-163`).
+
+`[OBSERVED]` The repository already has the right vocabulary for this: the
+DeepSeek screen sits at `blocked_pending_linux_certification_and_fresh_credential`
+with **n = 0**, not at a rate of 0.0. Highspeed should be recorded the same way.
+
+**Two consequences for the plan.** First, the paired contrast no longer needs a
+second *provider*: full-vs-Flash within `zai-coding-plan` holds provider,
+harness, adapter and credential path constant and varies only the model tier,
+which is a materially stronger design than DeepSeek-vs-Z.ai. E5 is rewritten
+accordingly. Second, both tiers clearing the **depth-5** canary — the deepest
+FuncDAG depth available — is the first direct evidence for claim C5: if the
+hardest configured depth is at ceiling for both tiers, FuncDAG depth cannot rank
+them, and §3.2's expansion must lean on distractor count rather than depth.
+
+### 1.6 Forecast, stated as such
+
+`[FORECAST]` A second lane on these same six cells will land between 10/18 and
 18/18. That interval is wide enough to be nearly useless, which is the point: at
-three repetitions per cell the design cannot separate models unless one collapses
+three repetitions per cell the design cannot separate lanes unless one collapses
 completely. Section 4 quantifies this rather than asserting it.
+
+`[FORECAST]` Sharpened by §1.5: since full and Flash both cleared depth-5
+FuncDAG, the most likely paired-contrast outcome on the current cells is **no
+separation**, and the informative result would then be about the cells rather
+than the models.
 
 ---
 
@@ -255,25 +299,47 @@ is the only one that populates T1.2's `fault_opportunity_id` unit.
   classes, the vertical is measuring *one* learned repair move rather than
   general recovery, and the fault set needs to vary the required mutation.
 
-### E5 — Paired second-model contrast on the E3/E4 cells
+### E5 — Paired full-vs-Flash mini-lane on the E3/E4 cells
 
-**Why last of the run entries.** A contrast is only worth running once the
-per-arm designs above are known to discriminate. Running it earlier risks the
-O4 trap the tutor report names: `[OBSERVED]` the TB3 5-task screen produced all
-five rewards at 0.0 on `gemini-3.7-flash-low`, so a second arm there would
-compare two floors.
+**Why this pairing.** `[USER-REPORTED]` §1.5: `zai-coding-plan/glm-5.3` and
+`glm-5.3-flash` are both accessible on the current subscription. A within-provider
+tier contrast holds **provider, adapter, credential path, OpenCode pin and Harbor
+version constant** and varies only the model tier. `[INFERENCE]` That is a
+materially cleaner contrast than Z.ai-vs-DeepSeek, where a difference could come
+from the adapter, the auth path or the harness rather than the model — and the
+repository already tracks `harness_version`, `scaffold_version` and
+`toolset_digest` precisely because those confounds are real.
 
-- **Cells:** whichever of E3/E4 showed within-model spread, reused exactly.
-- **Lanes:** GLM-5.3-Flash plus one second family. `[OBSERVED]` The DeepSeek
-  adapter is `verified-configured` but the screen is
-  `blocked_pending_linux_certification_and_fresh_credential`, so E2 unblocks it.
-- **Primary estimand:** paired per-cell difference with `task_block_id` exact
-  pairing, and `refuse_to_rank_reasons` surfaced rather than suppressed.
+**Why still last of the run entries.** A contrast is only worth running once the
+per-arm designs are known to discriminate. Running it earlier risks the O4 trap
+the tutor report names: `[OBSERVED]` the TB3 5-task screen produced all five
+rewards at 0.0 on `gemini-3.7-flash-low`, so a second arm there would compare two
+floors.
+
+- **Cells:** whichever of E3/E4 showed within-lane spread, reused exactly.
+  `[USER-REPORTED]` **Explicitly excluded: the depth-5 seed-42 FuncDAG canary
+  cell**, which both tiers already cleared. A cell both arms pass cannot separate
+  them.
+- **Lanes:** `zai-coding-plan/glm-5.3` (full) and `zai-coding-plan/glm-5.3-flash`.
+  `glm-5.3-highspeed` is **excluded as an access-gated lane with n = 0**, recorded
+  the way the DeepSeek screen is recorded — never as a rate.
+- **Reps/seeds:** 3 per cell, seeds carried from the parent E3/E4 design so the
+  pairing key `(task_block_id, dose_bytes or fault_class, seed)` resolves exactly.
+- **Primary estimand:** paired per-cell difference, full minus Flash, with
+  `task_block_id` exact pairing and `refuse_to_rank_reasons` surfaced rather than
+  suppressed.
+- **Secondary estimand, and arguably the more useful one:** token and step cost at
+  equal outcome. `[OBSERVED]` The pilot recorded ~48.9k prompt tokens per trial
+  (880,748 / 18) with `cost_usd` null throughout, so a tier comparison that finds
+  *equal success at unequal token volume* is a real and reportable finding about
+  the lane even when success rates tie.
 - **Refusal criteria:** refuse to rank unless controlled fingerprints are
-  identical. Section 4 shows the MDE this design can actually support; anything
-  smaller is not reportable.
-- **Stop/go:** if both models are at ceiling on a cell, that cell is retired from
-  the contrast set rather than repeated.
+  identical. §4.2 bounds what this design can support: at a 0.833 baseline nothing
+  below a 0.167 effect is admissible and MDE is undefined below n=40. A tie is the
+  expected result and must be reported as a tie, not as equivalence.
+- **Stop/go:** if full and Flash are indistinguishable on every cell that survived
+  E3/E4 selection, **stop adding arms** and route the finding to claim C5: the
+  cell inventory, not the model set, is the limiting factor.
 
 ### Ranking rationale
 
@@ -283,7 +349,7 @@ compare two floors.
 | E2 | Isolation replication | Linux host | no (18) | no — replication check |
 | E3 | Action Memory ladder | Linux host | yes (72) | calibration ledger only |
 | E4 | Recovery matrix | Linux host | yes (60) | calibration ledger only |
-| E5 | Second-model contrast | E2 + E3/E4 discrimination | yes | only if MDE permits |
+| E5 | Full-vs-Flash mini-lane | E2 + E3/E4 discrimination | yes | only if MDE permits (§4.2) |
 
 `[INFERENCE]` E1 outranks everything because it is unblocked *today* and because
 its failure mode invalidates a whole plane. E2 outranks E3/E4 because running a
@@ -324,6 +390,16 @@ Expansion: depth ∈ {3,4,5} × distractors ∈ {2,4,6} at width 3, seeds {42,10
 3 reps = **81 trials**. Width held at 3 to keep the grid affordable; width is the
 axis with the weakest prior reason to matter.
 
+`[USER-REPORTED]` **Depth is probably already exhausted as a difficulty axis.**
+Both `glm-5.3` and `glm-5.3-flash` cleared the depth-5 seed-42 canary, and depth 5
+is the deepest configured level. `[INFERENCE]` If the hardest available depth is at
+ceiling for both tiers, the depth factor will not separate lanes and may not even
+separate difficulty. **Distractor count is therefore the primary difficulty axis
+for this vertical**, and the expansion should weight it: distractors ∈ {2,4,6} at
+depth 5 specifically, before spending trials on depths 3–4 that are near-certainly
+easier. If distractors at 6 also sits at ceiling, FuncDAG needs generator
+extension beyond its certified envelope rather than more sampling.
+
 `[OBSERVED]` The pilot's only FuncDAG failure was **not** a reasoning failure: the
 agent computed the target correctly and then wrote a diagnostic scalar before the
 JSON document, so the verifier rejected the artifact. `[INFERENCE]` This is an
@@ -353,13 +429,27 @@ number would present it as strong.
 
 ### 3.5 The paired second-model contrast
 
-Covered as E5. `[OBSERVED]` Two lanes are candidates: DeepSeek (adapter verified,
-blocked on Linux certification) and the TB3 `luna` spec set, which already exists
-for both arms but has only ever run `gemini-low`.
+Covered as E5, and the pairing changed on new evidence.
 
-`[INFERENCE]` Prefer DeepSeek on the E3/E4 cells over `luna` on TB3. The TB3
-screen's all-zero result means it currently discriminates nothing, and adding an
-arm to a floor measures the floor.
+`[USER-REPORTED]` §1.5: `glm-5.3` (full) and `glm-5.3-flash` are both accessible;
+`glm-5.3-highspeed` is not in the subscription and returned HTTP 429 with **no
+model outcome**.
+
+`[INFERENCE]` **Prefer full-vs-Flash within `zai-coding-plan`** over any
+cross-provider pairing. It holds provider, adapter, credential path, OpenCode pin
+and Harbor version constant, so the only declared delta is the model tier. A
+Z.ai-vs-DeepSeek difference, by contrast, is confounded by adapter and auth path —
+and those confounds are tracked as consequential fields (`harness_version`,
+`scaffold_version`, `toolset_digest`) precisely because they are known to matter.
+
+DeepSeek and the TB3 `luna` arm remain available but drop below full-vs-Flash:
+`[OBSERVED]` DeepSeek is `blocked_pending_linux_certification_and_fresh_credential`,
+and the TB3 screen's five all-zero rewards mean adding an arm there measures a
+floor.
+
+**Access gating is recorded separately from capability.** Highspeed enters the
+plan as an excluded lane with n = 0 and a stated reason, never as a scored trial
+or a refusal rate.
 
 ---
 
@@ -727,9 +817,11 @@ remains `false` and no `PaidRunAuthorization` is attached.
 
 ---
 
-## 9. Five falsifiable claims, with exact evidence boundaries
+## 9. Six falsifiable claims, with exact evidence boundaries
 
-Each is stated so that a specific observation would refute it.
+Each is stated so that a specific observation would refute it. The brief asked for
+five; C6 is added because the access-gating evidence in §1.5 raised a distinct
+falsifiable failure mode that none of the other five covers.
 
 ### C1 — Semantic distractors degrade Action Memory beyond context length alone
 
@@ -780,12 +872,38 @@ Each is stated so that a specific observation would refute it.
   MDE at the observed baseline.
 - **Established by:** both families at ceiling on the same cells, plus the
   existing `gemini-low` floor result at the other extreme.
-- **Boundary:** `[OBSERVED]` the two data points available today point opposite
-  ways and both are uninformative — 15/18 at ceiling on the MCP cells, 0/5 at
-  floor on TB3. `[INFERENCE]` This is the claim with the highest programme-level
-  consequence: if the cell inventory has no mid-range difficulty, then no amount
-  of additional n produces a model comparison, and the correct response is task
-  re-selection rather than more runs.
+- **Boundary:** `[OBSERVED]` the two repository data points available today point
+  opposite ways and both are uninformative — 15/18 at ceiling on the MCP cells,
+  0/5 at floor on TB3. `[USER-REPORTED]` A third point now favours the claim:
+  **both `glm-5.3` and `glm-5.3-flash` cleared the depth-5 seed-42 FuncDAG canary**,
+  and depth 5 is the deepest configured level. Two tiers at ceiling on the hardest
+  available depth is direct evidence that this vertical's difficulty envelope is
+  too low to rank with. `[INFERENCE]` This is the claim with the highest
+  programme-level consequence: if the cell inventory has no mid-range difficulty,
+  no amount of additional n produces a model comparison, and the correct response
+  is task re-selection or generator extension rather than more runs.
+- **Status:** promoted from *unsettled* to *supported but not established*. One
+  canary at n=1 per tier is not a measurement; E5's stop/go rule is written to
+  settle it.
+
+### C6 — Access gating has been mistaken for capability somewhere in the record
+
+- **Refuted by:** every non-executing lane in the repository carrying n = 0 with a
+  stated blocking reason, and none carrying a 0.0 rate.
+- **Established by:** any results table, denominator or refusal rate that contains
+  a lane which never produced a scored trial.
+- **Boundary:** `[USER-REPORTED]` the concrete instance is
+  `glm-5.3-highspeed` — not in the subscription, HTTP 429, **no model outcome**. It
+  must be recorded as an excluded access-gated lane, exactly as the DeepSeek screen
+  is recorded at n = 0 rather than at 0.0.
+- **Why it is worth stating as a falsifiable claim rather than a note:**
+  `[OBSERVED]` the repository already made and corrected this class of error once —
+  the pilot's pre-scoring setup failures were *excluded* from model outcome counts
+  because they failed before a valid scored trial
+  (`research/evidence/zai-opencode-mcp-pilot-2026-08-29.md:159-163`). The
+  discipline exists; the claim is that it must hold for access failures too, where
+  the temptation to score a zero is stronger because the request reached the
+  provider.
 
 ---
 
@@ -822,6 +940,20 @@ Every numeric claim in this memo, and how it was checked at `origin/main`
 | $0.01188 total spend, only `canary-syn-funcdag-suite` | Summed `accounting.observed_billable_spend_usd` across the manifests in `research/experiments/manifests/` |
 | Six benchmark views incl. `v_benchmark_refusal_diagnostics` | `CREATE VIEW` scan of `sql/traj_benchmark_views.sql` |
 | T1.1/T1.2/T1.3 entrypoints at `:382/:521/:701` | Definition-line scan of `src/evallab/analysis_capability.py` |
+
+### New evidence arriving after the memo was drafted
+
+| Item | Status | Handling |
+|---|---|---|
+| `glm-5.3-highspeed` not in subscription; HTTP 429; **no model outcome** | `[USER-REPORTED 2026-08-29]`; no promoted artifact carries it | Recorded as an access-gated lane at **n = 0** with a stated reason. Never a scored trial, a denominator entry or a refusal rate (§1.5, C6) |
+| `glm-5.3` (full) and `glm-5.3-flash` both accessible; both cleared the depth-5 seed-42 FuncDAG canary | `[USER-REPORTED 2026-08-29]` | E5 rewritten as a within-provider full-vs-Flash mini-lane; that canary cell explicitly excluded from the contrast set; FuncDAG difficulty axis shifted from depth to distractor count (§1.5, §3.2, §3.5, E5, C5) |
+
+`[OBSERVED]` I searched the repository for `glm-5.3-highspeed` and for non-Flash
+`glm-5.3` model artifacts and found none — the 58 files matching `429` are
+incidental digest substrings, not access records. So these two items are tagged
+`[USER-REPORTED]` rather than `[OBSERVED]`: this memo acts on them as ground
+truth, and marks them so a reader knows they cannot yet be re-derived from the
+repository. `verify_roadmap_claims.py` therefore does not assert them.
 
 **Not done, deliberately:** no billable model call, no broad test suite, no Harbor
 execution, no writes outside `research/roadmap/`. Two figures in the pinned state

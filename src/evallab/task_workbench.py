@@ -1441,17 +1441,48 @@ def _is_exact_dependency_version(value: object) -> bool:
     )
 
 
+def _derive_all_build_contexts(
+    task_dir: Path, compose_topology: Mapping[str, Any] | None, diagnostics: list[Diagnostic]
+) -> tuple[tuple[str, str], ...]:
+    contexts = list(_BUILD_CONTEXTS)
+    seen_paths: dict[str, str] = {"environment": "the agent image", "tests": "the separate verifier image"}
+    if compose_topology and isinstance(compose_topology.get("services"), Mapping):
+        for s_name, s_info in compose_topology["services"].items():
+            if not isinstance(s_info, Mapping):
+                continue
+            ctx_rel = s_info.get("build_context")
+            if not ctx_rel or not isinstance(ctx_rel, str) or ctx_rel in ("environment", "."):
+                continue
+            clean_rel = ctx_rel.strip("/")
+            resolved = (task_dir / clean_rel).resolve()
+            if not _is_under(resolved, task_dir):
+                diagnostics.append(
+                    _diag("compose_build_path_escape", "environment/docker-compose.yaml", f"service {s_name!r} build context escapes task directory: {clean_rel}")
+                )
+                continue
+            if resolved.is_symlink():
+                diagnostics.append(
+                    _diag("compose_build_path_symlink", "environment/docker-compose.yaml", f"service {s_name!r} build context is a symlink: {clean_rel}")
+                )
+                continue
+            if clean_rel not in seen_paths:
+                seen_paths[clean_rel] = f"the sidecar service {s_name}"
+                contexts.append((clean_rel, f"the sidecar service {s_name}"))
+    return tuple(contexts)
+
+
 def _validate_offline_build_proofs(
-    task_dir: Path, diagnostics: list[Diagnostic]
+    task_dir: Path, diagnostics: list[Diagnostic], compose_topology: Mapping[str, Any] | None = None
 ) -> dict[str, dict[str, Any]]:
     proofs: dict[str, dict[str, Any]] = {}
-    for context, _image in _BUILD_CONTEXTS:
+    all_contexts = _derive_all_build_contexts(task_dir, compose_topology, diagnostics)
+    for context, _image in all_contexts:
         root = task_dir / context
-        if not root.is_dir():
+        if not root.is_dir() or root.is_symlink():
             continue
         for proof_name in ("build-proof.json", "offline-build-proof.json"):
             proof_path = root / proof_name
-            if not proof_path.is_file():
+            if not proof_path.is_file() or proof_path.is_symlink():
                 continue
             rel_proof = proof_path.relative_to(task_dir).as_posix()
             try:
@@ -1466,6 +1497,61 @@ def _validate_offline_build_proofs(
                     _diag("build_proof_invalid", rel_proof, "build proof must be a JSON object")
                 )
                 continue
+
+            # Check if canonical MCP substrate proof
+            if "substrate_version" in data or data.get("mode") in ("complete_offline_package", "plan_only"):
+                mode = data.get("mode")
+                if mode == "plan_only":
+                    proofs[context] = {
+                        "context": context,
+                        "proof_path": rel_proof,
+                        "mode": "plan_only",
+                        "substrate_version": data.get("substrate_version"),
+                        "proof_digest": _sha256_file(proof_path),
+                    }
+                    continue
+                if mode != "complete_offline_package":
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"unknown substrate proof mode: {mode!r}")
+                    )
+                    continue
+                wheels = data.get("wheels")
+                if not isinstance(wheels, Sequence) or not wheels:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate build proof requires non-empty 'wheels'")
+                    )
+                    continue
+                pinned_deps = []
+                has_wheel_err = False
+                for w in wheels:
+                    if not isinstance(w, Mapping) or not w.get("filename") or not w.get("sha256"):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, "each wheel entry must declare filename and sha256")
+                        )
+                        has_wheel_err = True
+                        break
+                    pinned_deps.append({
+                        "name": w.get("name") or w["filename"].split("-")[0],
+                        "version": w.get("version") or "pinned",
+                        "sha256": w["sha256"],
+                        "wheel": w["filename"],
+                    })
+                if has_wheel_err:
+                    continue
+                proofs[context] = {
+                    "context": context,
+                    "proof_path": rel_proof,
+                    "lockfile": "requirements.txt",
+                    "lockfile_digest": data.get("requirements_sha256", ""),
+                    "ecosystem": "pypi",
+                    "reviewed_by": "eval-lab-substrate",
+                    "pinned_dependencies": pinned_deps,
+                    "pinned_dependencies_count": len(pinned_deps),
+                    "proof_digest": _sha256_file(proof_path),
+                }
+                continue
+
+            # Legacy / Tau2 offline build proof
             if data.get("kind") != "offline_build_proof":
                 diagnostics.append(
                     _diag(
@@ -2662,16 +2748,28 @@ def _validate_verifier_env(
 
 
 def _validate_build_context_contents(
-    task_dir: Path, diagnostics: list[Diagnostic], build_proofs: Mapping[str, Any] | None = None
+    task_dir: Path,
+    diagnostics: list[Diagnostic],
+    build_proofs: Mapping[str, Any] | None = None,
+    compose_topology: Mapping[str, Any] | None = None,
 ) -> None:
     """Refuse unmodelled configuration files, then content-scan the payload."""
-    for context, image in _BUILD_CONTEXTS:
+    all_contexts = _derive_all_build_contexts(task_dir, compose_topology, diagnostics)
+    nested_roots = [
+        (task_dir / ctx).resolve()
+        for ctx, _img in all_contexts
+        if ctx not in ("environment", "tests")
+    ]
+    for context, image in all_contexts:
         root = task_dir / context
-        if not root.is_dir():
+        if not root.is_dir() or root.is_symlink():
             continue
         dockerfile = f"{context}/Dockerfile"
         for path in sorted(root.rglob("*")):
             if path.is_symlink() or not path.is_file():
+                continue
+            resolved_path = path.resolve()
+            if context == "environment" and any(_is_under(resolved_path, n_root) for n_root in nested_roots):
                 continue
             relative = path.relative_to(task_dir).as_posix()
             if relative == dockerfile:
@@ -2728,8 +2826,8 @@ def _validate_build_context_contents(
                             "build_network_use",
                             relative,
                             f"files in the build context for {image} may not fetch from a network "
-                            "or invoke an online package manager; proof permits only exact offline "
-                            "frozen installs",
+                            "or invoke an online package manager; proof permits only exact "
+                            "offline frozen installs",
                         )
                     )
 
@@ -2774,7 +2872,7 @@ def _verify_wheel_in_build_proof(
         )
         return
     declared_hash = matched.get("hash") or matched.get("sha256")
-    if declared_hash and str(declared_hash).lower().replace("sha256:", "") != wheel_hash:
+    if declared_hash and str(declared_hash).lower().removeprefix("sha256:") != wheel_hash.removeprefix("sha256:"):
         diagnostics.append(
             _diag(
                 "build_proof_invalid",
@@ -3461,14 +3559,18 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     compose_topology, sidecar_name = _validate_compose_topology(
         task_dir, diagnostics, credentials=source.credentials
     )
-    build_proofs = _validate_offline_build_proofs(task_dir, diagnostics)
+    build_proofs = _validate_offline_build_proofs(
+        task_dir, diagnostics, compose_topology=compose_topology
+    )
     mcp_servers = _validate_mcp_servers(config, sidecar_name, diagnostics)
     collect_hooks = _validate_verifier_collect(config, artifacts, diagnostics)
     _validate_verifier_env(config, source, diagnostics)
     base_image = _validate_dockerfile(
         task_dir, diagnostics, has_proof=("environment" in build_proofs)
     )
-    _validate_build_context_contents(task_dir, diagnostics, build_proofs)
+    _validate_build_context_contents(
+        task_dir, diagnostics, build_proofs, compose_topology=compose_topology
+    )
     _validate_verifier_image(
         task_dir, diagnostics, has_proof=("tests" in build_proofs)
     )

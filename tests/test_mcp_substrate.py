@@ -950,3 +950,71 @@ def test_stage_platform_wheelhouse_single_pass_bytes_and_lock(tmp_path: Path):
     staged_hash = compute_sha256(staged_bytes)
     assert inventory[0]["sha256"] == staged_hash
     assert f"fastmcp==3.4.7 --hash=sha256:{staged_hash}" in lock
+
+
+def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
+    import zipfile
+
+    from evallab.task_workbench import (
+        _validate_build_context_contents,
+        _validate_compose_topology,
+        _validate_offline_build_proofs,
+    )
+
+    env_dir = tmp_path / "environment"
+    env_dir.mkdir()
+    (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
+
+    sidecar_dir = env_dir / "mcp-server"
+    wh = tmp_path / "wh"
+    wh.mkdir()
+    wh1 = wh / "fastmcp-3.4.7-py3-none-any.whl"
+    with zipfile.ZipFile(wh1, "w") as zf:
+        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+    prov = record_prepackaging_provenance(wh, target)
+
+    tool = _runtime_asset_tool()
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar_dir,
+        tools=[tool],
+        wheelhouse_source=wh,
+        resolver_provenance=prov,
+        plan_only=False,
+    )
+    compose_doc = pkg["compose_doc"]
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
+
+    diagnostics: list[Any] = []
+    compose_topology, sidecar_name = _validate_compose_topology(tmp_path, diagnostics)
+    assert sidecar_name == "mcp-service"
+    assert len(diagnostics) == 0
+
+    build_proofs = _validate_offline_build_proofs(tmp_path, diagnostics, compose_topology=compose_topology)
+    assert "environment/mcp-server" in build_proofs
+    assert len(diagnostics) == 0
+
+    _validate_build_context_contents(tmp_path, diagnostics, build_proofs, compose_topology=compose_topology)
+    assert len(diagnostics) == 0
+
+
+def test_task_workbench_rejects_nested_sidecar_proof_mismatch_and_escapes(tmp_path: Path):
+    from evallab.task_workbench import (
+        _validate_compose_topology,
+    )
+
+    env_dir = tmp_path / "environment"
+    env_dir.mkdir()
+    sidecar_dir = env_dir / "mcp-server"
+    sidecar_dir.mkdir()
+
+    # Escape path in compose
+    bad_compose = render_mcp_compose_document(
+        sidecar_service="mcp-service",
+        sidecar_build_context="../escaped",
+    )
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(bad_compose), encoding="utf-8")
+    diagnostics: list[Any] = []
+    _validate_compose_topology(tmp_path, diagnostics)
+    assert any(d.code == "compose_build_path_escape" for d in diagnostics)
+

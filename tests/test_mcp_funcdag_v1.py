@@ -141,7 +141,7 @@ def test_materializer_uses_fastmcp_substrate(tmp_path):
     assert 'res_file = Path("/app/result.json")' in verifier_eval
     instruction = (task_dir / "instruction.md").read_text(encoding="utf-8")
     assert "Dependency Graph Nodes:" in instruction
-    assert "requires intermediate bindings" in instruction
+    assert "transformation" in instruction
     assert "uses tool" not in instruction  # No gold tool mapping leak in instruction
     assert "/app/result.json" in instruction
 

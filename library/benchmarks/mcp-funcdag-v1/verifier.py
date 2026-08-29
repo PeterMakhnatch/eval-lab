@@ -98,15 +98,19 @@ def verify_execution(
     schema_conformance_rate = (len(conforming_events) / total_events) if total_events else 0.0
     successful_calls = [e for e in events if e.get("event_type") == "tool_call_success"]
 
-    # Verify contiguous ordinals (substrate emits 1-based event_ordinal; runtime simulator emits 0-based event_index)
-    if any("event_ordinal" in e for e in events):
-        ordinals = [e["event_ordinal"] for e in events if "event_ordinal" in e]
-        contiguous_ordinals = ordinals == list(range(1, len(ordinals) + 1))
-    elif any("event_index" in e for e in events):
-        ordinals = [e["event_index"] for e in events if "event_index" in e]
-        contiguous_ordinals = ordinals == list(range(len(ordinals)))
-    else:
-        contiguous_ordinals = True
+    # Verify contiguous ordinals (substrate emits 1-based integer event_ordinal; runtime simulator emits 0-based event_index)
+    contiguous_ordinals = False
+    if events:
+        if all(isinstance(e.get("event_ordinal"), int) for e in events):
+            ordinals = [e["event_ordinal"] for e in events]
+            contiguous_ordinals = ordinals == list(range(1, len(ordinals) + 1))
+        elif all(isinstance(e.get("event_index"), int) for e in events):
+            ordinals = [e["event_index"] for e in events]
+            contiguous_ordinals = ordinals == list(range(len(ordinals)))
+
+    # Reject unknown successful tools outside known closed alphabet
+    allowed_tools = set(node_tool_map.values())
+    no_unknown_tools = all(e.get("tool_name") in allowed_tools for e in successful_calls if not e.get("is_distractor", False))
 
     # Exact per-node verification: matching tool, input arguments, and output result in topological order
     tool_idx = 0
@@ -150,6 +154,7 @@ def verify_execution(
         and dag_conformance
         and value_propagation_accuracy == 1.0
         and contiguous_ordinals
+        and no_unknown_tools
     ):
         reward = 1.0
 

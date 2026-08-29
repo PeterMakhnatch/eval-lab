@@ -13,17 +13,23 @@ lint floor; CI also exercises Python 3.14.
 |---|---|---|
 | Locked install | `uv sync --locked` | uv 0.9.24; Python 3.12 and 3.14 |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
+| Doc index freshness | `uv run python -m evallab.docindex check` | locked; Python 3.12 |
+| Repository map freshness | `uv run python -m evallab.repomap check` | locked; Python 3.12 |
+| Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze |
+| Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
+| Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
 | Tests | `uv run pytest` | locked pytest; Python 3.12 and 3.14 |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate |
-| Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze |
 
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
 
 Run `make premerge` before pushing. `scripts/premerge.sh` pins Python 3.12, checks
-uv 0.9.24, performs the locked install, runs the complete lint and test suite, and
-applies the same ty 0.0.71 ratchet. It is the local reproduction of the combined
-`quality` and `typecheck` workflows; GitHub remains the merge authority.
+uv 0.9.24, performs the locked install (including the `benchmarks` dependency
+group so the live fastmcp/cryptography contract tests run locally instead of
+skipping via `pytest.importorskip`), runs every gate above, and applies the same
+ty 0.0.71 ratchet. It is the local reproduction of the combined `quality` and
+`typecheck` workflows; GitHub remains the merge authority.
 
 ## Deterministic-test rule
 

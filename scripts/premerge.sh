@@ -14,7 +14,11 @@ fi
 
 export UV_PYTHON="${PYTHON_FLOOR}"
 
-uv sync --locked
+# CI test job syncs the benchmark dependency group (fastmcp, cryptography) so the
+# live fastmcp/cryptography contract tests run locally instead of skipping via
+# pytest.importorskip. Mirror that group to keep premerge a faithful reproduction
+# of the combined quality + typecheck workflows (see agents/CHECKS.md).
+uv sync --locked --group benchmarks
 uv run ruff check .
 uv run --no-sync python -m evallab.docindex check
 uv run --no-sync python -m evallab.repomap check

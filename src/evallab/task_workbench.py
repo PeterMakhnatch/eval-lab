@@ -1441,6 +1441,13 @@ def _is_exact_dependency_version(value: object) -> bool:
     )
 
 
+def _is_sha256_hex(val: Any) -> bool:
+    if not isinstance(val, str):
+        return False
+    raw = val.lower().removeprefix("sha256:")
+    return bool(re.fullmatch(r"[0-9a-f]{64}", raw))
+
+
 def _derive_all_build_contexts(
     task_dir: Path, compose_topology: Mapping[str, Any] | None, diagnostics: list[Diagnostic]
 ) -> tuple[tuple[str, str], ...]:
@@ -1521,43 +1528,88 @@ def _validate_offline_build_proofs(
                     )
                     continue
 
-                # 1. Verify requirements.txt matches requirements_sha256
+                # 1. Mandatory requirements.txt matching requirements_sha256
                 req_path = root / "requirements.txt"
                 if not req_path.is_file() or req_path.is_symlink():
                     diagnostics.append(
                         _diag("build_proof_lockfile_missing", rel_proof, "requirements.txt missing or symlink for substrate build proof")
                     )
                     continue
-                actual_req_digest = hashlib.sha256(req_path.read_bytes()).hexdigest()
                 declared_req_digest = data.get("requirements_sha256")
+                if not isinstance(declared_req_digest, str) or not _is_sha256_hex(declared_req_digest):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate proof requires valid sha256 'requirements_sha256'")
+                    )
+                    continue
+                actual_req_digest = hashlib.sha256(req_path.read_bytes()).hexdigest()
                 if actual_req_digest != declared_req_digest:
                     diagnostics.append(
                         _diag("build_proof_lockfile_mismatch", rel_proof, f"requirements.txt digest {actual_req_digest} does not match proof {declared_req_digest}")
                     )
                     continue
 
-                # 2. Verify Dockerfile matches dockerfile_sha256
+                # 2. Mandatory Dockerfile matching dockerfile_sha256
                 df_path = root / "Dockerfile"
-                if df_path.is_file():
-                    actual_df_digest = hashlib.sha256(df_path.read_bytes()).hexdigest()
-                    declared_df_digest = data.get("dockerfile_sha256")
-                    if declared_df_digest and actual_df_digest != declared_df_digest:
-                        diagnostics.append(
-                            _diag("build_proof_invalid", rel_proof, f"Dockerfile digest {actual_df_digest} does not match proof {declared_df_digest}")
-                        )
-                        continue
+                if not df_path.is_file() or df_path.is_symlink():
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "Dockerfile missing or symlink for substrate build proof")
+                    )
+                    continue
+                declared_df_digest = data.get("dockerfile_sha256")
+                if not isinstance(declared_df_digest, str) or not _is_sha256_hex(declared_df_digest):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate proof requires valid sha256 'dockerfile_sha256'")
+                    )
+                    continue
+                df_bytes = df_path.read_bytes()
+                actual_df_digest = hashlib.sha256(df_bytes).hexdigest()
+                if actual_df_digest != declared_df_digest:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"Dockerfile digest {actual_df_digest} does not match proof {declared_df_digest}")
+                    )
+                    continue
 
-                # 3. Verify runtime_assets paths, sizes, and digests
+                # Parse Dockerfile COPY instructions to verify 1:1 runtime asset mapping
+                df_text = df_bytes.decode("utf-8", errors="replace")
+                dockerfile_copy_sources = []
+                for line in _docker_logical_lines(df_text):
+                    m_copy = re.match(r"(?i)^COPY\s+(?:--[a-z0-9_-]+=\S+\s+)*(\S+)\s+(\S+)", line)
+                    if m_copy:
+                        src_token = m_copy.group(1)
+                        if src_token not in ("wheelhouse", "requirements.txt", "server.py"):
+                            dockerfile_copy_sources.append(src_token)
+
+                # 3. Mandatory runtime_assets verification and 1:1 mapping with Dockerfile COPY
                 has_asset_err = False
-                if "runtime_assets" in data and isinstance(data["runtime_assets"], Sequence):
-                    for a in data["runtime_assets"]:
-                        if not isinstance(a, Mapping) or not a.get("path") or not a.get("sha256"):
+                declared_asset_paths = set()
+                raw_assets = data.get("runtime_assets", [])
+                if not isinstance(raw_assets, Sequence) or isinstance(raw_assets, (str, bytes)):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "runtime_assets in substrate proof must be a list")
+                    )
+                    has_asset_err = True
+                else:
+                    for a in raw_assets:
+                        if (
+                            not isinstance(a, Mapping)
+                            or not isinstance(a.get("path"), str)
+                            or not isinstance(a.get("sha256"), str)
+                            or not isinstance(a.get("size_bytes"), int)
+                            or not _is_sha256_hex(a["sha256"])
+                        ):
                             diagnostics.append(
-                                _diag("build_proof_invalid", rel_proof, "invalid runtime_assets entry in proof")
+                                _diag("build_proof_invalid", rel_proof, "each runtime_asset entry must declare valid path (str), sha256 (hex), and size_bytes (int)")
                             )
                             has_asset_err = True
                             break
                         a_rel = a["path"]
+                        if a_rel in declared_asset_paths:
+                            diagnostics.append(
+                                _diag("build_proof_invalid", rel_proof, f"duplicate runtime asset path in proof: {a_rel!r}")
+                            )
+                            has_asset_err = True
+                            break
+                        declared_asset_paths.add(a_rel)
                         a_file = root / a_rel
                         if not a_file.is_file() or a_file.is_symlink() or not _is_under(a_file.resolve(), root.resolve()):
                             diagnostics.append(
@@ -1566,7 +1618,7 @@ def _validate_offline_build_proofs(
                             has_asset_err = True
                             break
                         a_bytes = a_file.read_bytes()
-                        if "size_bytes" in a and len(a_bytes) != a["size_bytes"]:
+                        if len(a_bytes) != a["size_bytes"]:
                             diagnostics.append(
                                 _diag("build_proof_invalid", rel_proof, f"runtime asset {a_rel!r} size {len(a_bytes)} does not match proof {a['size_bytes']}")
                             )
@@ -1579,10 +1631,20 @@ def _validate_offline_build_proofs(
                             )
                             has_asset_err = True
                             break
+
                 if has_asset_err:
                     continue
 
-                # 4. Verify wheels exist specifically under root/wheelhouse/<filename>
+                # Bidirectional 1:1 check between Dockerfile COPY and proof runtime_assets
+                if set(dockerfile_copy_sources) != declared_asset_paths:
+                    missing_copy = declared_asset_paths - set(dockerfile_copy_sources)
+                    extra_copy = set(dockerfile_copy_sources) - declared_asset_paths
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"Dockerfile COPY sources do not match proof runtime_assets 1:1 (missing in Dockerfile: {sorted(missing_copy)}, extra in Dockerfile: {sorted(extra_copy)})")
+                    )
+                    continue
+
+                # 4. Mandatory wheels verification strictly under root/wheelhouse/<basename>
                 wheels = data.get("wheels")
                 if not isinstance(wheels, Sequence) or not wheels:
                     diagnostics.append(
@@ -1599,23 +1661,56 @@ def _validate_offline_build_proofs(
                 pinned_deps = []
                 has_wheel_err = False
                 declared_filenames = set()
+                seen_fold = set()
                 for w in wheels:
-                    if not isinstance(w, Mapping) or not w.get("filename") or not w.get("sha256"):
+                    if (
+                        not isinstance(w, Mapping)
+                        or not isinstance(w.get("filename"), str)
+                        or not isinstance(w.get("sha256"), str)
+                        or not isinstance(w.get("size_bytes"), int)
+                        or not _is_sha256_hex(w["sha256"])
+                    ):
                         diagnostics.append(
-                            _diag("build_proof_invalid", rel_proof, "each wheel entry must declare filename and sha256")
+                            _diag("build_proof_invalid", rel_proof, "each wheel entry must declare valid filename (str), sha256 (hex), and size_bytes (int)")
                         )
                         has_wheel_err = True
                         break
                     w_name = w["filename"]
+                    if (
+                        Path(w_name).name != w_name
+                        or not w_name.endswith(".whl")
+                        or "/" in w_name
+                        or "\\" in w_name
+                        or any(ord(c) < 32 or ord(c) == 127 for c in w_name)
+                    ):
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheel filename {w_name!r} must be a normalized plain .whl basename")
+                        )
+                        has_wheel_err = True
+                        break
+                    w_fold = w_name.casefold()
+                    if w_fold in seen_fold:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"duplicate wheel filename in proof: {w_name!r}")
+                        )
+                        has_wheel_err = True
+                        break
+                    seen_fold.add(w_fold)
                     declared_filenames.add(w_name)
                     w_path = wheelhouse_dir / w_name
-                    if not w_path.is_file() or w_path.is_symlink():
+                    if not w_path.is_file() or w_path.is_symlink() or not _is_under(w_path.resolve(), wheelhouse_dir.resolve()):
                         diagnostics.append(
-                            _diag("build_proof_invalid", rel_proof, f"wheel {w_name!r} missing or symlink in wheelhouse")
+                            _diag("build_proof_invalid", rel_proof, f"wheel {w_name!r} missing, symlink, or escapes wheelhouse")
                         )
                         has_wheel_err = True
                         break
                     w_bytes = w_path.read_bytes()
+                    if len(w_bytes) != w["size_bytes"]:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheel {w_name!r} size {len(w_bytes)} does not match proof {w['size_bytes']}")
+                        )
+                        has_wheel_err = True
+                        break
                     w_hash = hashlib.sha256(w_bytes).hexdigest()
                     if w_hash != w["sha256"]:
                         diagnostics.append(

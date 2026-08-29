@@ -1081,3 +1081,69 @@ def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
     _validate_offline_build_proofs(tmp_path, diag3, compose_topology=compose_topology)
     assert any("extra unapproved wheels" in d.message for d in diag3)
 
+
+def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Path):
+    import zipfile
+
+    from evallab.task_workbench import (
+        _validate_compose_topology,
+        _validate_offline_build_proofs,
+    )
+
+    env_dir = tmp_path / "environment"
+    env_dir.mkdir()
+    (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
+
+    sidecar_dir = env_dir / "mcp-server"
+    wh = tmp_path / "wh"
+    wh.mkdir()
+    wh1 = wh / "fastmcp-3.4.7-py3-none-any.whl"
+    with zipfile.ZipFile(wh1, "w") as zf:
+        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+    prov = record_prepackaging_provenance(wh, target)
+
+    ops = tmp_path / "ops.py"
+    ops.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+
+    tool = _runtime_asset_tool()
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar_dir,
+        tools=[tool],
+        wheelhouse_source=wh,
+        resolver_provenance=prov,
+        op_registry_module="ops",
+        runtime_assets=(RuntimeAsset("ops.py", ops),),
+        plan_only=False,
+    )
+    compose_doc = pkg["compose_doc"]
+    (env_dir / "docker-compose.yaml").write_text(yaml.dump(compose_doc), encoding="utf-8")
+
+    compose_topology, _ = _validate_compose_topology(tmp_path, [])
+    proof_path = sidecar_dir / "offline-build-proof.json"
+    raw_proof = json.loads(proof_path.read_text(encoding="utf-8"))
+
+    # 1. Removed runtime_assets key from proof -> unmapped Dockerfile COPY source
+    p1 = dict(raw_proof)
+    p1["runtime_assets"] = []
+    proof_path.write_text(json.dumps(p1), encoding="utf-8")
+    d1 = []
+    _validate_offline_build_proofs(tmp_path, d1, compose_topology=compose_topology)
+    assert any("Dockerfile COPY sources do not match proof runtime_assets 1:1" in d.message for d in d1)
+
+    # 2. Invalid wheel filename (traversal) -> invalid proof
+    p2 = dict(raw_proof)
+    p2["wheels"] = [{"filename": "../outside.whl", "sha256": "0" * 64, "size_bytes": 100}]
+    proof_path.write_text(json.dumps(p2), encoding="utf-8")
+    d2 = []
+    _validate_offline_build_proofs(tmp_path, d2, compose_topology=compose_topology)
+    assert any("wheel filename" in d.message for d in d2)
+
+    # 3. Missing dockerfile_sha256 -> invalid proof
+    p3 = dict(raw_proof)
+    del p3["dockerfile_sha256"]
+    proof_path.write_text(json.dumps(p3), encoding="utf-8")
+    d3 = []
+    _validate_offline_build_proofs(tmp_path, d3, compose_topology=compose_topology)
+    assert any("substrate proof requires valid sha256 'dockerfile_sha256'" in d.message for d in d3)
+

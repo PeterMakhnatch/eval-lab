@@ -10,8 +10,9 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -20,9 +21,9 @@ from typing import Any, Literal
 import yaml
 from pydantic import ValidationError, field_validator, model_validator
 
-from evallab.schemas import ContractModel
+from evallab.execution_contracts import CONTROL_AGENTS, PaidRunAuthorization, load_policy
+from evallab.schemas import ContractModel, StandingApprovalsPolicy
 
-CONTROL_AGENTS = frozenset({"oracle", "nop"})
 MODES = frozenset({"DISABLED", "PAUSED", "RUNNING", "DRAINING", "MAINTENANCE", "KILLED"})
 KILL_DISPOSITION = "FAILED_OPERATOR_KILL"
 DEFAULT_MODE = "DISABLED"
@@ -55,7 +56,9 @@ CLOSED_REASONS = frozenset(
     }
 )
 
-AuthorityKind = Literal["campaign_approval", "budget"]
+SECRET_REF_GRAMMAR = re.compile(r"^keychain:[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,64}$")
+SAFETY_PAYLOAD_KEYS = frozenset({"ok", "reason", "mode", "detail", "running", "authorized"})
+AUTH_FIELDS = frozenset({"spec_id", "actor", "authorized_at", "quota_override"})
 
 
 class SloFreshnessPolicy(ContractModel):
@@ -174,36 +177,60 @@ class ContinuousLoopPolicy(ContractModel):
         return value.lower()
 
 
-class SignedManifest(ContractModel):
-    schema_version: str
-    authority_kind: AuthorityKind
-    signer_identity: str
-    payload: dict[str, Any]
-    payload_digest: str
-    signature: str
-    expires_at: datetime
-    scope: list[str]
+def authorization_digest(auth: PaidRunAuthorization) -> str:
+    payload = {
+        "actor": auth.actor,
+        "authorized_at": auth.authorized_at.astimezone(UTC).isoformat(),
+        "spec_id": auth.spec_id,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
-    @field_validator("signer_identity")
-    @classmethod
-    def _signer(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("signer_identity required")
-        return value
 
-    @field_validator("payload_digest", "signature")
-    @classmethod
-    def _hex(cls, value: str) -> str:
-        if len(value) != SHA256_HEX or any(ch not in "0123456789abcdef" for ch in value.lower()):
-            raise ValueError("digest/signature must be sha256 hex")
-        return value.lower()
+def parse_paid_authorization(raw: Mapping[str, Any] | None, *, now: datetime) -> PaidRunAuthorization | None:
+    if not isinstance(raw, dict):
+        return None
+    if set(raw) - AUTH_FIELDS:
+        return None
+    try:
+        spec_id = raw["spec_id"]
+        actor = raw["actor"]
+        authorized_at = raw["authorized_at"]
+    except KeyError:
+        return None
+    if not isinstance(spec_id, str) or not spec_id.strip():
+        return None
+    if not isinstance(actor, str) or not actor.strip():
+        return None
+    if raw.get("quota_override"):
+        return None
+    try:
+        if isinstance(authorized_at, datetime):
+            stamped = authorized_at
+        else:
+            stamped = datetime.fromisoformat(str(authorized_at).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    stamped = stamped.replace(tzinfo=UTC) if stamped.tzinfo is None else stamped.astimezone(UTC)
+    if stamped > now:
+        return None
+    return PaidRunAuthorization(
+        spec_id=spec_id, actor=actor, authorized_at=stamped, quota_override=False
+    )
 
-    @field_validator("scope")
-    @classmethod
-    def _scope(cls, value: list[str]) -> list[str]:
-        if REQUIRED_SCOPE not in value:
-            raise ValueError(f"scope must include {REQUIRED_SCOPE}")
-        return value
+
+def load_standing_policy(path: Path | None) -> StandingApprovalsPolicy | None:
+    if path is None or not path.is_file():
+        return None
+    try:
+        return load_policy(path)
+    except ValueError:
+        return None
+
+
+def secret_ref_valid(value: str) -> bool:
+    return bool(SECRET_REF_GRAMMAR.fullmatch(value))
 
 
 @dataclass(frozen=True)
@@ -224,8 +251,9 @@ class OperatorContext:
     now: datetime
     enable_token: str
     enable_identity: str
-    approval: SignedManifest | None
-    budget: SignedManifest | None
+    approval: PaidRunAuthorization | None
+    budget: PaidRunAuthorization | None
+    standing: StandingApprovalsPolicy | None
     secret_ref: str
     secret_present: bool
     policy: ContinuousLoopPolicy | None
@@ -242,74 +270,6 @@ def _utc_now(raw: str | None) -> datetime:
             return parsed.replace(tzinfo=UTC)
         return parsed.astimezone(UTC)
     return datetime.now(UTC)
-
-
-def canonical_payload(payload: Mapping[str, Any]) -> str:
-    return json.dumps(dict(payload), sort_keys=True, separators=(",", ":"), default=str)
-
-
-def payload_digest(payload: Mapping[str, Any]) -> str:
-    return hashlib.sha256(canonical_payload(payload).encode("utf-8")).hexdigest()
-
-
-def bound_signature(*, signer_identity: str, digest: str, authority_kind: str) -> str:
-    material = f"{authority_kind}\n{signer_identity}\n{digest}".encode()
-    return hashlib.sha256(material).hexdigest()
-
-
-def make_signed_manifest(
-    *,
-    authority_kind: AuthorityKind,
-    signer_identity: str,
-    payload: Mapping[str, Any],
-    expires_at: datetime,
-    scope: list[str] | None = None,
-) -> dict[str, Any]:
-    digest = payload_digest(payload)
-    return {
-        "schema_version": "1",
-        "authority_kind": authority_kind,
-        "signer_identity": signer_identity,
-        "payload": dict(payload),
-        "payload_digest": digest,
-        "signature": bound_signature(
-            signer_identity=signer_identity, digest=digest, authority_kind=authority_kind
-        ),
-        "expires_at": expires_at.isoformat(),
-        "scope": scope or [REQUIRED_SCOPE],
-    }
-
-
-def verify_signed_manifest(
-    raw: Mapping[str, Any] | None,
-    *,
-    expected_kind: AuthorityKind,
-    now: datetime,
-) -> SignedManifest | None:
-    if not isinstance(raw, dict):
-        return None
-    try:
-        manifest = SignedManifest.model_validate(raw)
-    except ValidationError:
-        return None
-    if manifest.authority_kind != expected_kind:
-        return None
-    expires = manifest.expires_at
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=UTC)
-    if expires <= now:
-        return None
-    digest = payload_digest(manifest.payload)
-    if digest != manifest.payload_digest:
-        return None
-    expected = bound_signature(
-        signer_identity=manifest.signer_identity,
-        digest=digest,
-        authority_kind=manifest.authority_kind,
-    )
-    if expected != manifest.signature:
-        return None
-    return manifest
 
 
 def load_loop_policy(path: Path | None) -> ContinuousLoopPolicy | None:
@@ -406,13 +366,17 @@ def context_from_env(
         else state_dir / "budget.json"
     )
     secret_probe = state_dir / "secret_present"
+    standing_path = (
+        Path(environ["EVAL_LAB_STANDING_POLICY"])
+        if environ.get("EVAL_LAB_STANDING_POLICY")
+        else state_dir / "standing-approvals.yaml"
+    )
     policy = load_loop_policy(policy_path)
+    standing = load_standing_policy(standing_path)
     env_self_asserted_approval = bool(environ.get("EVAL_LAB_STANDING_APPROVAL"))
     env_self_asserted_budget = environ.get("EVAL_LAB_BUDGET_PRESENT", "") in {"1", "true", "yes"}
-    approval = verify_signed_manifest(
-        _load_json_mapping(approval_path), expected_kind="campaign_approval", now=now
-    )
-    budget = verify_signed_manifest(_load_json_mapping(budget_path), expected_kind="budget", now=now)
+    approval = parse_paid_authorization(_load_json_mapping(approval_path), now=now)
+    budget = parse_paid_authorization(_load_json_mapping(budget_path), now=now)
     secret_ref = environ.get("EVAL_LAB_SECRET_REF", "")
     secret_present = secret_probe.is_file() or environ.get("EVAL_LAB_SECRET_PRESENT", "") in {
         "1",
@@ -428,6 +392,7 @@ def context_from_env(
         enable_identity=enable_identity,
         approval=approval,
         budget=budget,
+        standing=standing,
         secret_ref=secret_ref,
         secret_present=secret_present,
         policy=policy,
@@ -456,7 +421,7 @@ def _verdict(
         "authorized": False,
     }
     if extra:
-        payload.update(extra)
+        payload["details"] = dict(extra)
     _append_event(
         ctx.state_dir,
         {
@@ -506,21 +471,21 @@ def admission_reason(ctx: OperatorContext) -> str | None:
         return REASON_MISSING_STANDING_APPROVAL
     if ctx.approval is None:
         return REASON_MISSING_STANDING_APPROVAL
-    if ctx.enable_identity == ctx.approval.signer_identity:
+    if ctx.enable_identity == ctx.approval.actor:
         return REASON_SAME_IDENTITY
     if ctx.env_self_asserted_budget and ctx.budget is None:
         return REASON_MISSING_BUDGET
-    if ctx.budget is None:
+    if ctx.budget is None or ctx.standing is None:
         return REASON_MISSING_BUDGET
-    if ctx.budget.signer_identity in {ctx.enable_identity, ctx.approval.signer_identity}:
+    if ctx.budget.actor in {ctx.enable_identity, ctx.approval.actor}:
         return REASON_SAME_IDENTITY
-    if not ctx.secret_ref or not ctx.secret_present:
+    if not secret_ref_valid(ctx.secret_ref) or not ctx.secret_present:
         return REASON_MISSING_SECRET
     if ctx.policy is None:
         return REASON_DEFAULT_DISABLED
-    if ctx.policy.approval_signature_ref != ctx.approval.signer_identity:
+    if ctx.policy.approval_signature_ref != ctx.approval.actor:
         return REASON_MISSING_STANDING_APPROVAL
-    if ctx.policy.approval_digest != ctx.approval.payload_digest:
+    if ctx.policy.approval_digest != authorization_digest(ctx.approval):
         return REASON_MISSING_STANDING_APPROVAL
     if _heartbeat_stale(ctx):
         return REASON_STALE_HEARTBEAT
@@ -723,22 +688,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-dir", type=Path, default=None)
     parser.add_argument("--policy", type=Path, default=None)
     parser.add_argument("--agent", default="oracle")
-    parser.add_argument("--now", default=None)
     parser.add_argument("--drain-timeout-seconds", type=float, default=None)
     return parser
 
 
-def main(argv: list[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    environ: Mapping[str, str] | None = None,
+    *,
+    clock: Callable[[], datetime] | None = None,
+) -> int:
     args = build_parser().parse_args(argv)
     env = os.environ if environ is None else environ
     state_dir = args.state_dir or Path(env.get("EVAL_LAB_OPERATOR_STATE", "operator-state"))
     _secure_state_dir(state_dir)
     if not (state_dir / "mode").exists():
         write_mode(state_dir, DEFAULT_MODE)
+    now = clock() if clock is not None else datetime.now(UTC)
     ctx = context_from_env(
         state_dir=state_dir,
         policy_path=args.policy,
-        now=_utc_now(args.now or env.get("EVAL_LAB_OPERATOR_NOW")),
+        now=now,
         agent=args.agent,
         drain_timeout_seconds=args.drain_timeout_seconds,
         environ=env,

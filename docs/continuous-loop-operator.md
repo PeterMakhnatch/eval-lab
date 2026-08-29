@@ -63,23 +63,23 @@ not invoke `evallab run`.
 
 ## Enable token, standing approval, budget, secret
 
-Approval and budget are **digest-bound signed manifests** (`$STATE/approval.json`,
-`$STATE/budget.json`, or `EVAL_LAB_APPROVAL_MANIFEST` / `EVAL_LAB_BUDGET_MANIFEST`
-paths). Env presence flags (`EVAL_LAB_STANDING_APPROVAL`, `EVAL_LAB_BUDGET_PRESENT`)
-are self-assertion and are refused. Signers for enable, campaign-approval, and
-budget must be pairwise distinct. Manifests carry `scope` (must include
-`continuous-loop`), `expires_at`, `payload_digest`, and a bound `signature`.
-Never put token material in git or argv logs.
+Approval and budget reuse Platform typed controls: `PaidRunAuthorization`
+JSON (`spec_id`, `actor`, `authorized_at`; `quota_override` must be false)
+plus `load_policy` of `standing-approvals.yaml`. Env presence flags
+(`EVAL_LAB_STANDING_APPROVAL`, `EVAL_LAB_BUDGET_PRESENT`) are self-assertion
+and are refused. Enable identity, approval `actor`, and budget `actor` must
+be pairwise distinct. Parallel signed-manifest extra fields are rejected.
+Never put token material in git or argv logs. There is no production `--now`
+or `EVAL_LAB_OPERATOR_NOW` clock override.
 
 | Input | How |
 |---|---|
 | Enable token | `EVAL_LAB_ENABLE_TOKEN` + `EVAL_LAB_ENABLE_IDENTITY` |
-| Standing approval | signed `campaign_approval` manifest; policy `approval_digest` must match |
-| Budget | signed `budget` manifest with scope/expiry |
-| Secret reference | `EVAL_LAB_SECRET_REF=keychain:service/account` |
+| Standing approval | `$STATE/approval.json` as `PaidRunAuthorization`; loop policy digest must match |
+| Budget | `$STATE/budget.json` as `PaidRunAuthorization` plus `load_policy` standing YAML |
+| Secret reference | `EVAL_LAB_SECRET_REF` closed grammar `keychain:<service>/<account>` (never logged) |
 | Secret presence probe | `EVAL_LAB_SECRET_PRESENT=1` or `$STATE/secret_present` (existence only) |
 | Policy | `--policy` full typed nested fields; nulls keep DISABLED |
-| Clock | `--now` / `EVAL_LAB_OPERATOR_NOW` (tests) |
 
 Closed reason codes: `missing_enable_token`, `missing_standing_approval`,
 `missing_budget`, `missing_secret`, `stale_heartbeat`, `drain_incomplete`,
@@ -103,11 +103,11 @@ policy fields also keep the operator DISABLED.
 
 ## Drain vs kill
 
-- `drain` waits on `$STATE/inflight.json`. If
-  `maintenance_drain_timeout_seconds` elapses with leases remaining →
-  `drain_incomplete`. Empty inflight → mode `DISABLED`.
-- `kill` writes `$STATE/kill.json` with `FAILED_OPERATOR_KILL` and
-  `executed: false` (no process signal).
+- `drain` waits on `$STATE/inflight.json`. Any remaining or malformed
+  inflight, and any unexecuted kill fence, returns nonzero `drain_incomplete`.
+  Empty inflight with no kill fence → mode `DISABLED`.
+- `kill` writes `$STATE/kill.json` with `FAILED_OPERATOR_KILL`,
+  `executed: false`, and **does not wipe** inflight leases.
 
 ## Health / CAS rotation
 

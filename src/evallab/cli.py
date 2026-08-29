@@ -2985,6 +2985,7 @@ def _traj_benchmark_command(
                     "  tool_error_rate_screening: "
                     f"{c0.tool_error_rate_screening}"
                 )
+                print(f"  projection_digest: {c0.projection_digest}")
             return 0
         bundle = ingest_benchmark_trial(trial_dir)
         step_tokens = [s.prompt_tokens for s in outline.steps if s.prompt_tokens is not None]

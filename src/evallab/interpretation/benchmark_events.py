@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Literal
@@ -47,6 +47,78 @@ class BenchmarkContractDriftError(BenchmarkIngestionError):
 
 class BenchmarkMissingArtifactError(BenchmarkIngestionError):
     """Raised when required evidence artifacts (events, final state, contract) are missing."""
+
+
+_ERROR_STATUSES = frozenset(
+    {"error", "failed", "failure", "not_found", "missing", "unavailable", "denied", "rejected"}
+)
+
+
+def _error_value(val: Any) -> bool:
+    """True when a value is a non-empty error indicator."""
+    if val is None:
+        return False
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return val != 0
+    if isinstance(val, str):
+        return val.strip().lower() not in {
+            "",
+            "ok",
+            "success",
+            "none",
+            "null",
+            "false",
+            "0",
+            "true",
+        }
+    if isinstance(val, dict):
+        return bool(val)
+    return bool(val)
+
+
+def is_application_error(payload: Any) -> bool:
+    """Canonical application-level error predicate for tool result payloads.
+
+    Counts an application/domain failure encoded in a tool result *without relabeling
+    a transport-level success*. Recognized signals, checked in order:
+
+    - ``is_error`` True
+    - ``status`` in {error, failed, failure, not_found, missing, unavailable, denied, rejected}
+    - a non-empty ``error`` key at the top level
+    - a nested ``result``/``value``/``output``/``data`` container carrying an ``error``
+      key, an error status, ``is_error`` True, or a nested ``value.error``
+
+    Example (wave2 Action ``get_context_chunk`` miss): a successful transport call whose
+    result is ``{"status": "ok", "value": {"error": "not_found"}}`` is an application error.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("is_error") is True:
+        return True
+    status = payload.get("status")
+    if isinstance(status, str) and status.strip().lower() in _ERROR_STATUSES:
+        return True
+    if _error_value(payload.get("error")):
+        return True
+    for container_key in ("result", "value", "output", "data"):
+        container = payload.get(container_key)
+        if not isinstance(container, dict):
+            continue
+        if _error_value(container.get("error")):
+            return True
+        cstatus = container.get("status")
+        if isinstance(cstatus, str) and cstatus.strip().lower() in _ERROR_STATUSES:
+            return True
+        if container.get("is_error") is True:
+            return True
+        nested = container.get("value")
+        if isinstance(nested, dict) and _error_value(nested.get("error")):
+            return True
+    return False
+
+
 
 
 @dataclass(frozen=True)
@@ -224,6 +296,7 @@ class C0ScreeningProjection:
     verifier_reward: float | None
     harness_exception_class: str | None
     malformed_nested_artifacts: tuple[str, ...]
+    projection_digest: str
 
 
 _NESTED_CONTRACT_CANDIDATES = (
@@ -383,7 +456,11 @@ def project_c0_screening(
         ei = hdata.get("exception_info")
         if isinstance(ei, dict):
             harness_exception_class = str(
-                ei.get("class") or ei.get("exception_class") or ei.get("type") or "Exception"
+                ei.get("exception_type")
+                or ei.get("class")
+                or ei.get("exception_class")
+                or ei.get("type")
+                or "Exception"
             )
             if harness_exception_class:
                 refusals.append("HARNESS_EXCEPTION")
@@ -430,7 +507,7 @@ def project_c0_screening(
     status: Literal["SCREENING_ONLY", "REFUSED"] = (
         "SCREENING_ONLY" if mechanical_source != "none" else "REFUSED"
     )
-    return C0ScreeningProjection(
+    base = C0ScreeningProjection(
         schema_version="c0-screening/v2",
         trial_id=trial_id,
         task_name=task_name,
@@ -462,7 +539,9 @@ def project_c0_screening(
         verifier_reward=verifier_reward,
         harness_exception_class=harness_exception_class,
         malformed_nested_artifacts=tuple(sorted(malformed_nested)),
+        projection_digest="",
     )
+    return replace(base, projection_digest=_compute_projection_digest(base))
 
 
 _C0_PROMOTION_REFUSALS: dict[str, tuple[str, str]] = {
@@ -483,9 +562,11 @@ _C0_PROMOTION_REFUSALS: dict[str, tuple[str, str]] = {
 
 @dataclass(frozen=True)
 class C0PromotionRefusal:
-    """Structured refusal returned whenever C0 evidence is used as a higher-grade claim."""
+    """Structured, auditable refusal when C0 evidence is used as a higher-grade claim."""
 
     allowed: Literal[False]
+    trial_id: str
+    projection_digest: str
     requested_grade: str
     refusal_codes: tuple[str, ...]
     reason: str
@@ -504,10 +585,35 @@ def refuse_causal_promotion(
     code, reason = _C0_PROMOTION_REFUSALS.get(target, _C0_PROMOTION_REFUSALS["causal"])
     return C0PromotionRefusal(
         allowed=False,
+        trial_id=projection.trial_id,
+        projection_digest=projection.projection_digest,
         requested_grade=requested_grade,
         refusal_codes=(code,),
         reason=reason,
     )
+
+
+def _projection_body(proj: C0ScreeningProjection) -> dict[str, Any]:
+    """Canonical projection body: every field except the projection digest and raw evidence digests."""
+    data = asdict(proj)
+    return {
+        k: v
+        for k, v in data.items()
+        if k != "projection_digest" and not k.endswith("_sha256")
+    }
+
+
+def _compute_projection_digest(proj: C0ScreeningProjection) -> str:
+    """SHA-256 over the canonical JSON serialization of the projection body."""
+    canonical = json.dumps(
+        _projection_body(proj), sort_keys=True, default=str, separators=(",", ":")
+    )
+    return sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def validate_projection_digest(proj: C0ScreeningProjection) -> bool:
+    """Recompute and verify the projection digest for auditability."""
+    return _compute_projection_digest(proj) == proj.projection_digest
 
 
 def discover_promoted_trial_dirs(
@@ -1014,7 +1120,7 @@ def correlate_tool_calls(
                 if event_type == "tool_call_success":
                     entry["result_event"] = event
                     entry["result_payload"] = payload.get("result")
-                    entry["is_error"] = False
+                    entry["is_error"] = is_application_error(payload.get("result") or payload)
             else:
                 # Standalone execution record
                 exec_id = f"exec_{event.event_index}"
@@ -1035,7 +1141,7 @@ def correlate_tool_calls(
                     "is_fault_injected": False,
                     "fault_class": None,
                     "result_payload": payload.get("result"),
-                    "is_error": False,
+                    "is_error": is_application_error(payload.get("result") or payload),
                 }
                 ordered_call_ids.append(exec_id)
 
@@ -1092,10 +1198,8 @@ def correlate_tool_calls(
             if entry is not None:
                 entry["result_event"] = event
                 entry["result_payload"] = payload.get("result") or payload.get("output") or payload
-                entry["is_error"] = bool(
-                    payload.get("is_error")
-                    or payload.get("error")
-                    or (isinstance(payload.get("result"), dict) and "error" in payload["result"])
+                entry["is_error"] = is_application_error(
+                    payload.get("result") or payload.get("output") or payload
                 )
             else:
                 res_id = f"res_{event.event_index}"
@@ -1110,12 +1214,8 @@ def correlate_tool_calls(
                     "is_fault_injected": False,
                     "fault_class": None,
                     "result_payload": payload.get("result") or payload.get("output") or payload,
-                    "is_error": bool(
-                        payload.get("is_error")
-                        or payload.get("error")
-                        or (
-                            isinstance(payload.get("result"), dict) and "error" in payload["result"]
-                        )
+                    "is_error": is_application_error(
+                        payload.get("result") or payload.get("output") or payload
                     ),
                 }
                 ordered_call_ids.append(res_id)

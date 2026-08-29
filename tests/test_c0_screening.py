@@ -20,11 +20,15 @@ from evallab.interpretation.benchmark_events import (
     BenchmarkMissingArtifactError,
     C0PromotionRefusal,
     C0ScreeningProjection,
+    correlate_tool_calls,
     discover_promoted_trial_dirs,
+    is_application_error,
     load_trial_bundle,
+    parse_benchmark_events,
     project_c0_screening,
     project_promoted_trials_c0,
     refuse_causal_promotion,
+    validate_projection_digest,
 )
 
 _CONTRACT = {
@@ -152,13 +156,14 @@ def malformed_nested_artifact_trial(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def harness_exception_trial(tmp_path: Path) -> Path:
+    """Real Harbor shape: exception_info carries ``exception_type``."""
     trial = _build_valid_trial(tmp_path, name="harness_exception")
     _write_harness_result(
         trial,
         task_name="evallab/action-memory-clean",
         exception_info={
-            "class": "HarnessTimeoutError",
-            "message": "agent timed out during execution",
+            "exception_type": "AgentTimeoutError",
+            "exception_message": "agent timed out during execution",
         },
     )
     return trial
@@ -228,7 +233,7 @@ def test_harness_exception_disposition(harness_exception_trial: Path) -> None:
         harness_exception_trial, trial_id="h", task_name="t"
     )
     assert proj.quality_disposition == "HARNESS_EXCEPTION"
-    assert proj.harness_exception_class == "HarnessTimeoutError"
+    assert proj.harness_exception_class == "AgentTimeoutError"
     assert "HARNESS_EXCEPTION" in proj.projection_refusals
 
 
@@ -355,3 +360,124 @@ def test_project_promoted_trials_c0_deterministic(tmp_path: Path) -> None:
 
 def test_discover_promoted_trial_dirs_missing_root(tmp_path: Path) -> None:
     assert discover_promoted_trial_dirs(tmp_path / "nope") == []
+
+
+# ---------------------------------------------------------------------------
+# Regression: canonical application-error predicate (wave2 Action not_found)
+# ---------------------------------------------------------------------------
+
+
+def test_is_application_error_predicate() -> None:
+    # wave2 Action get_context_chunk miss: transport success, application error.
+    assert is_application_error({"status": "ok", "value": {"error": "not_found"}}) is True
+    # Nested result containers.
+    assert is_application_error({"result": {"value": {"error": "nope"}}}) is True
+    assert is_application_error({"result": {"error": "boom"}}) is True
+    assert is_application_error({"output": {"status": "failed"}}) is True
+    # Status / flags.
+    assert is_application_error({"status": "error"}) is True
+    assert is_application_error({"is_error": True}) is True
+    # Clean results are NOT relabeled as errors.
+    assert is_application_error({"content": "print('hello')"}) is False
+    assert is_application_error({"status": "ok", "value": {"data": 1}}) is False
+    assert is_application_error({"ok": True}) is False
+    assert is_application_error(None) is False
+
+
+def test_correlate_counts_application_error_not_transport(tmp_path: Path) -> None:
+    """A successful transport call with an application error counts as an error."""
+    events = [
+        {
+            "event_index": 0,
+            "timestamp": "2026-08-29T10:00:00Z",
+            "event_type": "mcp_call",
+            "payload": {"tool_call_id": "call_h", "tool_name": "get_context_chunk", "arguments": {}},
+        },
+        {
+            "event_index": 1,
+            "timestamp": "2026-08-29T10:00:01Z",
+            "event_type": "tool_call_success",
+            "payload": {
+                "tool_call_id": "call_h",
+                "result": {"status": "ok", "value": {"error": "not_found"}},
+            },
+        },
+    ]
+    parsed = parse_benchmark_events(events)
+    correlated = correlate_tool_calls(parsed)
+    assert len(correlated) == 1
+    # Transport still succeeded (result event present), but the application payload is an error.
+    assert correlated[0].result_event is not None
+    assert correlated[0].is_error is True
+
+
+def test_tool_error_count_counts_application_error(tmp_path: Path) -> None:
+    trial = tmp_path / "wave2_fault"
+    trial.mkdir(parents=True)
+    events = [
+        {
+            "event_index": 0,
+            "timestamp": "2026-08-29T10:00:00Z",
+            "event_type": "mcp_call",
+            "payload": {"tool_call_id": "call_1", "tool_name": "read_chunk", "arguments": {}},
+        },
+        {
+            "event_index": 1,
+            "timestamp": "2026-08-29T10:00:01Z",
+            "event_type": "tool_call_success",
+            "payload": {
+                "tool_call_id": "call_1",
+                "result": {"status": "ok", "value": {"error": "not_found"}},
+            },
+        },
+        {
+            "event_index": 2,
+            "timestamp": "2026-08-29T10:00:02Z",
+            "event_type": "mcp_call",
+            "payload": {"tool_call_id": "call_2", "tool_name": "read_chunk", "arguments": {}},
+        },
+        {
+            "event_index": 3,
+            "timestamp": "2026-08-29T10:00:03Z",
+            "event_type": "tool_call_success",
+            "payload": {"tool_call_id": "call_2", "result": {"status": "ok", "value": {"data": 1}}},
+        },
+    ]
+    trial.joinpath("benchmark-events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+    proj = project_c0_screening(trial, trial_id="wave2_fault", task_name="t")
+    assert proj.mechanical_source == "benchmark_events"
+    assert proj.tool_call_count == 2
+    assert proj.tool_error_count == 1  # not_found counted, clean call not relabeled
+    assert proj.tool_error_rate_screening == 0.5
+    assert proj.causal_grade == "C0"
+
+
+# ---------------------------------------------------------------------------
+# Regression: projection digest identity + auditable refusals
+# ---------------------------------------------------------------------------
+
+
+def test_projection_digest_present_and_valid(valid_trial: Path) -> None:
+    proj = project_c0_screening(valid_trial, trial_id="t", task_name="t")
+    assert isinstance(proj.projection_digest, str) and len(proj.projection_digest) == 64
+    assert validate_projection_digest(proj) is True
+
+
+def test_projection_digest_detects_body_change(valid_trial: Path) -> None:
+    a = project_c0_screening(valid_trial, trial_id="t", task_name="t")
+    b = project_c0_screening(valid_trial, trial_id="t", task_name="t")
+    # Same body -> same digest.
+    assert a.projection_digest == b.projection_digest
+    # A different trial_id (projection body) must change the digest.
+    c = project_c0_screening(valid_trial, trial_id="other", task_name="t")
+    assert c.projection_digest != a.projection_digest
+
+
+def test_refusal_bound_to_trial_and_digest(valid_trial: Path) -> None:
+    proj = project_c0_screening(valid_trial, trial_id="audit_trial", task_name="t")
+    refusal = refuse_causal_promotion(proj, "intervention")
+    assert refusal.trial_id == "audit_trial"
+    assert refusal.projection_digest == proj.projection_digest
+    assert validate_projection_digest(proj) is True

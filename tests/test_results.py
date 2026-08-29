@@ -163,7 +163,7 @@ def test_discovery_skips_a_malformed_job_level_result(tmp_path: Path) -> None:
     (job_dir / "result.json").write_text("not-json", encoding="utf-8")
 
     assert discover_job_dirs([tmp_path]) == []
-    with pytest.raises(Exception):
+    with pytest.raises(json.JSONDecodeError):
         load_job(job_dir)
 
 
@@ -173,5 +173,5 @@ def test_load_job_fails_closed_on_a_malformed_job_result(tmp_path: Path) -> None
     job_dir = make_job(tmp_path)
     (job_dir / "result.json").write_text("garbage", encoding="utf-8")
 
-    with pytest.raises(Exception):
+    with pytest.raises(json.JSONDecodeError):
         load_job(job_dir)

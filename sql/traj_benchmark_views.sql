@@ -272,6 +272,7 @@ rec_pairs AS (
      AND c.harness_version = t.harness_version
      AND c.scaffold_version = t.scaffold_version
      AND c.repeat_group_id = t.repeat_group_id
+     AND c.persistence_level = t.persistence_level
      AND c.dose_axis = t.dose_axis
      AND c.dose_value = t.dose_value
      AND c.dose_unit = t.dose_unit

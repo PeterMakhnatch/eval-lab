@@ -149,6 +149,19 @@ def build_projection_dimensions(
     alphabet_id = _text(metadata, "alphabet_id")
     alphabet_version = _text(metadata, "alphabet_version")
 
+    if bundle.contract.family == "mcp-recovery-v1":
+        raw_levels = bundle.contract.cell_factors.get("persistence_levels", [])
+        if not isinstance(raw_levels, list) or len(raw_levels) != 1:
+            refusals.append("MISSING_NATIVE_PERSISTENCE_LEVEL")
+        else:
+            native_persistence_level = _number({"native": raw_levels[0]}, "native")
+            if native_persistence_level is None:
+                refusals.append("MISSING_NATIVE_PERSISTENCE_LEVEL")
+            elif (
+                dose_axis in {"persistence", "persistence_level"}
+                and dose_value != native_persistence_level
+            ):
+                refusals.append("PERSISTENCE_DOSE_MISMATCH")
     required_dimensions = {
         "model_name": model_name,
         "agent_name": agent_name,

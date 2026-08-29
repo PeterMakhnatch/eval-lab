@@ -501,92 +501,42 @@ if __name__ == "__main__":
 
 def _oracle_solve_py(dag_spec: DAGSpec) -> str:
     return f'''#!/usr/bin/env python3
+import asyncio
 import json
-import http.client
-import time
 from pathlib import Path
+
+from fastmcp import Client
 
 initial_inputs = {json.dumps(dag_spec.initial_inputs)}
 nodes = {json.dumps([{"node_id": n.node_id, "tool_name": n.tool_name, "bindings": n.input_bindings} for n in dag_spec.nodes])}
 topological_order = {json.dumps(dag_spec.topological_order)}
 target_node_id = {json.dumps(dag_spec.target_node_id)}
-HOSTS = ("mcp-service", "mcp-server", "127.0.0.1", "localhost")
 PORT = {DEFAULT_MCP_PORT}
 
 
-def _connect():
-    last_exc = None
-    for host in HOSTS:
-        try:
-            conn = http.client.HTTPConnection(host, PORT, timeout=3)
-            payload = json.dumps({{
-                "jsonrpc": "2.0",
-                "id": "init",
-                "method": "initialize",
-                "params": {{"protocolVersion": "2024-11-05", "capabilities": {{}}, "clientInfo": {{"name": "oracle", "version": "1.0.0"}}}},
-            }})
-            conn.request("POST", "/mcp", body=payload, headers={{"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}})
-            resp = conn.getresponse()
-            body = resp.read()
-            if resp.status < 500:
-                return host, conn
-            conn.close()
-        except Exception as exc:
-            last_exc = exc
-    raise RuntimeError(f"MCP sidecar unreachable: {{last_exc}}")
+async def solve() -> None:
+    node_map = {{n["node_id"]: n for n in nodes}}
+    node_values = dict(initial_inputs)
+    async with Client(f"http://mcp-service:{{PORT}}/mcp") as client:
+        for nid in topological_order:
+            node = node_map[nid]
+            tool_args = {{param: node_values[src] for param, src in node["bindings"].items()}}
+            call_result = await client.call_tool(node["tool_name"], tool_args)
+            value = call_result.data
+            if not isinstance(value, dict) or "value" not in value:
+                raise RuntimeError(f"Tool {{node['tool_name']}} returned no integer value: {{value!r}}")
+            node_values[nid] = value["value"]
+
+    target_val = node_values[target_node_id]
+    out_dir = Path("/app/output")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "result.json").write_text(
+        json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8"
+    )
+    print(f"Oracle solved with target_value: {{target_val}}")
 
 
-host = None
-for _ in range(40):
-    try:
-        host, conn = _connect()
-        conn.close()
-        break
-    except Exception:
-        time.sleep(0.5)
-if host is None:
-    raise RuntimeError("MCP sidecar did not become ready")
-
-
-def call_tool(tool_name, args):
-    payload = json.dumps({{
-        "jsonrpc": "2.0",
-        "id": "call",
-        "method": "tools/call",
-        "params": {{"name": tool_name, "arguments": args}},
-    }})
-    conn = http.client.HTTPConnection(host, PORT, timeout=10)
-    conn.request("POST", "/mcp", body=payload, headers={{"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}})
-    resp = conn.getresponse()
-    raw = resp.read().decode("utf-8")
-    conn.close()
-    data = json.loads(raw.split("data: ", 1)[-1] if raw.startswith("event:") or "data:" in raw[:40] else raw)
-    if "error" in data:
-        raise RuntimeError(f"Tool call failed: {{data['error']}}")
-    result = data.get("result", data)
-    if isinstance(result, dict) and "value" in result:
-        return result["value"]
-    if isinstance(result, dict) and "content" in result:
-        text = result["content"][0].get("text", "{{}}")
-        parsed = json.loads(text)
-        if isinstance(parsed, dict) and "value" in parsed:
-            return parsed["value"]
-        return parsed
-    return result
-
-
-node_map = {{n["node_id"]: n for n in nodes}}
-node_values = dict(initial_inputs)
-for nid in topological_order:
-    node = node_map[nid]
-    tool_args = {{param: node_values[src] for param, src in node["bindings"].items()}}
-    node_values[nid] = call_tool(node["tool_name"], tool_args)
-
-target_val = node_values[target_node_id]
-out_dir = Path("/app/output")
-out_dir.mkdir(parents=True, exist_ok=True)
-(out_dir / "result.json").write_text(json.dumps({{"target_value": target_val}}, indent=2) + "\\n", encoding="utf-8")
-print(f"Oracle solved with target_value: {{target_val}}")
+asyncio.run(solve())
 '''
 
 

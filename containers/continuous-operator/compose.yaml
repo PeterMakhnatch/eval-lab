@@ -14,8 +14,19 @@ services:
       EVAL_LAB_OPERATOR_STATE: /var/lib/evallab-operator
     volumes:
       # Confined named volume: kill latch, leases, budget, and audit survive restart.
+      # Do not mount this volume over /run/secrets; the MAC key is outside writable state.
       - evallab-operator-state:/var/lib/evallab-operator
+    secrets:
+      - source: evallab-hmac
+        target: evallab-hmac
+        uid: "0"
+        gid: "0"
+        mode: 0400
     tmpfs:
       # Scratch only. Operator state must not live on tmpfs.
       - /tmp:mode=0700
     command: ["validate", "--state-dir", "/var/lib/evallab-operator"]
+
+secrets:
+  evallab-hmac:
+    external: true

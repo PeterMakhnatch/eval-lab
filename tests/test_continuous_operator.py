@@ -61,8 +61,10 @@ APPROVAL = "approval-key"
 BUDGET = "budget-key"
 RECOVERY = "recovery-key"
 MAC_KEY = b"eval-lab-operator-mac-key-32bytes!"
-HMAC_REF = "keychain:lab/hmac"
+FILE_REF = "file:/run/secrets/evallab-hmac"
 RECOVERY_JTI = "recovery-jti-00000001"
+APPROVAL_NONCE = "approval-nonce-0001"
+BUDGET_NONCE = "budget-nonce-0000001"
 EXPIRES = NOW + timedelta(days=1)
 SPEC_ID = "01CONTINUOUSLOOPSPEC0000000001"
 
@@ -75,20 +77,19 @@ def _budget_fields() -> dict:
     }
 
 
-def _trust_record(*, kind: str, actor: str, spec_id: str = SPEC_ID, at: datetime = NOW, **extra) -> dict:
+def _trust_record(*, kind: str, actor: str, spec_id: str = SPEC_ID, at: datetime = NOW, nonce: str | None = None, **extra) -> dict:
     record = {
         "actor": actor,
         "authorized_at": at.isoformat(),
+        "issued_at": at.isoformat(),
         "expires_at": EXPIRES.isoformat(),
         "kind": kind,
-        "max_age_seconds": 86400,
+        "nonce": nonce or {"approval": APPROVAL_NONCE, "budget": BUDGET_NONCE, "recovery": RECOVERY_JTI}[kind],
         "quota_override": False,
         "scope": ["continuous-loop"],
         "signer": actor,
         "spec_id": spec_id,
     }
-    if kind == "recovery" and "jti" not in extra:
-        record["jti"] = RECOVERY_JTI
     record.update(extra)
     return record
 
@@ -97,7 +98,7 @@ def _complete_policy_body(*, stale_after: float = 60.0, drain_timeout: float = 5
     unsigned = {
         "policy_schema_version": "1",
         "spec_id": SPEC_ID,
-        "approval_signature_ref": APPROVAL,
+        "approval_signature_ref": FILE_REF,
         "approval_digest": "0" * 64,
         "slo_freshness": {
             "max_queue_admission_lag_seconds": 30,
@@ -145,6 +146,27 @@ def _policy(path: Path, *, stale_after: float = 60.0, drain_timeout: float = 5.0
     return path
 
 
+def _install_hmac(tmp_path: Path, *, key: bytes = MAC_KEY, previous: bytes | None = None) -> Path:
+    root = tmp_path / "run-secrets"
+    root.mkdir(exist_ok=True)
+    path = root / "evallab-hmac"
+    path.write_bytes(key)
+    os.chmod(path, 0o400)
+    if previous is not None:
+        prev = root / "evallab-hmac.previous"
+        prev.write_bytes(previous)
+        os.chmod(prev, 0o400)
+    return root
+
+
+def _policy_dump_for(state: Path) -> dict:
+    policy_path = state.parent / "policy.yaml"
+    if policy_path.is_file():
+        raw = yaml.safe_load(policy_path.read_text())
+        return raw["continuous_loop_policy"]
+    return _complete_policy_body()["continuous_loop_policy"]
+
+
 def _write_auths(
     state: Path,
     *,
@@ -154,19 +176,46 @@ def _write_auths(
     approval_at: datetime = NOW,
     include_budget: bool = True,
     include_approval: bool = True,
+    mac_key: bytes = MAC_KEY,
+    ceiling_usd: float = 20,
 ) -> None:
+    import hashlib
+
     state.mkdir(exist_ok=True)
+    if not (state.parent / "run-secrets" / "evallab-hmac").is_file():
+        _install_hmac(state.parent, key=mac_key)
     root = trust_root_for(state, {})
+    dump = ContinuousLoopPolicy.model_validate(_policy_dump_for(state)).model_dump(mode="json")
+    budget = {**_budget_fields(), "ceiling_usd": ceiling_usd}
+    kill_digest = None
+    kill_path = state / "kill.json"
+    if kill_path.is_file():
+        kill_digest = hashlib.sha256(kill_path.read_bytes()).hexdigest()
     if include_approval:
-        put_trusted_record(root, MAC_KEY, _trust_record(kind="approval", actor=approval_actor, at=approval_at))
+        put_trusted_record(
+            root,
+            mac_key,
+            _trust_record(kind="approval", actor=approval_actor, at=approval_at),
+            policy=dump,
+            budget=budget,
+        )
     if include_budget:
         put_trusted_record(
             root,
-            MAC_KEY,
-            _trust_record(kind="budget", actor=budget_actor, ceiling_usd=20),
+            mac_key,
+            _trust_record(kind="budget", actor=budget_actor, ceiling_usd=ceiling_usd),
+            policy=dump,
+            budget=budget,
         )
     if recovery_actor:
-        put_trusted_record(root, MAC_KEY, _trust_record(kind="recovery", actor=recovery_actor))
+        put_trusted_record(
+            root,
+            mac_key,
+            _trust_record(kind="recovery", actor=recovery_actor, kill_digest=kill_digest),
+            policy=dump,
+            budget=budget,
+            kill_digest=kill_digest,
+        )
     shutil.copy2(STANDING, state / "standing-approvals.yaml")
 
 
@@ -176,14 +225,7 @@ def _gate_env() -> dict[str, str]:
         "EVAL_LAB_ENABLE_IDENTITY": ENABLE,
         "EVAL_LAB_SECRET_REF": "keychain:lab/operator",
         "EVAL_LAB_SECRET_PRESENT": "1",
-        "EVAL_LAB_HMAC_KEY_REF": HMAC_REF,
     }
-
-
-def _hmac_store(ref: str) -> bytes | None:
-    if ref == HMAC_REF:
-        return MAC_KEY
-    return None
 
 
 def _run(
@@ -196,6 +238,7 @@ def _run(
     agent: str | None = None,
     now: datetime | None = None,
     secret_store=None,
+    secrets_root: Path | None = None,
 ) -> SimpleNamespace:
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
@@ -210,8 +253,9 @@ def _run(
     buf = io.StringIO()
     clock = (lambda: now) if now is not None else None
     with redirect_stdout(buf):
-        store = secret_store if secret_store is not None else _hmac_store
-        code = main(argv, environ=merged, clock=clock, secret_store=store)
+        store = secret_store
+        root = secrets_root if secrets_root is not None else tmp_path / "run-secrets"
+        code = main(argv, environ=merged, clock=clock, secret_store=store, secrets_root=root)
     return SimpleNamespace(returncode=code, stdout=buf.getvalue())
 
 
@@ -302,7 +346,6 @@ def test_missing_secret(tmp_path: Path) -> None:
         "EVAL_LAB_ENABLE_TOKEN": "enable-1",
         "EVAL_LAB_ENABLE_IDENTITY": ENABLE,
         "EVAL_LAB_SECRET_REF": "keychain:lab/operator",
-        "EVAL_LAB_HMAC_KEY_REF": HMAC_REF,
     }
     result = _run(tmp_path, "quota", policy=policy, env=env, now=NOW)
     assert result.returncode == 2
@@ -788,16 +831,19 @@ def test_hmac_key_from_caller_env_or_state_file_is_ignored(tmp_path: Path) -> No
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     (state / "trust.mac").write_bytes(MAC_KEY)
     env = {**_gate_env(), "EVAL_LAB_HMAC_KEY": MAC_KEY.decode(), "EVAL_LAB_TRUST_MAC_KEY": str(state / "trust.mac")}
-    result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW, secret_store=_hmac_store)
+    result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
-def test_hmac_key_missing_secret_store_fails_closed(tmp_path: Path) -> None:
+def test_hmac_key_in_writable_state_is_ignored(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
     _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
-    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, secret_store=lambda _ref: None)
+    planted = state / "evallab-hmac"
+    planted.write_bytes(MAC_KEY)
+    os.chmod(planted, 0o400)
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, secrets_root=state)
     assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL
 
 
@@ -821,9 +867,10 @@ def test_recovery_is_one_time_and_audited(tmp_path: Path) -> None:
 
     policy = _policy(tmp_path / "policy.yaml")
     state = tmp_path / "state"
-    _write_auths(state, recovery_actor=RECOVERY)
+    _write_auths(state)
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
+    _write_auths(state, recovery_actor=RECOVERY)
     first = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
     assert first.returncode == 0
     events = (state / "events.jsonl").read_text()
@@ -832,8 +879,17 @@ def test_recovery_is_one_time_and_audited(tmp_path: Path) -> None:
     spent = (state / "recovery-spent.jsonl").read_text()
     assert RECOVERY_JTI in spent
     assert (state / "mode").read_text().strip() == "DISABLED"
-    put_trusted_record(trust_root_for(state, {}), MAC_KEY, _trust_record(kind="recovery", actor=RECOVERY, jti=RECOVERY_JTI))
     _run(tmp_path, "kill", now=NOW)
+    dump = ContinuousLoopPolicy.model_validate(_policy_dump_for(state)).model_dump(mode="json")
+    kill_digest = __import__("hashlib").sha256((state / "kill.json").read_bytes()).hexdigest()
+    put_trusted_record(
+        trust_root_for(state, {}),
+        MAC_KEY,
+        _trust_record(kind="recovery", actor=RECOVERY, nonce=RECOVERY_JTI, kill_digest=kill_digest),
+        policy=dump,
+        budget=_budget_fields(),
+        kill_digest=kill_digest,
+    )
     replay = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
     assert replay.returncode == 2
     assert (state / "mode").read_text().strip() == "KILLED"
@@ -845,8 +901,12 @@ def test_forged_recovery_template_without_jti_is_rejected(tmp_path: Path) -> Non
     state = tmp_path / "state"
     _write_auths(state)
     record = _trust_record(kind="recovery", actor=RECOVERY)
-    record.pop("jti", None)
-    put_trusted_record(trust_root_for(state, {}), MAC_KEY, record)
+    record.pop("nonce", None)
+    dump = _policy_dump_for(state)
+    try:
+        put_trusted_record(trust_root_for(state, {}), MAC_KEY, record, policy=dump, budget=_budget_fields())
+    except ValueError:
+        pass
     (state / "heartbeat").write_text(NOW.isoformat() + "\n")
     _run(tmp_path, "kill", now=NOW)
     result = _run(tmp_path, "recover", policy=policy, env=_gate_env(), now=NOW)
@@ -882,3 +942,41 @@ def test_templates_reject_tmpfs_state_and_dev_null() -> None:
     assert "/dev/null" not in service
     assert "EVAL_LAB_RECOVERY_TOKEN" not in (ROOT / "src/evallab/ops_continuous.py").read_text()
     assert "EVAL_LAB_RECOVERY_TOKEN" not in (ROOT / "docs/continuous-loop-operator.md").read_text()
+
+
+def test_budget_ceiling_must_be_positive(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state, ceiling_usd=0)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
+    assert _payload(result)["reason"] == REASON_MISSING_BUDGET
+
+
+def test_budget_ceiling_above_standing_is_refused(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state, ceiling_usd=21)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
+    assert _payload(result)["reason"] == REASON_MISSING_BUDGET
+
+
+def test_previous_hmac_key_is_accepted_during_rotation(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _install_hmac(tmp_path, key=b"eval-lab-operator-mac-key-active32", previous=MAC_KEY)
+    _write_auths(state, mac_key=MAC_KEY)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW)
+    assert result.returncode == 0
+
+
+def test_eval_lab_approval_mac_key_env_is_not_trust_root(tmp_path: Path) -> None:
+    policy = _policy(tmp_path / "policy.yaml")
+    state = tmp_path / "state"
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+    env = {**_gate_env(), "EVAL_LAB_APPROVAL_MAC_KEY": MAC_KEY.decode()}
+    result = _run(tmp_path, "validate", policy=policy, env=env, now=NOW)
+    assert _payload(result)["reason"] == REASON_MISSING_STANDING_APPROVAL

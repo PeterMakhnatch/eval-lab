@@ -70,12 +70,14 @@ plus `load_policy` of `standing-approvals.yaml`. Env presence flags
 (`EVAL_LAB_STANDING_APPROVAL`, `EVAL_LAB_BUDGET_PRESENT`) are self-assertion
 and are refused. Enable identity, approval `actor`, and budget `actor` must
 be pairwise distinct. Parallel signed-manifest extra fields are rejected.
-`approval_digest` is an HMAC-SHA256 over the exact policy body plus budget
-payload (`scope`, `expires_at`, `ceiling_usd`) and approval actor/spec/time,
-keyed by an HMAC secret loaded from an external store through
-`EVAL_LAB_HMAC_KEY_REF` (closed `keychain:<service>/<account>` grammar). Caller
-JSON, state-dir `trust.mac`, and env-held key bytes are ignored. Unkeyed SHA-256
-of public fields is not a signature.
+`approval_digest` is an HMAC-SHA256 over canonical policy + budget + scope +
+`spec_id`. Policy `approval_signature_ref` names the allowlisted key source:
+`file:/run/secrets/<name>` (Compose/systemd credentials, mode 0400, no symlink,
+outside writable state) or `keychain:<service>/<account>` resolved by helper
+without printing. Active and previous keys are tried; records carry
+`issued_at` / `expires_at` / `nonce` / `key_id` / MAC. Env key bytes
+(`EVAL_LAB_APPROVAL_MAC_KEY`, `EVAL_LAB_HMAC_KEY_REF`, recovery tokens) are
+not trust roots. Unkeyed SHA-256 of public fields is not a signature.
 Never put token material in git or argv logs. There is no production `--now`
 or `EVAL_LAB_OPERATOR_NOW` clock override. A heartbeat timestamp in the
 future is `stale_heartbeat`.
@@ -83,10 +85,10 @@ future is `stale_heartbeat`.
 | Input | How |
 |---|---|
 | Enable token | `EVAL_LAB_ENABLE_TOKEN` + `EVAL_LAB_ENABLE_IDENTITY` |
-| Standing approval | HMAC-indexed CAS trust record `kind=approval` (caller JSON is not the trust root) |
-| Budget | HMAC-indexed CAS trust record `kind=budget` with scope `continuous-loop` |
-| MAC key | External store via `EVAL_LAB_HMAC_KEY_REF=keychain:<service>/<account>` (not caller JSON/env key bytes) |
-| Recovery | Signed, scoped, expiring one-time `kind=recovery` record with `jti`; consumed and audited; not a reusable token |
+| Standing approval | MAC'd CAS record `kind=approval` with `issued_at`/`expires_at`/`nonce`/`key_id` (caller JSON is not the trust root) |
+| Budget | MAC'd CAS record `kind=budget`; `ceiling_usd` > 0 and not above `StandingApprovalsPolicy` |
+| MAC key | `approval_signature_ref` → `/run/secrets` or Keychain; never the writable state tree |
+| Recovery | One-time MAC'd record bound to `kill.json` digest + actor + expiry + nonce; audited then nonce consumed atomically |
 | Secret reference | `EVAL_LAB_SECRET_REF` closed grammar `keychain:<service>/<account>` (never logged) |
 | Secret presence probe | `EVAL_LAB_SECRET_PRESENT=1` or `$STATE/secret_present` (existence only) |
 | Policy | `--policy` full typed nested fields; nulls keep DISABLED |
@@ -127,7 +129,7 @@ policy fields also keep the operator DISABLED.
 - `KILLED` is a latch: `pause`, `maintenance`, `restart`, `upgrade`, and
   `rollback` refuse and leave the latch set. Only `recover` with a distinct
   one-time recovery authorization (and passing gates) clears it. Replay of a
-  spent `jti` is `recovery_spent`.
+  spent nonce is `recovery_spent`.
 
 ## Health / CAS rotation
 

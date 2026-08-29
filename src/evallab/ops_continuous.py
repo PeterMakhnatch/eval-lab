@@ -12,6 +12,7 @@ import hmac
 import json
 import os
 import re
+import stat
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -49,7 +50,17 @@ REASON_DEFAULT_DISABLED = "default_disabled"
 REASON_SAME_IDENTITY = "same_enable_and_approval_identity"
 REASON_BILLABLE_REFUSED = "billable_refused"
 REASON_RECOVERY_SPENT = "recovery_spent"
-HMAC_KEY_REF_ENV = "EVAL_LAB_HMAC_KEY_REF"
+FILE_SECRET_PREFIX = "file:/run/secrets/"
+FORBIDDEN_KEY_ENVS = frozenset(
+    "EVAL_LAB_" + suffix
+    for suffix in (
+        "HMAC_KEY",
+        "TRUST_MAC_KEY",
+        "APPROVAL_MAC_KEY",
+        "RECOVERY_TOKEN",
+        "HMAC_KEY_REF",
+    )
+)
 
 CLOSED_REASONS = frozenset(
     {
@@ -67,6 +78,8 @@ CLOSED_REASONS = frozenset(
 )
 
 SECRET_REF_GRAMMAR = re.compile(r"^keychain:[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,64}$")
+FILE_SECRET_NAME = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+NONCE_GRAMMAR = re.compile(r"^[A-Za-z0-9._-]{16,128}$")
 SAFETY_PAYLOAD_KEYS = frozenset({"ok", "reason", "mode", "detail", "running", "authorized"})
 AUTH_FIELDS = frozenset({"spec_id", "actor", "authorized_at", "quota_override"})
 BUDGET_FIELDS = AUTH_FIELDS | frozenset({"scope", "expires_at", "ceiling_usd"})
@@ -174,11 +187,18 @@ class ContinuousLoopPolicy(ContractModel):
     operational_limits: OperationalLimitsPolicy
     quality_and_quarantine: QualityAndQuarantinePolicy
 
-    @field_validator("policy_schema_version", "approval_signature_ref", "spec_id")
+    @field_validator("policy_schema_version", "spec_id")
     @classmethod
     def _nonempty(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("required string empty")
+        return value
+
+    @field_validator("approval_signature_ref")
+    @classmethod
+    def _signature_ref(cls, value: str) -> str:
+        if not value.strip() or not signature_ref_allowed(value):
+            raise ValueError("approval_signature_ref must name an allowlisted key source")
         return value
 
     @field_validator("approval_digest")
@@ -189,20 +209,48 @@ class ContinuousLoopPolicy(ContractModel):
         return value.lower()
 
 
+def signature_ref_allowed(value: str) -> bool:
+    if value.startswith(FILE_SECRET_PREFIX):
+        return bool(FILE_SECRET_NAME.fullmatch(value[len(FILE_SECRET_PREFIX) :]))
+    return bool(SECRET_REF_GRAMMAR.fullmatch(value))
+
+
 def canonical_binding_payload(
     *,
     policy: Mapping[str, Any],
     budget: Mapping[str, Any],
+    scope: list[str] | None = None,
+    spec_id: str | None = None,
+    issued_at: str | None = None,
+    expires_at: str | None = None,
+    nonce: str | None = None,
+    key_id: str | None = None,
+    kind: str | None = None,
+    extra: Mapping[str, Any] | None = None,
 ) -> bytes:
     body = {key: policy[key] for key in policy if key != "approval_digest"}
-    envelope = {
+    envelope: dict[str, Any] = {
         "budget": {
-            "ceiling_usd": budget["ceiling_usd"],
-            "expires_at": budget["expires_at"],
-            "scope": list(budget["scope"]),
+            "ceiling_usd": budget.get("ceiling_usd"),
+            "expires_at": budget.get("expires_at"),
+            "scope": list(budget.get("scope") or []),
         },
         "policy": body,
+        "scope": list(scope or budget.get("scope") or []),
+        "spec_id": spec_id or policy.get("spec_id"),
     }
+    if issued_at is not None:
+        envelope["issued_at"] = issued_at
+    if expires_at is not None:
+        envelope["expires_at"] = expires_at
+    if nonce is not None:
+        envelope["nonce"] = nonce
+    if key_id is not None:
+        envelope["key_id"] = key_id
+    if kind is not None:
+        envelope["kind"] = kind
+    if extra:
+        envelope.update(dict(extra))
     return json.dumps(envelope, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
 
 
@@ -227,20 +275,62 @@ def public_sha256_is_not_a_signature(payload: Mapping[str, Any]) -> str:
     ).hexdigest()
 
 
-def load_mac_key(
-    environ: Mapping[str, str],
+def key_id_for(key: bytes) -> str:
+    return hashlib.sha256(b"evallab.operator.key_id.v1\0" + key).hexdigest()
+
+
+def _outside_state(path: Path, state_dir: Path) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(state_dir.resolve(strict=False))
+    except ValueError:
+        return True
+    return False
+
+
+def _escapes_or_symlinks(root: Path, path: Path) -> bool:
+    try:
+        root_resolved = root.resolve(strict=False)
+        rel = path.resolve(strict=False).relative_to(root_resolved)
+    except ValueError:
+        return True
+    current = root
+    for part in rel.parts:
+        current = current / part
+        try:
+            if current.is_symlink():
+                return True
+        except OSError:
+            return True
+    return False
+
+
+def load_file_key(path: Path, *, state_dir: Path, secrets_root: Path) -> bytes:
+    if path.is_symlink() or not path.is_file() or _escapes_or_symlinks(secrets_root, path):
+        return b""
+    if not _outside_state(path, state_dir):
+        return b""
+    try:
+        info = path.stat()
+    except OSError:
+        return b""
+    if not stat.S_ISREG(info.st_mode):
+        return b""
+    if (info.st_mode & 0o777) != 0o400:
+        return b""
+    if info.st_uid not in {0, os.geteuid()}:
+        return b""
+    try:
+        data = path.read_bytes().strip()
+    except OSError:
+        return b""
+    return data if len(data) >= 32 else b""
+
+
+def load_keychain_key(
+    ref: str,
     *,
     secret_store: Callable[[str], bytes | None] | None,
 ) -> bytes:
-    """HMAC key comes only from an external store keyed by a closed secret ref.
-
-    Caller JSON, state-dir files, and env-held key bytes/paths are ignored.
-    """
-    if environ.get("EVAL_LAB_HMAC_KEY") or environ.get("EVAL_LAB_TRUST_MAC_KEY"):
-        return b""
-    ref = environ.get(HMAC_KEY_REF_ENV, "")
-    if not SECRET_REF_GRAMMAR.fullmatch(ref):
-        return b""
     if secret_store is None:
         return b""
     try:
@@ -251,6 +341,57 @@ def load_mac_key(
         return b""
     key = bytes(data).strip()
     return key if len(key) >= 32 else b""
+
+
+def load_keyring(
+    *,
+    ref: str,
+    state_dir: Path,
+    secrets_root: Path | None,
+    secret_store: Callable[[str], bytes | None] | None,
+) -> dict[str, bytes]:
+    if not signature_ref_allowed(ref):
+        return {}
+    keys: list[bytes] = []
+    if ref.startswith(FILE_SECRET_PREFIX):
+        name = ref[len(FILE_SECRET_PREFIX) :]
+        root = secrets_root if secrets_root is not None else Path("/run/secrets")
+        if not _outside_state(root, state_dir):
+            return {}
+        for candidate in (name, f"{name}.previous"):
+            loaded = load_file_key(root / candidate, state_dir=state_dir, secrets_root=root)
+            if loaded:
+                keys.append(loaded)
+    else:
+        keys.append(load_keychain_key(ref, secret_store=secret_store))
+        loaded = load_keychain_key(f"{ref}.previous", secret_store=secret_store)
+        if loaded:
+            keys.append(loaded)
+    ring: dict[str, bytes] = {}
+    for key in keys:
+        if key:
+            ring[key_id_for(key)] = key
+    return ring
+
+
+def load_mac_key(
+    environ: Mapping[str, str],
+    *,
+    secret_store: Callable[[str], bytes | None] | None,
+    state_dir: Path,
+    policy: ContinuousLoopPolicy | None,
+    secrets_root: Path | None,
+) -> dict[str, bytes]:
+    if any(environ.get(name) for name in FORBIDDEN_KEY_ENVS):
+        return {}
+    if policy is None:
+        return {}
+    return load_keyring(
+        ref=policy.approval_signature_ref,
+        state_dir=state_dir,
+        secrets_root=secrets_root,
+        secret_store=secret_store,
+    )
 
 
 def parse_paid_authorization(
@@ -298,8 +439,7 @@ def _aware(value: datetime) -> datetime:
 
 
 def trust_root_for(state_dir: Path, environ: Mapping[str, str]) -> Path:
-    if environ.get("EVAL_LAB_TRUST_STORE"):
-        return Path(environ["EVAL_LAB_TRUST_STORE"])
+    del environ
     return state_dir / "trust"
 
 
@@ -308,8 +448,12 @@ def _index_mac(entries: Mapping[str, str], store_key: bytes) -> str:
     return hmac.new(store_key, payload, hashlib.sha256).hexdigest()
 
 
-def load_trust_index(root: Path, store_key: bytes) -> dict[str, str]:
-    if not store_key:
+def load_trust_index(root: Path, store_keys: bytes | Mapping[str, bytes]) -> dict[str, str]:
+    if isinstance(store_keys, (bytes, bytearray)):
+        keys = [bytes(store_keys)] if store_keys else []
+    else:
+        keys = [bytes(key) for key in store_keys.values() if key]
+    if not keys:
         return {}
     raw = _load_json_mapping(root / "index.json")
     if not raw:
@@ -319,15 +463,20 @@ def load_trust_index(root: Path, store_key: bytes) -> dict[str, str]:
     if not isinstance(entries, dict) or not isinstance(mac, str):
         return {}
     cleaned = {str(key): str(value) for key, value in entries.items() if isinstance(value, str)}
-    if not hmac.compare_digest(mac, _index_mac(cleaned, store_key)):
-        return {}
-    return cleaned
+    for key in keys:
+        if hmac.compare_digest(mac, _index_mac(cleaned, key)):
+            return cleaned
+    return {}
 
 
 def put_trusted_record(
     root: Path,
     store_key: bytes,
     record: Mapping[str, Any],
+    *,
+    policy: Mapping[str, Any] | None = None,
+    budget: Mapping[str, Any] | None = None,
+    kill_digest: str | None = None,
 ) -> str:
     kind = str(record.get("kind", ""))
     spec_id = str(record.get("spec_id", ""))
@@ -335,8 +484,40 @@ def put_trusted_record(
         raise ValueError("trusted record requires kind and spec_id")
     if not store_key:
         raise ValueError("store key required")
+    signed = dict(record)
+    signed.setdefault("key_id", key_id_for(store_key))
+    signed.setdefault("issued_at", signed.get("authorized_at"))
+    if not isinstance(signed.get("nonce"), str) or not NONCE_GRAMMAR.fullmatch(str(signed.get("nonce"))):
+        raise ValueError("trusted record requires nonce")
+    extra = None
+    if kind == "recovery":
+        signed["kill_digest"] = kill_digest or signed.get("kill_digest")
+        extra = {"kill_digest": signed.get("kill_digest"), "actor": signed.get("actor")}
+    bind_budget = dict(budget or {
+        "ceiling_usd": signed.get("ceiling_usd"),
+        "expires_at": signed.get("expires_at"),
+        "scope": list(signed.get("scope") or []),
+    })
+    signed["binding_budget"] = {
+        "ceiling_usd": bind_budget.get("ceiling_usd"),
+        "expires_at": bind_budget.get("expires_at"),
+        "scope": list(bind_budget.get("scope") or signed.get("scope") or []),
+    }
+    mac_payload = canonical_binding_payload(
+        policy=policy or {"spec_id": spec_id},
+        budget=signed["binding_budget"],
+        scope=list(signed.get("scope") or []),
+        spec_id=spec_id,
+        issued_at=str(signed.get("issued_at")),
+        expires_at=str(signed.get("expires_at")),
+        nonce=str(signed.get("nonce")),
+        key_id=str(signed["key_id"]),
+        kind=kind,
+        extra=extra,
+    )
+    signed["mac"] = hmac.new(store_key, mac_payload, hashlib.sha256).hexdigest()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    payload = json.dumps(dict(record), sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    payload = json.dumps(signed, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
     uri = store_blob(root, payload)
     entries = load_trust_index(root, store_key)
     entries[f"{kind}:{spec_id}"] = uri
@@ -347,15 +528,22 @@ def put_trusted_record(
 
 def lookup_trusted_record(
     root: Path,
-    store_key: bytes,
+    store_keys: bytes | Mapping[str, bytes],
     *,
     kind: str,
     spec_id: str,
     now: datetime,
+    policy: Mapping[str, Any] | None = None,
+    standing: StandingApprovalsPolicy | None = None,
+    kill_digest: str | None = None,
 ) -> tuple[PaidRunAuthorization | None, dict[str, Any]]:
-    if kind not in TRUST_KINDS or not spec_id or not store_key:
+    if isinstance(store_keys, (bytes, bytearray)):
+        keyring = {key_id_for(bytes(store_keys)): bytes(store_keys)} if store_keys else {}
+    else:
+        keyring = {str(key_id): bytes(key) for key_id, key in store_keys.items() if key}
+    if kind not in TRUST_KINDS or not spec_id or not keyring:
         return None, {}
-    entries = load_trust_index(root, store_key)
+    entries = load_trust_index(root, keyring)
     uri = entries.get(f"{kind}:{spec_id}")
     if not uri:
         return None, {}
@@ -369,65 +557,99 @@ def lookup_trusted_record(
         return None, {}
     signer = loaded.get("signer") or loaded.get("actor")
     scope = loaded.get("scope")
+    nonce = loaded.get("nonce")
+    key_id = loaded.get("key_id")
+    mac = loaded.get("mac")
+    issued_raw = loaded.get("issued_at") or loaded.get("authorized_at")
     if not isinstance(signer, str) or not signer.strip():
         return None, {}
     if not isinstance(scope, list) or REQUIRED_SCOPE not in scope:
+        return None, {}
+    if not isinstance(nonce, str) or not NONCE_GRAMMAR.fullmatch(nonce):
+        return None, {}
+    if not isinstance(key_id, str) or key_id not in keyring:
+        return None, {}
+    if not isinstance(mac, str) or not isinstance(issued_raw, str):
         return None, {}
     expires_raw = loaded.get("expires_at")
     if not isinstance(expires_raw, str):
         return None, {}
     try:
         expires = _aware(datetime.fromisoformat(expires_raw.replace("Z", "+00:00")))
+        issued = _aware(datetime.fromisoformat(str(issued_raw).replace("Z", "+00:00")))
     except ValueError:
         return None, {}
-    if expires <= now:
+    skew = timedelta(seconds=HEARTBEAT_SKEW_SECONDS)
+    if issued > now + skew or expires <= now:
         return None, {}
-    max_age = loaded.get("max_age_seconds")
-    try:
-        max_age_s = float(max_age)
-    except (TypeError, ValueError):
-        return None, {}
-    if max_age_s <= 0:
+    extra = None
+    if kind == "recovery":
+        digest = loaded.get("kill_digest")
+        if not isinstance(digest, str) or len(digest) != SHA256_HEX:
+            return None, {}
+        if kill_digest is not None and not hmac.compare_digest(digest, kill_digest):
+            return None, {}
+        extra = {"kill_digest": digest, "actor": loaded.get("actor")}
+    bind_budget = loaded.get("binding_budget")
+    if not isinstance(bind_budget, dict):
+        bind_budget = {
+            "ceiling_usd": loaded.get("ceiling_usd"),
+            "expires_at": loaded.get("expires_at"),
+            "scope": list(scope),
+        }
+    mac_payload = canonical_binding_payload(
+        policy=policy or {"spec_id": spec_id},
+        budget=bind_budget,
+        scope=list(scope),
+        spec_id=spec_id,
+        issued_at=str(issued_raw),
+        expires_at=str(expires_raw),
+        nonce=nonce,
+        key_id=key_id,
+        kind=kind,
+        extra=extra,
+    )
+    expected = hmac.new(keyring[key_id], mac_payload, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(mac, expected):
         return None, {}
     auth = parse_paid_authorization(
         {
             "spec_id": spec_id,
             "actor": loaded.get("actor"),
-            "authorized_at": loaded.get("authorized_at"),
+            "authorized_at": loaded.get("authorized_at") or issued_raw,
             "quota_override": loaded.get("quota_override", False),
         },
-        now=now,
+        now=now + skew,
     )
     if auth is None:
         return None, {}
-    age = now - auth.authorized_at
-    if age > timedelta(seconds=max_age_s):
-        return None, {}
-    extra: dict[str, Any] = {
+    out: dict[str, Any] = {
         "actor": auth.actor,
         "signer": signer,
         "scope": list(scope),
         "expires_at": expires.isoformat(),
+        "issued_at": issued.isoformat(),
         "spec_id": spec_id,
         "kind": kind,
-        "max_age_seconds": max_age_s,
+        "nonce": nonce,
+        "key_id": key_id,
     }
     if kind == "budget":
         ceiling = loaded.get("ceiling_usd")
         if not isinstance(ceiling, (int, float)) or ceiling <= 0:
             return None, {}
-        extra["ceiling_usd"] = ceiling
-    if kind == "recovery":
-        jti = loaded.get("jti")
-        if not isinstance(jti, str) or not re.fullmatch(r"[A-Za-z0-9._-]{16,128}", jti):
+        if standing is not None and ceiling > standing.daily_cost_ceiling_usd:
             return None, {}
-        extra["jti"] = jti
-    return auth, extra
+        out["ceiling_usd"] = ceiling
+    if kind == "recovery":
+        out["jti"] = nonce
+        out["kill_digest"] = loaded.get("kill_digest")
+    return auth, out
 
 
 def consume_trusted_record(
     root: Path,
-    store_key: bytes,
+    store_key: bytes | Mapping[str, bytes],
     *,
     kind: str,
     spec_id: str,
@@ -435,17 +657,25 @@ def consume_trusted_record(
     if kind not in TRUST_KINDS or not spec_id or not store_key:
         return False
     entries = load_trust_index(root, store_key)
+    index_key = store_key if isinstance(store_key, (bytes, bytearray)) else next(iter(store_key.values()), b"")
     key = f"{kind}:{spec_id}"
     if key not in entries:
         return False
     del entries[key]
-    index = {"entries": entries, "mac": _index_mac(entries, store_key)}
+    if not index_key:
+        return False
+    index = {"entries": entries, "mac": _index_mac(entries, index_key)}
     _write_text(root / "index.json", json.dumps(index, indent=2, sort_keys=True))
     return True
 
 
 def recovery_spent(state_dir: Path) -> set[str]:
     spent: set[str] = set()
+    nonce_dir = state_dir / "nonces"
+    if nonce_dir.is_dir():
+        for child in nonce_dir.iterdir():
+            if child.is_file():
+                spent.add(child.name)
     path = state_dir / "recovery-spent.jsonl"
     if not path.is_file():
         return spent
@@ -454,11 +684,40 @@ def recovery_spent(state_dir: Path) -> set[str]:
             if not line.strip():
                 continue
             row = json.loads(line)
-            if isinstance(row, dict) and isinstance(row.get("jti"), str):
-                spent.add(row["jti"])
+            if isinstance(row, dict):
+                token = row.get("nonce") or row.get("jti")
+                if isinstance(token, str):
+                    spent.add(token)
     except (OSError, json.JSONDecodeError):
         return spent
     return spent
+
+
+def consume_nonce_atomic(state_dir: Path, nonce: str) -> bool:
+    if not NONCE_GRAMMAR.fullmatch(nonce):
+        return False
+    directory = state_dir / "nonces"
+    directory.mkdir(parents=True, exist_ok=True)
+    os.chmod(directory, STATE_DIR_MODE)
+    path = directory / nonce
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        fd = os.open(path, flags, STATE_FILE_MODE)
+    except FileExistsError:
+        return False
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps({"nonce": nonce}) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    return True
+
+
+def digest_kill_record(state_dir: Path) -> str:
+    path = state_dir / "kill.json"
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return ""
 
 
 def load_standing_policy(path: Path | None) -> StandingApprovalsPolicy | None:
@@ -503,9 +762,12 @@ class OperatorContext:
     env_self_asserted_approval: bool
     env_self_asserted_budget: bool
     mac_key: bytes
+    keyring: dict[str, bytes]
     budget_payload: dict[str, Any]
     recovery: PaidRunAuthorization | None
     recovery_jti: str
+    recovery_nonce: str
+    recovery_kill_digest: str
     log_dir: Path
 
 
@@ -607,6 +869,7 @@ def context_from_env(
     drain_timeout_seconds: float | None,
     environ: Mapping[str, str],
     secret_store: Callable[[str], bytes | None] | None = None,
+    secrets_root: Path | None = None,
 ) -> OperatorContext:
     secret_probe = state_dir / "secret_present"
     standing_path = (
@@ -618,17 +881,44 @@ def context_from_env(
     standing = load_standing_policy(standing_path)
     env_self_asserted_approval = bool(environ.get("EVAL_LAB_STANDING_APPROVAL"))
     env_self_asserted_budget = environ.get("EVAL_LAB_BUDGET_PRESENT", "") in {"1", "true", "yes"}
-    mac_key = load_mac_key(environ, secret_store=secret_store)
+    keyring = load_mac_key(
+        environ,
+        secret_store=secret_store,
+        state_dir=state_dir,
+        policy=policy,
+        secrets_root=secrets_root,
+    )
+    mac_key = next(iter(keyring.values()), b"")
     trust_root = trust_root_for(state_dir, environ)
     spec_id = policy.spec_id if policy is not None else ""
+    policy_dump = policy.model_dump(mode="json") if policy is not None else None
     approval, _approval_extra = lookup_trusted_record(
-        trust_root, mac_key, kind="approval", spec_id=spec_id, now=now
+        trust_root,
+        keyring,
+        kind="approval",
+        spec_id=spec_id,
+        now=now,
+        policy=policy_dump,
+        standing=standing,
     )
     budget, budget_payload = lookup_trusted_record(
-        trust_root, mac_key, kind="budget", spec_id=spec_id, now=now
+        trust_root,
+        keyring,
+        kind="budget",
+        spec_id=spec_id,
+        now=now,
+        policy=policy_dump,
+        standing=standing,
     )
     recovery, recovery_extra = lookup_trusted_record(
-        trust_root, mac_key, kind="recovery", spec_id=spec_id, now=now
+        trust_root,
+        keyring,
+        kind="recovery",
+        spec_id=spec_id,
+        now=now,
+        policy=policy_dump,
+        standing=standing,
+        kill_digest=digest_kill_record(state_dir),
     )
     if budget is not None and "ceiling_usd" not in budget_payload:
         budget = None
@@ -659,9 +949,12 @@ def context_from_env(
         env_self_asserted_approval=env_self_asserted_approval,
         env_self_asserted_budget=env_self_asserted_budget,
         mac_key=mac_key,
+        keyring=keyring,
         budget_payload=budget_payload,
         recovery=recovery,
         recovery_jti=str(recovery_extra.get("jti", "")),
+        recovery_nonce=str(recovery_extra.get("nonce", "")),
+        recovery_kill_digest=str(recovery_extra.get("kill_digest", "")),
         log_dir=log_dir,
     )
 
@@ -758,16 +1051,18 @@ def admission_reason(ctx: OperatorContext) -> str | None:
         return REASON_MISSING_STANDING_APPROVAL
     if ctx.approval.spec_id != ctx.budget.spec_id:
         return REASON_MISSING_STANDING_APPROVAL
-    if ctx.policy.approval_signature_ref != ctx.approval.actor:
+    if not signature_ref_allowed(ctx.policy.approval_signature_ref):
         return REASON_MISSING_STANDING_APPROVAL
-    if not ctx.mac_key or not ctx.budget_payload:
+    if not ctx.keyring or not ctx.budget_payload:
         return REASON_MISSING_STANDING_APPROVAL
-    expected = bind_policy_digest(
-        policy=ctx.policy.model_dump(mode="json"),
-        budget=ctx.budget_payload,
-        mac_key=ctx.mac_key,
-    )
-    if not hmac.compare_digest(ctx.policy.approval_digest, expected):
+    dumped = ctx.policy.model_dump(mode="json")
+    digest_ok = False
+    for key in ctx.keyring.values():
+        expected = bind_policy_digest(policy=dumped, budget=ctx.budget_payload, mac_key=key)
+        if hmac.compare_digest(ctx.policy.approval_digest, expected):
+            digest_ok = True
+            break
+    if not digest_ok:
         return REASON_MISSING_STANDING_APPROVAL
     if _heartbeat_stale(ctx):
         return REASON_STALE_HEARTBEAT
@@ -913,33 +1208,41 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
     reason = admission_reason(ctx)
     if reason:
         return _verdict(ctx, ok=False, reason=reason, detail="recover refused")
-    if ctx.recovery is None or not ctx.recovery_jti:
+    nonce = ctx.recovery_nonce or ctx.recovery_jti
+    if ctx.recovery is None or not nonce:
         return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization missing")
     identities = {ctx.enable_token, ctx.enable_identity, ctx.approval.actor if ctx.approval else "", ctx.budget.actor if ctx.budget else ""}
     if ctx.recovery.actor in identities or (ctx.policy is not None and ctx.recovery.spec_id != ctx.policy.spec_id):
         return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization must be distinct")
-    if ctx.recovery_jti in recovery_spent(ctx.state_dir):
-        return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery jti already consumed")
+    expected_digest = digest_kill_record(ctx.state_dir)
+    if not expected_digest or not hmac.compare_digest(ctx.recovery_kill_digest, expected_digest):
+        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to kill digest")
+    if nonce in recovery_spent(ctx.state_dir):
+        return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
+    audit = {
+        "event": "recovery",
+        "at": ctx.now.isoformat(),
+        "actor": ctx.recovery.actor,
+        "nonce": nonce,
+        "jti": nonce,
+        "spec_id": ctx.recovery.spec_id,
+        "kill_digest": expected_digest,
+        "one_time": True,
+    }
+    _append_event(ctx.state_dir, audit)
+    if not consume_nonce_atomic(ctx.state_dir, nonce):
+        return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
     consumed = consume_trusted_record(
         trust_root_for(ctx.state_dir, {}),
-        ctx.mac_key,
+        ctx.keyring or ctx.mac_key,
         kind="recovery",
         spec_id=ctx.recovery.spec_id,
     )
     if not consumed:
         return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery record could not be consumed")
-    audit = {
-        "event": "recovery",
-        "at": ctx.now.isoformat(),
-        "actor": ctx.recovery.actor,
-        "jti": ctx.recovery_jti,
-        "spec_id": ctx.recovery.spec_id,
-        "one_time": True,
-    }
-    _append_event(ctx.state_dir, audit)
     spent_path = ctx.state_dir / "recovery-spent.jsonl"
     with spent_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"jti": ctx.recovery_jti, "at": ctx.now.isoformat()}, sort_keys=True) + "\n")
+        handle.write(json.dumps({"nonce": nonce, "jti": nonce, "at": ctx.now.isoformat()}, sort_keys=True) + "\n")
     os.chmod(spent_path, STATE_FILE_MODE)
     write_mode(ctx.state_dir, DEFAULT_MODE)
     return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by one-time recovery")
@@ -1051,6 +1354,7 @@ def main(
     *,
     clock: Callable[[], datetime] | None = None,
     secret_store: Callable[[str], bytes | None] | None = None,
+    secrets_root: Path | None = None,
 ) -> int:
     args = build_parser().parse_args(argv)
     env = os.environ if environ is None else environ
@@ -1067,6 +1371,7 @@ def main(
         drain_timeout_seconds=args.drain_timeout_seconds,
         environ=env,
         secret_store=secret_store,
+        secrets_root=secrets_root,
     )
     if read_mode(state_dir) == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:
         blocked = _refuse_if_killed(ctx, args.command)

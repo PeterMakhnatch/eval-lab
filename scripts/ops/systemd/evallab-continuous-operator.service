@@ -33,6 +33,7 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_UNIX
 ReadWritePaths=/var/lib/evallab-operator
+BindReadOnlyPaths=/run/secrets
 LogsDirectory=evallab
 StateDirectory=evallab-operator
 StateDirectoryMode=0700

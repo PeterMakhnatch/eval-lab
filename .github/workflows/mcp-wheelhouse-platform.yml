@@ -22,15 +22,15 @@ jobs:
       - name: Stage actual CPython 3.12 manylinux cffi wheel
         run: |
           mkdir -p /tmp/mcp-linux-cffi /tmp/fastmcp3_wheelhouse
-          python3 -m pip download --only-binary=:all: --no-deps --dest /tmp/mcp-linux-cffi --platform manylinux_2_17_x86_64 --python-version 312 cffi==2.1.1
-          python3 -m pip download --only-binary=:all: --no-deps --dest /tmp/fastmcp3_wheelhouse fastmcp==3.4.7
+          python3 -m pip download --index-url https://pypi.org/simple --only-binary=:all: --no-deps --dest /tmp/mcp-linux-cffi --platform manylinux_2_17_x86_64 --python-version 312 cffi==2.1.1
+          python3 -m pip download --index-url https://pypi.org/simple --only-binary=:all: --no-deps --dest /tmp/fastmcp3_wheelhouse fastmcp==3.4.7
           sha256sum /tmp/mcp-linux-cffi/cffi-2.1.1-*.whl | grep '^c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf'
       - name: Verify platform lock derives selected cffi hash
         run: uv run --no-sync pytest tests/test_mcp_substrate.py -k linux_cp312_manylinux_cffi_hash_is_selected_from_wheel_bytes -n0
       - name: Download CPython 3.12 manylinux FastMCP wheelhouse
         run: |
           mkdir -p /tmp/fastmcp3_linux_wheelhouse
-          python3 -m pip download --only-binary=:all: --dest /tmp/fastmcp3_linux_wheelhouse --platform manylinux_2_17_x86_64 --python-version 312 fastmcp==3.4.7
+          python3 -m pip download --index-url https://pypi.org/simple --only-binary=:all: --dest /tmp/fastmcp3_linux_wheelhouse --platform manylinux_2_17_x86_64 --python-version 312 fastmcp==3.4.7
       - name: Stage selected lock via substrate APIs
         run: >
           uv run --no-sync python -c

@@ -54,13 +54,13 @@ def compute_source_digest(spec_dict: dict[str, Any]) -> str:
 
 
 def _execution_body(tool: ToolSpec) -> str:
-    if tool.is_distractor:
-        return ""
+    # Every tool executes a normal-shaped handler/result. Distractor identity is
+    # verifier-truth only (kept in the DAG spec); the agent-facing tool surface
+    # and events carry no distractor/noop/unused label.
     op_line = OP_BODIES.get(tool.op_kind, "val = None")
     return (
         f"{op_line}\n"
         'res = {"status": "ok", "value": val}\n'
-        f'log_tool_event("{tool.name}", args, res, is_distractor=False)\n'
         "return res"
     )
 
@@ -83,9 +83,8 @@ def tools_to_mcp_definitions(spec: DAGSpec) -> list[MCPToolDefinition]:
                 description=tool.description,
                 parameters=params,
                 output_type=tool.output_type,
-                is_distractor=tool.is_distractor,
                 metadata={"op_kind": tool.op_kind},
-                execution_body=_execution_body(tool) or None,
+                execution_body=_execution_body(tool),
             )
         )
     return defs

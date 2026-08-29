@@ -234,15 +234,23 @@ def test_ensure_wheelhouse_uses_target_resolver_provenance_not_venv_pip(tmp_path
     assert "--require-hashes" not in cmd
     assert str(venv_python) not in cmd
 
-    from evallab.mcp_substrate import ResolverProvenance, render_provenance_lock
+    from evallab.mcp_substrate import (
+        ResolverProvenance,
+        render_provenance_lock,
+        trusted_wheel_manifest_digest,
+        trusted_wheel_manifest_source,
+    )
 
     provenance = ResolverProvenance(
         target=target,
+        manifest_digest=trusted_wheel_manifest_digest(),
+        manifest_source=trusted_wheel_manifest_source(),
         wheels=(
             {
                 "filename": "fastmcp-3.4.7-py3-none-any.whl",
                 "name": "fastmcp",
                 "version": "3.4.7",
+                "size_bytes": 8016,
                 "sha256": "a" * 64,
             },
         ),

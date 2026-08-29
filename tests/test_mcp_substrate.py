@@ -20,7 +20,7 @@ from evallab.benchmark_program_contracts import (
 from evallab.mcp_substrate import (
     DEFAULT_PINNED_BASE_IMAGE,
     DEFAULT_SIDECAR_SERVICE,
-        DEFAULT_TARGET_PLATFORM_TAG,
+    DEFAULT_TARGET_PLATFORM_TAG,
     DEFAULT_TARGET_PYTHON_TAG,
     FASTMCP_VERSION_CONSTRAINTS,
     PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST,
@@ -42,6 +42,15 @@ from evallab.mcp_substrate import (
     validate_target_base_runtime,
 )
 from evallab.task_workbench import _validate_compose_topology
+
+REAL_WHEELHOUSE = Path("/tmp/fastmcp3_wheelhouse")
+
+
+def _real_wheelhouse_or_skip() -> Path:
+    """Return the exact 66-wheel trusted wheelhouse or skip if unavailable."""
+    if not REAL_WHEELHOUSE.is_dir():
+        pytest.skip("FastMCP 3.4.7 trusted wheelhouse not populated on this host")
+    return REAL_WHEELHOUSE
 
 
 def test_mcp_compose_document_rendering_and_validation():
@@ -151,17 +160,9 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
             wheelhouse_source=incomplete_wheelhouse,
         )
 
-    # 4. Host macosx target is incompatible with the pinned Linux 3.12 base.
-    with pytest.raises(SubstrateError, match="platform tag"):
-        materialize_mcp_sidecar_package(
-            target_dir=tmp_path / "fail_macosx_target",
-            tools=[tool],
-            wheelhouse_source=wheelhouse,
-            target=WheelhouseTarget("cp312", "macosx_11_0_arm64"),
-            resolver_provenance=record_prepackaging_provenance(
-                wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64")
-            ),
-        )
+    # 4. Non-linux macosx target is not part of the reviewed trusted manifest (TOFU refused).
+    with pytest.raises(SubstrateError, match="checked-in trusted manifest"):
+        record_prepackaging_provenance(wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64"))
 
     linux_target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
     try:
@@ -182,8 +183,7 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
     assert (prod_dir / "requirements.txt").is_file()
     assert (prod_dir / "Dockerfile").is_file()
     assert (prod_dir / "wheelhouse").is_dir()
-    assert len(list((prod_dir / "wheelhouse").glob("*.whl"))) > 0
-    assert len(list((prod_dir / "wheelhouse").glob("*.whl"))) < len(list(wheelhouse.glob("*.whl")))
+    assert len(list((prod_dir / "wheelhouse").glob("*.whl"))) == len(list(wheelhouse.glob("*.whl")))
     prod_proof = json.loads((prod_dir / "offline-build-proof.json").read_text())
     assert prod_proof["mode"] == "complete_offline_package"
     assert prod_proof["wheel_count"] > 0
@@ -232,6 +232,8 @@ def test_linux_cp312_manylinux_cffi_hash_is_selected_from_wheel_bytes(tmp_path: 
 
 
 def test_selected_platform_lock_installs_offline(tmp_path: Path):
+    if sys.platform != "linux":
+        pytest.skip("offline manylinux wheelhouse install smoke is Linux-only")
     wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
     if not wheelhouse.is_dir():
         pytest.skip("selected wheelhouse unavailable")
@@ -239,7 +241,7 @@ def test_selected_platform_lock_installs_offline(tmp_path: Path):
 
     staged = tmp_path / "wheelhouse"
     lock, _ = stage_platform_wheelhouse(
-        wheelhouse, staged, WheelhouseTarget("cp312", "macosx_11_0_arm64")
+        wheelhouse, staged, WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
     )
     lock_path = tmp_path / "requirements.txt"
     lock_path.write_text(lock)
@@ -282,7 +284,6 @@ def test_real_fastmcp_generated_script_and_client_e2e(tmp_path: Path):
         metadata={"op_kind": "multiply"},
         execution_body="""val = a * b
 res = {"status": "ok", "value": val}
-log_tool_event("multiply_values", args, res, is_distractor=False)
 return res""",
     )
 
@@ -519,7 +520,7 @@ def test_target_base_runtime_rejects_mismatch_and_unpinned_images():
             DEFAULT_TARGET_PYTHON_TAG,
             DEFAULT_TARGET_PLATFORM_TAG,
             DEFAULT_PINNED_BASE_IMAGE,
-                base_image_amd64_manifest_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            base_image_amd64_manifest_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         )
     with pytest.raises(SubstrateError, match="python tag"):
         validate_target_base_runtime("cp313", DEFAULT_TARGET_PLATFORM_TAG)
@@ -711,9 +712,7 @@ def test_production_runtime_assets_bind_final_dockerfile_digest(tmp_path: Path):
         ("wheelhouse/extra.whl", "reserved"),
     ],
 )
-def test_runtime_asset_rejects_traversal_and_reserved(
-    tmp_path: Path, destination: str, match: str
-):
+def test_runtime_asset_rejects_traversal_and_reserved(tmp_path: Path, destination: str, match: str):
     source = tmp_path / "payload.bin"
     source.write_bytes(b"payload")
     pkg = tmp_path / "pkg"
@@ -915,7 +914,9 @@ def test_planted_wheelhouse_symlinks_rejected(tmp_path: Path):
     wh_link.symlink_to(real_wh)
     with pytest.raises(SubstrateError, match="symlink"):
         stage_platform_wheelhouse(
-            wh_link, tmp_path / "dest_wh", WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+            wh_link,
+            tmp_path / "dest_wh",
+            WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG),
         )
 
 
@@ -937,11 +938,15 @@ def test_atomic_staging_cleans_up_on_failure_and_leaves_target_absent(tmp_path: 
 
 def test_stage_platform_wheelhouse_single_pass_bytes_and_lock(tmp_path: Path):
     import zipfile
+
     source_wh = tmp_path / "src_wh"
     source_wh.mkdir()
     wh1 = source_wh / "fastmcp-3.4.7-py3-none-any.whl"
     with zipfile.ZipFile(wh1, "w") as zf:
-        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+        zf.writestr(
+            "fastmcp-3.4.7.dist-info/METADATA",
+            "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n",
+        )
     dest_wh = tmp_path / "dest_wh"
     target = WheelhouseTarget("cp312", "manylinux_2_17_x86_64")
     lock, inventory = stage_platform_wheelhouse(source_wh, dest_wh, target)
@@ -953,7 +958,6 @@ def test_stage_platform_wheelhouse_single_pass_bytes_and_lock(tmp_path: Path):
 
 
 def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
-    import zipfile
 
     from evallab.task_workbench import (
         _validate_build_context_contents,
@@ -966,11 +970,7 @@ def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
     (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
 
     sidecar_dir = env_dir / "mcp-server"
-    wh = tmp_path / "wh"
-    wh.mkdir()
-    wh1 = wh / "fastmcp-3.4.7-py3-none-any.whl"
-    with zipfile.ZipFile(wh1, "w") as zf:
-        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    wh = _real_wheelhouse_or_skip()
     target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
     prov = record_prepackaging_provenance(wh, target)
 
@@ -993,11 +993,15 @@ def test_task_workbench_validates_nested_sidecar_build_proof(tmp_path: Path):
     assert sidecar_name == "mcp-service"
     assert len(diagnostics) == 0
 
-    build_proofs = _validate_offline_build_proofs(tmp_path, diagnostics, compose_topology=compose_topology)
+    build_proofs = _validate_offline_build_proofs(
+        tmp_path, diagnostics, compose_topology=compose_topology
+    )
     assert "environment/mcp-server" in build_proofs
     assert len(diagnostics) == 0
 
-    _validate_build_context_contents(tmp_path, diagnostics, build_proofs, compose_topology=compose_topology)
+    _validate_build_context_contents(
+        tmp_path, diagnostics, build_proofs, compose_topology=compose_topology
+    )
     assert len(diagnostics) == 0
 
 
@@ -1023,7 +1027,6 @@ def test_task_workbench_rejects_nested_sidecar_proof_mismatch_and_escapes(tmp_pa
 
 
 def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
-    import zipfile
 
     from evallab.task_workbench import (
         _validate_compose_topology,
@@ -1035,11 +1038,7 @@ def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
     (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
 
     sidecar_dir = env_dir / "mcp-server"
-    wh = tmp_path / "wh"
-    wh.mkdir()
-    wh1 = wh / "fastmcp-3.4.7-py3-none-any.whl"
-    with zipfile.ZipFile(wh1, "w") as zf:
-        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    wh = _real_wheelhouse_or_skip()
     target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
     prov = record_prepackaging_provenance(wh, target)
 
@@ -1072,21 +1071,29 @@ def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
     (sidecar_dir / "ops.py").write_text("OP_REGISTRY = {}\n", encoding="utf-8")
 
     # 2. Tamper Dockerfile -> proof invalid
-    (sidecar_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\nRUN id\n", encoding="utf-8")
+    (sidecar_dir / "Dockerfile").write_text(
+        f"FROM {DEFAULT_PINNED_BASE_IMAGE}\nRUN id\n", encoding="utf-8"
+    )
     diag2: list[Any] = []
     _validate_offline_build_proofs(tmp_path, diag2, compose_topology=compose_topology)
     assert any("Dockerfile digest" in d.message for d in diag2)
-    (sidecar_dir / "Dockerfile").write_text(render_mcp_sidecar_dockerfile(runtime_assets=(RuntimeAsset("ops.py", ops),)), encoding="utf-8")
+    (sidecar_dir / "Dockerfile").write_text(
+        render_mcp_sidecar_dockerfile(runtime_assets=(RuntimeAsset("ops.py", ops),)),
+        encoding="utf-8",
+    )
 
-    # 3. Add extra unapproved wheel in wheelhouse -> unpinned dependency
+    # 3. Add extra unapproved wheel in wheelhouse -> fail-closed manifest mismatch
     (sidecar_dir / "wheelhouse" / "extra-1.0.0-py3-none-any.whl").write_bytes(b"bad")
     diag3: list[Any] = []
     _validate_offline_build_proofs(tmp_path, diag3, compose_topology=compose_topology)
-    assert any("actual regular wheel count" in d.message or "extra unapproved wheels" in d.message for d in diag3)
+    assert any(
+        "wheelhouse files differ from trusted manifest" in d.message
+        or "do not exactly match checked-in trusted manifest" in d.message
+        for d in diag3
+    )
 
 
 def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Path):
-    import zipfile
 
     from evallab.task_workbench import (
         _validate_compose_topology,
@@ -1098,11 +1105,7 @@ def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Pat
     (env_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
 
     sidecar_dir = env_dir / "mcp-server"
-    wh = tmp_path / "wh"
-    wh.mkdir()
-    wh1 = wh / "fastmcp-3.4.7-py3-none-any.whl"
-    with zipfile.ZipFile(wh1, "w") as zf:
-        zf.writestr("fastmcp-3.4.7.dist-info/METADATA", "Metadata-Version: 2.1\nName: fastmcp\nVersion: 3.4.7\n")
+    wh = _real_wheelhouse_or_skip()
     target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
     prov = record_prepackaging_provenance(wh, target)
 
@@ -1132,15 +1135,29 @@ def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Pat
     proof_path.write_text(json.dumps(p1), encoding="utf-8")
     d1 = []
     _validate_offline_build_proofs(tmp_path, d1, compose_topology=compose_topology)
-    assert any("Dockerfile asset COPY lines" in d.message for d in d1)
+    assert any(
+        "Dockerfile does not byte-match the canonical regenerated Dockerfile" in d.message
+        for d in d1
+    )
 
     # 2. Invalid wheel filename (traversal) -> invalid proof
     p2 = dict(raw_proof)
     p2["wheels"] = [{"filename": "../outside.whl", "sha256": "0" * 64, "size_bytes": 100}]
+    p2["wheel_count"] = 1
+    # Trim staged wheelhouse to a single wheel so validation reaches the per-wheel filename check.
+    staged_wh = sidecar_dir / "wheelhouse"
+    keep = next(staged_wh.glob("*.whl"))
+    for stale in staged_wh.glob("*.whl"):
+        if stale.name != keep.name:
+            stale.unlink()
     proof_path.write_text(json.dumps(p2), encoding="utf-8")
     d2 = []
     _validate_offline_build_proofs(tmp_path, d2, compose_topology=compose_topology)
-    assert any("wheel filename" in d.message for d in d2)
+    assert any(
+        "wheelhouse files differ from trusted manifest" in d.message
+        or "do not exactly match checked-in trusted manifest" in d.message
+        for d in d2
+    )
 
     # 3. Missing dockerfile_sha256 -> invalid proof
     p3 = dict(raw_proof)
@@ -1148,5 +1165,6 @@ def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Pat
     proof_path.write_text(json.dumps(p3), encoding="utf-8")
     d3 = []
     _validate_offline_build_proofs(tmp_path, d3, compose_topology=compose_topology)
-    assert any("substrate proof requires valid sha256 'dockerfile_sha256'" in d.message for d in d3)
-
+    assert any(
+        "Dockerfile digest does not match proof dockerfile_sha256" in d.message for d in d3
+    )

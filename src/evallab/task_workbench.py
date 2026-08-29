@@ -1529,6 +1529,21 @@ def _validate_offline_build_proofs(
                     )
                     continue
 
+                # 0. Independent fail-closed verification: regenerate the canonical
+                # server.py / Dockerfile / requirements lock from the checked-in
+                # trusted manifest and the proof's declared tool definitions,
+                # server params, runtime assets, and base image; byte-compare against
+                # on-disk artifacts; verify every wheel EXACTLY against the manifest.
+                try:
+                    import evallab.mcp_substrate as _substrate
+                    _independent_errors = _substrate.verify_proof_independently(root, data)
+                except Exception as _exc:  # noqa: BLE001 - fail closed
+                    _independent_errors = [f"independent substrate proof verification failed: {_exc}"]
+                if _independent_errors:
+                    for _msg in _independent_errors:
+                        diagnostics.append(_diag("build_proof_invalid", rel_proof, _msg))
+                    continue
+
                 # 1. Mandatory requirements.txt matching requirements_sha256
                 req_path = root / "requirements.txt"
                 if not req_path.is_file() or req_path.is_symlink():
@@ -1569,6 +1584,82 @@ def _validate_offline_build_proofs(
                         _diag("build_proof_invalid", rel_proof, f"Dockerfile digest {actual_df_digest} does not match proof {declared_df_digest}")
                     )
                     continue
+
+                # 2b. Mandatory server.py matching server_sha256/server_size_bytes (exact regular bytes)
+                server_path = root / "server.py"
+                if not server_path.is_file() or server_path.is_symlink():
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "server.py missing or symlink for substrate build proof")
+                    )
+                    continue
+                declared_server_sha = data.get("server_sha256")
+                declared_server_size = data.get("server_size_bytes")
+                if not _is_sha256_hex(declared_server_sha):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate proof requires valid sha256 'server_sha256'")
+                    )
+                    continue
+                if not isinstance(declared_server_size, int) or declared_server_size <= 0:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate proof requires positive int 'server_size_bytes'")
+                    )
+                    continue
+                server_bytes = server_path.read_bytes()
+                if len(server_bytes) != declared_server_size:
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"server.py size {len(server_bytes)} does not match proof {declared_server_size}")
+                    )
+                    continue
+                actual_server_sha = hashlib.sha256(server_bytes).hexdigest()
+                if actual_server_sha != declared_server_sha.lower().removeprefix("sha256:"):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, f"server.py digest {actual_server_sha} does not match proof {declared_server_sha}")
+                    )
+                    continue
+
+                # 2c. Mandatory event schema version
+                declared_event_schema = data.get("event_schema_version")
+                if declared_event_schema != "mcp-tool-event-v1":
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate proof requires event_schema_version 'mcp-tool-event-v1'")
+                    )
+                    continue
+
+                # 2d. Mandatory canonical tool_definitions_sha256
+                declared_tool_defs_sha = data.get("tool_definitions_sha256")
+                if not _is_sha256_hex(declared_tool_defs_sha):
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "substrate proof requires valid sha256 'tool_definitions_sha256'")
+                    )
+                    continue
+
+                # 2e. Mandatory trusted manifest digest/source matching the checked-in manifest
+                try:
+                    import evallab.mcp_substrate as _substrate
+                    _expected_manifest_digest = _substrate.trusted_wheel_manifest_digest()
+                    _expected_manifest_source = _substrate.trusted_wheel_manifest_source()
+                except Exception:
+                    _expected_manifest_digest = None
+                    _expected_manifest_source = None
+                declared_manifest_digest = data.get("trusted_manifest_digest")
+                declared_manifest_source = data.get("trusted_manifest_source")
+                if _expected_manifest_digest is not None:
+                    if declared_manifest_digest != _expected_manifest_digest:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, "trusted_manifest_digest does not match checked-in trusted wheel manifest")
+                        )
+                        continue
+                    if declared_manifest_source != _expected_manifest_source:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, "trusted_manifest_source does not match checked-in trusted wheel manifest")
+                        )
+                        continue
+                else:
+                    if not _is_sha256_hex(declared_manifest_digest) or not isinstance(declared_manifest_source, str) or not declared_manifest_source:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, "substrate proof requires valid trusted_manifest_digest/source")
+                        )
+                        continue
 
                 # Parse all Dockerfile instructions; reject ADD, flags, and multi-source COPY
                 df_text = df_bytes.decode("utf-8", errors="replace")

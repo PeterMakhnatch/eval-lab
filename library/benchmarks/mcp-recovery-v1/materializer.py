@@ -331,7 +331,7 @@ def generate_recovery_server_script(
         tools=_recovery_tools(),
         server_name="mcp-recovery-sidecar",
         port=port,
-        evidence_path="/app/output/substrate-events.jsonl",
+        evidence_path="/app/output/benchmark-events.jsonl",
     )
     script = script.replace(
         "from fastmcp import FastMCP\n",
@@ -442,7 +442,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 FIXTURES = HERE / "fixtures"
 sys.path.insert(0, str(FIXTURES))
-from verifier import verify_harbor_task
+from verifier_core import verify_harbor_task
 
 LOG_DIR = Path("/logs/verifier")
 SOURCE_ENVELOPE = Path("/app/output/sealed-evidence.json")
@@ -696,7 +696,7 @@ before retrying.
     fixtures = tests_dir / "fixtures"
     fixtures.mkdir(parents=True, exist_ok=True)
     (fixtures / "envelope.py").write_text((ROOT / "envelope.py").read_text(encoding="utf-8"), encoding="utf-8")
-    (fixtures / "verifier.py").write_text((ROOT / "verifier.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (fixtures / "verifier_core.py").write_text((ROOT / "verifier_core.py").read_text(encoding="utf-8"), encoding="utf-8")
     (fixtures / "secret_key.txt").write_text(secret_key_hex, encoding="utf-8")
     (fixtures / "fault_record.json").write_text(
         json.dumps(record.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",

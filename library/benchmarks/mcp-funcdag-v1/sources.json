@@ -1,0 +1,16 @@
+{
+  "name": "mcp-funcdag-v1",
+  "version": "1.0.0",
+  "description": "Deterministic streamable-HTTP MCP function DAG benchmark for tool selection, composition, and value propagation",
+  "license": {
+    "spdx": "Apache-2.0",
+    "attribution": "eval-lab synthetic cleanroom implementation"
+  },
+  "pins": [
+    {
+      "name": "dag_spec",
+      "version": "1.0.0",
+      "sha256": "063224bef2bcae46f24db801acad7c20c0de8bbe1a730ff982a2704b9f428b84"
+    }
+  ]
+}

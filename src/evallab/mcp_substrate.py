@@ -327,7 +327,21 @@ def validate_runtime_assets(
             RuntimeAsset(destination=destination, source=source),
             content,
         )
+    destinations = tuple(prepared)
+    _reject_runtime_asset_prefix_conflicts(destinations)
     return tuple(prepared[key] for key in sorted(prepared))
+
+
+def _reject_runtime_asset_prefix_conflicts(destinations: Sequence[str]) -> None:
+    """Reject file destinations that collide with a nested path prefix."""
+    folded = sorted({destination.casefold() for destination in destinations})
+    for index, left in enumerate(folded):
+        prefix = f"{left}/"
+        for right in folded[index + 1 :]:
+            if right.startswith(prefix):
+                raise SubstrateError(
+                    f"Runtime asset destination {right!r} conflicts with prefix {left!r}"
+                )
 
 
 def _assert_confined_nonsymlink_destination(root: Path, destination: str) -> Path:
@@ -632,6 +646,7 @@ def render_mcp_sidecar_dockerfile(
             raise SubstrateError(f"Duplicate runtime asset destination: {destination!r}")
         seen_fold.add(folded)
         destinations.append(destination)
+    _reject_runtime_asset_prefix_conflicts(destinations)
     asset_copy = "".join(
         f"COPY {destination} {app_dir}/{destination}\n"
         for destination in sorted(destinations)
@@ -710,8 +725,7 @@ def materialize_mcp_sidecar_package(
         op_registry_module=op_registry_module,
         fault_record=fault_record,
     )
-    server_path = target_dir / "server.py"
-    _reject_symlink_leaf(server_path, label="server.py")
+    server_path = _assert_confined_nonsymlink_destination(target_dir, "server.py")
     server_path.write_text(server_code, encoding="utf-8")
 
     sorted_assets = tuple(asset for _destination, asset, _content in confined_assets)
@@ -734,8 +748,9 @@ def materialize_mcp_sidecar_package(
         }
         if asset_proof:
             proof_data["runtime_assets"] = asset_proof
-        proof_path = target_dir / "offline-build-proof.json"
-        _reject_symlink_leaf(proof_path, label="offline-build-proof.json")
+        proof_path = _assert_confined_nonsymlink_destination(
+            target_dir, "offline-build-proof.json"
+        )
         proof_path.write_text(canonical_json(proof_data) + "\n", encoding="utf-8")
     else:
         if wheelhouse_source is None:
@@ -744,7 +759,7 @@ def materialize_mcp_sidecar_package(
             )
 
         # Stage selected wheel bytes and derive the exact target lock from their METADATA and SHA-256.
-        dest_wheelhouse = target_dir / "wheelhouse"
+        dest_wheelhouse = _assert_confined_nonsymlink_destination(target_dir, "wheelhouse")
         if resolver_provenance is None:
             raise SubstrateError("resolver_provenance is mandatory for production materialization")
         if resolver_provenance.target != selected_target:
@@ -754,16 +769,16 @@ def materialize_mcp_sidecar_package(
         )
         wheel_inventory = verify_provenance_wheelhouse(dest_wheelhouse, resolver_provenance)
         requirements_lock = render_provenance_lock(resolver_provenance)
-        requirements_path = target_dir / "requirements.txt"
-        _reject_symlink_leaf(requirements_path, label="requirements.txt")
+        requirements_path = _assert_confined_nonsymlink_destination(
+            target_dir, "requirements.txt"
+        )
         requirements_path.write_text(requirements_lock, encoding="utf-8")
 
         # 3. Dockerfile
         dockerfile_content = render_mcp_sidecar_dockerfile(
             base_image=base_image, runtime_assets=sorted_assets
         )
-        dockerfile_path = target_dir / "Dockerfile"
-        _reject_symlink_leaf(dockerfile_path, label="Dockerfile")
+        dockerfile_path = _assert_confined_nonsymlink_destination(target_dir, "Dockerfile")
         dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
 
         proof_data = {
@@ -777,13 +792,15 @@ def materialize_mcp_sidecar_package(
         }
         if asset_proof:
             proof_data["runtime_assets"] = asset_proof
-        proof_path = target_dir / "offline-build-proof.json"
-        _reject_symlink_leaf(proof_path, label="offline-build-proof.json")
+        proof_path = _assert_confined_nonsymlink_destination(
+            target_dir, "offline-build-proof.json"
+        )
         proof_path.write_text(canonical_json(proof_data) + "\n", encoding="utf-8")
 
     if plan_only:
-        requirements_path = target_dir / "requirements.txt"
-        _reject_symlink_leaf(requirements_path, label="requirements.txt")
+        requirements_path = _assert_confined_nonsymlink_destination(
+            target_dir, "requirements.txt"
+        )
         requirements_path.write_text(
             "# plan-only; resolve a target wheelhouse before build\n", encoding="utf-8"
         )

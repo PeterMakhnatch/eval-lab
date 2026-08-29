@@ -830,6 +830,42 @@ def test_runtime_asset_rejects_dockerignore_and_casefold_collisions(tmp_path: Pa
         )
 
 
+def test_runtime_asset_rejects_prefix_conflicts(tmp_path: Path):
+    file_a = tmp_path / "a.bin"
+    file_b = tmp_path / "b.bin"
+    file_a.write_bytes(b"a")
+    file_b.write_bytes(b"b")
+    pkg = tmp_path / "pkg"
+    with pytest.raises(SubstrateError, match="prefix"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(
+                RuntimeAsset("a", file_a),
+                RuntimeAsset("a/b", file_b),
+            ),
+        )
+    assert not pkg.exists()
+    with pytest.raises(SubstrateError, match="prefix"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg / "case",
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(
+                RuntimeAsset("A", file_a),
+                RuntimeAsset("a/b", file_b),
+            ),
+        )
+    with pytest.raises(SubstrateError, match="prefix"):
+        render_mcp_sidecar_dockerfile(
+            runtime_assets=(
+                RuntimeAsset("nested/file", file_a),
+                RuntimeAsset("nested", file_b),
+            )
+        )
+
+
 def test_plan_only_removes_stale_dockerfile(tmp_path: Path):
     pkg = tmp_path / "pkg"
     pkg.mkdir()

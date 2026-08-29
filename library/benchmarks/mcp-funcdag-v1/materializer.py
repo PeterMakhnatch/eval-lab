@@ -311,6 +311,14 @@ Save the final calculated integer result to `/app/output/result.json` in format:
             encoding="utf-8",
         )
     if not plan_only:
+        (environment / "Dockerfile").write_text(
+            f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n\nWORKDIR /app\n"
+            "COPY mcp-server/requirements.txt /requirements.txt\n"
+            "COPY mcp-server/wheelhouse /wheelhouse\n"
+            "RUN python -m pip install --no-cache-dir --no-index --find-links=/wheelhouse --require-hashes -r /requirements.txt\n"
+            "RUN mkdir -p /app/output\n",
+            encoding="utf-8",
+        )
         _write_workbench_build_proof(environment, sidecar_dir)
     _write_compose(environment)
 

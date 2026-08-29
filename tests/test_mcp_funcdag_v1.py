@@ -4,6 +4,8 @@ import importlib.util
 import json
 import subprocess
 import sys
+
+import pytest
 from pathlib import Path
 
 BENCH_ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "mcp-funcdag-v1"
@@ -239,3 +241,18 @@ def test_ensure_wheelhouse_uses_target_resolver_provenance_not_venv_pip(tmp_path
     # The task lock, produced only after exact staged-byte provenance, remains hash locked.
     provenance_lock = render_provenance_lock(provenance)
     assert "fastmcp==3.4.7 --hash=sha256:" in provenance_lock
+
+
+def test_materializer_installs_fastmcp_client_in_main_image(tmp_path):
+    wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
+    if not (wheelhouse / "resolver-provenance.json").is_file():
+        pytest.skip("FastMCP wheelhouse is not staged on this host")
+    contract_mod = _load_module("contract")
+    materializer_mod = _load_module("materializer")
+    task_dir = materializer_mod.materialize_task(
+        contract_mod.CAMPAIGN_0_CELLS[0], output_root=tmp_path, wheelhouse=wheelhouse
+    )
+    dockerfile = (task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8")
+    assert "COPY mcp-server/requirements.txt /requirements.txt" in dockerfile
+    assert "COPY mcp-server/wheelhouse /wheelhouse" in dockerfile
+    assert "--require-hashes -r /requirements.txt" in dockerfile

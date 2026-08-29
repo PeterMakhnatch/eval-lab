@@ -1502,6 +1502,11 @@ def _validate_offline_build_proofs(
             if "substrate_version" in data or data.get("mode") in ("complete_offline_package", "plan_only"):
                 mode = data.get("mode")
                 if mode == "plan_only":
+                    if (root / "Dockerfile").exists():
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, "plan-only proof cannot accompany an active Dockerfile build context")
+                        )
+                        continue
                     proofs[context] = {
                         "context": context,
                         "proof_path": rel_proof,
@@ -1515,14 +1520,85 @@ def _validate_offline_build_proofs(
                         _diag("build_proof_invalid", rel_proof, f"unknown substrate proof mode: {mode!r}")
                     )
                     continue
+
+                # 1. Verify requirements.txt matches requirements_sha256
+                req_path = root / "requirements.txt"
+                if not req_path.is_file() or req_path.is_symlink():
+                    diagnostics.append(
+                        _diag("build_proof_lockfile_missing", rel_proof, "requirements.txt missing or symlink for substrate build proof")
+                    )
+                    continue
+                actual_req_digest = hashlib.sha256(req_path.read_bytes()).hexdigest()
+                declared_req_digest = data.get("requirements_sha256")
+                if actual_req_digest != declared_req_digest:
+                    diagnostics.append(
+                        _diag("build_proof_lockfile_mismatch", rel_proof, f"requirements.txt digest {actual_req_digest} does not match proof {declared_req_digest}")
+                    )
+                    continue
+
+                # 2. Verify Dockerfile matches dockerfile_sha256
+                df_path = root / "Dockerfile"
+                if df_path.is_file():
+                    actual_df_digest = hashlib.sha256(df_path.read_bytes()).hexdigest()
+                    declared_df_digest = data.get("dockerfile_sha256")
+                    if declared_df_digest and actual_df_digest != declared_df_digest:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"Dockerfile digest {actual_df_digest} does not match proof {declared_df_digest}")
+                        )
+                        continue
+
+                # 3. Verify runtime_assets paths, sizes, and digests
+                has_asset_err = False
+                if "runtime_assets" in data and isinstance(data["runtime_assets"], Sequence):
+                    for a in data["runtime_assets"]:
+                        if not isinstance(a, Mapping) or not a.get("path") or not a.get("sha256"):
+                            diagnostics.append(
+                                _diag("build_proof_invalid", rel_proof, "invalid runtime_assets entry in proof")
+                            )
+                            has_asset_err = True
+                            break
+                        a_rel = a["path"]
+                        a_file = root / a_rel
+                        if not a_file.is_file() or a_file.is_symlink() or not _is_under(a_file.resolve(), root.resolve()):
+                            diagnostics.append(
+                                _diag("build_proof_invalid", rel_proof, f"runtime asset {a_rel!r} missing, symlink, or escapes root")
+                            )
+                            has_asset_err = True
+                            break
+                        a_bytes = a_file.read_bytes()
+                        if "size_bytes" in a and len(a_bytes) != a["size_bytes"]:
+                            diagnostics.append(
+                                _diag("build_proof_invalid", rel_proof, f"runtime asset {a_rel!r} size {len(a_bytes)} does not match proof {a['size_bytes']}")
+                            )
+                            has_asset_err = True
+                            break
+                        a_hash = hashlib.sha256(a_bytes).hexdigest()
+                        if a_hash != a["sha256"]:
+                            diagnostics.append(
+                                _diag("build_proof_invalid", rel_proof, f"runtime asset {a_rel!r} digest {a_hash} does not match proof {a['sha256']}")
+                            )
+                            has_asset_err = True
+                            break
+                if has_asset_err:
+                    continue
+
+                # 4. Verify wheels exist specifically under root/wheelhouse/<filename>
                 wheels = data.get("wheels")
                 if not isinstance(wheels, Sequence) or not wheels:
                     diagnostics.append(
                         _diag("build_proof_invalid", rel_proof, "substrate build proof requires non-empty 'wheels'")
                     )
                     continue
+                wheelhouse_dir = root / "wheelhouse"
+                if not wheelhouse_dir.is_dir() or wheelhouse_dir.is_symlink():
+                    diagnostics.append(
+                        _diag("build_proof_invalid", rel_proof, "wheelhouse directory missing or symlink")
+                    )
+                    continue
+
                 pinned_deps = []
                 has_wheel_err = False
+                declared_filenames = set()
                 for w in wheels:
                     if not isinstance(w, Mapping) or not w.get("filename") or not w.get("sha256"):
                         diagnostics.append(
@@ -1530,19 +1606,46 @@ def _validate_offline_build_proofs(
                         )
                         has_wheel_err = True
                         break
+                    w_name = w["filename"]
+                    declared_filenames.add(w_name)
+                    w_path = wheelhouse_dir / w_name
+                    if not w_path.is_file() or w_path.is_symlink():
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheel {w_name!r} missing or symlink in wheelhouse")
+                        )
+                        has_wheel_err = True
+                        break
+                    w_bytes = w_path.read_bytes()
+                    w_hash = hashlib.sha256(w_bytes).hexdigest()
+                    if w_hash != w["sha256"]:
+                        diagnostics.append(
+                            _diag("build_proof_invalid", rel_proof, f"wheel {w_name!r} digest {w_hash} does not match proof {w['sha256']}")
+                        )
+                        has_wheel_err = True
+                        break
                     pinned_deps.append({
-                        "name": w.get("name") or w["filename"].split("-")[0],
+                        "name": w.get("name") or w_name.split("-")[0],
                         "version": w.get("version") or "pinned",
                         "sha256": w["sha256"],
-                        "wheel": w["filename"],
+                        "wheel": w_name,
                     })
                 if has_wheel_err:
                     continue
+
+                # Check for extra unapproved wheels
+                all_actual_wheels = {p.name for p in wheelhouse_dir.glob("*.whl") if p.is_file() and not p.is_symlink()}
+                extra_wheels = all_actual_wheels - declared_filenames
+                if extra_wheels:
+                    diagnostics.append(
+                        _diag("build_proof_unpinned_dependency", rel_proof, f"extra unapproved wheels in wheelhouse not in proof: {sorted(extra_wheels)}")
+                    )
+                    continue
+
                 proofs[context] = {
                     "context": context,
                     "proof_path": rel_proof,
                     "lockfile": "requirements.txt",
-                    "lockfile_digest": data.get("requirements_sha256", ""),
+                    "lockfile_digest": actual_req_digest,
                     "ecosystem": "pypi",
                     "reviewed_by": "eval-lab-substrate",
                     "pinned_dependencies": pinned_deps,
@@ -2291,7 +2394,7 @@ def _validate_compose_topology(
                     )
                 )
             else:
-                build_context_rel = resolved_ctx.relative_to(task_dir).as_posix()
+                build_context_rel = resolved_ctx.relative_to(task_dir.resolve()).as_posix()
                 nested_dockerfile = resolved_ctx / "Dockerfile"
                 if not nested_dockerfile.is_file():
                     diagnostics.append(

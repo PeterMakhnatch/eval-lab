@@ -4,9 +4,9 @@ import importlib.util
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 BENCH_ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "mcp-funcdag-v1"
 

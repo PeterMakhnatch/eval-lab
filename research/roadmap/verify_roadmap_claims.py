@@ -60,6 +60,7 @@ WAVE2_SUMMARY = REPO / "research/evidence/zai-opencode-mcp-wave2-summary.json"
 HANDLE_AUDIT = REPO / "research/evidence/zai-wave2-action64-handle-audit.json"
 FEATURE_REGISTRY = REPO / "src/evallab/interpretation/feature_registry.py"
 ACTION_MEMORY_PRODUCER = REPO / "src/evallab/interpretation/producers/action_memory.py"
+BENCHMARK_EVENTS = REPO / "src/evallab/interpretation/benchmark_events.py"
 BENCHMARK_VIEWS = REPO / "sql/traj_benchmark_views.sql"
 
 # C1-lane features this memo now depends on (PR #303, f7351bf8). READ-ONLY: this
@@ -546,17 +547,49 @@ def check_c1_landed_features(fail: list[str]) -> None:
     if ACTION_MEMORY_PRODUCER.is_file():
         producer = ACTION_MEMORY_PRODUCER.read_text(encoding="utf-8")
         if "handle_set_match" in producer:
-            contracts = {
+            # Assert SEMANTICS, tolerating where they live. #303's final head
+            # extracted two contracts into shared helpers, and needle-matching the
+            # old inlined literals reported them as regressions when they had in
+            # fact been centralised across all three producers.
+            inline = {
                 "exact set equality": "== expected_set",
                 "duplicate isolation": "len(observed_handles) - len(set(observed_handles))",
-                "application-error rejection": "not_found",
-                "token-weighted cache rate": "sum(cached_step_tokens) / sum(step_tokens)",
             }
-            for label, needle in contracts.items():
+            for label, needle in inline.items():
                 if needle not in producer:
                     fail.append(
                         f"producer no longer implements {label} ({needle!r}); 7.0 claims it"
                     )
+            # application-error rejection: inlined, or via the shared helper
+            # Word-boundary match, not substring: "def is_application_error" is a
+            # prefix of "def is_application_error_RENAMED", so a substring test
+            # cannot detect a rename. That is the same shape of non-discriminating
+            # check this memo has had to correct three times.
+            helper_defined = bool(
+                BENCHMARK_EVENTS.is_file()
+                and re.search(
+                    r"^def is_application_error\s*\(",
+                    BENCHMARK_EVENTS.read_text(encoding="utf-8"),
+                    re.MULTILINE,
+                )
+            )
+            rejects_app_errors = "not_found" in producer or (
+                re.search(r"\bis_application_error\s*\(", producer) is not None and helper_defined
+            )
+            if not rejects_app_errors:
+                fail.append(
+                    "no application-error rejection reachable from the producer; 7.0 claims it"
+                )
+            # token-weighted cache rate: inlined, or via the shared registry helper
+            token_weighted = "sum(cached_step_tokens) / sum(step_tokens)" in producer or (
+                re.search(r"\bcompute_prompt_cache_hit_rate\s*\(", producer) is not None
+                and re.search(r"^def compute_prompt_cache_hit_rate\s*\(", registry, re.MULTILINE)
+                is not None
+            )
+            if not token_weighted:
+                fail.append(
+                    "no token-weighted cache rate reachable from the producer; 7.0 claims it"
+                )
     if BENCHMARK_VIEWS.is_file():
         views = BENCHMARK_VIEWS.read_text(encoding="utf-8")
         for feature in ("handle_set_match", "unknown_handle_count", "handle_coverage_rate"):

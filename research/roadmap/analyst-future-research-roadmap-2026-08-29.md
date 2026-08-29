@@ -1075,7 +1075,7 @@ against adversarial structure (credential symlinks) and it held.
 
 ## 7. Weak-area backlog, ranked by evidence impact
 
-### 7.0 What the C1 lane already landed (PR #303, head `8693bbcc`)
+### 7.0 What the C1 lane already landed (PR #303, final head `be254f1b`)
 
 `[OBSERVED]` Verified read-only at that head. Two of this memo's requests are
 satisfied, and the second is implemented more precisely than I asked for.
@@ -1098,23 +1098,32 @@ These two features can no longer trip that.
 `src/evallab/interpretation/producers/action_memory.py` and surfaced in
 `sql/traj_benchmark_views.sql`:
 
-**Read the producer, not only the registry.** `[OBSERVED]` The registry strings were
-unchanged across #303's two reviewed heads, but the **producer semantics tightened**
-in four ways at that second head
-(`src/evallab/interpretation/producers/action_memory.py:225-298,328-337`). An earlier
-draft of this section quoted the registry formulas and was therefore misleading about
-what the features compute. Actual behaviour:
+**Read the producer, not only the registry.** `[OBSERVED]` The registry strings stayed
+constant across all three of #303's reviewed heads while the **producer semantics
+tightened**, and at the final head two of the four contracts were **extracted into
+shared helpers applied across all three benchmark producers**:
 
-| Feature | Implemented rule at `8693bbcc` | Failure class it isolates |
+| Contract | Where it lives at `be254f1b` |
+|---|---|
+| application-error rejection | `is_application_error(payload)` — `src/evallab/interpretation/benchmark_events.py:81`, applied to the calls path **and** the events path (`action_memory.py:243,255`) |
+| token-weighted cache rate | `compute_prompt_cache_hit_rate(step_tokens, cached_step_tokens)` — `feature_registry.py`, fails closed on `None`/empty, misaligned lengths, negative elements, non-positive totals, or cached exceeding prompt |
+
+`[INFERENCE]` The extraction is an improvement, not a drift: the events path did not
+previously reject application errors, and one shared cache-rate implementation cannot
+diverge between the three producers. An earlier draft of this section quoted the
+registry formulas and was misleading about what the features compute; this one names
+the implementation site. Actual behaviour:
+
+| Feature | Implemented rule at `be254f1b` | Failure class it isolates |
 |---|---|---|
 | `expected_handle_count` | `len(expected_set)` | — (denominator) |
-| `valid_handle_count` | `len(set(successful_valid_handles))` — **successful and expected only**; a call is rejected on `is_error`, or a payload `error` / `is_error` / `status in (error, not_found)` (`:255-266`) | — |
+| `valid_handle_count` | `len(set(successful_valid_handles))` — **successful and expected only**; rejected on `call.is_error` or `is_application_error(payload)`, now on **both** the calls and events paths (`:243,255`) | — |
 | `unknown_handle_count` | `len([h for h in observed_handles if h not in expected_set])` — counts **occurrences**, not distinct | **the `…c32bf6` near-typo substitution** |
 | `duplicate_handle_count` | `len(observed_handles) − len(set(observed_handles))` (`:271`) — **isolated from validity** | **the 16k redundancy failure** |
 | `handle_set_match` | `set(successful_valid_handles) == expected_set and len(unknown_handles) == 0` (`:274-276`) — **exact set equality**, not a subset test | **the omitted `…c32bf4`** |
 | `handle_order_match` | `successful_valid_handles == expected_chunk_ids and len(unknown_handles) == 0` (`:286-288`) | **Full's 39 prefix reorderings** |
 | `handle_coverage_rate` | `min(valid_handle_count, expected_handle_count) / expected_handle_count` (`:296-298`) — clamped, so it cannot exceed 1 | incomplete coverage, including the scaffold's 232/257 |
-| `prompt_cache_hit_rate` | `sum(cached_step_tokens) / sum(step_tokens)` (`:334`), falling back to step-token weighting over boolean cache hits (`:336`) — **token-weighted**, not a call ratio | context-reuse manipulation check |
+| `prompt_cache_hit_rate` | `compute_prompt_cache_hit_rate(...)` — strict `sum(cached)/sum(prompt)`, **token-weighted** not a call ratio, and fail-closed to NULL on misaligned lengths, negative elements or cached > prompt | context-reuse manipulation check |
 
 `[INFERENCE]` The four tightenings each matter for this roadmap:
 
@@ -1130,6 +1139,11 @@ what the features compute. Actual behaviour:
    valid would have masked the omission.
 4. **Token-weighted cache rate.** A call-count ratio would misreport reuse when step
    sizes differ by orders of magnitude — which is exactly the 4k-to-128k dose ladder.
+   The final head also makes it **fail closed** rather than approximate: NULL on
+   misaligned sequences, negative elements, or cached exceeding prompt. `[INFERENCE]`
+   That last guard matters for this roadmap specifically — the pilot's cached-token
+   totals run close to prompt totals (678,080 of 880,748 in wave 1), so a silent
+   overflow would have been plausible rather than obviously wrong.
 
 `[INFERENCE]` **This is the single most useful thing that could have happened to this
 roadmap.** §1.6 argued that counts cannot detect omission-plus-substitution and that
@@ -1162,7 +1176,7 @@ owned elsewhere, so they are tagged rather than actioned here:
 
 | Territory | Owner | Status of the items below |
 |---|---|---|
-| Matched/twin keys, denominator contracts, `prompt_tokens_per_step` / `prompt_cache_hit_rate` registry/producer/view enforcement | **C1 Agent Data lane** (PR #303, head `8693bbcc`, 130 tests passing, `ty` clean) | **Both requests SATISFIED — see §7.0.** W3 denominator declarations and the read-sequence instrumentation from §1.6 landed in #303 |
+| Matched/twin keys, denominator contracts, `prompt_tokens_per_step` / `prompt_cache_hit_rate` registry/producer/view enforcement | **C1 Agent Data lane** (PR #303, final head `be254f1b`, rebased onto `origin/main` `56dba4ee`; repomap, docindex, ty and focused suite clean) | **Both requests SATISFIED — see §7.0.** W3 denominator declarations and the read-sequence instrumentation from §1.6 landed in #303 |
 | C2 promotion | **wH:p9, solely** | none — this memo makes no promotion change |
 | Intervention recipes, C0 / quality infrastructure | not this lane | none — the sequential-retrieval scaffold is discussed as evidence only (§1.6), never modified |
 

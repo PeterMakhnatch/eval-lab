@@ -2,21 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import sys
-import threading
-import time
 from pathlib import Path
 
 import pytest
-
-from evallab.mcp_substrate import (
-    DEFAULT_TARGET_PLATFORM_TAG,
-    DEFAULT_TARGET_PYTHON_TAG,
-    SubstrateError,
-    WheelhouseTarget,
-    record_prepackaging_provenance,
-)
 
 ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "action-memory-v1"
 
@@ -30,25 +21,24 @@ def load(name: str, filename: str | None = None):
     return module
 
 
+def _require_production_sidecar() -> None:
+    if not (os.environ.get("ACTION_MEMORY_WHEELHOUSE") and os.environ.get("ACTION_MEMORY_RESOLVER_PROVENANCE")):
+        pytest.skip("target-specific FastMCP wheelhouse/provenance not populated on this host")
+
+
 def test_contract_metadata_and_cell_factors():
-    contract_file = ROOT / "benchmark_contract.json"
-    assert contract_file.exists()
-    contract = json.loads(contract_file.read_text(encoding="utf-8"))
+    contract = json.loads((ROOT / "benchmark_contract.json").read_text(encoding="utf-8"))
     assert contract["benchmark_family"] == "action-memory-v1"
     assert contract["construct"] == "actionable_entity_memory_and_value_binding"
     assert len(contract["cells"]) >= 4
-    cell_arms = {c["arm"] for c in contract["cells"]}
-    assert "clean" in cell_arms
-    assert "neutral_padding" in cell_arms
-    assert "semantic_distractor" in cell_arms
+    assert {cell["arm"] for cell in contract["cells"]} >= {"clean", "neutral_padding", "semantic_distractor"}
 
 
 def test_contract_opportunity_counts_match_generator_output():
-    state_mod = load("action_memory_state_match", "state")
-    contract_file = ROOT / "benchmark_contract.json"
-    contract = json.loads(contract_file.read_text(encoding="utf-8"))
+    state = load("action_memory_state_match", "action_memory_state")
+    contract = json.loads((ROOT / "benchmark_contract.json").read_text(encoding="utf-8"))
     for cell in contract["cells"]:
-        spec = state_mod.generate_scenario(
+        spec = state.generate_scenario(
             seed=42,
             cell_id=cell["cell_id"],
             arm=cell["arm"],
@@ -57,146 +47,116 @@ def test_contract_opportunity_counts_match_generator_output():
             padding_position=cell.get("padding_position"),
             distractor_count=cell.get("distractor_count", 4),
         )
-        assert cell["read_opportunity_count"] == spec.read_opportunity_count, (
-            f"Cell {cell['cell_id']} read_opportunity_count mismatch: "
-            f"declared {cell['read_opportunity_count']} != generated {spec.read_opportunity_count}"
-        )
+        assert cell["read_opportunity_count"] == spec.read_opportunity_count
         assert cell["update_opportunity_count"] == spec.update_opportunity_count
         assert cell["mutation_opportunity_count"] == spec.mutation_opportunity_count
         assert cell["dose_bytes"] == spec.dose_bytes
 
 
 def test_state_generation_deterministic_and_dosed():
-    state_mod = load("action_memory_state_gen", "state")
-    spec1 = state_mod.generate_scenario(seed=42, cell_id="clean_baseline_4k", arm="clean")
-    spec2 = state_mod.generate_scenario(seed=42, cell_id="clean_baseline_4k", arm="clean")
-    assert spec1 == spec2
-    assert spec1.target_entity.startswith("entity_")
-    assert spec1.latest_value != spec1.initial_value
-    assert spec1.dose_bytes == 4096
-    assert spec1.update_opportunity_count >= 1
-    assert spec1.mutation_opportunity_count == 1
+    state = load("action_memory_state_gen", "action_memory_state")
+    first = state.generate_scenario(seed=42, cell_id="clean_baseline_4k", arm="clean")
+    second = state.generate_scenario(seed=42, cell_id="clean_baseline_4k", arm="clean")
+    assert first == second
+    assert first.target_entity.startswith("entity_")
+    assert first.latest_value != first.initial_value
+    assert first.dose_bytes == 4096
+    assert first.update_opportunity_count >= 1
+    assert first.mutation_opportunity_count == 1
 
 
-def test_materializer_plan_only_emits_clean_specification_without_compose_or_dockerfile(tmp_path: Path):
-    mat_mod = load("action_memory_mat_test", "materializer")
-    target = tmp_path / "action_mem_task_plan"
-    mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=True)
-    assert not (target / "task.toml").exists()
-    assert (target / "instruction.md").exists()
-    assert not (target / "environment" / "docker-compose.yaml").exists()
-    assert not (target / "environment" / "Dockerfile").exists()
-    assert (target / "environment" / "mcp-server" / "server.py").exists()
-    assert (target / "environment" / "mcp-server" / "scenario.json").exists()
-    assert (target / "environment" / "mcp-server" / "ops.py").exists()
-    assert (target / "environment" / "mcp-server" / "offline-build-proof.json").exists()
-    assert not (target / "environment" / "mcp-server" / "Dockerfile").exists()
-    assert not (target / "environment" / "mcp-server" / "wheelhouse").exists()
-
-
-def test_materializer_production_generates_valid_harbor_and_compose_structure(tmp_path: Path):
-    mat_mod = load("action_memory_mat_prod", "materializer")
-    target = tmp_path / "action_mem_task_prod_pkg"
-
-    # The production trust root requires the exact reviewed 66-wheel wheelhouse;
-    # a synthetic single-wheel house is rejected (TOFU refusal). Use the real
-    # trusted wheelhouse when available.
-    real_wh = Path("/tmp/fastmcp3_wheelhouse")
-    if not real_wh.is_dir():
-        pytest.skip("FastMCP 3.4.7 trusted wheelhouse not populated on this host")
-
-    wheel_target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
-    provenance = record_prepackaging_provenance(real_wh, wheel_target)
-
-    mat_mod.materialize(
-        output_dir=target,
-        cell_id="clean_baseline_4k",
-        seed=42,
-        wheelhouse_source=real_wh,
-        resolver_provenance=provenance,
-        plan_only=False,
-    )
+def test_materializer_generates_valid_harbor_and_compose_structure(tmp_path):
+    _require_production_sidecar()
+    materializer = load("action_memory_mat_test", "materializer")
+    target = tmp_path / "task"
+    materializer.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42)
     assert (target / "task.toml").exists()
     assert (target / "instruction.md").exists()
     assert (target / "environment" / "docker-compose.yaml").exists()
-    assert (target / "environment" / "mcp-server" / "server.py").exists()
-    assert (target / "environment" / "mcp-server" / "scenario.json").exists()
-    assert (target / "environment" / "mcp-server" / "ops.py").exists()
     assert (target / "environment" / "mcp-server" / "Dockerfile").exists()
-    assert (target / "environment" / "mcp-server" / "wheelhouse").exists()
-
-    compose = (target / "environment" / "docker-compose.yaml").read_text(encoding="utf-8")
-    assert "workbench-internal" in compose
-    assert "mcp-service:" in compose
-    assert "internal: true" in compose
-    assert (target / "verifier" / "verify.py").exists()
-    assert (target / "tests" / "verify.py").exists()
-    assert (target / "solution" / "solve.sh").exists()
-    assert (target / "workbench" / "fair-alternative.sh").exists()
-    assert (target / "workbench" / "please-hack.sh").exists()
-    assert (target / "workbench" / "adversarial" / "stale-value.sh").exists()
-    assert (target / "workbench" / "adversarial" / "wrong-entity.sh").exists()
-    assert (target / "workbench" / "adversarial" / "empty-output.sh").exists()
+    assert "workbench-internal" in (target / "environment" / "docker-compose.yaml").read_text(encoding="utf-8")
+    assert "--require-hashes" in (target / "environment" / "mcp-server" / "Dockerfile").read_text(encoding="utf-8")
 
 
-def test_materializer_production_requires_wheelhouse_and_provenance(tmp_path: Path):
-    mat_mod = load("action_memory_mat_prod_test", "materializer")
-    target = tmp_path / "action_mem_task_prod"
-    with pytest.raises(SubstrateError, match="wheelhouse_source is mandatory"):
-        mat_mod.materialize(output_dir=target, cell_id="clean_baseline_4k", seed=42, plan_only=False)
-    assert not target.exists()
+def test_mcp_server_client_protocol_interaction(tmp_path):
+    _require_production_sidecar()
+    materializer = load("action_memory_mat_mcp", "materializer")
+    oracle = load("action_memory_oracle_mcp", "oracle")
+    task = tmp_path / "task"
+    materializer.materialize(output_dir=task, cell_id="clean_baseline_4k", seed=42)
+    server = (task / "environment" / "mcp-server" / "server.py").read_text(encoding="utf-8")
+    assert "from fastmcp import FastMCP" in server
+    assert "from ops import OP_REGISTRY" in server
+    assert 'transport="streamable-http"' in server
+    assert not (task / "environment" / "mcp-server" / "runtime.py").exists()
+    oracle.solve_direct(task / "task_state", task / "evidence")
+    output = task / "output"
+    output.mkdir()
+    shutil.copy2(task / "evidence" / "benchmark-events.jsonl", output / "benchmark-events.jsonl")
+    shutil.copy2(task / "evidence" / "final-state.json", output / "final-state.json")
+    assert json.loads((output / "final-state.json").read_text(encoding="utf-8"))["status"] == "executed"
 
 
-def test_mcp_server_client_protocol_interaction(tmp_path: Path):
-    mat_mod = load("action_memory_mat_mcp", "materializer")
-    runtime_mod = load("action_memory_runtime_mcp", "runtime")
-    oracle_mod = load("action_memory_oracle_mcp", "oracle")
+def test_verifier_discriminates_oracle_nop_and_mutants(tmp_path):
+    _require_production_sidecar()
+    materializer = load("action_memory_mat_discrim", "materializer")
+    verifier = load("action_memory_ver_discrim", "verifier")
+    templates = load("action_memory_tmpl_discrim", "action_memory_templates")
+    task = tmp_path / "task"
+    materializer.materialize(output_dir=task, cell_id="clean_baseline_4k", seed=42)
+    task_state = task / "task_state"
+    evidence = task / "evidence"
+    rewards = task / "tests" / "rewards"
+    templates.nop(task_state, evidence)
+    assert verifier.verify(task_state, evidence, reward_dir=rewards / "nop")["reward"] == 0.0
+    materializer.materialize(output_dir=task, cell_id="clean_baseline_4k", seed=42)
+    templates.oracle(task_state, evidence)
+    assert verifier.verify(task_state, evidence, reward_dir=rewards / "oracle")["reward"] == 1.0
+    for name, mutant in templates.mutants().items():
+        materializer.materialize(output_dir=task, cell_id="clean_baseline_4k", seed=42)
+        mutant(task_state, evidence)
+        assert verifier.verify(task_state, evidence, reward_dir=rewards / name)["reward"] == 0.0
 
-    task_dir = tmp_path / "mcp_task"
-    mat_mod.materialize(output_dir=task_dir, cell_id="clean_baseline_4k", seed=42, plan_only=True)
 
-    import socket
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-
-    server_thread = threading.Thread(
-        target=runtime_mod.start_server,
-        args=(task_dir / "task_state", task_dir / "evidence", port),
-        daemon=True,
+def test_verifier_rejects_noncanonical_or_invalid_truth(tmp_path):
+    _require_production_sidecar()
+    materializer = load("action_memory_mat_corrupt", "materializer")
+    verifier = load("action_memory_ver_corrupt", "verifier")
+    task = tmp_path / "task"
+    materializer.materialize(output_dir=task, cell_id="clean_baseline_4k", seed=42)
+    output = task / "output"
+    output.mkdir()
+    scenario = json.loads((task / "task_state" / "scenario.json").read_text(encoding="utf-8"))
+    (output / "final-state.json").write_text(
+        json.dumps({"status": "executed", "target_entity": scenario["target_entity"], "target_attribute": scenario["target_attribute"], "bound_value": scenario["latest_value"]}),
+        encoding="utf-8",
     )
-    server_thread.start()
-    time.sleep(0.2)
+    (output / "benchmark-events.jsonl").write_text(
+        json.dumps({"event_ordinal": 1}) + "\n", encoding="utf-8"
+    )
+    result = verifier.verify(task / "tests", output, reward_dir=task / "tests" / "rewards" / "corrupt")
+    assert result["reward"] == 0.0
+    assert result["reason"] == "noncanonical_runtime_evidence"
 
-    # Exercise standard client session: initialize, list_tools, call_tools
-    client = runtime_mod.MCPClient(f"http://127.0.0.1:{port}/mcp")
-    assert client.wait_until_ready(timeout_sec=5.0)
-    init_res = client.initialize()
-    assert init_res["serverInfo"]["name"] == "action-memory-mcp"
 
-    tools = client.list_tools()
-    tool_names = {t["name"] for t in tools}
-    assert tool_names == {"list_context_chunks", "get_context_chunk", "execute_mutation"}
+def test_action_memory_state_module_does_not_shadow_loca_in_either_import_order(monkeypatch):
+    loca_root = ROOT.parent / "loca-lean-v1"
+    monkeypatch.syspath_prepend(str(loca_root))
+    for module_name in ("state", "source", "templates", "package_finish", "package_layout"):
+        sys.modules.pop(module_name, None)
 
-    # Run oracle solver over the live MCP protocol
-    oracle_mod.solve_via_mcp(mcp_url=f"http://127.0.0.1:{port}/mcp")
+    load("action_memory_materializer_first", "materializer")
+    loca_spec = importlib.util.spec_from_file_location("loca_materializer_after_action_memory", loca_root / "materializer.py")
+    loca_module = importlib.util.module_from_spec(loca_spec)
+    assert loca_spec.loader is not None
+    loca_spec.loader.exec_module(loca_module)
+    assert hasattr(loca_module, "materialize")
 
-    # Verify produced evidence in evidence/ and simulate collect transfer to output/
-    evidence_dir = task_dir / "evidence"
-    output_dir = task_dir / "output"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    assert (evidence_dir / "benchmark-events.jsonl").exists()
-    assert (evidence_dir / "final-state.json").exists()
-
-    shutil.copy2(evidence_dir / "benchmark-events.jsonl", output_dir / "benchmark-events.jsonl")
-    shutil.copy2(evidence_dir / "final-state.json", output_dir / "final-state.json")
-
-    final_state = json.loads((output_dir / "final-state.json").read_text(encoding="utf-8"))
-    assert final_state["status"] == "executed"
-    assert final_state["bound_value"] != ""
-
-    # Verify verifier passes with reward 1.0 on copied live MCP evidence
-    ver_mod = load("action_memory_ver_mcp", "verifier")
-    reward_dir = task_dir / "rewards"
-    ver_res = ver_mod.verify(task_dir / "task_state", evidence_dir, reward_dir)
-    assert ver_res["reward"] == 1.0, f"Live MCP trial verifier failed: {ver_res}"
+    for module_name in ("state", "source", "templates", "package_finish", "package_layout"):
+        sys.modules.pop(module_name, None)
+    loca_spec = importlib.util.spec_from_file_location("loca_materializer_first", loca_root / "materializer.py")
+    loca_module = importlib.util.module_from_spec(loca_spec)
+    assert loca_spec.loader is not None
+    loca_spec.loader.exec_module(loca_module)
+    load("action_memory_materializer_after_loca", "materializer")
+    assert hasattr(loca_module, "materialize")

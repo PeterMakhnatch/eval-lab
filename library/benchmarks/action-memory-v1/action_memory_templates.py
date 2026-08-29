@@ -85,7 +85,7 @@ def recall_only_mutant(task_dir: Path, evidence_dir: Path) -> dict[str, Any]:
     with (evidence_dir / "benchmark-events.jsonl").open("w", encoding="utf-8") as f:
         for idx, chunk in enumerate(scenario["chunks"], start=1):
             f.write(json.dumps({
-                "event_ordinal": idx,
+                "event_index": idx,
                 "event_type": "read_chunk",
                 "payload": {"chunk_id": chunk["chunk_id"]}
             }) + "\n")

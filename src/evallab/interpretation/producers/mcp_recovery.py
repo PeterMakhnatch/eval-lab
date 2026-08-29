@@ -237,16 +237,9 @@ def extract_mcp_recovery_features(
         prompt_tokens_per_step = float(sum(step_tokens) / len(step_tokens))
 
     prompt_cache_hit_rate: float | None = None
-    if step_tokens and sum(step_tokens) > 0 and cache_hits:
-        if len(step_tokens) == len(cache_hits):
-            cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
-        else:
-            cached_tokens_count = sum(step_tokens) * (
-                sum(1 for h in cache_hits if h) / len(cache_hits)
-            )
+    if step_tokens and sum(step_tokens) > 0 and cache_hits and len(step_tokens) == len(cache_hits):
+        cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
         prompt_cache_hit_rate = float(cached_tokens_count / sum(step_tokens))
-    elif cache_hits and len(cache_hits) > 0 and not step_tokens:
-        prompt_cache_hit_rate = float(sum(1 for h in cache_hits if h) / len(cache_hits))
     # L2 derived metrics with strict NULL preservation
     # 1. schema_conformance_rate: denom is total_tool_calls
     schema_conformance_rate: float | None = None

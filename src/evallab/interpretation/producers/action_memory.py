@@ -262,16 +262,12 @@ def extract_action_memory_features(
         handle_set_match = valid_handle_count >= expected_handle_count
     else:
         handle_set_match = len(observed_handles) == 0
-
-    if (
-        isinstance(expected_chunk_ids, list)
-        and expected_chunk_ids
-        and len(observed_handles) >= len(expected_chunk_ids)
-    ):
-        handle_order_match = observed_handles[: len(expected_chunk_ids)] == expected_chunk_ids
+    if isinstance(expected_chunk_ids, list) and expected_chunk_ids:
+        handle_order_match = observed_handles == expected_chunk_ids
     else:
-        handle_order_match = handle_set_match and duplicate_handle_count == 0
-
+        handle_order_match = (
+            handle_set_match and duplicate_handle_count == 0 and unknown_handle_count == 0
+        )
     handle_coverage_rate: float | None = None
     if expected_handle_count > 0:
         handle_coverage_rate = float(valid_handle_count / expected_handle_count)
@@ -309,16 +305,9 @@ def extract_action_memory_features(
         prompt_tokens_per_step = float(sum(step_tokens) / len(step_tokens))
 
     prompt_cache_hit_rate: float | None = None
-    if step_tokens and sum(step_tokens) > 0 and cache_hits:
-        if len(step_tokens) == len(cache_hits):
-            cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
-        else:
-            cached_tokens_count = sum(step_tokens) * (
-                sum(1 for h in cache_hits if h) / len(cache_hits)
-            )
+    if step_tokens and sum(step_tokens) > 0 and cache_hits and len(step_tokens) == len(cache_hits):
+        cached_tokens_count = sum(t for t, h in zip(step_tokens, cache_hits, strict=True) if h)
         prompt_cache_hit_rate = float(cached_tokens_count / sum(step_tokens))
-    elif cache_hits and len(cache_hits) > 0 and not step_tokens:
-        prompt_cache_hit_rate = float(sum(1 for h in cache_hits if h) / len(cache_hits))
     # L2 derived metrics with strict NULL preservation
     # 1. schema_conformance_rate: denom is total_tool_calls
     schema_conformance_rate: float | None = None

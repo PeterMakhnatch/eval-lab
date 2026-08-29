@@ -42,6 +42,26 @@ def _seal_and_write(task_dir: Path, record: dict[str, Any], key: bytes, events: 
         sequence=len(events),
     )
     write_atomic_envelope(out / "sealed-evidence.json", env)
+    canonical = []
+    for ordinal, event in enumerate(events, start=1):
+        is_error = event.get("outcome") not in {"ok", "silent_corruption"}
+        record_ev = {
+            "schema_version": "mcp-tool-event-v1",
+            "event_ordinal": ordinal,
+            "tool_name": event.get("tool"),
+            "arguments": {},
+            "event_type": "tool_call_error" if is_error else "tool_call_success",
+            "is_error": is_error,
+        }
+        if is_error:
+            record_ev["error"] = {"type": "tool_error", "message": str(event.get("outcome"))}
+        else:
+            record_ev["result"] = {"value": event.get("read_value") or event.get("written_value")}
+        canonical.append(record_ev)
+    (out / "benchmark-events.jsonl").write_text(
+        "".join(json.dumps(ev, sort_keys=True, separators=(",", ":")) + "\n" for ev in canonical),
+        encoding="utf-8",
+    )
 
 
 def run_oracle_repair(task_dir: Path, agent_workspace: Path) -> None:

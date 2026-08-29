@@ -695,6 +695,7 @@ def materialize_task(
     task_toml = f'''schema_version = "1.4"
 artifacts = [
     "/app/output/sealed-evidence.json",
+    "/app/output/benchmark-events.jsonl",
 ]
 
 [task]

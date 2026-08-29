@@ -13,6 +13,42 @@ from envelope import decrypt_envelope
 
 MUTATION_TOOLS = frozenset({"refresh_auth", "fallback_query"})
 
+CANONICAL_EVENT_SCHEMA = "mcp-tool-event-v1"
+CANONICAL_TOOLS = frozenset({"write_record", "read_record", "refresh_auth", "fallback_query"})
+
+def _load_canonical_events(task_path: Path) -> list[dict[str, Any]]:
+    event_path = task_path / "output" / "benchmark-events.jsonl"
+    if not event_path.is_file():
+        raise ValueError("missing canonical mcp-tool-event-v1 artifact")
+    events = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    for ordinal, event in enumerate(events, start=1):
+        if event.get("schema_version") != CANONICAL_EVENT_SCHEMA or event.get("event_ordinal") != ordinal:
+            raise ValueError("canonical event schema or ordinal mismatch")
+        tool = event.get("tool_name")
+        if tool not in CANONICAL_TOOLS or not isinstance(event.get("arguments"), dict):
+            raise ValueError("canonical event has invalid tool alphabet or arguments")
+        typ = event.get("event_type")
+        if typ == "tool_call_success":
+            if event.get("is_error") is not False or "result" not in event or "error" in event:
+                raise ValueError("canonical success event is malformed")
+        elif typ == "tool_call_error":
+            if event.get("is_error") is not True or not isinstance(event.get("error"), dict) or "result" in event:
+                raise ValueError("canonical error event is malformed")
+        else:
+            raise ValueError("canonical event type is invalid")
+    return events
+
+def _crosscheck_transport(sealed: list[dict[str, Any]], canonical: list[dict[str, Any]]) -> None:
+    if len(sealed) != len(canonical):
+        raise ValueError("sealed and canonical event count mismatch")
+    for handler, transport in zip(sealed, canonical, strict=True):
+        if handler.get("tool") != transport.get("tool_name"):
+            raise ValueError("sealed/canonical tool order mismatch")
+        handler_error = handler.get("outcome") not in {"ok"}
+        if bool(transport.get("is_error")) != handler_error and handler.get("outcome") != "silent_corruption":
+            raise ValueError("sealed/canonical outcome mismatch")
+
+
 
 def _evidence_path(task_dir: Path) -> Path:
     candidates = [
@@ -217,15 +253,21 @@ def verify_harbor_task(task_dir: Path | str, reward_dir: Path | str | None = Non
                 "auto_clear": False,
             }
         else:
-            result = score_recovery_envelope(
-                key,
-                raw_env,
-                task_id=str(record["task_id"]),
-                fault_id=str(record["fault_id"]),
-                expected_persistence=expected_persistence,
-                is_clean_twin=is_clean_twin,
-                target_tool=str(record.get("target_tool", "write_record")),
-            )
+            try:
+                payload = decrypt_envelope(key, raw_env, task_id=str(record["task_id"]), fault_id=str(record["fault_id"]), persistence=expected_persistence)
+                _crosscheck_transport(payload.get("events", []), _load_canonical_events(task_path))
+            except Exception as exc:
+                result = {"reward": 0.0, "success": False, "reason": f"canonical transport validation failed: {exc}", "auto_clear": False}
+            else:
+                result = score_recovery_envelope(
+                    key,
+                    raw_env,
+                    task_id=str(record["task_id"]),
+                    fault_id=str(record["fault_id"]),
+                    expected_persistence=expected_persistence,
+                    is_clean_twin=is_clean_twin,
+                    target_tool=str(record.get("target_tool", "write_record")),
+                )
 
     if reward_dir:
         r_path = Path(reward_dir)

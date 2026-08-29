@@ -20,7 +20,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.interpretation.benchmark_events import ingest_benchmark_trial
+from evallab.interpretation.benchmark_events import (
+    ingest_benchmark_trial,
+    project_c0_screening,
+)
 from evallab.interpretation.benchmark_projection import BenchmarkProjectionDimensions
 from evallab.interpretation.feature_registry import TRAJECTORY_FEATURE_REGISTRY
 from evallab.interpretation.producers.action_memory import extract_action_memory_features
@@ -114,6 +117,7 @@ class TrajectoryCardData:
     benchmark_family: str | None = None
     benchmark_features: dict[str, Any] | None = None
     projection_provenance: dict[str, Any] | None = None
+    c0_screening: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -154,6 +158,7 @@ class TrajectoryCardData:
             "benchmark_family": self.benchmark_family,
             "benchmark_features": self.benchmark_features,
             "projection_provenance": self.projection_provenance,
+            "c0_screening": self.c0_screening,
         }
 
 
@@ -362,6 +367,16 @@ def build_traj_card_data(
         loop_reasons_list = tuple(json.loads(baseline.loop_reasons_json))
     except Exception:
         loop_reasons_list = ()
+    c0_screening = asdict(
+        project_c0_screening(
+            trial_dir,
+            trial_id=baseline.trial_id,
+            task_name=baseline.task_name,
+            atif_tool_call_count=baseline.tool_call_count,
+            atif_tool_error_count=baseline.error_count,
+            atif_tool_error_rate=baseline.tool_error_rate_screening,
+        )
+    )
     # Check for benchmark trial
     benchmark_family: str | None = None
     benchmark_feat_dict: dict[str, Any] | None = None
@@ -431,6 +446,7 @@ def build_traj_card_data(
         benchmark_family=benchmark_family,
         benchmark_features=benchmark_feat_dict,
         projection_provenance=projection_provenance,
+        c0_screening=c0_screening,
     )
 
 
@@ -696,8 +712,9 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
             f"- **Result File:** `{card.result_path}` (SHA-256: `{card.result_sha256 or 'n/a'}`)"
         )
     lines.append("")
-    # Section 9: Benchmark Observables (when present)
-    if card.benchmark_family and card.benchmark_features:
+    # Section 9: Contract-bound benchmark observables (when present)
+    benchmark_present = bool(card.benchmark_family and card.benchmark_features)
+    if benchmark_present:
         lines.append(f"## 9. Benchmark Observables (`{card.benchmark_family}`)")
         bf = card.benchmark_features
         lines.append(f"- **Benchmark Family:** `{card.benchmark_family}`")
@@ -705,6 +722,8 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
             lines.append(f"- **Construct:** `{bf['construct']}`")
         if "causal_grade" in bf and bf["causal_grade"]:
             lines.append(f"- **Causal Grade:** `{bf['causal_grade']}`")
+            if bf["causal_grade"] == "C0":
+                lines.append("- **Causal Claims:** **PROHIBITED**")
         if "verifier_truth_digest" in bf and bf["verifier_truth_digest"]:
             lines.append(f"- **Verifier Ground Truth Digest:** `{bf['verifier_truth_digest']}`")
         lines.append("")
@@ -745,6 +764,55 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
             for entry in card.projection_provenance.get("catalog", []):
                 lines.append(f"- **Catalog:** `{entry['column_name']}` — {entry['definition']}")
             lines.append("")
+
+    # C0 mechanical screening is always non-causal. Numbered after benchmark
+    # observables so the contract-bound section keeps its stable section number.
+    if card.c0_screening:
+        c0 = card.c0_screening
+        section = "10" if benchmark_present else "9"
+        lines.append(f"## {section}. C0 Mechanical Screening")
+        lines.append(f"- **Projection Status:** `{c0['projection_status']}`")
+        lines.append(f"- **Mechanical Source:** `{c0['mechanical_source']}`")
+        lines.append(f"- **Causal Grade:** `{c0['causal_grade']}`")
+        lines.append("- **Claim Scope:** mechanical facts and screening only")
+        lines.append("- **Causal Claims:** **PROHIBITED**")
+        lines.append("- **Synthetic Recipe Eligibility:** **false**")
+        refusals = c0.get("projection_refusals", ())
+        lines.append(f"- **Refusals:** `{', '.join(refusals) if refusals else 'none'}`")
+        lines.append(f"- **Quality Disposition:** `{c0.get('quality_disposition', 'n/a')}`")
+        malformed = c0.get("malformed_nested_artifacts", ())
+        if malformed:
+            lines.append(
+                "- **Malformed Nested Artifacts (preserved):** "
+                + ", ".join(f"`{m}`" for m in malformed)
+            )
+        lines.append("")
+        lines.append("### C0 Facts and Explicit Denominators")
+        lines.append("| Metric | Value | Role |")
+        lines.append("|---|---|---|")
+        lines.append(f"| `event_count` | `{c0['event_count']}` | mechanical fact |")
+        lines.append(
+            f"| `tool_call_count` | `{c0['tool_call_count']}` | denominator |"
+        )
+        lines.append(
+            f"| `opportunity_denominator` | `{c0.get('opportunity_denominator')}` | explicit |"
+        )
+        lines.append(
+            f"| `opportunity_count` | `{c0.get('opportunity_count')}` | denominator value |"
+        )
+        lines.append(
+            f"| `tool_error_count` | `{c0['tool_error_count']}` | mechanical fact |"
+        )
+        lines.append(
+            "| `tool_error_rate_screening` | "
+            f"`{c0['tool_error_rate_screening']}` | C0 screening ratio |"
+        )
+        lines.append(f"| `source_sha256` | `{c0.get('source_sha256') or 'n/a'}` | digest |")
+        lines.append(
+            f"| `trajectory_sha256` | `{c0.get('trajectory_sha256') or 'n/a'}` | digest |"
+        )
+        lines.append(f"| `verifier_sha256` | `{c0.get('verifier_sha256') or 'n/a'}` | digest |")
+        lines.append("")
 
     return "\n".join(lines)
 

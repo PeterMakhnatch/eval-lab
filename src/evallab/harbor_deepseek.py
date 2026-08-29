@@ -32,6 +32,7 @@ from evallab.execution_contracts import (
     collected_secret_values,
     persist_private_bytes,
 )
+
 SENSITIVE_CONFIG_KEYS = frozenset(
     {
         "authorization",

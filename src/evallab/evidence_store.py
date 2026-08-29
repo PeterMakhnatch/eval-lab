@@ -16,7 +16,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO
+from typing import IO, BinaryIO
 
 
 @dataclass(frozen=True)
@@ -219,7 +219,7 @@ def _atomic_write(
     name: str,
     *,
     content: bytes | None = None,
-    source: BinaryIO | None = None,
+    source: IO[bytes] | None = None,
 ) -> None:
     """Publish one regular file with an exclusive temp and atomic rename."""
     name = _component(name, label="file name")

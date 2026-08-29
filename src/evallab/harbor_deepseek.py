@@ -1,16 +1,15 @@
-"""DeepSeek credential transport for Harbor's generic mini-swe-agent adapter.
+"""DeepSeek credential isolation for Harbor's generic mini-swe-agent adapter.
 
-Harbor 0.21's installed MiniSweAgent forwards provider keys as per-exec
-environment values. Docker serializes those values into ``docker compose exec``
-argv, and BaseInstalledAgent attaches the same mapping to a DEBUG record. This
-narrow wrapper keeps the generic install/run/LiteLLM implementation while
-loading the provider key from a Compose secret inside the agent shell instead.
+Harbor 0.21 MiniSweAgent copies ``model_connection.env`` into ``exec_as_agent``,
+and ``BaseInstalledAgent._exec`` DEBUG-logs that mapping. Docker serializes the
+same mapping into compose exec argv. This wrapper never places the provider key
+in that environment. Model transport authenticates through an internal proxy
+that alone mounts the file-backed secret.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -23,7 +22,15 @@ from harbor.agents.model_connection import (  # ty: ignore[unresolved-import]
 )
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
 
-DEEPSEEK_SECRET_PATH = "/run/secrets/evallab_deepseek_api_key"
+from evallab.execution_contracts import (
+    DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
+    DEEPSEEK_PROXY_TOKEN,
+    DEEPSEEK_PROXY_URL,
+    REDACTED_SECRET_VALUE,
+    collected_secret_values,
+    persist_private_bytes,
+)
+
 SENSITIVE_CONFIG_KEYS = frozenset(
     {
         "authorization",
@@ -40,7 +47,7 @@ def _redact_sensitive_values(value: Any, secrets: frozenset[str]) -> Any:
     if isinstance(value, dict):
         return {
             key: (
-                "<redacted>"
+                REDACTED_SECRET_VALUE
                 if str(key).casefold() in SENSITIVE_CONFIG_KEYS
                 else _redact_sensitive_values(item, secrets)
             )
@@ -49,35 +56,48 @@ def _redact_sensitive_values(value: Any, secrets: frozenset[str]) -> Any:
     if isinstance(value, list):
         return [_redact_sensitive_values(item, secrets) for item in value]
     if isinstance(value, str) and value in secrets:
-        return "<redacted>"
+        return REDACTED_SECRET_VALUE
     return value
 
 
-def _sanitize_native_trajectory(path: Path) -> None:
+def sanitize_native_trajectory(path: Path, secrets: frozenset[str] | None = None) -> None:
+    """Rewrite a native trajectory on disk only after in-memory redaction."""
     if not path.is_file():
         return
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_bytes().decode("utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        path.write_text(
-            json.dumps({"redacted": "unparseable native trajectory removed"}) + "\n",
-            encoding="utf-8",
+        persist_private_bytes(
+            path,
+            (json.dumps({"redacted": "unparseable native trajectory removed"}) + "\n").encode(),
+            secrets=(),
         )
         return
-    secrets = frozenset(
-        value
-        for name in ("DEEPSEEK_API_KEY", "MSWEA_API_KEY")
-        if (value := os.environ.get(name))
+    known = secrets if secrets is not None else collected_secret_values()
+    sanitized = _redact_sensitive_values(payload, known)
+    persist_private_bytes(
+        path,
+        (json.dumps(sanitized, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
+        secrets=tuple(secret.encode() for secret in known),
     )
-    sanitized = _redact_sensitive_values(payload, secrets)
-    path.write_text(
-        json.dumps(sanitized, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+
+
+def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, str]:
+    env = {
+        name: value
+        for name, value in dict(connection.env).items()
+        if name not in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS
+        and name not in {"DEEPSEEK_BASE_URL", "OPENAI_BASE_URL", "OPENAI_API_BASE"}
+    }
+    env["DEEPSEEK_API_KEY"] = DEEPSEEK_PROXY_TOKEN
+    env["DEEPSEEK_BASE_URL"] = DEEPSEEK_PROXY_URL
+    env["OPENAI_BASE_URL"] = DEEPSEEK_PROXY_URL
+    env["OPENAI_API_BASE"] = DEEPSEEK_PROXY_URL
+    return env
 
 
 class SecretSafeDeepSeekMiniSweAgent(MiniSweAgent):
-    """MiniSweAgent with a file-backed DeepSeek key and no secret-bearing exec env."""
+    """MiniSweAgent that talks only to the internal credential broker."""
 
     @property
     def model_connection(self) -> ResolvedModelConnection:
@@ -88,12 +108,10 @@ class SecretSafeDeepSeekMiniSweAgent(MiniSweAgent):
             return connection
         return replace(
             connection,
-            api_key="<mounted-compose-secret>",
-            env={
-                name: value
-                for name, value in connection.env.items()
-                if name not in {"DEEPSEEK_API_KEY", "MSWEA_API_KEY"}
-            },
+            api_key=DEEPSEEK_PROXY_TOKEN,
+            base_url=DEEPSEEK_PROXY_URL,
+            configured_base_url=DEEPSEEK_PROXY_URL,
+            env=_scrubbed_connection_env(connection),
         )
 
     async def exec_as_agent(
@@ -104,23 +122,36 @@ class SecretSafeDeepSeekMiniSweAgent(MiniSweAgent):
         cwd: str | None = None,
         timeout_sec: int | None = None,
     ) -> Any:
-        runtime_env = env or {}
-        if runtime_env.get("MSWEA_CONFIGURED") == "true":
-            command = (
-                f"test -r {DEEPSEEK_SECRET_PATH} && "
-                f'export DEEPSEEK_API_KEY="$(cat {DEEPSEEK_SECRET_PATH})" && '
-                f"{command}"
+        runtime_env = dict(env or {})
+        host_secrets = collected_secret_values()
+        for name in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS:
+            value = runtime_env.get(name)
+            if value and value != DEEPSEEK_PROXY_TOKEN:
+                raise ValueError(
+                    "DeepSeek provider credential cannot enter the task exec environment"
+                )
+        if any(
+            value and value in host_secrets and value != DEEPSEEK_PROXY_TOKEN
+            for value in runtime_env.values()
+        ):
+            raise ValueError(
+                "DeepSeek provider credential cannot enter the task exec environment"
             )
+        if "cat /run/secrets/" in command or "DEEPSEEK_API_KEY=\"$(cat" in command:
+            raise ValueError("DeepSeek provider credential cannot enter the task exec command")
         return await super().exec_as_agent(
             environment,
             command,
-            env=env,
+            env=runtime_env,
             cwd=cwd,
             timeout_sec=timeout_sec,
         )
 
     def populate_context_post_run(self, context: Any) -> None:
-        _sanitize_native_trajectory(
-            self.logs_dir / "mini-swe-agent.trajectory.json"
-        )
+        secrets = collected_secret_values()
+        logs = self.logs_dir
+        sanitize_native_trajectory(logs / "mini-swe-agent.trajectory.json", secrets)
+        sanitize_native_trajectory(logs / "trajectory.json", secrets)
         super().populate_context_post_run(context)
+        sanitize_native_trajectory(logs / "mini-swe-agent.trajectory.json", secrets)
+        sanitize_native_trajectory(logs / "trajectory.json", secrets)

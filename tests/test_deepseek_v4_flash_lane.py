@@ -40,7 +40,7 @@ def _fake_runtime(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
         'if [ -n "${DEEPSEEK_API_KEY:-}" ]; then deepseek=set; else deepseek=unset; fi\n'
         'if [ -n "${MSWEA_API_KEY:-}" ]; then mswea=set; else mswea=unset; fi\n'
         'if grep -Fq \'network_mode = "allowlist"\' "$task_path/task.toml" '
-        '&& grep -Fq \'allowed_hosts = ["api.deepseek.com"]\' "$task_path/task.toml"; '
+        '&& grep -Fq \'allowed_hosts = ["deepseek-secret-proxy"]\' "$task_path/task.toml"; '
         "then network=allowlist; "
         'elif grep -Fq \'network_mode = "public"\' "$task_path/task.toml"; '
         "then network=public; else network=unexpected; fi\n"
@@ -166,7 +166,7 @@ def test_registered_funcdag_is_exactly_one_bounded_trial_and_keeps_key_out_of_ar
     assert _value_after(args, "--agent-timeout-multiplier") == "5"
     assert "cost_limit=2.5" in args
     assert "max_tokens=8192" in args
-    assert "api.deepseek.com" in args
+    assert "deepseek-secret-proxy" in args
     assert _value_after(args, "--extra-docker-compose") == str(
         ROOT / "containers/deepseek-v4-flash-secret.compose.yaml"
     )
@@ -174,7 +174,7 @@ def test_registered_funcdag_is_exactly_one_bounded_trial_and_keeps_key_out_of_ar
     assert "--print-config" not in args
     assert SECRET_SENTINEL not in args_path.read_text()
     assert env_path.read_text().splitlines() == [
-        "DEEPSEEK_API_KEY=set",
+        "DEEPSEEK_API_KEY=unset",
         "MSWEA_API_KEY=unset",
         "AGENT_NETWORK=allowlist",
     ]
@@ -193,9 +193,9 @@ def test_darwin_uses_recorded_public_baseline_instead_of_unsupported_allowlist(
     assert result.returncode == 0
     args = args_path.read_text().splitlines()
     assert "--allow-agent-host" not in args
-    assert "api.deepseek.com" not in args
+    assert "deepseek-secret-proxy" not in args
     assert env_path.read_text().splitlines() == [
-        "DEEPSEEK_API_KEY=set",
+        "DEEPSEEK_API_KEY=unset",
         "MSWEA_API_KEY=unset",
         "AGENT_NETWORK=public",
     ]

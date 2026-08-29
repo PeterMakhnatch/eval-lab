@@ -8,6 +8,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from contextlib import suppress
 from dataclasses import asdict, replace
@@ -22,6 +23,10 @@ from evallab.execution_contracts import (
     CONTROL_AGENTS,
     DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
     DEEPSEEK_MODEL_SELECTOR,
+    DEEPSEEK_PROXY_HOST,
+    DEEPSEEK_PROXY_SCRIPT,
+    DEEPSEEK_PROXY_SCRIPT_ENV,
+    DEEPSEEK_SECRET_FILE_ENV,
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     DEFAULT_TRIAL_TIMEOUT_SECONDS,
     HARBOR_AGENT_IMPORT_PATHS,
@@ -33,10 +38,14 @@ from evallab.execution_contracts import (
     WATCHDOG_POLL_SECONDS,
     ExecutionFailure,
     HarborProcessResult,
+    RedactingBinaryWriter,
     RunRequest,
     TransientHarnessFailure,
     TrialTimeoutFailure,
     build_command,
+    collected_secret_values,
+    materialize_deepseek_secret_file,
+    persist_private_bytes,
     redact_environment,
     resolve_harbor_agent,
     resolve_harbor_model,
@@ -327,9 +336,15 @@ def run_harbor_process(
     """Run Harbor under an aggregate fail-safe and a per-trial watchdog."""
     repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
-    runtime_environment = subscription_environment(
-        include_deepseek_credentials=deepseek_adapter in command
-    )
+    deepseek_lane = deepseek_adapter in command
+    runtime_environment = subscription_environment(include_deepseek_credentials=deepseek_lane)
+    secret_values = collected_secret_values()
+    if deepseek_lane:
+        secret_path = log_path.parent / f"{log_path.stem}.deepseek.key"
+        materialize_deepseek_secret_file(secret_path)
+        runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(secret_path)
+        runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str((cwd / DEEPSEEK_PROXY_SCRIPT).resolve())
+        secret_values = collected_secret_values(runtime_environment)
     if any(import_path in command for import_path in repo_imports):
         source_root = cwd / "src"
         if source_root.is_dir():
@@ -337,64 +352,89 @@ def run_harbor_process(
             runtime_environment["PYTHONPATH"] = os.pathsep.join(
                 str(path) for path in (source_root, inherited_pythonpath) if path
             )
-    with log_path.open("wb") as log:
+    secret_bytes = tuple(value.encode() for value in secret_values)
+    read_fd, write_fd = os.pipe()
+    writer = RedactingBinaryWriter(log_path, secret_bytes)
+
+    def _pump_redacted_output() -> None:
+        try:
+            with os.fdopen(read_fd, "rb", closefd=True) as source:
+                while True:
+                    chunk = source.read(8192)
+                    if not chunk:
+                        break
+                    writer.write(chunk)
+        finally:
+            writer.close()
+
+    pump = threading.Thread(target=_pump_redacted_output, name="harbor-log-redact", daemon=True)
+    try:
         process = subprocess.Popen(
             command,
             cwd=cwd,
             stdin=subprocess.DEVNULL,
-            stdout=log,
+            stdout=write_fd,
             stderr=subprocess.STDOUT,
             env=runtime_environment,
             start_new_session=True,
         )
-        started = time.monotonic()
-        if lease_path is not None:
+    except Exception:
+        os.close(write_fd)
+        os.close(read_fd)
+        writer.close()
+        raise
+    os.close(write_fd)
+    pump.start()
+    started = time.monotonic()
+    if lease_path is not None:
+        try:
+            if lease_path.is_file():
+                lease_path.touch()
+        except OSError:
+            pass
+    last_heartbeat = started
+    first_seen: dict[Path, float] = {}
+    while True:
+        returncode = process.poll()
+        if returncode is not None:
+            break
+        now = time.monotonic()
+        if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
             try:
                 if lease_path.is_file():
                     lease_path.touch()
             except OSError:
                 pass
-        last_heartbeat = started
-        first_seen: dict[Path, float] = {}
-        while True:
-            returncode = process.poll()
-            if returncode is not None:
-                break
-            now = time.monotonic()
-            if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
-                try:
-                    if lease_path.is_file():
-                        lease_path.touch()
-                except OSError:
-                    pass
-                last_heartbeat = now
-            timed_out_trial: str | None = None
-            if job_dir is not None and trial_timeout_seconds is not None:
-                active = set(_active_trial_directories(job_dir))
-                first_seen = {
-                    path: observed for path, observed in first_seen.items() if path in active
-                }
-                for path in active:
-                    first_seen.setdefault(path, now)
-                    if now - first_seen[path] >= trial_timeout_seconds:
-                        timed_out_trial = path.name
-                        break
-            if timed_out_trial is not None or now - started >= timeout_seconds:
-                _terminate_process_group(process)
-                return HarborProcessResult(
-                    returncode=(process.returncode if process.returncode is not None else -1),
-                    timed_out=True,
-                    log_path=log_path,
-                    timed_out_trial=timed_out_trial,
-                )
-            try:
-                process.wait(timeout=WATCHDOG_POLL_SECONDS)
-            except subprocess.TimeoutExpired:
-                continue
+            last_heartbeat = now
+        timed_out_trial: str | None = None
+        if job_dir is not None and trial_timeout_seconds is not None:
+            active = set(_active_trial_directories(job_dir))
+            first_seen = {
+                path: observed for path, observed in first_seen.items() if path in active
+            }
+            for path in active:
+                first_seen.setdefault(path, now)
+                if now - first_seen[path] >= trial_timeout_seconds:
+                    timed_out_trial = path.name
+                    break
+        if timed_out_trial is not None or now - started >= timeout_seconds:
+            _terminate_process_group(process)
+            pump.join(timeout=5)
+            return HarborProcessResult(
+                returncode=(process.returncode if process.returncode is not None else -1),
+                timed_out=True,
+                log_path=log_path,
+                timed_out_trial=timed_out_trial,
+            )
+        try:
+            process.wait(timeout=WATCHDOG_POLL_SECONDS)
+        except subprocess.TimeoutExpired:
+            continue
+    pump.join(timeout=5)
     return HarborProcessResult(
-        returncode=returncode,
-        timed_out=False,
-        log_path=log_path,
+    returncode=returncode,
+    timed_out=False,
+    log_path=log_path,
     )
 
 
@@ -630,6 +670,22 @@ def _stage_task_for_host(
     return staging_dir, adaptation
 
 
+
+def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None:
+    """Redact then chmod lab-owned persisted streams under a Harbor job directory."""
+    if not root.is_dir() or not secrets:
+        return
+    suffixes = {".log", ".json", ".jsonl", ".txt", ".yaml", ".yml"}
+    for path in root.rglob("*"):
+        if not path.is_file() or path.is_symlink() or path.suffix.lower() not in suffixes:
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        persist_private_bytes(path, data, secrets=secrets)
+
+
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
     if request.agent == "mini-swe-agent":
@@ -654,7 +710,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             request.task,
             staging_dir,
             agent_allowed_hosts=(
-                ("api.deepseek.com",) if request.agent == "mini-swe-agent" else ()
+                (DEEPSEEK_PROXY_HOST,) if request.agent == "mini-swe-agent" else ()
             ),
         )
         if staged_task is not None:
@@ -720,6 +776,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             )
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
             raise TrialTimeoutFailure(f"{scope}; inspect {executor_log}{cleanup_detail}")
+        _sanitize_persisted_job_tree(job_dir, tuple(value.encode() for value in collected_secret_values()))
         transient_reason = _transient_reason_from_job(job_dir)
         if process.returncode != 0:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)

@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -91,7 +92,19 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
 DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
     {"DEEPSEEK_API_KEY", "MSWEA_API_KEY"}
 )
+DEEPSEEK_PROXY_HOST = "deepseek-secret-proxy"
+DEEPSEEK_PROXY_URL = "http://deepseek-secret-proxy:8080"
+DEEPSEEK_PROXY_TOKEN = "evallab-proxy-placeholder"
+DEEPSEEK_PROXY_SCRIPT = Path("containers/deepseek_secret_proxy.py")
+DEEPSEEK_SECRET_FILE_ENV = "EVALLAB_DEEPSEEK_SECRET_FILE"
+DEEPSEEK_PROXY_SCRIPT_ENV = "EVALLAB_DEEPSEEK_PROXY_SCRIPT"
+DEEPSEEK_UPSTREAM_ENV = "EVALLAB_DEEPSEEK_UPSTREAM"
 REDACTED_SECRET_VALUE = "<redacted>"
+REDACTED_SECRET_BYTES = REDACTED_SECRET_VALUE.encode()
+PRIVATE_PERSIST_MODE = 0o600
+_BEARER_HEADER = re.compile(
+    rb"(?i)(authorization\s*[:=]\s*bearer\s+)\S+",
+)
 
 LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
     ("antigravity-cli", "gemini-3.7-flash-high"): "google/gemini-3.7-flash-high",
@@ -225,25 +238,120 @@ def load_policy(path: Path) -> StandingApprovalsPolicy:
         raise ValueError(f"Invalid standing-approvals policy: {exc}") from exc
 
 
+def collected_secret_values(
+    environment: Mapping[str, str] | None = None,
+) -> frozenset[str]:
+    """Return non-placeholder provider secret strings present in *environment*."""
+    source = os.environ if environment is None else environment
+    values: set[str] = set()
+    for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS:
+        value = source.get(key)
+        if value and value != DEEPSEEK_PROXY_TOKEN:
+            values.add(value)
+    secret_file = source.get(DEEPSEEK_SECRET_FILE_ENV)
+    if secret_file:
+        path = Path(secret_file)
+        try:
+            if path.is_file() and not path.is_symlink():
+                file_value = path.read_text(encoding="utf-8").rstrip("\r\n")
+            else:
+                file_value = ""
+        except OSError:
+            file_value = ""
+        if file_value and file_value != DEEPSEEK_PROXY_TOKEN:
+            values.add(file_value)
+    return frozenset(values)
+
+
+def redact_secret_material(data: bytes, secrets: tuple[bytes, ...] = ()) -> bytes:
+    """Redact known secrets and bearer tokens before any disk write."""
+    redacted = data
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, REDACTED_SECRET_BYTES)
+    return _BEARER_HEADER.sub(rb"\1" + REDACTED_SECRET_BYTES, redacted)
+
+
+def persist_private_bytes(
+    path: Path,
+    data: bytes,
+    *,
+    secrets: tuple[bytes, ...] = (),
+) -> None:
+    """Write *data* only after redaction, then restrict the file to mode 0600."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    try:
+        temporary.write_bytes(redact_secret_material(data, secrets))
+        temporary.chmod(PRIVATE_PERSIST_MODE)
+        temporary.replace(path)
+        path.chmod(PRIVATE_PERSIST_MODE)
+    except Exception:
+        with suppress(OSError):
+            temporary.unlink()
+        raise
+
+
+class RedactingBinaryWriter:
+    """File-like stdout sink that redacts secrets before each write()."""
+
+    def __init__(self, path: Path, secrets: tuple[bytes, ...]) -> None:
+        self.path = path
+        self._secrets = secrets
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._handle = path.open("wb")
+        os.chmod(path, PRIVATE_PERSIST_MODE)
+
+    def write(self, data: bytes) -> int:
+        sanitized = redact_secret_material(data, self._secrets)
+        written = self._handle.write(sanitized)
+        self._handle.flush()
+        return written
+
+    def flush(self) -> None:
+        self._handle.flush()
+
+    def close(self) -> None:
+        self._handle.close()
+        with suppress(OSError):
+            os.chmod(self.path, PRIVATE_PERSIST_MODE)
+
+    def __enter__(self) -> RedactingBinaryWriter:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+
+def materialize_deepseek_secret_file(
+    destination: Path,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Write the provider key to a 0600 file for Compose secret mounting."""
+    source = os.environ if environment is None else environment
+    value = source.get("DEEPSEEK_API_KEY") or source.get("MSWEA_API_KEY")
+    if not value:
+        raise RuntimeError("DeepSeek provider credential is missing")
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=())
+    return destination
+
+
 def subscription_environment(
     environment: Mapping[str, str] | None = None,
     *,
     include_deepseek_credentials: bool = False,
 ) -> dict[str, str]:
-    """Build Harbor's environment from explicit non-secret and credential allowlists.
+    """Build Harbor's environment from explicit non-secret allowlists.
 
-    DeepSeek credentials cross the host boundary only for the repo-owned
-    mini-swe-agent adapter. ``MSWEA_API_KEY`` is accepted as an alias and copied
-    to the canonical ``DEEPSEEK_API_KEY`` name without exposing either value.
+    DeepSeek provider keys never enter this mapping. The mini-swe-agent lane
+    receives only the internal proxy script path and a file-mounted secret path.
     """
     source = os.environ if environment is None else environment
     sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
     if include_deepseek_credentials:
-        for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS:
+        for key in (DEEPSEEK_SECRET_FILE_ENV, DEEPSEEK_PROXY_SCRIPT_ENV, DEEPSEEK_UPSTREAM_ENV):
             if source.get(key):
                 sanitized[key] = source[key]
-        if "DEEPSEEK_API_KEY" not in sanitized and sanitized.get("MSWEA_API_KEY"):
-            sanitized["DEEPSEEK_API_KEY"] = sanitized["MSWEA_API_KEY"]
     sanitized["AGY_FORCE_AUTH_JSON"] = "1"
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
@@ -253,12 +361,14 @@ def subscription_environment(
 
 def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
     """Return a log-safe copy with every admitted DeepSeek value replaced."""
-    return {
-        key: REDACTED_SECRET_VALUE
-        if key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS and value
-        else value
-        for key, value in environment.items()
-    }
+    secrets = collected_secret_values(environment)
+    redacted: dict[str, str] = {}
+    for key, value in environment.items():
+        if key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS and value or value in secrets:
+            redacted[key] = REDACTED_SECRET_VALUE
+        else:
+            redacted[key] = value
+    return redacted
 
 
 def validate_request(request: RunRequest) -> None:
@@ -285,6 +395,7 @@ def validate_request(request: RunRequest) -> None:
     if request.model and request.agent in CONTROL_AGENTS:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
+
         raise ValueError("A model requires --allow-billable")
 
 
@@ -364,8 +475,11 @@ def subscription_command(
                 f"the mini-swe-agent execution lane is pinned to {DEEPSEEK_MODEL_SELECTOR}"
             )
         overlay = (repo_root / DEEPSEEK_SECRET_COMPOSE).resolve()
+        proxy = (repo_root / DEEPSEEK_PROXY_SCRIPT).resolve()
         if not overlay.is_file():
             raise RuntimeError(f"DeepSeek secret overlay is missing: {overlay}")
+        if not proxy.is_file():
+            raise RuntimeError(f"DeepSeek secret proxy is missing: {proxy}")
         return [*harbor_command, "--extra-docker-compose", str(overlay)]
     return harbor_command
 

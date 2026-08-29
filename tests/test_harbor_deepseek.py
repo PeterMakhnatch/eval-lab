@@ -2,15 +2,31 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 import json
+import stat
 import sys
+import threading
+import urllib.error
+import urllib.request
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
 import pytest
+
+from evallab.execution_contracts import (
+    DEEPSEEK_PROXY_TOKEN,
+    DEEPSEEK_PROXY_URL,
+    PRIVATE_PERSIST_MODE,
+    RedactingBinaryWriter,
+    collected_secret_values,
+    persist_private_bytes,
+    redact_secret_material,
+)
 
 SECRET_SENTINEL = "secret-must-not-reach-exec"
 
@@ -20,12 +36,15 @@ class _Connection:
     provider: str | None = None
     api_key: str | None = field(default=None, repr=False)
     env: dict[str, str] = field(default_factory=dict, repr=False)
+    base_url: str | None = None
+    configured_base_url: str | None = None
 
 
 class _MiniSweAgent:
     def __init__(self, connection: _Connection) -> None:
         self.connection = connection
         self.exec_calls: list[tuple[str, dict[str, str] | None]] = []
+        self.logs_dir = Path(".")
 
     @property
     def model_connection(self) -> _Connection:
@@ -42,6 +61,12 @@ class _MiniSweAgent:
         del environment, cwd, timeout_sec
         self.exec_calls.append((command, env))
         return "ok"
+
+    def populate_context_post_run(self, context: Any) -> None:
+        del context
+        (self.logs_dir / "trajectory.json").write_text(
+            json.dumps({"authorization": SECRET_SENTINEL, "ok": True}) + "\n"
+        )
 
 
 def _module(name: str, **attributes: Any) -> ModuleType:
@@ -64,18 +89,12 @@ def wrapper_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[ModuleType]:
     monkeypatch.setitem(
         sys.modules,
         "harbor.agents.installed.mini_swe_agent",
-        _module(
-            "harbor.agents.installed.mini_swe_agent",
-            MiniSweAgent=_MiniSweAgent,
-        ),
+        _module("harbor.agents.installed.mini_swe_agent", MiniSweAgent=_MiniSweAgent),
     )
     monkeypatch.setitem(
         sys.modules,
         "harbor.agents.model_connection",
-        _module(
-            "harbor.agents.model_connection",
-            ResolvedModelConnection=_Connection,
-        ),
+        _module("harbor.agents.model_connection", ResolvedModelConnection=_Connection),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -89,9 +108,19 @@ def wrapper_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[ModuleType]:
         sys.modules.pop("evallab.harbor_deepseek", None)
 
 
-def test_wrapper_replaces_real_key_and_keeps_it_out_of_exec(
-    wrapper_module: ModuleType,
+def _load_proxy_module() -> ModuleType:
+    path = Path(__file__).resolve().parents[1] / "containers" / "deepseek_secret_proxy.py"
+    spec = importlib.util.spec_from_file_location("deepseek_secret_proxy", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_wrapper_rewrites_connection_to_internal_proxy(
+    wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
     module = wrapper_module
     agent = module.SecretSafeDeepSeekMiniSweAgent(
         _Connection(
@@ -100,83 +129,257 @@ def test_wrapper_replaces_real_key_and_keeps_it_out_of_exec(
             env={"DEEPSEEK_API_KEY": SECRET_SENTINEL, "SAFE_FLAG": "present"},
         )
     )
-
     connection = agent.model_connection
-    assert connection.api_key == "<mounted-compose-secret>"
-    assert connection.env == {"SAFE_FLAG": "present"}
-
+    assert connection.api_key == DEEPSEEK_PROXY_TOKEN
+    assert connection.base_url == DEEPSEEK_PROXY_URL
+    assert connection.env["DEEPSEEK_API_KEY"] == DEEPSEEK_PROXY_TOKEN
+    assert connection.env["DEEPSEEK_BASE_URL"] == DEEPSEEK_PROXY_URL
+    assert connection.env["OPENAI_BASE_URL"] == DEEPSEEK_PROXY_URL
+    assert connection.env["SAFE_FLAG"] == "present"
+    assert SECRET_SENTINEL not in connection.env.values()
     result = asyncio.run(
         agent.exec_as_agent(
             object(),
             "mini-swe-agent --yolo",
-            env={"MSWEA_CONFIGURED": "true"},
+            env={**dict(connection.env), "MSWEA_CONFIGURED": "true"},
         )
     )
-
     assert result == "ok"
     command, exec_env = agent.exec_calls[0]
-    assert module.DEEPSEEK_SECRET_PATH in command
-    assert "DEEPSEEK_API_KEY" in command
     assert SECRET_SENTINEL not in command
-    assert exec_env == {"MSWEA_CONFIGURED": "true"}
+    assert "cat /run/secrets/" not in command
+    assert exec_env is not None
+    assert SECRET_SENTINEL not in exec_env.values()
+    assert exec_env["DEEPSEEK_API_KEY"] == DEEPSEEK_PROXY_TOKEN
+
+
+def test_exec_refuses_provider_key_in_tool_env(wrapper_module: ModuleType) -> None:
+    agent = wrapper_module.SecretSafeDeepSeekMiniSweAgent(
+        _Connection(provider="deepseek", api_key=SECRET_SENTINEL)
+    )
+    with pytest.raises(ValueError, match="cannot enter the task exec environment"):
+        asyncio.run(
+            agent.exec_as_agent(object(), "env", env={"DEEPSEEK_API_KEY": SECRET_SENTINEL})
+        )
 
 
 def test_wrapper_rejects_non_deepseek_models(wrapper_module: ModuleType) -> None:
-    module = wrapper_module
-    agent = module.SecretSafeDeepSeekMiniSweAgent(
+    agent = wrapper_module.SecretSafeDeepSeekMiniSweAgent(
         _Connection(provider="openai", api_key=SECRET_SENTINEL)
     )
-
     with pytest.raises(ValueError, match="requires a deepseek/\\* model"):
         _ = agent.model_connection
 
 
-def test_native_trajectory_sanitizer_removes_authorization_and_secret_values(
-    wrapper_module: ModuleType,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+def test_native_and_atif_trajectories_are_redacted_before_write(
+    wrapper_module: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
     module = wrapper_module
-    path = tmp_path / "mini-swe-agent.trajectory.json"
-    path.write_text(
+    agent = module.SecretSafeDeepSeekMiniSweAgent(
+        _Connection(provider="deepseek", api_key=SECRET_SENTINEL)
+    )
+    agent.logs_dir = tmp_path
+    native = tmp_path / "mini-swe-agent.trajectory.json"
+    native.write_text(
         json.dumps(
             {
-                "info": {
-                    "config": {
-                        "extra_headers": {
-                            "Authorization": f"Bearer {SECRET_SENTINEL}",
-                            "X-Safe": "kept",
-                        },
-                        "api_key": SECRET_SENTINEL,
-                    }
-                },
+                "authorization": f"Bearer {SECRET_SENTINEL}",
                 "messages": [{"content": SECRET_SENTINEL}],
             }
-        ),
-        encoding="utf-8",
+        )
     )
-    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
-
-    module._sanitize_native_trajectory(path)
-
-    text = path.read_text(encoding="utf-8")
-    payload = json.loads(text)
-    assert SECRET_SENTINEL not in text
-    assert payload["info"]["config"]["extra_headers"]["Authorization"] == "<redacted>"
-    assert payload["info"]["config"]["extra_headers"]["X-Safe"] == "kept"
-    assert payload["info"]["config"]["api_key"] == "<redacted>"
-    assert payload["messages"][0]["content"] == "<redacted>"
+    agent.populate_context_post_run(object())
+    native_payload = json.loads(native.read_text())
+    atif_payload = json.loads((tmp_path / "trajectory.json").read_text())
+    assert SECRET_SENTINEL not in native.read_text()
+    assert SECRET_SENTINEL not in (tmp_path / "trajectory.json").read_text()
+    assert native_payload["authorization"] == "<redacted>"
+    assert native_payload["messages"][0]["content"] == "<redacted>"
+    assert atif_payload["authorization"] == "<redacted>"
+    assert native.stat().st_mode & 0o777 == PRIVATE_PERSIST_MODE
 
 
-def test_unparseable_native_trajectory_is_removed(
-    wrapper_module: ModuleType,
-    tmp_path: Path,
+def test_unparseable_native_trajectory_is_replaced(
+    wrapper_module: ModuleType, tmp_path: Path
 ) -> None:
     path = tmp_path / "mini-swe-agent.trajectory.json"
-    path.write_text("{not-json", encoding="utf-8")
+    path.write_text("not-json " + SECRET_SENTINEL)
+    wrapper_module.sanitize_native_trajectory(path, frozenset({SECRET_SENTINEL}))
+    assert SECRET_SENTINEL not in path.read_text()
+    assert json.loads(path.read_text())["redacted"] == "unparseable native trajectory removed"
 
-    wrapper_module._sanitize_native_trajectory(path)
 
-    assert json.loads(path.read_text(encoding="utf-8")) == {
-        "redacted": "unparseable native trajectory removed"
+def test_redacting_writer_never_persists_secret(tmp_path: Path) -> None:
+    path = tmp_path / "executor.log"
+    with RedactingBinaryWriter(path, (SECRET_SENTINEL.encode(),)) as writer:
+        writer.write(b"debug env DEEPSEEK_API_KEY=" + SECRET_SENTINEL.encode() + b"\n")
+        writer.write(b"Authorization: Bearer " + SECRET_SENTINEL.encode() + b"\n")
+    data = path.read_bytes()
+    assert SECRET_SENTINEL.encode() not in data
+    assert b"<redacted>" in data
+    assert path.stat().st_mode & 0o777 == PRIVATE_PERSIST_MODE
+
+
+def test_persist_private_bytes_redacts_then_chmods(tmp_path: Path) -> None:
+    path = tmp_path / "job.json"
+    persist_private_bytes(
+        path,
+        json.dumps({"token": SECRET_SENTINEL}).encode(),
+        secrets=(SECRET_SENTINEL.encode(),),
+    )
+    assert SECRET_SENTINEL not in path.read_text()
+    assert path.stat().st_mode & stat.S_IRWXU == PRIVATE_PERSIST_MODE
+
+
+def test_malicious_env_proc_traceback_scans_find_no_key(tmp_path: Path) -> None:
+    dump = tmp_path / "proc-environ.txt"
+    persist_private_bytes(
+        dump,
+        b"PATH=/usr/bin\nDEEPSEEK_API_KEY="
+        + SECRET_SENTINEL.encode()
+        + b"\nTraceback (most recent call last):\n  env=Authorization: Bearer "
+        + SECRET_SENTINEL.encode()
+        + b"\n",
+        secrets=(SECRET_SENTINEL.encode(),),
+    )
+    text = dump.read_text()
+    assert SECRET_SENTINEL not in text
+    assert "<redacted>" in text
+
+
+class _FakeDeepSeek(BaseHTTPRequestHandler):
+    seen: list[tuple[str, str, bytes]] = []
+
+    def log_message(self, format: str, *args: object) -> None:
+        del format, args
+
+    def do_POST(self) -> None:  # noqa: N802
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length)
+        type(self).seen.append((self.path, self.headers.get("Authorization", ""), body))
+        payload = b'{"choices":[{"message":{"content":"ok"}}]}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+
+def _serve(handler: type[BaseHTTPRequestHandler]) -> tuple[ThreadingHTTPServer, str]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address[:2]
+    return server, f"http://{host}:{port}"
+
+
+def test_proxy_authenticates_upstream_without_exposing_key_to_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret_file = tmp_path / "key"
+    secret_file.write_text(SECRET_SENTINEL + "\n")
+    secret_file.chmod(0o600)
+    _FakeDeepSeek.seen = []
+    upstream, upstream_url = _serve(_FakeDeepSeek)
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_SECRET_PATH", str(secret_file))
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", upstream_url)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+
+    proxy_module = _load_proxy_module()
+    proxy = proxy_module.serve(host="127.0.0.1", port=0)
+    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    thread.start()
+    try:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{proxy.server_address[1]}/v1/chat/completions",
+            data=b'{"model":"deepseek-v4-flash","messages":[]}',
+            headers={
+                "Authorization": f"Bearer {DEEPSEEK_PROXY_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            body = response.read()
+        assert b'"ok"' in body
+        path, authorization, _payload = _FakeDeepSeek.seen[0]
+        assert path == "/v1/chat/completions"
+        assert authorization == f"Bearer {SECRET_SENTINEL}"
+        health = urllib.request.urlopen(
+            f"http://127.0.0.1:{proxy.server_address[1]}/healthz", timeout=5
+        ).read()
+        assert health == b"ok\n"
+        with pytest.raises(urllib.error.HTTPError) as denied:
+            urllib.request.urlopen(
+                urllib.request.Request(
+                    f"http://127.0.0.1:{proxy.server_address[1]}/secrets",
+                    method="GET",
+                ),
+                timeout=5,
+            )
+        assert denied.value.code == 404
+        assert SECRET_SENTINEL.encode() not in denied.value.read()
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_direct_api_deepseek_host_is_not_the_agent_allowlist() -> None:
+    from evallab.execution_contracts import DEEPSEEK_PROXY_HOST
+    from evallab.harbor_network import with_agent_network_allowlist
+
+    updated = with_agent_network_allowlist(
+        '[agent]\nname = "mini-swe-agent"\n',
+        (DEEPSEEK_PROXY_HOST,),
+    )
+    assert "api.deepseek.com" not in updated
+    assert DEEPSEEK_PROXY_HOST in updated
+
+
+def test_collected_secret_values_ignore_placeholder(tmp_path: Path) -> None:
+    env = {
+        "DEEPSEEK_API_KEY": DEEPSEEK_PROXY_TOKEN,
+        "EVALLAB_DEEPSEEK_SECRET_FILE": str(tmp_path / "missing"),
     }
+    assert collected_secret_values(env) == frozenset()
+    key = tmp_path / "key"
+    key.write_text(SECRET_SENTINEL)
+    env["EVALLAB_DEEPSEEK_SECRET_FILE"] = str(key)
+    assert SECRET_SENTINEL in collected_secret_values(env)
+
+
+def test_redact_secret_material_covers_bearer_headers() -> None:
+    payload = b"Authorization: Bearer " + SECRET_SENTINEL.encode()
+    assert SECRET_SENTINEL.encode() not in redact_secret_material(
+        payload, (SECRET_SENTINEL.encode(),)
+    )
+
+
+def test_run_harbor_process_redacts_executor_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.runner import run_harbor_process
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
+    log_path = tmp_path / "harbor.log"
+    script = tmp_path / "print-secret.py"
+    script.write_text(
+        "import sys\n"
+        "sys.stdout.write('Authorization: Bearer " + SECRET_SENTINEL + "\\n')\n"
+        "sys.stdout.flush()\n"
+    )
+    result = run_harbor_process(
+        [
+            sys.executable,
+            str(script),
+            "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        timeout_seconds=10,
+        log_path=log_path,
+    )
+    assert result.returncode == 0
+    data = log_path.read_text()
+    assert SECRET_SENTINEL not in data
+    assert log_path.stat().st_mode & 0o777 == PRIVATE_PERSIST_MODE

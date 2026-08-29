@@ -220,17 +220,21 @@ def test_deepseek_credentials_are_opt_in_and_log_redacted() -> None:
         "HOME": "/home/user",
         "MSWEA_API_KEY": secret,
         "OPENAI_API_KEY": "never-forward",
+        "EVALLAB_DEEPSEEK_SECRET_FILE": "/tmp/evallab-deepseek.key",
+        "EVALLAB_DEEPSEEK_PROXY_SCRIPT": "/tmp/deepseek_secret_proxy.py",
     }
 
     assert "MSWEA_API_KEY" not in subscription_environment(source)
     admitted = subscription_environment(source, include_deepseek_credentials=True)
-    assert admitted["DEEPSEEK_API_KEY"] == secret
-    assert admitted["MSWEA_API_KEY"] == secret
+    assert "DEEPSEEK_API_KEY" not in admitted
+    assert "MSWEA_API_KEY" not in admitted
+    assert admitted["EVALLAB_DEEPSEEK_SECRET_FILE"] == "/tmp/evallab-deepseek.key"
+    assert admitted["EVALLAB_DEEPSEEK_PROXY_SCRIPT"].endswith("deepseek_secret_proxy.py")
     assert "OPENAI_API_KEY" not in admitted
+    assert secret not in admitted.values()
 
-    redacted = redact_environment(admitted)
+    redacted = redact_environment({"DEEPSEEK_API_KEY": secret, "HOME": "/home/user"})
     assert redacted["DEEPSEEK_API_KEY"] == "<redacted>"
-    assert redacted["MSWEA_API_KEY"] == "<redacted>"
     assert secret not in repr(redacted)
 
 

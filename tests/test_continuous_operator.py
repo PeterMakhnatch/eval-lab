@@ -789,6 +789,8 @@ def test_compose_restart_no() -> None:
     assert "mode: 0440" in compose
     assert "read_only: true" in compose
     assert "volumes:" in compose
+    assert "/etc/evallab/trusted-approval-keys.json" in compose
+    assert "evallab-trusted-approval-keys" in compose
     assert "/tmp:mode=0700" in compose
     assert "tmpfs:\n      - /var/lib/evallab-operator" not in compose
     assert "/dev/null" not in PLIST.read_text()
@@ -1489,4 +1491,98 @@ def test_recover_then_pause_maintenance_restart_take_effect_without_split_brain(
     assert restarted.returncode == 0
     assert _payload(restarted)["mode"] == "DISABLED"
     assert (state / "mode").read_text().strip() == "DISABLED"
+
+def test_compose_container_trust_manifest_and_secret_loaded_by_uid_65532(tmp_path: Path) -> None:
+    import evallab.ops_continuous as oc
+
+    # Simulate container layout where manifest is at /etc/evallab/trusted-approval-keys.json
+    # and secret is at /run/secrets/evallab-approval-hmac
+    manifest_dir = tmp_path / "etc/evallab"
+    manifest_dir.mkdir(parents=True)
+    manifest_file = manifest_dir / "trusted-approval-keys.json"
+    manifest_file.write_text(json.dumps({
+        "active_key_id": key_id_for(MAC_KEY),
+        "previous_key_id": key_id_for(PREV_KEY),
+    }))
+    os.chmod(manifest_file, 0o440)
+
+    secrets_dir = tmp_path / "run/secrets"
+    secrets_dir.mkdir(parents=True)
+    secret_file = secrets_dir / oc.PINNED_LINUX_SECRET_NAME
+    secret_file.write_bytes(MAC_KEY)
+    os.chmod(secret_file, 0o440)
+
+    state = tmp_path / "state"
+    state.mkdir()
+    _write_auths(state)
+    (state / "heartbeat").write_text(NOW.isoformat() + "\n")
+
+    policy = _policy(tmp_path / "policy.yaml")
+    ds = oc.DeploymentTrustStore(manifest_path=manifest_file)
+    
+    # In container, both manifest and key are mode 0440 owned by 65532
+    original_path = oc.PINNED_LINUX_SECRET_PATH
+    oc.PINNED_LINUX_SECRET_PATH = secret_file
+    try:
+        result = _run(tmp_path, "validate", policy=policy, env=_gate_env(), now=NOW, trust_store=ds)
+        assert result.returncode == 0
+        assert _payload(result)["ok"] is True
+    finally:
+        oc.PINNED_LINUX_SECRET_PATH = original_path
+
+
+def test_concurrent_pause_and_kill_cannot_lose_killed_latch(tmp_path: Path) -> None:
+    import threading
+
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-1"]))
+    _write_auths(state)
+
+    results = []
+
+    def run_kill():
+        res = _run(tmp_path, "kill", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+        results.append(("kill", res.returncode))
+
+    def run_pause():
+        res = _run(tmp_path, "pause", now=NOW)
+        results.append(("pause", res.returncode))
+
+    t1 = threading.Thread(target=run_kill)
+    t2 = threading.Thread(target=run_pause)
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    # Once kill runs, state must remain KILLED (never overwritten by pause)
+    assert (state / "mode").read_text().strip() == "KILLED"
+
+
+def test_concurrent_restart_and_drain_cannot_lose_killed_latch(tmp_path: Path) -> None:
+    import threading
+
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "inflight.json").write_text(json.dumps(["lease-1"]))
+    _write_auths(state)
+    _run(tmp_path, "kill", now=NOW)
+    assert (state / "mode").read_text().strip() == "KILLED"
+
+    def run_drain():
+        _run(tmp_path, "drain", now=NOW, owner=FakeOwner({"lease-1": _terminal_obs("lease-1")}))
+
+    def run_restart():
+        _run(tmp_path, "restart", now=NOW)
+
+    t1 = threading.Thread(target=run_drain)
+    t2 = threading.Thread(target=run_restart)
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    # After drain+restart on a killed node, mode must remain KILLED
+    assert (state / "mode").read_text().strip() == "KILLED"
 

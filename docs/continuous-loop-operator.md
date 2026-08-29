@@ -127,9 +127,11 @@ policy fields also keep the operator DISABLED.
   no-network root `operator-state-init` uses pinned
   `python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f`
   (not a tag-only image) to chown the named volume to 65532 mode 0700;
-  operator `depends_on` `service_completed_successfully`. Docker secret
-  `evallab-approval-hmac` uid/gid 65532 mode 0440. tmpfs only `/tmp:mode=0700`.
-  Do not `docker compose up`.
+  operator `depends_on` `service_completed_successfully`. Docker config
+  `evallab-trusted-approval-keys` mounts read-only at
+  `/etc/evallab/trusted-approval-keys.json` (uid/gid 65532, mode 0440).
+  Docker secret `evallab-approval-hmac` uid/gid 65532 mode 0440. tmpfs only
+  `/tmp:mode=0700`. Do not `docker compose up`.
 - Cloud bootstrap prints the worker protocol and exits `0` without starting a VM.
 
 ## Drain vs kill
@@ -141,9 +143,12 @@ policy fields also keep the operator DISABLED.
   not alive, queue terminal state, settlement digest). Live, unknown, or
   missing leases return nonzero `drain_incomplete` and leave local leases
   unchanged.
-- Kill, inflight, and observed lease evidence commit as one fsync'd journal
-  snapshot (`journal/current.json`). A crash between view files remains
-  `KILLED` because the journal is the source of truth.
+- Every journal read-check-write is serialized with an `O_NOFOLLOW` state-dir
+  lock file and `fcntl.flock(LOCK_EX)`. Inside the lock, the operator re-reads
+  authoritative snapshot, revalidates transitions/latches, writes a unique
+  transaction temp file, fsyncs, and atomically renames to `journal/current.json`.
+  A crash between view files remains `KILLED` because the journal is the
+  single source of truth.
 - Signed one-time recovery is allowed only after observed evidence. The
   recovery MAC binds sorted fenced IDs to the observer `settlement_digest`
   values from queue/worker/catalog. A local SHA-256 of `leases.json` is not

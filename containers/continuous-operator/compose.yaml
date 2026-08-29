@@ -32,6 +32,12 @@ services:
       # Confined named volume: kill latch, leases, budget, and audit survive restart.
       # Do not mount this volume over /run/secrets; the MAC key is outside writable state.
       - evallab-operator-state:/var/lib/evallab-operator
+    configs:
+      - source: evallab-trusted-approval-keys
+        target: /etc/evallab/trusted-approval-keys.json
+        uid: "65532"
+        gid: "65532"
+        mode: 0440
     secrets:
       - source: evallab-approval-hmac
         target: evallab-approval-hmac
@@ -42,6 +48,10 @@ services:
       # Scratch only. Operator state must not live on tmpfs.
       - /tmp:mode=0700
     command: ["validate", "--state-dir", "/var/lib/evallab-operator"]
+
+configs:
+  evallab-trusted-approval-keys:
+    external: true
 
 secrets:
   evallab-approval-hmac:

@@ -12,6 +12,7 @@ import hmac
 import json
 import os
 import re
+import fcntl
 import stat
 import subprocess
 import sys
@@ -1084,6 +1085,31 @@ def _fsync_write(path: Path, data: bytes) -> None:
     os.chmod(path, STATE_FILE_MODE)
 
 
+from contextlib import contextmanager
+
+
+@contextmanager
+def state_lock(state_dir: Path):
+    """Acquire exclusive flock on O_NOFOLLOW lockfile in state_dir."""
+    _secure_state_dir(state_dir)
+    lock_path = state_dir / ".lock"
+    # Reject symlinked lockfile
+    if lock_path.is_symlink():
+        raise OSError("symlinked state lockfile rejected")
+    flags = os.O_RDWR | os.O_CREAT
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(lock_path, flags, STATE_FILE_MODE)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
 def load_operator_snapshot(state_dir: Path) -> dict[str, Any] | None:
     path = state_dir / JOURNAL_DIRNAME / JOURNAL_CURRENT
     if not path.is_file():
@@ -1112,14 +1138,17 @@ def _materialize_snapshot_views(state_dir: Path, snapshot: Mapping[str, Any]) ->
 
 
 def commit_operator_snapshot(state_dir: Path, snapshot: Mapping[str, Any]) -> None:
+    """Commit snapshot atomically with unique temp file and fsync."""
     journal = state_dir / JOURNAL_DIRNAME
     journal.mkdir(parents=True, exist_ok=True)
     os.chmod(journal, STATE_DIR_MODE)
     payload = json.dumps(dict(snapshot), indent=2, sort_keys=True).encode("utf-8") + b"\n"
-    pending = journal / JOURNAL_PENDING
+    import time
+    txn_name = f"txn_{os.getpid()}_{time.time_ns()}.tmp"
+    txn_path = journal / txn_name
     current = journal / JOURNAL_CURRENT
-    _fsync_write(pending, payload)
-    os.replace(pending, current)
+    _fsync_write(txn_path, payload)
+    os.replace(txn_path, current)
     dirfd = os.open(journal, os.O_RDONLY)
     try:
         os.fsync(dirfd)
@@ -1136,36 +1165,38 @@ def recover_journal_views(state_dir: Path) -> None:
 
 def _atomic_write_json(path: Path, payload: Any) -> None:
     encoded = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8") + b"\n"
-    tmp = path.with_name(path.name + ".tmp")
+    import time
+    tmp = path.with_name(f"{path.name}.{os.getpid()}_{time.time_ns()}.tmp")
     _fsync_write(tmp, encoded)
     os.replace(tmp, path)
 
 
 def apply_mode_transition(state_dir: Path, target: str, *, command: str) -> str | None:
-    """Centralize legality through the single authoritative journal snapshot path."""
+    """Centralize legality through the serialized authoritative journal snapshot path."""
     if target not in MODES:
         return "illegal_transition"
-    current = read_mode(state_dir)
-    if current == target:
+    with state_lock(state_dir):
+        current = read_mode(state_dir)
+        if current == target:
+            return None
+        if current == "KILLED" and command != "recover":
+            return "killed_latched"
+        if current == "DRAINING" and command not in {"drain", "kill"}:
+            return "draining_latched"
+        if target == "KILLED" and command != "kill":
+            return "illegal_transition"
+        if target == "DRAINING" and command != "drain":
+            return "illegal_transition"
+        if current == "KILLED" and target != "DISABLED":
+            return "killed_latched"
+        if current == "KILLED" and command != "recover":
+            return "killed_latched"
+        snap = dict(load_operator_snapshot(state_dir) or {})
+        snap["mode"] = target
+        snap.setdefault("inflight", _load_inflight(state_dir)[0] or [])
+        snap.setdefault("leases", _load_leases(state_dir)[0] or [])
+        commit_operator_snapshot(state_dir, snap)
         return None
-    if current == "KILLED" and command != "recover":
-        return "killed_latched"
-    if current == "DRAINING" and command not in {"drain", "kill"}:
-        return "draining_latched"
-    if target == "KILLED" and command != "kill":
-        return "illegal_transition"
-    if target == "DRAINING" and command != "drain":
-        return "illegal_transition"
-    if current == "KILLED" and target != "DISABLED":
-        return "killed_latched"
-    if current == "KILLED" and command != "recover":
-        return "killed_latched"
-    snap = dict(load_operator_snapshot(state_dir) or {})
-    snap["mode"] = target
-    snap.setdefault("inflight", _load_inflight(state_dir)[0] or [])
-    snap.setdefault("leases", _load_leases(state_dir)[0] or [])
-    commit_operator_snapshot(state_dir, snap)
-    return None
 
 
 def _latched_kill(state_dir: Path) -> bool:
@@ -1779,182 +1810,185 @@ def cmd_rollback(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
-    if not _latched_kill(ctx.state_dir):
-        return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="recover requires KILLED latch")
-    unsettled = _recovery_settled(ctx.state_dir)
-    if unsettled is not None:
-        return _verdict(
-            ctx,
-            ok=False,
-            reason=REASON_DRAIN_INCOMPLETE,
-            detail="recover refused until kill executed, inflight empty, and leases settled",
-            extra={"blocker": unsettled, "latched": True},
+    with state_lock(ctx.state_dir):
+        if not _latched_kill(ctx.state_dir):
+            return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="recover requires KILLED latch")
+        unsettled = _recovery_settled(ctx.state_dir)
+        if unsettled is not None:
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_DRAIN_INCOMPLETE,
+                detail="recover refused until kill executed, inflight empty, and leases settled",
+                extra={"blocker": unsettled, "latched": True},
+            )
+        reason = admission_reason(ctx)
+        if reason:
+            return _verdict(ctx, ok=False, reason=reason, detail="recover refused")
+        nonce = ctx.recovery_nonce or ctx.recovery_jti
+        if ctx.recovery is None or not nonce:
+            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization missing")
+        identities = {ctx.enable_token, ctx.enable_identity, ctx.approval.actor if ctx.approval else "", ctx.budget.actor if ctx.budget else ""}
+        if ctx.recovery.actor in identities or (ctx.policy is not None and ctx.recovery.spec_id != ctx.policy.spec_id):
+            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization must be distinct")
+        expected_digest = digest_kill_record(ctx.state_dir)
+        if not expected_digest or not hmac.compare_digest(ctx.recovery_kill_digest, expected_digest):
+            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to kill digest")
+        bound = recovery_settlement_binding(ctx.state_dir)
+        if bound is None:
+            return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="fenced leases missing settlement evidence")
+        fenced_ids, settlement_digests = bound
+        if list(ctx.recovery_fenced_ids) != fenced_ids or list(ctx.recovery_settlement_digests) != settlement_digests:
+            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to fenced settlement")
+        if nonce in recovery_spent(ctx.state_dir):
+            return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
+        audit = {
+            "event": "recovery",
+            "at": ctx.now.isoformat(),
+            "actor": ctx.recovery.actor,
+            "nonce": nonce,
+            "jti": nonce,
+            "spec_id": ctx.recovery.spec_id,
+            "kill_digest": expected_digest,
+            "trust_manifest_digest": ctx.trust_manifest_digest,
+            "one_time": True,
+        }
+        _append_event(ctx.state_dir, audit)
+        if not consume_nonce_atomic(ctx.state_dir, nonce):
+            return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
+        consumed = consume_trusted_record(
+            trust_root_for(ctx.state_dir, {}),
+            ctx.keyring or ctx.mac_key,
+            kind="recovery",
+            spec_id=ctx.recovery.spec_id,
         )
-    reason = admission_reason(ctx)
-    if reason:
-        return _verdict(ctx, ok=False, reason=reason, detail="recover refused")
-    nonce = ctx.recovery_nonce or ctx.recovery_jti
-    if ctx.recovery is None or not nonce:
-        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization missing")
-    identities = {ctx.enable_token, ctx.enable_identity, ctx.approval.actor if ctx.approval else "", ctx.budget.actor if ctx.budget else ""}
-    if ctx.recovery.actor in identities or (ctx.policy is not None and ctx.recovery.spec_id != ctx.policy.spec_id):
-        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization must be distinct")
-    expected_digest = digest_kill_record(ctx.state_dir)
-    if not expected_digest or not hmac.compare_digest(ctx.recovery_kill_digest, expected_digest):
-        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to kill digest")
-    bound = recovery_settlement_binding(ctx.state_dir)
-    if bound is None:
-        return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="fenced leases missing settlement evidence")
-    fenced_ids, settlement_digests = bound
-    if list(ctx.recovery_fenced_ids) != fenced_ids or list(ctx.recovery_settlement_digests) != settlement_digests:
-        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to fenced settlement")
-    if nonce in recovery_spent(ctx.state_dir):
-        return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
-    audit = {
-        "event": "recovery",
-        "at": ctx.now.isoformat(),
-        "actor": ctx.recovery.actor,
-        "nonce": nonce,
-        "jti": nonce,
-        "spec_id": ctx.recovery.spec_id,
-        "kill_digest": expected_digest,
-        "trust_manifest_digest": ctx.trust_manifest_digest,
-        "one_time": True,
-    }
-    _append_event(ctx.state_dir, audit)
-    if not consume_nonce_atomic(ctx.state_dir, nonce):
-        return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
-    consumed = consume_trusted_record(
-        trust_root_for(ctx.state_dir, {}),
-        ctx.keyring or ctx.mac_key,
-        kind="recovery",
-        spec_id=ctx.recovery.spec_id,
-    )
-    if not consumed:
-        return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery record could not be consumed")
-    spent_path = ctx.state_dir / "recovery-spent.jsonl"
-    with spent_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"nonce": nonce, "jti": nonce, "at": ctx.now.isoformat()}, sort_keys=True) + "\n")
-    os.chmod(spent_path, STATE_FILE_MODE)
-    snapshot = load_operator_snapshot(ctx.state_dir) or {}
-    commit_operator_snapshot(
-        ctx.state_dir,
-        {
-            "mode": DEFAULT_MODE,
-            "inflight": snapshot.get("inflight") or [],
-            "leases": snapshot.get("leases") or [],
-            "observations": snapshot.get("observations") or [],
-            "kill": snapshot.get("kill"),
-            "drain": snapshot.get("drain"),
-            "recovered": True,
-        },
-    )
-    return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by one-time recovery")
+        if not consumed:
+            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery record could not be consumed")
+        spent_path = ctx.state_dir / "recovery-spent.jsonl"
+        with spent_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"nonce": nonce, "jti": nonce, "at": ctx.now.isoformat()}, sort_keys=True) + "\n")
+        os.chmod(spent_path, STATE_FILE_MODE)
+        snapshot = load_operator_snapshot(ctx.state_dir) or {}
+        commit_operator_snapshot(
+            ctx.state_dir,
+            {
+                "mode": DEFAULT_MODE,
+                "inflight": snapshot.get("inflight") or [],
+                "leases": snapshot.get("leases") or [],
+                "observations": snapshot.get("observations") or [],
+                "kill": snapshot.get("kill"),
+                "drain": snapshot.get("drain"),
+                "recovered": True,
+            },
+        )
+        return _verdict(ctx, ok=True, reason=None, detail="kill latch cleared by one-time recovery")
 
 
 def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
-    current = read_mode(ctx.state_dir)
-    inflight, inflight_error = _load_inflight(ctx.state_dir)
-    kill_record = _load_json_mapping(ctx.state_dir / "kill.json")
-    snapshot = load_operator_snapshot(ctx.state_dir) or {}
-    if kill_record is None and isinstance(snapshot.get("kill"), dict):
-        kill_record = snapshot["kill"]
-    fenced: list[str] = []
-    if isinstance(kill_record, dict) and isinstance(kill_record.get("fenced"), list):
-        fenced = [item for item in kill_record["fenced"] if isinstance(item, str) and item.strip()]
-    elif inflight:
-        fenced = list(inflight)
-    if current != "KILLED":
-        pending: dict[str, Any] = {
-            "mode": "DRAINING",
-            "leases": (load_operator_snapshot(ctx.state_dir) or {}).get("leases", _load_leases(ctx.state_dir)[0] or []),
-            "kill": kill_record,
-            "drain": {"complete": False, "observed": False},
-        }
-        if inflight is not None:
-            pending["inflight"] = inflight
-        commit_operator_snapshot(ctx.state_dir, pending)
-    started_raw = _read_text(ctx.state_dir / "drain_started")
-    if not started_raw:
-        _write_text(ctx.state_dir / "drain_started", ctx.now.isoformat())
-    if inflight_error is not None or inflight is None:
-        drain = {"inflight": inflight if inflight is not None else [], "complete": False, "malformed": inflight_error}
-        return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="in-flight leases remain until observed settlement", extra=drain)
-    observed, blocker, blockers = observe_fenced_leases(ctx.owner, fenced)
-    if observed is None:
+    with state_lock(ctx.state_dir):
+        current = read_mode(ctx.state_dir)
+        inflight, inflight_error = _load_inflight(ctx.state_dir)
+        kill_record = _load_json_mapping(ctx.state_dir / "kill.json")
+        snapshot = load_operator_snapshot(ctx.state_dir) or {}
+        if kill_record is None and isinstance(snapshot.get("kill"), dict):
+            kill_record = snapshot["kill"]
+        fenced: list[str] = []
+        if isinstance(kill_record, dict) and isinstance(kill_record.get("fenced"), list):
+            fenced = [item for item in kill_record["fenced"] if isinstance(item, str) and item.strip()]
+        elif inflight:
+            fenced = list(inflight)
+        if current != "KILLED":
+            pending: dict[str, Any] = {
+                "mode": "DRAINING",
+                "leases": (load_operator_snapshot(ctx.state_dir) or {}).get("leases", _load_leases(ctx.state_dir)[0] or []),
+                "kill": kill_record,
+                "drain": {"complete": False, "observed": False},
+            }
+            if inflight is not None:
+                pending["inflight"] = inflight
+            commit_operator_snapshot(ctx.state_dir, pending)
+        started_raw = _read_text(ctx.state_dir / "drain_started")
+        if not started_raw:
+            _write_text(ctx.state_dir / "drain_started", ctx.now.isoformat())
+        if inflight_error is not None or inflight is None:
+            drain = {"inflight": inflight if inflight is not None else [], "complete": False, "malformed": inflight_error}
+            return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="in-flight leases remain until observed settlement", extra=drain)
+        observed, blocker, blockers = observe_fenced_leases(ctx.owner, fenced)
+        if observed is None:
+            drain = {
+                "inflight": inflight,
+                "complete": False,
+                "observed": False,
+                "blocker": blocker,
+                "blockers": blockers,
+            }
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_DRAIN_INCOMPLETE,
+                detail="drain polls trusted queue/worker/catalog evidence; live/unknown/missing leases refuse",
+                extra=drain,
+            )
+        next_kill = None
+        if kill_record is not None:
+            next_kill = dict(kill_record)
+            next_kill["executed"] = True
+            next_kill["inflight"] = []
+            next_kill["observed"] = True
+        next_mode = "KILLED" if current == "KILLED" or next_kill is not None else DEFAULT_MODE
+        if current == "KILLED":
+            next_mode = "KILLED"
+        original_leases, _lease_error = _load_leases(ctx.state_dir)
         drain = {
-            "inflight": inflight,
-            "complete": False,
-            "observed": False,
-            "blocker": blocker,
-            "blockers": blockers,
-        }
-        return _verdict(
-            ctx,
-            ok=False,
-            reason=REASON_DRAIN_INCOMPLETE,
-            detail="drain polls trusted queue/worker/catalog evidence; live/unknown/missing leases refuse",
-            extra=drain,
-        )
-    next_kill = None
-    if kill_record is not None:
-        next_kill = dict(kill_record)
-        next_kill["executed"] = True
-        next_kill["inflight"] = []
-        next_kill["observed"] = True
-    next_mode = "KILLED" if current == "KILLED" or next_kill is not None else DEFAULT_MODE
-    if current == "KILLED":
-        next_mode = "KILLED"
-    original_leases, _lease_error = _load_leases(ctx.state_dir)
-    drain = {
-        "inflight": [],
-        "complete": True,
-        "observed": True,
-        "terminated": [item.get("id") for item in observed],
-    }
-    commit_operator_snapshot(
-        ctx.state_dir,
-        {
-            "mode": next_mode,
             "inflight": [],
-            "leases": original_leases or [],
-            "observations": observed,
-            "kill": next_kill,
-            "drain": drain,
-        },
-    )
-    if next_mode == "KILLED":
-        return _verdict(ctx, ok=True, reason=None, detail="observed drain settlement; KILLED latch held until recovery", extra=drain)
-    return _verdict(ctx, ok=True, reason=None, detail="observed drain complete; mode DISABLED", extra=drain)
+            "complete": True,
+            "observed": True,
+            "terminated": [item.get("id") for item in observed],
+        }
+        commit_operator_snapshot(
+            ctx.state_dir,
+            {
+                "mode": next_mode,
+                "inflight": [],
+                "leases": original_leases or [],
+                "observations": observed,
+                "kill": next_kill,
+                "drain": drain,
+            },
+        )
+        if next_mode == "KILLED":
+            return _verdict(ctx, ok=True, reason=None, detail="observed drain settlement; KILLED latch held until recovery", extra=drain)
+        return _verdict(ctx, ok=True, reason=None, detail="observed drain complete; mode DISABLED", extra=drain)
 
 
 def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
-    inflight, inflight_error = _load_inflight(ctx.state_dir)
-    fenced = inflight if inflight is not None else []
-    ack = dict(ctx.owner.request_cancel([item for item in fenced if isinstance(item, str)]))
-    record = {
-        "disposition": KILL_DISPOSITION,
-        "at": ctx.now.isoformat(),
-        "executed": False,
-        "signalled": False,
-        "cancellation_requested": bool(ack.get("requested")),
-        "owner": ack.get("owner", "campaign-queue"),
-        "owner_ack": ack,
-        "fenced": fenced,
-        "malformed_inflight": inflight_error,
-        "note": "emergency kill requested through campaign/queue owner; executed remains false until observed drain",
-    }
-    leases, _lease_error = _load_leases(ctx.state_dir)
-    snapshot: dict[str, Any] = {
-        "mode": "KILLED",
-        "leases": leases or [],
-        "kill": record,
-        "drain": {"complete": False},
-    }
-    if inflight is not None:
-        snapshot["inflight"] = fenced
-    commit_operator_snapshot(ctx.state_dir, snapshot)
-    return _verdict(ctx, ok=True, reason=None, detail=KILL_DISPOSITION, extra=record)
+    with state_lock(ctx.state_dir):
+        inflight, inflight_error = _load_inflight(ctx.state_dir)
+        fenced = inflight if inflight is not None else []
+        ack = dict(ctx.owner.request_cancel([item for item in fenced if isinstance(item, str)]))
+        record = {
+            "disposition": KILL_DISPOSITION,
+            "at": ctx.now.isoformat(),
+            "executed": False,
+            "signalled": False,
+            "cancellation_requested": bool(ack.get("requested")),
+            "owner": ack.get("owner", "campaign-queue"),
+            "owner_ack": ack,
+            "fenced": fenced,
+            "malformed_inflight": inflight_error,
+            "note": "emergency kill requested through campaign/queue owner; executed remains false until observed drain",
+        }
+        leases, _lease_error = _load_leases(ctx.state_dir)
+        snapshot: dict[str, Any] = {
+            "mode": "KILLED",
+            "leases": leases or [],
+            "kill": record,
+            "drain": {"complete": False},
+        }
+        if inflight is not None:
+            snapshot["inflight"] = fenced
+        commit_operator_snapshot(ctx.state_dir, snapshot)
+        return _verdict(ctx, ok=True, reason=None, detail=KILL_DISPOSITION, extra=record)
 
 
 def cmd_rotate(ctx: OperatorContext, kind: Literal["logs", "cas"]) -> OperatorVerdict:

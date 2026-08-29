@@ -122,9 +122,15 @@ def test_the_matrix_deliberately_does_not_carry_a_purpose():
     proves the field cannot be set there by accident.
     """
     matrix = {
+        "schema_version": 2,
+        "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
         "name": "controls",
         "hypothesis": "oracle passes and nop fails",
+        "benchmark_family": "event-summary",
+        "task_id": "event-summary",
         "task": "library/tasks/event-summary",
+        "task_package_digest": "sha256:" + "1" * 64,
+        "verifier_digest": "sha256:" + "2" * 64,
         "runs": [{"name": "oracle-control", "agent": "oracle"}],
     }
     assert ExperimentMatrix.model_validate(matrix).runs[0].agent == "oracle"

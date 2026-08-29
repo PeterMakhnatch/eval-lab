@@ -2153,6 +2153,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--policy", type=Path, default=None)
     parser.add_argument("--agent", default="oracle")
     parser.add_argument("--drain-timeout-seconds", type=float, default=None)
+    parser.add_argument("--repo-root", type=Path, default=None)
+    parser.add_argument("--campaign-id", default=None)
     return parser
 
 
@@ -2166,7 +2168,10 @@ def main(
     owner: WorkloadOwner | None = None,
     trust_store: TrustStore | None = None,
 ) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if (args.repo_root is None) != (args.campaign_id is None):
+        parser.error("--repo-root and --campaign-id must be provided together")
     env = os.environ if environ is None else environ
     state_dir = args.state_dir or Path(env.get("EVAL_LAB_OPERATOR_STATE", "operator-state"))
     _secure_state_dir(state_dir)
@@ -2175,6 +2180,14 @@ def main(
         write_mode(state_dir, DEFAULT_MODE)
     now = clock() if clock is not None else datetime.now(UTC)
     resolved_store = secret_store if secret_store is not None else load_macos_keychain_secret
+    resolved_owner = owner
+    if resolved_owner is None and args.repo_root is not None:
+        from evallab.continuous_control_plane import CampaignWorkloadOwner
+
+        resolved_owner = CampaignWorkloadOwner.from_repo(
+            args.repo_root,
+            args.campaign_id,
+        )
     ctx = context_from_env(
         state_dir=state_dir,
         policy_path=args.policy,
@@ -2184,7 +2197,7 @@ def main(
         environ=env,
         secret_store=resolved_store,
         secrets_root=secrets_root,
-        owner=owner if owner is not None else ClosedWorkloadOwner(),
+        owner=resolved_owner if resolved_owner is not None else ClosedWorkloadOwner(),
         trust_store=trust_store,
     )
     mode = read_mode(state_dir)

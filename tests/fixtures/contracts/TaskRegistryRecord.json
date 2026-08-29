@@ -729,8 +729,8 @@
       "type": "string"
     },
     "schema_version": {
-      "const": 1,
-      "default": 1,
+      "const": 2,
+      "default": 2,
       "title": "Schema Version",
       "type": "integer"
     },
@@ -774,6 +774,12 @@
       "description": "machine-readable reason for a non-registered admission state",
       "title": "State Reason"
     },
+    "task_family": {
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_-]+$",
+      "title": "Task Family",
+      "type": "string"
+    },
     "task_id": {
       "maxLength": 80,
       "minLength": 3,
@@ -794,6 +800,7 @@
   },
   "required": [
     "task_id",
+    "task_family",
     "version",
     "task_path",
     "digests",

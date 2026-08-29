@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -10,6 +11,7 @@ import pytest
 import evallab.runner as runner_module
 from evallab.cli import load_local_env
 from evallab.database import _exception_type, count_consecutive_harness_failures
+from evallab.execution_contracts import ProxyTrialLimits
 from evallab.harbor_network import HarborNetworkPolicy
 from evallab.runner import (
     HARBOR_COMPOSE_CONFIG_LABEL,
@@ -216,6 +218,14 @@ def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
         cwd=tmp_path,
         timeout_seconds=5,
         log_path=deepseek_log,
+        proxy_attempt_id="credential-routing-trial",
+        proxy_limits=ProxyTrialLimits(
+            max_requests=2,
+            max_input_tokens=256,
+            max_output_tokens=16,
+            max_total_tokens=272,
+            max_cost_micros=1_000_000,
+        ),
     )
     control_log = tmp_path / "control.log"
     control = run_harbor_process(
@@ -256,6 +266,14 @@ def test_harbor_log_redacts_deepseek_secret_across_stream_chunks(
         cwd=tmp_path,
         timeout_seconds=5,
         log_path=log_path,
+        proxy_attempt_id="stream-redaction-trial",
+        proxy_limits=ProxyTrialLimits(
+            max_requests=2,
+            max_input_tokens=256,
+            max_output_tokens=16,
+            max_total_tokens=272,
+            max_cost_micros=1_000_000,
+        ),
     )
 
     assert result.returncode == 0
@@ -298,6 +316,31 @@ def test_executor_process_enforces_wall_clock_timeout(tmp_path: Path) -> None:
     assert result.timed_out is True
     assert time.monotonic() - started < 2
     assert result.log_path.is_file()
+
+
+def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
+    lease = tmp_path / "campaign-spec.lease"
+    lease.write_text("active\n", encoding="utf-8")
+    timer = threading.Timer(
+        0.05,
+        lambda: lease.with_suffix(".cancel").write_text("cancel\n", encoding="utf-8"),
+    )
+    timer.start()
+    started = time.monotonic()
+
+    result = run_harbor_process(
+        [sys.executable, "-c", "import time; time.sleep(5)"],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=tmp_path / "cancelled.log",
+        lease_path=lease,
+        heartbeat_interval_seconds=0.01,
+    )
+    timer.join()
+
+    assert result.timed_out is False
+    assert result.returncode != 0
+    assert time.monotonic() - started < 2
 
 
 def test_executor_watchdog_enforces_each_trial_in_multi_attempt_job(

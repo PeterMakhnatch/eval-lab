@@ -2406,6 +2406,7 @@ def _registry_promote_command(
             repo_root=root,
             registry_dir=registry_dir,
             task_id=args.task_id,
+            task_family=getattr(args, "task_family", None),
             version=args.version,
             source_uri=args.source_uri,
             source_ref=args.source_ref,
@@ -4146,6 +4147,10 @@ def parser() -> argparse.ArgumentParser:
     registry_promote.add_argument(
         "--task-id",
         help="Explicit task identifier (defaults to task.toml name or directory name)",
+    )
+    registry_promote.add_argument(
+        "--task-family",
+        help="Immutable benchmark family (or declare task.family in task.toml)",
     )
     registry_promote.add_argument(
         "--version",

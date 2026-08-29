@@ -1,6 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "task_id": "event-summary",
+  "task_family": "event-summary",
   "version": "1.0.0",
   "task_path": "library/tasks/event-summary",
   "digests": {

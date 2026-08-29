@@ -42,9 +42,15 @@ def spec(**overrides):
 
 def matrix(**overrides):
     payload = {
+        "schema_version": 2,
+        "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
         "name": "layout-contract",
         "hypothesis": "jobs land where the readers look",
+        "benchmark_family": "event-summary",
+        "task_id": "event-summary",
         "task": "library/tasks/event-summary",
+        "task_package_digest": "sha256:" + "1" * 64,
+        "verifier_digest": "sha256:" + "2" * 64,
         "runs": [{"name": "oracle-control", "agent": "oracle"}],
     }
     payload.update(overrides)

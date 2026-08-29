@@ -103,16 +103,23 @@ DEEPSEEK_UPSTREAM_ENV = "EVALLAB_DEEPSEEK_UPSTREAM"
 DEEPSEEK_PROXY_UID_ENV = "EVALLAB_PROXY_UID"
 DEEPSEEK_PROXY_GID_ENV = "EVALLAB_PROXY_GID"
 DEEPSEEK_PROXY_CAPABILITY_ENV = "EVALLAB_DEEPSEEK_PROXY_CAPABILITY"
+DEEPSEEK_PROXY_USAGE_DIR_ENV = "EVALLAB_DEEPSEEK_USAGE_DIR"
+DEEPSEEK_PROXY_ATTEMPT_ID_ENV = "EVALLAB_DEEPSEEK_ATTEMPT_ID"
+DEEPSEEK_PROXY_USAGE_FILE_ENV = "EVALLAB_DEEPSEEK_USAGE_FILE"
 DEEPSEEK_ALLOWED_MODEL_ENV = "EVALLAB_DEEPSEEK_ALLOWED_MODEL"
 DEEPSEEK_ALLOWED_MODEL = "deepseek-v4-flash"
 DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
         DEEPSEEK_PROXY_CAPABILITY_ENV,
         DEEPSEEK_ALLOWED_MODEL_ENV,
+        DEEPSEEK_PROXY_ATTEMPT_ID_ENV,
+        DEEPSEEK_PROXY_USAGE_DIR_ENV,
+        DEEPSEEK_PROXY_USAGE_FILE_ENV,
         "EVALLAB_DEEPSEEK_MAX_REQUESTS",
         "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
         "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
         "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
+        "EVALLAB_DEEPSEEK_MAX_TOTAL_TOKENS",
         "EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT",
         "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
         "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
@@ -197,7 +204,10 @@ class RunRequest:
     provenance: RunProvenance | None = None
     lease_path: Path | None = None
     extra_instruction_path: Path | None = None
+    max_requests: int | None = None
+    max_input_tokens: int | None = None
     max_output_tokens: int | None = None
+    max_total_tokens: int | None = None
     cost_limit_usd: float | None = None
 
     @property
@@ -214,6 +224,30 @@ class HarborProcessResult:
     timed_out: bool
     log_path: Path
     timed_out_trial: str | None = None
+    proxy_usage: dict[str, Any] | None = None
+
+@dataclass(frozen=True)
+class ProxyTrialLimits:
+    """Explicit ceilings bound to one provider capability."""
+
+    max_requests: int
+    max_input_tokens: int
+    max_output_tokens: int
+    max_total_tokens: int
+    max_cost_micros: int
+
+    def __post_init__(self) -> None:
+        if min(
+            self.max_requests,
+            self.max_input_tokens,
+            self.max_output_tokens,
+            self.max_total_tokens,
+            self.max_cost_micros,
+        ) < 1:
+            raise ValueError("proxy trial ceilings must be positive")
+        if self.max_total_tokens > self.max_input_tokens + self.max_output_tokens:
+            raise ValueError("proxy total-token ceiling exceeds component ceilings")
+
 
 
 @dataclass(frozen=True)
@@ -532,14 +566,42 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError(
             "Concurrency and attempts must be positive; timeout must be 1-21600 seconds"
         )
-    if request.max_output_tokens is not None and request.max_output_tokens < 1:
-        raise ValueError("max_output_tokens must be positive")
-    if request.cost_limit_usd is not None and request.cost_limit_usd <= 0:
-        raise ValueError("cost_limit_usd must be positive")
-    if request.agent != "mini-swe-agent" and (
-        request.max_output_tokens is not None or request.cost_limit_usd is not None
-    ):
-        raise ValueError("this agent cannot enforce campaign cost/output-token ceilings")
+    proxy_limits = (
+        request.max_requests,
+        request.max_input_tokens,
+        request.max_output_tokens,
+        request.max_total_tokens,
+        request.cost_limit_usd,
+    )
+    if any(value is not None for value in proxy_limits):
+        if request.agent != "mini-swe-agent":
+            raise ValueError("this agent cannot enforce provider request/cost/token ceilings")
+        if any(value is None for value in proxy_limits):
+            raise ValueError("mini-swe-agent requires every provider ceiling")
+        if (
+            request.max_requests is None
+            or request.max_input_tokens is None
+            or request.max_output_tokens is None
+            or request.max_total_tokens is None
+            or request.cost_limit_usd is None
+        ):
+            raise AssertionError("validated provider ceilings unexpectedly absent")
+        if min(
+            request.max_requests,
+            request.max_input_tokens,
+            request.max_output_tokens,
+            request.max_total_tokens,
+        ) < 1:
+            raise ValueError("provider request and token ceilings must be positive")
+        if request.cost_limit_usd <= 0:
+            raise ValueError("cost_limit_usd must be positive")
+        if request.max_total_tokens > request.max_input_tokens + request.max_output_tokens:
+            raise ValueError("total-token ceiling exceeds input plus output ceilings")
+    if request.agent == "mini-swe-agent":
+        if any(value is None for value in proxy_limits):
+            raise ValueError("mini-swe-agent requires explicit provider ceilings")
+        if request.attempts != 1 or request.concurrency != 1:
+            raise ValueError("mini-swe-agent capabilities bind exactly one trial")
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "

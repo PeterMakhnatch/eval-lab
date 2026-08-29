@@ -69,6 +69,7 @@ from evallab.runner import (
     RunRequest,
     TransientHarnessFailure,
     assert_no_secret_material,
+    collected_secret_values,
     database_url_from_environment,
     run_experiment,
     subscription_environment,
@@ -1014,6 +1015,10 @@ class DirectoryQueue:
                     return self.state_dir("running") / f"{matches_json[0].stem}.lease"
                 filename = f"{spec_str}.lease"
         return self.state_dir("running") / filename
+    def cancel_path(self, spec: ExperimentSpec | Path | str) -> Path:
+        """Return the operator cancellation marker for one active lease."""
+        return self.lease_path(spec).with_suffix(".cancel")
+
 
     def is_lease_stale(
         self,
@@ -1048,6 +1053,8 @@ class DirectoryQueue:
         is reclaimed atomically rather than permanently blocking the spec.
         """
         path = self.lease_path(spec)
+        with suppress(OSError):
+            self.cancel_path(spec).unlink(missing_ok=True)
         path.parent.mkdir(parents=True, exist_ok=True)
         pid = owner_pid if owner_pid is not None else os.getpid()
         timestamp = now or datetime.now(UTC)
@@ -1086,16 +1093,52 @@ class DirectoryQueue:
             os.close(fd)
         return path
 
+    def request_cancel(self, spec: ExperimentSpec) -> bool:
+        """Fence one active lease for cancellation by its runner watchdog."""
+        lease = self.lease_path(spec)
+        if not lease.is_file():
+            return False
+        marker = self.cancel_path(spec)
+        payload = (
+            json.dumps(
+                {
+                    "spec_id": spec.spec_id,
+                    "requested_at": datetime.now(UTC).isoformat(),
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode()
+        try:
+            descriptor = os.open(
+                marker,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,
+            )
+        except FileExistsError:
+            return marker.is_file() and not marker.is_symlink()
+        except OSError:
+            return False
+        try:
+            os.write(descriptor, payload)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        return True
+
     def release_lease(self, spec: ExperimentSpec | Path | str) -> bool:
-        """Release a held lease by unlinking the lease file in running/."""
+        """Release a held lease and its operator cancellation marker."""
         path = self.lease_path(spec)
+        released = False
         if path.is_file():
             try:
                 path.unlink()
-                return True
+                released = True
             except OSError:
                 return False
-        return False
+        with suppress(OSError):
+            self.cancel_path(spec).unlink(missing_ok=True)
+        return released
 
     def heartbeat_lease(self, spec: ExperimentSpec | Path | str) -> bool:
         """Touch the lease file to update its mtime heartbeat."""
@@ -1369,14 +1412,7 @@ class Executor:
         spec: ExperimentSpec,
         job_dir: Path,
     ) -> None:
-        secret_environment = subscription_environment(
-            include_deepseek_credentials=spec.agent == "mini-swe-agent"
-        )
-        secrets = frozenset(
-            value
-            for name in ("DEEPSEEK_API_KEY", "MSWEA_API_KEY")
-            if (value := secret_environment.get(name))
-        )
+        secrets = collected_secret_values()
         jobs_root = self._safe_repo_path(spec.jobs_dir)
         executor_root = jobs_root / ".executor"
         paths = [
@@ -1956,7 +1992,10 @@ class Executor:
             attempts=spec.attempts,
             timeout_seconds=timeout_seconds,
             allow_billable=spec.billable,
+            max_requests=spec.max_requests,
+            max_input_tokens=spec.max_input_tokens,
             max_output_tokens=spec.max_output_tokens,
+            max_total_tokens=spec.max_total_tokens,
             cost_limit_usd=spec.cost_limit_usd,
             lease_path=self.queue.lease_path(spec),
             provenance=RunProvenance(

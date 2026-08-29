@@ -1,6 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "task_id": "query-optimize",
+  "task_family": "query-optimization",
   "version": "1.0.0",
   "task_path": "library/tasks/query-optimize",
   "digests": {

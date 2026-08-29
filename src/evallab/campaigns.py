@@ -19,7 +19,6 @@ import platform
 import stat
 import tarfile
 import tempfile
-import tomllib
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
@@ -37,7 +36,8 @@ from evallab.credentials import available_credentials, missing_credential_for
 from evallab.evidence_store import (
     archive_evidence,
     evidence_tree_digest,
-    load_archive,
+    read_archive,
+    read_record,
     restore_evidence,
 )
 from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, DispatchCapacity
@@ -49,16 +49,17 @@ from evallab.queue import (
 )
 from evallab.registry import TaskRegistry, compute_task_digests
 from evallab.results import JobRecord, load_job
-from evallab.schemas import ContractModel, ExperimentSpec, QueueState
+from evallab.schemas import ContractModel, ExperimentMatrix, ExperimentSpec, QueueState
 
 CampaignLedger = CampaignCalibrationLedger | CampaignMeasurementLedger
 
 
 _SCHEMA_DEFINITION = "campaign-definition/v1"
-_SCHEMA_MANIFEST = "campaign-manifest/v2"
+_SCHEMA_MANIFEST = "campaign-manifest/v3"
 _SCHEMA_EVENT = "campaign-event/v1"
 _SCHEMA_STATUS = "campaign-status/v1"
 CAMPAIGN_STATE_ROOT = Path("runs/campaigns")
+CAMPAIGN_MATRIX_ROOT = Path("research/experiments/matrices")
 _TRANSIENT_PREFIX = "transient_harness:"
 _SPEC_DIGEST_EXCLUDES = {
     "submitted_at",
@@ -147,6 +148,7 @@ class _FrozenContract(ContractModel):
 
 
 class CampaignLimits(_FrozenContract):
+    max_requests: int = Field(ge=0)
     max_cost_usd: float = Field(ge=0)
     max_input_tokens: int = Field(ge=0)
     max_output_tokens: int = Field(ge=0)
@@ -163,6 +165,7 @@ class CampaignLimits(_FrozenContract):
 
 
 class TrialLimits(_FrozenContract):
+    max_requests: int = Field(ge=0)
     max_cost_usd: float = Field(ge=0)
     max_input_tokens: int = Field(ge=0)
     max_output_tokens: int = Field(ge=0)
@@ -182,6 +185,17 @@ class CampaignTaskContract(_FrozenContract):
     task_path: str = Field(min_length=1)
     task_family: str = Field(min_length=1)
     task_version: str = Field(min_length=1)
+    verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class CampaignMatrixContract(_FrozenContract):
+    matrix_id: str = Field(pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
+    matrix_path: str = Field(min_length=1)
+    matrix_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    benchmark_family: str = Field(min_length=1)
+    task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    task_path: str = Field(min_length=1)
     verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
@@ -266,8 +280,14 @@ class CampaignDefinitionAttempt(_FrozenContract):
                 raise ValueError("billable attempts require a positive cost ceiling")
             if self.spec.est_cost_usd > self.limits.max_cost_usd:
                 raise ValueError("estimated cost exceeds the trial cost ceiling")
-            if self.limits.max_output_tokens < 1:
-                raise ValueError("billable attempts require an output-token ceiling")
+            if self.limits.max_requests < 1:
+                raise ValueError("billable attempts require a provider request ceiling")
+            if min(
+                self.limits.max_input_tokens,
+                self.limits.max_output_tokens,
+                self.limits.max_total_tokens,
+            ) < 1:
+                raise ValueError("billable attempts require token ceilings")
         return self
 
 
@@ -304,12 +324,14 @@ class CampaignDefinition(_FrozenContract):
         identities = [(item.cell_id, item.task_id, item.attempt) for item in self.attempts]
         if len(identities) != len(set(identities)):
             raise ValueError("campaign attempt identities must be unique")
+        reserved_requests = sum(item.limits.max_requests for item in self.attempts)
         reserved_cost = sum(item.limits.max_cost_usd for item in self.attempts)
         reserved_input = sum(item.limits.max_input_tokens for item in self.attempts)
         reserved_output = sum(item.limits.max_output_tokens for item in self.attempts)
         reserved_total = sum(item.limits.max_total_tokens for item in self.attempts)
         reserved_wall = sum(item.limits.max_wall_clock_seconds for item in self.attempts)
         reservations = (
+            (reserved_requests, self.limits.max_requests, "request"),
             (reserved_cost, self.limits.max_cost_usd, "cost"),
             (reserved_input, self.limits.max_input_tokens, "input-token"),
             (reserved_output, self.limits.max_output_tokens, "output-token"),
@@ -337,7 +359,7 @@ class CampaignAttempt(_FrozenContract):
     spec_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     spec: ExperimentSpec
     limits: TrialLimits
-    task_contract: CampaignTaskContract | None = None
+    task_contract: CampaignTaskContract
     analysis_cell: CampaignAnalysisCell | None = None
     repeat_seed: int | str | None = None
 
@@ -358,8 +380,8 @@ class CampaignAttempt(_FrozenContract):
         )
         if not all(expected):
             raise ValueError("campaign attempt identity disagrees with its ExperimentSpec")
-        if self.spec.billable and self.task_contract is None:
-            raise ValueError("billable campaign attempts require a frozen task contract")
+        if self.task_contract is None:
+            raise ValueError("campaign attempts require a frozen registered task contract")
         if self.task_contract is not None:
             contract = self.task_contract
             task_expected = (
@@ -389,10 +411,11 @@ class CampaignAttempt(_FrozenContract):
 
 
 class CampaignManifest(_FrozenContract):
-    schema_version: Literal["campaign-manifest/v2"] = _SCHEMA_MANIFEST
+    schema_version: Literal["campaign-manifest/v3"] = _SCHEMA_MANIFEST
     ledger: CampaignLedger
     submitted_by: str = Field(min_length=1)
     limits: CampaignLimits
+    matrix: CampaignMatrixContract
     attempts: tuple[CampaignAttempt, ...] = Field(min_length=1)
     evidence_store: str
     analysis_holds: tuple[str, ...] = ()
@@ -425,6 +448,20 @@ class CampaignManifest(_FrozenContract):
             for item in self.attempts
         ):
             raise ValueError("attempt spec does not bind the campaign manifest contract")
+        if (
+            self.matrix.matrix_id != self.ledger.matrix_ref
+            or self.matrix.benchmark_family != self.benchmark
+        ):
+            raise ValueError("campaign matrix identity disagrees with the canonical ledger")
+        if any(
+            item.task_contract.task_id != self.matrix.task_id
+            or item.task_contract.task_path != self.matrix.task_path
+            or item.task_contract.task_family != self.matrix.benchmark_family
+            or item.task_contract.verifier_digest != self.matrix.verifier_digest
+            or item.task_contract.package_digest != self.matrix.package_digest
+            for item in self.attempts
+        ):
+            raise ValueError("campaign attempts disagree with the frozen matrix task identity")
         expected_holds = _analysis_cell_holds(self.attempts)
         if self.analysis_holds != expected_holds:
             raise ValueError("campaign analysis HOLD set does not match exact cells")
@@ -481,62 +518,97 @@ def _resolve_campaign_task_contract(
     item: CampaignDefinitionAttempt,
     repo_root: Path,
 ) -> CampaignTaskContract:
-    if item.spec.task_family not in {None, definition.benchmark}:
-        raise ValueError("campaign task family does not match the benchmark family")
-    spec_for_resolution = item.spec.model_copy(deep=True)
-    registry_record = TaskRegistry.from_repo(repo_root).resolve_spec(
-        spec_for_resolution,
-        repo_root,
-    )
-    if registry_record is not None:
-        task_path = registry_record.task_path
-        task_version = registry_record.version
-        digests = registry_record.digests
-        if registry_record.task_id != item.task_id:
-            raise ValueError("campaign task_id does not match the registered task record")
-    else:
-        task_path = item.spec.executable_task_path
-        task_dir = _resolved_repo_subpath(repo_root, task_path, label="campaign task")
-        has_instruction = any(
-            (task_dir / name).is_file()
-            for name in ("instruction.md", "instructions.md")
+    registry_record = TaskRegistry.from_repo(repo_root).get(item.task_id)
+    if registry_record is None:
+        raise ValueError(
+            f"campaign task {item.task_id!r} is missing from the explicit task registry"
         )
-        has_environment = (task_dir / "environment").exists() or (
-            task_dir / "Dockerfile"
-        ).is_file()
-        has_verifier = (task_dir / "tests").exists() or (
-            task_dir / "verifier"
-        ).exists()
-        if not (has_instruction and has_environment and has_verifier):
-            raise ValueError(
-                "campaign task contract requires instruction.md/instructions.md, "
-                "environment/Dockerfile, and tests/verifier"
-            )
-        metadata = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
-        task_section = metadata.get("task")
-        declared_version = (
-            task_section.get("version")
-            if isinstance(task_section, dict)
-            else metadata.get("version")
+    if registry_record.state != "registered":
+        raise ValueError(
+            f"campaign task {item.task_id!r} is not in registered admission state"
         )
-        if not isinstance(declared_version, str) or not declared_version:
-            raise ValueError("campaign task.toml must declare a task version")
-        task_version = declared_version
-        digests = compute_task_digests(task_dir)
-    if item.spec.task_version not in {None, task_version}:
-        raise ValueError("campaign task version does not match the task package")
-    if item.spec.verifier_digest not in {None, digests.verifier}:
-        raise ValueError("campaign verifier digest does not match the task package")
-    if item.spec.task_package_digest not in {None, digests.package}:
-        raise ValueError("campaign package digest does not match the task package")
+    if "measurement" not in registry_record.allowed_uses:
+        raise ValueError(
+            f"campaign task {item.task_id!r} is not approved for measurement"
+        )
+    if item.spec.task_family is None:
+        raise ValueError("campaign specs must declare the registered task family")
+    if (
+        item.spec.task_family != registry_record.task_family
+        or registry_record.task_family != definition.benchmark
+    ):
+        raise ValueError(
+            "campaign task family does not match the registered benchmark family"
+        )
+    if item.spec.task.startswith("registered/"):
+        if item.spec.task != f"registered/{item.task_id}":
+            raise ValueError("campaign registered task reference disagrees with task_id")
+        if item.spec.task_path not in {None, registry_record.task_path}:
+            raise ValueError("campaign task_path redirects the registered task")
+    elif item.spec.executable_task_path != registry_record.task_path:
+        raise ValueError("campaign task path does not match the registered task record")
+
+    task_path = registry_record.task_path
+    task_dir = _resolved_repo_subpath(repo_root, task_path, label="campaign task")
+    current_digests = compute_task_digests(task_dir)
+    if current_digests != registry_record.digests:
+        raise ValueError("campaign task package bytes differ from the registered digests")
+    if item.spec.task_version not in {None, registry_record.version}:
+        raise ValueError("campaign task version does not match the registered task")
+    if item.spec.verifier_digest not in {None, registry_record.digests.verifier}:
+        raise ValueError("campaign verifier digest does not match the registered task")
+    if item.spec.task_package_digest not in {None, registry_record.digests.package}:
+        raise ValueError("campaign package digest does not match the registered task")
     return CampaignTaskContract(
-        task_id=item.task_id,
+        task_id=registry_record.task_id,
         task_ref=item.spec.task,
         task_path=task_path,
-        task_family=definition.benchmark,
-        task_version=task_version,
-        verifier_digest=digests.verifier,
-        package_digest=digests.package,
+        task_family=registry_record.task_family,
+        task_version=registry_record.version,
+        verifier_digest=registry_record.digests.verifier,
+        package_digest=registry_record.digests.package,
+    )
+
+
+def _resolve_campaign_matrix_contract(
+    definition: CampaignDefinition,
+    repo_root: Path,
+) -> CampaignMatrixContract:
+    matrix_ref = definition.ledger.matrix_ref
+    relative_path = (CAMPAIGN_MATRIX_ROOT / f"{matrix_ref}.json").as_posix()
+    matrix_path = _resolved_repo_subpath(
+        repo_root,
+        relative_path,
+        label="campaign matrix",
+    )
+    try:
+        descriptor = os.open(
+            matrix_path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("campaign matrix must be a regular file")
+        with os.fdopen(descriptor, "rb", closefd=True) as source:
+            matrix_bytes = source.read()
+        matrix = ExperimentMatrix.model_validate_json(matrix_bytes)
+    except (OSError, ValueError) as exc:
+        raise ValueError(
+            f"campaign matrix_ref {matrix_ref!r} does not resolve to a frozen matrix"
+        ) from exc
+    if matrix.matrix_id != matrix_ref:
+        raise ValueError("campaign matrix identity does not match ledger matrix_ref")
+    if matrix.benchmark_family != definition.benchmark:
+        raise ValueError("campaign matrix benchmark family does not match the ledger")
+    return CampaignMatrixContract(
+        matrix_id=matrix.matrix_id,
+        matrix_path=relative_path,
+        matrix_digest=_digest(matrix.model_dump(mode="json")),
+        benchmark_family=matrix.benchmark_family,
+        task_id=matrix.task_id,
+        task_path=matrix.task,
+        verifier_digest=matrix.verifier_digest,
+        package_digest=matrix.task_package_digest,
     )
 
 
@@ -586,9 +658,20 @@ def build_campaign_manifest(
 ) -> CampaignManifest:
     attempts: list[CampaignAttempt] = []
     placeholder = "sha256:" + "0" * 64
+    matrix_contract = _resolve_campaign_matrix_contract(definition, repo_root)
     for item in definition.attempts:
         identity = _bind_execution_identity(definition, item)
         task_contract = _resolve_campaign_task_contract(definition, item, repo_root)
+        if (
+            task_contract.task_id != matrix_contract.task_id
+            or task_contract.task_path != matrix_contract.task_path
+            or task_contract.task_family != matrix_contract.benchmark_family
+            or task_contract.verifier_digest != matrix_contract.verifier_digest
+            or task_contract.package_digest != matrix_contract.package_digest
+        ):
+            raise ValueError(
+                "campaign task registry identity does not match the frozen matrix"
+            )
         task_fields = {
             "task_id": task_contract.task_id,
             "task_path": task_contract.task_path,
@@ -630,8 +713,17 @@ def build_campaign_manifest(
                     source_spec.timeout_seconds,
                     item.limits.max_wall_clock_seconds,
                 ),
+                "max_requests": (
+                    item.limits.max_requests if source_spec.billable else None
+                ),
+                "max_input_tokens": (
+                    item.limits.max_input_tokens if source_spec.billable else None
+                ),
                 "max_output_tokens": (
                     item.limits.max_output_tokens if source_spec.billable else None
+                ),
+                "max_total_tokens": (
+                    item.limits.max_total_tokens if source_spec.billable else None
                 ),
                 "cost_limit_usd": item.limits.max_cost_usd if source_spec.billable else None,
                 "est_cost_usd": (
@@ -667,6 +759,7 @@ def build_campaign_manifest(
         "ledger": definition.ledger.model_dump(mode="json"),
         "submitted_by": definition.submitted_by,
         "limits": definition.limits.model_dump(mode="json"),
+        "matrix": matrix_contract.model_dump(mode="json"),
         "attempts": [item.model_dump(mode="json", exclude_none=True) for item in attempts],
         "evidence_store": definition.evidence_store,
         "analysis_holds": _analysis_cell_holds(definition.attempts),
@@ -980,6 +1073,27 @@ class CampaignStore:
                 manifest,
                 required=required,
             )
+    def load_manifest(self) -> CampaignManifest:
+        with self._root_descriptor(create=False) as root_descriptor:
+            if root_descriptor is None:
+                raise CampaignDriftError("frozen campaign manifest is missing")
+            raw = self._read_regular(
+                root_descriptor,
+                "manifest.json",
+                missing_ok=True,
+            )
+        if raw is None:
+            raise CampaignDriftError("frozen campaign manifest is missing")
+        try:
+            manifest = CampaignManifest.model_validate_json(raw)
+        except Exception as exc:
+            raise CampaignDriftError("frozen campaign manifest is unreadable") from exc
+        if manifest.campaign_id != self.campaign_id:
+            raise CampaignDriftError(
+                "frozen campaign manifest identity does not match its state directory"
+            )
+        return manifest
+
 
     def freeze(self, manifest: CampaignManifest) -> Path:
         payload = (manifest.model_dump_json(indent=2) + "\n").encode()
@@ -1414,13 +1528,16 @@ class CampaignOrchestrator:
             raise CampaignDriftError("campaign job provenance does not match the manifest")
         return job
 
-    @staticmethod
-    def _usage(job: JobRecord) -> dict[str, int | float | None]:
+    def _usage(
+        self,
+        job: JobRecord,
+        attempt: CampaignAttempt,
+    ) -> dict[str, int | float | None]:
         trial = job.trials[0]
         raw = trial.result.get("agent_result")
         agent_result = raw if isinstance(raw, dict) else {}
 
-        def integer(name: str) -> int | None:
+        def agent_integer(name: str) -> int | None:
             value = agent_result.get(name)
             if value is None:
                 return None
@@ -1433,7 +1550,7 @@ class CampaignOrchestrator:
                 raise CampaignAmbiguityError(f"invalid campaign usage field: {name}")
             return value
 
-        def number(name: str) -> float | None:
+        def agent_number(name: str) -> float | None:
             value = agent_result.get(name)
             if value is None:
                 return None
@@ -1458,10 +1575,107 @@ class CampaignOrchestrator:
             duration = candidate
         except (TypeError, ValueError, OverflowError):
             pass
+        if not attempt.spec.billable:
+            return {
+                "input_tokens": agent_integer("n_input_tokens"),
+                "output_tokens": agent_integer("n_output_tokens"),
+                "cost_usd": agent_number("cost_usd"),
+                "wall_clock_seconds": duration,
+            }
+
+        reported_input = agent_integer("n_input_tokens")
+        reported_output = agent_integer("n_output_tokens")
+        reported_cost = agent_number("cost_usd")
+
+        provider = job.metadata.get("provider_usage")
+        if not isinstance(provider, dict):
+            return {
+                "request_count": None,
+                "input_tokens": None,
+                "output_tokens": None,
+                "cost_usd": None,
+                "wall_clock_seconds": duration,
+            }
+
+        def provider_integer(mapping: Mapping[str, Any], name: str) -> int:
+            value = mapping.get(name)
+            if (
+                not isinstance(value, int)
+                or isinstance(value, bool)
+                or value < 0
+                or value > 2**63 - 1
+            ):
+                raise CampaignAmbiguityError(f"invalid provider usage field: {name}")
+            return value
+
+        expected_limits = {
+            "max_requests": attempt.limits.max_requests,
+            "max_input_tokens": attempt.limits.max_input_tokens,
+            "max_output_tokens": attempt.limits.max_output_tokens,
+            "max_total_tokens": attempt.limits.max_total_tokens,
+            "max_cost_micros": math.ceil(attempt.limits.max_cost_usd * 1_000_000),
+        }
+        capability_id = provider.get("capability_id")
+        if (
+            provider.get("schema_version") != 1
+            or provider.get("attempt_id") != attempt.attempt_id
+            or provider.get("limits") != expected_limits
+            or not isinstance(capability_id, str)
+            or not capability_id.startswith("sha256:")
+            or len(capability_id) != 71
+            or any(character not in "0123456789abcdef" for character in capability_id[7:])
+        ):
+            raise CampaignAmbiguityError("provider usage binding is invalid")
+        calls = provider.get("calls")
+        totals = provider.get("totals")
+        if not isinstance(calls, list) or not isinstance(totals, dict):
+            raise CampaignAmbiguityError("provider usage report is invalid")
+        computed_input = 0
+        computed_output = 0
+        computed_cost = 0
+        for call_id, call in enumerate(calls, start=1):
+            if (
+                not isinstance(call, dict)
+                or call.get("state") != "reconciled"
+                or provider_integer(call, "call_id") != call_id
+            ):
+                raise CampaignAmbiguityError("provider call is not reconciled")
+            computed_input += provider_integer(call, "input_tokens")
+            computed_output += provider_integer(call, "output_tokens")
+            computed_cost += provider_integer(call, "cost_micros")
+        request_count = len(calls)
+        expected_totals = {
+            "requests": request_count,
+            "input_tokens": computed_input,
+            "output_tokens": computed_output,
+            "total_tokens": computed_input + computed_output,
+            "cost_micros": computed_cost,
+        }
+        if (
+            {name: provider_integer(totals, name) for name in expected_totals}
+            != expected_totals
+            or provider_integer(provider, "unresolved_requests") != 0
+            or provider_integer(provider, "sequence") != request_count * 2
+        ):
+            raise CampaignAmbiguityError("provider usage totals do not reconcile")
+
+        authoritative_cost = computed_cost / 1_000_000
+        if (
+            (reported_input is not None and reported_input > computed_input)
+            or (reported_output is not None and reported_output > computed_output)
+            or (
+                reported_cost is not None
+                and reported_cost > authoritative_cost + 1 / 1_000_000
+            )
+        ):
+            raise CampaignAmbiguityError(
+                "agent usage exceeds authoritative provider accounting"
+            )
         return {
-            "input_tokens": integer("n_input_tokens"),
-            "output_tokens": integer("n_output_tokens"),
-            "cost_usd": number("cost_usd"),
+            "request_count": request_count,
+            "input_tokens": computed_input,
+            "output_tokens": computed_output,
+            "cost_usd": authoritative_cost,
             "wall_clock_seconds": duration,
         }
 
@@ -1470,13 +1684,22 @@ class CampaignOrchestrator:
     ) -> str | None:
         if attempt.spec.billable and any(
             usage.get(field) is None
-            for field in ("input_tokens", "output_tokens", "cost_usd", "wall_clock_seconds")
+            for field in (
+                "request_count",
+                "input_tokens",
+                "output_tokens",
+                "cost_usd",
+                "wall_clock_seconds",
+            )
         ):
             return "billable_usage_missing"
+        request_count = int(usage.get("request_count") or 0)
         input_tokens = int(usage.get("input_tokens") or 0)
         output_tokens = int(usage.get("output_tokens") or 0)
         cost = float(usage.get("cost_usd") or 0.0)
         wall = float(usage.get("wall_clock_seconds") or 0.0)
+        if request_count > attempt.limits.max_requests:
+            return "trial_request_ceiling_exceeded"
         if cost > attempt.limits.max_cost_usd:
             return "trial_cost_ceiling_exceeded"
         if input_tokens > attempt.limits.max_input_tokens:
@@ -1503,16 +1726,25 @@ class CampaignOrchestrator:
         store_root = self._evidence_store_root()
         record_path = store_root / "records/campaign-job" / f"{attempt.attempt_id}.json"
         expected_digest = evidence_tree_digest(job_dir)
-        if record_path.is_file():
+        try:
+            record_bytes = read_record(
+                store_root,
+                kind="campaign-job",
+                record_id=attempt.attempt_id,
+            )
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError) as exc:
+            raise CampaignAmbiguityError("campaign CAS record is unreadable") from exc
+        else:
             try:
-                record = json.loads(record_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
+                record = json.loads(record_bytes)
+            except json.JSONDecodeError as exc:
                 raise CampaignAmbiguityError("campaign CAS record is unreadable") from exc
             if record.get("content_digest") != expected_digest:
                 raise CampaignDriftError("campaign CAS record points at different evidence")
             uri = str(record.get("uri") or "")
-            blob_path = load_archive(store_root, uri)
-            archive_digest = f"sha256:{hashlib.sha256(blob_path.read_bytes()).hexdigest()}"
+            archive_digest = f"sha256:{hashlib.sha256(read_archive(store_root, uri)).hexdigest()}"
             if record.get("archive_digest") != archive_digest:
                 raise CampaignDriftError("campaign CAS archive digest mismatch")
             return {
@@ -1547,11 +1779,17 @@ class CampaignOrchestrator:
         record_path = store_root / "records/campaign-job" / f"{attempt.attempt_id}.json"
         expected_record_path = record_path.relative_to(self.repo_root).as_posix()
         try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-            blob_path = load_archive(store_root, expected_uri)
+            record = json.loads(
+                read_record(
+                    store_root,
+                    kind="campaign-job",
+                    record_id=attempt.attempt_id,
+                )
+            )
+            archive_bytes = read_archive(store_root, expected_uri)
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             raise CampaignAmbiguityError("campaign CAS evidence is unreadable") from exc
-        actual_archive_digest = f"sha256:{hashlib.sha256(blob_path.read_bytes()).hexdigest()}"
+        actual_archive_digest = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
         if record.get("archive_digest") != actual_archive_digest:
             raise CampaignDriftError("campaign CAS archive digest mismatch")
         if details.get("archive_digest") != actual_archive_digest:
@@ -1780,7 +2018,7 @@ class CampaignOrchestrator:
                     raise CampaignAmbiguityError("campaign backfill event was not durable")
 
                 try:
-                    usage = self._usage(job)
+                    usage = self._usage(job, attempt)
                 except CampaignAmbiguityError:
                     events = self._open_circuit(
                         events,
@@ -1935,7 +2173,7 @@ class CampaignOrchestrator:
             if not (self._job_dir(attempt) / "result.json").is_file():
                 return usage_by_attempt, "campaign_usage_missing"
             try:
-                usage = self._usage(self._validate_job(attempt))
+                usage = self._usage(self._validate_job(attempt), attempt)
             except CampaignAmbiguityError:
                 return usage_by_attempt, "campaign_usage_invalid"
             journaled = usage_by_attempt.get(attempt.attempt_id)
@@ -1945,7 +2183,13 @@ class CampaignOrchestrator:
                 )
             usage_by_attempt[attempt.attempt_id] = usage
             required_fields = (
-                ("input_tokens", "output_tokens", "cost_usd", "wall_clock_seconds")
+                (
+                    "request_count",
+                    "input_tokens",
+                    "output_tokens",
+                    "cost_usd",
+                    "wall_clock_seconds",
+                )
                 if attempt.spec.billable
                 else ("wall_clock_seconds",)
             )
@@ -1956,24 +2200,26 @@ class CampaignOrchestrator:
     @staticmethod
     def _usage_totals(
         usage_by_attempt: Mapping[str, Mapping[str, int | float | None]],
-    ) -> tuple[float, int, int, float]:
+    ) -> tuple[int, float, int, int, float]:
+        requests = 0
         cost = 0.0
         input_tokens = 0
         output_tokens = 0
         wall = 0.0
         for usage in usage_by_attempt.values():
+            requests += int(usage.get("request_count") or 0)
             cost += float(usage.get("cost_usd") or 0.0)
             input_tokens += int(usage.get("input_tokens") or 0)
             output_tokens += int(usage.get("output_tokens") or 0)
             wall += float(usage.get("wall_clock_seconds") or 0.0)
-        return cost, input_tokens, output_tokens, wall
+        return requests, cost, input_tokens, output_tokens, wall
 
     def _campaign_usage(
         self,
         events: list[CampaignEvent],
     ) -> tuple[
         dict[str, Mapping[str, int | float | None]],
-        tuple[float, int, int, float],
+        tuple[int, float, int, int, float],
         str | None,
     ]:
         usage_by_attempt, reason = self._authoritative_usage(events)
@@ -1985,9 +2231,11 @@ class CampaignOrchestrator:
         attempt: CampaignAttempt,
     ) -> str | None:
         _usage, totals, missing_reason = self._campaign_usage(events)
-        cost, input_tokens, output_tokens, wall = totals
+        requests, cost, input_tokens, output_tokens, wall = totals
         if missing_reason is not None:
             return missing_reason
+        if requests + attempt.limits.max_requests > self.manifest.limits.max_requests:
+            return "campaign_request_ceiling_exceeded"
         if cost + attempt.limits.max_cost_usd > self.manifest.limits.max_cost_usd:
             return "campaign_cost_ceiling_exceeded"
         if input_tokens + attempt.limits.max_input_tokens > self.manifest.limits.max_input_tokens:
@@ -2011,8 +2259,10 @@ class CampaignOrchestrator:
 
     def _assert_campaign_usage(self, events: list[CampaignEvent]) -> list[CampaignEvent]:
         _usage, totals, reason = self._campaign_usage(events)
-        cost, input_tokens, output_tokens, wall = totals
-        if cost > self.manifest.limits.max_cost_usd:
+        requests, cost, input_tokens, output_tokens, wall = totals
+        if requests > self.manifest.limits.max_requests:
+            reason = "campaign_request_ceiling_exceeded"
+        elif cost > self.manifest.limits.max_cost_usd:
             reason = "campaign_cost_ceiling_exceeded"
         elif input_tokens > self.manifest.limits.max_input_tokens:
             reason = "campaign_input_token_ceiling_exceeded"
@@ -2145,7 +2395,7 @@ class CampaignOrchestrator:
             state_value = "running"
         else:
             state_value = "planned"
-        cost, input_tokens, output_tokens, wall = _totals
+        _requests, cost, input_tokens, output_tokens, wall = _totals
         return CampaignStatus(
             campaign_id=self.manifest.campaign_id,
             benchmark=self.manifest.benchmark,

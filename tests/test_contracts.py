@@ -182,6 +182,7 @@ def test_roundtrip_all_models():
 
     registry_record = TaskRegistryRecord(
         task_id="sample-task",
+        task_family="sample-family",
         version="1.0.0",
         task_path="library/tasks/sample-task",
         digests=registry_digests,
@@ -468,8 +469,8 @@ def test_spec_pre_dating_new_fields_loads_with_defaults():
     assert spec.attempts == 3
 
 
-def test_task_registry_record_pre_dating_optional_metadata_loads_with_defaults():
-    """A record written before contamination/human_minutes loads with defaults."""
+def test_task_registry_record_without_family_is_refused():
+    """Legacy records cannot enter campaign provenance without an immutable family."""
     raw_record = {
         "schema_version": 1,
         "task_id": "legacy-task",
@@ -520,10 +521,8 @@ def test_task_registry_record_pre_dating_optional_metadata_loads_with_defaults()
             }
         )
 
-    record = TaskRegistryRecord.model_validate(raw_record)
-    assert record.contamination is None
-    assert record.human_minutes is None
-    assert record.task_id == "legacy-task"
+    with pytest.raises(ValidationError, match="schema_version|task_family"):
+        TaskRegistryRecord.model_validate(raw_record)
 
 
 @pytest.mark.parametrize("status", ["y", "n", "unknown"])

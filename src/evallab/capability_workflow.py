@@ -217,6 +217,7 @@ def _workbench_evidence(
     )
     record = TaskRegistryRecord(
         task_id="uppercase-fixture",
+        task_family="uppercase-fixture",
         version="1.0.0",
         task_path=task_path,
         digests=digests,

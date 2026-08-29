@@ -51,7 +51,9 @@ def _make_dummy_task(
 ) -> Path:
     task_dir = root / rel_path
     task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "task.toml").write_text('schema_version = "1.4"\n[task]\nname = "sample"\n')
+    (task_dir / "task.toml").write_text(
+        'schema_version = "1.4"\n[task]\nname = "sample"\nfamily = "sample-family"\n'
+    )
     (task_dir / "instruction.md").write_text(instruction)
     env_dir = task_dir / "environment"
     env_dir.mkdir(parents=True, exist_ok=True)
@@ -218,8 +220,9 @@ def _make_registry_record(
         )
 
     return TaskRegistryRecord(
-        schema_version=1,
+        schema_version=2,
         task_id=task_id,
+        task_family="sample-family",
         version=version,
         task_path=rel_path,
         digests=digests,

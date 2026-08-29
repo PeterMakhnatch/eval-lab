@@ -8,6 +8,7 @@ import json
 import os
 import stat
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -25,6 +26,7 @@ from evallab.execution_contracts import (
     DEEPSEEK_PROXY_TOKEN,
     DEEPSEEK_PROXY_URL,
     PRIVATE_PERSIST_MODE,
+    ProxyTrialLimits,
     RedactingBinaryWriter,
     collected_secret_values,
     persist_private_bytes,
@@ -118,10 +120,15 @@ def _trial_proxy_env(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> str:
     capability = overrides.pop("capability", DEEPSEEK_PROXY_TOKEN)
     values = {
         "EVALLAB_DEEPSEEK_PROXY_CAPABILITY": capability,
+        "EVALLAB_DEEPSEEK_ATTEMPT_ID": "attempt-test-capability",
+        "EVALLAB_DEEPSEEK_USAGE_FILE": str(
+            Path(tempfile.mkdtemp()) / "deepseek-proxy-usage.json"
+        ),
         "EVALLAB_DEEPSEEK_ALLOWED_MODEL": "deepseek-v4-flash",
         "EVALLAB_DEEPSEEK_MAX_REQUESTS": "8",
         "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS": "32768",
         "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS": "4096",
+        "EVALLAB_DEEPSEEK_MAX_TOTAL_TOKENS": "36864",
         "EVALLAB_DEEPSEEK_MAX_COST_MICROS": "500000",
         "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION": "1000000",
         "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION": "1000000",
@@ -408,6 +415,16 @@ def test_redact_secret_material_covers_bearer_headers() -> None:
     )
 
 
+def _process_proxy_limits() -> ProxyTrialLimits:
+    return ProxyTrialLimits(
+        max_requests=2,
+        max_input_tokens=256,
+        max_output_tokens=16,
+        max_total_tokens=272,
+        max_cost_micros=1_000_000,
+    )
+
+
 def test_run_harbor_process_redacts_executor_log(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -430,11 +447,59 @@ def test_run_harbor_process_redacts_executor_log(
         cwd=Path(__file__).resolve().parents[1],
         timeout_seconds=10,
         log_path=log_path,
+        proxy_attempt_id="test-redaction-trial",
+        proxy_limits=_process_proxy_limits(),
     )
     assert result.returncode == 0
     data = log_path.read_text()
     assert SECRET_SENTINEL not in data
     assert log_path.stat().st_mode & 0o777 == PRIVATE_PERSIST_MODE
+
+
+def test_runner_issues_a_unique_capability_per_trial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evallab import runner as runner_module
+    monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
+
+    capabilities = iter(("first-private-capability", "second-private-capability"))
+    monkeypatch.setattr(
+        runner_module.secrets,
+        "token_urlsafe",
+        lambda _length: next(capabilities),
+    )
+    script = tmp_path / "capture-capability-id.py"
+    script.write_text(
+        "import hashlib, os, pathlib, sys\n"
+        "capability = os.environ['EVALLAB_DEEPSEEK_PROXY_CAPABILITY'].encode()\n"
+        "pathlib.Path(sys.argv[1]).write_text(hashlib.sha256(capability).hexdigest())\n",
+        encoding="utf-8",
+    )
+    observed: list[str] = []
+    for index in range(2):
+        digest_path = tmp_path / f"capability-{index}.txt"
+        result = runner_module.run_harbor_process(
+            [
+                sys.executable,
+                str(script),
+                str(digest_path),
+                "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
+            ],
+            cwd=Path(__file__).resolve().parents[1],
+            timeout_seconds=10,
+            log_path=tmp_path / f"trial-{index}.log",
+            proxy_attempt_id=f"attempt-{index}",
+            proxy_limits=_process_proxy_limits(),
+        )
+        assert result.returncode == 0
+        observed.append(digest_path.read_text(encoding="utf-8"))
+
+    assert observed == [
+        __import__("hashlib").sha256(b"first-private-capability").hexdigest(),
+        __import__("hashlib").sha256(b"second-private-capability").hexdigest(),
+    ]
+    assert observed[0] != observed[1]
 
 
 def test_proxy_joins_workbench_internal_and_default_networks() -> None:
@@ -514,6 +579,8 @@ def test_run_harbor_process_does_not_leave_provider_key_under_executor(
         cwd=Path(__file__).resolve().parents[1],
         timeout_seconds=10,
         log_path=log_path,
+        proxy_attempt_id="test-cleanup-trial",
+        proxy_limits=_process_proxy_limits(),
     )
     assert result.returncode == 0
     data = log_path.read_text()
@@ -554,6 +621,8 @@ def test_run_harbor_process_unlinks_secret_on_keyboardinterrupt(
             cwd=Path(__file__).resolve().parents[1],
             timeout_seconds=10,
             log_path=log_path,
+            proxy_attempt_id="test-interrupt-trial",
+            proxy_limits=_process_proxy_limits(),
         )
     leftover = list((tmp_path / "tmp").glob("evallab-deepseek-secret.*"))
     assert leftover == []
@@ -600,6 +669,7 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS="256",
             EVALLAB_DEEPSEEK_MAX_COST_MICROS="1000000",
     )
+    usage_path = Path(os.environ["EVALLAB_DEEPSEEK_USAGE_FILE"])
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0)
     thread = threading.Thread(target=proxy.serve_forever, daemon=True)
@@ -672,6 +742,18 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         assert second == 429
         assert len(_FakeDeepSeek.seen) == 1
         assert _FakeDeepSeek.seen[0][1] == f"Bearer {SECRET_SENTINEL}"
+        report = json.loads(usage_path.read_text(encoding="utf-8"))
+        assert report["attempt_id"] == "attempt-test-capability"
+        assert report["unresolved_requests"] == 0
+        assert report["sequence"] == 2
+        assert report["totals"] == {
+            "requests": 1,
+            "input_tokens": 3,
+            "output_tokens": 1,
+            "total_tokens": 4,
+            "cost_micros": 4,
+        }
+        assert [call["state"] for call in report["calls"]] == ["reconciled"]
     finally:
         proxy.shutdown()
         upstream.shutdown()

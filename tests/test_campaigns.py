@@ -3,6 +3,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import math
 import threading
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -35,6 +36,10 @@ from evallab.campaigns import (
     campaign_manifest_digest,
     experiment_spec_digest,
 )
+from evallab.continuous_control_plane import (
+    CampaignWorkloadOwner,
+    DisabledCampaignControlLoop,
+)
 from evallab.credentials import DEEPSEEK_API_CREDENTIAL
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
@@ -43,8 +48,18 @@ from evallab.execution_contracts import (
     RunRequest,
     TransientHarnessFailure,
 )
+from evallab.ops_continuous import main as operator_main
+from evallab.ops_continuous import write_mode
 from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
-from evallab.schemas import ExperimentSpec
+from evallab.registry import compute_task_digests
+from evallab.schemas import (
+    ControlEvidenceRef,
+    ExperimentSpec,
+    QueueEvent,
+    TaskControlEvidence,
+    TaskLimits,
+    TaskRegistryRecord,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
@@ -75,6 +90,72 @@ def _repo(tmp_path: Path) -> Path:
     (task / "tests").mkdir()
     (task / "tests/test_task.py").write_text("def test_task(): pass\n", encoding="utf-8")
     (task / "task.toml").write_text('version = "1.0"\n', encoding="utf-8")
+    digests = compute_task_digests(task)
+    common_evidence = {
+        "evidence_digest": "sha256:" + "1" * 64,
+        "lock_digest": "sha256:" + "2" * 64,
+        "observed_at": NOW,
+        "task_id": "task-one",
+        "task_version": "1.0",
+        "task_digests": digests,
+        "harbor_task_digest": "sha256:" + "3" * 64,
+    }
+    record = TaskRegistryRecord(
+        task_id="task-one",
+        task_family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION.value,
+        version="1.0",
+        task_path="tasks/task-one",
+        digests=digests,
+        source_uri="local/task-one@1.0",
+        provenance_zone="03-synthetic",
+        is_synthetic=True,
+        limits=TaskLimits(timeout_seconds=60),
+        control_evidence=TaskControlEvidence(
+            oracle=ControlEvidenceRef(
+                job_name="task-one-oracle",
+                trial_name="task-one__oracle",
+                reward=1.0,
+                evidence_path="research/evidence/runs/task-one-oracle/result.json",
+                **common_evidence,
+            ),
+            nop=ControlEvidenceRef(
+                job_name="task-one-nop",
+                trial_name="task-one__nop",
+                reward=0.0,
+                evidence_path="research/evidence/runs/task-one-nop/result.json",
+                **common_evidence,
+            ),
+        ),
+        state="registered",
+        allowed_uses=["measurement"],
+        approved_by="Campaign Test",
+        approved_at=NOW,
+    )
+    registry = root / "library/registry"
+    registry.mkdir(parents=True)
+    (registry / "task-one.json").write_text(record.model_dump_json(indent=2), encoding="utf-8")
+    matrix = {
+        "schema_version": 2,
+        "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        "name": "campaign-task-one",
+        "hypothesis": "Frozen matrix identity gates campaign dispatch",
+        "benchmark_family": SyntheticFamilyType.FAMILY_A_STATE_INVERSION.value,
+        "task_id": "task-one",
+        "task": "tasks/task-one",
+        "task_package_digest": digests.package,
+        "verifier_digest": digests.verifier,
+        "environment": "docker",
+        "jobs_dir": "runs",
+        "concurrency": 1,
+        "timeout_seconds": 60,
+        "runs": [{"name": "task-one-oracle", "agent": "oracle"}],
+    }
+    matrices = root / "research/experiments/matrices"
+    matrices.mkdir(parents=True)
+    (matrices / "01ARZ3NDEKTSV4RRFFQ69G5FAW.json").write_text(
+        json.dumps(matrix, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return root
 
 
@@ -88,6 +169,7 @@ def _spec(*, billable: bool) -> ExperimentSpec:
         agent="mini-swe-agent" if billable else "oracle",
         model=DEEPSEEK_MODEL_SELECTOR if billable else None,
         jobs_dir="runs",
+        task_family=SyntheticFamilyType.FAMILY_A_STATE_INVERSION.value,
         attempts=1,
         concurrency=1,
         timeout_seconds=60,
@@ -106,6 +188,7 @@ def _definition(
     max_concurrency: int = 1,
 ) -> CampaignDefinition:
     trial = TrialLimits(
+        max_requests=2 if billable else 0,
         max_cost_usd=1.0 if billable else 0.0,
         max_input_tokens=100 if billable else 0,
         max_output_tokens=100 if billable else 0,
@@ -132,6 +215,7 @@ def _definition(
         ledger=ledger,
         submitted_by="campaign-test",
         limits=CampaignLimits(
+            max_requests=2 * attempts if billable else 0,
             max_cost_usd=(attempts if billable else 0.0)
             if campaign_cost is None
             else campaign_cost,
@@ -206,6 +290,7 @@ def _write_job(
     cost: float | None = 0.0,
     input_tokens: int | None = 0,
     output_tokens: int | None = 0,
+    provider_calls: list[tuple[int, int, int]] | None = None,
 ) -> Path:
     job = request.jobs_dir / request.name
     trial_name = "task-one__trial"
@@ -243,15 +328,79 @@ def _write_job(
         ),
         encoding="utf-8",
     )
-    (job / "lab-metadata.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "experiment": request.provenance.model_dump(mode="json")
-                if request.provenance
-                else None,
-            }
+    metadata: dict[str, Any] = {
+        "schema_version": 1,
+        "experiment": (
+            request.provenance.model_dump(mode="json")
+            if request.provenance is not None
+            else None
         ),
+    }
+    if (
+        request.agent == "mini-swe-agent"
+        and request.provenance is not None
+        and request.max_requests is not None
+        and request.max_input_tokens is not None
+        and request.max_output_tokens is not None
+        and request.max_total_tokens is not None
+        and request.cost_limit_usd is not None
+        and input_tokens is not None
+        and output_tokens is not None
+        and cost is not None
+        and math.isfinite(cost)
+        and cost >= 0
+    ):
+        calls_source = provider_calls
+        if calls_source is None:
+            calls_source = (
+                []
+                if input_tokens == 0 and output_tokens == 0 and cost == 0
+                else [(input_tokens, output_tokens, round(cost * 1_000_000))]
+            )
+        calls = [
+            {
+                "call_id": index,
+                "state": "reconciled",
+                "reserved_input_tokens": call_input,
+                "reserved_output_tokens": call_output,
+                "reserved_cost_micros": call_cost,
+                "status": 200,
+                "input_tokens": call_input,
+                "output_tokens": call_output,
+                "cost_micros": call_cost,
+            }
+            for index, (call_input, call_output, call_cost) in enumerate(
+                calls_source,
+                start=1,
+            )
+        ]
+        total_input = sum(int(call["input_tokens"]) for call in calls)
+        total_output = sum(int(call["output_tokens"]) for call in calls)
+        total_cost = sum(int(call["cost_micros"]) for call in calls)
+        metadata["provider_usage"] = {
+            "schema_version": 1,
+            "capability_id": "sha256:" + "a" * 64,
+            "attempt_id": request.provenance.campaign_attempt_id,
+            "sequence": len(calls) * 2,
+            "limits": {
+                "max_requests": request.max_requests,
+                "max_input_tokens": request.max_input_tokens,
+                "max_output_tokens": request.max_output_tokens,
+                "max_total_tokens": request.max_total_tokens,
+                "max_cost_micros": math.ceil(request.cost_limit_usd * 1_000_000),
+            },
+            "totals": {
+                "requests": len(calls),
+                "input_tokens": total_input,
+                "output_tokens": total_output,
+                "total_tokens": total_input + total_output,
+                "cost_micros": total_cost,
+            },
+            "unresolved_requests": 0,
+            "calls": calls,
+        }
+    (job / "lab-metadata.json").write_text(
+        json.dumps(metadata),
         encoding="utf-8",
     )
     return job
@@ -830,6 +979,43 @@ def test_invalid_billable_usage_fails_closed(
 
     assert status.state == "circuit-open"
     assert status.circuit_reason == "campaign_usage_invalid"
+
+
+def test_direct_proxy_calls_are_reconciled_into_campaign_usage(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    executor = _executor(
+        root,
+        lambda request: _write_job(
+            request,
+            cost=0.01,
+            input_tokens=10,
+            output_tokens=5,
+            provider_calls=[
+                (10, 5, 10_000),
+                (20, 7, 20_000),
+            ],
+        ),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+
+    status = orchestrator.resume()
+
+    assert status.state == "completed"
+    assert status.cost_usd == pytest.approx(0.03)
+    assert status.input_tokens == 30
+    assert status.output_tokens == 12
+    completed = [
+        event
+        for event in orchestrator.store.events(manifest)
+        if event.event == "attempt_completed"
+    ]
+    assert completed[0].details["usage"]["request_count"] == 2
 
 
 def test_done_unjournaled_usage_reserves_budget_before_next_dispatch(
@@ -1586,3 +1772,175 @@ def test_failed_attempt_without_usage_blocks_later_dispatch(
         orchestrator._next_attempt_budget_reason([], manifest.attempts[1])
         == "campaign_usage_missing"
     )
+
+
+def _frozen_owner(tmp_path: Path) -> tuple[Path, CampaignManifest, CampaignWorkloadOwner]:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
+    CampaignStore(root / "runs/campaigns", manifest.campaign_id).freeze(manifest)
+    return root, manifest, CampaignWorkloadOwner.from_repo(root, manifest.campaign_id)
+
+
+def test_campaign_workload_owner_cancels_exact_active_lease(tmp_path: Path) -> None:
+    root, manifest, owner = _frozen_owner(tmp_path)
+    attempt = manifest.attempts[0]
+    queue = DirectoryQueue(root / "queue")
+    running = queue.state_dir("running") / f"{attempt.spec.agent}-{attempt.spec_id}.json"
+    running.write_text(attempt.spec.model_dump_json(), encoding="utf-8")
+    assert queue.acquire_lease(attempt.spec) is not None
+
+    result = owner.request_cancel([attempt.spec_id, "unknown-lease"])
+
+    assert result["executed"] is True
+    assert result["queue_stopped"] is True
+    assert result["results"] == {
+        attempt.spec_id: "signalled",
+        "unknown-lease": "unknown",
+    }
+    assert queue.cancel_path(attempt.spec).is_file()
+
+
+def test_campaign_workload_owner_observes_terminal_queue_evidence(tmp_path: Path) -> None:
+    root, manifest, owner = _frozen_owner(tmp_path)
+    attempt = manifest.attempts[0]
+    queue = DirectoryQueue(root / "queue")
+    done = queue.state_dir("done") / f"{attempt.spec.agent}-{attempt.spec_id}.json"
+    done.write_text(attempt.spec.model_dump_json(), encoding="utf-8")
+    queue_event = QueueEvent(
+        event_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        spec_id=attempt.spec_id,
+        occurred_at=NOW,
+        event="dispatch_completed",
+        from_state="running",
+        to_state="done",
+        actor="executor",
+        job_name=attempt.job_name,
+    )
+    queue.append_event(queue_event)
+
+    observed = owner.observe_lease(attempt.attempt_id)
+
+    assert observed is not None
+    assert observed["alive"] is False
+    assert observed["queue_state"] == "complete"
+    assert len(observed["settlement_digest"]) == 64
+    assert observed["evidence"]["queue_event_id"] == queue_event.event_id
+
+
+def test_campaign_control_loop_stays_disabled_without_dispatch(tmp_path: Path) -> None:
+    root, _manifest, owner = _frozen_owner(tmp_path)
+    state = tmp_path / "operator-state"
+    state.mkdir()
+    write_mode(state, "DISABLED")
+
+    tick = DisabledCampaignControlLoop(state, owner).tick()
+
+    assert tick == {
+        "campaign_id": owner.manifest.campaign_id,
+        "mode": "DISABLED",
+        "running": False,
+        "dispatched": 0,
+        "reason": "default_disabled",
+    }
+    assert not (root / "queue").exists()
+
+
+def test_operator_cli_binds_frozen_campaign_owner_without_dispatch(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root, manifest, _owner = _frozen_owner(tmp_path)
+    state = tmp_path / "operator-cli-state"
+
+    code = operator_main(
+        [
+            "status",
+            "--state-dir",
+            str(state),
+            "--repo-root",
+            str(root),
+            "--campaign-id",
+            manifest.campaign_id,
+        ],
+        environ={},
+        secret_store=lambda _ref: None,
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["mode"] == "DISABLED"
+    assert payload["running"] is False
+    assert not (root / "queue").exists()
+
+
+def test_campaign_refuses_registry_record_without_immutable_family(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    record_path = root / "library/registry/task-one.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record.pop("task_family")
+    record_path.write_text(json.dumps(record), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="invalid registry record"):
+        build_campaign_manifest(_definition(billable=True), repo_root=root)
+
+
+def test_campaign_refuses_self_asserted_family_against_registry(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    record_path = root / "library/registry/task-one.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["task_family"] = SyntheticFamilyType.FAMILY_B_FUNCDAG_V2.value
+    record_path.write_text(json.dumps(record), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="registered benchmark family"):
+        build_campaign_manifest(_definition(billable=True), repo_root=root)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        (
+            "benchmark_family",
+            SyntheticFamilyType.FAMILY_B_FUNCDAG_V2.value,
+            "benchmark family",
+        ),
+        ("task_id", "different-task", "registry identity"),
+        ("task_package_digest", "sha256:" + "0" * 64, "registry identity"),
+        ("verifier_digest", "sha256:" + "0" * 64, "registry identity"),
+    ],
+)
+def test_campaign_refuses_spoofed_frozen_matrix_identity(
+    tmp_path: Path,
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    root = _repo(tmp_path)
+    matrix_path = (
+        root
+        / "research/experiments/matrices"
+        / "01ARZ3NDEKTSV4RRFFQ69G5FAW.json"
+    )
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    matrix[field] = value
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        build_campaign_manifest(_definition(billable=True), repo_root=root)
+
+
+def test_campaign_refuses_unresolved_ledger_matrix_ref(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    definition = _definition(billable=True)
+    ledger = definition.ledger.model_copy(
+        update={"matrix_ref": "01ARZ3NDEKTSV4RRFFQ69G5FAS"}
+    )
+
+    with pytest.raises(ValueError, match="does not resolve to a frozen matrix"):
+        build_campaign_manifest(
+            definition.model_copy(update={"ledger": ledger}),
+            repo_root=root,
+        )

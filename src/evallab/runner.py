@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 import platform
 import re
 import secrets
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -27,12 +30,15 @@ from evallab.execution_contracts import (
     DEEPSEEK_ALLOWED_MODEL_ENV,
     DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
     DEEPSEEK_MODEL_SELECTOR,
+    DEEPSEEK_PROXY_ATTEMPT_ID_ENV,
     DEEPSEEK_PROXY_CAPABILITY_ENV,
     DEEPSEEK_PROXY_GID_ENV,
     DEEPSEEK_PROXY_HOST,
     DEEPSEEK_PROXY_SCRIPT,
     DEEPSEEK_PROXY_SCRIPT_ENV,
     DEEPSEEK_PROXY_UID_ENV,
+    DEEPSEEK_PROXY_USAGE_DIR_ENV,
+    DEEPSEEK_PROXY_USAGE_FILE_ENV,
     DEEPSEEK_SECRET_FILE_ENV,
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     DEFAULT_TRIAL_TIMEOUT_SECONDS,
@@ -45,6 +51,7 @@ from evallab.execution_contracts import (
     WATCHDOG_POLL_SECONDS,
     ExecutionFailure,
     HarborProcessResult,
+    ProxyTrialLimits,
     RedactingBinaryWriter,
     RunRequest,
     TransientHarnessFailure,
@@ -440,6 +447,111 @@ def assert_no_secret_material(
         )
 
 
+def _cancel_requested(lease_path: Path | None) -> bool:
+    if lease_path is None:
+        return False
+    try:
+        return stat.S_ISREG(os.lstat(lease_path.with_suffix(".cancel")).st_mode)
+    except OSError:
+        return False
+
+
+def _read_proxy_usage(
+    path: Path,
+    *,
+    capability_id: str,
+    attempt_id: str,
+    limits: ProxyTrialLimits,
+) -> dict[str, Any]:
+    try:
+        payload = json.loads(read_owner_secret_file(path))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            "DeepSeek proxy usage report is unreadable",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ExecutionFailure("proxy_usage_invalid", "DeepSeek proxy usage report is invalid")
+
+    def integer(value: object, label: str) -> int:
+        if (
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value < 0
+            or value > 2**63 - 1
+        ):
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                f"DeepSeek proxy usage field {label} is invalid",
+            )
+        return value
+
+    expected_limits = asdict(limits)
+    if (
+        payload.get("schema_version") != 1
+        or payload.get("capability_id") != capability_id
+        or payload.get("attempt_id") != attempt_id
+        or payload.get("limits") != expected_limits
+    ):
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            "DeepSeek proxy usage binding does not match this trial",
+        )
+    calls = payload.get("calls")
+    totals = payload.get("totals")
+    if not isinstance(calls, list) or not isinstance(totals, dict):
+        raise ExecutionFailure("proxy_usage_invalid", "DeepSeek proxy usage report is invalid")
+    computed = {
+        "requests": len(calls),
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_micros": 0,
+    }
+    unresolved = 0
+    expected_sequence = 0
+    for index, raw_call in enumerate(calls, start=1):
+        if not isinstance(raw_call, dict) or integer(raw_call.get("call_id"), "call_id") != index:
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                "DeepSeek proxy call sequence is invalid",
+            )
+        state = raw_call.get("state")
+        if state == "reconciled":
+            source_fields = ("input_tokens", "output_tokens", "cost_micros")
+            expected_sequence += 2
+        elif state in {"reserved", "unresolved"}:
+            source_fields = (
+                "reserved_input_tokens",
+                "reserved_output_tokens",
+                "reserved_cost_micros",
+            )
+            unresolved += 1
+            expected_sequence += 1 if state == "reserved" else 2
+        else:
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                "DeepSeek proxy call state is invalid",
+            )
+        computed["input_tokens"] += integer(raw_call.get(source_fields[0]), source_fields[0])
+        computed["output_tokens"] += integer(raw_call.get(source_fields[1]), source_fields[1])
+        computed["cost_micros"] += integer(raw_call.get(source_fields[2]), source_fields[2])
+    expected_totals = {
+        **computed,
+        "total_tokens": computed["input_tokens"] + computed["output_tokens"],
+    }
+    if (
+        {name: integer(totals.get(name), name) for name in expected_totals}
+        != expected_totals
+        or integer(payload.get("unresolved_requests"), "unresolved_requests") != unresolved
+        or integer(payload.get("sequence"), "sequence") != expected_sequence
+    ):
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            "DeepSeek proxy totals do not reconcile with provider calls",
+        )
+    return payload
+
+
 def run_harbor_process(
     command: list[str],
     *,
@@ -449,9 +561,16 @@ def run_harbor_process(
     job_dir: Path | None = None,
     trial_timeout_seconds: float | None = None,
     lease_path: Path | None = None,
+    proxy_attempt_id: str | None = None,
+    proxy_limits: ProxyTrialLimits | None = None,
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
 ) -> HarborProcessResult:
     """Run Harbor while redacting provider credentials before log persistence."""
+    if _cancel_requested(lease_path):
+        raise ExecutionFailure(
+            "execution_cancelled",
+            "campaign owner cancelled the active queue lease before Harbor launch",
+        )
     repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
     deepseek_lane = deepseek_adapter in command
@@ -459,38 +578,58 @@ def run_harbor_process(
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None
     owned_secret_path: Path | None = None
+    owned_usage_dir: Path | None = None
+    owned_usage_path: Path | None = None
+    capability_id: str | None = None
     try:
         if deepseek_lane:
+            if proxy_attempt_id is None or proxy_limits is None:
+                raise ValueError("DeepSeek execution requires a bound trial capability")
             capability = secrets.token_urlsafe(32)
+            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+            owned_usage_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-deepseek-usage.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(owned_usage_dir, 0o700)
+            owned_usage_path = owned_usage_dir / "deepseek-proxy-usage.json"
             runtime_environment[DEEPSEEK_PROXY_CAPABILITY_ENV] = capability
+            runtime_environment[DEEPSEEK_PROXY_ATTEMPT_ID_ENV] = proxy_attempt_id
+            runtime_environment[DEEPSEEK_PROXY_USAGE_DIR_ENV] = str(owned_usage_dir)
+            runtime_environment[DEEPSEEK_PROXY_USAGE_FILE_ENV] = str(owned_usage_path)
             runtime_environment["DEEPSEEK_API_KEY"] = capability
             runtime_environment["MSWEA_API_KEY"] = capability
             runtime_environment[DEEPSEEK_ALLOWED_MODEL_ENV] = os.environ.get(
                 DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_MAX_REQUESTS",
-                os.environ.get("EVALLAB_DEEPSEEK_MAX_REQUESTS", "8"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_REQUESTS"] = str(
+                proxy_limits.max_requests
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS",
-                os.environ.get("EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS", "32768"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS"] = str(
+                proxy_limits.max_input_tokens
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS",
-                os.environ.get("EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS", "4096"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS"] = str(
+                proxy_limits.max_output_tokens
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_MAX_COST_MICROS",
-                os.environ.get("EVALLAB_DEEPSEEK_MAX_COST_MICROS", "500000"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_TOTAL_TOKENS"] = str(
+                proxy_limits.max_total_tokens
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
-                os.environ.get("EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION", "280000"),
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_COST_MICROS"] = str(
+                proxy_limits.max_cost_micros
             )
-            runtime_environment.setdefault(
-                "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
-                os.environ.get("EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION", "420000"),
+            runtime_environment["EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION"] = (
+                os.environ.get(
+                    "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
+                    "280000",
+                )
+            )
+            runtime_environment["EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION"] = (
+                os.environ.get(
+                    "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
+                    "420000",
+                )
             )
             runtime_environment["EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT"] = str(
                 time.time() + float(timeout_seconds) + 60.0
@@ -538,6 +677,35 @@ def run_harbor_process(
                     str(path) for path in (source_root, inherited_pythonpath) if path
                 )
         secret_bytes = tuple(value.encode() for value in secret_values)
+
+        def _result(
+            *,
+            returncode: int,
+            timed_out: bool,
+            timed_out_trial: str | None = None,
+        ) -> HarborProcessResult:
+            proxy_usage = None
+            if (
+                deepseek_lane
+                and owned_usage_path is not None
+                and owned_usage_path.is_file()
+                and capability_id is not None
+                and proxy_attempt_id is not None
+                and proxy_limits is not None
+            ):
+                proxy_usage = _read_proxy_usage(
+                    owned_usage_path,
+                    capability_id=capability_id,
+                    attempt_id=proxy_attempt_id,
+                    limits=proxy_limits,
+                )
+            return HarborProcessResult(
+                returncode=returncode,
+                timed_out=timed_out,
+                log_path=log_path,
+                timed_out_trial=timed_out_trial,
+                proxy_usage=proxy_usage,
+            )
         read_fd, write_fd = os.pipe()
         writer = RedactingBinaryWriter(log_path, secret_bytes)
 
@@ -581,6 +749,15 @@ def run_harbor_process(
             last_heartbeat = started
             first_seen: dict[Path, float] = {}
             while True:
+                if _cancel_requested(lease_path):
+                    _terminate_process_group(process)
+                    pump.join(timeout=5)
+                    return _result(
+                        returncode=(
+                            process.returncode if process.returncode is not None else -1
+                        ),
+                        timed_out=False,
+                    )
                 returncode = process.poll()
                 if returncode is not None:
                     break
@@ -606,10 +783,11 @@ def run_harbor_process(
                 if timed_out_trial is not None or now - started >= timeout_seconds:
                     _terminate_process_group(process)
                     pump.join(timeout=5)
-                    return HarborProcessResult(
-                        returncode=(process.returncode if process.returncode is not None else -1),
+                    return _result(
+                        returncode=(
+                            process.returncode if process.returncode is not None else -1
+                        ),
                         timed_out=True,
-                        log_path=log_path,
                         timed_out_trial=timed_out_trial,
                     )
                 try:
@@ -617,16 +795,17 @@ def run_harbor_process(
                 except subprocess.TimeoutExpired:
                     continue
             pump.join(timeout=5)
-            return HarborProcessResult(
+            return _result(
                 returncode=returncode,
                 timed_out=False,
-                log_path=log_path,
             )
 
         finally:
             _unlink_secret_dir(owned_secret_dir, owned_secret_path)
+            _unlink_secret_dir(owned_usage_dir, owned_usage_path)
     finally:
         _unlink_secret_dir(owned_secret_dir, owned_secret_path)
+        _unlink_secret_dir(owned_usage_dir, owned_usage_path)
 
 
 def _tail_text(path: Path, *, limit_bytes: int = 1_000_000) -> str:
@@ -768,11 +947,14 @@ def _write_run_metadata(
     }
     if request.provenance is not None:
         metadata["experiment"] = request.provenance.model_dump(mode="json")
+    if process.proxy_usage is not None:
+        metadata["provider_usage"] = process.proxy_usage
     if network_adaptation is not None:
         metadata["network_adaptation"] = asdict(network_adaptation)
-    (job_dir / "lab-metadata.json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    persist_private_bytes(
+        job_dir / "lab-metadata.json",
+        (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode(),
+        secrets=tuple(value.encode() for value in collected_secret_values()),
     )
 
 
@@ -890,6 +1072,38 @@ def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None
         persist_private_bytes(path, data, secrets=secrets)
 
 
+def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
+    if request.agent != "mini-swe-agent":
+        return None
+    if (
+        request.max_requests is None
+        or request.max_input_tokens is None
+        or request.max_output_tokens is None
+        or request.max_total_tokens is None
+        or request.cost_limit_usd is None
+    ):
+        raise ValueError("DeepSeek execution requires explicit provider ceilings")
+    return ProxyTrialLimits(
+        max_requests=request.max_requests,
+        max_input_tokens=request.max_input_tokens,
+        max_output_tokens=request.max_output_tokens,
+        max_total_tokens=request.max_total_tokens,
+        max_cost_micros=math.ceil(request.cost_limit_usd * 1_000_000),
+    )
+
+
+def _proxy_attempt_id(request: RunRequest) -> str | None:
+    if request.agent != "mini-swe-agent":
+        return None
+    if request.provenance is not None:
+        return (
+            request.provenance.campaign_attempt_id
+            or request.provenance.spec_id
+            or request.name
+        )
+    return request.name
+
+
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
     if request.agent == "mini-swe-agent":
@@ -944,6 +1158,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 job_dir=job_dir,
                 trial_timeout_seconds=request.timeout_seconds,
                 lease_path=request.lease_path,
+                proxy_attempt_id=_proxy_attempt_id(request),
+                proxy_limits=_proxy_trial_limits(request),
             )
         except BaseException:
             _write_executor_state(
@@ -955,10 +1171,15 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             )
             raise
         finished = datetime.now(UTC)
+        cancelled = _cancel_requested(request.lease_path)
         _write_executor_state(
             request,
             started_at=started,
-            status="failed" if process.timed_out or process.returncode != 0 else "running",
+            status=(
+                "failed"
+                if cancelled or process.timed_out or process.returncode != 0
+                else "running"
+            ),
             log_path=executor_log,
             finished_at=finished,
             process=process,
@@ -972,6 +1193,13 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             process=process,
             network_adaptation=adaptation,
         )
+        if cancelled:
+            cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+            cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+            raise ExecutionFailure(
+                "execution_cancelled",
+                f"campaign owner cancelled the active queue lease{cleanup_detail}",
+            )
 
         if process.timed_out:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
@@ -982,7 +1210,12 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             )
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
             raise TrialTimeoutFailure(f"{scope}; inspect {executor_log}{cleanup_detail}")
-        _sanitize_persisted_job_tree(job_dir, tuple(value.encode() for value in collected_secret_values()))
+        secret_values = collected_secret_values()
+        assert_no_secret_material((job_dir,), secrets=secret_values)
+        _sanitize_persisted_job_tree(
+            job_dir,
+            tuple(value.encode() for value in secret_values),
+        )
         transient_reason = _transient_reason_from_job(job_dir)
         if process.returncode != 0:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
@@ -995,6 +1228,21 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             raise ExecutionFailure(
                 f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
             )
+        if request.agent == "mini-swe-agent":
+            if process.proxy_usage is None:
+                cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+                cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+                raise ExecutionFailure(
+                    "proxy_usage_missing",
+                    f"DeepSeek proxy usage report is missing{cleanup_detail}",
+                )
+            if process.proxy_usage.get("unresolved_requests") != 0:
+                cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+                cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+                raise ExecutionFailure(
+                    "proxy_usage_unreconciled",
+                    f"DeepSeek proxy has unreconciled provider calls{cleanup_detail}",
+                )
         job = load_job(job_dir)
         _write_executor_state(
             request,
@@ -1011,17 +1259,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 transient_reason,
                 message=transient_reason + cleanup_detail,
             )
-        secret_environment = subscription_environment(
-            include_deepseek_credentials=True,
-        )
-        assert_no_secret_material(
-            (job_dir,),
-            secrets=frozenset(
-                secret_environment[name]
-                for name in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS
-                if name in secret_environment and len(secret_environment[name]) >= 8
-            ),
-        )
         evidence_root = os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
         if evidence_root:
             try:

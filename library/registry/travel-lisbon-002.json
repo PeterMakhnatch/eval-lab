@@ -1,6 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "task_id": "travel-lisbon-002",
+  "task_family": "travel-planning",
   "version": "1.0.0",
   "task_path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
   "digests": {

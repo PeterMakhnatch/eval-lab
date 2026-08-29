@@ -285,10 +285,25 @@ class ExperimentSpec(ContractModel):
         default=None,
         description=("task-generator seed only; model-sampling seed is uncontrolled and absent"),
     )
+    max_requests: int | None = Field(
+        default=None,
+        ge=1,
+        description="enforced per-trial provider request ceiling",
+    )
+    max_input_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="enforced per-trial model input-token ceiling",
+    )
     max_output_tokens: int | None = Field(
         default=None,
         ge=1,
         description="enforced per-trial model output-token ceiling",
+    )
+    max_total_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="enforced per-trial combined token ceiling",
     )
     cost_limit_usd: float | None = Field(
         default=None,
@@ -355,8 +370,19 @@ class ExperimentSpec(ContractModel):
                 raise ValueError("campaign provenance fields must be declared together")
             if self.attempts != 1 or self.concurrency != 1:
                 raise ValueError("campaign specs represent exactly one attempt")
-            if self.billable and (self.cost_limit_usd is None or self.max_output_tokens is None):
-                raise ValueError("billable campaign specs require cost and output-token ceilings")
+            if self.billable and any(
+                value is None
+                for value in (
+                    self.cost_limit_usd,
+                    self.max_requests,
+                    self.max_input_tokens,
+                    self.max_output_tokens,
+                    self.max_total_tokens,
+                )
+            ):
+                raise ValueError(
+                    "billable campaign specs require request, cost, and token ceilings"
+                )
         return self
 
     @property
@@ -378,10 +404,19 @@ class MatrixRun(ContractModel):
 
 
 class ExperimentMatrix(ContractModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
+    matrix_id: str = Field(pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
     name: str
     hypothesis: str
+    benchmark_family: str = Field(min_length=1)
+    task_id: str = Field(
+        min_length=3,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
     task: str
+    task_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
@@ -1443,11 +1478,15 @@ ContaminationRecord = TaskContamination
 
 
 class TaskRegistryRecord(ContractModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     task_id: str = Field(
         min_length=3,
         max_length=80,
         pattern=r"^[a-z0-9][a-z0-9-]+$",
+    )
+    task_family: str = Field(
+        min_length=1,
+        pattern=r"^[a-z0-9][a-z0-9_-]+$",
     )
     version: str = Field(min_length=1)
     task_path: str = Field(min_length=1)

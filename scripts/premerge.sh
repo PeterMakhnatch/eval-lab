@@ -4,7 +4,7 @@ set -euo pipefail
 readonly PYTHON_FLOOR="3.12"
 readonly UV_VERSION="0.9.24"
 readonly TY_VERSION="0.0.71"
-readonly TY_BASELINE="28"
+readonly TY_BASELINE="0"
 readonly TY_OUTPUT="runs/_premerge/ty.txt"
 
 if [[ "$(uv --version)" != "uv ${UV_VERSION}"* ]]; then

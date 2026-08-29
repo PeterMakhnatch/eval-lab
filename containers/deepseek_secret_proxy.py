@@ -30,6 +30,9 @@ HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 PINNED_HTTPS_HOST = "api.deepseek.com"
 PINNED_HTTPS_PORT = 443
+ALLOWED_HTTP_HOSTS = frozenset(
+    {"127.0.0.1", "localhost", "evallab-smoke-upstream", "host.docker.internal"}
+)
 HOP_BY_HOP = frozenset(
     {
         "connection",
@@ -109,7 +112,7 @@ def _pinned_upstream_url() -> str:
         return f"https://{PINNED_HTTPS_HOST}:{PINNED_HTTPS_PORT}{ALLOWED_PATH}"
     if parsed.scheme == "http":
         host = parsed.hostname
-        if host not in {"127.0.0.1", "localhost"}:
+        if not host or host not in ALLOWED_HTTP_HOSTS:
             raise RuntimeError("http upstream is not pinned")
         port = parsed.port
         if port is None:

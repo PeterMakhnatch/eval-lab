@@ -1084,3 +1084,16 @@ def test_proxy_runtime_identity_matches_current_owner(tmp_path: Path) -> None:
     attacker.symlink_to(path)
     with pytest.raises(OSError):
         proxy_runtime_identity(attacker)
+
+
+def test_proxy_pinned_upstream_url_enforces_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
+    proxy_module = _load_proxy_module()
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", "https://api.deepseek.com")
+    assert proxy_module._pinned_upstream_url() == "https://api.deepseek.com:443/v1/chat/completions"
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", "http://evallab-smoke-upstream:8099")
+    assert proxy_module._pinned_upstream_url() == "http://evallab-smoke-upstream:8099/v1/chat/completions"
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", "http://127.0.0.1:9000")
+    assert proxy_module._pinned_upstream_url() == "http://127.0.0.1:9000/v1/chat/completions"
+    monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", "http://untrusted-remote.com:8080")
+    with pytest.raises(RuntimeError, match="http upstream is not pinned"):
+        proxy_module._pinned_upstream_url()

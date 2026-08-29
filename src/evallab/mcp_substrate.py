@@ -22,6 +22,7 @@ Provides:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -29,7 +30,6 @@ import os
 import re
 import shutil
 import stat
-import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -357,21 +357,57 @@ def _assert_confined_nonsymlink_destination(root: Path, destination: str) -> Pat
     return resolved
 
 
-def _atomic_write_bytes(destination: Path, data: bytes) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
-    )
-    tmp_path = Path(tmp_name)
+_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+
+def _confined_relative_parts(relative: str) -> tuple[str, ...]:
+    if not isinstance(relative, str) or _runtime_asset_has_control_chars(relative):
+        raise SubstrateError(f"Invalid confined relative path: {relative!r}")
+    if relative.startswith("/") or "\\" in relative:
+        raise SubstrateError(f"Invalid confined relative path: {relative!r}")
+    parts = Path(relative).parts
+    if not parts or any(part in (".", "..") for part in parts):
+        raise SubstrateError(f"Invalid confined relative path: {relative!r}")
+    return parts
+
+
+def _write_confined_bytes(root: Path, relative: str, data: bytes) -> None:
+    """Write bytes under root without following any destination symlink component."""
+    parts = _confined_relative_parts(relative)
+    dir_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | _NOFOLLOW)
+    tmp_name: str | None = None
     try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp_path, destination)
-    except Exception:
-        tmp_path.unlink(missing_ok=True)
-        raise
+        for part in parts[:-1]:
+            with contextlib.suppress(FileExistsError):
+                os.mkdir(part, 0o755, dir_fd=dir_fd)
+            next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | _NOFOLLOW, dir_fd=dir_fd)
+            os.close(dir_fd)
+            dir_fd = next_fd
+        name = parts[-1]
+        tmp_name = f".{name}.{os.getpid()}.tmp"
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW
+        fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
+        try:
+            view = memoryview(data)
+            offset = 0
+            while offset < len(view):
+                offset += os.write(fd, view[offset:])
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.rename(tmp_name, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        tmp_name = None
+    except OSError as exc:
+        raise SubstrateError(f"Failed confined write for {relative!r}") from exc
+    finally:
+        if tmp_name is not None:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_name, dir_fd=dir_fd)
+        os.close(dir_fd)
+
+
+def _write_confined_text(root: Path, relative: str, text: str) -> None:
+    _write_confined_bytes(root, relative, text.encode("utf-8"))
 
 
 def _reject_symlink_leaf(path: Path, *, label: str) -> None:
@@ -632,6 +668,9 @@ def render_mcp_sidecar_dockerfile(
     runtime_assets: Sequence[RuntimeAsset] = (),
 ) -> str:
     """Render canonical offline sidecar Dockerfile using strict hash-locked pip installation."""
+    validate_target_base_runtime(
+        DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, base_image
+    )
     wheelhouse_dir = _dockerfile_copy_token(wheelhouse_dir, name="wheelhouse_dir")
     app_dir = _dockerfile_copy_token(app_dir, name="app_dir")
     server_script_name = _dockerfile_copy_token(server_script_name, name="server_script_name")
@@ -725,12 +764,12 @@ def materialize_mcp_sidecar_package(
         op_registry_module=op_registry_module,
         fault_record=fault_record,
     )
-    server_path = _assert_confined_nonsymlink_destination(target_dir, "server.py")
-    server_path.write_text(server_code, encoding="utf-8")
+    _assert_confined_nonsymlink_destination(target_dir, "server.py")
+    _write_confined_text(target_dir, "server.py", server_code)
 
     sorted_assets = tuple(asset for _destination, asset, _content in confined_assets)
-    for destination, _asset, content in confined_assets:
-        _atomic_write_bytes(destination, content)
+    for _destination, asset, content in confined_assets:
+        _write_confined_bytes(target_dir, asset.destination, content)
 
     # 2. requirements.txt is emitted only after selected wheels are staged.
 
@@ -748,10 +787,10 @@ def materialize_mcp_sidecar_package(
         }
         if asset_proof:
             proof_data["runtime_assets"] = asset_proof
-        proof_path = _assert_confined_nonsymlink_destination(
-            target_dir, "offline-build-proof.json"
+        _assert_confined_nonsymlink_destination(target_dir, "offline-build-proof.json")
+        _write_confined_text(
+            target_dir, "offline-build-proof.json", canonical_json(proof_data) + "\n"
         )
-        proof_path.write_text(canonical_json(proof_data) + "\n", encoding="utf-8")
     else:
         if wheelhouse_source is None:
             raise SubstrateError(
@@ -769,17 +808,15 @@ def materialize_mcp_sidecar_package(
         )
         wheel_inventory = verify_provenance_wheelhouse(dest_wheelhouse, resolver_provenance)
         requirements_lock = render_provenance_lock(resolver_provenance)
-        requirements_path = _assert_confined_nonsymlink_destination(
-            target_dir, "requirements.txt"
-        )
-        requirements_path.write_text(requirements_lock, encoding="utf-8")
+        _assert_confined_nonsymlink_destination(target_dir, "requirements.txt")
+        _write_confined_text(target_dir, "requirements.txt", requirements_lock)
 
         # 3. Dockerfile
         dockerfile_content = render_mcp_sidecar_dockerfile(
             base_image=base_image, runtime_assets=sorted_assets
         )
-        dockerfile_path = _assert_confined_nonsymlink_destination(target_dir, "Dockerfile")
-        dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
+        _assert_confined_nonsymlink_destination(target_dir, "Dockerfile")
+        _write_confined_text(target_dir, "Dockerfile", dockerfile_content)
 
         proof_data = {
             "mode": "complete_offline_package",
@@ -792,17 +829,17 @@ def materialize_mcp_sidecar_package(
         }
         if asset_proof:
             proof_data["runtime_assets"] = asset_proof
-        proof_path = _assert_confined_nonsymlink_destination(
-            target_dir, "offline-build-proof.json"
+        _assert_confined_nonsymlink_destination(target_dir, "offline-build-proof.json")
+        _write_confined_text(
+            target_dir, "offline-build-proof.json", canonical_json(proof_data) + "\n"
         )
-        proof_path.write_text(canonical_json(proof_data) + "\n", encoding="utf-8")
 
     if plan_only:
-        requirements_path = _assert_confined_nonsymlink_destination(
-            target_dir, "requirements.txt"
-        )
-        requirements_path.write_text(
-            "# plan-only; resolve a target wheelhouse before build\n", encoding="utf-8"
+        _assert_confined_nonsymlink_destination(target_dir, "requirements.txt")
+        _write_confined_text(
+            target_dir,
+            "requirements.txt",
+            "# plan-only; resolve a target wheelhouse before build\n",
         )
 
     # Compose and Collect fragments
@@ -1122,9 +1159,20 @@ def stage_platform_wheelhouse(
 ) -> tuple[str, list[dict[str, Any]]]:
     """Copy a selected explicit-target wheelhouse and derive its byte-exact requirements lock."""
     lock, inventory = render_selected_wheel_lock(source, target)
+    if destination.is_symlink():
+        raise SubstrateError("wheelhouse destination is a symlink")
     destination.mkdir(parents=True, exist_ok=True)
+    if destination.is_symlink() or not destination.is_dir():
+        raise SubstrateError("wheelhouse destination is not a real directory")
     for item in inventory:
-        shutil.copy2(source / item["filename"], destination / item["filename"])
+        filename = item["filename"]
+        if Path(filename).name != filename:
+            raise SubstrateError(f"wheel filename is not a basename: {filename!r}")
+        content = _read_runtime_asset_source(source / filename)
+        dest_file = destination / filename
+        if dest_file.is_symlink():
+            raise SubstrateError(f"wheelhouse entry is a symlink: {filename!r}")
+        _write_confined_bytes(destination, filename, content)
     return lock, inventory
 
 

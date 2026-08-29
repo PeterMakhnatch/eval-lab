@@ -479,11 +479,24 @@ this had not been done.
   whether requested order matches issued order.
 - **Already partially executed** in §1.6 against the three wave-1 semantic 16k
   trials — which is what established that 16k and 64k are different classes.
-- **Producer acceptance, from the promoted wave-2 bundles:** `handle_set_match =
-  false` on all six seed-1337 failures; `unknown_handle_count = 1` (2 on the
-  259-read trial); `handle_coverage_rate = 256/257`; and for Full's seed-42 semantic
-  trial `handle_order_match = false` with complete coverage. If the producer does
-  not reproduce these, it is wrong and the features cannot be trusted yet.
+- **Producer acceptance, stated in the producer's own definitions** (not the
+  audit's), from the promoted wave-2 bundles:
+  - all six seed-1337 failures: `handle_set_match = false`,
+    `handle_coverage_rate = 256/257`, `unknown_handle_count >= 1`
+  - Full's seed-42 semantic trial: `handle_order_match = false` with
+    `handle_set_match` reflecting **complete** coverage and
+    `duplicate_handle_count >= 1`
+  - Flash seed-42 both arms: `handle_set_match = true`,
+    `handle_coverage_rate = 1.0`, `unknown_handle_count = 0`
+- **One definitional gap to resolve first, not paper over.** `[OBSERVED]`
+  `unknown_handle_count` counts **occurrences** (`:269-270`), while the promoted
+  audit's `not_found_counts` records 1 for five trials and 2 for the 259-read one.
+  For that trial the audit lists extras `…c32bf6`, `…c32bf6`, `…1b587b` — three
+  occurrences. So the producer should report **3** where the audit reports 2, because
+  they count different things. `[INFERENCE]` I predicted "2" in an earlier draft by
+  borrowing the audit's field, which is the same class of error as trusting
+  `observed_reads`: **reusing a number without checking its definition.** Reconciling
+  the two definitions is the first output of E0a, not an afterthought.
 - **Stop/go:** if the fidelity columns reproduce the audit, transcription leads and
   E0b is designed around it, with `unknown_handle_count` as the primary outcome. If
   they disagree with the raw reconstruction, resolve that before any design work.
@@ -1062,7 +1075,7 @@ against adversarial structure (credential symlinks) and it held.
 
 ## 7. Weak-area backlog, ranked by evidence impact
 
-### 7.0 What the C1 lane already landed (PR #303, `f7351bf8`)
+### 7.0 What the C1 lane already landed (PR #303, head `8693bbcc`)
 
 `[OBSERVED]` Verified read-only at that head. Two of this memo's requests are
 satisfied, and the second is implemented more precisely than I asked for.
@@ -1085,15 +1098,38 @@ These two features can no longer trip that.
 `src/evallab/interpretation/producers/action_memory.py` and surfaced in
 `sql/traj_benchmark_views.sql`:
 
-| Feature | Formula / rule | Failure class it isolates |
+**Read the producer, not only the registry.** `[OBSERVED]` The registry strings were
+unchanged across #303's two reviewed heads, but the **producer semantics tightened**
+in four ways at that second head
+(`src/evallab/interpretation/producers/action_memory.py:225-298,328-337`). An earlier
+draft of this section quoted the registry formulas and was therefore misleading about
+what the features compute. Actual behaviour:
+
+| Feature | Implemented rule at `8693bbcc` | Failure class it isolates |
 |---|---|---|
-| `expected_handle_count` | expected handles declared in contract | — (denominator) |
-| `valid_handle_count` | requested handles matching the expected universe | — |
-| `unknown_handle_count` | requested handles **not in** the declared universe | **the `…c32bf6` near-typo substitution** |
-| `duplicate_handle_count` | `total_handle_requests − distinct_valid_handles` | **the 16k redundancy failure** |
-| `handle_set_match` | `expected_handle_universe <= set(observed_handles)` | **the omitted `…c32bf4`** |
-| `handle_order_match` | `observed_handles == expected_handle_sequence` | **Full's 39 prefix reorderings** |
-| `handle_coverage_rate` | `valid_handle_count / expected_handle_count`, denominator declared | incomplete coverage, including the scaffold's 232/257 |
+| `expected_handle_count` | `len(expected_set)` | — (denominator) |
+| `valid_handle_count` | `len(set(successful_valid_handles))` — **successful and expected only**; a call is rejected on `is_error`, or a payload `error` / `is_error` / `status in (error, not_found)` (`:255-266`) | — |
+| `unknown_handle_count` | `len([h for h in observed_handles if h not in expected_set])` — counts **occurrences**, not distinct | **the `…c32bf6` near-typo substitution** |
+| `duplicate_handle_count` | `len(observed_handles) − len(set(observed_handles))` (`:271`) — **isolated from validity** | **the 16k redundancy failure** |
+| `handle_set_match` | `set(successful_valid_handles) == expected_set and len(unknown_handles) == 0` (`:274-276`) — **exact set equality**, not a subset test | **the omitted `…c32bf4`** |
+| `handle_order_match` | `successful_valid_handles == expected_chunk_ids and len(unknown_handles) == 0` (`:286-288`) | **Full's 39 prefix reorderings** |
+| `handle_coverage_rate` | `min(valid_handle_count, expected_handle_count) / expected_handle_count` (`:296-298`) — clamped, so it cannot exceed 1 | incomplete coverage, including the scaffold's 232/257 |
+| `prompt_cache_hit_rate` | `sum(cached_step_tokens) / sum(step_tokens)` (`:334`), falling back to step-token weighting over boolean cache hits (`:336`) — **token-weighted**, not a call ratio | context-reuse manipulation check |
+
+`[INFERENCE]` The four tightenings each matter for this roadmap:
+
+1. **Duplicate isolation.** `duplicate_handle_count` is now computed over *observed*
+   handles independent of validity, so duplication and substitution are genuinely
+   orthogonal signals. My four-class separation is cleaner than I described it.
+2. **Exact set equality.** A subset test would have passed the seed-1337 failures if
+   the omitted handle had been compensated by extra reads; exact equality plus
+   zero-unknowns cannot. This is the stricter and correct choice.
+3. **Application-error rejection.** A handle requested but returning
+   `not_found`/`error` no longer counts as valid. That is directly relevant: the
+   `…c32bf6` typo requests presumably *fail* at the server, and counting them as
+   valid would have masked the omission.
+4. **Token-weighted cache rate.** A call-count ratio would misreport reuse when step
+   sizes differ by orders of magnitude — which is exactly the 4k-to-128k dose ladder.
 
 `[INFERENCE]` **This is the single most useful thing that could have happened to this
 roadmap.** §1.6 argued that counts cannot detect omission-plus-substitution and that
@@ -1126,7 +1162,7 @@ owned elsewhere, so they are tagged rather than actioned here:
 
 | Territory | Owner | Status of the items below |
 |---|---|---|
-| Matched/twin keys, denominator contracts, `prompt_tokens_per_step` / `prompt_cache_hit_rate` registry/producer/view enforcement | **C1 Agent Data lane** (PR #303, head `f7351bf8`, exact-head green, 0 findings) | **Both requests SATISFIED — see §7.0.** W3 denominator declarations and the read-sequence instrumentation from §1.6 landed in #303 |
+| Matched/twin keys, denominator contracts, `prompt_tokens_per_step` / `prompt_cache_hit_rate` registry/producer/view enforcement | **C1 Agent Data lane** (PR #303, head `8693bbcc`, 130 tests passing, `ty` clean) | **Both requests SATISFIED — see §7.0.** W3 denominator declarations and the read-sequence instrumentation from §1.6 landed in #303 |
 | C2 promotion | **wH:p9, solely** | none — this memo makes no promotion change |
 | Intervention recipes, C0 / quality infrastructure | not this lane | none — the sequential-retrieval scaffold is discussed as evidence only (§1.6), never modified |
 

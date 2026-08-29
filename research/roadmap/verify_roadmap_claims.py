@@ -59,6 +59,7 @@ SPEC = REPO / "research/roadmap/specs/campaign-0-action-memory-dose-ladder.json"
 WAVE2_SUMMARY = REPO / "research/evidence/zai-opencode-mcp-wave2-summary.json"
 HANDLE_AUDIT = REPO / "research/evidence/zai-wave2-action64-handle-audit.json"
 FEATURE_REGISTRY = REPO / "src/evallab/interpretation/feature_registry.py"
+ACTION_MEMORY_PRODUCER = REPO / "src/evallab/interpretation/producers/action_memory.py"
 BENCHMARK_VIEWS = REPO / "sql/traj_benchmark_views.sql"
 
 # C1-lane features this memo now depends on (PR #303, f7351bf8). READ-ONLY: this
@@ -539,6 +540,23 @@ def check_c1_landed_features(fail: list[str]) -> None:
             fail.append(f"{feature} no longer declares denominator_policy='required'")
         if "null_on_zero_denominator=True" not in block:
             fail.append(f"{feature} no longer sets null_on_zero_denominator")
+    # 7.0 now describes PRODUCER semantics, which tightened at 8693bbcc while the
+    # registry strings stayed the same. Assert the behaviour the memo claims, since
+    # quoting the registry alone was misleading once.
+    if ACTION_MEMORY_PRODUCER.is_file():
+        producer = ACTION_MEMORY_PRODUCER.read_text(encoding="utf-8")
+        if "handle_set_match" in producer:
+            contracts = {
+                "exact set equality": "== expected_set",
+                "duplicate isolation": "len(observed_handles) - len(set(observed_handles))",
+                "application-error rejection": "not_found",
+                "token-weighted cache rate": "sum(cached_step_tokens) / sum(step_tokens)",
+            }
+            for label, needle in contracts.items():
+                if needle not in producer:
+                    fail.append(
+                        f"producer no longer implements {label} ({needle!r}); 7.0 claims it"
+                    )
     if BENCHMARK_VIEWS.is_file():
         views = BENCHMARK_VIEWS.read_text(encoding="utf-8")
         for feature in ("handle_set_match", "unknown_handle_count", "handle_coverage_rate"):

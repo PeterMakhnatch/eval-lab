@@ -1,3 +1,13 @@
+---
+source_url: https://github.com/PeterMakhnatch/eval-lab
+source_type: repo
+retrieved: 2026-08-29
+license_note: Private repository; internal repository-health analysis only.
+status: distilled
+feeds:
+  - parked
+---
+
 # Repository Custodian State Report — Reply
 
 **Date:** 2026-08-29
@@ -178,4 +188,9 @@ Help text now accurately says “lint, generated-index checks, and tests.”
 - PR: [#290](https://github.com/PeterMakhnatch/eval-lab/pull/290)
 - Initial cleanup head: `3a4dc82b`
 - Focused validation passed: `docindex check`, `repomap check`, `make -n check`,
-  `make help`, and `git diff --check`. GitHub exact-head checks are pending.
+  `make help`, and `git diff --check`.
+- The first exact-head CI run also exposed a missing inbox-frontmatter contract
+  in this report; corrected on the next head. It additionally exposed an
+  out-of-scope MCP base failure: trusted wheelhouse expects
+  `joserfc-1.7.4` but resolves `1.7.5`, and recovery tests lack `cryptography`
+  / `fastmcp`. These are not caused by `Makefile`.

@@ -18,17 +18,50 @@ from evallab.task_workbench import CandidateSource, inspect_candidate
 ROOT = Path(__file__).resolve().parents[1] / "library" / "benchmarks" / "mcp-recovery-v1"
 
 
+def _benchmark_stem_names() -> set[str]:
+    """Top-level module names this benchmark can define (its ``.py`` files)."""
+    return {p.stem for p in ROOT.glob("*.py")}
+
+
+def _purge_benchmark_modules() -> None:
+    """Drop bare-name modules this benchmark imported so they cannot shadow other benchmarks.
+
+    Sibling benchmark families share generic module names (``state``, ``source``,
+    ``envelope``, ``templates``, ...). Loading them into the process-global
+    ``sys.modules`` under those bare names lets whichever benchmark runs first
+    shadow the others. After each scoped load we evict every top-level module this
+    benchmark created from ``sys.modules``.
+    """
+    root = ROOT.resolve()
+    for stem in _benchmark_stem_names():
+        module = sys.modules.get(stem)
+        if module is None:
+            continue
+        path = getattr(module, "__file__", None)
+        if path and Path(path).resolve().is_relative_to(root):
+            del sys.modules[stem]
+
+
 def load(name: str):
     module_name = f"mcp_recovery_v1_{name}"
     if module_name in sys.modules:
         return sys.modules[module_name]
-    sys.path.insert(0, str(ROOT)) if str(ROOT) not in sys.path else None
-    spec = importlib.util.spec_from_file_location(module_name, ROOT / f"{name}.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    # Evict any foreign bare-name module (e.g. a sibling benchmark's `state`) so
+    # this benchmark's own modules are resolved through the scoped path below.
+    for stem in _benchmark_stem_names():
+        sys.modules.pop(stem, None)
+    orig_path = list(sys.path)
+    sys.path.insert(0, str(ROOT))
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, ROOT / f"{name}.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path[:] = orig_path
+        _purge_benchmark_modules()
 
 
 def test_envelope_cryptography_and_tamper_proofing():
@@ -555,3 +588,26 @@ def test_all_20_campaign0_cells_materialize_and_pass_workbench_static(monkeypatc
     for path in paths:
         inspection = inspect_candidate(repo_root=repo_root, task_path=path, source=source)
         assert inspection.static_passed is True, f"{path.name}: {inspection.diagnostics}"
+
+
+def test_runtime_state_module_not_shadowed_by_sibling_benchmark(monkeypatch):
+    """mcp-recovery-v1's `state` import must not be shadowed by loca-lean's `state`.
+
+    Mirrors the CI Python 3.12 cross-benchmark collision: once a sibling benchmark
+    has cached its own `state`/`source` modules under the shared bare names, the
+    mcp-recovery runtime (which imports `from state import ...`) must still resolve
+    this benchmark's modules.
+    """
+    loca_root = Path(__file__).resolve().parents[1] / "library" / "benchmarks" / "loca-lean-v1"
+    monkeypatch.syspath_prepend(str(loca_root))
+    mat_spec = importlib.util.spec_from_file_location("loca_lean_materializer_probe", loca_root / "materializer.py")
+    assert mat_spec is not None and mat_spec.loader is not None
+    mat_mod = importlib.util.module_from_spec(mat_spec)
+    sys.modules["loca_lean_materializer_probe"] = mat_mod
+    mat_spec.loader.exec_module(mat_mod)
+    # loca-lean's state.py is now cached under the shared bare name `state`.
+    assert Path(sys.modules["state"].__file__).resolve() == loca_root.resolve() / "state.py"
+
+    runtime = load("runtime")
+    assert runtime.DatabaseState is not None
+    assert runtime.compute_digest is not None

@@ -7,16 +7,52 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1] / "library" / "benchmarks" / "loca-lean-v1"
-sys.path.insert(0, str(ROOT))
+
+
+def _benchmark_stem_names() -> set[str]:
+    """Top-level module names this benchmark can define (its ``.py`` files)."""
+    return {p.stem for p in ROOT.glob("*.py")}
+
+
+def _purge_benchmark_modules() -> None:
+    """Drop bare-name modules this benchmark imported so they cannot shadow other benchmarks.
+
+    Sibling benchmark families share generic module names (``state``, ``source``,
+    ``templates``, ``verifier``, ...). Loading them into the process-global
+    ``sys.modules`` under those bare names lets whichever benchmark runs first
+    shadow the others. After each scoped load we evict every top-level module this
+    benchmark created from ``sys.modules``.
+    """
+    root = ROOT.resolve()
+    for stem in _benchmark_stem_names():
+        module = sys.modules.get(stem)
+        if module is None:
+            continue
+        path = getattr(module, "__file__", None)
+        if path and Path(path).resolve().is_relative_to(root):
+            del sys.modules[stem]
 
 
 def load(name: str, filename: str | None = None):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"{filename or name}.py")
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+    module_name = f"loca_lean_{name}"
+    if module_name in sys.modules:
+        return sys.modules[module_name]
+    # Evict any foreign bare-name module (e.g. a sibling benchmark's `state`) so
+    # this benchmark's own modules are resolved through the scoped path below.
+    for stem in _benchmark_stem_names():
+        sys.modules.pop(stem, None)
+    orig_path = list(sys.path)
+    sys.path.insert(0, str(ROOT))
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, ROOT / f"{filename or name}.py")
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path[:] = orig_path
+        _purge_benchmark_modules()
 
 
 def test_pins_are_immutable_and_digest_addressed():
@@ -179,3 +215,29 @@ def test_verifier_robustness_and_reward_file_generation(tmp_path):
     assert "/app/task_state/agent_workspace/record.csv" in task_toml["artifacts"]
     assert task_toml["verifier"]["environment_mode"] == "separate"
     assert task_toml["task"]["authors"][0]["name"] == "LOCA-bench Contributors"
+
+
+def test_materializer_unaffected_by_sibling_benchmark_state_module(monkeypatch):
+    """A sibling benchmark's bare `state` module must not shadow loca-lean's materializer.
+
+    Regression for the CI Python 3.12 failure where mcp-recovery-v1's `state.py`
+    was cached under the shared bare name ``state`` and loca-lean's materializer
+    then raised ``ImportError: cannot import name 'CANARY' from 'state'``.
+    """
+    mcp_root = Path(__file__).parents[1] / "library" / "benchmarks" / "mcp-recovery-v1"
+    monkeypatch.syspath_prepend(str(mcp_root))
+    runtime_spec = importlib.util.spec_from_file_location(
+        "mcp_recovery_v1_runtime_probe", mcp_root / "runtime.py"
+    )
+    assert runtime_spec is not None and runtime_spec.loader is not None
+    runtime_mod = importlib.util.module_from_spec(runtime_spec)
+    sys.modules["mcp_recovery_v1_runtime_probe"] = runtime_mod
+    runtime_spec.loader.exec_module(runtime_mod)
+    # mcp-recovery-v1/state.py is now cached under the shared bare name `state`.
+    assert Path(sys.modules["state"].__file__).resolve() == mcp_root.resolve() / "state.py"
+
+    # loca-lean's materializer must still resolve its own `state`/`source` modules.
+    materializer = load("materializer_after_mcp_state", "materializer")
+    assert callable(materializer.materialize)
+    assert set(materializer.SIZES) == {"8k", "64k", "128k"}
+    assert materializer.INSTRUCTION

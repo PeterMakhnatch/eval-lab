@@ -56,7 +56,8 @@ jobs:
         run: |
           uv python install ${{ matrix.python-version }}
           echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
-      - run: uv sync --locked --no-group observability
+      - name: Sync with benchmark test dependencies (fastmcp, cryptography)
+        run: uv sync --locked --no-group observability --group benchmarks
       - run: uv run --no-sync pytest
       - if: matrix.python-version == '3.12'
         run: uv run --no-sync python -m evallab.smoke --docker-free

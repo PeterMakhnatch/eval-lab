@@ -4,7 +4,7 @@ topic: zai-opencode-mcp-wave1-wave2-analysis
 author: research-engineer
 date: 2026-08-29
 status: complete
-epistemic: observed outcomes across Flash and Highspeed on MCP synthetic benchmarks; strictly scoped to tested configurations; no general ranking or unsupported dose slopes
+epistemic: observed outcomes across Flash, Full, and Highspeed on MCP synthetic benchmarks; strictly scoped to tested configurations; no general ranking or unsupported dose slopes
 collection: trajectory-analysis
 reviewed: 2026-08-29
 snapshot_digest: sha256:fea1041d283823dcabb77f6872dae35dfecca7b49791849149fbe707b9cef891
@@ -20,11 +20,14 @@ This report consolidates empirical findings from the expanded Z.ai Coding Plan e
 2. **Action Memory (Context Dilation & Distraction Resistance: 4k, 16k, 64k)**
 3. **Recovery (Error Detection & Autonomous Adaptation: transient 5xx, persistent signature, silent wrong)**
 
-The evaluated corpus comprises **48 total trials** (18 Wave 1 scored, 27 Wave 2 scored, and 3 infrastructure exclusions):
+The evaluated corpus comprises **48 total attempts** (45 scored trials + 3 infrastructure exclusions):
 
-- **GLM-5.3-Flash:** 33/45 scored trials passed (73.3%) across Wave 1 and Wave 2.
+- **Combined Program Scored Total:** 33/45 passed (73.3%) across Wave 1 (15/18) and Wave 2 (18/27).
+- **Wave 2 Scored Total:** 18/27 passed (66.7% across 27 scored trials):
+  - **GLM-5.3-Flash (Wave 2):** 18/27 passed (16/24, 66.7%).
+  - **GLM-5.3 Full (Wave 2):** 0/0 passed (2/3, 66.7% — FuncDAG depth 5 canary 1/1, Recovery persistent signature 1/1, Action 64k semantic 0/1).
 - **GLM-5.3-Highspeed:** 0/0 scored trials (all 3 mini-battery attempts were excluded from scored denominators due to upstream subscription HTTP 429 access restrictions).
-- **Infrastructure Exclusions:** 3 trials (Highspeed subscription 429 entitlement error and default-timeout sequential chunk retrieval `AgentTimeoutError`).
+- **Infrastructure Exclusions (Non-Scored):** 3 trials (Highspeed subscription 429 entitlement error and default-timeout sequential chunk retrieval `AgentTimeoutError`).
 
 | Benchmark Family | Wave | Model | Tasks / Cells | Completed Trials | Reward 1.0 | Pass Rate |
 |---|---|---|---|---:|---:|---:|

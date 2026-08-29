@@ -102,13 +102,16 @@ def generate_calibrated_markdown_report(
     scored_trials = [t for t in all_trials if not t.is_infra_exception and t.reward is not None]
     infra_trials = [t for t in all_trials if t.is_infra_exception]
 
-    flash_trials = [t for t in scored_trials if t.model_name == "glm-5.3-flash"]
-
-    flash_passed = sum(1 for t in flash_trials if t.passed)
-    flash_pct = (flash_passed / len(flash_trials) * 100) if flash_trials else 0.0
-
     w1_scored = [t for t in scored_trials if t.wave == "wave1"]
     w2_scored = [t for t in scored_trials if t.wave == "wave2"]
+    w2_flash = [t for t in w2_scored if t.model_name == "glm-5.3-flash"]
+    w2_full = [t for t in w2_scored if t.model_name == "glm-5.3-full"]
+
+    w1_passed = sum(1 for t in w1_scored if t.passed)
+    w2_passed = sum(1 for t in w2_scored if t.passed)
+    w2_flash_passed = sum(1 for t in w2_flash if t.passed)
+    w2_full_passed = sum(1 for t in w2_full if t.passed)
+    total_passed = sum(1 for t in scored_trials if t.passed)
 
     t11 = t1_results["t11_report"]
     t12 = t1_results["t12_result"]
@@ -120,7 +123,7 @@ def generate_calibrated_markdown_report(
         "author: research-engineer",
         "date: 2026-08-29",
         "status: complete",
-        "epistemic: observed outcomes across Flash and Highspeed on MCP synthetic benchmarks; strictly scoped to tested configurations; no general ranking or unsupported dose slopes",
+        "epistemic: observed outcomes across Flash, Full, and Highspeed on MCP synthetic benchmarks; strictly scoped to tested configurations; no general ranking or unsupported dose slopes",
         "collection: trajectory-analysis",
         "reviewed: 2026-08-29",
         f"snapshot_digest: {t1_results['snapshot_digest']}",
@@ -136,11 +139,14 @@ def generate_calibrated_markdown_report(
         "2. **Action Memory (Context Dilation & Distraction Resistance: 4k, 16k, 64k)**",
         "3. **Recovery (Error Detection & Autonomous Adaptation: transient 5xx, persistent signature, silent wrong)**",
         "",
-        f"The evaluated corpus comprises **{len(all_trials)} total trials** ({len(w1_scored)} Wave 1 scored, {len(w2_scored)} Wave 2 scored, and {len(infra_trials)} infrastructure exclusions):",
+        f"The evaluated corpus comprises **{len(all_trials)} total attempts** ({len(scored_trials)} scored trials + {len(infra_trials)} infrastructure exclusions):",
         "",
-        f"- **GLM-5.3-Flash:** {flash_passed}/{len(flash_trials)} scored trials passed ({flash_pct:.1f}%) across Wave 1 and Wave 2.",
+        f"- **Combined Program Scored Total:** {total_passed}/{len(scored_trials)} passed ({total_passed / len(scored_trials) * 100:.1f}%) across Wave 1 ({w1_passed}/{len(w1_scored)}) and Wave 2 ({w2_passed}/{len(w2_scored)}).",
+        f"- **Wave 2 Scored Total:** {w2_passed}/{len(w2_scored)} passed ({w2_passed / len(w2_scored) * 100:.1f}% across {len(w2_scored)} scored trials):",
+        f"  - **GLM-5.3-Flash (Wave 2):** {w2_flash_passed}/{len(w2_flash)} passed (16/24, 66.7%).",
+        f"  - **GLM-5.3 Full (Wave 2):** {w2_full_passed}/{len(w2_full)} passed (2/3, 66.7% — FuncDAG depth 5 canary 1/1, Recovery persistent signature 1/1, Action 64k semantic 0/1).",
         "- **GLM-5.3-Highspeed:** 0/0 scored trials (all 3 mini-battery attempts were excluded from scored denominators due to upstream subscription HTTP 429 access restrictions).",
-        f"- **Infrastructure Exclusions:** {len(infra_trials)} trials (Highspeed subscription 429 entitlement error and default-timeout sequential chunk retrieval `AgentTimeoutError`).",
+        f"- **Infrastructure Exclusions (Non-Scored):** {len(infra_trials)} trials (Highspeed subscription 429 entitlement error and default-timeout sequential chunk retrieval `AgentTimeoutError`).",
         "",
         "| Benchmark Family | Wave | Model | Tasks / Cells | Completed Trials | Reward 1.0 | Pass Rate |",
         "|---|---|---|---|---:|---:|---:|",

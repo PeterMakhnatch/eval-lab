@@ -465,6 +465,7 @@ def test_null_preservation_on_zero_denominators(tmp_path: Path):
         "family": "mcp-recovery-v1",
         "task_name": "no_faults_test",
         "agent_name": "clean_agent",
+        "cell_factors": {"persistence_levels": [1]},
         "verifier_truth_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
     }
     (trial_dir / "benchmark_contract.json").write_text(json.dumps(contract), encoding="utf-8")
@@ -990,6 +991,70 @@ def test_recovery_persistence_dose_must_match_native_cell(mcp_recovery_trial_dir
     )
     assert mismatched.analysis_ready is False
     assert "PERSISTENCE_DOSE_MISMATCH" in mismatched.refusals
+
+
+@pytest.mark.parametrize(
+    "invalid_level",
+    [1.5, float("nan"), float("inf"), True, 0, -1],
+    ids=["fractional", "nan", "infinite", "bool", "zero", "negative"],
+)
+def test_recovery_rejects_non_integral_or_invalid_native_persistence(
+    mcp_recovery_trial_dir: Path, invalid_level
+):
+    """Malformed native persistence is rejected before any feature row can be stored."""
+    contract_path = mcp_recovery_trial_dir / "benchmark_contract.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract["cell_factors"]["persistence_levels"] = [invalid_level]
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    bundle = load_trial_bundle(mcp_recovery_trial_dir)
+    report = _quality_pass_report(bundle)
+    dimensions = build_projection_dimensions(
+        bundle,
+        report,
+        metadata={
+            "harness_version": "harbor-v1",
+            "scaffold_version": "scaffold-v1",
+            "repeat_group_id": "repeat-a",
+            "dose_axis": "persistence_level",
+            "dose_value": 1,
+            "dose_unit": "count",
+            "alphabet_id": "atif-actions",
+            "alphabet_version": "v1",
+        },
+    )
+    assert dimensions.analysis_ready is False
+    assert "MISSING_NATIVE_PERSISTENCE_LEVEL" in dimensions.refusals
+    with pytest.raises(ValueError, match="finite positive integer"):
+        extract_mcp_recovery_features(bundle)
+
+
+@pytest.mark.parametrize(
+    "invalid_dose",
+    [1.5, float("nan"), float("inf"), True, 0, -1],
+    ids=["fractional", "nan", "infinite", "bool", "zero", "negative"],
+)
+def test_recovery_persistence_axis_rejects_invalid_dose_value(
+    mcp_recovery_trial_dir: Path, invalid_dose
+):
+    """Persistence-axis dose values must be finite positive integers equal to native persistence."""
+    bundle = load_trial_bundle(mcp_recovery_trial_dir)
+    dimensions = build_projection_dimensions(
+        bundle,
+        _quality_pass_report(bundle),
+        metadata={
+            "harness_version": "harbor-v1",
+            "scaffold_version": "scaffold-v1",
+            "repeat_group_id": "repeat-a",
+            "dose_axis": "persistence_level",
+            "dose_value": invalid_dose,
+            "dose_unit": "count",
+            "alphabet_id": "atif-actions",
+            "alphabet_version": "v1",
+        },
+    )
+    assert dimensions.analysis_ready is False
+    assert "PERSISTENCE_DOSE_MISMATCH" in dimensions.refusals
 
 
 def test_card_uses_same_projection_dimensions_as_provenance(

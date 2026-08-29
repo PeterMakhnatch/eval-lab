@@ -23,6 +23,7 @@ from evallab.interpretation.benchmark_events import (
 from evallab.interpretation.benchmark_projection import (
     BenchmarkProjectionDimensions,
     build_projection_dimensions,
+    parse_native_persistence_level,
     projection_feature_fields,
 )
 
@@ -107,9 +108,13 @@ def extract_mcp_recovery_features(
     dimensions = dimensions or build_projection_dimensions(bundle, None)
     cell_factors = contract.cell_factors
     fault_classes = cell_factors.get("fault_classes", [])
-    persistence_levels = cell_factors.get("persistence_levels", [1])
+    raw_persistence_levels = cell_factors.get("persistence_levels", [])
+    if not isinstance(raw_persistence_levels, list) or len(raw_persistence_levels) != 1:
+        raise ValueError("Recovery contract must declare exactly one native persistence level")
+    persistence_level = parse_native_persistence_level(raw_persistence_levels[0])
+    if persistence_level is None:
+        raise ValueError("Recovery contract persistence level must be a finite positive integer")
     fault_class = str(fault_classes[0]) if fault_classes else None
-    persistence_level = int(persistence_levels[0]) if persistence_levels else 1
     mode = str(cell_factors.get("mode", "fault" if fault_class else "clean"))
 
     task_success = final_state.invariants_passed

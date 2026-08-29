@@ -8,6 +8,7 @@ and dimension row used by Agent-Data producers, DuckDB views, CLI, and cards.
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -84,6 +85,16 @@ def _identity_payload(
     }
 
 
+def parse_native_persistence_level(value: Any) -> int | None:
+    """Return a finite positive integer persistence level without numeric truncation."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    numeric = float(value)
+    if not math.isfinite(numeric) or numeric <= 0 or not numeric.is_integer():
+        return None
+    return int(numeric)
+
+
 def build_projection_dimensions(
     bundle: TrialBundle,
     report: ComplianceIngestReport | None,
@@ -148,20 +159,18 @@ def build_projection_dimensions(
     dose_unit = _text(metadata, "dose_unit")
     alphabet_id = _text(metadata, "alphabet_id")
     alphabet_version = _text(metadata, "alphabet_version")
-
     if bundle.contract.family == "mcp-recovery-v1":
         raw_levels = bundle.contract.cell_factors.get("persistence_levels", [])
         if not isinstance(raw_levels, list) or len(raw_levels) != 1:
             refusals.append("MISSING_NATIVE_PERSISTENCE_LEVEL")
         else:
-            native_persistence_level = _number({"native": raw_levels[0]}, "native")
+            native_persistence_level = parse_native_persistence_level(raw_levels[0])
             if native_persistence_level is None:
                 refusals.append("MISSING_NATIVE_PERSISTENCE_LEVEL")
-            elif (
-                dose_axis in {"persistence", "persistence_level"}
-                and dose_value != native_persistence_level
-            ):
-                refusals.append("PERSISTENCE_DOSE_MISMATCH")
+            elif dose_axis in {"persistence", "persistence_level"}:
+                persistence_dose = parse_native_persistence_level(metadata.get("dose_value"))
+                if persistence_dose != native_persistence_level:
+                    refusals.append("PERSISTENCE_DOSE_MISMATCH")
     required_dimensions = {
         "model_name": model_name,
         "agent_name": agent_name,

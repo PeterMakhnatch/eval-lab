@@ -16,7 +16,11 @@ export UV_PYTHON="${PYTHON_FLOOR}"
 
 uv sync --locked
 uv run ruff check .
+uv run --no-sync python -m evallab.docindex check
+uv run --no-sync python -m evallab.repomap check
 uv run python -m evallab.governance check
+uv run --no-sync evallab registry audit --json
+uv run --no-sync python -m evallab.lessons
 uv run pytest
 uv run python -m evallab.smoke --docker-free
 

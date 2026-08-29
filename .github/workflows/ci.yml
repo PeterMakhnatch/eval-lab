@@ -32,6 +32,8 @@ jobs:
       - run: uv run --no-sync ruff check .
       - name: Documentation front-matter and index freshness
         run: uv run --no-sync python -m evallab.docindex check
+      - name: Repository map freshness
+        run: uv run --no-sync python -m evallab.repomap check
       - name: Governance contracts and frozen root
         run: uv run --no-sync python -m evallab.governance check
       - name: Clean-checkout task registry and inventory audit

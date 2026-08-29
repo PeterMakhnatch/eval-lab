@@ -339,6 +339,105 @@ def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None
     if directory is not None:
         with suppress(OSError):
             shutil.rmtree(directory)
+class _StreamingRedactor:
+    """Redact exact secret bytes before any child output reaches disk."""
+
+    def __init__(self, secrets: frozenset[str]) -> None:
+        self.secrets = tuple(
+            sorted(
+                (secret.encode() for secret in secrets if secret),
+                key=len,
+                reverse=True,
+            )
+        )
+        self.pending = b""
+        self.max_secret_length = max((len(secret) for secret in self.secrets), default=0)
+
+    def feed(self, chunk: bytes) -> bytes:
+        if not self.secrets:
+            return chunk
+        combined = self.pending + chunk
+        cut = max(0, len(combined) - self.max_secret_length + 1)
+        for secret in self.secrets:
+            search_from = max(0, cut - len(secret) + 1)
+            start = combined.find(secret, search_from)
+            while start >= 0:
+                if start < cut < start + len(secret):
+                    cut = start
+                start = combined.find(secret, start + 1)
+        safe = combined[:cut]
+        self.pending = combined[cut:]
+        for secret in self.secrets:
+            safe = safe.replace(secret, b"<redacted>")
+        return safe
+
+    def finish(self) -> bytes:
+        safe = self.pending
+        self.pending = b""
+        for secret in self.secrets:
+            safe = safe.replace(secret, b"<redacted>")
+        return safe
+
+
+def _drain_redacted_output(
+    source: Any,
+    destination: Any,
+    secrets: frozenset[str],
+) -> None:
+    redactor = _StreamingRedactor(secrets)
+    while chunk := source.read(64 * 1024):
+        destination.write(redactor.feed(chunk))
+        destination.flush()
+    destination.write(redactor.finish())
+    destination.flush()
+
+
+def assert_no_secret_material(
+    paths: tuple[Path, ...],
+    *,
+    secrets: frozenset[str],
+) -> None:
+    """Fail closed if provider credential bytes reached a persistent artifact."""
+    encoded = tuple(secret.encode() for secret in secrets if secret)
+    if not encoded:
+        return
+    leaks: list[Path] = []
+    for root in paths:
+        candidates = (root,) if root.is_file() or root.is_symlink() else tuple(root.rglob("*"))
+        for path in candidates:
+            if path.is_symlink():
+                raise ExecutionFailure(
+                    "unsafe_artifact_symlink",
+                    f"persistent artifact contains a symlink: {path}",
+                )
+            if not path.is_file():
+                continue
+            try:
+                content = path.read_bytes()
+            except OSError as exc:
+                raise ExecutionFailure(
+                    "artifact_scan_failed",
+                    f"persistent artifact cannot be scanned: {path}",
+                ) from exc
+            if any(secret in content for secret in encoded):
+                leaks.append(path)
+    if leaks:
+        labels = ", ".join(str(path) for path in leaks)
+        removal_failures: list[str] = []
+        for path in leaks:
+            try:
+                path.unlink()
+            except OSError:
+                removal_failures.append(str(path))
+        disposition = (
+            "removal failed for: " + ", ".join(removal_failures)
+            if removal_failures
+            else "contaminated files were removed"
+        )
+        raise ExecutionFailure(
+            "credential_material_detected",
+            f"credential material reached persistent artifacts ({disposition}): {labels}",
+        )
 
 
 def run_harbor_process(
@@ -352,7 +451,7 @@ def run_harbor_process(
     lease_path: Path | None = None,
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
 ) -> HarborProcessResult:
-    """Run Harbor under an aggregate fail-safe and a per-trial watchdog."""
+    """Run Harbor while redacting provider credentials before log persistence."""
     repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
     deepseek_lane = deepseek_adapter in command
@@ -729,30 +828,41 @@ def _stage_task_for_host(
     staging_dir: Path,
     *,
     agent_allowed_hosts: tuple[str, ...] = (),
-) -> tuple[Path | None, NetworkAdaptation | None]:
-    """Create a host-compatible, agent-policy execution copy of a task package.
+    expected_package_digest: str | None = None,
+) -> tuple[Path, NetworkAdaptation | None]:
+    """Create and verify a private immutable-input snapshot before adaptation."""
+    from evallab.registry import compute_task_digests
 
-    The source package is never modified. ``task.toml`` is rewritten only for
-    host network compatibility and an explicit agent allowlist. Returns
-    ``(None, None)`` when no execution-only rewrite is required.
-    """
     task_toml_path = source / "task.toml"
     if not task_toml_path.is_file():
         raise ValueError(f"task.toml missing in {source}")
-    original_text = task_toml_path.read_text(encoding="utf-8")
-    adapted_text, adaptation = adapt_task_toml_for_host(original_text)
-    staged_text = with_agent_network_allowlist(adapted_text, agent_allowed_hosts)
-    if staged_text == original_text:
-        return None, None
+    if any(path.is_symlink() for path in source.rglob("*")):
+        raise ValueError("task package snapshots reject symlinks")
+    source_digest_before = compute_task_digests(source).package
+    if (
+        expected_package_digest is not None
+        and source_digest_before != expected_package_digest
+    ):
+        raise ValueError("task package differs from its frozen digest before staging")
 
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
     staging_dir.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, staging_dir)
-    (staging_dir / "task.toml").write_text(staged_text, encoding="utf-8")
+    shutil.copytree(source, staging_dir, symlinks=True)
+    if any(path.is_symlink() for path in staging_dir.rglob("*")):
+        raise ValueError("staged task snapshot contains a symlink")
+    staged_digest = compute_task_digests(staging_dir).package
+    source_digest_after = compute_task_digests(source).package
+    if staged_digest != source_digest_before or source_digest_after != source_digest_before:
+        raise ValueError("task package changed while its execution snapshot was created")
 
+    original_text = (staging_dir / "task.toml").read_text(encoding="utf-8")
+    adapted_text, adaptation = adapt_task_toml_for_host(original_text)
+    staged_text = with_agent_network_allowlist(adapted_text, agent_allowed_hosts)
+    (staging_dir / "task.toml").write_text(staged_text, encoding="utf-8")
     manifest: dict[str, Any] = {
         "schema_version": "1.0",
+        "source_package_digest": source_digest_before,
         "agent_allowed_hosts": list(agent_allowed_hosts),
     }
     if adaptation is not None:
@@ -806,11 +916,13 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             agent_allowed_hosts=(
                 (DEEPSEEK_PROXY_HOST,) if request.agent == "mini-swe-agent" else ()
             ),
+            expected_package_digest=(
+                request.provenance.package_digest
+                if request.provenance is not None
+                else None
+            ),
         )
-        if staged_task is not None:
-            staged_request: RunRequest = replace(request, task=staged_task)
-        else:
-            staged_request = request
+        staged_request: RunRequest = replace(request, task=staged_task)
 
         _write_network_adaptation(request, adaptation)
 
@@ -899,6 +1011,17 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 transient_reason,
                 message=transient_reason + cleanup_detail,
             )
+        secret_environment = subscription_environment(
+            include_deepseek_credentials=True,
+        )
+        assert_no_secret_material(
+            (job_dir,),
+            secrets=frozenset(
+                secret_environment[name]
+                for name in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS
+                if name in secret_environment and len(secret_environment[name]) >= 8
+            ),
+        )
         evidence_root = os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
         if evidence_root:
             try:

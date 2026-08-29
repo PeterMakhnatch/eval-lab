@@ -287,6 +287,18 @@
       "default": null,
       "title": "Campaign Cell Id"
     },
+    "campaign_evidence_store": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Evidence Store"
+    },
     "campaign_ledger": {
       "anyOf": [
         {
@@ -646,6 +658,19 @@
       ],
       "default": null,
       "title": "Task Instance Id"
+    },
+    "task_package_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Package Digest"
     },
     "task_path": {
       "anyOf": [

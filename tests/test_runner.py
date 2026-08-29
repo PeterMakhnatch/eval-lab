@@ -231,6 +231,37 @@ def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
     assert control.returncode == 0
     assert control_log.read_text().splitlines() == ["deepseek=unset", "mswea=unset"]
 
+def test_harbor_log_redacts_deepseek_secret_across_stream_chunks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "stream-boundary-secret"
+    monkeypatch.setenv("MSWEA_API_KEY", secret)
+    script = (
+        "import os,sys,time; "
+        "value=os.environ['MSWEA_API_KEY']; "
+        "sys.stdout.write(value[:7]); sys.stdout.flush(); "
+        "time.sleep(0.05); "
+        "sys.stdout.write(value[7:] + '\\n'); sys.stdout.flush()"
+    )
+    log_path = tmp_path / "redacted.log"
+
+    result = run_harbor_process(
+        [
+            sys.executable,
+            "-c",
+            script,
+            resolve_harbor_agent("mini-swe-agent"),
+        ],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        log_path=log_path,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8") == "<redacted>\n"
+    assert secret not in log_path.read_text(encoding="utf-8")
+
 
 def test_non_control_agent_requires_billable_acknowledgement(tmp_path: Path) -> None:
     request = RunRequest(
@@ -683,6 +714,52 @@ def test_completed_run_survives_evidence_archive_failure(
         assert not note.exists()
     else:
         assert note.read_text() == "OSError: evidence store unavailable\n"
+
+
+def test_secret_scan_precedes_generic_evidence_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "provider-key-must-not-reach-cas"
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="secret-before-archive",
+        jobs_dir=tmp_path / "runs",
+    )
+    archived: list[Path] = []
+
+    def completed(*_args, **kwargs) -> HarborProcessResult:
+        job_dir = kwargs["job_dir"]
+        job_dir.mkdir(parents=True)
+        (job_dir / "leak.txt").write_text(secret, encoding="utf-8")
+        return HarborProcessResult(
+            returncode=0,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    monkeypatch.setenv("MSWEA_API_KEY", secret)
+    monkeypatch.setenv("EVALLAB_EVIDENCE_STORE_ROOT", str(tmp_path / "evidence"))
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed)
+    monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        runner_module,
+        "load_job",
+        lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
+    )
+    monkeypatch.setattr(
+        "evallab.evidence_store.archive_evidence",
+        lambda job_dir, *_args, **_kwargs: archived.append(job_dir),
+    )
+
+    with pytest.raises(ExecutionFailure, match="credential material reached"):
+        run_experiment(request, repo_root=tmp_path)
+
+    assert archived == []
+    assert not (request.jobs_dir / request.name / "leak.txt").exists()
 
 
 def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:

@@ -271,6 +271,10 @@ class ExperimentSpec(ContractModel):
     expected_reward: float | None = None
     task_version: str | None = None
     verifier_digest: str | None = None
+    task_package_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
     submitted_at: datetime | None = None
     grid_id: str | None = None
     grid_point: dict[str, Any] | None = None
@@ -309,8 +313,15 @@ class ExperimentSpec(ContractModel):
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
+    campaign_evidence_store: str | None = None
 
-    @field_validator("task", "task_path", "jobs_dir", "extra_instruction_path")
+    @field_validator(
+        "task",
+        "task_path",
+        "jobs_dir",
+        "extra_instruction_path",
+        "campaign_evidence_store",
+    )
     @classmethod
     def paths_are_repo_relative(cls, value: str | None) -> str | None:
         if value is None:
@@ -337,6 +348,7 @@ class ExperimentSpec(ContractModel):
             self.campaign_attempt_index,
             self.campaign_manifest_digest,
             self.campaign_spec_digest,
+            self.campaign_evidence_store,
         )
         if any(value is not None for value in campaign_fields):
             if any(value is None for value in campaign_fields):
@@ -471,6 +483,18 @@ class QueueEvent(ContractModel):
     report_date: str | None = None
     attempt_number: int | None = Field(default=None, ge=1)
     estimated_cost_usd: float | None = Field(default=None, ge=0)
+    approved_spec_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    approved_campaign_manifest_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    approved_campaign_spec_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
 
 
 class QueueReason(ContractModel):

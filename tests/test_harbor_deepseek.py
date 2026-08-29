@@ -38,6 +38,8 @@ SECRET_SENTINEL = "secret-must-not-reach-exec"
 class _Connection:
     provider: str | None = None
     api_key: str | None = field(default=None, repr=False)
+    base_url: str | None = None
+    configured_base_url: str | None = None
     env: dict[str, str] = field(default_factory=dict, repr=False)
     base_url: str | None = None
     configured_base_url: str | None = None
@@ -169,6 +171,7 @@ def test_wrapper_rewrites_connection_to_internal_proxy(
     )
     assert result == "ok"
     command, exec_env = agent.exec_calls[0]
+
     assert SECRET_SENTINEL not in command
     assert "cat /run/secrets/" not in command
     assert exec_env is not None
@@ -183,6 +186,23 @@ def test_exec_refuses_provider_key_in_tool_env(wrapper_module: ModuleType) -> No
     with pytest.raises(ValueError, match="cannot enter the task exec environment"):
         asyncio.run(
             agent.exec_as_agent(object(), "env", env={"DEEPSEEK_API_KEY": SECRET_SENTINEL})
+        )
+
+
+def test_wrapper_rejects_real_secret_in_exec_environment(
+    wrapper_module: ModuleType,
+) -> None:
+    agent = wrapper_module.SecretSafeDeepSeekMiniSweAgent(
+        _Connection(provider="deepseek", api_key=SECRET_SENTINEL)
+    )
+
+    with pytest.raises(ValueError, match="cannot enter the task exec environment"):
+        asyncio.run(
+            agent.exec_as_agent(
+                object(),
+                "mini-swe-agent --yolo",
+                env={"DEEPSEEK_API_KEY": SECRET_SENTINEL},
+            )
         )
 
 

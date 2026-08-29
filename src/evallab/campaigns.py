@@ -13,12 +13,15 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import math
 import os
 import platform
+import stat
 import tarfile
 import tempfile
+import tomllib
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -44,6 +47,7 @@ from evallab.queue import (
     load_events,
     new_ulid,
 )
+from evallab.registry import TaskRegistry, compute_task_digests
 from evallab.results import JobRecord, load_job
 from evallab.schemas import ContractModel, ExperimentSpec, QueueState
 
@@ -51,7 +55,7 @@ CampaignLedger = CampaignCalibrationLedger | CampaignMeasurementLedger
 
 
 _SCHEMA_DEFINITION = "campaign-definition/v1"
-_SCHEMA_MANIFEST = "campaign-manifest/v1"
+_SCHEMA_MANIFEST = "campaign-manifest/v2"
 _SCHEMA_EVENT = "campaign-event/v1"
 _SCHEMA_STATUS = "campaign-status/v1"
 CAMPAIGN_STATE_ROOT = Path("runs/campaigns")
@@ -172,12 +176,45 @@ class TrialLimits(_FrozenContract):
         return self
 
 
+class CampaignTaskContract(_FrozenContract):
+    task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    task_ref: str = Field(min_length=1)
+    task_path: str = Field(min_length=1)
+    task_family: str = Field(min_length=1)
+    task_version: str = Field(min_length=1)
+    verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+class CampaignAnalysisCell(_FrozenContract):
+    model: str = Field(min_length=1)
+    agent: str = Field(min_length=1)
+    task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    harness: str = Field(min_length=1)
+    scaffold: str = Field(min_length=1)
+    dose_axis: str = Field(min_length=1)
+    dose_value: int | float | str
+    dose_unit: str = Field(min_length=1)
+    alphabet: str = Field(min_length=1)
+    base_task_pair_id: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def dose_is_finite(self) -> CampaignAnalysisCell:
+        if isinstance(self.dose_value, bool):
+            raise ValueError("analysis-cell dose value cannot be boolean")
+        if isinstance(self.dose_value, float) and not math.isfinite(self.dose_value):
+            raise ValueError("analysis-cell dose value must be finite")
+        return self
+
+
+
 class CampaignDefinitionAttempt(_FrozenContract):
     cell_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     attempt: int = Field(ge=1)
     spec: ExperimentSpec
     limits: TrialLimits
+    analysis_cell: CampaignAnalysisCell | None = None
+    repeat_seed: int | str | None = None
 
     @model_validator(mode="after")
     def source_spec_is_unbound(self) -> CampaignDefinitionAttempt:
@@ -192,6 +229,7 @@ class CampaignDefinitionAttempt(_FrozenContract):
                 self.spec.campaign_attempt_index,
                 self.spec.campaign_manifest_digest,
                 self.spec.campaign_spec_digest,
+                self.spec.campaign_evidence_store,
             )
         ):
             raise ValueError("campaign definitions cannot contain pre-bound provenance")
@@ -199,6 +237,18 @@ class CampaignDefinitionAttempt(_FrozenContract):
             raise ValueError("each campaign definition row must describe one attempt")
         if self.spec.task_id is not None and self.spec.task_id != self.task_id:
             raise ValueError("campaign task identity disagrees with ExperimentSpec.task_id")
+        if self.analysis_cell is not None:
+            if self.repeat_seed is None or self.spec.generator_seed != self.repeat_seed:
+                raise ValueError("analysis-cell repeat seed must equal the declared generator seed")
+            expected_cell = (
+                self.analysis_cell.model == self.spec.model,
+                self.analysis_cell.agent == self.spec.agent,
+                self.analysis_cell.task_id == self.task_id,
+            )
+            if not all(expected_cell):
+                raise ValueError("analysis-cell identity disagrees with its ExperimentSpec")
+        elif self.repeat_seed is not None:
+            raise ValueError("repeat_seed requires an analysis-cell identity")
         if self.spec.timeout_seconds > self.limits.max_wall_clock_seconds:
             raise ValueError("spec timeout exceeds the trial wall-clock ceiling")
         if self.spec.billable:
@@ -287,6 +337,9 @@ class CampaignAttempt(_FrozenContract):
     spec_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     spec: ExperimentSpec
     limits: TrialLimits
+    task_contract: CampaignTaskContract | None = None
+    analysis_cell: CampaignAnalysisCell | None = None
+    repeat_seed: int | str | None = None
 
     @model_validator(mode="after")
     def spec_is_bound_to_attempt(self) -> CampaignAttempt:
@@ -301,19 +354,48 @@ class CampaignAttempt(_FrozenContract):
             self.spec.campaign_attempt_index == self.identity.attempt,
             self.spec.campaign_spec_digest == self.spec_digest,
             self.spec.task_id == self.identity.task_id,
+            self.spec.campaign_evidence_store is not None,
         )
         if not all(expected):
             raise ValueError("campaign attempt identity disagrees with its ExperimentSpec")
+        if self.spec.billable and self.task_contract is None:
+            raise ValueError("billable campaign attempts require a frozen task contract")
+        if self.task_contract is not None:
+            contract = self.task_contract
+            task_expected = (
+                contract.task_id == self.identity.task_id,
+                contract.task_ref == self.spec.task,
+                contract.task_path == self.spec.executable_task_path,
+                contract.task_family == self.spec.task_family,
+                contract.task_version == self.spec.task_version,
+                contract.verifier_digest == self.spec.verifier_digest,
+                contract.package_digest == self.spec.task_package_digest,
+            )
+            if not all(task_expected):
+                raise ValueError("campaign task contract disagrees with its ExperimentSpec")
+        if self.analysis_cell is not None:
+            analysis_expected = (
+                self.analysis_cell.model == self.spec.model,
+                self.analysis_cell.agent == self.spec.agent,
+                self.analysis_cell.task_id == self.identity.task_id,
+                self.repeat_seed is not None,
+                self.repeat_seed == self.spec.generator_seed,
+            )
+            if not all(analysis_expected):
+                raise ValueError("campaign analysis-cell identity disagrees with its spec")
+        elif self.repeat_seed is not None:
+            raise ValueError("campaign repeat seed requires an analysis-cell identity")
         return self
 
 
 class CampaignManifest(_FrozenContract):
-    schema_version: Literal["campaign-manifest/v1"] = _SCHEMA_MANIFEST
+    schema_version: Literal["campaign-manifest/v2"] = _SCHEMA_MANIFEST
     ledger: CampaignLedger
     submitted_by: str = Field(min_length=1)
     limits: CampaignLimits
     attempts: tuple[CampaignAttempt, ...] = Field(min_length=1)
     evidence_store: str
+    analysis_holds: tuple[str, ...] = ()
     manifest_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
     @property
@@ -338,9 +420,14 @@ class CampaignManifest(_FrozenContract):
             if len(values) != len(set(values)):
                 raise ValueError(f"campaign {attribute} values must be unique")
         if any(
-            item.spec.campaign_manifest_digest != self.manifest_digest for item in self.attempts
+            item.spec.campaign_manifest_digest != self.manifest_digest
+            or item.spec.campaign_evidence_store != self.evidence_store
+            for item in self.attempts
         ):
-            raise ValueError("attempt spec does not bind the campaign manifest digest")
+            raise ValueError("attempt spec does not bind the campaign manifest contract")
+        expected_holds = _analysis_cell_holds(self.attempts)
+        if self.analysis_holds != expected_holds:
+            raise ValueError("campaign analysis HOLD set does not match exact cells")
         if campaign_manifest_digest(self) != self.manifest_digest:
             raise ValueError("campaign manifest digest mismatch")
         return self
@@ -389,41 +476,166 @@ def _deterministic_job_name(identity: _CampaignAttemptBinding, seed_digest: str)
     return f"{prefix}-{suffix}"
 
 
-def build_campaign_manifest(definition: CampaignDefinition) -> CampaignManifest:
+def _resolve_campaign_task_contract(
+    definition: CampaignDefinition,
+    item: CampaignDefinitionAttempt,
+    repo_root: Path,
+) -> CampaignTaskContract:
+    if item.spec.task_family not in {None, definition.benchmark}:
+        raise ValueError("campaign task family does not match the benchmark family")
+    spec_for_resolution = item.spec.model_copy(deep=True)
+    registry_record = TaskRegistry.from_repo(repo_root).resolve_spec(
+        spec_for_resolution,
+        repo_root,
+    )
+    if registry_record is not None:
+        task_path = registry_record.task_path
+        task_version = registry_record.version
+        digests = registry_record.digests
+        if registry_record.task_id != item.task_id:
+            raise ValueError("campaign task_id does not match the registered task record")
+    else:
+        task_path = item.spec.executable_task_path
+        task_dir = _resolved_repo_subpath(repo_root, task_path, label="campaign task")
+        has_instruction = any(
+            (task_dir / name).is_file()
+            for name in ("instruction.md", "instructions.md")
+        )
+        has_environment = (task_dir / "environment").exists() or (
+            task_dir / "Dockerfile"
+        ).is_file()
+        has_verifier = (task_dir / "tests").exists() or (
+            task_dir / "verifier"
+        ).exists()
+        if not (has_instruction and has_environment and has_verifier):
+            raise ValueError(
+                "campaign task contract requires instruction.md/instructions.md, "
+                "environment/Dockerfile, and tests/verifier"
+            )
+        metadata = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
+        task_section = metadata.get("task")
+        declared_version = (
+            task_section.get("version")
+            if isinstance(task_section, dict)
+            else metadata.get("version")
+        )
+        if not isinstance(declared_version, str) or not declared_version:
+            raise ValueError("campaign task.toml must declare a task version")
+        task_version = declared_version
+        digests = compute_task_digests(task_dir)
+    if item.spec.task_version not in {None, task_version}:
+        raise ValueError("campaign task version does not match the task package")
+    if item.spec.verifier_digest not in {None, digests.verifier}:
+        raise ValueError("campaign verifier digest does not match the task package")
+    if item.spec.task_package_digest not in {None, digests.package}:
+        raise ValueError("campaign package digest does not match the task package")
+    return CampaignTaskContract(
+        task_id=item.task_id,
+        task_ref=item.spec.task,
+        task_path=task_path,
+        task_family=definition.benchmark,
+        task_version=task_version,
+        verifier_digest=digests.verifier,
+        package_digest=digests.package,
+    )
+
+
+def _analysis_cell_holds(
+    attempts: Sequence[CampaignDefinitionAttempt | CampaignAttempt],
+) -> tuple[str, ...]:
+    eligible = [
+        item for item in attempts if item.spec.purpose in {"comparison", "elicitation"}
+    ]
+    holds: list[str] = []
+    by_cell_id: dict[str, set[str]] = {}
+    by_identity: dict[str, list[CampaignDefinitionAttempt | CampaignAttempt]] = {}
+    for item in eligible:
+        cell_id = (
+            item.cell_id
+            if isinstance(item, CampaignDefinitionAttempt)
+            else item.identity.cell_id
+        )
+        if item.analysis_cell is None or item.repeat_seed is None:
+            holds.append(f"analysis_cell_incomplete:{cell_id}")
+            continue
+        identity = _canonical_json(item.analysis_cell.model_dump(mode="json"))
+        by_cell_id.setdefault(cell_id, set()).add(identity)
+        by_identity.setdefault(identity, []).append(item)
+    for cell_id, identities in sorted(by_cell_id.items()):
+        if len(identities) > 1:
+            holds.append(f"analysis_cell_mixed:{cell_id}")
+    for cell_attempts in by_identity.values():
+        cell_ids = [
+            item.cell_id
+            if isinstance(item, CampaignDefinitionAttempt)
+            else item.identity.cell_id
+            for item in cell_attempts
+        ]
+        if any(len(by_cell_id[cell_id]) > 1 for cell_id in cell_ids):
+            continue
+        seeds = [item.repeat_seed for item in cell_attempts]
+        if len(cell_attempts) < 2 or len(seeds) != len(set(seeds)):
+            holds.append(f"analysis_cell_repeats_insufficient:{min(cell_ids)}")
+    return tuple(sorted(set(holds)))
+
+
+def build_campaign_manifest(
+    definition: CampaignDefinition,
+    *,
+    repo_root: Path,
+) -> CampaignManifest:
     attempts: list[CampaignAttempt] = []
     placeholder = "sha256:" + "0" * 64
     for item in definition.attempts:
         identity = _bind_execution_identity(definition, item)
+        task_contract = _resolve_campaign_task_contract(definition, item, repo_root)
+        task_fields = {
+            "task_id": task_contract.task_id,
+            "task_path": task_contract.task_path,
+            "task_family": task_contract.task_family,
+            "task_version": task_contract.task_version,
+            "verifier_digest": task_contract.verifier_digest,
+            "task_package_digest": task_contract.package_digest,
+        }
+        source_spec = item.spec.model_copy(update=task_fields)
         attempt_id = "attempt-" + _digest(identity.model_dump(mode="json"))[7:31]
-        source_payload = item.spec.model_dump(mode="json", exclude_none=True)
+        source_payload = source_spec.model_dump(mode="json", exclude_none=True)
         source_payload.pop("name", None)
         source_payload.pop("spec_id", None)
         seed_digest = _digest(
             {
                 "identity": identity.model_dump(mode="json"),
+                "task_contract": (
+                    task_contract.model_dump(mode="json") if task_contract is not None else None
+                ),
+                "analysis_cell": (
+                    item.analysis_cell.model_dump(mode="json")
+                    if item.analysis_cell is not None
+                    else None
+                ),
+                "repeat_seed": item.repeat_seed,
                 "spec": source_payload,
                 "limits": item.limits.model_dump(mode="json"),
             }
         )
         spec_id = "campaign-" + seed_digest[7:31]
         job_name = _deterministic_job_name(identity, seed_digest)
-        spec = item.spec.model_copy(
+        spec = source_spec.model_copy(
             update={
                 "spec_id": spec_id,
                 "name": job_name,
-                "task_id": item.task_id,
                 "attempts": 1,
                 "concurrency": 1,
                 "timeout_seconds": min(
-                    item.spec.timeout_seconds,
+                    source_spec.timeout_seconds,
                     item.limits.max_wall_clock_seconds,
                 ),
                 "max_output_tokens": (
-                    item.limits.max_output_tokens if item.spec.billable else None
+                    item.limits.max_output_tokens if source_spec.billable else None
                 ),
-                "cost_limit_usd": item.limits.max_cost_usd if item.spec.billable else None,
+                "cost_limit_usd": item.limits.max_cost_usd if source_spec.billable else None,
                 "est_cost_usd": (
-                    item.limits.max_cost_usd if item.spec.billable else item.spec.est_cost_usd
+                    item.limits.max_cost_usd if source_spec.billable else source_spec.est_cost_usd
                 ),
                 "campaign_ledger": definition.ledger,
                 "campaign_cell_id": item.cell_id,
@@ -431,6 +643,7 @@ def build_campaign_manifest(definition: CampaignDefinition) -> CampaignManifest:
                 "campaign_attempt_index": item.attempt,
                 "campaign_manifest_digest": placeholder,
                 "campaign_spec_digest": placeholder,
+                "campaign_evidence_store": definition.evidence_store,
             }
         )
         spec_digest = experiment_spec_digest(spec)
@@ -444,6 +657,9 @@ def build_campaign_manifest(definition: CampaignDefinition) -> CampaignManifest:
                 spec_digest=spec_digest,
                 spec=spec,
                 limits=item.limits,
+                task_contract=task_contract,
+                analysis_cell=item.analysis_cell,
+                repeat_seed=item.repeat_seed,
             )
         )
     raw: dict[str, Any] = {
@@ -453,6 +669,7 @@ def build_campaign_manifest(definition: CampaignDefinition) -> CampaignManifest:
         "limits": definition.limits.model_dump(mode="json"),
         "attempts": [item.model_dump(mode="json", exclude_none=True) for item in attempts],
         "evidence_store": definition.evidence_store,
+        "analysis_holds": _analysis_cell_holds(definition.attempts),
     }
     manifest_digest = campaign_manifest_digest(raw)
     raw["manifest_digest"] = manifest_digest
@@ -585,8 +802,11 @@ class CampaignSecretSanitizer:
 
 
 class CampaignStore:
+    """Campaign state rooted at a no-follow directory descriptor."""
+
     def __init__(self, state_root: Path, campaign_id: str) -> None:
-        self.state_root = state_root.resolve()
+        self.state_root = state_root.absolute()
+        self.campaign_id = campaign_id
         self.root = self.state_root / campaign_id
         self.manifest_path = self.root / "manifest.json"
         self.journal_path = self.root / "journal.jsonl"
@@ -594,47 +814,207 @@ class CampaignStore:
         self.lease_path = self.root / "campaign.lease"
         self.journal_lock_path = self.root / ".journal.lock"
 
-    def assert_manifest(self, manifest: CampaignManifest, *, required: bool = False) -> None:
-        if not self.manifest_path.exists():
+    @staticmethod
+    def _open_directory_chain(path: Path, *, create: bool) -> int | None:
+        descriptor = os.open(
+            path.anchor or "/",
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        )
+        try:
+            for part in path.parts[1:]:
+                try:
+                    child = os.open(
+                        part,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=descriptor,
+                    )
+                except FileNotFoundError:
+                    if not create:
+                        os.close(descriptor)
+                        return None
+                    os.mkdir(part, mode=0o700, dir_fd=descriptor)
+                    child = os.open(
+                        part,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=descriptor,
+                    )
+                except OSError as exc:
+                    raise CampaignAmbiguityError(
+                        f"campaign state path component is unsafe: {part}"
+                    ) from exc
+                os.close(descriptor)
+                descriptor = child
+            return descriptor
+        except BaseException:
+            with suppress(OSError):
+                os.close(descriptor)
+            raise
+
+    @contextmanager
+    def _root_descriptor(self, *, create: bool) -> Iterator[int | None]:
+        state_descriptor = self._open_directory_chain(self.state_root, create=create)
+        if state_descriptor is None:
+            yield None
+            return
+        try:
+            if create:
+                with suppress(FileExistsError):
+                    os.mkdir(
+                        self.campaign_id,
+                        mode=0o700,
+                        dir_fd=state_descriptor,
+                    )
+            try:
+                descriptor = os.open(
+                    self.campaign_id,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=state_descriptor,
+                )
+            except FileNotFoundError:
+                if create:
+                    raise
+                yield None
+                return
+            except OSError as exc:
+                raise CampaignAmbiguityError(
+                    "campaign state root is unsafe"
+                ) from exc
+        finally:
+            os.close(state_descriptor)
+        try:
+            yield descriptor
+        finally:
+            os.close(descriptor)
+
+    @staticmethod
+    def _open_regular(
+        root_descriptor: int,
+        name: str,
+        flags: int,
+        *,
+        mode: int = 0o600,
+        missing_ok: bool = False,
+    ) -> int | None:
+        try:
+            descriptor = os.open(
+                name,
+                flags | os.O_NOFOLLOW,
+                mode,
+                dir_fd=root_descriptor,
+            )
+        except FileNotFoundError:
+            if missing_ok:
+                return None
+            raise
+        except FileExistsError:
+            raise
+        except OSError as exc:
+            raise CampaignAmbiguityError(
+                f"campaign state node is unsafe: {name}"
+            ) from exc
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            os.close(descriptor)
+            raise CampaignAmbiguityError(f"campaign state node is not a file: {name}")
+        return descriptor
+
+    @classmethod
+    def _read_regular(
+        cls,
+        root_descriptor: int,
+        name: str,
+        *,
+        missing_ok: bool = False,
+    ) -> bytes | None:
+        descriptor = cls._open_regular(
+            root_descriptor,
+            name,
+            os.O_RDONLY,
+            missing_ok=missing_ok,
+        )
+        if descriptor is None:
+            return None
+        with os.fdopen(descriptor, "rb") as handle:
+            return handle.read()
+
+    @staticmethod
+    def _exists_regular(root_descriptor: int, name: str) -> bool:
+        try:
+            metadata = os.stat(name, dir_fd=root_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            return False
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise CampaignAmbiguityError(f"campaign state node is unsafe: {name}")
+        return True
+
+    def _assert_manifest_at(
+        self,
+        root_descriptor: int | None,
+        manifest: CampaignManifest,
+        *,
+        required: bool,
+    ) -> None:
+        if root_descriptor is None:
+            if required:
+                raise CampaignDriftError("frozen campaign manifest is missing")
+            return
+        raw = self._read_regular(
+            root_descriptor,
+            "manifest.json",
+            missing_ok=True,
+        )
+        if raw is None:
             if required:
                 raise CampaignDriftError("frozen campaign manifest is missing")
             return
         try:
-            existing = CampaignManifest.model_validate_json(
-                self.manifest_path.read_text(encoding="utf-8")
-            )
+            existing = CampaignManifest.model_validate_json(raw)
         except Exception as exc:
             raise CampaignDriftError("frozen campaign manifest is unreadable") from exc
         if existing != manifest:
             raise CampaignDriftError("frozen campaign manifest differs from requested manifest")
 
-    def freeze(self, manifest: CampaignManifest) -> Path:
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        payload = manifest.model_dump_json(indent=2) + "\n"
-        if self.manifest_path.exists():
-            self.assert_manifest(manifest, required=True)
-            return self.manifest_path
-        try:
-            descriptor = os.open(
-                self.manifest_path,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                0o600,
+    def assert_manifest(self, manifest: CampaignManifest, *, required: bool = False) -> None:
+        with self._root_descriptor(create=False) as root_descriptor:
+            self._assert_manifest_at(
+                root_descriptor,
+                manifest,
+                required=required,
             )
-        except FileExistsError:
-            self.assert_manifest(manifest, required=True)
-            return self.manifest_path
-        try:
-            _write_all(descriptor, payload.encode())
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
-        _fsync_directory(self.root)
+
+    def freeze(self, manifest: CampaignManifest) -> Path:
+        payload = (manifest.model_dump_json(indent=2) + "\n").encode()
+        with self._root_descriptor(create=True) as root_descriptor:
+            assert root_descriptor is not None
+            try:
+                descriptor = self._open_regular(
+                    root_descriptor,
+                    "manifest.json",
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                )
+            except FileExistsError:
+                self._assert_manifest_at(root_descriptor, manifest, required=True)
+                return self.manifest_path
+            assert descriptor is not None
+            try:
+                _write_all(descriptor, payload)
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            os.fsync(root_descriptor)
         return self.manifest_path
 
-    def _events_unlocked(self, manifest: CampaignManifest) -> list[CampaignEvent]:
-        if not self.journal_path.exists():
+    def _events_unlocked(
+        self,
+        root_descriptor: int,
+        manifest: CampaignManifest,
+    ) -> list[CampaignEvent]:
+        raw = self._read_regular(
+            root_descriptor,
+            "journal.jsonl",
+            missing_ok=True,
+        )
+        if raw is None:
             return []
-        raw = self.journal_path.read_bytes()
         if raw and not raw.endswith(b"\n"):
             raise CampaignAmbiguityError("campaign journal ends with a partial record")
         events: list[CampaignEvent] = []
@@ -659,22 +1039,25 @@ class CampaignStore:
         return events
 
     def events(self, manifest: CampaignManifest) -> list[CampaignEvent]:
-        if not self.journal_lock_path.exists():
-            if self.journal_path.exists():
-                raise CampaignAmbiguityError("campaign journal lock is missing")
-            return []
-        try:
-            lock = self.journal_lock_path.open("rb")
-        except FileNotFoundError:
-            if self.journal_path.exists():
-                raise CampaignAmbiguityError("campaign journal lock is missing") from None
-            return []
-        with lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_SH)
+        with self._root_descriptor(create=False) as root_descriptor:
+            if root_descriptor is None:
+                return []
+            lock_descriptor = self._open_regular(
+                root_descriptor,
+                ".journal.lock",
+                os.O_RDONLY,
+                missing_ok=True,
+            )
+            if lock_descriptor is None:
+                if self._exists_regular(root_descriptor, "journal.jsonl"):
+                    raise CampaignAmbiguityError("campaign journal lock is missing")
+                return []
             try:
-                return self._events_unlocked(manifest)
+                fcntl.flock(lock_descriptor, fcntl.LOCK_SH)
+                return self._events_unlocked(root_descriptor, manifest)
             finally:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
+                os.close(lock_descriptor)
 
     def append(
         self,
@@ -687,11 +1070,18 @@ class CampaignStore:
         reason_code: str | None = None,
         details: Mapping[str, Any] | None = None,
     ) -> CampaignEvent:
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        with self.journal_lock_path.open("a+b") as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        with self._root_descriptor(create=True) as root_descriptor:
+            assert root_descriptor is not None
+            lock_created = not self._exists_regular(root_descriptor, ".journal.lock")
+            lock_descriptor = self._open_regular(
+                root_descriptor,
+                ".journal.lock",
+                os.O_RDWR | os.O_CREAT,
+            )
+            assert lock_descriptor is not None
             try:
-                current = self._events_unlocked(manifest)
+                fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
+                current = self._events_unlocked(root_descriptor, manifest)
                 provisional = CampaignEvent.model_construct(
                     sequence=len(current) + 1,
                     event_id=new_ulid(),
@@ -710,63 +1100,96 @@ class CampaignStore:
                 record_payload["event_digest"] = campaign_event_digest(provisional)
                 record = CampaignEvent.model_validate(record_payload)
                 payload = (record.model_dump_json(exclude_none=True) + "\n").encode()
-                journal_created = not self.journal_path.exists()
-                descriptor = os.open(
-                    self.journal_path,
+                journal_created = not self._exists_regular(root_descriptor, "journal.jsonl")
+                journal_descriptor = self._open_regular(
+                    root_descriptor,
+                    "journal.jsonl",
                     os.O_WRONLY | os.O_APPEND | os.O_CREAT,
-                    0o600,
                 )
+                assert journal_descriptor is not None
                 try:
-                    _write_all(descriptor, payload)
-                    os.fsync(descriptor)
+                    _write_all(journal_descriptor, payload)
+                    os.fsync(journal_descriptor)
                 finally:
-                    os.close(descriptor)
-                if journal_created:
-                    _fsync_directory(self.root)
+                    os.close(journal_descriptor)
+                if lock_created or journal_created:
+                    os.fsync(root_descriptor)
                 return record
             finally:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
+                os.close(lock_descriptor)
 
     @contextmanager
     def lease(self, manifest: CampaignManifest, *, now: datetime) -> Iterator[None]:
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        descriptor = os.open(self.lease_path, os.O_RDWR | os.O_CREAT, 0o600)
-        try:
+        with self._root_descriptor(create=True) as root_descriptor:
+            assert root_descriptor is not None
+            lease_created = not self._exists_regular(root_descriptor, "campaign.lease")
+            descriptor = self._open_regular(
+                root_descriptor,
+                "campaign.lease",
+                os.O_RDWR | os.O_CREAT,
+            )
+            assert descriptor is not None
+            if lease_created:
+                os.fsync(root_descriptor)
             try:
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as exc:
-                raise CampaignLeaseError("campaign is leased by another process") from exc
-            payload = (
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "campaign_id": manifest.campaign_id,
-                        "manifest_digest": manifest.manifest_digest,
-                        "pid": os.getpid(),
-                        "host": platform.node(),
-                        "acquired_at": now.isoformat(),
-                    },
-                    indent=2,
-                    sort_keys=True,
-                )
-                + "\n"
-            ).encode()
-            os.ftruncate(descriptor, 0)
-            _write_all(descriptor, payload)
-            os.fsync(descriptor)
-            yield
-        finally:
-            try:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as exc:
+                    raise CampaignLeaseError("campaign is leased by another process") from exc
+                payload = (
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "campaign_id": manifest.campaign_id,
+                            "manifest_digest": manifest.manifest_digest,
+                            "pid": os.getpid(),
+                            "host": platform.node(),
+                            "acquired_at": now.isoformat(),
+                        },
+                        indent=2,
+                        sort_keys=True,
+                    )
+                    + "\n"
+                ).encode()
+                os.ftruncate(descriptor, 0)
+                _write_all(descriptor, payload)
+                os.fsync(descriptor)
+                yield
             finally:
-                os.close(descriptor)
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                finally:
+                    os.close(descriptor)
 
     def write_snapshot(self, status: CampaignStatus) -> None:
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        temporary = self.snapshot_path.with_suffix(".json.tmp")
-        temporary.write_text(status.model_dump_json(indent=2) + "\n", encoding="utf-8")
-        temporary.chmod(0o600)
-        temporary.replace(self.snapshot_path)
+        payload = (status.model_dump_json(indent=2) + "\n").encode()
+        temporary_name = f".status-{new_ulid()}.tmp"
+        with self._root_descriptor(create=True) as root_descriptor:
+            assert root_descriptor is not None
+            descriptor = self._open_regular(
+                root_descriptor,
+                temporary_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            )
+            assert descriptor is not None
+            try:
+                _write_all(descriptor, payload)
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            try:
+                os.rename(
+                    temporary_name,
+                    "status.json",
+                    src_dir_fd=root_descriptor,
+                    dst_dir_fd=root_descriptor,
+                )
+                os.fsync(root_descriptor)
+            except BaseException:
+                with suppress(FileNotFoundError):
+                    os.unlink(temporary_name, dir_fd=root_descriptor)
+                raise
 
 
 ArchiveHook = Callable[[CampaignManifest, CampaignAttempt, Path], Mapping[str, Any]]
@@ -845,6 +1268,47 @@ class CampaignOrchestrator:
         self.sanitizer = sanitizer or CampaignSecretSanitizer.from_environment()
         self._clock = clock or (lambda: datetime.now(UTC))
 
+    def _assert_task_contract_current(self, attempt: CampaignAttempt) -> None:
+        contract = attempt.task_contract
+        if contract is None:
+            return
+        record = TaskRegistry.from_repo(self.repo_root).resolve_spec(
+            attempt.spec,
+            self.repo_root,
+        )
+        if record is not None:
+            current = CampaignTaskContract(
+                task_id=record.task_id,
+                task_ref=attempt.spec.task,
+                task_path=record.task_path,
+                task_family=str(attempt.spec.task_family),
+                task_version=record.version,
+                verifier_digest=record.digests.verifier,
+                package_digest=record.digests.package,
+            )
+        else:
+            task_dir = _resolved_repo_subpath(
+                self.repo_root,
+                contract.task_path,
+                label="campaign task",
+            )
+            digests = compute_task_digests(task_dir)
+            current = CampaignTaskContract(
+                task_id=str(attempt.spec.task_id),
+                task_ref=attempt.spec.task,
+                task_path=attempt.spec.executable_task_path,
+                task_family=str(attempt.spec.task_family),
+                task_version=str(attempt.spec.task_version),
+                verifier_digest=digests.verifier,
+                package_digest=digests.package,
+            )
+        if current != contract:
+            raise CampaignDriftError(
+                f"campaign task contract drifted: {attempt.identity.task_id}"
+            )
+
+
+
     @classmethod
     def from_path(
         cls,
@@ -872,6 +1336,7 @@ class CampaignOrchestrator:
     def _queue_record(
         self, attempt: CampaignAttempt
     ) -> tuple[Path, ExperimentSpec, QueueState] | None:
+        self._assert_task_contract_current(attempt)
         matches: list[tuple[Path, QueueState]] = []
         for state in (
             "proposed",
@@ -897,6 +1362,10 @@ class CampaignOrchestrator:
         queued = self.executor.queue.load(path)
         if queued.campaign_manifest_digest != self.manifest.manifest_digest:
             raise CampaignDriftError("queued spec binds a different campaign manifest")
+        if queued.campaign_spec_digest != attempt.spec_digest:
+            raise CampaignDriftError(
+                f"queued campaign spec digest binding drifted: {attempt.spec_id}"
+            )
         if experiment_spec_digest(queued) != attempt.spec_digest:
             raise CampaignDriftError(f"queued campaign spec drifted: {attempt.spec_id}")
         return path, queued, state
@@ -953,15 +1422,27 @@ class CampaignOrchestrator:
 
         def integer(name: str) -> int | None:
             value = agent_result.get(name)
-            return int(value) if isinstance(value, int) and not isinstance(value, bool) else None
+            if value is None:
+                return None
+            if (
+                not isinstance(value, int)
+                or isinstance(value, bool)
+                or value < 0
+                or value > 2**63 - 1
+            ):
+                raise CampaignAmbiguityError(f"invalid campaign usage field: {name}")
+            return value
 
         def number(name: str) -> float | None:
             value = agent_result.get(name)
-            return (
-                float(value)
-                if isinstance(value, (int, float)) and not isinstance(value, bool)
-                else None
-            )
+            if value is None:
+                return None
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise CampaignAmbiguityError(f"invalid campaign usage field: {name}")
+            parsed = float(value)
+            if not math.isfinite(parsed) or parsed < 0:
+                raise CampaignAmbiguityError(f"invalid campaign usage field: {name}")
+            return parsed
 
         started_raw = trial.result.get("started_at")
         finished_raw = trial.result.get("finished_at")
@@ -969,8 +1450,13 @@ class CampaignOrchestrator:
         try:
             started = datetime.fromisoformat(str(started_raw).replace("Z", "+00:00"))
             finished = datetime.fromisoformat(str(finished_raw).replace("Z", "+00:00"))
-            duration = max(0.0, (finished - started).total_seconds())
-        except (TypeError, ValueError):
+            candidate = (finished - started).total_seconds()
+            if not math.isfinite(candidate) or candidate < 0:
+                raise CampaignAmbiguityError(
+                    "invalid campaign usage field: wall_clock_seconds"
+                )
+            duration = candidate
+        except (TypeError, ValueError, OverflowError):
             pass
         return {
             "input_tokens": integer("n_input_tokens"),
@@ -1073,6 +1559,7 @@ class CampaignOrchestrator:
         try:
             with tempfile.TemporaryDirectory(prefix="evallab-campaign-cas-verify-") as temporary:
                 restore_evidence(store_root, expected_uri, Path(temporary))
+                self.sanitizer.assert_tree_safe(Path(temporary))
         except (OSError, ValueError, tarfile.TarError) as exc:
             raise CampaignDriftError("campaign CAS content digest mismatch") from exc
         if (
@@ -1114,7 +1601,19 @@ class CampaignOrchestrator:
             for event in load_events(self.executor.queue.events_path)
             if event.spec_id == attempt.spec_id and event.reason_code
         ]
-        return reasons[-1] if reasons else "execution_failed"
+        if reasons:
+            return reasons[-1]
+        report_path = (
+            self._evidence_store_root()
+            / "records/trial-compliance"
+            / f"{attempt.attempt_id}.json"
+        )
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            disposition = str(report["disposition"])
+        except (OSError, KeyError, TypeError, json.JSONDecodeError):
+            return "execution_failed"
+        return f"post_run_compliance_{disposition.casefold()}"
 
     def _open_circuit(
         self,
@@ -1280,7 +1779,15 @@ class CampaignOrchestrator:
                 if backfill_event is None:
                     raise CampaignAmbiguityError("campaign backfill event was not durable")
 
-                usage = self._usage(job)
+                try:
+                    usage = self._usage(job)
+                except CampaignAmbiguityError:
+                    events = self._open_circuit(
+                        events,
+                        reason="campaign_usage_invalid",
+                        attempt=attempt,
+                    )
+                    continue
                 if completed_event is None:
                     self.store.append(
                         self.manifest,
@@ -1322,7 +1829,14 @@ class CampaignOrchestrator:
                         occurred_at=self._clock(),
                     )
                     events = self.store.events(self.manifest)
-                if reason.startswith(_TRANSIENT_PREFIX):
+                if reason.startswith("post_run_"):
+                    events = self._open_circuit(
+                        events,
+                        reason=reason,
+                        attempt=attempt,
+                    )
+                    consecutive_transient = 0
+                elif reason.startswith(_TRANSIENT_PREFIX):
                     consecutive_transient += 1
                     if (
                         consecutive_transient
@@ -1402,29 +1916,78 @@ class CampaignOrchestrator:
             return None
         return preflight_events[-1].reason_code
 
-    def _event_usage_totals(self, events: list[CampaignEvent]) -> tuple[float, int, int, float]:
+    def _authoritative_usage(
+        self,
+        events: list[CampaignEvent],
+    ) -> tuple[dict[str, Mapping[str, int | float | None]], str | None]:
+        """Prefer terminal job evidence over lagging completion journal entries."""
+        usage_by_attempt: dict[str, Mapping[str, int | float | None]] = {}
+        for attempt in self.manifest.attempts:
+            completed = self._attempt_event(events, "attempt_completed", attempt)
+            if completed is not None:
+                usage = completed.details.get("usage")
+                if isinstance(usage, dict):
+                    usage_by_attempt[attempt.attempt_id] = usage
+        for attempt in self.manifest.attempts:
+            record = self._queue_record(attempt)
+            if record is None or record[2] not in {"done", "failed"}:
+                continue
+            if not (self._job_dir(attempt) / "result.json").is_file():
+                return usage_by_attempt, "campaign_usage_missing"
+            try:
+                usage = self._usage(self._validate_job(attempt))
+            except CampaignAmbiguityError:
+                return usage_by_attempt, "campaign_usage_invalid"
+            journaled = usage_by_attempt.get(attempt.attempt_id)
+            if journaled is not None and journaled != usage:
+                raise CampaignDriftError(
+                    "completed attempt usage does not match terminal job evidence"
+                )
+            usage_by_attempt[attempt.attempt_id] = usage
+            required_fields = (
+                ("input_tokens", "output_tokens", "cost_usd", "wall_clock_seconds")
+                if attempt.spec.billable
+                else ("wall_clock_seconds",)
+            )
+            if any(usage.get(field) is None for field in required_fields):
+                return usage_by_attempt, "campaign_usage_missing"
+        return usage_by_attempt, None
+
+    @staticmethod
+    def _usage_totals(
+        usage_by_attempt: Mapping[str, Mapping[str, int | float | None]],
+    ) -> tuple[float, int, int, float]:
         cost = 0.0
         input_tokens = 0
         output_tokens = 0
         wall = 0.0
-        for event in events:
-            if event.event != "attempt_completed":
-                continue
-            usage = event.details.get("usage")
-            if not isinstance(usage, dict):
-                continue
+        for usage in usage_by_attempt.values():
             cost += float(usage.get("cost_usd") or 0.0)
             input_tokens += int(usage.get("input_tokens") or 0)
             output_tokens += int(usage.get("output_tokens") or 0)
             wall += float(usage.get("wall_clock_seconds") or 0.0)
         return cost, input_tokens, output_tokens, wall
 
+    def _campaign_usage(
+        self,
+        events: list[CampaignEvent],
+    ) -> tuple[
+        dict[str, Mapping[str, int | float | None]],
+        tuple[float, int, int, float],
+        str | None,
+    ]:
+        usage_by_attempt, reason = self._authoritative_usage(events)
+        return usage_by_attempt, self._usage_totals(usage_by_attempt), reason
+
     def _next_attempt_budget_reason(
         self,
         events: list[CampaignEvent],
         attempt: CampaignAttempt,
     ) -> str | None:
-        cost, input_tokens, output_tokens, wall = self._event_usage_totals(events)
+        _usage, totals, missing_reason = self._campaign_usage(events)
+        cost, input_tokens, output_tokens, wall = totals
+        if missing_reason is not None:
+            return missing_reason
         if cost + attempt.limits.max_cost_usd > self.manifest.limits.max_cost_usd:
             return "campaign_cost_ceiling_exceeded"
         if input_tokens + attempt.limits.max_input_tokens > self.manifest.limits.max_input_tokens:
@@ -1447,8 +2010,8 @@ class CampaignOrchestrator:
         return None
 
     def _assert_campaign_usage(self, events: list[CampaignEvent]) -> list[CampaignEvent]:
-        cost, input_tokens, output_tokens, wall = self._event_usage_totals(events)
-        reason = None
+        _usage, totals, reason = self._campaign_usage(events)
+        cost, input_tokens, output_tokens, wall = totals
         if cost > self.manifest.limits.max_cost_usd:
             reason = "campaign_cost_ceiling_exceeded"
         elif input_tokens > self.manifest.limits.max_input_tokens:
@@ -1478,6 +2041,7 @@ class CampaignOrchestrator:
         any_waiting = False
         any_unreconciled = False
         started = self._event_exists(events, "campaign_started")
+        usage_by_attempt, _totals, _missing_reason = self._campaign_usage(events)
         for attempt in self.manifest.attempts:
             record = self._queue_record(attempt)
             state = record[2] if record is not None else "planned"
@@ -1489,7 +2053,7 @@ class CampaignOrchestrator:
                 ),
                 None,
             )
-            usage = completed_event.details.get("usage", {}) if completed_event is not None else {}
+            usage = usage_by_attempt.get(attempt.attempt_id, {})
             archive = next(
                 (
                     event
@@ -1561,7 +2125,7 @@ class CampaignOrchestrator:
                 )
             )
         completed = sum(item.completed for item in attempts)
-        circuit_reason = self._circuit_reason(events)
+        circuit_reason = self._circuit_reason(events) or _missing_reason
         block_reason = self._credential_block_reason(events)
         if circuit_reason:
             state_value = "circuit-open"
@@ -1581,7 +2145,7 @@ class CampaignOrchestrator:
             state_value = "running"
         else:
             state_value = "planned"
-        cost, input_tokens, output_tokens, wall = self._event_usage_totals(events)
+        cost, input_tokens, output_tokens, wall = _totals
         return CampaignStatus(
             campaign_id=self.manifest.campaign_id,
             benchmark=self.manifest.benchmark,
@@ -1625,7 +2189,13 @@ class CampaignOrchestrator:
                     sanitizer=self.sanitizer,
                     occurred_at=self._clock(),
                 )
+            self.executor.tick(spec_ids=())
             events = self._sync()
+            if self.manifest.analysis_holds and self._circuit_reason(events) is None:
+                events = self._open_circuit(
+                    events,
+                    reason=f"analysis_hold:{self.manifest.analysis_holds[0]}",
+                )
             events = self._assert_campaign_usage(events)
             if self._circuit_reason(events) is None:
                 events = self._submit_missing(events)
@@ -1688,7 +2258,7 @@ def plan_campaign(
     repo_root: Path,
 ) -> tuple[CampaignManifest, Path]:
     definition = CampaignDefinition.model_validate_json(definition_path.read_text(encoding="utf-8"))
-    manifest = build_campaign_manifest(definition)
+    manifest = build_campaign_manifest(definition, repo_root=repo_root)
     state_root = _resolved_repo_subpath(
         repo_root,
         CAMPAIGN_STATE_ROOT.as_posix(),

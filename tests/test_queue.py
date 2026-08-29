@@ -773,9 +773,13 @@ def test_reconciliation_never_settles_completed_header_missing_trial(
 
     service.reconcile_running()
 
-    assert running.is_file()
+    assert not running.exists()
     assert ingested == []
     assert not service.queue.list_specs("done")
+    failed = service.queue.list_specs("failed")
+    assert len(failed) == 1
+    reason = next(service.queue.reasons_dir.glob("*.json")).read_text()
+    assert '"code": "running_reconcile_incomplete_evidence"' in reason
 
 
 def test_unresolved_running_job_blocks_all_new_dispatch(tmp_path: Path) -> None:

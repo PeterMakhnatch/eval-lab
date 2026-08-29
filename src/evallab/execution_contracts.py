@@ -154,6 +154,17 @@ class ExecutionFailure(RuntimeError):
 
     reason_code = "execution_failed"
 
+    def __init__(
+        self,
+        reason_code_or_message: str,
+        message: str | None = None,
+    ) -> None:
+        if message is None:
+            super().__init__(reason_code_or_message)
+            return
+        self.reason_code = reason_code_or_message
+        super().__init__(message)
+
 
 class TrialTimeoutFailure(ExecutionFailure):
     """Raised when trial exceeds allowed wall-clock timeout."""
@@ -213,6 +224,9 @@ class PaidRunAuthorization:
     actor: str
     authorized_at: datetime
     quota_override: bool = False
+    approved_spec_digest: str | None = None
+    campaign_manifest_digest: str | None = None
+    campaign_spec_digest: str | None = None
 
 
 @dataclass(frozen=True)

@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+import evallab.queue as queue_module
 from evallab import cli
 from evallab.benchmark_program_contracts import (
     CampaignCalibrationLedger,
@@ -20,6 +21,7 @@ from evallab.benchmark_program_contracts import (
 )
 from evallab.campaigns import (
     CampaignAmbiguityError,
+    CampaignAnalysisCell,
     CampaignDefinition,
     CampaignDefinitionAttempt,
     CampaignDriftError,
@@ -30,15 +32,18 @@ from evallab.campaigns import (
     CampaignStore,
     TrialLimits,
     build_campaign_manifest,
+    campaign_manifest_digest,
+    experiment_spec_digest,
 )
 from evallab.credentials import DEEPSEEK_API_CREDENTIAL
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     DispatchCapacity,
+    ExecutionFailure,
     RunRequest,
     TransientHarnessFailure,
 )
-from evallab.queue import DirectoryQueue, Executor, load_policy
+from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.schemas import ExperimentSpec
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +69,11 @@ def _repo(tmp_path: Path) -> Path:
     )
     task = root / "tasks/task-one"
     task.mkdir(parents=True)
+    (task / "instruction.md").write_text("Complete the task.\n", encoding="utf-8")
+    (task / "environment").mkdir()
+    (task / "environment/Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (task / "tests").mkdir()
+    (task / "tests/test_task.py").write_text("def test_task(): pass\n", encoding="utf-8")
     (task / "task.toml").write_text('version = "1.0"\n', encoding="utf-8")
     return root
 
@@ -145,6 +155,51 @@ def _definition(
     )
 
 
+def _analysis_definition(
+    *,
+    repeats: int,
+    mixed: bool = False,
+    duplicate_seed: bool = False,
+) -> CampaignDefinition:
+    definition = _definition(billable=True, attempts=repeats)
+    cell = CampaignAnalysisCell(
+        model=DEEPSEEK_MODEL_SELECTOR,
+        agent="mini-swe-agent",
+        task_id="task-one",
+        harness="harbor-0.1",
+        scaffold="mini-swe-agent",
+        dose_axis="max_output_tokens",
+        dose_value=100,
+        dose_unit="tokens",
+        alphabet="trajectory-actions/v1",
+        base_task_pair_id="pair-task-one",
+    )
+    analysis_attempts = []
+    for index, item in enumerate(definition.attempts, start=1):
+        seed = 11 if duplicate_seed else index * 11
+        declared_cell = (
+            cell.model_copy(update={"scaffold": "different-scaffold"})
+            if mixed and index == repeats
+            else cell
+        )
+        analysis_attempts.append(
+            item.model_copy(
+                update={
+                    "cell_id": "analysis-cell",
+                    "analysis_cell": declared_cell,
+                    "repeat_seed": seed,
+                    "spec": item.spec.model_copy(
+                        update={
+                            "purpose": "comparison",
+                            "generator_seed": seed,
+                        }
+                    ),
+                }
+            )
+        )
+    return definition.model_copy(update={"attempts": tuple(analysis_attempts)})
+
+
 def _write_job(
     request: RunRequest,
     *,
@@ -208,6 +263,7 @@ def _executor(
     *,
     capacity: DispatchCapacity | None = None,
     credentials: frozenset[str] = frozenset(),
+    compliance: Any = lambda _job, _spec, _ingest, _archive: "QUALITY_PASS",
 ) -> Executor:
     return Executor(
         repo_root=root,
@@ -215,6 +271,7 @@ def _executor(
         policy=load_policy(root / "policy/standing-approvals.yaml"),
         runner=runner,
         ingester=lambda _job: None,
+        compliance=compliance,
         spent_today=lambda: 0.0,
         consecutive_harness_failures=lambda: 0,
         credential_probe=lambda: credentials,
@@ -248,7 +305,7 @@ def _orchestrator(
 
 def test_dry_run_is_read_only_and_billable_defaults_to_no_dispatch(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     calls: list[RunRequest] = []
     executor = _executor(root, lambda request: calls.append(request))
     orchestrator = _orchestrator(root, manifest, executor)
@@ -277,7 +334,7 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     calls: list[str] = []
 
     def runner(request: RunRequest) -> Path:
@@ -338,7 +395,7 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
 
 def test_resume_refuses_queued_spec_digest_drift(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
     orchestrator = _orchestrator(root, manifest, executor)
     orchestrator.run()
@@ -351,10 +408,46 @@ def test_resume_refuses_queued_spec_digest_drift(tmp_path: Path) -> None:
     with pytest.raises(CampaignDriftError, match="queued campaign spec drifted"):
         _orchestrator(root, manifest, executor).resume()
 
+def test_resume_rejects_queued_campaign_spec_digest_binding_tamper(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    calls: list[RunRequest] = []
+    executor = _executor(root, lambda request: calls.append(request))
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+
+    path, queued = executor.queue.list_specs("waiting")[0]
+    payload = queued.model_dump(mode="json", exclude_none=True)
+    payload["campaign_spec_digest"] = "sha256:" + "f" * 64
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+
+    with pytest.raises(CampaignDriftError, match="digest binding drifted"):
+        _orchestrator(root, manifest, executor).resume()
+    assert calls == []
+
+def test_campaign_rejects_task_package_substitution_before_dispatch(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    calls: list[RunRequest] = []
+    executor = _executor(root, lambda request: calls.append(request))
+    (root / "tasks/task-one/tests/test_task.py").write_text(
+        "def test_task(): assert False\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CampaignDriftError, match="task contract drifted"):
+        _orchestrator(root, manifest, executor).run()
+    assert calls == []
+
 
 def test_partial_journal_record_refuses_resume(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
     orchestrator = _orchestrator(root, manifest, executor)
     orchestrator.store.root.mkdir(parents=True)
@@ -364,10 +457,39 @@ def test_partial_journal_record_refuses_resume(tmp_path: Path) -> None:
     with pytest.raises(CampaignAmbiguityError, match="partial record"):
         orchestrator.resume()
 
+def test_campaign_store_rejects_symlinked_campaign_root(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
+    state_root = root / "runs/campaigns"
+    outside = tmp_path / "outside"
+    state_root.mkdir(parents=True)
+    outside.mkdir()
+    (state_root / manifest.campaign_id).symlink_to(outside, target_is_directory=True)
+
+    store = CampaignStore(state_root, manifest.campaign_id)
+    with pytest.raises(CampaignAmbiguityError, match="unsafe"):
+        store.freeze(manifest)
+
+
+def test_campaign_store_never_follows_manifest_symlink(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
+    state_root = root / "runs/campaigns"
+    campaign_root = state_root / manifest.campaign_id
+    campaign_root.mkdir(parents=True)
+    outside = tmp_path / "outside-manifest.json"
+    outside.write_text("operator-owned", encoding="utf-8")
+    (campaign_root / "manifest.json").symlink_to(outside)
+
+    store = CampaignStore(state_root, manifest.campaign_id)
+    with pytest.raises(CampaignAmbiguityError, match="manifest.json"):
+        store.freeze(manifest)
+    assert outside.read_text(encoding="utf-8") == "operator-owned"
+
 
 def test_campaign_journal_readers_take_a_shared_lock(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
     orchestrator = _orchestrator(root, manifest, executor)
     orchestrator.store.freeze(manifest)
@@ -399,7 +521,7 @@ def test_campaign_journal_readers_take_a_shared_lock(tmp_path: Path) -> None:
 def test_status_does_not_create_missing_queue_event_lock(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     (root / "queue").mkdir()
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
 
     status = _orchestrator(root, manifest, executor).status()
@@ -413,7 +535,7 @@ def test_run_reloads_started_state_after_acquiring_lease(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
     orchestrator = _orchestrator(root, manifest, executor)
 
@@ -435,7 +557,7 @@ def test_run_reloads_started_state_after_acquiring_lease(
 
 def test_transient_failure_opens_circuit_before_next_attempt(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False, attempts=2, circuit_failures=1))
+    manifest = build_campaign_manifest(_definition(billable=False, attempts=2, circuit_failures=1), repo_root=root)
     calls: list[str] = []
 
     def transient(request: RunRequest) -> Path:
@@ -464,7 +586,7 @@ def test_campaign_journal_redacts_secrets_and_archive_scan_fails_closed(
     root = _repo(tmp_path)
     secret = "deepseek-secret-never-persist"
     sanitizer = CampaignSecretSanitizer(frozenset({secret}))
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     store = CampaignStore(root / "runs/campaigns", manifest.campaign_id)
     store.freeze(manifest)
     store.append(
@@ -494,8 +616,9 @@ def test_campaign_journal_redacts_secrets_and_archive_scan_fails_closed(
     assert secret not in str(caught.value)
 
 
-def test_manifest_rejects_cross_ledger_attempt_identity() -> None:
-    manifest = build_campaign_manifest(_definition(billable=False))
+def test_manifest_rejects_cross_ledger_attempt_identity(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     payload = manifest.model_dump(mode="json")
     payload["ledger"]["ledger_id"] = "01ARZ3NDEKTSV4RRFFQ69G5FAX"
 
@@ -503,10 +626,11 @@ def test_manifest_rejects_cross_ledger_attempt_identity() -> None:
         CampaignManifest.model_validate(payload)
 
 
-def test_campaign_manifest_and_job_names_are_deterministic() -> None:
+def test_campaign_manifest_and_job_names_are_deterministic(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
     definition = _definition(billable=False, attempts=2)
-    first = build_campaign_manifest(definition)
-    second = build_campaign_manifest(definition)
+    first = build_campaign_manifest(definition, repo_root=root)
+    second = build_campaign_manifest(definition, repo_root=root)
 
     assert first == second
     assert first.manifest_digest == second.manifest_digest
@@ -514,6 +638,59 @@ def test_campaign_manifest_and_job_names_are_deterministic() -> None:
         attempt.job_name for attempt in second.attempts
     ]
     assert len({attempt.job_name for attempt in first.attempts}) == 2
+
+def test_analysis_cell_requires_two_distinct_declared_repeat_seeds(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_analysis_definition(repeats=2), repo_root=root)
+
+    assert manifest.analysis_holds == ()
+    assert [attempt.repeat_seed for attempt in manifest.attempts] == [11, 22]
+    assert manifest.attempts[0].analysis_cell == manifest.attempts[1].analysis_cell
+    assert len(manifest.attempts) == 2
+
+
+def test_incomplete_analysis_cell_holds_before_dispatch(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_analysis_definition(repeats=1), repo_root=root)
+    calls: list[RunRequest] = []
+    executor = _executor(root, lambda request: calls.append(request))
+
+    status = _orchestrator(root, manifest, executor).run()
+
+    assert status.state == "circuit-open"
+    assert status.circuit_reason == (
+        "analysis_hold:analysis_cell_repeats_insufficient:analysis-cell"
+    )
+    assert calls == []
+    assert executor.queue.list_specs("approved") == []
+
+
+@pytest.mark.parametrize(
+    ("mixed", "duplicate_seed", "reason"),
+    [
+        (True, False, "analysis_cell_mixed:analysis-cell"),
+        (False, True, "analysis_cell_repeats_insufficient:analysis-cell"),
+    ],
+)
+def test_mixed_or_duplicate_analysis_cells_hold(
+    tmp_path: Path,
+    mixed: bool,
+    duplicate_seed: bool,
+    reason: str,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(
+        _analysis_definition(
+            repeats=2,
+            mixed=mixed,
+            duplicate_seed=duplicate_seed,
+        ),
+        repo_root=root,
+    )
+
+    assert manifest.analysis_holds == (reason,)
 
 
 def test_campaign_cli_plan_status_and_dry_run_are_operational(
@@ -573,7 +750,7 @@ def test_missing_credential_blocks_without_duplicate_events_then_recovers(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     calls: list[str] = []
 
     def runner(request: RunRequest) -> Path:
@@ -609,7 +786,7 @@ def test_missing_credential_blocks_without_duplicate_events_then_recovers(
 
 def test_observed_trial_overage_opens_campaign_circuit(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
 
     def runner(request: RunRequest) -> Path:
         return _write_job(request, cost=1.25, input_tokens=40, output_tokens=20)
@@ -628,10 +805,155 @@ def test_observed_trial_overage_opens_campaign_circuit(tmp_path: Path) -> None:
     assert status.circuit_reason == "trial_cost_ceiling_exceeded"
     assert status.completed_attempts == 1
 
+@pytest.mark.parametrize("cost", [-0.01, float("nan"), float("inf")])
+def test_invalid_billable_usage_fails_closed(
+    tmp_path: Path,
+    cost: float,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    executor = _executor(
+        root,
+        lambda request: _write_job(
+            request,
+            cost=cost,
+            input_tokens=40,
+            output_tokens=20,
+        ),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+
+    status = orchestrator.resume()
+
+    assert status.state == "circuit-open"
+    assert status.circuit_reason == "campaign_usage_invalid"
+
+
+def test_done_unjournaled_usage_reserves_budget_before_next_dispatch(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(
+        _definition(billable=True, attempts=2, campaign_cost=2.0),
+        repo_root=root,
+    )
+    executor = _executor(
+        root,
+        lambda request: _write_job(
+            request,
+            cost=1.5,
+            input_tokens=40,
+            output_tokens=20,
+        ),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.store.freeze(manifest)
+    orchestrator._submit_missing([])
+    first = manifest.attempts[0]
+    executor.queue.approve(first.spec_id, actor="Peter Makhnatch")
+    approved_path, approved_spec = executor.queue.list_specs("approved")[0]
+    executor.execute_spec(approved_spec)
+    running = executor.queue.transition(
+        approved_path,
+        "running",
+        actor="test",
+        event="dispatch_started",
+    )
+    executor.queue.transition(
+        running,
+        "done",
+        actor="test",
+        event="dispatch_completed",
+    )
+
+    reason = orchestrator._next_attempt_budget_reason([], manifest.attempts[1])
+
+    assert reason == "campaign_cost_ceiling_exceeded"
+
+
+@pytest.mark.parametrize("disposition", ["QUALITY_WARN", "HOLD", "QUARANTINED"])
+def test_post_run_compliance_refusal_never_marks_campaign_queue_done(
+    tmp_path: Path,
+    disposition: str,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(
+        _definition(billable=True, attempts=2),
+        repo_root=root,
+    )
+    calls: list[str] = []
+
+    def runner(request: RunRequest) -> Path:
+        calls.append(request.name)
+        return _write_job(
+            request,
+            cost=0.25,
+            input_tokens=40,
+            output_tokens=20,
+        )
+
+    executor = _executor(
+        root,
+        runner,
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+        compliance=lambda _job, _spec, _ingest, _archive: disposition,
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    for attempt in manifest.attempts:
+        executor.queue.approve(attempt.spec_id, actor="Peter Makhnatch")
+
+    status = orchestrator.resume()
+
+    assert status.state == "circuit-open"
+    assert status.circuit_reason == f"post_run_compliance_{disposition.casefold()}"
+    assert status.cost_usd == 0.25
+    assert calls == [manifest.attempts[0].job_name]
+    assert executor.queue.list_specs("done") == []
+    assert executor.queue.list_specs("approved") == []
+    failed = executor.queue.list_specs("failed")
+    assert len(failed) == 1
+    events = load_events(executor.queue.events_path)
+    assert any(
+        event.event == "post_run_compliance_refused"
+        and event.reason_code == f"post_run_compliance_{disposition.casefold()}"
+        for event in events
+    )
+
+
+
+def test_executor_rejects_secret_bearing_job_before_ingest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "provider-key-must-not-persist"
+    monkeypatch.setenv("MSWEA_API_KEY", secret)
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+
+    def leaking_runner(request: RunRequest) -> Path:
+        job = _write_job(request, cost=0.25, input_tokens=40, output_tokens=20)
+        (job / "leak.txt").write_text(secret, encoding="utf-8")
+        return job
+
+    executor = _executor(
+        root,
+        leaking_runner,
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+
+    with pytest.raises(ExecutionFailure, match="credential material reached persistent artifacts"):
+        executor.execute_spec(manifest.attempts[0].spec)
+    job_dir = root / manifest.attempts[0].spec.jobs_dir / manifest.attempts[0].job_name
+    assert not (job_dir / "leak.txt").exists()
 
 def test_resume_rejects_tampered_campaign_cas_archive(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     executor = _executor(
         root,
         lambda request: _write_job(
@@ -660,7 +982,7 @@ def test_resume_rejects_tampered_campaign_cas_archive(tmp_path: Path) -> None:
 
 def test_partial_custom_backfill_is_not_replayed_on_resume(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
     hook_calls = 0
 
@@ -695,7 +1017,7 @@ def test_partial_custom_backfill_is_not_replayed_on_resume(tmp_path: Path) -> No
 
 def test_campaign_rejects_unbounded_executor_capacity(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
     executor.capacity = None
 
@@ -724,7 +1046,7 @@ def test_campaign_rejects_unbounded_executor_capacity(tmp_path: Path) -> None:
 
 def test_campaign_rejects_evidence_store_symlink_escape(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     outside = tmp_path / "outside-evidence"
     outside.mkdir()
     store_path = root / manifest.evidence_store
@@ -740,7 +1062,7 @@ def test_billable_campaign_parallelism_is_serialized_before_policy_dispatch(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True, attempts=2, max_concurrency=2))
+    manifest = build_campaign_manifest(_definition(billable=True, attempts=2, max_concurrency=2), repo_root=root)
 
     orchestrator = CampaignOrchestrator(
         repo_root=root,
@@ -759,7 +1081,7 @@ def test_billable_campaign_parallelism_is_serialized_before_policy_dispatch(
 
 def test_campaign_dispatch_does_not_execute_foreign_approved_specs(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     calls: list[str] = []
 
     def runner(request: RunRequest) -> Path:
@@ -797,7 +1119,7 @@ def test_campaign_dispatch_does_not_execute_foreign_approved_specs(tmp_path: Pat
 
 def test_targeted_campaign_tick_preserves_global_running_barrier(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     calls: list[str] = []
     executor = _executor(
         root,
@@ -835,7 +1157,7 @@ def test_status_binds_frozen_manifest_and_unreconciled_done_is_not_planned(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=False))
+    manifest = build_campaign_manifest(_definition(billable=False), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
     orchestrator = _orchestrator(root, manifest, executor)
     completed = orchestrator.run()
@@ -843,7 +1165,7 @@ def test_status_binds_frozen_manifest_and_unreconciled_done_is_not_planned(
 
     payload = _definition(billable=False).model_dump(mode="json")
     payload["attempts"][0]["spec"]["hypothesis"] = "a different frozen identity"
-    drifted = build_campaign_manifest(CampaignDefinition.model_validate(payload))
+    drifted = build_campaign_manifest(CampaignDefinition.model_validate(payload), repo_root=root)
     assert drifted.campaign_id == manifest.campaign_id
     assert drifted.manifest_digest != manifest.manifest_digest
     with pytest.raises(CampaignDriftError, match="frozen campaign manifest differs"):
@@ -867,7 +1189,7 @@ def test_status_binds_frozen_manifest_and_unreconciled_done_is_not_planned(
 
 def test_resume_rejects_rewritten_cas_blob_and_record_digest(tmp_path: Path) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     executor = _executor(
         root,
         lambda request: _write_job(
@@ -901,7 +1223,7 @@ def test_resume_rejects_valid_archive_with_wrong_content_digest(tmp_path: Path) 
     from evallab.evidence_store import archive_evidence
 
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True))
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
     executor = _executor(
         root,
         lambda request: _write_job(
@@ -961,7 +1283,7 @@ def test_remaining_token_reservation_opens_circuit_before_next_dispatch(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True, attempts=2))
+    manifest = build_campaign_manifest(_definition(billable=True, attempts=2), repo_root=root)
     executor = _executor(root, lambda request: _write_job(request))
     orchestrator = _orchestrator(root, manifest, executor)
     orchestrator.store.freeze(manifest)
@@ -990,4 +1312,277 @@ def test_remaining_token_reservation_opens_circuit_before_next_dispatch(
     assert (
         orchestrator._next_attempt_budget_reason(events, manifest.attempts[1])
         == "campaign_input_token_ceiling_exceeded"
+    )
+
+
+
+def test_executor_revalidates_campaign_spec_at_last_mile(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    calls: list[RunRequest] = []
+    executor = _executor(
+        root,
+        lambda request: calls.append(request),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    approved = executor.queue.approve(
+        manifest.attempts[0].spec_id,
+        actor="Peter Makhnatch",
+    )
+    payload = json.loads(approved.read_text(encoding="utf-8"))
+    payload["hypothesis"] = "substituted after approval"
+    approved.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert executor.tick(spec_ids=[manifest.attempts[0].spec_id]) == 0
+    assert calls == []
+    assert executor.queue.list_specs("done") == []
+    assert any(
+        event.reason_code == "campaign_spec_drifted"
+        for event in load_events(executor.queue.events_path)
+    )
+
+
+def test_executor_rejects_campaign_spec_id_prefix_substitution(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    calls: list[RunRequest] = []
+    executor = _executor(
+        root,
+        lambda request: calls.append(request),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    waiting, queued = executor.queue.list_specs("waiting")[0]
+    payload = queued.model_dump(mode="json", exclude_none=True)
+    substituted_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    payload["spec_id"] = substituted_id
+    waiting.write_text(json.dumps(payload), encoding="utf-8")
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+
+    assert executor.tick(spec_ids=[substituted_id]) == 0
+    assert calls == []
+    assert any(
+        event.reason_code == "campaign_binding_missing"
+        for event in load_events(executor.queue.events_path)
+    )
+
+
+def test_executor_revalidates_task_snapshot_at_last_mile(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    calls: list[RunRequest] = []
+    executor = _executor(
+        root,
+        lambda request: calls.append(request),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+    (root / "tasks/task-one/instruction.md").write_text(
+        "Substituted after approval.\n",
+        encoding="utf-8",
+    )
+
+    assert executor.tick(spec_ids=[manifest.attempts[0].spec_id]) == 1
+    assert calls == []
+    assert executor.queue.list_specs("done") == []
+    assert any(
+        event.reason_code == "task_digest_mismatch"
+        for event in load_events(executor.queue.events_path)
+    )
+
+
+
+
+def test_human_approval_binds_exact_campaign_spec_and_manifest(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    calls: list[RunRequest] = []
+    executor = _executor(
+        root,
+        lambda request: calls.append(request),
+        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+    )
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    approved = executor.queue.approve(
+        manifest.attempts[0].spec_id,
+        actor="Peter Makhnatch",
+    )
+    current = executor.queue.load(approved)
+    substituted = current.model_copy(update={"hypothesis": "coherently substituted"})
+    substituted_spec_digest = experiment_spec_digest(substituted)
+    substituted = substituted.model_copy(
+        update={"campaign_spec_digest": substituted_spec_digest}
+    )
+    substituted_attempt = manifest.attempts[0].model_copy(
+        update={
+            "spec": substituted,
+            "spec_digest": substituted_spec_digest,
+        }
+    )
+    substituted_manifest = manifest.model_copy(
+        update={
+            "attempts": (substituted_attempt,),
+            "manifest_digest": "sha256:" + "0" * 64,
+        }
+    )
+    substituted_manifest_digest = campaign_manifest_digest(substituted_manifest)
+    substituted = substituted.model_copy(
+        update={"campaign_manifest_digest": substituted_manifest_digest}
+    )
+    substituted_attempt = substituted_attempt.model_copy(update={"spec": substituted})
+    substituted_manifest = substituted_manifest.model_copy(
+        update={
+            "attempts": (substituted_attempt,),
+            "manifest_digest": substituted_manifest_digest,
+        }
+    )
+    CampaignManifest.model_validate(substituted_manifest.model_dump(mode="json"))
+    approved.write_text(substituted.model_dump_json(), encoding="utf-8")
+    orchestrator.store.manifest_path.write_text(
+        substituted_manifest.model_dump_json(),
+        encoding="utf-8",
+    )
+
+    assert executor.tick(spec_ids=[substituted.spec_id]) == 0
+    assert calls == []
+    assert any(
+        event.reason_code == "paid_run_authorization_stale"
+        for event in load_events(executor.queue.events_path)
+    )
+
+
+def test_registered_task_resolution_must_match_frozen_package_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    frozen = manifest.attempts[0].spec
+    spec = frozen.model_copy(update={"task": "registered/task-one"})
+    calls: list[RunRequest] = []
+    executor = _executor(root, lambda request: calls.append(request))
+    resolved = type(
+        "ResolvedTask",
+        (),
+        {
+            "task_path": "tasks/task-one",
+            "version": spec.task_version,
+            "digests": type(
+                "Digests",
+                (),
+                {
+                    "verifier": spec.verifier_digest,
+                    "package": "sha256:" + "f" * 64,
+                },
+            )(),
+            "task_id": spec.task_id,
+            "limits": type("Limits", (), {"timeout_seconds": spec.timeout_seconds})(),
+        },
+    )()
+    registry = type(
+        "Registry",
+        (),
+        {"resolve_spec": lambda _self, _spec, _root: resolved},
+    )()
+    monkeypatch.setattr(
+        queue_module.TaskRegistry,
+        "from_repo",
+        lambda _root: registry,
+    )
+
+    with pytest.raises(ExecutionFailure, match="frozen campaign digest"):
+        executor.execute_spec(spec)
+    assert calls == []
+
+
+def test_running_reconciliation_revalidates_campaign_binding(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    executor = _executor(root, lambda request: _write_job(request))
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.run()
+    approved = executor.queue.approve(
+        manifest.attempts[0].spec_id,
+        actor="Peter Makhnatch",
+    )
+    running = executor.queue.transition(
+        approved,
+        "running",
+        actor="test",
+        event="dispatch_started",
+    )
+    payload = json.loads(running.read_text(encoding="utf-8"))
+    for field in (
+        "campaign_ledger",
+        "campaign_cell_id",
+        "campaign_attempt_id",
+        "campaign_attempt_index",
+        "campaign_manifest_digest",
+        "campaign_spec_digest",
+        "campaign_evidence_store",
+    ):
+        payload.pop(field, None)
+    payload["spec_id"] = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    running.write_text(json.dumps(payload), encoding="utf-8")
+
+    executor.reconcile_running()
+
+    assert not running.exists()
+    assert executor.queue.list_specs("done") == []
+    assert any(
+        event.reason_code == "campaign_binding_missing"
+        for event in load_events(executor.queue.events_path)
+    )
+@pytest.mark.parametrize("billable", [False, True])
+def test_failed_attempt_without_usage_blocks_later_dispatch(
+    tmp_path: Path,
+    billable: bool,
+) -> None:
+    root = _repo(tmp_path)
+    manifest = build_campaign_manifest(
+        _definition(
+            billable=billable,
+            attempts=2,
+            campaign_cost=2.0 if billable else 0.0,
+        ),
+        repo_root=root,
+    )
+    executor = _executor(root, lambda request: _write_job(request))
+    orchestrator = _orchestrator(root, manifest, executor)
+    orchestrator.store.freeze(manifest)
+    orchestrator._submit_missing([])
+    queued_path = executor.queue.locate(manifest.attempts[0].spec_id)
+    approved = (
+        executor.queue.approve(
+            manifest.attempts[0].spec_id,
+            actor="Peter Makhnatch",
+        )
+        if queued_path.parent.name == "waiting"
+        else queued_path
+    )
+    executor.queue.transition(
+        approved,
+        "failed",
+        actor="test",
+        event="dispatch_failed",
+        reason_code="execution_failed",
+    )
+
+    usage, reason = orchestrator._authoritative_usage([])
+
+    assert usage == {}
+    assert reason == "campaign_usage_missing"
+    assert (
+        orchestrator._next_attempt_budget_reason([], manifest.attempts[1])
+        == "campaign_usage_missing"
     )

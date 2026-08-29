@@ -15,7 +15,11 @@ import yaml
 from evallab.benchmark_program_contracts import FaultClass, FaultInjectionRecord
 from evallab.mcp_substrate import (
     DEFAULT_PINNED_BASE_IMAGE,
+    DEFAULT_TARGET_PLATFORM_TAG,
+    DEFAULT_TARGET_PYTHON_TAG,
     FASTMCP_VERSION_CONSTRAINTS,
+    PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST,
+    PINNED_BASE_IMAGE_INDEX_DIGEST,
     MCPToolDefinition,
     MCPToolParameter,
     SubstrateError,
@@ -25,8 +29,10 @@ from evallab.mcp_substrate import (
     materialize_mcp_sidecar_package,
     record_prepackaging_provenance,
     render_mcp_compose_document,
+    render_mcp_sidecar_dockerfile,
     render_selected_wheel_lock,
     validate_mcp_compose_document,
+    validate_target_base_runtime,
 )
 from evallab.task_workbench import _validate_compose_topology
 
@@ -64,29 +70,12 @@ def test_mcp_substrate_workbench_v2_integration_acceptance(tmp_path: Path):
         description="A test tool",
         parameters=(MCPToolParameter(name="x", type_name="int", description="val"),),
     )
-    wheelhouse = Path("/tmp/fastmcp3_wheelhouse")
-
-    if wheelhouse.is_dir():
-        provenance = record_prepackaging_provenance(
-            wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64")
-        )
-        pkg = materialize_mcp_sidecar_package(
-            target_dir=sidecar_dir,
-            tools=[tool],
-            wheelhouse_source=wheelhouse,
-            target=provenance.target,
-            resolver_provenance=provenance,
-        )
-    else:
-        pkg = materialize_mcp_sidecar_package(
-            target_dir=sidecar_dir,
-            tools=[tool],
-            plan_only=True,
-        )
-        (sidecar_dir / "Dockerfile").write_text(
-            f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8"
-        )
-        (sidecar_dir / "offline-build-proof.json").write_text("{}\n", encoding="utf-8")
+    pkg = materialize_mcp_sidecar_package(
+        target_dir=sidecar_dir,
+        tools=[tool],
+        plan_only=True,
+    )
+    (sidecar_dir / "Dockerfile").write_text(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n", encoding="utf-8")
 
     (env_dir / "docker-compose.yaml").write_text(yaml.dump(pkg["compose_doc"]), encoding="utf-8")
 
@@ -151,10 +140,23 @@ def test_mcp_sidecar_package_materialization_and_fail_closed_validation(tmp_path
             wheelhouse_source=incomplete_wheelhouse,
         )
 
-    # 4. Full valid production materialization succeeds
-    provenance = record_prepackaging_provenance(
-        wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64")
-    )
+    # 4. Host macosx target is incompatible with the pinned Linux 3.12 base.
+    with pytest.raises(SubstrateError, match="platform tag"):
+        materialize_mcp_sidecar_package(
+            target_dir=tmp_path / "fail_macosx_target",
+            tools=[tool],
+            wheelhouse_source=wheelhouse,
+            target=WheelhouseTarget("cp312", "macosx_11_0_arm64"),
+            resolver_provenance=record_prepackaging_provenance(
+                wheelhouse, WheelhouseTarget("cp312", "macosx_11_0_arm64")
+            ),
+        )
+
+    linux_target = WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+    try:
+        provenance = record_prepackaging_provenance(wheelhouse, linux_target)
+    except SubstrateError:
+        pytest.skip("Linux CPython 3.12 manylinux wheelhouse not populated on this host")
     prod_dir = tmp_path / "prod_pkg"
     prod_pkg = materialize_mcp_sidecar_package(
         target_dir=prod_dir,
@@ -430,6 +432,17 @@ def test_mcp_substrate_digest_sensitivity_to_metadata_and_body():
     assert d1 != d2, "Digest must differ when metadata/op_kind differs"
     assert d1 != d3, "Digest must differ when execution_body differs"
 
+    with pytest.raises(SubstrateError, match="platform tag"):
+        compute_mcp_substrate_digest(
+            doc, [tool1], target=WheelhouseTarget("cp312", "macosx_11_0_arm64")
+        )
+    with pytest.raises(SubstrateError, match="python tag"):
+        compute_mcp_substrate_digest(
+            doc, [tool1], target=WheelhouseTarget("cp313", DEFAULT_TARGET_PLATFORM_TAG)
+        )
+    with pytest.raises(SubstrateError, match="pinned python@sha256"):
+        compute_mcp_substrate_digest(doc, [tool1], base_image="python:3.13-slim")
+
 
 def test_mcp_compose_validation_rejects_unauthorized_constructs():
     bad_doc1 = render_mcp_compose_document()
@@ -455,3 +468,89 @@ def test_mcp_compose_validation_rejects_unauthorized_constructs():
     valid, errs = validate_mcp_compose_document(bad_doc4)
     assert not valid
     assert any("network_mode" in e for e in errs)
+
+
+def test_default_base_runtime_is_pinned_cpython312_slim():
+    dockerfile = render_mcp_sidecar_dockerfile()
+    assert PINNED_BASE_IMAGE_INDEX_DIGEST in dockerfile
+    assert "bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251" not in dockerfile
+    assert dockerfile.startswith(f"FROM {DEFAULT_PINNED_BASE_IMAGE}\n")
+    runtime = validate_target_base_runtime(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG)
+    assert runtime["base_image"] == DEFAULT_PINNED_BASE_IMAGE
+    assert runtime["base_image_index_digest"] == PINNED_BASE_IMAGE_INDEX_DIGEST
+    assert runtime["base_image_amd64_manifest_digest"] == PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST
+
+
+def test_target_base_runtime_rejects_mismatch_and_unpinned_images():
+    with pytest.raises(SubstrateError, match="pinned python@sha256"):
+        validate_target_base_runtime(
+            DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, "python:3.13-slim"
+        )
+    with pytest.raises(SubstrateError, match="pinned python@sha256"):
+        validate_target_base_runtime(
+            DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, "python:latest"
+        )
+    with pytest.raises(SubstrateError, match="does not match declared index digest"):
+        validate_target_base_runtime(
+            DEFAULT_TARGET_PYTHON_TAG,
+            DEFAULT_TARGET_PLATFORM_TAG,
+            "python@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
+    with pytest.raises(SubstrateError, match="index digest is not the pinned"):
+        validate_target_base_runtime(
+            DEFAULT_TARGET_PYTHON_TAG,
+            DEFAULT_TARGET_PLATFORM_TAG,
+            "python@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            base_image_index_digest="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
+    with pytest.raises(SubstrateError, match="amd64 manifest digest is not the pinned"):
+        validate_target_base_runtime(
+            DEFAULT_TARGET_PYTHON_TAG,
+            DEFAULT_TARGET_PLATFORM_TAG,
+            DEFAULT_PINNED_BASE_IMAGE,
+            base_image_amd64_manifest_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        )
+    with pytest.raises(SubstrateError, match="python tag"):
+        validate_target_base_runtime("cp313", DEFAULT_TARGET_PLATFORM_TAG)
+    with pytest.raises(SubstrateError, match="platform tag"):
+        validate_target_base_runtime(DEFAULT_TARGET_PYTHON_TAG, "macosx_11_0_arm64")
+
+
+def test_plan_only_proof_binds_target_and_base_manifest(tmp_path: Path):
+    tool = MCPToolDefinition(
+        name="noop",
+        description="noop",
+        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
+    )
+    plan_dir = tmp_path / "plan"
+    materialize_mcp_sidecar_package(target_dir=plan_dir, tools=[tool], plan_only=True)
+    proof = json.loads((plan_dir / "offline-build-proof.json").read_text())
+    assert proof["base_image"] == DEFAULT_PINNED_BASE_IMAGE
+    assert proof["base_image_index_digest"] == PINNED_BASE_IMAGE_INDEX_DIGEST
+    assert proof["base_image_amd64_manifest_digest"] == PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST
+    assert proof["target_python"] == DEFAULT_TARGET_PYTHON_TAG
+    assert proof["target_platform"] == DEFAULT_TARGET_PLATFORM_TAG
+    with pytest.raises(SubstrateError, match="platform tag"):
+        materialize_mcp_sidecar_package(
+            target_dir=tmp_path / "plan_mismatch",
+            tools=[tool],
+            plan_only=True,
+            target=WheelhouseTarget("cp312", "macosx_11_0_arm64"),
+        )
+
+
+def test_digest_binds_base_runtime_identity():
+    doc = render_mcp_compose_document()
+    tool = MCPToolDefinition(
+        name="tool_a",
+        description="Tool A",
+        parameters=(MCPToolParameter(name="x", type_name="int", description="x"),),
+    )
+    d1 = compute_mcp_substrate_digest(doc, [tool])
+    d2 = compute_mcp_substrate_digest(
+        doc,
+        [tool],
+        target=WheelhouseTarget(DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG),
+        base_image=DEFAULT_PINNED_BASE_IMAGE,
+    )
+    assert d1 == d2

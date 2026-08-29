@@ -81,6 +81,13 @@ def _read_evidence_key(key_input: bytes | Path | str | None) -> bytes:
     if not key_path.is_file():
         raise ValueError(f"Evidence key file not found: {key_path}")
 
+    mode = key_path.stat().st_mode
+    if mode & (stat.S_IRWXG | stat.S_IRWXO):
+        raise ValueError(
+            f"Evidence key file {key_path} has insecure permissions {oct(mode & 0o777)}; "
+            "must be 0400 or 0600 (owner-only access)."
+        )
+
     raw = key_path.read_bytes()
     if len(raw) == 32:
         return raw

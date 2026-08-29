@@ -110,6 +110,15 @@ def test_materializer_hard_fails_without_evidence_key(monkeypatch, tmp_path):
         materializer.materialize_task(tmp_path / "task_no_key", seed=42, evidence_key=None)
 
 
+def test_evidence_key_file_rejects_insecure_permissions(tmp_path):
+    materializer = load("materializer")
+    insecure_key = tmp_path / "insecure_key.bin"
+    insecure_key.write_bytes(os.urandom(32))
+    os.chmod(insecure_key, 0o666)
+
+    with pytest.raises(ValueError, match="insecure permissions"):
+        materializer.materialize_task(tmp_path / "task", seed=42, evidence_key=insecure_key)
+
 def test_public_factor_enumeration_cannot_predict_slug_or_decrypt_envelope(tmp_path):
     materializer = load("materializer")
     envelope_mod = load("envelope")

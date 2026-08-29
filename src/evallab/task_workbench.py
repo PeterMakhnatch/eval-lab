@@ -1529,6 +1529,21 @@ def _validate_offline_build_proofs(
                     )
                     continue
 
+                # 0. Independent fail-closed verification: regenerate the canonical
+                # server.py / Dockerfile / requirements lock from the checked-in
+                # trusted manifest and the proof's declared tool definitions,
+                # server params, runtime assets, and base image; byte-compare against
+                # on-disk artifacts; verify every wheel EXACTLY against the manifest.
+                try:
+                    import evallab.mcp_substrate as _substrate
+                    _independent_errors = _substrate.verify_proof_independently(root, data)
+                except Exception as _exc:  # noqa: BLE001 - fail closed
+                    _independent_errors = [f"independent substrate proof verification failed: {_exc}"]
+                if _independent_errors:
+                    for _msg in _independent_errors:
+                        diagnostics.append(_diag("build_proof_invalid", rel_proof, _msg))
+                    continue
+
                 # 1. Mandatory requirements.txt matching requirements_sha256
                 req_path = root / "requirements.txt"
                 if not req_path.is_file() or req_path.is_symlink():

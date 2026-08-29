@@ -1082,12 +1082,13 @@ def test_task_workbench_rejects_tampered_sidecar_proof_fields(tmp_path: Path):
         encoding="utf-8",
     )
 
-    # 3. Add extra unapproved wheel in wheelhouse -> unpinned dependency
+    # 3. Add extra unapproved wheel in wheelhouse -> fail-closed manifest mismatch
     (sidecar_dir / "wheelhouse" / "extra-1.0.0-py3-none-any.whl").write_bytes(b"bad")
     diag3: list[Any] = []
     _validate_offline_build_proofs(tmp_path, diag3, compose_topology=compose_topology)
     assert any(
-        "actual regular wheel count" in d.message or "extra unapproved wheels" in d.message
+        "wheelhouse files differ from trusted manifest" in d.message
+        or "do not exactly match checked-in trusted manifest" in d.message
         for d in diag3
     )
 
@@ -1134,7 +1135,10 @@ def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Pat
     proof_path.write_text(json.dumps(p1), encoding="utf-8")
     d1 = []
     _validate_offline_build_proofs(tmp_path, d1, compose_topology=compose_topology)
-    assert any("Dockerfile asset COPY lines" in d.message for d in d1)
+    assert any(
+        "Dockerfile does not byte-match the canonical regenerated Dockerfile" in d.message
+        for d in d1
+    )
 
     # 2. Invalid wheel filename (traversal) -> invalid proof
     p2 = dict(raw_proof)
@@ -1149,7 +1153,11 @@ def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Pat
     proof_path.write_text(json.dumps(p2), encoding="utf-8")
     d2 = []
     _validate_offline_build_proofs(tmp_path, d2, compose_topology=compose_topology)
-    assert any("wheel filename" in d.message for d in d2)
+    assert any(
+        "wheelhouse files differ from trusted manifest" in d.message
+        or "do not exactly match checked-in trusted manifest" in d.message
+        for d in d2
+    )
 
     # 3. Missing dockerfile_sha256 -> invalid proof
     p3 = dict(raw_proof)
@@ -1157,4 +1165,6 @@ def test_task_workbench_rejects_missing_fields_and_unmapped_assets(tmp_path: Pat
     proof_path.write_text(json.dumps(p3), encoding="utf-8")
     d3 = []
     _validate_offline_build_proofs(tmp_path, d3, compose_topology=compose_topology)
-    assert any("substrate proof requires valid sha256 'dockerfile_sha256'" in d.message for d in d3)
+    assert any(
+        "Dockerfile digest does not match proof dockerfile_sha256" in d.message for d in d3
+    )

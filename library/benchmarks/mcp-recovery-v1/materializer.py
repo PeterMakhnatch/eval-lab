@@ -149,25 +149,25 @@ def _recovery_tools() -> list[MCPToolDefinition]:
                 MCPToolParameter(name="key", type_name="str", description="Record key"),
                 MCPToolParameter(name="value", type_name="str", description="Record value"),
             ),
-            execution_body="return recovery_write_record(key, value)",
+            execution_body='return OP_REGISTRY["write_record"](**args)',
         ),
         MCPToolDefinition(
             name="read_record",
             description="Read a record from the operational store",
             parameters=(MCPToolParameter(name="key", type_name="str", description="Record key"),),
-            execution_body="return recovery_read_record(key)",
+            execution_body='return OP_REGISTRY["read_record"](**args)',
         ),
         MCPToolDefinition(
             name="refresh_auth",
             description="Re-authenticate and refresh credentials for current session",
             parameters=(MCPToolParameter(name="scope", type_name="str", description="Session scope"),),
-            execution_body="return recovery_refresh_auth(scope)",
+            execution_body='return OP_REGISTRY["refresh_auth"](**args)',
         ),
         MCPToolDefinition(
             name="fallback_query",
             description="Query the operational store replica sync channel",
             parameters=(MCPToolParameter(name="query", type_name="str", description="Sync query"),),
-            execution_body="return recovery_fallback_query(query)",
+            execution_body='return OP_REGISTRY["fallback_query"](**args)',
         ),
     ]
 
@@ -176,7 +176,11 @@ def _recovery_prelude(fault_class: FaultClass, persistence: int, fault_id: str, 
     effective_persistence = 0 if is_clean_twin else persistence
     return f'''
 import hashlib
+import json
+import os
+from pathlib import Path
 from typing import Any
+from fastmcp.tools import ToolResult
 from envelope import encrypt_envelope, write_atomic_envelope
 
 TASK_ID = "{task_id}"
@@ -304,6 +308,14 @@ def recovery_write_record(key: str, value: str) -> Any:
     event = {{"event_index": len(RECORDED_EVENTS), "event_type": "tool_executed", "tool": "write_record", "outcome": "ok", "fault_injected": False, "written_key": key, "written_value": value}}
     _record_and_seal(event, state)
     return {{"status": "success", "key": key, "value": value}}
+
+
+OP_REGISTRY = {{
+    "write_record": recovery_write_record,
+    "read_record": recovery_read_record,
+    "refresh_auth": recovery_refresh_auth,
+    "fallback_query": recovery_fallback_query,
+}}
 '''
 
 
@@ -313,11 +325,12 @@ def generate_recovery_server_script(
     fault_id: str,
     task_id: str,
     is_clean_twin: bool = False,
+    port: int = DEFAULT_MCP_PORT,
 ) -> str:
     script = generate_fastmcp_server_script(
         tools=_recovery_tools(),
         server_name="mcp-recovery-sidecar",
-        port=DEFAULT_MCP_PORT,
+        port=port,
         evidence_path="/app/output/substrate-events.jsonl",
     )
     script = script.replace(
@@ -665,6 +678,7 @@ def materialize_task(
     persistence: int = 1,
     is_clean_twin: bool = False,
     evidence_key: bytes | Path | str | None = None,
+    port: int = DEFAULT_MCP_PORT,
 ) -> Path:
     secret_key_bytes = _read_evidence_key(evidence_key)
     fault = resolve_fault_class(fault_mode)
@@ -719,7 +733,7 @@ storage_mb = 2048
 [[environment.mcp_servers]]
 name = "{DEFAULT_SIDECAR_SERVICE}"
 transport = "streamable-http"
-url = "http://{DEFAULT_SIDECAR_SERVICE}:{DEFAULT_MCP_PORT}/mcp"
+url = "http://{DEFAULT_SIDECAR_SERVICE}:{port}/mcp"
 '''
     (target_dir / "task.toml").write_text(task_toml, encoding="utf-8")
     (target_dir / "instruction.md").write_text(
@@ -751,25 +765,24 @@ before retrying.
     provenance = wheelhouse_inputs[1] if wheelhouse_inputs else None
 
     # Sidecar receives envelope module and per-cell secret key via RuntimeAsset
+    ops_source = _recovery_prelude(fault, persistence, record.fault_id, task_id, is_clean_twin)
     sidecar_assets = (
         RuntimeAsset("envelope.py", source=ROOT / "envelope.py"),
         RuntimeAsset("secret_key.txt", content=secret_key_hex.encode("utf-8")),
+        RuntimeAsset("ops.py", content=ops_source.encode("utf-8")),
     )
 
     pkg = materialize_mcp_sidecar_package(
         target_dir=sidecar_dir,
         tools=_recovery_tools(),
         server_name="mcp-recovery-sidecar",
-        port=DEFAULT_MCP_PORT,
+        port=port,
         wheelhouse_source=wheelhouse,
+        op_registry_module="ops",
         plan_only=wheelhouse_inputs is None,
         target=provenance.target if provenance else None,
         resolver_provenance=provenance,
         runtime_assets=sidecar_assets,
-    )
-    (sidecar_dir / "server.py").write_text(
-        generate_recovery_server_script(fault, persistence, record.fault_id, task_id, is_clean_twin),
-        encoding="utf-8",
     )
 
     if wheelhouse_inputs is not None:
@@ -860,10 +873,11 @@ def materialize(
     persistence: int = 1,
     is_clean_twin: bool = False,
     evidence_key: bytes | Path | str | None = None,
+    port: int = DEFAULT_MCP_PORT,
 ) -> Path:
     reject_committed_corpora()
     out = target or output_path(seed, fault_mode, persistence, is_clean_twin, evidence_key=evidence_key)
-    return materialize_task(out, seed=seed, fault_mode=fault_mode, persistence=persistence, is_clean_twin=is_clean_twin, evidence_key=evidence_key)
+    return materialize_task(out, seed=seed, fault_mode=fault_mode, persistence=persistence, is_clean_twin=is_clean_twin, evidence_key=evidence_key, port=port)
 
 
 def materialize_all_campaign0(seed: int = 42, evidence_key_generator: Any = None) -> list[Path]:

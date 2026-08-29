@@ -16,10 +16,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pyarrow as pa
-import pyarrow.parquet as pq
 
 from evallab.evidence.atif import ExportedTable, ExportResult, project_trial
 from evallab.evidence.facts import StateChangeFact, extract_job_facts, sha256_file
+from evallab.evidence.parquet_io import write_table_atomic
 from evallab.results import JobRecord, TrialRecord
 from evallab.traj import outline_trajectory
 
@@ -343,13 +343,7 @@ def project_event_mart(
 
 
 def _write_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    table = pa.Table.from_pylist(rows, schema=EVENT_MART_SCHEMAS[table_name])
-    temporary = path.with_suffix(".parquet.tmp")
-    pq.write_table(
-        table, temporary, compression="zstd", use_dictionary=False, write_statistics=True
-    )
-    temporary.replace(path)
+    write_table_atomic(path, rows, EVENT_MART_SCHEMAS[table_name])
     return ExportedTable(
         table=table_name, path=path, rows=len(rows), sha256=f"sha256:{sha256_file(path)}"
     )

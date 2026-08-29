@@ -18,6 +18,7 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from evallab.evidence.atif import ExportedTable, ExportResult, export_trajectories, project_trial
+from evallab.evidence.parquet_io import write_table_atomic
 from evallab.results import JobRecord, TrialRecord, duration_seconds, load_job, sha256_file
 from evallab.runner import subscription_environment
 from evallab.schemas import (
@@ -788,17 +789,7 @@ FACT_SCHEMAS = {
 
 
 def _write_fact_table(path: Path, table_name: str, rows: list[dict[str, Any]]) -> ExportedTable:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    table = pa.Table.from_pylist(rows, schema=FACT_SCHEMAS[table_name])
-    temporary = path.with_suffix(".parquet.tmp")
-    pq.write_table(
-        table,
-        temporary,
-        compression="zstd",
-        use_dictionary=False,
-        write_statistics=True,
-    )
-    temporary.replace(path)
+    write_table_atomic(path, rows, FACT_SCHEMAS[table_name])
     return ExportedTable(
         table=table_name,
         path=path,

@@ -297,21 +297,15 @@ def validate_runtime_assets(
 
 
 def _assert_confined_nonsymlink_destination(root: Path, destination: str) -> Path:
+    cursor = root
+    for part in Path(destination).parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise SubstrateError(f"Runtime asset destination is a symlink: {destination!r}")
     try:
         resolved = safe_resolve_subpath(root, destination)
     except ValueError as exc:
         raise SubstrateError(str(exc)) from exc
-    root_resolved = root.resolve()
-    cursor = resolved
-    while True:
-        if cursor.is_symlink():
-            raise SubstrateError(f"Runtime asset destination is a symlink: {destination!r}")
-        if cursor == root_resolved:
-            break
-        parent = cursor.parent
-        if parent == cursor:
-            break
-        cursor = parent
     return resolved
 
 
@@ -623,6 +617,14 @@ def materialize_mcp_sidecar_package(
     _require_op_registry_asset(op_registry_module, prepared_assets)
     target_dir = safe_resolve_subpath(target_dir.parent, target_dir.name)
     target_dir.mkdir(parents=True, exist_ok=True)
+    confined_assets = tuple(
+        (
+            _assert_confined_nonsymlink_destination(target_dir, asset.destination),
+            asset,
+            content,
+        )
+        for asset, content in prepared_assets
+    )
 
     # 1. server.py
     server_code = generate_fastmcp_server_script(
@@ -634,9 +636,8 @@ def materialize_mcp_sidecar_package(
     )
     (target_dir / "server.py").write_text(server_code, encoding="utf-8")
 
-    sorted_assets = tuple(asset for asset, _content in prepared_assets)
-    for asset, content in prepared_assets:
-        destination = _assert_confined_nonsymlink_destination(target_dir, asset.destination)
+    sorted_assets = tuple(asset for _destination, asset, _content in confined_assets)
+    for destination, _asset, content in confined_assets:
         _atomic_write_bytes(destination, content)
 
     # 2. requirements.txt is emitted only after selected wheels are staged.

@@ -737,6 +737,22 @@ def test_runtime_asset_rejects_symlink_source(tmp_path: Path):
     assert not pkg.exists()
 
 
+def test_runtime_asset_rejects_symlink_destination(tmp_path: Path):
+    real = tmp_path / "real.py"
+    real.write_text("OP_REGISTRY = {}\n", encoding="utf-8")
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "ops.py").symlink_to(real)
+    with pytest.raises(SubstrateError, match="symlink"):
+        materialize_mcp_sidecar_package(
+            target_dir=pkg,
+            tools=[_runtime_asset_tool()],
+            plan_only=True,
+            runtime_assets=(RuntimeAsset("ops.py", real),),
+        )
+    assert not (pkg / "server.py").exists()
+
+
 def test_runtime_asset_rejects_duplicate_destinations(tmp_path: Path):
     first = tmp_path / "a.py"
     second = tmp_path / "b.py"

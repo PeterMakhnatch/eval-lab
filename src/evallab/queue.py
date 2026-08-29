@@ -6,7 +6,9 @@ import hashlib
 import json
 import os
 import platform
+import secrets
 import shutil
+import stat
 import subprocess
 import threading
 import time
@@ -1015,9 +1017,62 @@ class DirectoryQueue:
                     return self.state_dir("running") / f"{matches_json[0].stem}.lease"
                 filename = f"{spec_str}.lease"
         return self.state_dir("running") / filename
-    def cancel_path(self, spec: ExperimentSpec | Path | str) -> Path:
-        """Return the operator cancellation marker for one active lease."""
-        return self.lease_path(spec).with_suffix(".cancel")
+    def cancel_path(
+        self,
+        spec: ExperimentSpec | Path | str,
+        *,
+        lease_generation: str | None = None,
+    ) -> Path:
+        """Return the generation-bound cancellation marker for one lease."""
+        lease = self.lease_path(spec)
+        generation = lease_generation or self.lease_generation(lease)
+        suffix = generation or "unbound"
+        return lease.with_name(f"{lease.name}.cancel.{suffix}")
+
+    @staticmethod
+    def _read_lease_record(path: Path) -> dict[str, Any] | None:
+        try:
+            descriptor = os.open(
+                path,
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            )
+        except OSError:
+            return None
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                return None
+            with os.fdopen(descriptor, "rb", closefd=False) as source:
+                payload = json.load(source)
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            return None
+        finally:
+            os.close(descriptor)
+        return payload if isinstance(payload, dict) else None
+
+    def lease_generation(
+        self,
+        spec: ExperimentSpec | Path | str,
+    ) -> str | None:
+        record = self._read_lease_record(self.lease_path(spec))
+        generation = record.get("lease_generation") if record is not None else None
+        return generation if isinstance(generation, str) and generation else None
+
+    @contextmanager
+    def _lease_guard(self, path: Path) -> Iterator[None]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = path.with_name(f".{path.name}.lock")
+        descriptor = os.open(
+            lock_path,
+            os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600,
+        )
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
 
 
     def is_lease_stale(
@@ -1045,20 +1100,19 @@ class DirectoryQueue:
         owner_pid: int | None = None,
         stale_seconds: float = DEFAULT_LEASE_STALE_SECONDS,
         now: datetime | None = None,
+        lease_generation: str | None = None,
     ) -> Path | None:
-        """Atomically claim one spec via O_EXCL lease file in running/.
-
-        Returns the lease path on successful claim, or None if the spec is
-        actively claimed by another executor. A stale lease (> stale_seconds)
-        is reclaimed atomically rather than permanently blocking the spec.
-        """
+        """Atomically claim one spec with an immutable lease generation."""
         path = self.lease_path(spec)
-        with suppress(OSError):
-            self.cancel_path(spec).unlink(missing_ok=True)
-        path.parent.mkdir(parents=True, exist_ok=True)
         pid = owner_pid if owner_pid is not None else os.getpid()
         timestamp = now or datetime.now(UTC)
         spec_id = spec.spec_id if isinstance(spec, ExperimentSpec) else str(spec)
+        generation = lease_generation or secrets.token_hex(16)
+        if (
+            len(generation) != 32
+            or any(character not in "0123456789abcdef" for character in generation)
+        ):
+            raise ValueError("lease_generation must be 32 lowercase hexadecimal characters")
         payload = (
             json.dumps(
                 {
@@ -1066,90 +1120,140 @@ class DirectoryQueue:
                     "pid": pid,
                     "acquired_at": timestamp.isoformat(),
                     "host": platform.node(),
+                    "lease_generation": generation,
                 },
                 indent=2,
             )
             + "\n"
         ).encode()
-
-        try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        except FileExistsError:
-            if self.is_lease_stale(path, stale_seconds=stale_seconds):
-                with suppress(OSError):
-                    path.unlink(missing_ok=True)
+        with self._lease_guard(path):
+            try:
+                descriptor = os.open(
+                    path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                    0o600,
+                )
+            except FileExistsError:
+                if not self.is_lease_stale(path, stale_seconds=stale_seconds):
+                    return None
                 try:
-                    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    path.unlink()
+                    descriptor = os.open(
+                        path,
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                        0o600,
+                    )
                 except (FileExistsError, OSError):
                     return None
-            else:
+            except OSError:
                 return None
-        except OSError:
-            return None
-
-        try:
-            os.write(fd, payload)
-        finally:
-            os.close(fd)
+            try:
+                with os.fdopen(descriptor, "wb", closefd=False) as destination:
+                    destination.write(payload)
+                    destination.flush()
+                    os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
         return path
 
     def request_cancel(self, spec: ExperimentSpec) -> bool:
-        """Fence one active lease for cancellation by its runner watchdog."""
+        """Atomically bind a cancellation request to the currently active generation."""
         lease = self.lease_path(spec)
-        if not lease.is_file():
-            return False
-        marker = self.cancel_path(spec)
-        payload = (
-            json.dumps(
-                {
-                    "spec_id": spec.spec_id,
-                    "requested_at": datetime.now(UTC).isoformat(),
-                },
-                sort_keys=True,
-            )
-            + "\n"
-        ).encode()
-        try:
-            descriptor = os.open(
-                marker,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                0o600,
-            )
-        except FileExistsError:
-            return marker.is_file() and not marker.is_symlink()
-        except OSError:
-            return False
-        try:
-            os.write(descriptor, payload)
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
-        return True
-
-    def release_lease(self, spec: ExperimentSpec | Path | str) -> bool:
-        """Release a held lease and its operator cancellation marker."""
-        path = self.lease_path(spec)
-        released = False
-        if path.is_file():
+        with self._lease_guard(lease):
+            generation = self.lease_generation(lease)
+            if generation is None:
+                return False
+            marker = self.cancel_path(spec, lease_generation=generation)
+            payload = (
+                json.dumps(
+                    {
+                        "spec_id": spec.spec_id,
+                        "lease_generation": generation,
+                        "requested_at": datetime.now(UTC).isoformat(),
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            ).encode()
             try:
-                path.unlink()
-                released = True
+                descriptor = os.open(
+                    marker,
+                    os.O_WRONLY
+                    | os.O_CREAT
+                    | os.O_EXCL
+                    | os.O_NOFOLLOW
+                    | os.O_CLOEXEC,
+                    0o600,
+                )
+            except FileExistsError:
+                record = self._read_lease_record(marker)
+                return (
+                    record is not None
+                    and record.get("lease_generation") == generation
+                    and record.get("spec_id") == spec.spec_id
+                )
             except OSError:
                 return False
-        with suppress(OSError):
-            self.cancel_path(spec).unlink(missing_ok=True)
-        return released
-
-    def heartbeat_lease(self, spec: ExperimentSpec | Path | str) -> bool:
-        """Touch the lease file to update its mtime heartbeat."""
-        path = self.lease_path(spec)
-        if path.is_file():
             try:
-                path.touch()
+                with os.fdopen(descriptor, "wb", closefd=False) as destination:
+                    destination.write(payload)
+                    destination.flush()
+                    os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            return True
+
+    def release_lease(
+        self,
+        spec: ExperimentSpec | Path | str,
+        *,
+        lease_generation: str | None = None,
+    ) -> bool:
+        """Release only the matching generation and acknowledge its cancellation."""
+        path = self.lease_path(spec)
+        with self._lease_guard(path):
+            generation = lease_generation or self.lease_generation(path)
+            if generation is None:
+                return False
+            current = self.lease_generation(path)
+            released = False
+            if current == generation:
+                try:
+                    path.unlink()
+                    released = True
+                except OSError:
+                    return False
+            marker = self.cancel_path(spec, lease_generation=generation)
+            with suppress(OSError):
+                if marker.is_file() and not marker.is_symlink():
+                    marker.unlink()
+            return released
+
+    def heartbeat_lease(
+        self,
+        spec: ExperimentSpec | Path | str,
+        *,
+        lease_generation: str | None = None,
+    ) -> bool:
+        """Heartbeat only the currently matching lease generation."""
+        path = self.lease_path(spec)
+        with self._lease_guard(path):
+            if lease_generation is not None and self.lease_generation(path) != lease_generation:
+                return False
+            try:
+                descriptor = os.open(
+                    path,
+                    os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                )
+            except OSError:
+                return False
+            try:
+                os.utime(descriptor)
                 return True
             except OSError:
                 return False
-        return False
+            finally:
+                os.close(descriptor)
 
     def list_leases(self) -> list[Path]:
         """Return all active lease files in running/."""
@@ -1622,7 +1726,11 @@ class Executor:
             except (FileNotFoundError, FileExistsError, ValueError):
                 pass
             return False
-        lease_path = self.queue.acquire_lease(spec)
+        lease_generation = secrets.token_hex(16)
+        lease_path = self.queue.acquire_lease(
+            spec,
+            lease_generation=lease_generation,
+        )
         if lease_path is None:
             # Lost claim race or actively leased; tolerated vanished/claimed skip
             return False
@@ -1635,7 +1743,7 @@ class Executor:
                 policy_rule=decision.policy_rule,
             )
         except (FileNotFoundError, FileExistsError, ValueError):
-            self.queue.release_lease(spec)
+            self.queue.release_lease(spec, lease_generation=lease_generation)
             return False
         self._report_progress(
             f"dispatching {spec.name} (spec {spec.spec_id}, agent {spec.agent})"
@@ -1646,7 +1754,10 @@ class Executor:
         )
         try:
             try:
-                job_dir = self.execute_spec(spec)
+                job_dir = self.execute_spec(
+                    spec,
+                    lease_generation=lease_generation,
+                )
             except Exception as execution_error:
                 failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
                 failure_error = execution_error
@@ -1712,7 +1823,7 @@ class Executor:
                     self._report_progress(f"completed {spec.name}; state: done")
             return True
         finally:
-            self.queue.release_lease(spec)
+            self.queue.release_lease(spec, lease_generation=lease_generation)
 
     def _capacity_batch(
         self,
@@ -1810,7 +1921,12 @@ class Executor:
                     dispatched += 1
         return dispatched
 
-    def execute_spec(self, spec: ExperimentSpec) -> Path:
+    def execute_spec(
+        self,
+        spec: ExperimentSpec,
+        *,
+        lease_generation: str | None = None,
+    ) -> Path:
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest
@@ -1998,6 +2114,7 @@ class Executor:
             max_total_tokens=spec.max_total_tokens,
             cost_limit_usd=spec.cost_limit_usd,
             lease_path=self.queue.lease_path(spec),
+            lease_generation=lease_generation,
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
                 task=spec.task,

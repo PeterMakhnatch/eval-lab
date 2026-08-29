@@ -319,11 +319,19 @@ def test_executor_process_enforces_wall_clock_timeout(tmp_path: Path) -> None:
 
 
 def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
+    generation = "a" * 32
     lease = tmp_path / "campaign-spec.lease"
-    lease.write_text("active\n", encoding="utf-8")
+    lease.write_text(
+        json.dumps({"lease_generation": generation}) + "\n",
+        encoding="utf-8",
+    )
+    marker = lease.with_name(f"{lease.name}.cancel.{generation}")
     timer = threading.Timer(
         0.05,
-        lambda: lease.with_suffix(".cancel").write_text("cancel\n", encoding="utf-8"),
+        lambda: marker.write_text(
+            json.dumps({"lease_generation": generation}) + "\n",
+            encoding="utf-8",
+        ),
     )
     timer.start()
     started = time.monotonic()
@@ -334,6 +342,7 @@ def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
         timeout_seconds=5,
         log_path=tmp_path / "cancelled.log",
         lease_path=lease,
+        lease_generation=generation,
         heartbeat_interval_seconds=0.01,
     )
     timer.join()
@@ -341,8 +350,6 @@ def test_executor_process_honors_campaign_cancel_marker(tmp_path: Path) -> None:
     assert result.timed_out is False
     assert result.returncode != 0
     assert time.monotonic() - started < 2
-
-
 def test_executor_watchdog_enforces_each_trial_in_multi_attempt_job(
     tmp_path: Path,
 ) -> None:

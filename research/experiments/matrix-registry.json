@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "matrices": [
+    {
+      "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+      "path": "research/experiments/local-controls.json",
+      "matrix_digest": "sha256:47779155e0d4fca46eaa826a3dfb76d49efe584ceb53b30e11d84704e1309db0"
+    },
+    {
+      "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+      "path": "research/experiments/baselines/event-summary-controls.json",
+      "matrix_digest": "sha256:b4455c6ddcec89083dd56871ee57f4686b83f13265add36f33377df831a26d86"
+    },
+    {
+      "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+      "path": "research/experiments/baselines/html-js-filter-controls.json",
+      "matrix_digest": "sha256:740b1e918cb6135faf00bc61713d139176ba858fb0e2bebf280b3c3479124722"
+    },
+    {
+      "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "path": "research/experiments/baselines/query-optimize-controls.json",
+      "matrix_digest": "sha256:02fef160d4251d7d5eb8c29ff6dd6421b88780530b31448219813a21006c8058"
+    },
+    {
+      "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAT",
+      "path": "research/experiments/baselines/transaction-reconciliation-controls.json",
+      "matrix_digest": "sha256:d6a932728cecf931564cb6b765aff0bb7af16e2013fe492c3ffb89d9787881f0"
+    }
+  ]
+}

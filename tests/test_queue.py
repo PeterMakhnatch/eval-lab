@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import os
 import threading
@@ -1093,12 +1094,40 @@ def test_stale_lease_is_reclaimed_on_acquire(tmp_path: Path) -> None:
     assert queue.is_lease_stale(lease_path, stale_seconds=300.0) is False
     queue.release_lease(s)
 
+def test_cancel_marker_survives_failed_claimant_and_stale_reclaim(tmp_path: Path) -> None:
+    queue = DirectoryQueue(tmp_path / "queue")
+    s = spec("cancel-reclaim-control")
+    generation = "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+    lease_path = queue.acquire_lease(s, lease_generation=generation)
+    assert lease_path is not None
+    assert queue.request_cancel(s) is True
+    marker = queue.cancel_path(s, lease_generation=generation)
+    assert marker.is_file()
+
+    # A concurrent/failed claimant on the active lease must not erase the marker.
+    assert queue.acquire_lease(s, lease_generation="f" * 32) is None
+    assert marker.is_file()
+
+    # Age the lease and let a new generation reclaim it; the old generation's
+    # cancel marker must survive the reclaim untouched.
+    past = time.time() - 400.0
+    os.utime(lease_path, (past, past))
+    reclaimed = queue.acquire_lease(s, stale_seconds=300.0, lease_generation="e" * 32)
+    assert reclaimed == lease_path
+    assert marker.is_file()
+    # The reclaim's own generation has its own distinct marker path.
+    assert queue.cancel_path(s, lease_generation="e" * 32) != marker
+
 
 def test_runner_wrapper_touches_lease_for_fast_process(tmp_path: Path) -> None:
     from evallab.runner import run_harbor_process
 
+    generation = "c" * 32
     lease_path = tmp_path / "test.lease"
-    lease_path.touch()
+    lease_path.write_text(
+        json.dumps({"lease_generation": generation}) + "\n",
+        encoding="utf-8",
+    )
     past_ns = lease_path.stat().st_mtime_ns - 100_000_000_000
     os.utime(lease_path, ns=(past_ns, past_ns))
 
@@ -1108,6 +1137,7 @@ def test_runner_wrapper_touches_lease_for_fast_process(tmp_path: Path) -> None:
         timeout_seconds=5.0,
         log_path=tmp_path / "process.log",
         lease_path=lease_path,
+        lease_generation=generation,
         heartbeat_interval_seconds=30.0,
     )
 
@@ -1115,37 +1145,45 @@ def test_runner_wrapper_touches_lease_for_fast_process(tmp_path: Path) -> None:
     assert not result.timed_out
     assert lease_path.stat().st_mtime_ns > past_ns
 
-def test_runner_wrapper_keeps_periodic_lease_heartbeat(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_runner_wrapper_keeps_periodic_lease_heartbeat(tmp_path: Path) -> None:
     from evallab.runner import run_harbor_process
 
+    generation = "d" * 32
     lease_path = tmp_path / "test.lease"
-    lease_path.touch()
+    lease_path.write_text(
+        json.dumps({"lease_generation": generation}) + "\n",
+        encoding="utf-8",
+    )
     past_ns = lease_path.stat().st_mtime_ns - 100_000_000_000
     os.utime(lease_path, ns=(past_ns, past_ns))
-    touch_calls: list[float] = []
-    original_touch = Path.touch
+    observed_mtimes: list[int] = []
+    stop = threading.Event()
 
-    def record_touch(path: Path, *args: object, **kwargs: object) -> None:
-        if path == lease_path:
-            touch_calls.append(time.monotonic())
-        original_touch(path, *args, **kwargs)
+    def sampler() -> None:
+        while not stop.is_set():
+            observed_mtimes.append(lease_path.stat().st_mtime_ns)
+            time.sleep(0.005)
 
-    monkeypatch.setattr(Path, "touch", record_touch)
+    sampler_thread = threading.Thread(target=sampler, daemon=True)
+    sampler_thread.start()
 
-    result = run_harbor_process(
-        ["python3", "-c", "import time; time.sleep(0.3)"],
-        cwd=tmp_path,
-        timeout_seconds=5.0,
-        log_path=tmp_path / "process.log",
-        lease_path=lease_path,
-        heartbeat_interval_seconds=0.02,
-    )
+    try:
+        result = run_harbor_process(
+            ["python3", "-c", "import time; time.sleep(0.3)"],
+            cwd=tmp_path,
+            timeout_seconds=5.0,
+            log_path=tmp_path / "process.log",
+            lease_path=lease_path,
+            lease_generation=generation,
+            heartbeat_interval_seconds=0.02,
+        )
+    finally:
+        stop.set()
+        sampler_thread.join()
 
     assert result.returncode == 0
     assert not result.timed_out
-    assert len(touch_calls) >= 2
+    assert len(set(observed_mtimes)) >= 2
 
 
 def test_parallel_dispatch_executes_multiple_specs_concurrently(tmp_path: Path) -> None:

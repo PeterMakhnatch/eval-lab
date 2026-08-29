@@ -31,6 +31,7 @@ from evallab.campaigns import (
     CampaignOrchestrator,
     CampaignSecretSanitizer,
     CampaignStore,
+    MatrixRegistry,
     TrialLimits,
     build_campaign_manifest,
     campaign_manifest_digest,
@@ -54,6 +55,7 @@ from evallab.queue import DirectoryQueue, Executor, load_events, load_policy
 from evallab.registry import compute_task_digests
 from evallab.schemas import (
     ControlEvidenceRef,
+    ExperimentMatrix,
     ExperimentSpec,
     QueueEvent,
     TaskControlEvidence,
@@ -150,13 +152,60 @@ def _repo(tmp_path: Path) -> Path:
         "timeout_seconds": 60,
         "runs": [{"name": "task-one-oracle", "agent": "oracle"}],
     }
-    matrices = root / "research/experiments/matrices"
-    matrices.mkdir(parents=True)
-    (matrices / "01ARZ3NDEKTSV4RRFFQ69G5FAW.json").write_text(
+    experiments = root / "research/experiments"
+    experiments.mkdir(parents=True)
+    matrix_path = experiments / "local-controls.json"
+    matrix_path.write_text(
         json.dumps(matrix, indent=2) + "\n",
         encoding="utf-8",
     )
+    validated_matrix = ExperimentMatrix.model_validate(matrix)
+    matrix_digest = "sha256:" + hashlib.sha256(
+        json.dumps(
+            validated_matrix.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    (experiments / "matrix-registry.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "matrices": [
+                    {
+                        "matrix_id": validated_matrix.matrix_id,
+                        "path": "research/experiments/local-controls.json",
+                        "matrix_digest": matrix_digest,
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return root
+
+
+def _canonical_matrix_digest(payload: dict[str, Any]) -> str:
+    matrix = ExperimentMatrix.model_validate(payload)
+    return "sha256:" + hashlib.sha256(
+        json.dumps(
+            matrix.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+
+def _update_fixture_matrix_catalog(
+    root: Path,
+    **updates: str,
+) -> None:
+    registry_path = root / "research/experiments/matrix-registry.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["matrices"][0].update(updates)
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
 
 
 def _spec(*, billable: bool) -> ExperimentSpec:
@@ -1920,13 +1969,15 @@ def test_campaign_refuses_spoofed_frozen_matrix_identity(
 ) -> None:
     root = _repo(tmp_path)
     matrix_path = (
-        root
-        / "research/experiments/matrices"
-        / "01ARZ3NDEKTSV4RRFFQ69G5FAW.json"
+        root / "research/experiments/local-controls.json"
     )
     matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
     matrix[field] = value
     matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+    _update_fixture_matrix_catalog(
+        root,
+        matrix_digest=_canonical_matrix_digest(matrix),
+    )
 
     with pytest.raises(ValueError, match=message):
         build_campaign_manifest(_definition(billable=True), repo_root=root)
@@ -1939,8 +1990,87 @@ def test_campaign_refuses_unresolved_ledger_matrix_ref(tmp_path: Path) -> None:
         update={"matrix_ref": "01ARZ3NDEKTSV4RRFFQ69G5FAS"}
     )
 
-    with pytest.raises(ValueError, match="does not resolve to a frozen matrix"):
+    with pytest.raises(ValueError, match="canonical matrix registry"):
         build_campaign_manifest(
             definition.model_copy(update={"ledger": ledger}),
             repo_root=root,
         )
+
+
+def test_committed_matrix_registry_resolves_local_and_baselines() -> None:
+    registry = MatrixRegistry.from_repo(REPO_ROOT)
+    expected_paths = {
+        "research/experiments/local-controls.json",
+        "research/experiments/baselines/event-summary-controls.json",
+        "research/experiments/baselines/html-js-filter-controls.json",
+        "research/experiments/baselines/query-optimize-controls.json",
+        "research/experiments/baselines/transaction-reconciliation-controls.json",
+    }
+
+    assert {entry.path for entry in registry.matrices} == expected_paths
+    for entry in registry.matrices:
+        resolved_entry, matrix, digest = registry.resolve(REPO_ROOT, entry.matrix_id)
+        assert resolved_entry == entry
+        assert matrix.matrix_id == entry.matrix_id
+        assert digest == entry.matrix_digest
+
+
+def test_matrix_registry_rejects_duplicate_ids(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    registry_path = root / "research/experiments/matrix-registry.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    duplicate = dict(registry["matrices"][0])
+    duplicate["path"] = "research/experiments/duplicate.json"
+    registry["matrices"].append(duplicate)
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="canonical matrix registry is unreadable"):
+        MatrixRegistry.from_repo(root)
+
+
+def test_campaign_refuses_missing_matrix_catalog_entry(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    registry_path = root / "research/experiments/matrix-registry.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["matrices"][0]["matrix_id"] = "01ARZ3NDEKTSV4RRFFQ69G5FAS"
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="canonical matrix registry"):
+        build_campaign_manifest(_definition(billable=True), repo_root=root)
+
+
+def test_matrix_registry_rejects_path_escape(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    _update_fixture_matrix_catalog(root, path="../outside.json")
+
+    with pytest.raises(ValueError, match="canonical matrix registry is unreadable"):
+        MatrixRegistry.from_repo(root)
+
+
+def test_matrix_registry_rejects_missing_registered_file(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    _update_fixture_matrix_catalog(
+        root,
+        path="research/experiments/missing.json",
+    )
+    registry = MatrixRegistry.from_repo(root)
+
+    with pytest.raises(ValueError, match="does not resolve to a frozen matrix"):
+        registry.resolve(root, "01ARZ3NDEKTSV4RRFFQ69G5FAW")
+
+
+def test_matrix_registry_rejects_digest_spoof(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    _update_fixture_matrix_catalog(root, matrix_digest="sha256:" + "0" * 64)
+    registry = MatrixRegistry.from_repo(root)
+
+    with pytest.raises(ValueError, match="digest"):
+        registry.resolve(root, "01ARZ3NDEKTSV4RRFFQ69G5FAW")
+
+
+def test_matrix_registry_rejects_unknown_identifier(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    registry = MatrixRegistry.from_repo(root)
+
+    with pytest.raises(ValueError, match="absent from the canonical matrix registry"):
+        registry.resolve(root, "01ARZ3NDEKTSV4RRFFQ69G5FAS")

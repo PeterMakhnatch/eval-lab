@@ -203,6 +203,7 @@ class RunRequest:
     allow_billable: bool = False
     provenance: RunProvenance | None = None
     lease_path: Path | None = None
+    lease_generation: str | None = None
     extra_instruction_path: Path | None = None
     max_requests: int | None = None
     max_input_tokens: int | None = None

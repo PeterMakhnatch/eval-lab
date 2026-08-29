@@ -447,13 +447,76 @@ def assert_no_secret_material(
         )
 
 
-def _cancel_requested(lease_path: Path | None) -> bool:
-    if lease_path is None:
-        return False
+def _read_generation(path: Path) -> str | None:
     try:
-        return stat.S_ISREG(os.lstat(lease_path.with_suffix(".cancel")).st_mode)
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return None
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            payload = json.load(source)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    finally:
+        os.close(descriptor)
+    if not isinstance(payload, dict):
+        return None
+    generation = payload.get("lease_generation")
+    return generation if isinstance(generation, str) and generation else None
+
+
+def _lease_owned(lease_path: Path | None, lease_generation: str | None) -> bool:
+    if lease_path is None:
+        return True
+    return lease_generation is not None and _read_generation(lease_path) == lease_generation
+
+
+def _cancel_requested(
+    lease_path: Path | None,
+    lease_generation: str | None,
+) -> bool:
+    if lease_path is None or lease_generation is None:
+        return False
+    marker = lease_path.with_name(f"{lease_path.name}.cancel.{lease_generation}")
+    return _read_generation(marker) == lease_generation
+
+
+def _heartbeat_lease(lease_path: Path, lease_generation: str) -> bool:
+    try:
+        descriptor = os.open(
+            lease_path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
     except OSError:
         return False
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return False
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            payload = json.load(source)
+        if not isinstance(payload, dict) or payload.get("lease_generation") != lease_generation:
+            return False
+        os.utime(descriptor)
+        return True
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    finally:
+        os.close(descriptor)
+
+
+def _lease_cancelled_or_lost(
+    lease_path: Path | None,
+    lease_generation: str | None,
+) -> bool:
+    return _cancel_requested(lease_path, lease_generation) or not _lease_owned(
+        lease_path,
+        lease_generation,
+    )
 
 
 def _read_proxy_usage(
@@ -561,12 +624,15 @@ def run_harbor_process(
     job_dir: Path | None = None,
     trial_timeout_seconds: float | None = None,
     lease_path: Path | None = None,
+    lease_generation: str | None = None,
     proxy_attempt_id: str | None = None,
     proxy_limits: ProxyTrialLimits | None = None,
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
 ) -> HarborProcessResult:
     """Run Harbor while redacting provider credentials before log persistence."""
-    if _cancel_requested(lease_path):
+    if lease_path is not None and lease_generation is None:
+        raise ValueError("lease_generation is required when lease_path is set")
+    if _lease_cancelled_or_lost(lease_path, lease_generation):
         raise ExecutionFailure(
             "execution_cancelled",
             "campaign owner cancelled the active queue lease before Harbor launch",
@@ -740,16 +806,18 @@ def run_harbor_process(
         pump.start()
         try:
             started = time.monotonic()
-            if lease_path is not None:
-                try:
-                    if lease_path.is_file():
-                        lease_path.touch()
-                except OSError:
-                    pass
+            if (
+                lease_path is not None
+                and lease_generation is not None
+                and not _heartbeat_lease(lease_path, lease_generation)
+            ):
+                _terminate_process_group(process)
+                pump.join(timeout=5)
+                return _result(returncode=-1, timed_out=False)
             last_heartbeat = started
             first_seen: dict[Path, float] = {}
             while True:
-                if _cancel_requested(lease_path):
+                if _lease_cancelled_or_lost(lease_path, lease_generation):
                     _terminate_process_group(process)
                     pump.join(timeout=5)
                     return _result(
@@ -762,12 +830,20 @@ def run_harbor_process(
                 if returncode is not None:
                     break
                 now = time.monotonic()
-                if lease_path is not None and now - last_heartbeat >= heartbeat_interval_seconds:
-                    try:
-                        if lease_path.is_file():
-                            lease_path.touch()
-                    except OSError:
-                        pass
+                if (
+                    lease_path is not None
+                    and lease_generation is not None
+                    and now - last_heartbeat >= heartbeat_interval_seconds
+                ):
+                    if not _heartbeat_lease(lease_path, lease_generation):
+                        _terminate_process_group(process)
+                        pump.join(timeout=5)
+                        return _result(
+                            returncode=(
+                                process.returncode if process.returncode is not None else -1
+                            ),
+                            timed_out=False,
+                        )
                     last_heartbeat = now
                 timed_out_trial: str | None = None
                 if job_dir is not None and trial_timeout_seconds is not None:
@@ -1158,6 +1234,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 job_dir=job_dir,
                 trial_timeout_seconds=request.timeout_seconds,
                 lease_path=request.lease_path,
+                lease_generation=request.lease_generation,
                 proxy_attempt_id=_proxy_attempt_id(request),
                 proxy_limits=_proxy_trial_limits(request),
             )
@@ -1171,7 +1248,10 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             )
             raise
         finished = datetime.now(UTC)
-        cancelled = _cancel_requested(request.lease_path)
+        cancelled = _lease_cancelled_or_lost(
+            request.lease_path,
+            request.lease_generation,
+        )
         _write_executor_state(
             request,
             started_at=started,

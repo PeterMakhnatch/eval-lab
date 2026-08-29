@@ -59,7 +59,7 @@ _SCHEMA_MANIFEST = "campaign-manifest/v3"
 _SCHEMA_EVENT = "campaign-event/v1"
 _SCHEMA_STATUS = "campaign-status/v1"
 CAMPAIGN_STATE_ROOT = Path("runs/campaigns")
-CAMPAIGN_MATRIX_ROOT = Path("research/experiments/matrices")
+MATRIX_REGISTRY_PATH = "research/experiments/matrix-registry.json"
 _TRANSIENT_PREFIX = "transient_harness:"
 _SPEC_DIGEST_EXCLUDES = {
     "submitted_at",
@@ -135,6 +135,48 @@ def _resolved_repo_subpath(repo_root: Path, relative_path: str, *, label: str) -
     return resolved
 
 
+def _read_repo_regular_file(
+    repo_root: Path,
+    relative_path: str,
+    *,
+    label: str,
+) -> bytes:
+    """Read one repo-confined regular file without following path symlinks."""
+    components = _repo_relative(relative_path).split("/")
+    if not components or any(component in {"", "."} for component in components):
+        raise ValueError(f"{label} path is not canonical")
+    directory = os.open(
+        repo_root.resolve(),
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+    )
+    try:
+        for component in components[:-1]:
+            next_directory = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=directory,
+            )
+            os.close(directory)
+            directory = next_directory
+        descriptor = os.open(
+            components[-1],
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=directory,
+        )
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ValueError(f"{label} must be a regular file")
+            chunks: list[bytes] = []
+            while chunk := os.read(descriptor, 64 * 1024):
+                chunks.append(chunk)
+            return b"".join(chunks)
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(directory)
+
+
 def experiment_spec_digest(spec: ExperimentSpec) -> str:
     """Digest immutable execution inputs while excluding queue-owned fields."""
     payload = spec.model_dump(mode="json", exclude_none=True)
@@ -198,6 +240,79 @@ class CampaignMatrixContract(_FrozenContract):
     task_path: str = Field(min_length=1)
     verifier_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class MatrixRegistryEntry(_FrozenContract):
+    matrix_id: str = Field(pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
+    path: str = Field(min_length=1)
+    matrix_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def path_is_repo_relative(self) -> MatrixRegistryEntry:
+        _repo_relative(self.path)
+        return self
+
+
+class MatrixRegistry(_FrozenContract):
+    schema_version: Literal[1] = 1
+    matrices: tuple[MatrixRegistryEntry, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def matrix_ids_and_paths_are_unique(self) -> MatrixRegistry:
+        ids = [entry.matrix_id for entry in self.matrices]
+        paths = [entry.path for entry in self.matrices]
+        if len(ids) != len(set(ids)):
+            raise ValueError("matrix registry contains duplicate matrix_id")
+        if len(paths) != len(set(paths)):
+            raise ValueError("matrix registry contains duplicate matrix path")
+        return self
+
+    @classmethod
+    def from_repo(cls, repo_root: Path) -> MatrixRegistry:
+        try:
+            payload = _read_repo_regular_file(
+                repo_root,
+                MATRIX_REGISTRY_PATH,
+                label="matrix registry",
+            )
+            return cls.model_validate_json(payload)
+        except (OSError, ValueError) as exc:
+            raise ValueError("canonical matrix registry is unreadable") from exc
+
+    def get(self, matrix_id: str) -> MatrixRegistryEntry | None:
+        return next(
+            (entry for entry in self.matrices if entry.matrix_id == matrix_id),
+            None,
+        )
+
+    def resolve(
+        self,
+        repo_root: Path,
+        matrix_id: str,
+    ) -> tuple[MatrixRegistryEntry, ExperimentMatrix, str]:
+        entry = self.get(matrix_id)
+        if entry is None:
+            raise ValueError(
+                f"matrix_id {matrix_id!r} is absent from the canonical matrix registry"
+            )
+        try:
+            matrix_bytes = _read_repo_regular_file(
+                repo_root,
+                entry.path,
+                label="campaign matrix",
+            )
+            matrix = ExperimentMatrix.model_validate_json(matrix_bytes)
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                f"matrix_id {matrix_id!r} does not resolve to a frozen matrix"
+            ) from exc
+        matrix_digest = _digest(matrix.model_dump(mode="json"))
+        if matrix.matrix_id != matrix_id:
+            raise ValueError("matrix identity does not match its registry key")
+        if matrix_digest != entry.matrix_digest:
+            raise ValueError("matrix digest does not match the canonical registry")
+        return entry, matrix, matrix_digest
+
 
 class CampaignAnalysisCell(_FrozenContract):
     model: str = Field(min_length=1)
@@ -575,35 +690,20 @@ def _resolve_campaign_matrix_contract(
     repo_root: Path,
 ) -> CampaignMatrixContract:
     matrix_ref = definition.ledger.matrix_ref
-    relative_path = (CAMPAIGN_MATRIX_ROOT / f"{matrix_ref}.json").as_posix()
-    matrix_path = _resolved_repo_subpath(
-        repo_root,
-        relative_path,
-        label="campaign matrix",
-    )
+    registry = MatrixRegistry.from_repo(repo_root)
     try:
-        descriptor = os.open(
-            matrix_path,
-            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
-        )
-        metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(metadata.st_mode):
-            raise ValueError("campaign matrix must be a regular file")
-        with os.fdopen(descriptor, "rb", closefd=True) as source:
-            matrix_bytes = source.read()
-        matrix = ExperimentMatrix.model_validate_json(matrix_bytes)
-    except (OSError, ValueError) as exc:
+        entry, matrix, matrix_digest = registry.resolve(repo_root, matrix_ref)
+    except ValueError as exc:
         raise ValueError(
-            f"campaign matrix_ref {matrix_ref!r} does not resolve to a frozen matrix"
+            f"campaign matrix_ref {matrix_ref!r} does not resolve through "
+            "the canonical matrix registry"
         ) from exc
-    if matrix.matrix_id != matrix_ref:
-        raise ValueError("campaign matrix identity does not match ledger matrix_ref")
     if matrix.benchmark_family != definition.benchmark:
         raise ValueError("campaign matrix benchmark family does not match the ledger")
     return CampaignMatrixContract(
         matrix_id=matrix.matrix_id,
-        matrix_path=relative_path,
-        matrix_digest=_digest(matrix.model_dump(mode="json")),
+        matrix_path=entry.path,
+        matrix_digest=matrix_digest,
         benchmark_family=matrix.benchmark_family,
         task_id=matrix.task_id,
         task_path=matrix.task,
